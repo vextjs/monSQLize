@@ -1,6 +1,12 @@
 {
+  "name": "monsqlize",
+  "version": "0.1.0",
+  "main": "lib/index.js",
+  "types": "./index.d.ts",
+  "scripts": {
+    "test": "node test/run-tests.js"
+  },
   "dependencies": {
-    "mongodb": "^6.17.0",
-    "mysql2": "^3.14.1"
+    "mongodb": "^6.17.0"
   }
 }
