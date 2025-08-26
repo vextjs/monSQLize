@@ -6,7 +6,7 @@ const MonSQLize = require('../lib/index');
         databaseName :'example',                            // 数据库名称
         maxTimeMS: 3000,                                    // 全局默认：查询超时 3000ms，可被单次 options.maxTimeMS 覆盖
         findLimit: 10,                                      // 全局默认：find 未传 limit 时的默认值；传 0 表示不限制
-        slowQueryMs: 5,                                     // 演示用：阈值设为 5ms，便于观察慢查询日志
+        slowQueryMs: 5,                                   // 演示用：阈值设为 5ms，便于观察慢查询日志
         // namespace: { instanceId: 'local-example' },      // 可选：显式设置实例命名空间，未设置则会基于 uri+db 自动生成
         config: {
             uri: 'mongodb://localhost:27017'                // 链接 uri
@@ -16,13 +16,13 @@ const MonSQLize = require('../lib/index');
     }).connect());
 
     // 创建一个集合示例
-    // console.log(await db('test').createCollection('test'));
+    // console.log(await db('example').collection('test').createCollection('test'));
 
     // 查询一条记录示例（如果存在），并使用 5 秒缓存
-    console.log(await collection('test').findOne({ query: {}, cache: 5000 }))
+    // console.log(await collection('test').findOne({ query: {}, cache: 5000 }))
 
     // 或者
-    console.log(await db('example').collection('test').findOne({ query: {}, cache: 5000 }))
+    // console.log(await db('example').collection('test').findOne({ query: {}, cache: 5000 }))
 
     // 演示慢日志：执行一次 find，包含 projection/sort/limit 等，可在控制台查看 [WARN] ⏱️ Slow query
     console.log(await collection('test').find({

@@ -7,6 +7,7 @@
 - 新增 STATUS.md：迁移并集中维护能力矩阵与路线图。
 - 补充 MongoDB 未实现方法清单至 STATUS.md。
 - 进一步细化 STATUS.md：补充 MongoDB 未实现项（showRecordId/comment/readPreferenceTags/renameCollection/collMod/convertToCapped/validator 等）。
+- 为慢查询日志新增稳定标识与上下文字段（event/code/category/threshold/type/iid/scope/ts），便于日志采集与告警。
 
 ### Changed
 - README 的“状态”章节精简为“速览”，并链接至 STATUS.md。
