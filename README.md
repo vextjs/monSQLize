@@ -20,7 +20,7 @@
 ## 状态（速览）
 
 - 已实现：MongoDB 适配器；find/findOne/count；内置缓存（TTL/LRU/命名空间失效/并发去重）；跨库访问；默认值（maxTimeMS/findLimit）；慢查询日志；TypeScript 类型。
-- 计划中：多层缓存（本地+远端）、更多数据库适配器（PostgreSQL/MySQL/SQLite）、ESM 条件导出、深分页/流式返回/聚合等。
+- 新增：多层缓存（本地+远端，MultiLevelCache）；更多数据库适配器（PostgreSQL/MySQL/SQLite）、ESM 条件导出、深分页/流式返回/聚合等仍在规划中。
 - 完整能力矩阵与路线图请见：STATUS.md。
 
 <a id='install'></a>
@@ -81,6 +81,7 @@ const MonSQLize = require('monsqlize');
 - 键采用稳定序列化，确保同一查询结构产生相同键（含常见 BSON 类型）。
 
 ### 缓存配置
+> 提示：当 `cache` 传入的是“有效的实例”时，优先直接使用该实例；只有当 `cache` 为“普通对象”时，才会按配置解析（如 multiLevel/local/remote 等）。
 - 方式一：传入“配置对象”，自动创建内置内存缓存
 ```js
 const { db, collection } = await new MonSQLize({
@@ -277,3 +278,37 @@ const ns = db('example').collection('users').getNamespace();
 // => { iid, type: 'mongodb', db: 'example', collection: 'users' }
 ```
 - 慢查询日志：findOne/find/find/count 会在一次调用耗时超过 slowQueryMs（默认为 500ms）时输出 warn 日志。
+
+
+
+### 多层缓存（本地+远端）
+- 通过配置 `cache.multiLevel=true` 启用；默认本地内存 + 可选远端实现（用户可注入 Redis/Memcached 等实现）。
+- 读路径：本地命中最快；本地未命中则查远端；远端命中将异步回填本地；两者均未命中则回源数据库并双写缓存。
+- 写路径：默认双写（本地+远端）；可配置 `writePolicy='local-first-async-remote'` 以降低尾延迟。
+- 失效：集合访问器 `invalidate(op?)` 复用原有命名空间键形状，调用后将执行本地 delPattern；如需跨节点一致性，可结合外部 pub/sub 在构造 MultiLevelCache 时传入 `publish` 函数。
+- 降级：远端不可用时不影响正确性，最多影响命中率。
+
+示例：
+```js
+const MonSQLize = require('monsqlize');
+const msq = await new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'example',
+  config: { uri: 'mongodb://localhost:27017' },
+  cache: {
+    multiLevel: true,
+    // 本地层：使用内置内存缓存配置
+    local: { maxSize: 100000, enableStats: true },
+    // 远端层：可注入一个实现了 CacheLike 的适配器；
+    // 若仅提供普通对象，这里会退化为一个“内存实现”占位（方便本地开发）
+    // 生产环境建议注入真正的远端实现（如 Redis 适配器）。
+    remote: { /* 例如：由业务注入 redisCache 实例 */ },
+    policy: {
+      writePolicy: 'local-first-async-remote',
+      backfillLocalOnRemoteHit: true,
+    }
+  },
+}).connect();
+```
+
+提示：也可在上层自行构建 MultiLevelCache 并作为 `cache` 直接注入（需 `require('monsqlize/lib/multi-level-cache')`）。
