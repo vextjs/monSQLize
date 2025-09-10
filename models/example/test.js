@@ -99,6 +99,7 @@ module.exports = {
     options: {
         timestamps: true,   // 自动维护 createdAt / updatedAt
         softDelete: true,   // 启用 deletedAt 替代物理删除，deletedAt = null → 正常数据，deletedAt = Date → 已删除
-        sync: true          // 启用 index 索引自动同步
+        sync: true,          // 启用 index 索引自动同步
+        version: true         // 自动维护 __v 版本号
     }
 }
