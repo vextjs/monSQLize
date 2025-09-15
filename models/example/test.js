@@ -97,9 +97,12 @@ module.exports = {
 
     // 选项
     options: {
-        timestamps: true,   // 自动维护 createdAt / updatedAt
-        softDelete: true,   // 启用 deletedAt 替代物理删除，deletedAt = null → 正常数据，deletedAt = Date → 已删除
-        sync: true,          // 启用 index 索引自动同步
-        version: true         // 自动维护 __v 版本号
+        timestamps: true,       // 自动维护 createdAt / updatedAt
+        softDelete: true,       // 启用 deletedAt 替代物理删除，deletedAt = null → 正常数据，deletedAt = Date → 已删除
+        sync: true,             // 启用 index 索引自动同步
+        version: true,          // 自动维护 __v 版本号
     }
+
+    // 自动索引 / 慢查询统计 → 全局 ORM 层统一管理
+    // 恢复软删除 → 全局方法注入到每个启用 softDelete 的模型
 }
