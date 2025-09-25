@@ -6,13 +6,14 @@
 - [状态](#status)
 - [安装](#install)
 - [快速开始](#quick-start)
+- [深度分页（聚合版，Mongo）](#deep-pagination-agg)
+- [统一 findPage：游标 + 跳页 + offset + totals](#findpage-unified)
 - [缓存与失效](#cache)
   - [缓存配置](#缓存配置)
   - [缓存行为与细节](#缓存行为与细节)
   - [统计与可观测性](#统计与可观测性)
   - [缓存操作方法](#缓存操作方法)
   - [invalidate(op) 用法](#invalidate)
-  - [进阶：手动失效](#cache-advanced)
 - [跨库访问注意事项](#cross-db)
 - [说明](#notes)
 
@@ -72,7 +73,257 @@ const MonSQLize = require('monsqlize');
 })();
 ```
 
+<a id='deep-pagination-agg'></a>
+## 深度分页（聚合版，Mongo）
+> 提示：可在构造时通过 defaults 配置 findPageMaxLimit（默认 500）。如需聚合允许落盘，请在本次调用显式传入 allowDiskUse: true；未来版本可能提供 cursorSecret 以增强游标防篡改。
+`findPage(options)` 采用“游标（after/before）+ 稳定排序（默认 `_id:1`，自动补 `_id`）+ limit+1 探测”的方式分页，页内可执行 `$lookup` 等聚合阶段。
+
+- 适用：排序与游标锚点来自主集合字段（如 `_id`、`createdAt` 等）。
+- 方向：`after` 表示“下一页”；`before` 表示“上一页”（查询阶段反转排序，返回前再恢复顺序）。
+- 缓存：仅当 `options.cache>0` 时启用；缓存键包含 `op=findPage | query | sort | limit | after|before | pipelineHash`。
+- 透传（Mongo 专属）：支持在 options 里传 `hint`/`collation`，分别透传至 `aggregate` 的 `hint`/`collation`。
+> 兼容性提示：`aggregate hint` 需要较新的 MongoDB/Node 驱动版本（建议 MongoDB ≥ 4.2，Node 驱动 ≥ 5.x）。
+
+示例：
+```js
+const MonSQLize = require('monsqlize');
+const { collection } = await new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'example',
+  config: { uri: 'mongodb://localhost:27017' },
+}).connect();
+
+const lookup = [{
+  $lookup: {
+    from: 'user',
+    let: { userId: { $toObjectId: '$userId' } },
+    pipeline: [ { $match: { $expr: { $eq: ['$_id','$$userId'] } } } ],
+    as: 'userInfo'
+  }
+}];
+
+// 首页
+let page = await collection('orders').findPage({
+  query: { status: 'paid' },
+  sort: { createdAt: -1, _id: 1 },
+  limit: 10,
+  pipeline: lookup,
+  cache: 3000,
+});
+
+// 下一页（after）
+page = await collection('orders').findPage({
+  query: { status: 'paid' },
+  sort: { createdAt: -1, _id: 1 },
+  limit: 10,
+  pipeline: lookup,
+  after: page.pageInfo.endCursor,
+});
+
+// 上一页（before）
+page = await collection('orders').findPage({
+  query: { status: 'paid' },
+  sort: { createdAt: -1, _id: 1 },
+  limit: 10,
+  pipeline: lookup,
+  before: page.pageInfo.startCursor,
+});
+```
+> 说明：当前 Mongo 适配器的 `findPage` 基于聚合管道实现（先分页后联表）。未来跨数据库将复用该方法名，以各自最优实现（如 SQL Keyset）。
+
+<a id='findpage-unified'></a>
+## 统一 findPage：游标 + 跳页 + offset + totals
+
+自 vNext 起，`collection.findPage(options)` 在保持 after/before 语义不变的同时，新增：
+- 跳页（`page`）：基于“书签（bookmark）+ 少量 after”快速跳转到第 N 页；书签默认复用实例缓存（cache），键前缀 `bm:`。
+- offset 兜底（`offsetJump`）：当 `(page-1)*limit ≤ maxSkip` 时，内部使用 `$skip+$limit` 一次性定位，并回填当页书签。
+- 总数（`totals`）：提供 `none|async|approx|sync` 模式；缓存键前缀 `tot:`，默认 `none`。
+
+### 参数（向后兼容，含注释）
+```
+findPage({
+  // —— 基本 ——
+  query?: object,                     // Mongo 查询条件
+  pipeline?: object[],                // 页内联表/投影（仅对本页 limit 条生效）
+  sort?: Record<string, 1|-1>,        // 稳定排序；未补 _id 时内部自动补 `_id:1`
+  limit: number,                      // 页大小：1..MAX_LIMIT（默认 MAX_LIMIT=500）
+  after?: string,                     // 下一页游标；与 before/page 互斥
+  before?: string,                    // 上一页游标；与 after/page 互斥
+
+  page?: number,                      // 目标页（≥1）；与 after/before 互斥
+  // —— 跳页（书签）可选 ——
+  jump?: {
+    step?: number,                    // 书签密度：每隔 step 页存一个书签；默认 10
+    maxHops?: number,                 // 单次跳页允许的“连续 after 次数（累计）”上限；默认 20
+    keyDims?: object,                 // 可选；未传则自动生成去敏形状（db/coll/sort/limit/queryShape/pipelineShape）
+    // 注意：书签默认复用实例 cache，无需显式传 getBookmark/saveBookmark
+  },
+
+  // —— 小范围 offset 兜底（可选） ——
+  offsetJump?: {
+    enable?: boolean,                 // 开启后，当 skip=(page-1)*limit ≤ maxSkip 时走 `$skip+$limit`
+    maxSkip?: number,                 // 默认 50_000；超过则回退到“书签跳转”逻辑
+  },
+
+  // —— 总数/总页数（可选增强） ——
+  totals?: {
+    mode?: 'none'|'async'|'approx'|'sync', // 默认 'none'
+    maxTimeMS?: number,              // 用于 `countDocuments` 的超时（sync/async）
+    ttlMs?: number,                  // 总数缓存 TTL（async/approx），默认 10 分钟
+    hint?: any,                      // 计数 hint（可选）
+    collation?: any,                 // 计数 collation（可选，与列表一致更安全）
+  },
+
+  // —— 透传与通用 ——
+  cache?: number,                    // 读穿缓存 TTL（毫秒）；>0 才缓存；0/未传直连
+  maxTimeMS?: number,                // 聚合超时；默认继承实例 defaults.maxTimeMS
+  allowDiskUse?: boolean,            // 聚合允许落盘（大管道时启用），显式开启（默认不启用）
+  hint?: any,                        // 聚合 hint ，仅当需要强制索引时传（可选）
+  collation?: any,                   // 聚合 collation 需要区域性比较时传（可选）
+})
+```
+- 默认值一览（无特殊说明均可被本次调用覆盖）：
+  - 基本：
+    - limit：1..MAX_LIMIT（默认 MAX_LIMIT=500，可通过构造参数 defaults.findPageMaxLimit 调整上限）
+    - sort：未补 `_id` 时自动补 `_id:1`
+    - cache：默认不缓存（0/未传）；>0 则缓存对应毫秒
+    - maxTimeMS：默认继承实例 defaults.maxTimeMS（示例：2000）
+    - allowDiskUse：默认 false（遵循驱动默认）
+    - hint/collation：默认不传（透传时请与列表行为一致）
+  - 跳页（书签，jump）：
+    - step：10（每隔 step 页保存一个书签）
+    - maxHops：20（整次跳页允许的“连续 after 次数”累计上限）
+    - keyDims：未传时自动生成（去敏形状：db/coll/sort/limit/queryShape/pipelineShape）
+    - 书签 TTL：6 小时（从实例 defaults.bookmarks.ttlMs 读取，未设则使用 6h）
+    - 存储：默认复用实例 cache（键前缀 `bm:`）
+  - offset 兜底（offsetJump）：
+    - enable：默认不启用
+    - maxSkip：50_000（当 skip=(page-1)*limit ≤ maxSkip 时启用 `$skip+$limit` 一次定位）
+  - 总数（totals）：
+    - mode：'none'（可选 'async'|'approx'|'sync'）
+    - maxTimeMS：sync/async 模式下默认 2000（可覆盖）
+    - ttlMs：10 分钟（async/approx 使用；缓存键前缀 `tot:`）
+    - hint/collation：默认不传（按需透传）
+- 书签/总数键采用“去敏形状哈希”：包含 `db/coll/sort/limit/queryShape/pipelineShape`，不含任何具体值。
+- 互斥规则：`after` 与 `before` 互斥；`page` 与 `after/before` 互斥（冲突将抛 `VALIDATION_ERROR`）。
+
+> 默认值优先级（从高到低）：
+> 1) 本次调用 options.*（如 jump.step、totals.ttlMs 等）
+> 2) 实例构造时的 defaults（如 defaults.maxTimeMS、defaults.findPageMaxLimit、defaults.bookmarks.{step,maxHops,ttlMs}）
+> 3) 内置硬编码默认（step=10、maxHops=20、书签TTL=6h、offset.maxSkip=50k、totals.mode='none'、totals.ttl=10m）
+
+> 可选：在实例级配置书签默认（无须单次传 getBookmark/saveBookmark）：
+> ```js
+> const msq = new MonSQLize({
+>   type: 'mongodb', databaseName: 'example', config: { uri: 'mongodb://localhost:27017' },
+>   maxTimeMS: 3000,
+>   // 书签默认（可省略，使用内置 10/20/6h）
+>   bookmarks: { step: 10, maxHops: 20, ttlMs: 6*3600_000 },
+>   cache: { maxSize: 100000, enableStats: true },
+> });
+> ```
+
+### 返回结构
+```
+{
+  items: any[],
+  pageInfo: {
+    hasNext: boolean,
+    hasPrev: boolean,
+    startCursor: string | null,
+    endCursor: string | null,
+    currentPage?: number, // 仅跳页/offset 模式回显目标页号（逻辑页号）
+  },
+  totals?: {
+    mode: 'async'|'sync'|'approx',
+    total?: number|null|undefined,   // async: null（未就绪）；approx: undefined（未知或近似）
+    totalPages?: number|null|undefined,
+    token?: string,                  // async 时返回的短标识（<keyHash>），用于轮询获取总数；服务端应据命名空间重建完整缓存键
+    ts?: number,                     // 写入时间戳（毫秒），如果来自缓存
+    error?: string                   // 仅 async：统计失败时可能附带的错误标识（例如 'count_failed'）
+  }
+}
+```
+
+### 示例
+- 跳到第 37 页 + 异步总数
+```js
+const res = await coll.findPage({
+  query:{ status:'paid' }, sort:{ createdAt:-1, _id:1 }, limit:50,
+  page:37,
+  jump:{ step:20, maxHops:25 },
+  totals:{ mode:'async', maxTimeMS:1500, ttlMs: 10*60_000 },
+  cache: 2000,
+});
+console.log(res.pageInfo.currentPage); // 37
+console.log(res.totals && res.totals.token); // 用于轮询总数
+```
+
+- 小范围 offset 兜底
+```js
+const page200 = await coll.findPage({
+  query: { status: 'paid' },
+  sort: { createdAt: -1, _id: 1 },
+  limit: 50,
+  page: 200,
+  offsetJump: { enable: true, maxSkip: 50_000 },
+});
+console.log(page200.pageInfo.currentPage); // 200
+```
+
+- 异步 totals 轮询接口（服务层示例）
+```js
+// 列表接口：返回分页 + totals.token
+app.get('/orders', async (req, res) => {
+  const page = Number(req.query.page || 1);
+  const data = await coll.findPage({
+    query: { status: 'paid' }, sort: { createdAt: -1, _id: 1 }, limit: 50,
+    page, totals: { mode: 'async', maxTimeMS: 1500, ttlMs: 10*60_000 }
+  });
+  res.json(data);
+});
+
+// 轮询总数：前端传回短 token（<keyHash>），服务端据命名空间重建完整缓存键
+app.get('/list/total', async (req, res) => {
+  const token = String(req.query.token || ''); // token = '<keyHash>'
+  const ns = accessor.getNamespace().ns;      // 例如 `${iid}:${type}:${db}:${collection}`
+  const key = `${ns}:tot:${token}`;
+  const cached = await msq.getCache().get(key);
+  res.json(cached || { total: null, totalPages: null });
+});
+```
+
+### 错误码（集中）
+- `VALIDATION_ERROR`
+  - 触发：`limit` 不在 1..MAX_LIMIT；`after/before` 同时出现；`page` 与 `after/before` 冲突。
+  - 处理：修正参数；若为冲突，移除其一。
+- `INVALID_CURSOR`
+  - 触发：游标中的 `sort` 与当前 `sort` 不一致，或游标结构错误。
+  - 处理：清理对应书签；使用新的排序重新获取游标/书签；或等待书签 TTL 过期后重试。
+- `JUMP_TOO_FAR`
+  - 触发：本次跳页需要的推进次数累计超过 `maxHops` 限制。
+  - 处理：增大书签密度 `step` 或预热；在小范围偏移下启用 `offsetJump`；或缩小目标页号范围。
+
+### 注意与最佳实践
+- 跳页路线始终为“从最近书签的 endCursor 向后推进”，`before` 仅用于上一页视觉行为，不参与跳页计算。
+- 为 `sort` 建立一致的复合索引（如 `{ createdAt:-1, _id:1 }`）。
+- 书签 TTL 建议 6~24 小时；数据变动率高的集合可适当缩短 TTL 并提高 `step` 密度。
+- 远跳页不要靠放大 `maxHops` 硬顶，应依赖书签密度或在低峰期预热书签。
+- 页内 `pipeline` 尽量 `$project` 裁剪，必要时 `allowDiskUse:true`。
+- 缓存：仅当 `options.cache>0` 时缓存分页结果；不同 `after/before/page/pipeline` 会生成不同缓存键。
+- currentPage 仅在跳页/offset 模式回显（Keyset 分页不天然携带“物理页号”语义）。
+
 <a id='cache'></a>
+## 默认配置（defaults）
+- maxTimeMS：全局默认查询超时（毫秒），默认 2000；单次可用 options.maxTimeMS 覆盖。
+- findLimit：find 未传 limit 时的默认页大小，默认 10；传 0 表示不限制（谨慎）。
+- slowQueryMs：慢查询阈值（毫秒），默认 500。
+- namespace.scope：命名空间策略，默认 'database'；可选 'connection'。
+- findPageMaxLimit：深分页页大小上限，默认 500。
+- log.slowQueryTag：慢日志标签（event/code），可覆盖；可选提供 log.formatSlowQuery(meta) 自定义日志结构。
+
+> 提示：上述默认项均可在实例构造参数中按需覆盖；getDefaults() 可查看当前实例的只读默认视图。
+
 ## 缓存与失效
 
 - 默认提供内存缓存（LRU + 惰性过期），也可传入自定义缓存实现（需实现标准接口：get/set/del/delPattern/keys 等）。
@@ -312,3 +563,20 @@ const msq = await new MonSQLize({
 ```
 
 提示：也可在上层自行构建 MultiLevelCache 并作为 `cache` 直接注入（需 `require('monsqlize/lib/multi-level-cache')`）。
+
+
+## 健康检查与事件（Mongo）
+- 健康检查：`await msq.health()` 返回 `{ status: 'up'|'down', connected, defaults, cache?, driver }` 摘要视图。
+- 事件钩子：
+  - `msq.on('connected', payload => {})`
+  - `msq.on('closed', payload => {})`
+  - `msq.on('error', payload => {})`
+  - `msq.on('slow-query', meta => {})`（仅输出去敏形状与阈值/耗时等元信息，不含敏感值）
+
+示例：
+```js
+const msq = new MonSQLize({ type:'mongodb', databaseName:'example', config:{ uri:'mongodb://localhost:27017' } });
+msq.on('slow-query', (meta) => console.warn('slow-query', meta));
+await msq.connect();
+console.log(await msq.health());
+```

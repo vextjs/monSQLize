@@ -49,7 +49,7 @@ function testNamespacePatterns() {
 }
 
 function testSlowQueryLogMarkers() {
-  const Mongo = require('../lib/mongo');
+  const Mongo = require('../lib/mongodb');
   const logs = { warn: [], info: [], error: [] };
   const logger = {
     warn: (...args) => logs.warn.push(args),
@@ -90,12 +90,92 @@ function testSlowQueryLogMarkers() {
   });
 }
 
+function testFindPageStub() {
+  const Mongo = require('../lib/mongodb');
+  const logs = { warn: [], info: [], error: [] };
+  const logger = { warn: (...a)=>logs.warn.push(a), info: (...a)=>logs.info.push(a), error: (...a)=>logs.error.push(a) };
+  const defaults = { slowQueryMs: 1000, namespace: { scope: 'database' } };
+  const m = new Mongo('mongodb', 'testdb', /*cache*/null, logger, defaults);
+  // stub client/collection/aggregate
+  const fakeCollection = {
+    findOne: async ()=>null,
+    find: ()=>({ toArray: async ()=>[] }),
+    countDocuments: async ()=>0,
+    aggregate: ()=>({ toArray: async ()=>[{ _id: 1, createdAt: new Date().toISOString() }] }),
+    collectionName: 'users'
+  };
+  m.client = { db: ()=>({ collection: ()=> fakeCollection }) };
+  const acc = m.collection('testdb', 'users');
+  if (typeof acc.findPage !== 'function') throw new Error('findPage not found');
+  return acc.findPage({ query:{}, sort:{ _id:1 }, limit:1 }).then(res => {
+    if (!res || !res.pageInfo) throw new Error('bad page result');
+    if (typeof res.pageInfo.hasNext !== 'boolean') throw new Error('bad pageInfo.hasNext');
+  }).then(async ()=>{
+    // invalid params: after+before
+    let err;
+    try { await acc.findPage({ limit:1, after:'a', before:'b' }); } catch (e) { err = e; }
+    if (!err || err.code !== 'VALIDATION_ERROR') throw new Error('expected VALIDATION_ERROR for after/before');
+    err = null;
+    try { await acc.findPage({ limit:0 }); } catch (e) { err = e; }
+    if (!err || err.code !== 'VALIDATION_ERROR') throw new Error('expected VALIDATION_ERROR for limit');
+  });
+}
+
+// New: assert slow-query event emission via runner
+function testSlowQueryEvent() {
+  const Mongo = require('../lib/mongodb');
+  const logs = { warn: [], info: [], error: [] };
+  const logger = { warn: (...a)=>logs.warn.push(a), info: (...a)=>logs.info.push(a), error: (...a)=>logs.error.push(a) };
+  const defaults = { slowQueryMs: 5, namespace: { scope: 'database' }, log: { slowQueryTag: { event: 'slow_query', code: 'SLOW_QUERY' } } };
+  const m = new Mongo('mongodb', 'testdb', /*cache*/null, logger, defaults);
+  let got = null;
+  m.on('slow-query', (meta)=> { got = meta; });
+  // stub client so that find().toArray() waits >5ms
+  const fakeCollection = {
+    find: (q, opts)=>({ toArray: async ()=> { await new Promise(r=>setTimeout(r, 10)); return []; } }),
+    countDocuments: async ()=>0,
+    findOne: async ()=>null,
+    aggregate: ()=>({ toArray: async ()=>[] }),
+    collectionName: 'users'
+  };
+  m.client = { db: ()=>({ collection: ()=> fakeCollection }) };
+  const acc = m.collection('testdb','users');
+  return acc.find({ query:{}, cache:0 }).then(()=>{
+    if (!got) throw new Error('slow-query event not emitted');
+    if (got.op !== 'find') throw new Error('slow-query meta.op mismatch');
+  });
+}
+
+// New: assert hint passthrough on find
+function testHintPassthrough() {
+  const Mongo = require('../lib/mongodb');
+  const logger = { warn: ()=>{}, info: ()=>{}, error: ()=>{} };
+  const defaults = { slowQueryMs: 1000, namespace: { scope: 'database' } };
+  const m = new Mongo('mongodb', 'testdb', /*cache*/null, logger, defaults);
+  let captured = null;
+  const fakeCollection = {
+    find: (q, opts)=>{ captured = opts; return { toArray: async ()=>[] }; },
+    findOne: async ()=>null,
+    countDocuments: async ()=>0,
+    aggregate: ()=>({ toArray: async ()=>[] }),
+    collectionName: 'users'
+  };
+  m.client = { db: ()=>({ collection: ()=> fakeCollection }) };
+  const acc = m.collection('testdb','users');
+  return acc.find({ query:{}, hint: { _id:1 } }).then(()=>{
+    if (!captured || !captured.hint) throw new Error('hint not passed to driver options');
+  });
+}
+
 function run() {
   const tests = [
     ['stableStringify primitives', testStableStringifyPrimitives],
     ['stableStringify BSON', testStableStringifyBSON],
     ['namespace patterns', testNamespacePatterns],
     ['slow query log markers', testSlowQueryLogMarkers],
+    ['findPage stub behavior', testFindPageStub],
+    ['slow-query event emission', testSlowQueryEvent],
+    ['hint passthrough (find)', testHintPassthrough],
   ];
   let passed = 0;
   const runOne = (name, fn) => {

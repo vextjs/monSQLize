@@ -67,6 +67,13 @@ declare module 'monsqlize' {
         findLimit?: number; // 全局默认 find limit（未传 limit 时使用；0 表示不限制）
         namespace?: { instanceId?: string; scope?: 'database' | 'connection' };
         slowQueryMs?: number; // 慢查询日志阈值（毫秒），默认 500
+        // 统一默认（新增可选项）
+        findPageMaxLimit?: number;          // 深分页页大小上限（默认 500）
+        cursorSecret?: string;              // 可选：游标签名密钥（如启用 HMAC 验签）
+        log?: {
+            slowQueryTag?: { event?: string; code?: string };
+            formatSlowQuery?: (meta: any) => any;
+        };
     }
     interface FindOptions {
         query?: any;
@@ -76,12 +83,44 @@ declare module 'monsqlize' {
         skip?: number;
         cache?: number;
         maxTimeMS?: number;
+        /** Mongo-only: 透传 hint 到驱动 */
+        hint?: any;
+        /** Mongo-only: 透传 collation 到驱动 */
+        collation?: any;
     }
     interface CountOptions {
         query?: any;
         cache?: number;
         maxTimeMS?: number;
+        /** Mongo-only: 透传 hint 到 countDocuments */
+        hint?: any;
+        /** Mongo-only: 透传 collation 到 countDocuments */
+        collation?: any;
     }
+
+    // 深度分页（聚合版）选项与返回类型
+    interface FindPageOptions extends FindOptions {
+        pipeline?: object[];
+        after?: string;
+        before?: string;
+        limit: number;
+        allowDiskUse?: boolean;
+        /** Mongo-only: 透传 hint 到 aggregate */
+        hint?: any;
+        /** Mongo-only: 透传 collation 到 aggregate */
+        collation?: any;
+    }
+    interface PageInfo { hasNext: boolean; hasPrev: boolean; startCursor: string | null; endCursor: string | null; }
+    interface PageResult<T = any> { items: T[]; pageInfo: PageInfo; }
+
+    interface HealthView {
+        status: 'up' | 'down';
+        connected: boolean;
+        defaults?: any;
+        cache?: any;
+        driver?: { connected: boolean };
+    }
+
     interface CollectionAccessor {
         getNamespace(): { iid: string; type: string; db: string; collection: string };
         dropCollection(): Promise<boolean>;
@@ -90,7 +129,8 @@ declare module 'monsqlize' {
         findOne(options?: FindOptions): Promise<any | null>;
         find(options?: FindOptions): Promise<any[]>;
         count(options?: CountOptions): Promise<number>;
-        invalidate(op?: 'find' | 'findOne' | 'count'): Promise<number>;
+        findPage(options: FindPageOptions): Promise<PageResult>;
+        invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage'): Promise<number>;
     }
 
     type DbAccessor = {
@@ -104,5 +144,9 @@ declare module 'monsqlize' {
         getCache(): CacheLike;
         getDefaults(): { maxTimeMS?: number; findLimit?: number; namespace?: { instanceId?: string; scope?: 'database' | 'connection' }; slowQueryMs?: number };
         close(): Promise<void>;
+        /** 事件：'connected'|'closed'|'error'|'slow-query' */
+        on?(event: 'connected' | 'closed' | 'error' | 'slow-query', handler: (payload: any) => void): void;
+        /** 健康检查 */
+        health?(): Promise<HealthView>;
     }
 }

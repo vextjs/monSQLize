@@ -44,6 +44,7 @@
 ### 超时与慢日志
 - ✅ 全局默认值
     - maxTimeMS、findLimit 构造时设定；单次可覆盖。
+    - findPageMaxLimit（默认 500）集中在 defaults 中统一管理；allowDiskUse 请在聚合调用处按次设置。
 - ✅ 慢查询日志
     - slowQueryMs（默认 500ms）；日志输出安全字段与查询形状（无敏感值）。
 
@@ -58,8 +59,8 @@
 ### 连接与运维
 - ✅ connect / close
     - 连接与关闭。
-- 🗺️ 健康检查 / 事件钩子
-    - 未实现。
+- ✅ 健康检查 / 事件钩子
+    - 提供 health() 视图与 on('connected'|'closed'|'error'|'slow-query') 事件（慢查询仅输出去敏形状）。
 
 ### 写相关辅助
 - ☑️ 写后读缓存一致性
@@ -78,12 +79,14 @@
     - 支持 projection、sort、cache、maxTimeMS。
 - ✅ find
     - 支持 limit/skip 普通分页；未传 limit 使用全局 findLimit（默认 10）；limit=0 表示不限制。
-- ❌ 深分页（游标/主键）
-    - 计划中。
-- ❌ 链表/聚合驱动分页
-    - 计划中。
+- ✅ 深分页（统一 findPage）
+    - 游标 after/before + 跳页 page（书签 bm: + 少量 hops）+ offset 兜底（小范围 `$skip+$limit`）+ totals（none/async/approx/sync）。
+    - 稳定排序（默认补 `_id`）；页内 `$lookup` 支持；书签/总数键采用去敏“查询形状哈希”，复用实例 cache。
+    - totals 优化：异步 totals 返回短 token（keyHash），并启用 5s inflight 去重；失败语义统一（total:null）。
+- ☑️ 链表/聚合驱动分页
+    - 方案A（先分页后联表）已支持；按联表字段排序/筛选的方案B（先联表后分页）计划中。
 - ✅ count
-    - 统计匹配文档数。
+    - 统计匹配文档数；totals.sync/async 会透传 hint/collation/maxTimeMS。
 - ❌ stream（find 流式返回）
     - 计划中。
 - ❌ 聚合（aggregate/或 find 支持聚合）
