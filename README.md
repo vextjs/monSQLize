@@ -8,6 +8,7 @@
 - [快速开始](#quick-start)
 - [深度分页（聚合版，Mongo）](#deep-pagination-agg)
 - [统一 findPage：游标 + 跳页 + offset + totals](#findpage-unified)
+- [返回耗时（meta）](#返回耗时meta)
 - [缓存与失效](#cache)
   - [缓存配置](#缓存配置)
   - [缓存行为与细节](#缓存行为与细节)
@@ -16,6 +17,8 @@
   - [invalidate(op) 用法](#invalidate)
 - [跨库访问注意事项](#cross-db)
 - [说明](#notes)
+- [事件（Mongo）](#事件mongo)
+- [健康检查与事件（Mongo）](#健康检查与事件mongo)
 
 <a id='status'></a>
 ## 状态（速览）
@@ -565,6 +568,53 @@ const msq = await new MonSQLize({
 
 提示：也可在上层自行构建 MultiLevelCache 并作为 `cache` 直接注入（需 `require('monsqlize/lib/multi-level-cache')`）。
 
+
+## 返回耗时（meta）
+- 支持在所有读 API 上按次返回耗时与元信息（opt-in，不改默认返回类型）。
+- 使用方法：在 options 中传入 `meta: true` 或 `meta: { level: 'sub', includeCache: true }`。
+  - findOne/find/count/find：当 `meta` 为真时返回 `{ data, meta }`；不传则维持原返回（对象/数组/数字）。
+  - findPage：当 `meta` 为真时在返回对象上附加 `meta` 字段；`level:'sub'` 时返回每个 hop/offset 的子步骤耗时。
+
+示例：
+```js
+// 单条查询：返回耗时
+const { data, meta } = await coll.findOne({ query:{ name: 'Alice' }, cache: 2000, maxTimeMS: 1500, meta: true });
+console.log(meta.durationMs);
+
+// 分页：总耗时
+const page = await coll.findPage({ query:{ status:'paid' }, sort:{ createdAt:-1,_id:1 }, limit:20, page:37, meta:true });
+console.log(page.meta.durationMs);
+
+// 分页：子步骤耗时（跳页时可见每个 hop 的耗时）
+const page2 = await coll.findPage({ query:{ status:'paid' }, sort:{ createdAt:-1,_id:1 }, limit:20, page:128, jump:{ step:20 }, meta:{ level:'sub', includeCache:true } });
+console.table(page2.meta.steps);
+```
+
+> 说明：
+> - 默认不返回 meta，需显式开启；开销很小，仅一次时间戳与对象组装。
+> - includeCache 仅包含去敏维度（如 cacheTtl 等，具体依实现）。
+
+## 事件（Mongo）
+- 事件基于 Node.js EventEmitter，进程内有效：
+  - `connected`: `{ type, db, scope, iid? }`
+  - `closed`: `{ type, db, iid? }`
+  - `error`: `{ type, db, error, iid? }`
+  - `slow-query`: `{ op, ns, durationMs, startTs, endTs, maxTimeMS, ... }`（去敏）
+  - `query`（可选）：每次读操作完成后触发；需在构造 defaults 中开启 `metrics.emitQueryEvent=true`。
+- 实例还暴露：`on/off/once/emit`。
+
+用法示例：
+```js
+const msq = new MonSQLize({ type:'mongodb', databaseName:'example', config:{ uri:'mongodb://localhost:27017' }, defaults:{ metrics:{ emitQueryEvent:false } } });
+msq.on('connected', info => console.log('[connected]', info));
+msq.on('closed', info => console.log('[closed]', info));
+msq.on('error', info => console.error('[error]', info));
+msq.on('slow-query', meta => console.warn('[slow-query]', meta));
+// 可选：开启 query 事件
+// const msq = new MonSQLize({ ..., defaults:{ metrics:{ emitQueryEvent:true } } });
+msq.on('query', meta => console.log('[query]', meta));
+await msq.connect();
+```
 
 ## 健康检查与事件（Mongo）
 - 健康检查：`await msq.health()` 返回 `{ status: 'up'|'down', connected, defaults, cache?, driver }` 摘要视图。

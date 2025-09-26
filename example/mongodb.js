@@ -88,14 +88,15 @@ const MonSQLize = require('../lib/index.js');
         // });
         //
         // // 1) 基础查询：findOne
-        // const one = await coll.findOne({
-        //     query: { status: 'paid' },
-        //     projection: ['_id', 'status', 'createdAt'],
-        //     sort: { createdAt: -1 },          // -1 降序，1 升序
-        //     cache: 2000,                      // 启用 2s 缓存（TTL 毫秒）
-        //     maxTimeMS: 1500,
-        // });
-        // console.log('[findOne] =>', one);
+        const { data, meta } = await coll.findOne({
+            query: { status: 'paid' },
+            projection: ['_id', 'status', 'createdAt'],
+            sort: { createdAt: -1 },          // -1 降序，1 升序
+            cache: 2000,                      // 启用 2s 缓存（TTL 毫秒）
+            maxTimeMS: 1500,                  // 超时
+            meta: true                        // 返回详细耗时信息
+        });
+        console.log('[findOne] =>', data, meta);
 
         // // 2) 基础查询：find（列表）
         // const list = await coll.find({
@@ -210,6 +211,41 @@ const MonSQLize = require('../lib/index.js');
         // 警告：dropCollection 会删除数据，请谨慎使用
         // const dropped = await coll.dropCollection();
         // console.log('dropCollection =>', dropped);
+
+        // 9.1) 演示跳页功能 - 模拟跳转到特定页面
+        // console.log('\n--- 跳页演示 ---');
+        //
+        // // 获取总数（用于计算总页数）
+        // const totalCount = await coll.count({
+        //     query: { status: 'paid' },
+        //     cache: 2000
+        // });
+        // const pageSize = 2;
+        // const totalPages = Math.ceil(totalCount / pageSize);
+        //
+        // console.log(`总记录数: ${totalCount}, 每页: ${pageSize}, 总页数: ${totalPages}`);
+        //
+        // // 跳转到最后一页的逻辑（实际应用中可能需要更复杂的游标计算）
+        // if (totalPages > 2) {
+        //     console.log('\n--- 尝试获取最后一页 ---');
+        //     // 注意：真实的跳页可能需要维护页码与游标的映射关系
+        //     // 这里只是演示概念，实际应用中建议：
+        //     // 1. 缓存关键页面的游标
+        //     // 2. 或使用传统的 skip/limit 方式作为跳页的补充
+        //
+        //     const lastPageQuery = await coll.find({
+        //         query: { status: 'paid' },
+        //         sort: { createdAt: -1, _id: 1 },
+        //         limit: pageSize,
+        //         skip: (totalPages - 1) * pageSize, // 使用 skip 跳到最后一页
+        //         cache: 1000,
+        //     });
+        //
+        //     console.log(`最后一页找到 ${lastPageQuery.length} 条记录`);
+        //     lastPageQuery.forEach((item, index) => {
+        //         console.log(`  ${index + 1}. 订单金额: ${item.amount}, 创建时间: ${item.createdAt}`);
+        //     });
+        // }
     }
     catch (e) {
         // 统一错误处理：
