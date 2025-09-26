@@ -193,6 +193,7 @@ findPage({
   - 跳页（书签，jump）：
     - step：10（每隔 step 页保存一个书签）
     - maxHops：20（整次跳页允许的“连续 after 次数”累计上限）
+    - maxPages：10000（书签写入的页数上限，超过不上新书签）
     - keyDims：未传时自动生成（去敏形状：db/coll/sort/limit/queryShape/pipelineShape）
     - 书签 TTL：6 小时（从实例 defaults.bookmarks.ttlMs 读取，未设则使用 6h）
     - 存储：默认复用实例 cache（键前缀 `bm:`）

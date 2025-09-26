@@ -18,6 +18,7 @@
 - totals：`countDocuments` 透传 `collation` 与 `maxTimeMS/hint`，并在失败时输出一次 warn（去敏）；异步失败也缓存 `{ total:null }` 以保持语义一致。
 - totals：async 的对外 token 改为短标识（`<keyHash>`），避免暴露命名空间；README 示例同步更新。
 - 形状键：`queryShape/pipelineShape` 计算改进，减少不同查询碰撞同一 keyHash 的概率。
+- 书签：修复推进到 anchorPage 的循环中未应用 `maxBookmarkPages` 上限的边界问题，避免过多书签键写入。
 
 ### 性能
 - totals：新增 5s 窗口的 inflight 去重，避免同一形状的并发计数击穿。
