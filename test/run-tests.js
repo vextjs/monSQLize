@@ -167,6 +167,211 @@ function testHintPassthrough() {
   });
 }
 
+// Test unified findPage jump functionality
+function testFindPageJump() {
+  const Mongo = require('../lib/mongodb');
+  const cache = CacheFactory.create({ maxSize: 1000, enableStats: true });
+  const logger = { warn: ()=>{}, info: ()=>{}, error: ()=>{} };
+  const defaults = { slowQueryMs: 1000, namespace: { scope: 'database' } };
+  const m = new Mongo('mongodb', 'testdb', cache, logger, defaults);
+
+  let aggregateCalls = 0;
+  const fakeCollection = {
+    findOne: async ()=>null,
+    find: ()=>({ toArray: async ()=>[] }),
+    countDocuments: async ()=>5,
+    aggregate: ()=>{
+      aggregateCalls++;
+      return { toArray: async ()=>[{ _id: aggregateCalls, createdAt: new Date().toISOString() }] };
+    },
+    collectionName: 'users'
+  };
+  m.client = { db: ()=>({ collection: ()=> fakeCollection }) };
+  const acc = m.collection('testdb', 'users');
+
+  return Promise.resolve().then(async ()=>{
+    // Test page parameter with small jump
+    const page2 = await acc.findPage({ query:{}, sort:{ _id:1 }, limit:1, page:2 });
+    if (!page2.pageInfo.currentPage || page2.pageInfo.currentPage !== 2) throw new Error('currentPage not set correctly');
+
+    // Test maxHops limit (should fail for large jump without bookmarks)
+    let err;
+    try {
+      await acc.findPage({ query:{}, sort:{ _id:1 }, limit:1, page:100, jump:{ maxHops:3 } });
+    } catch (e) { err = e; }
+    if (!err || err.code !== 'JUMP_TOO_FAR') throw new Error('expected JUMP_TOO_FAR error');
+
+    // Test page + after/before conflict
+    err = null;
+    try {
+      await acc.findPage({ query:{}, sort:{ _id:1 }, limit:1, page:2, after:'test' });
+    } catch (e) { err = e; }
+    if (!err || err.code !== 'VALIDATION_ERROR') throw new Error('expected VALIDATION_ERROR for page+after conflict');
+  });
+}
+
+// Test totals functionality
+function testFindPageTotals() {
+  const Mongo = require('../lib/mongodb');
+  const cache = CacheFactory.create({ maxSize: 1000, enableStats: true });
+  const logger = { warn: ()=>{}, info: ()=>{}, error: ()=>{} };
+  const defaults = { slowQueryMs: 1000, namespace: { scope: 'database' } };
+  const m = new Mongo('mongodb', 'testdb', cache, logger, defaults);
+
+  const fakeCollection = {
+    findOne: async ()=>null,
+    find: ()=>({ toArray: async ()=>[] }),
+    countDocuments: async ()=>42,
+    aggregate: ()=>({ toArray: async ()=>[{ _id: 1, createdAt: new Date().toISOString() }] }),
+    collectionName: 'users'
+  };
+  m.client = { db: ()=>({ collection: ()=> fakeCollection }) };
+  const acc = m.collection('testdb', 'users');
+
+  return Promise.resolve().then(async ()=>{
+    // Test sync totals
+    const pageSync = await acc.findPage({
+      query:{}, sort:{ _id:1 }, limit:10,
+      totals:{ mode:'sync', maxTimeMS:1000 }
+    });
+    if (!pageSync.totals || pageSync.totals.total !== 42) throw new Error('sync totals not working');
+    if (pageSync.totals.totalPages !== 5) throw new Error('sync totalPages calculation wrong'); // ceil(42/10) = 5
+
+    // Test async totals (first call returns token)
+    const pageAsync = await acc.findPage({
+      query:{}, sort:{ _id:1 }, limit:10,
+      totals:{ mode:'async', maxTimeMS:1000 }
+    });
+    if (!pageAsync.totals || typeof pageAsync.totals.token !== 'string') throw new Error('async totals token not returned');
+    if (pageAsync.totals.total !== null) throw new Error('async totals should return null initially');
+  });
+}
+
+// Test meta functionality
+function testFindPageMeta() {
+  const Mongo = require('../lib/mongodb');
+  const cache = CacheFactory.create({ maxSize: 1000, enableStats: true });
+  const logger = { warn: ()=>{}, info: ()=>{}, error: ()=>{} };
+  const defaults = { slowQueryMs: 1000, namespace: { scope: 'database' } };
+  const m = new Mongo('mongodb', 'testdb', cache, logger, defaults);
+
+  const fakeCollection = {
+    findOne: async ()=>({}),
+    find: ()=>({ toArray: async ()=>[{}] }),
+    countDocuments: async ()=>1,
+    aggregate: ()=>({ toArray: async ()=>[{ _id: 1 }] }),
+    collectionName: 'users'
+  };
+  m.client = { db: ()=>({ collection: ()=> fakeCollection }) };
+  const acc = m.collection('testdb', 'users');
+
+  return Promise.resolve().then(async ()=>{
+    // Test findOne with meta
+    const resultOne = await acc.findOne({ query:{}, meta: true });
+    if (!resultOne.data || !resultOne.meta) throw new Error('findOne meta not returned');
+    if (typeof resultOne.meta.durationMs !== 'number') throw new Error('meta durationMs missing');
+    if (resultOne.meta.op !== 'findOne') throw new Error('meta op incorrect');
+
+    // Test find with meta
+    const resultFind = await acc.find({ query:{}, meta: true });
+    if (!resultFind.data || !resultFind.meta) throw new Error('find meta not returned');
+    if (!Array.isArray(resultFind.data)) throw new Error('find data should be array');
+
+    // Test count with meta
+    const resultCount = await acc.count({ query:{}, meta: true });
+    if (typeof resultCount.data !== 'number' || !resultCount.meta) throw new Error('count meta not returned');
+
+    // Test findPage with meta
+    const resultPage = await acc.findPage({ query:{}, sort:{ _id:1 }, limit:1, meta: true });
+    if (!resultPage.meta) throw new Error('findPage meta not returned');
+    if (typeof resultPage.meta.durationMs !== 'number') throw new Error('findPage meta durationMs missing');
+  });
+}
+
+// Test comprehensive event system
+function testEventSystem() {
+  const Mongo = require('../lib/mongodb');
+  const cache = CacheFactory.create({ maxSize: 1000, enableStats: true });
+  const logger = { warn: ()=>{}, info: ()=>{}, error: ()=>{} };
+  const defaults = {
+    slowQueryMs: 1000,
+    namespace: { scope: 'database' },
+    metrics: { emitQueryEvent: true }
+  };
+  const m = new Mongo('mongodb', 'testdb', cache, logger, defaults);
+
+  let connectedEvent = null;
+  let closedEvent = null;
+  let queryEvent = null;
+
+  // Test event subscription
+  m.on('connected', (payload)=> { connectedEvent = payload; });
+  m.on('closed', (payload)=> { closedEvent = payload; });
+  m.on('query', (meta)=> { queryEvent = meta; });
+
+  // Test once and off methods exist
+  if (typeof m.once !== 'function') throw new Error('once method not available');
+  if (typeof m.off !== 'function') throw new Error('off method not available');
+  if (typeof m.emit !== 'function') throw new Error('emit method not available');
+
+  return Promise.resolve().then(()=>{
+    // Simulate events
+    m.emit('connected', { type: 'mongodb', db: 'testdb', scope: 'database' });
+    m.emit('closed', { type: 'mongodb', db: 'testdb' });
+    m.emit('query', { op: 'find', durationMs: 10 });
+
+    if (!connectedEvent || connectedEvent.type !== 'mongodb') throw new Error('connected event not captured');
+    if (!closedEvent || closedEvent.type !== 'mongodb') throw new Error('closed event not captured');
+    if (!queryEvent || queryEvent.op !== 'find') throw new Error('query event not captured');
+  });
+}
+
+// Test offset jump functionality
+function testOffsetJump() {
+  const Mongo = require('../lib/mongodb');
+  const cache = CacheFactory.create({ maxSize: 1000, enableStats: true });
+  const logger = { warn: ()=>{}, info: ()=>{}, error: ()=>{} };
+  const defaults = { slowQueryMs: 1000, namespace: { scope: 'database' } };
+  const m = new Mongo('mongodb', 'testdb', cache, logger, defaults);
+
+  let lastPipeline = null;
+  const fakeCollection = {
+    findOne: async ()=>null,
+    find: ()=>({ toArray: async ()=>[] }),
+    countDocuments: async ()=>100,
+    aggregate: (pipeline)=>{
+      lastPipeline = pipeline;
+      return { toArray: async ()=>[{ _id: 1, createdAt: new Date().toISOString() }] };
+    },
+    collectionName: 'users'
+  };
+  m.client = { db: ()=>({ collection: ()=> fakeCollection }) };
+  const acc = m.collection('testdb', 'users');
+
+  return Promise.resolve().then(async ()=>{
+    // Test offset jump with small skip
+    const result = await acc.findPage({
+      query: { status: 'paid' },
+      sort: { _id: 1 },
+      limit: 10,
+      page: 5,
+      offsetJump: { enable: true, maxSkip: 1000 }
+    });
+
+    if (!result.pageInfo.currentPage || result.pageInfo.currentPage !== 5) {
+      throw new Error('offset jump currentPage not set');
+    }
+
+    // Check pipeline contains $skip
+    if (!lastPipeline || !lastPipeline.find(stage => stage.$skip !== undefined)) {
+      throw new Error('$skip not found in offset jump pipeline');
+    }
+
+    const skipStage = lastPipeline.find(stage => stage.$skip !== undefined);
+    if (skipStage.$skip !== 40) throw new Error('$skip value incorrect'); // (5-1)*10 = 40
+  });
+}
+
 function run() {
   const tests = [
     ['stableStringify primitives', testStableStringifyPrimitives],
@@ -176,6 +381,11 @@ function run() {
     ['findPage stub behavior', testFindPageStub],
     ['slow-query event emission', testSlowQueryEvent],
     ['hint passthrough (find)', testHintPassthrough],
+    ['findPage jump functionality', testFindPageJump],
+    ['findPage totals functionality', testFindPageTotals],
+    ['findPage meta functionality', testFindPageMeta],
+    ['comprehensive event system', testEventSystem],
+    ['offset jump functionality', testOffsetJump],
   ];
   let passed = 0;
   const runOne = (name, fn) => {

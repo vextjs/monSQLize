@@ -60,7 +60,12 @@
 - ✅ connect / close
     - 连接与关闭。
 - ✅ 健康检查 / 事件钩子
-    - 提供 health() 视图与 on('connected'|'closed'|'error'|'slow-query') 事件（慢查询仅输出去敏形状）。
+    - 提供 health() 视图与事件系统：on('connected'|'closed'|'error'|'slow-query'|'query') 事件（慢查询仅输出去敏形状）。
+    - 暴露 on/off/once/emit 方法；可选启用 query 事件（defaults.metrics.emitQueryEvent=true）。
+- ✅ 返回耗时（meta）
+    - 支持在所有读 API 上按次返回耗时与元信息（opt-in，不改默认返回类型）。
+    - findOne/find/count/find：meta=true 时返回 { data, meta }；findPage：附加 meta 字段。
+    - findPage 支持子步骤耗时（meta.level='sub'）：返回每个 hop/offset 的明细耗时。
 
 ### 写相关辅助
 - ☑️ 写后读缓存一致性
@@ -176,19 +181,29 @@
 ## Not Goals（短期非目标）
 - 提供写 API 的自动失效（由调用方手动失效或在业务层封装）。
 
-## 能力缺口与优先级（建议）
-- P0（直接提升可用性/生态兼容）
-  - 深分页（游标/主键）
-  - 健康检查/事件钩子
+## 能力缺口与优先级（2025-09-26 更新）
+- P0（直接提升可用性/生产稳定性）
+  - TypeScript 类型补全：findPage 新参数（page/jump/offsetJump/totals/meta）与返回 totals/meta 字段
+  - 预热与书签运维 API：prewarmBookmarks/listBookmarks/clearBookmarks
+  - 测试覆盖：跳页、totals、meta、事件系统的回归与边界用例
 - P1（扩展能力面）
   - stream（find 流式返回）
   - 聚合（aggregate/透传）
-  - 查询运算符映射层（operators）
+  - distinct / explain（诊断用途）
+  - 查询运算符映射层（operators）基础运算符支持
 - P2（生态/打包与多数据库）
   - 模块格式：ESM 条件导出
-  - PostgreSQL/MySQL/SQLite 适配器（从只读最小集起步）
+  - PostgreSQL 适配器（从只读最小集起步）
+  - MySQL 适配器（从只读最小集起步）
+  - SQLite 适配器（从只读最小集起步）
+- P3（高级功能）
+  - 写 API（insertOne/updateOne/deleteOne 等）
+  - 索引管理（createIndex/dropIndex/listIndexes）
+  - 事务与会话（startSession/withTransaction）
 - Not Goals（短期不做）
   - 写路径自动失效（保持由业务手动失效或上层封装）
+  - GridFS 支持
+  - Change Streams
 
 ## 设计与实现要点（提纲）
 - 深分页
@@ -214,13 +229,42 @@
 - 事件钩子/health：事件触发顺序、异常路径、健康视图字段。
 - CI 建议：继续覆盖 Windows + Ubuntu；库类项目增加包体检查（npm pack）。
 
-## 下一步（可执行清单）
-1) 深分页（游标/主键） [P0]
-2) 健康检查/事件钩子 [P0]
-3) Schema（轻量运行时校验与规范化） [P0]
-4) stream（find 流式返回） [P1]
+## 下一阶段执行清单（2025-09-26）
 
-> 更新时间：2025-08-25 16:55
+### 短期（1-2 周）- P0 生产稳定性
+1. **TypeScript 类型补全**
+   - 更新 `index.d.ts`：findPage 新参数（page/jump/offsetJump/totals/meta）
+   - 返回类型：pageInfo.currentPage、totals 字段、meta 字段（含 level='sub' 时的 steps）
+2. **测试覆盖补强**
+   - 跳页：无书签/命中书签、maxHops 触发、排序变更 INVALID_CURSOR
+   - totals：async/sync 模式、失败语义（total:null + error）
+   - meta：基础耗时、子步骤明细、缓存命中信息
+   - 事件：connected/closed/error/slow-query/query 触发验证
+
+### 中期（1 个月）- P1 能力扩展
+3. **书签运维 API**
+   - prewarmBookmarks：批量预热热门查询形状
+   - listBookmarks/clearBookmarks：运维与调试工具
+4. **stream（find 流式返回）**
+   - 基于 MongoDB cursor.stream()，禁用缓存
+   - 与 maxTimeMS/slowQueryMs 联动，分段观测耗时
+5. **distinct / explain**
+   - distinct：统一抽象，跨库待定
+   - explain：诊断专用，禁用缓存，透传策略
+
+### 长期（2-3 个月）- P2 跨数据库
+6. **ESM 条件导出**
+   - package.json exports: { require, import, types }
+   - 保持 CJS 兼容性
+7. **PostgreSQL 适配器**
+   - 只读 API：findOne/find/count/findPage（Keyset 分页）
+   - 统一游标与书签机制
+8. **运算符映射层基础**
+   - 覆盖基本比较：=, !=, >, <, >=, <=, in, nin
+   - 逻辑运算：and, or, not
+   - 适配器声明支持矩阵
+
+> 更新时间：2025-09-26 20:47
 
 ## 关联
 - 历史变更：见 ./CHANGELOG.md
