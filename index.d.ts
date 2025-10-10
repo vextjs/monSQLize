@@ -110,6 +110,15 @@ declare module 'monsqlize' {
         meta?: boolean | MetaOptions;    // 返回耗时元信息
     }
 
+    interface DistinctOptions {
+        query?: any;                     // 过滤条件，只对匹配的文档进行去重
+        cache?: number;                  // 缓存时间（毫秒），默认继承实例缓存配置
+        maxTimeMS?: number;              // 查询超时时间（毫秒）
+        collation?: any;                 // 排序规则（可选）
+        hint?: string | object;          // 索引提示（可选）
+        meta?: boolean | MetaOptions;    // 返回耗时元信息
+    }
+
     interface StreamOptions {
         query?: any;                     // 查询条件
         projection?: Record<string, any> | string[];  // 字段投影
@@ -255,13 +264,18 @@ declare module 'monsqlize' {
         aggregate(pipeline: any[], options: AggregateOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<any[]>>;
         aggregate(pipeline?: any[], options?: AggregateOptions): Promise<any[] | ResultWithMeta<any[]>>;
 
+        // distinct 重载：支持 meta 参数
+        distinct<T = any>(field: string, options?: Omit<DistinctOptions, 'meta'>): Promise<T[]>;
+        distinct<T = any>(field: string, options: DistinctOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;
+        distinct<T = any>(field: string, options?: DistinctOptions): Promise<T[] | ResultWithMeta<T[]>>;
+
         // stream：返回 Node.js 可读流
         stream(options?: StreamOptions): NodeJS.ReadableStream;
 
         // findPage：已在 PageResult 中包含 meta 字段，无需重载
         findPage(options: FindPageOptions): Promise<PageResult>;
 
-        invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate'): Promise<number>;
+        invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
     }
 
     type DbAccessor = {

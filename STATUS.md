@@ -98,12 +98,10 @@
     - 自动记录慢查询日志；触发 slow-query 和 query 事件；不支持缓存（流式特性）。
 - ✅ 聚合（aggregate）
     - 支持 MongoDB 聚合管道透传；支持 maxTimeMS/allowDiskUse/hint/collation/comment；默认禁用缓存（cache=0）；可选返回 meta 耗时信息。
-- ❌ distinct
-    - 仅 Mongo 适配器语义；尚未纳入抽象。
+- ✅ distinct
+    - 支持字段去重查询；支持 query/maxTimeMS/collation/hint；默认启用缓存；可选返回 meta 耗时信息。
 - ❌ explain
     - 诊断用途；建议透传且禁用缓存（规划中）。
-- ❌ countDocuments / estimatedDocumentCount
-    - 目前仅对外提供 count 抽象；计划拆分补充。
 - ❌ 高级查询/游标选项统一抽象
     - batchSize/hint/collation/noCursorTimeout/tailable/max/min/returnKey/allowPartialResults/
       readPreference/readConcern。
