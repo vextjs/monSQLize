@@ -93,7 +93,7 @@
 - ✅ count
     - 统计匹配文档数；totals.sync/async 会透传 hint/collation/maxTimeMS。
     - 性能优化：空查询自动使用 estimatedDocumentCount（基于元数据，速度快）；有查询条件使用 countDocuments（精确统计）。
-- ❌ stream（find 流式返回）
+- ✅ stream（流式返回）
     - 支持流式查询，适合处理大数据集；默认 batchSize=1000；支持 maxTimeMS/hint/collation/noCursorTimeout。
     - 自动记录慢查询日志；触发 slow-query 和 query 事件；不支持缓存（流式特性）。
 - ✅ 聚合（aggregate）
