@@ -128,6 +128,8 @@ dist
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
+*.csv
+
 # yarn v2
 .yarn/cache
 .yarn/unplugged
