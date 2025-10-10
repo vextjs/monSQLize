@@ -3,7 +3,7 @@
  * 演示如何使用 findPage 的流式模式进行分页数据处理
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 async function streamFindPageExample() {
     console.log('📄 findPage 流式查询示例\n');

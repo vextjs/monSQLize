@@ -3,7 +3,7 @@
  * 演示如何使用 Transform 流进行数据转换和处理
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 const { Transform } = require('stream');
 
 async function streamTransformExample() {

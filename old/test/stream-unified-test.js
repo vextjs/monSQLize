@@ -3,7 +3,7 @@
  * find、aggregate 支持 stream: true 参数
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 async function test() {
     console.log('🧪 测试所有方法的流式支持\n');

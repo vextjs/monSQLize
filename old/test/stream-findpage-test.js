@@ -2,7 +2,7 @@
  * 测试 findPage 方法的流式支持
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 async function test() {
     console.log('🧪 测试 findPage 流式支持...\n');

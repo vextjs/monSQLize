@@ -2,7 +2,7 @@
  * stream 功能快速验证测试
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 async function test() {
     console.log('🧪 开始测试 stream 功能...\n');

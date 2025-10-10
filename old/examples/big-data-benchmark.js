@@ -3,7 +3,7 @@
  * 测试 monSQLize 在大规模数据集下的分页表现
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 const { MongoClient, ObjectId } = require('mongodb');
 
 class BigDataPaginationBenchmark {

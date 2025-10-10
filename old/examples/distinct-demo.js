@@ -3,7 +3,7 @@
  * 演示字段去重查询的各种用法
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 async function main() {
     // 初始化 MonSQLize

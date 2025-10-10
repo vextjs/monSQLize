@@ -3,7 +3,7 @@
  * 演示如何将查询结果导出为 JSON、CSV 等格式
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 const fs = require('fs');
 const path = require('path');
 const { Transform, pipeline } = require('stream');

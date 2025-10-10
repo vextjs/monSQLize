@@ -8,5 +8,8 @@
   },
   "dependencies": {
     "mongodb": "^6.17.0"
+  },
+  "devDependencies": {
+    "mocha": "^11.7.4"
   }
 }

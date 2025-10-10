@@ -9,7 +9,7 @@
  * - 报表生成
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 const fs = require('fs');
 const path = require('path');
 const { Transform, pipeline } = require('stream');

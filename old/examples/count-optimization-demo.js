@@ -4,7 +4,7 @@
  * 展示 estimatedDocumentCount vs countDocuments 的性能差异
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 async function main() {
     const msq = new MonSQLize({

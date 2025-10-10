@@ -1,4 +1,4 @@
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 async function setupTestData(orders) {
     // 检查是否有测试数据，如果没有就创建一些

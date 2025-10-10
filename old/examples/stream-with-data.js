@@ -3,7 +3,7 @@
  * 这个示例会先生成测试数据，然后演示所有流式查询功能
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 async function streamWithDataExample() {
     console.log('🎯 完整的流式查询示例（含数据生成）\n');

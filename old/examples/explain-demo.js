@@ -3,7 +3,7 @@
  * 展示如何在 findOne、find、count、aggregate、distinct 方法中使用 explain 参数
  */
 
-const MonSQLize = require('../lib');
+const MonSQLize = require('../../lib');
 
 // 简单日志工具
 const logger = {

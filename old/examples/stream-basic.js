@@ -3,7 +3,7 @@
  * 演示如何使用流式查询处理数据
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 async function basicStreamExample() {
     console.log('📦 基础流式查询示例\n');

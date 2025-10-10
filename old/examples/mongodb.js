@@ -39,7 +39,7 @@
  * - namespace.scope：'database' 按库隔离缓存；'connection' 按连接隔离（同连接不同库共享 iid 前缀）。
  */
 
-const MonSQLize = require('../lib');
+const MonSQLize = require('../../lib');
 
 (async () => {
     // 1) 创建实例（将 slowQueryMs 调低以更易触发慢日志；生产请调回更高阈值）

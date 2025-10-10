@@ -3,7 +3,7 @@
  * 测试 findOne、find、count、aggregate、distinct 方法的 explain 参数
  */
 
-const MonSQLize = require('../lib');
+const MonSQLize = require('../../lib');
 
 const logger = {
     info: () => {},

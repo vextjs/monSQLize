@@ -3,7 +3,7 @@
  * 验证字段去重查询功能
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 async function testDistinct() {
     console.log('\n=== 开始测试 distinct 方法 ===\n');

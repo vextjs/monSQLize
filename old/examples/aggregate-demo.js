@@ -12,7 +12,7 @@
  * - 缓存与性能优化
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 // 配置数据库连接
 const msq = new MonSQLize({

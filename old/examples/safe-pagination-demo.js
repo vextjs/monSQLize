@@ -3,7 +3,7 @@
  * 这个版本专门处理各种边界情况和错误场景
  */
 
-const MonSQLize = require('../lib/index');
+const MonSQLize = require('../../lib');
 
 class SafePaginationDemo {
     constructor() {
