@@ -20,27 +20,27 @@ async function main() {
     });
 
     try {
-        await db.connect();
-        const collection = db.collection('users');
+        const { collection } = await db.connect();
+        const users = collection('users');
 
         console.log('\n=== distinct 方法示例 ===\n');
 
         // 示例 1：基础用法 - 获取所有不同的状态值
         console.log('1. 基础用法：获取所有不同的状态值');
-        const statuses = await collection.distinct('status');
+        const statuses = await users.distinct('status');
         console.log('所有状态:', statuses);
         console.log('状态数量:', statuses.length);
 
         // 示例 2：带查询条件 - 获取年龄大于 18 的用户的所有不同城市
         console.log('\n2. 带查询条件：年龄大于 18 的用户城市');
-        const cities = await collection.distinct('city', {
+        const cities = await users.distinct('city', {
             query: { age: { $gt: 18 } }
         });
         console.log('城市列表:', cities);
 
         // 示例 3：嵌套字段 - 获取所有不同的用户角色
         console.log('\n3. 嵌套字段：获取用户角色');
-        const roles = await collection.distinct('profile.role', {
+        const roles = await users.distinct('profile.role', {
             query: { 'profile.active': true }
         });
         console.log('角色列表:', roles);
@@ -48,7 +48,7 @@ async function main() {
         // 示例 4：带缓存 - 缓存 60 秒
         console.log('\n4. 带缓存：缓存 60 秒');
         const t1 = Date.now();
-        const tags1 = await collection.distinct('tags', {
+        const tags1 = await users.distinct('tags', {
             query: { published: true },
             cache: 60000
         });
@@ -57,7 +57,7 @@ async function main() {
 
         // 再次查询，应该命中缓存
         const t2 = Date.now();
-        const tags2 = await collection.distinct('tags', {
+        const tags2 = await users.distinct('tags', {
             query: { published: true },
             cache: 60000
         });
@@ -66,7 +66,7 @@ async function main() {
 
         // 示例 5：带 meta 信息 - 查看查询耗时
         console.log('\n5. 带 meta 信息：查看查询详情');
-        const result = await collection.distinct('department', {
+        const result = await users.distinct('department', {
             query: { active: true },
             cache: 30000,
             maxTimeMS: 3000,
@@ -79,49 +79,44 @@ async function main() {
         console.log('  - 命名空间:', result.meta.ns);
         console.log('  - 是否命中缓存:', result.meta.fromCache || false);
 
-        // 示例 6：带 hint 索引提示
-        console.log('\n6. 带索引提示（hint）');
-        const countries = await collection.distinct('country', {
-            query: { status: 'active' },
-            hint: { status: 1, country: 1 }
-        });
-        console.log('国家列表:', countries);
-
-        // 示例 7：带 collation 排序规则（大小写不敏感）
-        console.log('\n7. 带排序规则（collation）');
-        const names = await collection.distinct('name', {
+        // 示例 6：带 collation 排序规则（大小写不敏感）
+        console.log('\n6. 带排序规则（collation）');
+        const names = await users.distinct('name', {
             query: {},
             collation: { locale: 'en', strength: 2 } // 大小写不敏感
         });
         console.log('名字列表:', names);
 
-        // 示例 8：数组字段去重
-        console.log('\n8. 数组字段去重');
-        const allTags = await collection.distinct('tags', {
+        // 注意：MongoDB 的 distinct 命令不支持 hint 参数
+        // 如果需要强制使用索引，请使用 aggregate 管道代替
+
+        // 示例 7：数组字段去重
+        console.log('\n7. 数组字段去重');
+        const allTags = await users.distinct('tags', {
             query: {}
         });
         console.log('所有标签（数组展开后）:', allTags);
 
-        // 示例 9：缓存失效
-        console.log('\n9. 缓存失效演示');
+        // 示例 8：缓存失效
+        console.log('\n8. 缓存失效演示');
 
         // 先查询并缓存
-        await collection.distinct('status', { cache: 60000 });
+        await users.distinct('status', { cache: 60000 });
         console.log('已缓存 status 查询');
 
         // 失效特定操作的缓存
-        const deleted = await collection.invalidate('distinct');
+        const deleted = await users.invalidate('distinct');
         console.log('失效 distinct 缓存，删除键数:', deleted);
 
         // 再次查询，不会命中缓存
-        const { meta } = await collection.distinct('status', {
+        const { meta } = await users.distinct('status', {
             cache: 60000,
             meta: true
         });
         console.log('缓存已失效，fromCache:', meta.fromCache || false);
 
-        // 示例 10：慢查询日志监听
-        console.log('\n10. 慢查询事件监听');
+        // 示例 9：慢查询日志监听
+        console.log('\n9. 慢查询事件监听');
 
         // 注册慢查询监听器
         db.on('slow-query', (meta) => {
@@ -133,13 +128,13 @@ async function main() {
         });
 
         // 执行一个可能较慢的查询（设置较低的慢查询阈值）
-        await collection.distinct('email', {
+        await users.distinct('email', {
             query: { age: { $gte: 18, $lte: 65 } },
             maxTimeMS: 5000
         });
 
-        // 示例 11：综合示例 - 统计分析
-        console.log('\n11. 综合示例：用户统计分析');
+        // 示例 10：综合示例 - 统计分析
+        console.log('\n10. 综合示例：用户统计分析');
 
         const [
             uniqueStatuses,
@@ -147,10 +142,10 @@ async function main() {
             uniqueRoles,
             uniqueDepartments
         ] = await Promise.all([
-            collection.distinct('status'),
-            collection.distinct('city', { query: { country: 'China' } }),
-            collection.distinct('role'),
-            collection.distinct('department', { query: { active: true } })
+            users.distinct('status'),
+            users.distinct('city', { query: { country: 'China' } }),
+            users.distinct('role'),
+            users.distinct('department', { query: { active: true } })
         ]);
 
         console.log('统计摘要:');
@@ -176,4 +171,3 @@ if (require.main === module) {
 }
 
 module.exports = { main };
-
