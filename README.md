@@ -6,6 +6,7 @@
 - [状态](#status)
 - [安装](#install)
 - [快速开始](#quick-start)
+- [聚合查询（aggregate）](#aggregate)
 - [深度分页（聚合版，Mongo）](#deep-pagination-agg)
 - [统一 findPage：游标 + 跳页 + offset + totals](#findpage-unified)
 - [返回耗时（meta）](#返回耗时meta)
@@ -75,6 +76,48 @@ const MonSQLize = require('monsqlize');
   console.log(u1, u2);
 })();
 ```
+
+<a id='aggregate'></a>
+## 聚合查询（aggregate）
+> 提示：可在构造时通过 defaults 配置 aggregateMaxTimeMS（默认 10s）。如需允许落盘，请在本次调用显式传入 allowDiskUse: true。
+`aggregate(options)`  支持以数组形式传入聚合管道，并在管道中使用 `$lookup` 等操作符进行联表查询。
+
+- 适用：复杂查询与报表，或需要联表的场景。
+- 缓存：仅当 `options.cache>0` 时启用；缓存键包含 `op=aggregate | pipelineHash`。
+- 透传（Mongo 专属）：支持在 options 里传 `hint`/`collation`，分别透传至 `aggregate` 的 `hint`/`collation`。
+> 兼容性提示：`aggregate hint` 需要较新的 MongoDB/Node 驱动版本（建议 MongoDB ≥ 4.2，Node 驱动 ≥ 5.x）。
+
+示例：
+```js
+const MonSQLize = require('monsqlize');
+const { collection } = await new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'example',
+  config: { uri: 'mongodb://localhost:27017' },
+}).connect();
+
+const pipeline = [
+  {
+    $lookup: {
+      from: 'user',
+      let: { userId: { $toObjectId: '$userId' } },
+      pipeline: [ { $match: { $expr: { $eq: ['$_id','$$userId'] } } } ],
+      as: 'userInfo'
+    }
+  },
+  { $match: { status: 'paid' } },
+  { $sort: { createdAt: -1, _id: 1 } },
+  { $limit: 10 }
+];
+
+// 聚合查询
+const result = await collection('orders').aggregate(pipeline, {
+  cache: 3000,
+});
+console.log(result);
+```
+> 说明：当前 Mongo 适配器的 `aggregate` 基于原生驱动实现，未来跨数据库将复用该方法名，以各自最优实现（如 SQL Join）。
+
 
 <a id='deep-pagination-agg'></a>
 ## 深度分页（聚合版，Mongo）

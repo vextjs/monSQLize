@@ -86,16 +86,18 @@
     - 支持 limit/skip 普通分页；未传 limit 使用全局 findLimit（默认 10）；limit=0 表示不限制。
 - ✅ 深分页（统一 findPage）
     - 游标 after/before + 跳页 page（书签 bm: + 少量 hops）+ offset 兜底（小范围 `$skip+$limit`）+ totals（none/async/approx/sync）。
-    - 稳定排序（默认补 `_id`）；页内 `$lookup` 支持；书签/总数键采用去敏“查询形状哈希”，复用实例 cache。
+    - 稳定排序（默认补 `_id`）；页内 `$lookup` 支持；书签/总数键采用去敏"查询形状哈希"，复用实例 cache。
     - totals 优化：异步 totals 返回短 token（keyHash），并启用 5s inflight 去重；失败语义统一（total:null）。
 - ☑️ 链表/聚合驱动分页
     - 方案A（先分页后联表）已支持；按联表字段排序/筛选的方案B（先联表后分页）计划中。
 - ✅ count
     - 统计匹配文档数；totals.sync/async 会透传 hint/collation/maxTimeMS。
+    - 性能优化：空查询自动使用 estimatedDocumentCount（基于元数据，速度快）；有查询条件使用 countDocuments（精确统计）。
 - ❌ stream（find 流式返回）
-    - 计划中。
-- ❌ 聚合（aggregate/或 find 支持聚合）
-    - 后续可能透传或翻译。
+    - 支持流式查询，适合处理大数据集；默认 batchSize=1000；支持 maxTimeMS/hint/collation/noCursorTimeout。
+    - 自动记录慢查询日志；触发 slow-query 和 query 事件；不支持缓存（流式特性）。
+- ✅ 聚合（aggregate）
+    - 支持 MongoDB 聚合管道透传；支持 maxTimeMS/allowDiskUse/hint/collation/comment；默认禁用缓存（cache=0）；可选返回 meta 耗时信息。
 - ❌ distinct
     - 仅 Mongo 适配器语义；尚未纳入抽象。
 - ❌ explain
@@ -105,8 +107,6 @@
 - ❌ 高级查询/游标选项统一抽象
     - batchSize/hint/collation/noCursorTimeout/tailable/max/min/returnKey/allowPartialResults/
       readPreference/readConcern。
-- ❌ showRecordId
-    - Mongo 专属选项。
 - ❌ comment / let
     - let 多见于聚合；待评估透传策略。
 - ❌ readPreferenceTags

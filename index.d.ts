@@ -100,6 +100,29 @@ declare module 'monsqlize' {
         meta?: boolean | MetaOptions;    // 返回耗时元信息
     }
 
+    interface AggregateOptions {
+        cache?: number;                  // 缓存时间（毫秒），默认 0（不缓存）
+        maxTimeMS?: number;              // 查询超时时间（毫秒）
+        allowDiskUse?: boolean;          // 是否允许使用磁盘（默认 false）
+        collation?: any;                 // 排序规则（可选）
+        hint?: string | object;          // 索引提示（可选）
+        comment?: string;                // 查询注释（可选）
+        meta?: boolean | MetaOptions;    // 返回耗时元信息
+    }
+
+    interface StreamOptions {
+        query?: any;                     // 查询条件
+        projection?: Record<string, any> | string[];  // 字段投影
+        sort?: Record<string, 1 | -1>;   // 排序配置
+        limit?: number;                  // 限制返回数量
+        skip?: number;                   // 跳过数量
+        batchSize?: number;              // 每批次大小（默认 1000）
+        maxTimeMS?: number;              // 查询超时时间（毫秒）
+        hint?: any;                      // 索引提示
+        collation?: any;                 // 排序规则
+        noCursorTimeout?: boolean;       // 禁用游标超时（默认 false）
+    }
+
     // 跳页相关类型
     interface JumpOptions {
         step?: number;                    // 书签密度：每隔 step 页存一个书签；默认 10
@@ -227,10 +250,18 @@ declare module 'monsqlize' {
         count(options: CountOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<number>>;
         count(options?: CountOptions): Promise<number | ResultWithMeta<number>>;
 
+        // aggregate 重载：支持 meta 参数
+        aggregate(pipeline?: any[], options?: Omit<AggregateOptions, 'meta'>): Promise<any[]>;
+        aggregate(pipeline: any[], options: AggregateOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<any[]>>;
+        aggregate(pipeline?: any[], options?: AggregateOptions): Promise<any[] | ResultWithMeta<any[]>>;
+
+        // stream：返回 Node.js 可读流
+        stream(options?: StreamOptions): NodeJS.ReadableStream;
+
         // findPage：已在 PageResult 中包含 meta 字段，无需重载
         findPage(options: FindPageOptions): Promise<PageResult>;
 
-        invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage'): Promise<number>;
+        invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate'): Promise<number>;
     }
 
     type DbAccessor = {
