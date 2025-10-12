@@ -60,12 +60,15 @@ async function runTests() {
   } else if (testSuite === 'findPage') {
     testFiles = ['./findPage.test.js'];
     title = 'findPage 方法测试套件';
+  } else if (testSuite === 'findOne') {
+    testFiles = ['./findOne.test.js'];
+    title = 'findOne 方法测试套件';
   } else if (testSuite === 'all') {
-    testFiles = ['./find.test.js', './findPage.test.js'];
+    testFiles = ['./find.test.js', './findPage.test.js', './findOne.test.js'];
     title = '所有测试套件';
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [find|findPage|all]\n');
+    console.error('使用方法: node run-tests.js [find|findPage|findOne|all]\n');
     process.exit(1);
   }
 
