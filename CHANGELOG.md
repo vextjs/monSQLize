@@ -4,9 +4,14 @@
 
 ## [未发布]
 ### 新增
+- **文档增强**：为 `aggregate` 方法添加完整的文档、示例和测试用例
+  - 新增 `docs/aggregate.md`：详细的 aggregate 方法使用文档，包含所有管道阶段、参数说明、使用模式、性能优化建议等
+  - 新增 `examples/aggregate.examples.js`：8 个完整示例，涵盖基础聚合、联表查询、数据转换、数组操作、日期分组、多路聚合、流式处理和性能优化
+  - 新增 `test/aggregate.test.js`：11 个测试套件共 50+ 个测试用例，全面覆盖聚合功能的各种场景和边界情况
+  - README.md 添加指向 aggregate 详细文档、示例和测试的链接
 - 统一 findPage：在原 after/before 基础上，新增 `page` 跳页（书签 bm: + 少量 hops），`offsetJump` 小范围 `$skip+$limit` 兜底，`totals` 多模式（none/async/approx/sync）。
-- 书签/总数缓存键：复用实例 cache；书签键前缀 `bm:`，总数键前缀 `tot:`；键采用去敏“查询形状哈希”（不含具体值）。
-- 文档：README 新增并细化“统一 findPage：游标 + 跳页 + offset + totals”章节（完整参数/注释/错误码/异步 totals 轮询示例）；STATUS 路线图对齐。
+- 书签/总数缓存键：复用实例 cache；书签键前缀 `bm:`，总数键前缀 `tot:`；键采用去敏"查询形状哈希"（不含具体值）。
+- 文档：README 新增并细化"统一 findPage：游标 + 跳页 + offset + totals"章节（完整参数/注释/错误码/异步 totals 轮询示例）；STATUS 路线图对齐。
 
 ### 变更
 - 重构：将 `findPage` 抽离到 `lib/mongodb/find-page.js`，index 通过工厂注入上下文；命名空间键稳定。

@@ -66,12 +66,15 @@ async function runTests() {
   } else if (testSuite === 'count') {
     testFiles = ['./count.test.js'];
     title = 'count 方法测试套件';
+  } else if (testSuite === 'aggregate') {
+      testFiles = ['./aggregate.test.js'];
+      title = 'aggregate 方法测试套件';
   } else if (testSuite === 'all') {
-    testFiles = ['./find.test.js', './findPage.test.js', './findOne.test.js', './count.test.js'];
+    testFiles = ['./find.test.js', './findPage.test.js', './findOne.test.js', './count.test.js', './aggregate.test.js'];
     title = '所有测试套件';
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [find|findPage|findOne|count|all]\n');
+    console.error('使用方法: node run-tests.js [find|findPage|findOne|count|aggregate|all]\n');
     process.exit(1);
   }
 
