@@ -284,7 +284,7 @@ const stream2 = await collection('logs').findPage({
 
 **使用建议**：
 - 设置合理的 `batchSize`（推荐 100-1000）
-- 使用 `limit` 限制��数据量（防止无限流）
+- 使用 `limit` 限制返回数据量（防止无限流）
 - 妥善处理错误事件
 - 考虑背压（backpressure）控制
 
@@ -497,7 +497,7 @@ const msq = new MonSQLize({
   config: { uri: 'mongodb://localhost:27017' },
   bookmarks: {
     step: 10,           // 每 10 页保存书签
-    maxHops: 20,        // 最多跳 20 次
+    maxHops: 20,        // 最多连续跳 20 次
     ttlMs: 6 * 3600000, // 书签缓存 6 小时
     maxPages: 10000     // 最多缓存 10000 页的书签
   },
@@ -521,246 +521,211 @@ const result = await collection('products').findPage({
 - 根据数据更新频率设置合理的 TTL
 - 数据变更后及时失效缓存：`collection.invalidate('findPage')`
 
-### 4. 流式查询优化
+### 4. 正确处理总数统计
 
+**❌ 错误做法**：大数据量使用同步统计
 ```javascript
-// 使用合适的 batchSize
-const stream = await collection('logs').findPage({
-  query: { date: { $gte: '2025-01-01' } },
-  sort: { timestamp: 1 },
-  limit: 100000,
-  stream: true,
-  batchSize: 1000,  // 每批次 1000 条
-  allowDiskUse: true  // 大数据量时启用
-});
-
-// 使用 pipeline 减少数据传输
-const stream2 = await collection('orders').findPage({
-  query: { year: 2024 },
-  sort: { createdAt: 1 },
-  limit: 50000,
-  pipeline: [
-    { $project: { orderId: 1, amount: 1, status: 1 } }  // 只投影需要的字段
-  ],
-  stream: true,
-  batchSize: 500
+// 不好：千万级数据使用 sync 模式
+const result = await collection('logs').findPage({
+  query: { level: 'error' },
+  sort: { timestamp: -1 },
+  limit: 50,
+  totals: { mode: 'sync' }  // 可能等待数秒甚至超时
 });
 ```
 
-### 5. 全局配置优化
-
+**✅ 正确做法**：根据数据量选择合适的统计模式
 ```javascript
-const msq = new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'mydb',
-  config: { uri: 'mongodb://localhost:27017' },
-  // 全局配置
-  maxTimeMS: 5000,         // 全局超时
-  findPageMaxLimit: 1000,  // 提高单页最大限制
-  slowQueryMs: 1000,       // 慢查询阈值
-  bookmarks: {
-    step: 5,               // 更密集的书签（适合频繁跳页）
-    maxHops: 30,
-    ttlMs: 12 * 3600000    // 更长的缓存时间
+// 小数据量（< 10 万）- 使用 sync 模式
+const smallResult = await collection('categories').findPage({
+  query: { active: true },
+  sort: { name: 1 },
+  limit: 30,
+  totals: { 
+    mode: 'sync',
+    maxTimeMS: 2000,
+    hint: { active: 1 }  // 使用索引加速统计
   }
 });
-```
 
-## 注意事项
-
-1. **游标有效性**：游标是基于数据快照生成的，如果排序字段的数据发生变化，游标可能失效
-2. **排序一致性**：使用游标分页时，必须保持排序规则一致，包括字段和方向
-3. **limit 限制**：单次查询的 limit 不能超过 `findPageMaxLimit`（默认 500）
-4. **互斥参数**：`page` 与 `after`/`before` 不能同时使用；`after` 与 `before` 不能同时使用
-5. **流式限制**：流式模式不支持跳页和 totals 功能
-6. **书签缓存**：书签会占用缓存空间，需要合理配置 TTL 和最大页数
-7. **pipeline 作用域**：`pipeline` 参数只对当页的 `limit` 条数据生效，不影响分页逻辑
-8. **稳定排序**：如果排序规则不包含 `_id`，系统会自动追加 `_id: 1` 确保稳定排序
-
-## 完整示例
-
-```javascript
-const MonSQLize = require('monsqlize');
-
-async function example() {
-  const msq = new MonSQLize({
-    type: 'mongodb',
-    databaseName: 'shop',
-    config: { uri: 'mongodb://localhost:27017' },
-    findPageMaxLimit: 500,
-    bookmarks: {
-      step: 10,
-      maxHops: 20,
-      ttlMs: 6 * 3600000
+// 大数据量 - 使用 async 模式
+async function getPaginatedDataWithTotal(query, page) {
+  const result = await collection('orders').findPage({
+    query,
+    sort: { createdAt: -1 },
+    limit: 50,
+    page,
+    totals: { 
+      mode: 'async',
+      maxTimeMS: 5000,
+      ttlMs: 600000  // 缓存 10 分钟
     }
   });
 
-  const { collection } = await msq.connect();
+  // 首次请求：total 为 null，返回 token
+  if (result.totals && result.totals.total === null) {
+    console.log('总数计算中...', result.totals.token);
+  } else if (result.totals && result.totals.total !== null) {
+    console.log(`共 ${result.totals.total} 条，${result.totals.totalPages} 页`);
+  }
 
-  // 示例 1: 基本游标分页
-  const page1 = await collection('products').findPage({
-    query: { category: 'electronics', inStock: true },
-    sort: { price: 1, _id: 1 },
-    limit: 20
-  });
-
-  console.log('第一页数据:', page1.items.length);
-  console.log('是否有下一页:', page1.pageInfo.hasNext);
-
-  // 示例 2: 跳页查询带总数
-  const page5 = await collection('products').findPage({
-    query: { category: 'electronics' },
-    sort: { price: 1 },
-    limit: 20,
-    page: 5,
-    jump: { step: 10, maxHops: 20 },
-    totals: { mode: 'sync', hint: { category: 1, price: 1 } }
-  });
-
-  console.log(`第 5 页，共 ${page5.totals.totalPages} 页`);
-  console.log('数据:', page5.items);
-
-  // 示例 3: 流式处理大数据
-  const stream = await collection('orders').findPage({
-    query: { status: 'completed', year: 2025 },
-    sort: { completedAt: -1 },
-    limit: 10000,
-    stream: true,
-    batchSize: 500
-  });
-
-  let totalAmount = 0;
-  stream.on('data', (order) => {
-    totalAmount += order.amount;
-  });
-
-  stream.on('end', () => {
-    console.log('总金额:', totalAmount);
-  });
-
-  stream.on('error', (err) => {
-    console.error('处理错误:', err);
-  });
-
-  // 等待流处理完成
-  await new Promise((resolve, reject) => {
-    stream.on('end', resolve);
-    stream.on('error', reject);
-  });
-
-  await msq.close();
+  return result;
 }
 
-example();
-```
-
-## 高级用法
-
-### 自定义书签键维度
-
-```javascript
-// 自定义键维度（高级用法，通常不需要）
-const result = await collection('orders').findPage({
-  query: { status: 'paid' },
-  sort: { createdAt: -1 },
-  limit: 50,
-  page: 10,
-  jump: {
-    step: 10,
-    maxHops: 20,
-    keyDims: {
-      db: 'shop',
-      coll: 'orders',
-      sort: { createdAt: -1, _id: 1 },
-      limit: 50,
-      queryShape: 'custom_shape_hash',
-      pipelineShape: 'custom_pipeline_hash'
-    }
-  }
-});
-```
-
-### 使用 pipeline 进行页内数据处理
-
-```javascript
-// pipeline 只对返回的当页数据生效
-const result = await collection('orders').findPage({
-  query: { status: 'completed' },
+// 不需要总数的场景 - 不统计（性能最佳）
+const noTotalResult = await collection('feeds').findPage({
+  query: { userId: currentUserId },
   sort: { createdAt: -1 },
   limit: 20,
-  pipeline: [
-    {
-      $lookup: {
-        from: 'customers',
-        localField: 'customerId',
-        foreignField: '_id',
-        as: 'customer'
-      }
-    },
-    { $unwind: '$customer' },
-    {
-      $project: {
-        orderId: 1,
-        amount: 1,
-        'customer.name': 1,
-        'customer.email': 1
-      }
-    }
-  ]
+  after: lastCursor
+  // 不设置 totals，通过 hasNext 判断是否还有更多数据
 });
+
+console.log('还有更多:', noTotalResult.pageInfo.hasNext);
 ```
 
-### 组合缓存和总数统计
+### 5. 流式查询的正确使用
 
 ```javascript
-const result = await collection('products').findPage({
-  query: { inStock: true },
-  sort: { popularity: -1 },
-  limit: 30,
-  cache: 300000,  // 缓存 5 分钟
-  totals: {
-    mode: 'async',
-    ttlMs: 600000  // 总数缓存 10 分钟
-  },
-  meta: true  // 返回元信息
+// 1. 设置合适的 batchSize
+const stream1 = await collection('orders').findPage({
+  query: { year: 2024 },
+  sort: { createdAt: 1 },
+  limit: 1000000,
+  stream: true,
+  batchSize: 1000,  // 每批次 1000 条
+  allowDiskUse: true  // 大数据量允许使用磁盘
 });
 
-console.log('缓存命中:', result.meta.cacheHit);
-console.log('查询耗时:', result.meta.durationMs, 'ms');
+let processedCount = 0;
+stream1.on('data', (doc) => {
+  // 只处理当前文档，不累积
+  processOrder(doc);
+  processedCount++;
+  
+  if (processedCount % 10000 === 0) {
+    console.log(`已处理 ${processedCount} 条订单`);
+  }
+});
+
+stream1.on('end', () => {
+  console.log(`处理完成！总计: ${processedCount}`);
+});
+
+// 2. 导出大量数据到文件
+const fs = require('fs');
+const { Transform } = require('stream');
+
+async function exportToCSV() {
+  const stream = await collection('users').findPage({
+    query: { registered: true },
+    sort: { registeredAt: 1 },
+    limit: 500000,
+    stream: true,
+    batchSize: 1000,
+    pipeline: [
+      { $project: { email: 1, name: 1, registeredAt: 1 } }
+    ]
+  });
+
+  const csvTransform = new Transform({
+    objectMode: true,
+    transform(doc, encoding, callback) {
+      const row = `${doc._id},${doc.email},${doc.name},${doc.registeredAt}\n`;
+      callback(null, row);
+    }
+  });
+
+  const writeStream = fs.createWriteStream('users_export.csv');
+  writeStream.write('id,email,name,registeredAt\n');
+
+  stream.pipe(csvTransform).pipe(writeStream);
+  
+  await new Promise((resolve, reject) => {
+    writeStream.on('finish', resolve);
+    writeStream.on('error', reject);
+  });
+  
+  console.log('导出完成');
+}
 ```
 
-## 相关文档
+### 6. 跳页性能优化
 
-- [游标编码规范](./cursor-encoding.md)
-- [缓存策略](./caching.md)
-- [性能优化指南](./performance.md)
-- [API 参考](./api-reference.md)
-- [monSQLize README](../README.md)
+**❌ 错误做法**：跳转到远距离页面时配置不当
+```javascript
+// 不好：跳转到第 500 页但步长太大
+const result = await collection('products').findPage({
+  query: { category: 'books' },
+  sort: { publishDate: -1 },
+  limit: 50,
+  page: 500,
+  jump: {
+    step: 100,  // 步长太大，第 500 页没有书签
+    maxHops: 10  // 限制太小，无法到达
+  }
+});
+// 可能抛出 JUMP_TOO_FAR 错误
+```
 
-## 更新日志
+**✅ 正确做法**：根据使用模式优化跳页配置
+```javascript
+// 1. 频繁跳页场景 - 密集书签
+const result1 = await collection('products').findPage({
+  query: { category: 'books' },
+  sort: { publishDate: -1 },
+  limit: 50,
+  page: 500,
+  jump: {
+    step: 5,       // 每 5 页保存书签
+    maxHops: 50,   // 允许跳 50 次
+    ttlMs: 12 * 3600000  // 缓存 12 小时
+  }
+});
 
-### v2.0.1 (2025-01-10)
-- 🐛 修复游标分页时的数据重复问题
-- 🐛 修复 Date 和 ObjectId 类型在游标中的序列化问题
-- 🐛 修复 totals 对象缺少 mode 字段的问题
-- 🐛 修复 before 游标返回数据不完整的问题
-- ✨ 改进跳页逻辑的书签缓存机制
-- ✅ 通过全部 32 个测试用例
+// 2. 小数据量 - 使用 offset 跳页
+const result2 = await collection('categories').findPage({
+  query: { active: true },
+  sort: { name: 1 },
+  limit: 20,
+  page: 15,
+  offsetJump: {
+    enable: true,
+    maxSkip: 10000  // 数据量小于 1 万条
+  }
+});
 
-### v2.0.0 (2025-01-10)
-- ✨ 新增流式查询支持 (`stream: true`)
-- ✨ 新增 offset 跳页模式 (`offsetJump`)
-- ✨ 优化书签缓存机制
-- 📝 改进错误提示信息
+// 3. 检测跳页错误并降级处理
+async function robustPagination(page) {
+  try {
+    return await collection('products').findPage({
+      query: { inStock: true },
+      sort: { updatedAt: -1 },
+      limit: 50,
+      page,
+      jump: { step: 10, maxHops: 20 }
+    });
+  } catch (error) {
+    if (error.code === 'JUMP_TOO_FAR') {
+      console.log('跳页距离太远，尝试使用 offset 模式');
+      return await collection('products').findPage({
+        query: { inStock: true },
+        sort: { updatedAt: -1 },
+        limit: 50,
+        page,
+        offsetJump: { enable: true, maxSkip: 100000 }
+      });
+    }
+    throw error;
+  }
+}
+```
 
-### v1.5.0
-- ✨ 新增 totals 统计功能
-- ✨ 支持 meta 元信息返回
-- ⚡ 优化跳页性能
-
-### v1.0.0
-- 🎉 首次发布
-- ✨ 支持游标分页和跳页功能
+**跳页配置建议**：
+- **< 100 页**：step = 5-10, maxHops = 20
+- **100-1000 页**：step = 10-20, maxHops = 30-50
+- **> 1000 页**：考虑使用游标分页或限制可跳转范围
+- **小数据量**：优先使用 offsetJump
 
 ## 常见问题 (FAQ)
 
@@ -787,3 +752,522 @@ console.log('查询耗时:', result.meta.durationMs, 'ms');
 ### Q: 如何处理数据变化导致的游标失效？
 
 **A**: 捕获 `CURSOR_INVALID` 错误，重新从首页开始查询。对于经常变化的数据，建议使用时间戳等稳定字段排序。
+
+### Q: page、after、before 参数可以同时使用吗？
+
+**A**: 不可以。这三个参数是互斥的：
+- `page` 用于跳页模式，不能与 `after` 或 `before` 同时使用
+- `after` 和 `before` 用于游标分页，两者也不能同时使用
+- 同时使用会抛出 `VALIDATION_ERROR` 错误
+
+```javascript
+// ❌ 错误：不能同时使用
+await collection('orders').findPage({
+  page: 5,
+  after: 'cursor123'  // 错误！
+});
+
+// ✅ 正确：选择一种模式
+await collection('orders').findPage({
+  page: 5  // 跳页模式
+});
+// 或
+await collection('orders').findPage({
+  after: 'cursor123'  // 游标分页
+});
+```
+
+### Q: 游标分页时，如何实现"上一页"功能？
+
+**A**: 使用 `before` 参数结合 `startCursor`：
+
+```javascript
+// 第一页
+const page1 = await collection('orders').findPage({
+  query: { status: 'paid' },
+  sort: { createdAt: -1 },
+  limit: 20
+});
+
+// 下一页
+const page2 = await collection('orders').findPage({
+  query: { status: 'paid' },
+  sort: { createdAt: -1 },
+  limit: 20,
+  after: page1.pageInfo.endCursor
+});
+
+// 返回上一页
+const backToPage1 = await collection('orders').findPage({
+  query: { status: 'paid' },
+  sort: { createdAt: -1 },
+  limit: 20,
+  before: page2.pageInfo.startCursor  // 使用 before + startCursor
+});
+```
+
+### Q: 为什么流式模式不支持 totals 统计？
+
+**A**: 流式模式的设计目标是高效处理大量数据，返回的是 MongoDB 原始 Cursor Stream，不包含分页元信息。如果需要总数统计，应该：
+
+1. 先使用普通模式获取首页和总数
+2. 再使用流式模式处理后续数据
+
+```javascript
+// 方案：先获取总数，再流式处理
+const firstPage = await collection('logs').findPage({
+  query: { level: 'error' },
+  sort: { timestamp: -1 },
+  limit: 100,
+  totals: { mode: 'sync' }
+});
+
+console.log(`共 ${firstPage.totals.total} 条记录`);
+
+// 然后使用流式处理所有数据
+const stream = await collection('logs').findPage({
+  query: { level: 'error' },
+  sort: { timestamp: -1 },
+  limit: firstPage.totals.total,
+  stream: true,
+  batchSize: 1000
+});
+```
+
+### Q: 如何判断是否已经到达最后一页？
+
+**A**: 使用 `pageInfo.hasNext` 字段：
+
+```javascript
+const result = await collection('products').findPage({
+  query: { category: 'books' },
+  sort: { price: 1 },
+  limit: 50,
+  page: 10
+});
+
+if (!result.pageInfo.hasNext) {
+  console.log('已经是最后一页了');
+} else {
+  console.log('还有更多数据');
+}
+```
+
+对于游标分页，同样可以通过 `hasNext` 判断：
+
+```javascript
+let cursor = null;
+let pageNum = 1;
+
+while (true) {
+  const result = await collection('orders').findPage({
+    query: { status: 'paid' },
+    sort: { createdAt: -1 },
+    limit: 100,
+    after: cursor
+  });
+
+  console.log(`第 ${pageNum} 页: ${result.items.length} 条`);
+  
+  if (!result.pageInfo.hasNext) {
+    console.log('所有数据处理完毕');
+    break;
+  }
+  
+  cursor = result.pageInfo.endCursor;
+  pageNum++;
+}
+```
+
+### Q: 跳页时出现 JUMP_TOO_FAR 错误怎么办？
+
+**A**: 这个错误表示跳转距离超过了 `maxHops` 限制。有以下几种解决方案：
+
+**方案 1：增加 maxHops 值**
+```javascript
+const result = await collection('products').findPage({
+  query: { category: 'electronics' },
+  sort: { price: 1 },
+  limit: 50,
+  page: 200,
+  jump: {
+    step: 10,
+    maxHops: 50  // 增加到 50
+  }
+});
+```
+
+**方案 2：减小 step 值（更密集的书签）**
+```javascript
+const result = await collection('products').findPage({
+  query: { category: 'electronics' },
+  sort: { price: 1 },
+  limit: 50,
+  page: 200,
+  jump: {
+    step: 5,  // 每 5 页保存书签
+    maxHops: 20
+  }
+});
+```
+
+**方案 3：降级到 offset 跳页**
+```javascript
+try {
+  const result = await collection('products').findPage({
+    query: { category: 'electronics' },
+    sort: { price: 1 },
+    limit: 50,
+    page: 200,
+    jump: { step: 10, maxHops: 20 }
+  });
+} catch (error) {
+  if (error.code === 'JUMP_TOO_FAR') {
+    // 降级到 offset 模式
+    const result = await collection('products').findPage({
+      query: { category: 'electronics' },
+      sort: { price: 1 },
+      limit: 50,
+      page: 200,
+      offsetJump: { enable: true, maxSkip: 100000 }
+    });
+  }
+}
+```
+
+### Q: 如何优化大数据量的总数统计性能？
+
+**A**: 建议采用以下策略：
+
+**1. 使用 async 模式 + 长缓存**
+```javascript
+const result = await collection('orders').findPage({
+  query: { year: 2024 },
+  sort: { createdAt: -1 },
+  limit: 50,
+  totals: {
+    mode: 'async',
+    ttlMs: 1800000,  // 缓存 30 分钟
+    maxTimeMS: 10000
+  }
+});
+```
+
+**2. 为统计查询指定索引**
+```javascript
+// 创建索引
+await db.collection('orders').createIndex({ year: 1 });
+
+// 使用 hint 指定索引
+const result = await collection('orders').findPage({
+  query: { year: 2024 },
+  sort: { createdAt: -1 },
+  limit: 50,
+  totals: {
+    mode: 'sync',
+    hint: { year: 1 },  // 使用索引加速
+    maxTimeMS: 3000
+  }
+});
+```
+
+**3. 只在需要时统计，其他时候通过 hasNext 判断**
+```javascript
+// 首页查询：获取总数
+const firstPageResult = await collection('products').findPage({
+  query: { inStock: true },
+  sort: { updatedAt: -1 },
+  limit: 50,
+  page: 1,
+  totals: { mode: 'async' }
+});
+
+// 后续页：不统计总数
+const otherPageResult = await collection('products').findPage({
+  query: { inStock: true },
+  sort: { updatedAt: -1 },
+  limit: 50,
+  page: 5
+  // 不设置 totals，节省性能
+});
+```
+
+### Q: explain 模式会返回实际数据吗？
+
+**A**: 不会。当使用 `explain` 参数时，findPage 会直接返回 MongoDB 的执行计划对象，不返回实际的分页数据和 pageInfo。
+
+```javascript
+// explain 模式：只返回执行计划
+const explainResult = await collection('orders').findPage({
+  query: { status: 'paid' },
+  sort: { createdAt: -1 },
+  limit: 20,
+  explain: 'executionStats'
+});
+
+console.log(explainResult);
+// 输出：{ queryPlanner: {...}, executionStats: {...} }
+// 没有 items、pageInfo 等字段
+
+// 正常查询模式：返回数据
+const dataResult = await collection('orders').findPage({
+  query: { status: 'paid' },
+  sort: { createdAt: -1 },
+  limit: 20
+});
+
+console.log(dataResult);
+// 输出：{ items: [...], pageInfo: {...} }
+```
+
+**使用建议**：explain 主要用于开发和调试阶段分析查询性能，不应在生产环境的正常请求中使用。
+
+### Q: 缓存是如何工作的？数据更新后会自动失效吗？
+
+**A**: 缓存机制说明：
+
+**缓存内容**：
+- **查询结果缓存**：键前缀为 `fp:`，缓存分页查询结果
+- **书签缓存**：键前缀为 `bm:`，缓存跳页书签
+- **总数缓存**：键前缀为 `tot:`，缓存总数统计结果
+
+**缓存失效**：
+- 缓存**不会**自动失效，需要手动清理或等待 TTL 过期
+- 数据更新后应手动失效相关缓存
+
+```javascript
+// 更新数据
+await collection('products').update(
+  { _id: productId },
+  { $set: { price: 99 } }
+);
+
+// 手动失效缓存
+await collection('products').invalidate('findPage');
+
+// 或失效所有缓存
+await collection('products').invalidate('*');
+```
+
+**缓存键区分**：
+- 相同的 query、sort、limit 会命中同一个缓存
+- 不同的查询条件会生成不同的缓存键
+
+```javascript
+// 这两个查询使用相同的缓存
+const r1 = await collection('products').findPage({
+  query: { category: 'books' },
+  sort: { price: 1 },
+  limit: 20,
+  cache: 60000
+});
+
+const r2 = await collection('products').findPage({
+  query: { category: 'books' },
+  sort: { price: 1 },
+  limit: 20,
+  cache: 60000
+});
+// r2 会命中 r1 的缓存
+
+// 这个查询会使用不同的缓存（query 不同）
+const r3 = await collection('products').findPage({
+  query: { category: 'electronics' },  // 不同
+  sort: { price: 1 },
+  limit: 20,
+  cache: 60000
+});
+```
+
+### Q: pipeline 参数的作用范围是什么？
+
+**A**: `pipeline` 只对**当页返回的 limit 条数据**生效，不影响分页逻辑和查询条件。
+
+```javascript
+// pipeline 只处理返回的 20 条数据
+const result = await collection('orders').findPage({
+  query: { status: 'completed' },
+  sort: { completedAt: -1 },
+  limit: 20,
+  page: 1,
+  pipeline: [
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'user'
+      }
+    },
+    { $unwind: '$user' },
+    {
+      $project: {
+        orderId: 1,
+        amount: 1,
+        'user.name': 1,
+        'user.email': 1
+      }
+    }
+  ]
+});
+
+// result.items 包含 20 条经过 pipeline 处理的订单数据
+// 包含关联的用户信息
+```
+
+**注意事项**：
+1. pipeline 在分页逻辑**之后**执行
+2. 不会影响 totals 统计（统计的是原始数据）
+3. 不会影响游标计算（游标基于原始排序字段）
+4. 适合做数据关联、字段转换等后处理
+
+### Q: 如何实现无限滚动加载？
+
+**A**: 使用游标分页配合前端状态管理：
+
+**前端示例（React）**：
+```javascript
+import { useState, useEffect } from 'react';
+
+function OrderList() {
+  const [orders, setOrders] = useState([]);
+  const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  const loadMore = async () => {
+    if (loading || !hasMore) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: { status: 'paid' },
+          sort: { createdAt: -1 },
+          limit: 20,
+          after: cursor
+        })
+      });
+      
+      const result = await response.json();
+      
+      setOrders(prev => [...prev, ...result.items]);
+      setCursor(result.pageInfo.endCursor);
+      setHasMore(result.pageInfo.hasNext);
+    } catch (error) {
+      console.error('加载失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 初始加载
+  useEffect(() => {
+    loadMore();
+  }, []);
+
+  return (
+    <div>
+      {orders.map(order => (
+        <div key={order._id}>{order.orderId}</div>
+      ))}
+      
+      {hasMore && (
+        <button onClick={loadMore} disabled={loading}>
+          {loading ? '加载中...' : '加载更多'}
+        </button>
+      )}
+      
+      {!hasMore && <div>没有更多数据了</div>}
+    </div>
+  );
+}
+```
+
+**后端示例（Node.js）**：
+```javascript
+app.post('/api/orders', async (req, res) => {
+  try {
+    const { query, sort, limit, after } = req.body;
+    
+    const result = await collection('orders').findPage({
+      query,
+      sort,
+      limit: Math.min(limit, 100),  // 限制最大值
+      after
+    });
+    
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+```
+
+### Q: findPage 和普通的 find 方法有什么区别？该如何选择？
+
+**A**: 两者适用场景不同：
+
+**使用 find 的场景**：
+- 简单查询，不需要分页
+- 数据量确定且较小（< 1000 条）
+- 需要所有数据一次性返回
+- 不需要游标、书签等高级功能
+
+**使用 findPage 的场景**：
+- 需要分页展示
+- 数据量大或不确定
+- 需要支持"下一页"、"上一页"、跳页等功能
+- 需要总数统计
+- 需要流式处理大数据
+- 需要缓存分页结果
+
+**示例对比**：
+```javascript
+// 场景 1：获取用户的前 10 个订单 -> 使用 find
+const recentOrders = await collection('orders').find({
+  query: { userId: '123' },
+  sort: { createdAt: -1 },
+  limit: 10
+});
+
+// 场景 2：分页浏览所有订单 -> 使用 findPage
+const ordersPage = await collection('orders').findPage({
+  query: { userId: '123' },
+  sort: { createdAt: -1 },
+  limit: 20,
+  after: cursor
+});
+
+// 场景 3：导出大量数据 -> 使用 findPage 流式模式
+const exportStream = await collection('orders').findPage({
+  query: { year: 2024 },
+  sort: { createdAt: 1 },
+  limit: 1000000,
+  stream: true,
+  batchSize: 1000
+});
+```
+
+**性能对比**：
+
+| 操作 | find | findPage |
+|------|------|----------|
+| 简单查询 | ⚡ 更快 | 稍慢（有分页逻辑开销） |
+| 大数据分页 | ❌ 不适用 | ✅ 高效 |
+| 跳页 | ❌ 性能差 | ✅ 优化支持 |
+| 流式处理 | ✅ 支持 | ✅ 支持 |
+| 总数统计 | ❌ 需额外查询 | ✅ 内置支持 |
+
+---
+
+## 相关文档
+
+- [find 方法文档](./find.md)
+- [游标编码规范](./cursor-encoding.md)
+- [缓存策略](./caching.md)
+- [性能优化指南](./performance.md)
+- [API 参考](./api-reference.md)
+- [monSQLize README](../README.md)

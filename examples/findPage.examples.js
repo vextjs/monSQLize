@@ -6,48 +6,409 @@
 const MonSQLize = require('../lib');
 
 // ============================================================================
+// 常量配置
+// ============================================================================
+
+// MongoDB 连接配置
+const DB_CONFIG = {
+    type: 'mongodb',
+    databaseName: 'ecommerce',
+    config: { uri: 'mongodb://localhost:27017' }
+};
+
+// 集合名称常量
+const COLLECTIONS = {
+    USERS: 'users',
+    PRODUCTS: 'products',
+    ORDERS: 'orders',
+    CATEGORIES: 'categories',
+    SETTINGS: 'settings'
+};
+
+// 数据量配置
+const DATA_SIZE = {
+    USERS: 50,
+    PRODUCTS: 100,
+    ORDERS: 150
+};
+
+// ============================================================================
+// 数据准备和清理工具函数
+// ============================================================================
+
+// 全局标志：标记索引是否已经检查过
+let indexesChecked = false;
+// 全局标志：标记是否已经提示过数据存在
+let dataExistenceNotified = false;
+// 全局标志：标记是否已经提示过无需清理
+let cleanupNotified = false;
+
+/**
+ * 创建 MonSQLize 实例
+ * @returns {MonSQLize} MonSQLize 实例
+ */
+function createMonSQLizeInstance() {
+    return new MonSQLize(DB_CONFIG);
+}
+
+/**
+ * 生成用户数据
+ * @param {number} count - 生成数量
+ * @returns {Array} 用户数据数组
+ */
+function generateUsers(count) {
+    const users = [];
+    for (let i = 1; i <= count; i++) {
+        users.push({
+            userId: `USER-${String(i).padStart(5, '0')}`,
+            name: `用户${i}`,
+            username: i % 2 === 0 ? `user${i}` : `User${i}`,
+            email: `user${i}@example.com`,
+            status: i % 5 === 0 ? 'inactive' : 'active',
+            active: i % 5 !== 0,
+            role: i % 10 === 0 ? 'admin' : i % 15 === 0 ? 'vip' : 'user',
+            totalSpent: Math.floor(Math.random() * 20000),
+            orderCount: Math.floor(Math.random() * 100),
+            level: Math.floor(Math.random() * 10) + 1,
+            verified: i % 3 !== 0,
+            avatar: `avatar${i}.jpg`,
+            createdAt: new Date(Date.now() - i * 86400000 * 2),
+            updatedAt: new Date()
+        });
+    }
+    return users;
+}
+
+/**
+ * 生成商品数据
+ * @param {number} count - 生成数量
+ * @returns {Array} 商品数据数组
+ */
+function generateProducts(count) {
+    const products = [];
+    const categories = ['electronics', 'books', 'clothing'];
+    for (let i = 1; i <= count; i++) {
+        products.push({
+            productId: `PROD-${String(i).padStart(5, '0')}`,
+            name: `商品${i}`,
+            description: `这是商品${i}的详细描述`,
+            category: categories[i % 3],
+            language: i % 5 === 0 ? 'zh' : 'en',
+            price: Math.floor(Math.random() * 1000) + 50,
+            inStock: i % 4 !== 0,
+            sales: Math.floor(Math.random() * 2000),
+            hot: i % 10 === 0,
+            rating: 3 + Math.random() * 2,
+            tags: i % 3 === 0 ? ['electronics', 'sale'] : ['test'],
+            image: `product${i}.jpg`,
+            publishDate: new Date(Date.now() - Math.random() * 365 * 86400000),
+            reviews: [{ rating: 4.5 }],
+            createdAt: new Date(Date.now() - i * 43200000),
+            updatedAt: new Date()
+        });
+    }
+    return products;
+}
+
+/**
+ * 生成订单数据
+ * @param {number} count - 生成数量
+ * @returns {Array} 订单数据数组
+ */
+function generateOrders(count) {
+    const orders = [];
+    const statuses = ['pending', 'paid', 'completed'];
+    for (let i = 1; i <= count; i++) {
+        const status = statuses[i % 3];
+        const createdAt = new Date(Date.now() - i * 21600000);
+        orders.push({
+            orderId: `ORD-${String(i).padStart(5, '0')}`,
+            status,
+            amount: Math.floor(Math.random() * 2000) + 100,
+            items: Math.floor(Math.random() * 5) + 1,
+            priority: Math.floor(Math.random() * 3),
+            customerId: `USER-${String((i % 50) + 1).padStart(5, '0')}`,
+            createdAt,
+            completedAt: status === 'completed' ? new Date(createdAt.getTime() + 3600000) : null,
+            updatedAt: new Date()
+        });
+    }
+    return orders;
+}
+
+/**
+ * 准备示例数据
+ * @param {Object} msq - MonSQLize 实例
+ * @param {boolean} [skipIndexCheck=false] - 是否跳过索引检查（默认不跳过）
+ */
+async function prepareExampleData(msq, skipIndexCheck = false) {
+    // 只在第一次准备数据时输出提示
+    if (!dataExistenceNotified) {
+        console.log('🔧 准备示例数据...');
+    }
+
+    const db = msq._adapter.db;
+
+    // 检查是否已有数据
+    const usersCount = await db.collection(COLLECTIONS.USERS).countDocuments();
+    const productsCount = await db.collection(COLLECTIONS.PRODUCTS).countDocuments();
+    const ordersCount = await db.collection(COLLECTIONS.ORDERS).countDocuments();
+
+    if (usersCount > 0 && productsCount > 0 && ordersCount > 0) {
+        // 只在第一次发现数据时提示
+        if (!dataExistenceNotified) {
+            console.log('✅ 数据库已有数据，跳过插入');
+            dataExistenceNotified = true;
+        }
+
+        // 只在需要时检查索引（且未检查过）
+        if (!skipIndexCheck && !indexesChecked) {
+            await ensureIndexes(db);
+            indexesChecked = true;
+        }
+
+        return { needCleanup: false };
+    }
+
+    console.log('📝 插入示例数据...');
+    dataExistenceNotified = true;
+
+    // 插入用户数据
+    const users = generateUsers(DATA_SIZE.USERS);
+    await db.collection(COLLECTIONS.USERS).insertMany(users);
+    console.log(`  ✅ 插入 ${users.length} 条用户数据`);
+
+    // 插入商品数据
+    const products = generateProducts(DATA_SIZE.PRODUCTS);
+    await db.collection(COLLECTIONS.PRODUCTS).insertMany(products);
+    console.log(`  ✅ 插入 ${products.length} 条商品数据`);
+
+    // 插入订单数据
+    const orders = generateOrders(DATA_SIZE.ORDERS);
+    await db.collection(COLLECTIONS.ORDERS).insertMany(orders);
+    console.log(`  ✅ 插入 ${orders.length} 条订单数据`);
+
+    // 插入分类数据
+    const categories_data = [
+        { name: '电子产品', slug: 'electronics', enabled: true, order: 1 },
+        { name: '图书', slug: 'books', enabled: true, order: 2 },
+        { name: '服装', slug: 'clothing', enabled: true, order: 3 },
+        { name: '食品', slug: 'food', enabled: false, order: 4 }
+    ];
+    await db.collection(COLLECTIONS.CATEGORIES).insertMany(categories_data);
+    console.log(`  ✅ 插入 ${categories_data.length} 条分类数据`);
+
+    // 插入配置数据
+    const settings = [
+        { type: 'system', key: 'siteName', value: 'My Shop' },
+        { type: 'system', key: 'language', value: 'zh-CN' },
+        { type: 'user', key: 'theme', value: 'dark' }
+    ];
+    await db.collection(COLLECTIONS.SETTINGS).insertMany(settings);
+    console.log(`  ✅ 插入 ${settings.length} 条配置数据`);
+
+    console.log('✅ 示例数据准备完成\n');
+
+    // 创建必要的索引（只在未检查过时执行）
+    if (!skipIndexCheck && !indexesChecked) {
+        await ensureIndexes(db);
+        indexesChecked = true;
+    }
+
+    return { needCleanup: true };
+}
+
+/**
+ * 确保所有必要的索引存在
+ */
+async function ensureIndexes(db) {
+    console.log('🔧 检查并创建索引...');
+
+    const indexes = [
+        {
+            collection: COLLECTIONS.ORDERS,
+            spec: { status: 1, createdAt: -1 },
+            name: 'status_createdAt_idx',
+            description: '订单状态和创建时间索引'
+        },
+        {
+            collection: COLLECTIONS.ORDERS,
+            spec: { status: 1, amount: 1 },
+            name: 'status_amount_idx',
+            description: '订单状态和金额索引'
+        },
+        {
+            collection: COLLECTIONS.PRODUCTS,
+            spec: { category: 1, price: -1 },
+            name: 'category_price_idx',
+            description: '商品分类和价格索引'
+        },
+        {
+            collection: COLLECTIONS.PRODUCTS,
+            spec: { inStock: 1, sales: -1 },
+            name: 'inStock_sales_idx',
+            description: '商品库存和销量索引'
+        },
+        {
+            collection: COLLECTIONS.PRODUCTS,
+            spec: { hot: 1, inStock: 1 },
+            name: 'hot_inStock_idx',
+            description: '热门商品和库存索引'
+        },
+        {
+            collection: COLLECTIONS.USERS,
+            spec: { status: 1, createdAt: -1 },
+            name: 'status_createdAt_idx',
+            description: '用户状态和创建时间索引'
+        },
+        {
+            collection: COLLECTIONS.CATEGORIES,
+            spec: { enabled: 1, order: 1 },
+            name: 'enabled_order_idx',
+            description: '分类启用状态和排序索引'
+        },
+        {
+            collection: COLLECTIONS.SETTINGS,
+            spec: { type: 1, key: 1 },
+            name: 'type_key_idx',
+            description: '配置类型和键索引'
+        },
+        // findPage 示例8需要的演示索引
+        {
+            collection: COLLECTIONS.ORDERS,
+            spec: { status: 1, createdAt: -1 },
+            name: 'demo_status_createdAt_idx',
+            description: '示例8演示用：订单状态和时间复合索引',
+            demo: true
+        },
+        {
+            collection: COLLECTIONS.PRODUCTS,
+            spec: { category: 1, price: 1 },
+            name: 'demo_category_price_idx',
+            description: '示例8演示用：商品分类和价格复合索引',
+            demo: true
+        }
+    ];
+
+    for (const indexDef of indexes) {
+        try {
+            const coll = db.collection(indexDef.collection);
+
+            // 检查索引是否已存在
+            const existingIndexes = await coll.indexes();
+            const indexExists = existingIndexes.some(idx => idx.name === indexDef.name);
+
+            if (!indexExists) {
+                await coll.createIndex(indexDef.spec, { name: indexDef.name });
+                console.log(`  ✅ 创建索引: ${indexDef.collection}.${indexDef.name}${indexDef.demo ? ' (演示用)' : ''}`);
+            } else {
+                console.log(`  ⏭️  索引已存在: ${indexDef.collection}.${indexDef.name}`);
+            }
+        } catch (error) {
+            console.log(`  ⚠️  索引创建失败 ${indexDef.collection}.${indexDef.name}: ${error.message}`);
+            // 继续创建其他索引，不中断流程
+        }
+    }
+
+    console.log('✅ 索引检查完成\n');
+}
+
+/**
+ * 清理示例数据
+ */
+async function cleanupExampleData(msq, needCleanup) {
+    if (!needCleanup) {
+        // 只在第一次提示无需清理
+        if (!cleanupNotified) {
+            console.log('\n✅ 使用的是已有数据，无需清理');
+            cleanupNotified = true;
+        }
+        return;
+    }
+
+    console.log('\n🧹 清理示例数据...');
+
+    const db = msq._adapter.db;
+
+    // 使用常量清理集合
+    const collectionList = Object.values(COLLECTIONS);
+    for (const collName of collectionList) {
+        await db.collection(collName).deleteMany({});
+    }
+
+    // 可选：清理创建的索引
+    console.log('🧹 清理索引...');
+    for (const collName of collectionList) {
+        try {
+            const coll = db.collection(collName);
+            const indexes = await coll.indexes();
+
+            // 删除非 _id 的自定义索引
+            for (const idx of indexes) {
+                if (idx.name !== '_id_' && idx.name.endsWith('_idx')) {
+                    try {
+                        await coll.dropIndex(idx.name);
+                        console.log(`  ✅ 删除索引: ${collName}.${idx.name}`);
+                    } catch (error) {
+                        // 索引可能已被删除，忽略错误
+                    }
+                }
+            }
+        } catch (error) {
+            // 集合可能不存在，忽略错误
+        }
+    }
+
+    console.log('✅ 示例数据清理完成');
+}
+
+// ============================================================================
 // 示例 1: 基础游标分页
 // ============================================================================
 async function example1_basicCursorPagination() {
   console.log('\n📖 示例 1: 基础游标分页');
   console.log('='.repeat(60));
 
-  const msq = new MonSQLize({
-    type: 'mongodb',
-    databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' }
-  });
-
+  const msq = createMonSQLizeInstance();
   const { collection } = await msq.connect();
 
-  // 获取第一页
-  console.log('\n1️⃣ 获取第一页数据：');
-  const page1 = await collection('products').findPage({
-    query: { category: 'electronics', inStock: true },
-    sort: { price: 1, _id: 1 },
-    limit: 20
-  });
+  // 准备数据
+  const { needCleanup } = await prepareExampleData(msq);
 
-  console.log(`  - 返回 ${page1.items.length} 条商品`);
-  console.log(`  - 有下一页: ${page1.pageInfo.hasNext}`);
-  console.log(`  - 价格区间: ${page1.items[0]?.price} ~ ${page1.items[page1.items.length - 1]?.price}`);
-
-  // 获取下一页
-  if (page1.pageInfo.hasNext) {
-    console.log('\n2️⃣ 获取下一页：');
-    const page2 = await collection('products').findPage({
+  try {
+    // 获取第一页
+    console.log('\n1️⃣ 获取第一页数据：');
+    const page1 = await collection(COLLECTIONS.PRODUCTS).findPage({
       query: { category: 'electronics', inStock: true },
       sort: { price: 1, _id: 1 },
-      limit: 20,
-      after: page1.pageInfo.endCursor
+      limit: 20
     });
 
-    console.log(`  - 返回 ${page2.items.length} 条商品`);
-    console.log(`  - 有上一页: ${page2.pageInfo.hasPrev}`);
-    console.log(`  - 有下一页: ${page2.pageInfo.hasNext}`);
+    console.log(`  - 返回 ${page1.items.length} 条商品`);
+    console.log(`  - 有下一页: ${page1.pageInfo.hasNext}`);
+    if (page1.items.length > 0) {
+      console.log(`  - 价格区间: ${page1.items[0]?.price} ~ ${page1.items[page1.items.length - 1]?.price}`);
+    }
+
+    // 获取下一页
+    if (page1.pageInfo.hasNext) {
+      console.log('\n2️⃣ 获取下一页：');
+      const page2 = await collection(COLLECTIONS.PRODUCTS).findPage({
+        query: { category: 'electronics', inStock: true },
+        sort: { price: 1, _id: 1 },
+        limit: 20,
+        after: page1.pageInfo.endCursor
+      });
+
+      console.log(`  - 返回 ${page2.items.length} 条商品`);
+      console.log(`  - 有上一页: ${page2.pageInfo.hasPrev}`);
+      console.log(`  - 有下一页: ${page2.pageInfo.hasNext}`);
+    }
+  } finally {
+    await cleanupExampleData(msq, needCleanup);
+    await msq.close();
   }
 
-  await msq.close();
   console.log('\n✅ 示例 1 完成\n');
 }
 
@@ -737,7 +1098,7 @@ async function example8_performanceOptimization() {
 
     console.log('\n💡 性能优化总结:');
     console.log('  1. 索引是提升查询性能的关键，但需要权衡写入开销');
-    console.log('  2. 小数据集���能看不到明显差异，大数据集效果显著');
+    console.log('  2. 小数据集可能看不到明显差异，大数据集效果显著');
     console.log('  3. 让 MongoDB 自动选择索引通常是最优的');
     console.log('  4. 使用 explain() 分析查询执行计划');
     console.log('  5. 定期监控和优化慢查询');

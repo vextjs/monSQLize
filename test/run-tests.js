@@ -1,6 +1,6 @@
 /**
  * 简单的测试运行器
- * 用于运行 findPage 测试套件
+ * 用于运行 find 和 findPage 测试套件
  */
 
 // 简单的测试框架模拟
@@ -33,18 +33,44 @@ global.it = function(name, fn) {
   });
 };
 
+// 改为支持多个钩子
+global.__beforeHooks = [];
+global.__afterHooks = [];
+
 global.before = function(fn) {
-  global.__beforeHook = fn;
+  global.__beforeHooks.push(fn);
 };
 
 global.after = function(fn) {
-  global.__afterHook = fn;
+  global.__afterHooks.push(fn);
 };
 
 // 运行测试
 async function runTests() {
+  // 从命令行参数获取要运行的测试套件
+  const args = process.argv.slice(2);
+  const testSuite = args[0] || 'all'; // 默认运行所有测试
+
+  let testFiles = [];
+  let title = '';
+
+  if (testSuite === 'find') {
+    testFiles = ['./find.test.js'];
+    title = 'find 方法测试套件';
+  } else if (testSuite === 'findPage') {
+    testFiles = ['./findPage.test.js'];
+    title = 'findPage 方法测试套件';
+  } else if (testSuite === 'all') {
+    testFiles = ['./find.test.js', './findPage.test.js'];
+    title = '所有测试套件';
+  } else {
+    console.error(`\n❌ 未知的测试套件: ${testSuite}`);
+    console.error('使用方法: node run-tests.js [find|findPage|all]\n');
+    process.exit(1);
+  }
+
   console.log('\n╔═══════════════════════════════════════════════════════════╗');
-  console.log('║            运行 findPage 方法测试套件                    ║');
+  console.log(`║            运行 ${title.padEnd(35)}║`);
   console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
   const startTime = Date.now();
@@ -59,16 +85,27 @@ async function runTests() {
   };
 
   // 加载测试文件
-  require('./findPage.test.js');
+  for (const testFile of testFiles) {
+    try {
+      console.log(`📂 加载测试文件: ${testFile}`);
+      require(testFile);
+    } catch (error) {
+      console.error(`❌ 加载测试文件失败: ${testFile}`);
+      console.error(`   ${error.message}`);
+      process.exit(1);
+    }
+  }
 
   // 恢复 it 函数
   global.it = originalIt;
 
   // 运行 before 钩子
-  if (global.__beforeHook) {
+  if (global.__beforeHooks.length > 0) {
     try {
       console.log('🔧 执行测试前准备...\n');
-      await global.__beforeHook();
+      for (const beforeHook of global.__beforeHooks) {
+        await beforeHook();
+      }
     } catch (error) {
       console.error('❌ 测试前准备失败:', error.message);
       process.exit(1);
@@ -88,9 +125,11 @@ async function runTests() {
   }
 
   // 运行 after 钩子
-  if (global.__afterHook) {
+  if (global.__afterHooks.length > 0) {
     try {
-      await global.__afterHook();
+      for (const afterHook of global.__afterHooks) {
+        await afterHook();
+      }
     } catch (error) {
       console.error('\n❌ 测试清理失败:', error.message);
     }
