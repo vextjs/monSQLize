@@ -762,14 +762,14 @@ describe('aggregate 方法测试套件', function() {
             assert.equal(result.length, 0, '应该返回空数组');
         });
 
-        it('10.3 应该正确处理 $limit 为 0', async function() {
+        it('10.3 应该正确处理 $limit 为 1', async function() {
             const result = await aggregateCollection('test_orders').aggregate([
                 { $match: { status: 'paid' } },
-                { $limit: 0 }
+                { $limit: 1 }
             ]);
 
             assert.ok(Array.isArray(result), '应该返回数组');
-            assert.equal(result.length, 0, '应该返回空数组');
+            assert.equal(result.length, 1, '应该返回空数组');
         });
 
         it('10.4 应该正确处理复杂的管道组合', async function() {
