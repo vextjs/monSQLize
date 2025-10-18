@@ -20,6 +20,7 @@
   - [invalidate(op) 用法](#invalidate)
 - [跨库访问注意事项](#cross-db)
 - [说明](#notes)
+- [连接管理](#连接管理)
 - [事件（Mongo）](#事件mongo)
 - [健康检查与事件（Mongo）](#健康检查与事件mongo)
 
@@ -823,6 +824,112 @@ console.table(page2.meta.steps);
 > 说明：
 > - 默认不返回 meta，需显式开启；开销很小，仅一次时间戳与对象组装。
 > - includeCache 仅包含去敏维度（如 cacheTtl 等，具体依实现）。
+
+## 连接管理
+
+### 并发连接保护
+`connect()` 方法内置并发锁机制，确保高并发场景下只建立一个连接：
+
+```js
+const MonSQLize = require('monsqlize');
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'example',
+  config: { uri: 'mongodb://localhost:27017' },
+});
+
+// 高并发场景：10 个并发请求
+ const promises = Array(10).fill(null).map(() => msq.connect());
+const results = await Promise.all(promises);
+
+// 所有请求返回同一个连接对象
+console.log(results[0] === results[1]); // true
+```
+
+**特性**：
+- ✅ 首次调用建立连接，后续调用直接返回缓存的连接对象
+- ✅ 并发请求等待同一个 Promise，避免重复连接
+- ✅ 连接失败或成功后自动清理锁状态
+
+### 参数验证
+`collection()` 和 `db()` 方法内置参数校验，确保接收合法参数：
+
+```js
+const { collection, db } = await msq.connect();
+
+// ✅ 正常使用
+const users = collection('users');
+const orders = db('shop').collection('orders');
+
+// ❌ 无效参数（会抛出错误）
+try {
+  collection('');           // 错误：INVALID_COLLECTION_NAME
+  collection(null);         // 错误：INVALID_COLLECTION_NAME
+  collection(123);          // 错误：INVALID_COLLECTION_NAME
+  db('').collection('test'); // 错误：INVALID_DATABASE_NAME
+} catch (err) {
+  console.error(err.code, err.message);
+}
+```
+
+**验证规则**：
+- 集合名必须是**非空字符串**，不允许 null/undefined/空字符串/纯空格
+- 数据库名（如果提供）必须是**非空字符串**
+- 错误信息明确指出问题和要求
+
+### 资源清理
+`close()` 方法会正确清理所有资源，防止内存泄漏：
+
+```js
+const MonSQLize = require('monsqlize');
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'example',
+  config: { uri: 'mongodb://localhost:27017' },
+});
+
+// 多次连接-关闭循环（安全）
+for (let i = 0; i < 5; i++) {
+  await msq.connect();
+  const { collection } = await msq.connect();
+  
+  // 使用连接...
+  await collection('test').find({ query: {} });
+  
+  // 关闭连接
+  await msq.close();
+  // ✅ 内存已正确清理
+}
+```
+
+**清理内容**：
+- ✅ 关闭 MongoDB 客户端连接
+- ✅ 清理实例 ID 缓存（`_iidCache`）
+- ✅ 清理连接锁（`_connecting`）
+- ✅ 释放所有内部引用
+
+**注意事项**：
+- 多次调用 `close()` 是安全的，不会抛出错误
+- 关闭后再调用 `connect()` 会重新建立连接
+- 建议在应用关闭时调用 `close()` 释放资源
+
+### 错误处理
+
+```js
+try {
+  const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'example',
+    config: { uri: 'mongodb://invalid-host:27017' },
+  });
+  
+  await msq.connect();
+} catch (err) {
+  // 连接失败错误
+  console.error('连接失败:', err.message);
+  // ✅ 连接锁已自动清理，可以安全重试
+}
+```
 
 ## 事件（Mongo）
 - 事件基于 Node.js EventEmitter，进程内有效：

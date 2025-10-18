@@ -54,7 +54,10 @@ async function runTests() {
   let testFiles = [];
   let title = '';
 
-  if (testSuite === 'find') {
+      if (testSuite === 'connection') {
+    testFiles = ['./connection-simple.test.js'];
+    title = '连接管理核心测试';
+  } else if (testSuite === 'find') {
     testFiles = ['./find.test.js'];
     title = 'find 方法测试套件';
   } else if (testSuite === 'findPage') {
@@ -70,11 +73,11 @@ async function runTests() {
       testFiles = ['./aggregate.test.js'];
       title = 'aggregate 方法测试套件';
   } else if (testSuite === 'all') {
-    testFiles = ['./find.test.js', './findPage.test.js', './findOne.test.js', './count.test.js', './aggregate.test.js'];
+    testFiles = ['./connection.test.js', './find.test.js', './findPage.test.js', './findOne.test.js', './count.test.js', './aggregate.test.js'];
     title = '所有测试套件';
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [find|findPage|findOne|count|aggregate|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findOne|count|aggregate|all]\n');
     process.exit(1);
   }
 
