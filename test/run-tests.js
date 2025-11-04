@@ -82,20 +82,63 @@ async function runTests() {
   } else if (testSuite === 'distinct') {
     testFiles = ['./unit/features/distinct.test.js'];
     title = 'distinct 方法测试套件';
-  } else if (testSuite === 'all') {
+  } else if (testSuite === 'utils') {
     testFiles = [
-      './unit/infrastructure/connection.test.js',
-      './unit/features/find.test.js',
-      './unit/features/findPage.test.js',
-      './unit/features/findOne.test.js',
-      './unit/features/count.test.js',
-      './unit/features/aggregate.test.js',
-      './unit/features/distinct.test.js'
+      './unit/utils/cursor.test.js',
+      './unit/utils/normalize.test.js',
+      './unit/utils/page-result.test.js',
+      './unit/utils/shape-builders.test.js'
     ];
-    title = '所有测试套件';
+    title = '工具函数测试套件';
+  } else if (testSuite === 'all') {
+    // all 模式：顺序执行各个测试套件，避免并发初始化问题
+    console.log('\n╔═══════════════════════════════════════════════════════════╗');
+    console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
+    console.log('╚═══════════════════════════════════════════════════════════╝\n');
+
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'utils'];
+    let totalPassed = 0;
+    let totalFailed = 0;
+    const overallStartTime = Date.now();
+
+    for (const suite of suites) {
+      console.log(`\n${'─'.repeat(60)}`);
+      console.log(`▶ 运行测试套件: ${suite}`);
+      console.log('─'.repeat(60) + '\n');
+
+      // 重新启动子进程运行每个测试套件
+      const { spawnSync } = require('child_process');
+      const result = spawnSync('node', ['test/run-tests.js', suite], {
+        cwd: process.cwd(),
+        stdio: 'inherit',
+        shell: true
+      });
+
+      if (result.status !== 0) {
+        console.error(`\n❌ 测试套件 ${suite} 失败\n`);
+        totalFailed++;
+      } else {
+        console.log(`\n✅ 测试套件 ${suite} 通过\n`);
+        totalPassed++;
+      }
+    }
+
+    // 输出总体结果
+    const overallDuration = Date.now() - overallStartTime;
+    console.log('\n' + '═'.repeat(60));
+    console.log('所有测试套件汇总');
+    console.log('═'.repeat(60));
+    console.log(`✓ 通过: ${totalPassed}/${suites.length} 个测试套件`);
+    if (totalFailed > 0) {
+      console.log(`✗ 失败: ${totalFailed}/${suites.length} 个测试套件`);
+    }
+    console.log(`⏱  总耗时: ${(overallDuration / 1000).toFixed(2)} 秒`);
+    console.log('═'.repeat(60) + '\n');
+
+    process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|utils|all]\n');
     process.exit(1);
   }
 
@@ -138,6 +181,7 @@ async function runTests() {
       }
     } catch (error) {
       console.error('❌ 测试前准备失败:', error.message);
+      console.error('   详细信息:', error.stack);
       process.exit(1);
     }
   }
@@ -194,5 +238,7 @@ async function runTests() {
 // 执行测试
 runTests().catch(error => {
   console.error('\n❌ 测试运行器出错:', error);
+  console.error('错误详情:', error.stack);
   process.exit(1);
 });
+

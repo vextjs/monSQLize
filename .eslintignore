@@ -1,0 +1,7 @@
+node_modules/
+coverage/
+old/
+*.min.js
+examples/
+docs/
+

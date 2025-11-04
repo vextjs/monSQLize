@@ -4,12 +4,41 @@
   "main": "lib/index.js",
   "types": "./index.d.ts",
   "scripts": {
-    "test": "node test/run-tests.js"
+    "test": "node test/run-tests.js",
+    "test:unit": "node test/run-tests.js",
+    "test:coverage": "nyc --reporter=text --reporter=lcov node test/run-tests.js",
+    "coverage": "nyc --reporter=text --reporter=lcov --reporter=html node test/run-tests.js",
+    "benchmark": "node test/benchmark/run-benchmarks.js",
+    "lint": "eslint lib/ test/ --ext .js",
+    "lint:fix": "eslint lib/ test/ --ext .js --fix"
   },
   "dependencies": {
     "mongodb": "^6.17.0"
   },
   "devDependencies": {
-    "mocha": "^11.7.4"
+    "benchmark": "^2.1.4",
+    "eslint": "^8.57.0",
+    "mocha": "^11.7.4",
+    "nyc": "^15.1.0"
+  },
+  "nyc": {
+    "include": [
+      "lib/**/*.js"
+    ],
+    "exclude": [
+      "test/**",
+      "examples/**",
+      "scripts/**"
+    ],
+    "reporter": [
+      "text",
+      "lcov",
+      "html"
+    ],
+    "check-coverage": true,
+    "lines": 70,
+    "statements": 70,
+    "functions": 70,
+    "branches": 65
   }
 }
