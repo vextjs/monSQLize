@@ -3,7 +3,7 @@
  * 测试 connect()、close()、collection() 方法
  */
 
-const MonSQLize = require('../lib');
+const MonSQLize = require('../../../lib');
 const assert = require('assert');
 
 describe('连接管理测试套件', function() {

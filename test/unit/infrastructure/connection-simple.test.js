@@ -3,7 +3,7 @@
  * 验证修复的三个问题：并发连接、输入验证、内存泄漏
  */
 
-const MonSQLize = require('../lib');
+const MonSQLize = require('../../../lib');
 const assert = require('assert');
 
 describe('连接管理核心测试', function() {

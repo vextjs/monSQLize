@@ -3,7 +3,7 @@
  * 测试所有查询模式、边界情况和错误处理
  */
 
-const MonSQLize = require('../lib');
+const MonSQLize = require('../../../lib');
 const assert = require('assert');
 
 describe('findOne 方法测试套件', function() {

@@ -54,30 +54,48 @@ async function runTests() {
   let testFiles = [];
   let title = '';
 
-      if (testSuite === 'connection') {
-    testFiles = ['./connection-simple.test.js'];
+  // 注意：测试文件现在按照规范分类到 features/ 和 infrastructure/ 子目录
+  if (testSuite === 'connection') {
+    testFiles = ['./unit/infrastructure/connection-simple.test.js'];
     title = '连接管理核心测试';
   } else if (testSuite === 'find') {
-    testFiles = ['./find.test.js'];
+    testFiles = ['./unit/features/find.test.js'];
     title = 'find 方法测试套件';
   } else if (testSuite === 'findPage') {
-    testFiles = ['./findPage.test.js'];
+    testFiles = ['./unit/features/findPage.test.js'];
     title = 'findPage 方法测试套件';
+  } else if (testSuite === 'findPage-supplement' || testSuite === 'findpage-supplement') {
+    testFiles = ['./unit/features/findPage-supplement.test.js'];
+    title = 'findPage 补充测试套件';
+  } else if (testSuite === 'findPage-all' || testSuite === 'findpage-all') {
+    testFiles = ['./unit/features/findPage.test.js', './unit/features/findPage-supplement.test.js'];
+    title = 'findPage 完整测试套件';
   } else if (testSuite === 'findOne') {
-    testFiles = ['./findOne.test.js'];
+    testFiles = ['./unit/features/findOne.test.js'];
     title = 'findOne 方法测试套件';
   } else if (testSuite === 'count') {
-    testFiles = ['./count.test.js'];
+    testFiles = ['./unit/features/count.test.js'];
     title = 'count 方法测试套件';
   } else if (testSuite === 'aggregate') {
-      testFiles = ['./aggregate.test.js'];
-      title = 'aggregate 方法测试套件';
+    testFiles = ['./unit/features/aggregate.test.js'];
+    title = 'aggregate 方法测试套件';
+  } else if (testSuite === 'distinct') {
+    testFiles = ['./unit/features/distinct.test.js'];
+    title = 'distinct 方法测试套件';
   } else if (testSuite === 'all') {
-    testFiles = ['./connection.test.js', './find.test.js', './findPage.test.js', './findOne.test.js', './count.test.js', './aggregate.test.js'];
+    testFiles = [
+      './unit/infrastructure/connection.test.js',
+      './unit/features/find.test.js',
+      './unit/features/findPage.test.js',
+      './unit/features/findOne.test.js',
+      './unit/features/count.test.js',
+      './unit/features/aggregate.test.js',
+      './unit/features/distinct.test.js'
+    ];
     title = '所有测试套件';
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findOne|count|aggregate|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|all]\n');
     process.exit(1);
   }
 
