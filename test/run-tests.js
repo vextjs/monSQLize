@@ -178,12 +178,29 @@ async function runTests() {
     };
 
     // 加载测试文件
+    let moduleExport;
     try {
-      require(testFile);
+      moduleExport = require(testFile);
     } catch (error) {
       console.error(`❌ 加载测试文件失败: ${testFile}`);
       console.error(`   ${error.message}`);
       process.exit(1);
+    }
+
+    // 如果测试文件导出了 Promise（异步测试），等待它完成
+    if (moduleExport && typeof moduleExport.then === 'function') {
+      try {
+        await moduleExport;
+      } catch (error) {
+        console.error(`❌ 异步测试执行失败: ${testFile}`);
+        console.error(`   ${error.message}`);
+        if (error.stack) {
+          console.error(error.stack);
+        }
+        process.exit(1);
+      }
+      // 异步测试文件已自行执行完毕，跳过下面的 it() 测试
+      continue;
     }
 
     // 恢复 it 函数
