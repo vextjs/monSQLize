@@ -21,7 +21,7 @@ describe('findOne 方法测试套件', function() {
     msq = new MonSQLize({
       type: 'mongodb',
       databaseName: 'test_findOne',
-      config: { uri: process.env.MONGO_URI || 'mongodb://localhost:27017' },
+      config: { useMemoryServer: true },
       slowQueryMs: 1000,
       findLimit: 100
     });
@@ -554,7 +554,7 @@ describe('findOne 方法测试套件', function() {
       const originalMsq = new MonSQLize({
         type: 'mongodb',
         databaseName: 'test_findOne',
-        config: { uri: process.env.MONGO_URI || 'mongodb://localhost:27017' },
+        config: { useMemoryServer: true },
         slowQueryMs: 1, // 1ms 阈值
         findLimit: 100
       });

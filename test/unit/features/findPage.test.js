@@ -21,7 +21,7 @@ describe('findPage 方法测试套件', function() {
     msq = new MonSQLize({
       type: 'mongodb',
       databaseName: 'test_findpage',
-      config: { uri: process.env.MONGO_URI || 'mongodb://localhost:27017' },
+      config: { useMemoryServer: true },
       slowQueryMs: 1000,
       findPageMaxLimit: 500,
       bookmarks: {

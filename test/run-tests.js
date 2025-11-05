@@ -56,7 +56,7 @@ async function runTests() {
 
   // 注意：测试文件现在按照规范分类到 features/ 和 infrastructure/ 子目录
   if (testSuite === 'connection') {
-    testFiles = ['./unit/infrastructure/connection-simple.test.js'];
+    testFiles = ['./unit/infrastructure/connection.test.js'];
     title = '连接管理核心测试';
   } else if (testSuite === 'find') {
     testFiles = ['./unit/features/find.test.js'];
@@ -149,64 +149,73 @@ async function runTests() {
   const startTime = Date.now();
   let passed = 0;
   let failed = 0;
-  const tests = [];
+  const allFailedTests = [];
 
-  // 收集所有测试
-  const originalIt = global.it;
-  global.it = function(name, fn) {
-    tests.push({ name, fn });
-  };
-
-  // 加载测试文件
+  // 为每个测试文件独立处理 before/after 钩子
   for (const testFile of testFiles) {
+    console.log(`📂 加载测试文件: ${testFile}`);
+
+    // 为每个文件重置钩子和测试
+    global.__beforeHooks = [];
+    global.__afterHooks = [];
+    const tests = [];
+
+    // 收集此文件的测试
+    const originalIt = global.it;
+    global.it = function(name, fn) {
+      tests.push({ name, fn });
+    };
+
+    // 加载测试文件
     try {
-      console.log(`📂 加载测试文件: ${testFile}`);
       require(testFile);
     } catch (error) {
       console.error(`❌ 加载测试文件失败: ${testFile}`);
       console.error(`   ${error.message}`);
       process.exit(1);
     }
-  }
 
-  // 恢复 it 函数
-  global.it = originalIt;
+    // 恢复 it 函数
+    global.it = originalIt;
 
-  // 运行 before 钩子
-  if (global.__beforeHooks.length > 0) {
-    try {
-      console.log('🔧 执行测试前准备...\n');
-      for (const beforeHook of global.__beforeHooks) {
-        await beforeHook();
+    // 运行此文件的 before 钩子
+    if (global.__beforeHooks.length > 0) {
+      try {
+        console.log('🔧 执行测试前准备...\n');
+        for (const beforeHook of global.__beforeHooks) {
+          await beforeHook();
+        }
+      } catch (error) {
+        console.error(`❌ 测试前准备失败 (${testFile}):`, error.message);
+        console.error('   详细信息:', error.stack);
+        process.exit(1);
       }
-    } catch (error) {
-      console.error('❌ 测试前准备失败:', error.message);
-      console.error('   详细信息:', error.stack);
-      process.exit(1);
     }
-  }
 
-  // 运行所有测试
-  const failedTests = [];
-  for (const test of tests) {
-    try {
-      await test.fn();
-      passed++;
-    } catch (error) {
-      failed++;
-      failedTests.push({ name: test.name, error });
-    }
-  }
-
-  // 运行 after 钩子
-  if (global.__afterHooks.length > 0) {
-    try {
-      for (const afterHook of global.__afterHooks) {
-        await afterHook();
+    // 运行此文件的所有测试
+    for (const test of tests) {
+      try {
+        await test.fn();
+        passed++;
+      } catch (error) {
+        failed++;
+        allFailedTests.push({ name: test.name, error, file: testFile });
       }
-    } catch (error) {
-      console.error('\n❌ 测试清理失败:', error.message);
     }
+
+    // 运行此文件的 after 钩子
+    if (global.__afterHooks.length > 0) {
+      try {
+        for (const afterHook of global.__afterHooks) {
+          await afterHook();
+        }
+      } catch (error) {
+        console.error(`\n⚠️  测试清理警告 (${testFile}):`, error.message);
+      }
+    }
+
+    // 清理模块缓存，避免下次加载时冲突
+    delete require.cache[require.resolve(testFile)];
   }
 
   // 输出测试结果
@@ -218,8 +227,8 @@ async function runTests() {
   if (failed > 0) {
     console.log(`✗ 失败: ${failed} 个测试`);
     console.log('\n失败的测试:');
-    failedTests.forEach(({ name, error }) => {
-      console.log(`  ✗ ${name}`);
+    allFailedTests.forEach(({ name, error, file }) => {
+      console.log(`  ✗ ${name} (来自 ${file})`);
       console.log(`    ${error.message}`);
     });
   }

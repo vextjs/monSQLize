@@ -20,7 +20,7 @@ describe('findPage 补充测试套件', function() {
     msq = new MonSQLize({
       type: 'mongodb',
       databaseName: 'test_findpage_ext',
-      config: { uri: process.env.MONGO_URI || 'mongodb://localhost:27017' },
+      config: { useMemoryServer: true },
       slowQueryMs: 1000,
       findPageMaxLimit: 500
     });

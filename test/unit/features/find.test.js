@@ -21,7 +21,7 @@ describe('find 方法测试套件', function() {
     msq = new MonSQLize({
       type: 'mongodb',
       databaseName: 'test_find',
-      config: { uri: process.env.MONGO_URI || 'mongodb://localhost:27017' },
+      config: { useMemoryServer: true },
       slowQueryMs: 1000,
       findLimit: 100
     });
@@ -533,6 +533,9 @@ describe('find 方法测试套件', function() {
 
   describe('6. 缓存功能', function() {
     it('6.1 应该支持缓存查询结果', async function() {
+      // 重置缓存统计，确保测试独立性
+      msq.cache.resetStats();
+
       const query = {
         query: { category: 'clothing' },
         sort: { price: 1 },
@@ -540,32 +543,72 @@ describe('find 方法测试套件', function() {
         cache: 60000  // 缓存 1 分钟
       };
 
-      // 首次查询
-      const start1 = Date.now();
+      console.log('\n     📊 缓存测试开始...');
+
+      // 首次查询（应该未命中缓存）
+      console.log('     → 执行首次查询（应该未命中缓存）');
       const result1 = await findCollection('test_products').find(query);
-      const duration1 = Date.now() - start1;
+
+      const statsAfterFirst = msq.cache.getStats();
+      console.log(`     → 首次查询后: hits=${statsAfterFirst.hits}, misses=${statsAfterFirst.misses}, sets=${statsAfterFirst.sets}`);
 
       // 第二次查询（应该从缓存读取）
-      const start2 = Date.now();
+      console.log('     → 执行第二次查询（应该命中缓存）');
       const result2 = await findCollection('test_products').find(query);
-      const duration2 = Date.now() - start2;
 
+      const statsAfterSecond = msq.cache.getStats();
+      console.log(`     → 第二次查询后: hits=${statsAfterSecond.hits}, misses=${statsAfterSecond.misses}, hitRate=${(statsAfterSecond.hitRate * 100).toFixed(1)}%`);
+
+      // ✅ 验证缓存命中：第二次查询应该增加缓存命中次数
+      assert.ok(
+        statsAfterSecond.hits > statsAfterFirst.hits,
+        `应该有缓存命中（命中次数从 ${statsAfterFirst.hits} 增加到 ${statsAfterSecond.hits}）`
+      );
+
+      console.log(`     ✅ 缓存命中验证通过: 命中次数从 ${statsAfterFirst.hits} 增加到 ${statsAfterSecond.hits}`);
+
+      // 验证结果一致性
       assert.equal(result1.length, result2.length, '两次查询结果数量应该相同');
-      assert.ok(duration2 < duration1, '缓存查询应该更快');
+
+      // 验证结果内容一致（比较第一条数据的 ID）
+      if (result1.length > 0) {
+        assert.equal(
+          String(result1[0]._id),
+          String(result2[0]._id),
+          '两次查询结果应该一致'
+        );
+      }
+
+      console.log(`     ✅ 结果一致性验证通过: 两次查询返回 ${result1.length} 条相同数据`);
     });
 
     it('6.2 缓存应该区分不同的查询条件', async function() {
+      // 重置缓存统计
+      msq.cache.resetStats();
+
+      console.log('\n     📊 测试缓存隔离性...');
+
+      // 查询1：electronics
+      console.log('     → 查询1: category=electronics');
       const result1 = await findCollection('test_products').find({
         query: { category: 'electronics' },
         limit: 5,
         cache: 60000
       });
 
+      const statsAfter1 = msq.cache.getStats();
+      console.log(`     → 查询1后: hits=${statsAfter1.hits}, misses=${statsAfter1.misses}, sets=${statsAfter1.sets}`);
+
+      // 查询2：books（不同条件）
+      console.log('     → 查询2: category=books');
       const result2 = await findCollection('test_products').find({
         query: { category: 'books' },
         limit: 5,
         cache: 60000
       });
+
+      const statsAfter2 = msq.cache.getStats();
+      console.log(`     → 查询2后: hits=${statsAfter2.hits}, misses=${statsAfter2.misses}, sets=${statsAfter2.sets}`);
 
       // 两个不同的查询应该返回不同的结果
       const categories1 = result1.map(item => item.category);
@@ -579,6 +622,15 @@ describe('find 方法测试套件', function() {
         categories2.every(c => c === 'books'),
         '第二个查询应该只返回 books'
       );
+
+      // 验证两次查询都未命中缓存（因为是不同的查询）
+      assert.equal(
+        statsAfter2.sets,
+        2,
+        '应该设置了2个不同的缓存条目'
+      );
+
+      console.log(`     ✅ 缓存隔离验证通过: 两个不同查询各自创建了独立缓存（共 ${statsAfter2.sets} 个缓存条目）`);
     });
   });
 
