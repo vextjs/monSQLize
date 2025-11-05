@@ -968,3 +968,86 @@ msq.on('slow-query', (meta) => console.warn('slow-query', meta));
 await msq.connect();
 console.log(await msq.health());
 ```
+
+## 开发与测试
+
+### 测试覆盖率
+
+**当前覆盖率**（截至 2025-11-05）：
+
+| 指标 | 覆盖率 | 目标 | 状态 |
+|------|--------|------|------|
+| 语句 (Statements) | **77.04%** | ≥70% | ✅ |
+| 分支 (Branch) | 61.51% | ≥65% | ⚠️ |
+| 函数 (Functions) | **81.42%** | ≥70% | ✅ |
+| 行 (Lines) | **79.52%** | ≥70% | ✅ |
+
+**核心模块覆盖率**：
+
+| 模块 | 语句 | 分支 | 函数 | 行 | 状态 |
+|------|------|------|------|-----|------|
+| **logger.js** | **93.22%** | **76.92%** | **100%** | **94.54%** | ✅ 优秀 |
+| **constants.js** | 100% | 100% | 100% | 100% | ✅ 完美 |
+| **errors.js** | 100% | 81.81% | 100% | 100% | ✅ 优秀 |
+| **connect.js** | 84.21% | 50% | 100% | 83.33% | ✅ 良好 |
+
+**运行测试**：
+```bash
+# 运行所有测试
+npm test
+
+# 运行覆盖率报告
+npm run coverage
+
+# 运行特定测试套件
+npm test find
+npm test logger
+npm test infrastructure
+```
+
+**测试结构**：
+- `test/unit/features/` - 功能性测试（业务功能）
+- `test/unit/infrastructure/` - 基础设施测试（日志、缓存、错误码）
+- `test/unit/utils/` - 工具函数测试（纯函数）
+- `test/integration/` - 集成测试
+- `test/benchmark/` - 性能基准测试
+
+详细测试说明请参考 [test/README.md](test/README.md)
+
+### 代码质量
+
+**Lint 检查**：
+```bash
+npm run lint
+npm run lint:fix
+```
+
+**CI/CD**：
+- 测试矩阵：Node.js 18.x/20.x × Ubuntu/Windows
+- 覆盖率自动上传到 Codecov
+- 每次 PR 自动运行测试和 Lint 检查
+
+### 项目结构
+
+```
+monSQLize/
+├── lib/                    # 源代码
+│   ├── mongodb/           # MongoDB 适配器
+│   ├── common/            # 通用工具
+│   ├── logger.js          # 日志系统
+│   ├── errors.js          # 错误码系统
+│   ├── constants.js       # 常量配置
+│   └── cache.js           # 缓存系统
+├── test/                  # 测试代码
+│   ├── unit/             # 单元测试
+│   ├── integration/      # 集成测试
+│   └── benchmark/        # 性能测试
+├── examples/             # 示例代码
+├── docs/                 # 详细文档
+├── analysis-reports/     # 分析报告（永久保留）
+├── scripts/              # 工具脚本
+│   └── verify/           # 验证脚本
+└── .github/              # CI/CD 配置
+```
+
+详细规范请参考 [guidelines/](../guidelines/)

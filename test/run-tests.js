@@ -90,13 +90,24 @@ async function runTests() {
       './unit/utils/shape-builders.test.js'
     ];
     title = '工具函数测试套件';
+  } else if (testSuite === 'infrastructure') {
+    testFiles = [
+      './unit/infrastructure/connection.test.js',
+      './unit/infrastructure/cache.test.js',
+      './unit/infrastructure/errors.test.js',
+      './unit/infrastructure/logger.test.js'
+    ];
+    title = '基础设施测试套件';
+  } else if (testSuite === 'logger') {
+    testFiles = ['./unit/infrastructure/logger.test.js'];
+    title = '日志系统测试套件';
   } else if (testSuite === 'all') {
     // all 模式：顺序执行各个测试套件，避免并发初始化问题
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
     console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'utils'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const overallStartTime = Date.now();
@@ -138,7 +149,7 @@ async function runTests() {
     process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|utils|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|utils|infrastructure|logger|all]\n');
     process.exit(1);
   }
 

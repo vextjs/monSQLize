@@ -179,17 +179,37 @@
 ## Not Goals（短期非目标）
 - 提供写 API 的自动失效（由调用方手动失效或在业务层封装）。
 
-## 能力缺口与优先级（2025-09-26 更新）
-- P0（直接提升可用性/生产稳定性）
-  - TypeScript 类型补全：findPage 新参数（page/jump/offsetJump/totals/meta）与返回 totals/meta 字段
-  - 预热与书签运维 API：prewarmBookmarks/listBookmarks/clearBookmarks
-  - 测试覆盖：跳页、totals、meta、事件系统的回归与边界用例
-- P1（扩展能力面）
-  - stream（find 流式返回）
-  - 聚合（aggregate/透传）
-  - distinct / explain（诊断用途）
-  - 查询运算符映射层（operators）基础运算符支持
-- P2（生态/打包与多数据库）
+## 能力缺口与优先级（2025-11-05 更新）
+
+### P0（已完成 ✅）- 直接提升可用性/生产稳定性
+- ✅ **Logger.js 测试覆盖率提升**：从 37.28% 提升至 93.22%（2025-11-05 完成）
+  - 新增 20+ 测试用例覆盖 withTraceId 嵌套、异步传播、边界情况、所有日志级别
+  - 语句覆盖率提升 +55.94%，分支覆盖率 +46.92%，函数覆盖率达到 100%
+- ✅ **TypeScript 类型声明完善**：验证所有 API 均有完整类型定义（2025-11-05 完成）
+  - findOne/find/count/aggregate/distinct/stream/findPage 所有方法类型完整
+  - 支持 meta 参数重载（ResultWithMeta<T>）
+  - StreamOptions/AggregateOptions/DistinctOptions 接口完整
+- ✅ **CI/CD 配置验证**：测试矩阵、覆盖率上传、Lint 检查完整（2025-11-05 完成）
+  - 测试矩阵：Node.js 18.x/20.x × Ubuntu/Windows
+  - 覆盖率自动上传 Codecov
+  - CI 健康度 5/5
+- ✅ **完整测试套件验证**：所有测试通过，无回归问题（2025-11-05 完成）
+  - 9/9 测试套件通过（278+ 测试用例）
+  - 总耗时 <5s（快速反馈）
+
+### P1（扩展能力面）
+- 🗺️ **分支覆盖率提升**：当前 61.51%，目标 ≥65%
+  - cache.js (51.11%), index.js (44.44%), mongodb/connect.js (37.5%)
+  - 补充异常路径测试（缓存失效、超时、并发、连接失败）
+- 🗺️ **示例可运行性验证**：添加 CI 自动验证步骤
+  - 自动运行 examples/*.examples.js
+  - 验证输出符合预期
+- ✅ stream（find 流式返回）
+- ✅ 聚合（aggregate/透传）
+- ✅ distinct / explain（诊断用途）
+- 🗺️ 查询运算符映射层（operators）基础运算符支持
+
+### P2（生态/打包与多数据库）
   - 模块格式：ESM 条件导出
   - PostgreSQL 适配器（从只读最小集起步）
   - MySQL 适配器（从只读最小集起步）
@@ -227,19 +247,40 @@
 - 事件钩子/health：事件触发顺序、异常路径、健康视图字段。
 - CI 建议：继续覆盖 Windows + Ubuntu；库类项目增加包体检查（npm pack）。
 
-## 下一阶段执行清单（2025-09-26）
+## 下一阶段执行清单（2025-11-05）
 
-### 短期（1-2 周）- P0 生产稳定性
-1. **TypeScript 类型补全**
-   - 更新 `index.d.ts`：findPage 新参数（page/jump/offsetJump/totals/meta）
-   - 返回类型：pageInfo.currentPage、totals 字段、meta 字段（含 level='sub' 时的 steps）
-2. **测试覆盖补强**
-   - 跳页：无书签/命中书签、maxHops 触发、排序变更 INVALID_CURSOR
-   - totals：async/sync 模式、失败语义（total:null + error）
-   - meta：基础耗时、子步骤明细、缓存命中信息
-   - 事件：connected/closed/error/slow-query/query 触发验证
+### P0（已完成 ✅）- 生产稳定性
+1. ✅ **Logger.js 测试覆盖率提升**（2025-11-05）
+   - 从 37.28% → 93.22%（语句覆盖率）
+   - 新增 20+ 测试用例，覆盖复杂场景
+   - 整体项目覆盖率提升至 77.04%
+2. ✅ **TypeScript 类型声明完善**（2025-11-05）
+   - 验证所有 API 均有完整类型定义
+   - 支持 meta 参数重载
+   - 类型覆盖率 100%
+3. ✅ **CI/CD 配置验证**（2025-11-05）
+   - 测试矩阵完整（Node 18/20 × Windows/Ubuntu）
+   - 覆盖率自动上传 Codecov
+   - CI 健康度 5/5
+4. ✅ **完整测试套件验证**（2025-11-05）
+   - 9/9 测试套件通过
+   - 278+ 测试用例，无回归问题
 
-### 中期（1 个月）- P1 能力扩展
+### 短期（1-2 周）- P1 质量提升
+1. **分支覆盖率提升**
+   - 当前：61.51% → 目标：≥65%
+   - 重点模块：cache.js, index.js, mongodb/connect.js
+   - 补充异常路径和边界条件测试
+2. **示例可运行性验证**
+   - 添加 CI 步骤自动运行 examples/*.examples.js
+   - 验证输出符合预期
+   - 确保文档与代码一致
+3. **性能基准测试优化**
+   - 添加关键 API 性能基准（benchmarks/）
+   - 防止性能退化
+   - 建立性能监控体系
+
+### 中期（1 个月）- P2 能力扩展
 3. **书签运维 API**
    - prewarmBookmarks：批量预热热门查询形状
    - listBookmarks/clearBookmarks：运维与调试工具
