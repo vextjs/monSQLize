@@ -19,6 +19,7 @@
     "benchmark": "^2.1.4",
     "eslint": "^8.57.0",
     "mocha": "^11.7.4",
+    "mongodb-memory-server": "^10.1.2",
     "nyc": "^15.1.0"
   },
   "nyc": {
