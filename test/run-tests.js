@@ -84,7 +84,10 @@ async function runTests() {
     title = 'distinct 方法测试套件';
   } else if (testSuite === 'explain') {
     testFiles = ['./unit/features/explain.test.js'];
-    title = 'explain 方法测试套件';
+    title = 'Explain API 测试套件';
+  } else if (testSuite === 'bookmarks') {
+    testFiles = ['./unit/features/bookmarks.test.js'];
+    title = 'Bookmark 维护 APIs 测试套件';
   } else if (testSuite === 'utils') {
     testFiles = [
       './unit/utils/cursor.test.js',
@@ -112,7 +115,7 @@ async function runTests() {
     console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'bookmarks', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const overallStartTime = Date.now();
@@ -154,7 +157,7 @@ async function runTests() {
     process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|explain|utils|infrastructure|logger|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|explain|bookmarks|utils|infrastructure|logger|all]\n');
     process.exit(1);
   }
 

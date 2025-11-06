@@ -200,6 +200,32 @@ declare module 'monsqlize' {
         verbosity?: 'queryPlanner' | 'executionStats' | 'allPlansExecution'; // 详细程度（默认 'queryPlanner'）
     }
 
+    // Bookmark 维护 APIs 相关接口
+    interface BookmarkKeyDims {
+        sort?: Record<string, 1 | -1>;   // 排序配置（与 findPage 一致）
+        limit?: number;                  // 每页数量
+        query?: object;                  // 查询条件（用于计算 queryShape）
+        pipeline?: object[];             // 聚合管道（用于计算 pipelineShape）
+    }
+
+    interface PrewarmBookmarksResult {
+        warmed: number;                  // 成功预热的 bookmark 数量
+        failed: number;                  // 预热失败的 bookmark 数量
+        keys: string[];                  // 已缓存的 bookmark 键列表
+    }
+
+    interface ListBookmarksResult {
+        count: number;                   // bookmark 总数
+        pages: number[];                 // 已缓存的页码列表（排序后）
+        keys: string[];                  // 缓存键列表
+    }
+
+    interface ClearBookmarksResult {
+        cleared: number;                 // 清除的 bookmark 数量
+        pattern: string;                 // 使用的匹配模式
+        keysBefore: number;              // 清除前的 bookmark 数量
+    }
+
     // 跳页相关类型
     interface JumpOptions {
         step?: number;                    // 书签密度：每隔 step 页存一个书签；默认 10
@@ -342,6 +368,11 @@ declare module 'monsqlize' {
 
         // explain：查询执行计划诊断
         explain(options?: ExplainOptions): Promise<any>;
+
+        // Bookmark 维护 APIs
+        prewarmBookmarks(keyDims: BookmarkKeyDims, pages: number[]): Promise<PrewarmBookmarksResult>;
+        listBookmarks(keyDims?: BookmarkKeyDims): Promise<ListBookmarksResult>;
+        clearBookmarks(keyDims?: BookmarkKeyDims): Promise<ClearBookmarksResult>;
 
         // findPage：已在 PageResult 中包含 meta 字段，无需重载
         findPage(options: FindPageOptions): Promise<PageResult>;

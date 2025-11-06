@@ -5,6 +5,26 @@
 ## [未发布]
 
 ### 新增
+- **[P2.2] Bookmark 维护 APIs**（2025-11-06）
+  - 新增 3 个 bookmark 管理 API，用于运维调试和性能优化：
+    - `prewarmBookmarks(keyDims, pages)`：预热指定页面的 bookmark 缓存
+    - `listBookmarks(keyDims?)`：列出已缓存的 bookmark（支持按查询过滤或查看全部）
+    - `clearBookmarks(keyDims?)`：清除指定查询或全部 bookmark 缓存
+  - 核心特性：
+    - 智能 Hash 匹配：自动应用 `ensureStableSort` 规范化，确保与 findPage 使用相同的缓存键
+    - 精确控制：支持按 keyDims 精确管理特定查询的 bookmark
+    - 全局操作：不传 keyDims 可操作所有 bookmark（适用于全局重置）
+    - 失败检测：prewarmBookmarks 自动检测超出范围的页面并标记为 `failed`
+    - 缓存可用性检查：所有 API 在缓存不可用时抛出 `CACHE_UNAVAILABLE` 错误
+  - 使用场景：
+    - 系统启动时预热热点页面（减少首次查询延迟）
+    - 运维监控查看已缓存的页面分布
+    - 数据变更后清除相关缓存确保一致性
+    - 内存管理：按需清理缓存释放资源
+  - 测试：16 个测试用例，覆盖所有参数、边界情况和多查询隔离
+  - 示例：`examples/bookmarks.examples.js` 包含 5 个完整工作流
+  - 类型声明：`BookmarkKeyDims`、`PrewarmBookmarksResult`、`ListBookmarksResult`、`ClearBookmarksResult` 完整类型支持
+
 - **[P2.1] explain 诊断 API**（2025-11-06）
   - 新增 `explain(options)` 方法，用于查询执行计划分析和性能诊断
   - 支持 3 种 verbosity 模式：

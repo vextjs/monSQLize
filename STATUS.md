@@ -111,6 +111,19 @@
     - 支持参数：query, projection, sort, limit, skip, maxTimeMS, hint, collation
     - 特性：禁用缓存、慢查询日志集成、INVALID_EXPLAIN_VERBOSITY 错误处理
     - 使用场景：索引使用验证、慢查询诊断、查询策略对比、复杂查询分析
+- ✅ Bookmark 维护 APIs
+    - **bookmark 缓存管理**（运维调试、性能优化）
+    - 3 个 API：
+      - `prewarmBookmarks(keyDims, pages)`：预热指定页面的 bookmark 缓存
+      - `listBookmarks(keyDims?)`：列出已缓存的 bookmark（支持按查询过滤或全部）
+      - `clearBookmarks(keyDims?)`：清除指定查询或全部 bookmark 缓存
+    - 核心特性：
+      - 智能 Hash 匹配：自动应用 ensureStableSort 规范化确保键一致性
+      - 精确控制：支持按 keyDims 管理特定查询的 bookmark
+      - 全局操作：不传 keyDims 可操作所有 bookmark
+      - 失败检测：prewarmBookmarks 自动检测超出范围页面
+      - 缓存可用性检查：缓存不可用时抛出 CACHE_UNAVAILABLE 错误
+    - 使用场景：系统启动预热、运维监控、数据变更后清除缓存、内存管理
 - ❌ 高级查询/游标选项统一抽象
     - batchSize/hint/collation/noCursorTimeout/tailable/max/min/returnKey/allowPartialResults/
       readPreference/readConcern。

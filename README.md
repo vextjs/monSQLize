@@ -818,6 +818,88 @@ const msq = await new MonSQLize({
 3. **对比查询策略** - 比较不同 hint/query 的性能差异
 4. **优化复杂查询** - 分析聚合、联表等复杂查询的执行计划
 
+详细使用方法请参考：[examples/explain.examples.js](examples/explain.examples.js)
+
+---
+
+## Bookmark 维护 APIs
+
+### 概述
+`prewarmBookmarks`、`listBookmarks`、`clearBookmarks` 三个 API 用于管理 findPage 的 bookmark 缓存，适用于运维调试和性能优化。
+
+**核心特性**:
+- ✅ 智能 Hash 匹配：自动应用 `ensureStableSort` 规范化，确保与 findPage 使用相同的缓存键
+- ✅ 精确控制：支持按 `keyDims` 管理特定查询的 bookmark
+- ✅ 全局操作：不传 `keyDims` 可操作所有 bookmark（适用于全局重置）
+- ✅ 失败检测：`prewarmBookmarks` 自动检测超出范围的页面
+- ✅ 缓存可用性检查：所有 API 在缓存不可用时抛出 `CACHE_UNAVAILABLE` 错误
+
+### 使用场景
+1. **系统启动预热** - 预热热点页面，减少首次查询延迟
+2. **运维监控** - 查看已缓存的页面分布
+3. **数据变更后清除缓存** - 确保查询最新数据
+4. **内存管理** - 按需清理缓存释放资源
+
+### API 说明
+
+#### 1. prewarmBookmarks(keyDims, pages)
+预热指定页面的 bookmark 缓存。
+
+```js
+// 预热常用页面
+const result = await collection('products').prewarmBookmarks(
+  { query: { status: 'active' }, sort: { createdAt: -1 }, limit: 10 },
+  [1, 2, 3]  // 预热前 3 页
+);
+
+console.log('预热成功:', result.warmed);  // 成功预热的页数
+console.log('预热失败:', result.failed);  // 失败的页数（超出范围等）
+console.log('缓存键数:', result.keys.length);
+```
+
+#### 2. listBookmarks(keyDims?)
+列出已缓存的 bookmark（支持按查询过滤或查看全部）。
+
+```js
+// 列出特定查询的 bookmark
+const list = await collection('orders').listBookmarks({
+  query: { status: 'pending' },
+  sort: { createdAt: -1 },
+  limit: 50
+});
+
+console.log('已缓存页面:', list.pages);  // [1, 2, 3]
+console.log('缓存数量:', list.count);
+
+// 列出所有 bookmark（不传 keyDims）
+const allList = await collection('orders').listBookmarks();
+console.log('总缓存数:', allList.count);
+```
+
+#### 3. clearBookmarks(keyDims?)
+清除指定查询或全部 bookmark 缓存。
+
+```js
+// 清除特定查询的 bookmark
+const clearResult = await collection('products').clearBookmarks({
+  query: { category: 'books' },
+  sort: { title: 1 },
+  limit: 10
+});
+
+console.log('已清除:', clearResult.cleared, '个 bookmark');
+
+// 清除所有 bookmark（不传 keyDims）
+await collection('products').clearBookmarks();
+console.log('已清空所有 bookmark');
+```
+
+详细使用方法和完整工作流请参考：[examples/bookmarks.examples.js](examples/bookmarks.examples.js)
+
+---
+
+## 查询执行计划分析（explain）- 详细参数
+
 ### verbosity 模式
 
 #### 1. queryPlanner（默认）
