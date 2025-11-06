@@ -11,6 +11,36 @@
 const MonSQLize = require('../lib/index');
 
 // ============================================
+// Redis 连接测试辅助函数
+// ============================================
+
+async function testRedisConnection() {
+    try {
+        const Redis = require('ioredis');
+        const redis = new Redis({
+            host: process.env.REDIS_HOST || 'localhost',
+            port: parseInt(process.env.REDIS_PORT || '6379'),
+            db: 0,
+            retryStrategy: () => null,  // 不重试
+            lazyConnect: true,
+            connectTimeout: 2000,
+            enableOfflineQueue: false,
+            maxRetriesPerRequest: 0
+        });
+
+        // 抑制错误事件，避免未处理错误警告
+        redis.on('error', () => { });
+
+        await redis.connect();
+        await redis.ping();
+        await redis.quit();
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
+// ============================================
 // 示例 1：使用内置 Redis 适配器（推荐）
 // ============================================
 
@@ -47,9 +77,10 @@ async function example1_builtinAdapter() {
 
     try {
         const { collection } = await msq.connect();
+        const db = msq._adapter.db;  // 获取原生 MongoDB db 对象
 
         // 插入测试数据
-        await collection('products').insertMany([
+        await db.collection('products').insertMany([
             { name: 'Product A', price: 100, category: 'electronics' },
             { name: 'Product B', price: 200, category: 'electronics' },
             { name: 'Product C', price: 300, category: 'books' }
@@ -77,7 +108,7 @@ async function example1_builtinAdapter() {
         console.log(`  - 加速: ${((Date.now() - start1) / (Date.now() - start2)).toFixed(1)}x`);
 
         // 清理测试数据
-        await collection('products').deleteMany({ query: {} });
+        await db.collection('products').deleteMany({});
 
         console.log('\n✅ 示例 1 完成\n');
     } catch (error) {
@@ -132,9 +163,10 @@ async function example2_existingRedisInstance() {
         });
 
         const { collection } = await msq.connect();
+        const db = msq._adapter.db;  // 获取原生 MongoDB db 对象
 
         // 插入测试数据
-        await collection('users').insertMany([
+        await db.collection('users').insertMany([
             { name: 'Alice', age: 25, city: 'Beijing' },
             { name: 'Bob', age: 30, city: 'Shanghai' },
             { name: 'Charlie', age: 35, city: 'Beijing' }
@@ -165,7 +197,7 @@ async function example2_existingRedisInstance() {
         console.log(`  - 未命中次数: ${stats.misses}`);
 
         // 清理测试数据
-        await collection('users').deleteMany({ query: {} });
+        await db.collection('users').deleteMany({});
 
         console.log('\n✅ 示例 2 完成\n');
 
@@ -206,13 +238,14 @@ async function example3_policyComparison() {
         });
 
         const { collection: col1 } = await msq1.connect();
-        await col1('test').insertOne({ value: 1 });
+        const db1 = msq1._adapter.db;  // 获取原生 MongoDB db 对象
+        await db1.collection('test').insertOne({ value: 1 });
 
         const start1 = Date.now();
         await col1('test').find({ query: {}, cache: 5000, maxTimeMS: 3000 });
         console.log(`  - 写入耗时: ${Date.now() - start1}ms（同步写入本地 + 远端）\n`);
 
-        await col1('test').deleteMany({ query: {} });
+        await db1.collection('test').deleteMany({});
         await msq1.close();
 
         // 策略 2: 本地优先（local-first-async-remote）
@@ -230,13 +263,14 @@ async function example3_policyComparison() {
         });
 
         const { collection: col2 } = await msq2.connect();
-        await col2('test').insertOne({ value: 2 });
+        const db2 = msq2._adapter.db;  // 获取原生 MongoDB db 对象
+        await db2.collection('test').insertOne({ value: 2 });
 
         const start2 = Date.now();
         await col2('test').find({ query: {}, cache: 5000, maxTimeMS: 3000 });
         console.log(`  - 写入耗时: ${Date.now() - start2}ms（同步写入本地，异步写入远端）\n`);
 
-        await col2('test').deleteMany({ query: {} });
+        await db2.collection('test').deleteMany({});
         await msq2.close();
 
         console.log('✅ 示例 3 完成\n');
@@ -253,6 +287,23 @@ async function example3_policyComparison() {
     console.log('=======================================');
     console.log('  多层缓存示例（本地 + Redis）');
     console.log('=======================================');
+
+    // 检查 Redis 是否可用
+    console.log('\n🔍 检查 Redis 连接...');
+    const redisAvailable = await testRedisConnection();
+
+    if (!redisAvailable) {
+        console.log('⚠️  Redis 不可用，跳过需要 Redis 的示例');
+        console.log('💡 提示：请启动 Redis 服务以运行完整示例');
+        console.log('   Windows: redis-server.exe');
+        console.log('   Linux/Mac: redis-server\n');
+        console.log('=======================================');
+        console.log('  示例已跳过（需要 Redis）');
+        console.log('=======================================\n');
+        process.exit(0);
+    }
+
+    console.log('✅ Redis 连接正常\n');
 
     await example1_builtinAdapter();
     await example2_existingRedisInstance();

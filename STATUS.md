@@ -145,13 +145,12 @@
       - 失败检测：prewarmBookmarks 自动检测超出范围页面
       - 缓存可用性检查：缓存不可用时抛出 CACHE_UNAVAILABLE 错误
     - 使用场景：系统启动预热、运维监控、数据变更后清除缓存、内存管理
-- ❌ 高级查询/游标选项统一抽象
-    - batchSize/hint/collation/noCursorTimeout/tailable/max/min/returnKey/allowPartialResults/
-      readPreference/readConcern。
-- ❌ comment / let
-    - let 多见于聚合；待评估透传策略。
-- ❌ readPreferenceTags
-    - 读偏好标签，仅 Mongo 适配器相关。
+- ☑️ 高级查询/游标选项（已评估，分阶段实施）
+    - ✅ 已支持: hint, collation, batchSize, comment (aggregate)
+    - 🗺️ P1 推荐实施: comment (find/findOne/count)
+    - 🗺️ P2 可选实施: readPreference (全局配置), max/min, readConcern, let
+    - ❌ 不实施: noCursorTimeout, tailable, returnKey, allowPartialResults, readPreferenceTags
+    - 详细评估: [analysis-reports/2025-11-06-advanced-query-options-evaluation.md](../../guidelines/analysis-reports/2025-11-06-advanced-query-options-evaluation.md)
 
 ### MongoDB 方法（Writes）
 - ❌ insertOne / insertMany
@@ -188,11 +187,6 @@
 - ❌ renameCollection / collMod / convertToCapped
 - ❌ validator / validationLevel / validationAction
 - ❌ time-series / clustered / capped 支持态度
-
-### MongoDB 方法（Cursors & Pagination）
-- ❌ 深分页（游标/主键锚点）
-- ❌ 流式消费（cursor/async iterator）
-- ❌ 其他光标细节统一抽象（batchSize/noCursorTimeout/tailable/maxAwaitTimeMS/exhaust/hint）
 
 ### MongoDB 方法（Operators/Projection/Sort）
 - 🗺️ 跨库运算符映射层（operators registry）

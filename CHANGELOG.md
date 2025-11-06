@@ -4,6 +4,42 @@
 
 ## [未发布]
 
+### 新增
+- **Bookmark 维护 API**（2025-11-06）
+  - 新增 `prewarmBookmarks(keyDims, pages)` - 预热指定页面的 bookmark 缓存
+  - 新增 `listBookmarks(keyDims?)` - 列出已缓存的 bookmark，支持按查询维度过滤
+  - 新增 `clearBookmarks(keyDims?)` - 清除 bookmark 缓存，支持精确控制
+  - 创建 `lib/mongodb/management/bookmark-ops.js` 模块（167 行）
+  - 完整文档：`docs/bookmarks.md`
+  - 示例文件：`examples/bookmarks.examples.js`
+  - 测试覆盖：16/16 测试通过
+
+### 改进
+- **完整模块化重构**（2025-11-06）
+  - **主文件精简**：`lib/mongodb/index.js` 从 843 行精简至 235 行（减少 72%）
+  - **模块化架构**：
+    - 创建 7 个查询模块：find.js, find-one.js, count.js, aggregate.js, distinct.js, explain.js, find-page.js
+    - 创建 4 个管理模块：namespace-ops.js, collection-ops.js, cache-ops.js, bookmark-ops.js
+    - 统一导出：queries/index.js, management/index.js
+  - **工厂函数模式**：所有模块使用 `createXXX()` 工厂函数，支持上下文注入和闭包封装
+  - **循环依赖解决**：通过正确的创建顺序（findPageOps → accessor → bookmarkOps）解决循环依赖
+  - **动态缓存获取**：使用 `getCache()` 回调支持测试时动态替换 cache
+  - **代码质量**：所有测试通过（12/12 测试套件，308 个测试），无性能回归
+  - **文档完整**：所有 API 有对应的文档和示例
+
+- **代码质量优化**（2025-11-06）
+  - 清理 `lib/mongodb/index.js` 中 7 个未使用的模块导入（减少 36.8% 的导入）
+  - 删除：reverseSort, pickAnchor, buildPagePipelineA, decodeCursor, makePageResult, validateLimitAfterBefore, assertCursorSortCompatible
+  - 原因：这些模块已被 `find-page.js` 内部使用，无需在主文件中导入
+  - 添加区域注释：在 collection() 方法内添加 7 个功能区域标记（命名空间、集合管理、缓存管理、查询方法、聚合统计、查询分析、分页、Bookmark）
+  - 优化代码导航：支持 VS Code "Go to Symbol" 快速跳转
+  - 创建模块化基础设施：
+    - 新建 `lib/mongodb/queries/` 和 `lib/mongodb/management/` 目录
+    - 完成 2 个示例模块：`management/namespace.js`, `management/collection-ops.js`
+    - 验证脚本：`verify-refactoring.js`（模块化方案可行性验证通过）
+  - 完整重构分析：`guidelines/analysis-reports/2025-11-06-mongodb-adapter-refactoring-analysis.md`
+  - 所有测试通过（308/308），无性能回归
+
 ### 修复
 - **缓存文档澄清**（2025-11-06）
   - 修正 `docs/cache.md` 中关于"自动失效"的误导性描述
@@ -13,6 +49,17 @@
   - 更新"常见问题"章节，准确描述手动缓存清理流程
 
 ### 改进
+- **高级查询选项评估完成**（2025-11-06）
+  - 完成对 11 个 MongoDB 高级选项的全面评估（noCursorTimeout/tailable/max/min/returnKey/allowPartialResults/readPreference/readPreferenceTags/readConcern/comment/let）
+  - 评估维度：必要性、实施难度、跨数据库兼容性、风险
+  - 确认当前已支持：hint, collation, batchSize, comment (aggregate)
+  - 确定实施优先级：
+    - P1（推荐实施）: comment 扩展到 find/findOne/count
+    - P2（可选实施）: readPreference (全局配置), max/min, readConcern, let
+    - P3（不实施）: noCursorTimeout, tailable, returnKey, allowPartialResults, readPreferenceTags
+  - 详细分析报告：`guidelines/analysis-reports/2025-11-06-advanced-query-options-evaluation.md`
+  - 更新 STATUS.md 反映评估结论
+
 - **项目规范文档优化**（2025-11-06）
   - 在 `guidelines/profiles/monSQLize.md` 新增"MongoDB 连接模式"章节
   - 详细说明测试环境的推荐连接方式：`config: { useMemoryServer: true }`

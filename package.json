@@ -15,9 +15,6 @@
   "dependencies": {
     "mongodb": "^6.17.0"
   },
-  "peerDependencies": {
-    "ioredis": "^5.0.0"
-  },
   "peerDependenciesMeta": {
     "ioredis": {
       "optional": true
@@ -49,5 +46,8 @@
     "statements": 70,
     "functions": 70,
     "branches": 65
+  },
+  "optionalDependencies": {
+    "ioredis": "^5.8.2"
   }
 }
