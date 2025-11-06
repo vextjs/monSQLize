@@ -1003,6 +1003,9 @@ npm run coverage
 npm test find
 npm test logger
 npm test infrastructure
+
+# 运行性能基准测试
+npm run benchmark
 ```
 
 **测试结构**：
@@ -1013,6 +1016,27 @@ npm test infrastructure
 - `test/benchmark/` - 性能基准测试
 
 详细测试说明请参考 [test/README.md](test/README.md)
+
+### 性能基准测试
+
+**运行基准测试**：
+```bash
+npm run benchmark
+```
+
+**基准测试覆盖**：
+- findOne（简单查询、带缓存）
+- find（10条、50条、带排序）
+- count（空查询、条件查询、带缓存）
+- findPage（游标分页、跳页分页）
+- aggregate（简单聚合、复杂聚合）
+- distinct（去重查询）
+
+**性能基线**：
+- 缓存效果显著：findOne 带缓存 14,763 ops/sec vs 简单查询 3,361 ops/sec（4.4倍提升）
+- count 缓存提升：14,723 ops/sec vs 条件查询 994 ops/sec（14.8倍提升）
+- estimatedDocumentCount 比 countDocuments 快 6.7倍
+- 详细基线数据请参考 [test/benchmark/BASELINE.md](test/benchmark/BASELINE.md)
 
 ### 代码质量
 
@@ -1041,7 +1065,9 @@ monSQLize/
 ├── test/                  # 测试代码
 │   ├── unit/             # 单元测试
 │   ├── integration/      # 集成测试
-│   └── benchmark/        # 性能测试
+│   └── benchmark/        # 性能基准测试
+│       ├── run-benchmarks.js  # 基准测试运行器
+│       └── BASELINE.md        # 性能基线数据
 ├── examples/             # 示例代码
 ├── docs/                 # 详细文档
 ├── analysis-reports/     # 分析报告（永久保留）

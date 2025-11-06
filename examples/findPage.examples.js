@@ -13,7 +13,7 @@ const MonSQLize = require('../lib');
 const DB_CONFIG = {
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' }
+    config: { useMemoryServer: true }
 };
 
 // 集合名称常量
@@ -422,7 +422,7 @@ async function example2_pageJumping() {
   const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' },
+    config: { useMemoryServer: true },
     bookmarks: {
       step: 10,      // 每 10 页保存一次书签
       maxHops: 20,   // 最多跳 20 次
@@ -478,7 +478,7 @@ async function example3_streamProcessing() {
   const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' },
+    config: { useMemoryServer: true },
     findPageMaxLimit: 100000 // 提高流式查询的限制
   });
 
@@ -547,7 +547,7 @@ async function example4_totalsStatistics() {
   const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' }
+    config: { useMemoryServer: true }
   });
 
   const { collection } = await msq.connect();
@@ -622,7 +622,7 @@ async function example5_complexQueries() {
   const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' }
+    config: { useMemoryServer: true }
   });
 
   const { collection } = await msq.connect();
@@ -721,7 +721,7 @@ async function example6_errorHandling() {
   const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' }
+    config: { useMemoryServer: true }
   });
 
   const { collection } = await msq.connect();
@@ -812,7 +812,7 @@ async function example7_buildPaginationAPI() {
   const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' }
+    config: { useMemoryServer: true }
   });
 
   const { collection } = await msq.connect();
@@ -926,7 +926,7 @@ async function example8_performanceOptimization() {
   const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' },
+    config: { useMemoryServer: true },
     bookmarks: {
       step: 10,
       maxHops: 20,
@@ -1141,7 +1141,7 @@ async function example9_explainAnalysis() {
   const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' }
+    config: { useMemoryServer: true }
   });
 
   const { collection } = await msq.connect();

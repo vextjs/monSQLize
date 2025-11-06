@@ -1,195 +1,294 @@
+#!/usr/bin/env node
 /**
- * 性能基准测试运行器
- * 
- * 测试场景：
- * 1. 简单查询 (findOne/find)
- * 2. 分页查询 (findPage)
- * 3. 聚合查询 (aggregate)
- * 4. 缓存效率
+ * monSQLize 性能基准测试运行器
+ * 使用 benchmark.js 测试核心 API 性能
  */
 
 const Benchmark = require('benchmark');
-const MonSQLize = require('../../lib/index');
+const MonSQLize = require('../../lib');
 
-// 测试配置
-const TEST_CONFIG = {
+// 使用 Memory Server 进行基准测试
+const DB_CONFIG = {
     type: 'mongodb',
-    databaseName: 'benchmark_test',
-    config: {
-        uri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
-    },
-    maxTimeMS: 5000,
-    findLimit: 10,
+    databaseName: 'benchmark_db',
+    config: { useMemoryServer: true }
 };
 
-// 颜色输出
-const colors = {
-    reset: '\x1b[0m',
-    bright: '\x1b[1m',
-    green: '\x1b[32m',
-    yellow: '\x1b[33m',
-    cyan: '\x1b[36m',
-};
+let monSQLize;
+let collection;
 
-async function setupTestData(collection) {
-    console.log('Setting up test data...');
-    
-    // 清空集合
-    try {
-        await collection.invalidate();
-    } catch (e) {
-        // 忽略错误
+/**
+ * 准备测试数据
+ */
+async function setupTestData() {
+    console.log('🔧 准备测试数据...\n');
+    monSQLize = new MonSQLize(DB_CONFIG);
+    const conn = await monSQLize.connect();
+    collection = conn.collection;
+
+    const db = monSQLize._adapter.db;
+    const usersCollection = db.collection('users');
+    const productsCollection = db.collection('products');
+
+    // 清空旧数据
+    await usersCollection.deleteMany({});
+    await productsCollection.deleteMany({});
+
+    // 插入 1000 条用户数据
+    const users = [];
+    for (let i = 1; i <= 1000; i++) {
+        users.push({
+            userId: `USER-${String(i).padStart(5, '0')}`,
+            name: `用户${i}`,
+            email: `user${i}@example.com`,
+            status: i % 5 === 0 ? 'inactive' : 'active',
+            level: Math.floor(Math.random() * 10) + 1,
+            totalSpent: Math.floor(Math.random() * 20000),
+            createdAt: new Date(Date.now() - i * 86400000)
+        });
     }
-    
-    console.log('Test data ready.\n');
+    await usersCollection.insertMany(users);
+
+    // 插入 500 条商品数据
+    const products = [];
+    for (let i = 1; i <= 500; i++) {
+        products.push({
+            productId: `PROD-${String(i).padStart(5, '0')}`,
+            name: `商品${i}`,
+            category: ['electronics', 'books', 'clothing'][i % 3],
+            price: Math.floor(Math.random() * 1000) + 50,
+            inStock: i % 4 !== 0,
+            sales: Math.floor(Math.random() * 2000)
+        });
+    }
+    await productsCollection.insertMany(products);
+
+    console.log('✅ 测试数据准备完成');
+    console.log(`   - Users: ${users.length} 条`);
+    console.log(`   - Products: ${products.length} 条\n`);
 }
 
+/**
+ * 运行基准测试
+ */
 async function runBenchmarks() {
-    console.log(`${colors.bright}${colors.cyan}=== monSQLize Performance Benchmarks ===${colors.reset}\n`);
-    
-    let db, collection;
-    
-    try {
-        // 连接数据库
-        console.log('Connecting to MongoDB...');
-        const instance = new MonSQLize(TEST_CONFIG);
-        const result = await instance.connect();
-        db = result.db;
-        collection = result.collection;
+    await setupTestData();
+
+    const suite = new Benchmark.Suite('monSQLize Performance');
+
+    // ========================================
+    // findOne 基准测试
+    // ========================================
+    suite.add('findOne - 简单查询', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').findOne({
+                query: { userId: 'USER-00100' }
+            });
+            deferred.resolve();
+        }
+    });
+
+    suite.add('findOne - 带缓存', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').findOne({
+                query: { userId: 'USER-00100' },
+                cache: 60000
+            });
+            deferred.resolve();
+        }
+    });
+
+    // ========================================
+    // find 基准测试
+    // ========================================
+    suite.add('find - 查询 10 条', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').find({
+                query: { status: 'active' },
+                limit: 10
+            });
+            deferred.resolve();
+        }
+    });
+
+    suite.add('find - 查询 50 条', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').find({
+                query: { status: 'active' },
+                limit: 50
+            });
+            deferred.resolve();
+        }
+    });
+
+    suite.add('find - 带排序', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').find({
+                query: { status: 'active' },
+                sort: { createdAt: -1 },
+                limit: 20
+            });
+            deferred.resolve();
+        }
+    });
+
+    // ========================================
+    // count 基准测试
+    // ========================================
+    suite.add('count - 空查询（estimatedDocumentCount）', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').count();
+            deferred.resolve();
+        }
+    });
+
+    suite.add('count - 条件查询', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').count({
+                query: { status: 'active' }
+            });
+            deferred.resolve();
+        }
+    });
+
+    suite.add('count - 带缓存', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').count({
+                query: { status: 'active' },
+                cache: 60000
+            });
+            deferred.resolve();
+        }
+    });
+
+    // ========================================
+    // findPage 基准测试
+    // ========================================
+    suite.add('findPage - 游标分页（after）', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').findPage({
+                query: { status: 'active' },
+                sort: { _id: 1 },
+                limit: 20,
+                totals: 'none'
+            });
+            deferred.resolve();
+        }
+    });
+
+    suite.add('findPage - 跳页分页（page=1）', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').findPage({
+                query: { status: 'active' },
+                sort: { _id: 1 },
+                limit: 20,
+                page: 1,
+                totals: 'none'
+            });
+            deferred.resolve();
+        }
+    });
+
+    // ========================================
+    // aggregate 基准测试
+    // ========================================
+    suite.add('aggregate - 简单聚合', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('products').aggregate(
+                [
+                    { $match: { inStock: true } },
+                    { $group: { _id: '$category', total: { $sum: 1 } } }
+                ]
+            );
+            deferred.resolve();
+        }
+    });
+
+    suite.add('aggregate - 复杂聚合', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('products').aggregate(
+                [
+                    { $match: { inStock: true } },
+                    { $group: { 
+                        _id: '$category', 
+                        count: { $sum: 1 },
+                        avgPrice: { $avg: '$price' },
+                        totalSales: { $sum: '$sales' }
+                    }},
+                    { $sort: { totalSales: -1 } }
+                ]
+            );
+            deferred.resolve();
+        }
+    });
+
+    // ========================================
+    // distinct 基准测试
+    // ========================================
+    suite.add('distinct - 去重查询', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('products').distinct('category');
+            deferred.resolve();
+        }
+    });
+
+    // 运行测试
+    suite.on('cycle', (event) => {
+        console.log(String(event.target));
+    });
+
+    suite.on('complete', function() {
+        console.log('\n╔═══════════════════════════════════════════════════════════╗');
+        console.log('║              📊 基准测试完成                              ║');
+        console.log('╚═══════════════════════════════════════════════════════════╝\n');
         
-        const testCollection = collection('benchmark_users');
+        console.log('最快的测试：');
+        const fastest = this.filter('fastest').map('name');
+        fastest.forEach(name => console.log(`  🏆 ${name}`));
         
-        // 准备测试数据
-        await setupTestData(testCollection);
-        
-        // 基准测试套件
-        const suite = new Benchmark.Suite('monSQLize');
-        
-        // 1. findOne 基准测试
-        console.log(`${colors.yellow}1. Testing findOne performance...${colors.reset}`);
-        suite.add('findOne - simple query', {
-            defer: true,
-            fn: async function(deferred) {
-                await testCollection.findOne({ query: { email: 'user1@example.com' } });
-                deferred.resolve();
-            },
+        console.log('\n性能排行（按 ops/sec 降序）：');
+        const sorted = this.slice().sort((a, b) => b.hz - a.hz);
+        sorted.forEach((bench, i) => {
+            const opsPerSec = bench.hz.toFixed(2);
+            const margin = (bench.stats.rme).toFixed(2);
+            console.log(`  ${i + 1}. ${bench.name}`);
+            console.log(`     ${opsPerSec} ops/sec (±${margin}%)`);
         });
-        
-        suite.add('findOne - with cache', {
-            defer: true,
-            fn: async function(deferred) {
-                await testCollection.findOne({ 
-                    query: { email: 'user1@example.com' },
-                    cache: 5000,
-                });
-                deferred.resolve();
-            },
-        });
-        
-        // 2. find 基准测试
-        console.log(`${colors.yellow}2. Testing find performance...${colors.reset}`);
-        suite.add('find - limit 10', {
-            defer: true,
-            fn: async function(deferred) {
-                await testCollection.find({ query: {}, limit: 10 });
-                deferred.resolve();
-            },
-        });
-        
-        suite.add('find - limit 100', {
-            defer: true,
-            fn: async function(deferred) {
-                await testCollection.find({ query: {}, limit: 100 });
-                deferred.resolve();
-            },
-        });
-        
-        // 3. findPage 基准测试
-        console.log(`${colors.yellow}3. Testing findPage performance...${colors.reset}`);
-        suite.add('findPage - first page', {
-            defer: true,
-            fn: async function(deferred) {
-                await testCollection.findPage({ limit: 20 });
-                deferred.resolve();
-            },
-        });
-        
-        // 4. count 基准测试
-        console.log(`${colors.yellow}4. Testing count performance...${colors.reset}`);
-        suite.add('count - simple', {
-            defer: true,
-            fn: async function(deferred) {
-                await testCollection.count({ query: {} });
-                deferred.resolve();
-            },
-        });
-        
-        // 5. 缓存效率测试
-        console.log(`${colors.yellow}5. Testing cache efficiency...${colors.reset}`);
-        
-        // 预热缓存
-        await testCollection.findOne({ 
-            query: { email: 'cache-test@example.com' },
-            cache: 10000,
-        });
-        
-        suite.add('findOne - cache hit', {
-            defer: true,
-            fn: async function(deferred) {
-                await testCollection.findOne({ 
-                    query: { email: 'cache-test@example.com' },
-                    cache: 10000,
-                });
-                deferred.resolve();
-            },
-        });
-        
-        // 运行基准测试
-        suite
-            .on('cycle', function(event) {
-                const benchmark = event.target;
-                const hz = benchmark.hz;
-                const mean = benchmark.stats.mean * 1000; // 转换为毫秒
-                const rme = benchmark.stats.rme;
-                
-                console.log(`  ${colors.green}✓${colors.reset} ${benchmark.name}`);
-                console.log(`    ${hz.toFixed(2)} ops/sec`);
-                console.log(`    ${mean.toFixed(2)} ms/op (±${rme.toFixed(2)}%)`);
-                console.log();
-            })
-            .on('complete', function() {
-                console.log(`${colors.bright}${colors.green}Benchmarks completed!${colors.reset}\n`);
-                
-                // 输出总结
-                const fastest = this.filter('fastest').map('name');
-                const slowest = this.filter('slowest').map('name');
-                
-                console.log(`${colors.bright}Summary:${colors.reset}`);
-                console.log(`  Fastest: ${colors.green}${fastest}${colors.reset}`);
-                console.log(`  Slowest: ${colors.yellow}${slowest}${colors.reset}`);
-                
-                // 清理并退出
-                process.exit(0);
-            })
-            .on('error', function(event) {
-                console.error(`${colors.bright}Error:${colors.reset}`, event.target.error);
-                process.exit(1);
-            })
-            .run({ async: true });
-        
-    } catch (error) {
-        console.error(`${colors.bright}Setup Error:${colors.reset}`, error);
+
+        process.exit(0);
+    });
+
+    suite.on('error', (event) => {
+        console.error('❌ 基准测试出错:', event.target.error);
         process.exit(1);
-    }
+    });
+
+    console.log('╔═══════════════════════════════════════════════════════════╗');
+    console.log('║              🚀 开始运行性能基准测试                      ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝\n');
+
+    suite.run({ async: true });
 }
 
-// 执行基准测试
+// 运行基准测试
 if (require.main === module) {
-    runBenchmarks().catch(err => {
-        console.error('Benchmark error:', err);
+    runBenchmarks().catch((error) => {
+        console.error('❌ 基准测试失败:', error);
         process.exit(1);
     });
 }
 
 module.exports = { runBenchmarks };
-

@@ -10,10 +10,11 @@ const MonSQLize = require('../lib');
 // ============================================================================
 
 // MongoDB 连接配置
+// 优先使用环境变量 MONGODB_URI，否则使用 Memory Server
 const DB_CONFIG = {
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' }
+    config:{ useMemoryServer: true }
 };
 
 // 集合名称常量

@@ -13,7 +13,7 @@ const MonSQLize = require('../lib');
 const DB_CONFIG = {
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config: { uri: 'mongodb://localhost:27017' }
+    config: { useMemoryServer: true }
 };
 
 // 集合名称常量

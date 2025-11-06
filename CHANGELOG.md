@@ -5,6 +5,39 @@
 ## [未发布]
 
 ### 新增
+- **[P1.3] 性能基准测试框架**（2025-11-06）
+  - 创建 `test/benchmark/run-benchmarks.js` 统一的基准测试运行器
+  - 使用 benchmark.js 测试所有核心 API 性能
+  - 测试覆盖：findOne/find/count/findPage/aggregate/distinct（13个测试场景）
+  - 记录性能基线到 `test/benchmark/BASELINE.md`
+  - 关键发现：
+    - 缓存效果显著：findOne 带缓存 14,763 ops/sec vs 简单查询 3,361 ops/sec（4.4倍提升）
+    - count 缓存提升：14,723 ops/sec vs 条件查询 994 ops/sec（14.8倍提升）
+    - estimatedDocumentCount 比 countDocuments 快 6.7倍
+    - 排序代价：带排序 393 ops/sec vs 无排序 3,706 ops/sec（9.4倍下降）
+  - 添加 npm run benchmark 命令
+
+- **[P1.2] 示例验证已加入 CI**（2025-11-06）
+  - 创建 `scripts/verify-examples.js` 自动验证所有示例可运行
+  - 所有示例改为使用 Memory Server（`useMemoryServer: true`）
+  - CI workflow 添加示例验证步骤（Node 20.x + ubuntu-latest）
+  - 确保文档中的示例与实际代码保持一致
+
+- **[P1] 分支覆盖率大幅提升**：从 61.51% 提升至 65.9%（+4.39%）
+  - **Phase 1: cache.js**（2025-11-05）
+    - 新增 `test/unit/infrastructure/cache.test.js` Suite 7-9（13 测试用例）
+    - 测试内容：BSON 序列化、循环引用处理、命名空间模式
+    - 覆盖率：51.11% → 62.96% (+11.85%)
+  - **Phase 2: index.js**（2025-11-05）
+    - 新增 `test/unit/infrastructure/index.test.js` Suite 1-7（15+ 测试用例）
+    - 测试内容：构造函数边界、deepMerge、helper 方法（getCache/getDefaults/close/health/on/off）
+    - 覆盖率：44.44% → 75% branches (+30.56%), 50% → 100% functions (+50%)
+  - **Phase 3: mongodb/connect.js**（2025-11-05）
+    - 新增 `test/unit/infrastructure/mongodb-connect.test.js` Suite 1-5（6 测试用例）
+    - 测试内容：stopMemoryServer 边界、closeMongo 参数、connectMongo 异常、close 异常处理
+    - 覆盖率：37.5% → 67.86% branches (+30.36%), 80% → 100% functions (+20%)
+  - 总体：新增 40+ 测试用例，分支覆盖率 61.51% → 65.9%，超额完成 P1.1 目标（65%）
+
 - **[P0] Logger.js 测试覆盖率大幅提升**：从 37.28% 提升至 93.22%
   - 新增 `test/unit/infrastructure/logger.test.js` Suite 6-9（20+测试用例）
   - 测试内容：withTraceId 嵌套与异步传播、带时间戳日志、边界情况处理、所有日志级别

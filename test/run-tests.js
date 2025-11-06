@@ -95,7 +95,9 @@ async function runTests() {
       './unit/infrastructure/connection.test.js',
       './unit/infrastructure/cache.test.js',
       './unit/infrastructure/errors.test.js',
-      './unit/infrastructure/logger.test.js'
+      './unit/infrastructure/logger.test.js',
+      './unit/infrastructure/index.test.js',
+      './unit/infrastructure/mongodb-connect.test.js'
     ];
     title = '基础设施测试套件';
   } else if (testSuite === 'logger') {
