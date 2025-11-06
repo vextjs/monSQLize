@@ -15,6 +15,14 @@
   "dependencies": {
     "mongodb": "^6.17.0"
   },
+  "peerDependencies": {
+    "ioredis": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "benchmark": "^2.1.4",
     "eslint": "^8.57.0",

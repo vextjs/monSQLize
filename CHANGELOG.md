@@ -4,7 +4,62 @@
 
 ## [未发布]
 
+### 修复
+- **缓存文档澄清**（2025-11-06）
+  - 修正 `docs/cache.md` 中关于"自动失效"的误导性描述
+  - 明确说明 monSQLize 是只读 API，不支持 insert/update/delete 操作
+  - 澄清缓存失效方式：仅通过 `invalidate()` 方法手动清理
+  - 移除所有对不存在的写操作方法的引用
+  - 更新"常见问题"章节，准确描述手动缓存清理流程
+
+### 改进
+- **项目规范文档优化**（2025-11-06）
+  - 在 `guidelines/profiles/monSQLize.md` 新增"MongoDB 连接模式"章节
+  - 详细说明测试环境的推荐连接方式：`config: { useMemoryServer: true }`
+  - 解释自动 Memory Server 的优势（自动管理生命周期、无需手动清理）
+  - 说明不推荐手动管理 MongoMemoryServer 的原因
+  - 明确如何访问原生 MongoDB 实例：`msq._adapter.db`（非 `msq.db`）
+  - 更新测试模板，展示完整的 useMemoryServer 使用示例
+  - 添加检查清单，防止 AI 助手再次犯错
+
 ### 新增
+- **缓存失效测试**（2025-11-06）
+  - 新增 `test/unit/features/invalidate.test.js` 测试套件
+  - 10 个测试用例覆盖 `invalidate()` 方法的所有场景：
+    - 基本功能：清除指定集合缓存、多集合隔离、多操作类型缓存
+    - 指定操作类型清除：按 `op` 参数清除特定操作缓存
+    - 边界情况：空缓存、缓存禁用场景、连续调用
+    - 实际场景：批量清除多个集合缓存
+  - 所有测试通过，覆盖率 100%
+
+- **Redis 缓存适配器**（2025-11-06）
+  - 新增内置 `createRedisCacheAdapter()` 工具函数，轻松启用 Redis 多层缓存
+  - 支持两种使用方式：
+    - 传入 Redis URL 字符串（自动创建 ioredis 实例）
+    - 传入已创建的 ioredis 实例（复用现有连接）
+  - 实现完整的 CacheLike 接口（10 个方法）：
+    - 基础操作：get/set/del/exists
+    - 批量操作：getMany/setMany/delMany
+    - 模式操作：delPattern（使用 SCAN 避免阻塞）
+    - 全局操作：clear/keys（使用 SCAN 避免阻塞）
+  - 优化特性：
+    - 使用 `psetex` 支持毫秒级 TTL
+    - 使用 `SCAN` 代替 `KEYS` 避免生产环境阻塞
+    - 自动 JSON 序列化/反序列化
+    - 错误容错（解析失败返回 undefined）
+  - 使用示例：
+    ```javascript
+    const msq = new MonSQLize({
+      cache: {
+        multiLevel: true,
+        remote: MonSQLize.createRedisCacheAdapter('redis://localhost:6379/0')
+      }
+    });
+    ```
+  - 可选依赖：ioredis（peerDependencies，按需安装）
+  - 示例文件：`examples/multi-level-cache.examples.js`（3 个完整示例）
+  - 详细文档：`docs/cache.md#多层缓存`
+
 - **[P2.2] Bookmark 维护 APIs**（2025-11-06）
   - 新增 3 个 bookmark 管理 API，用于运维调试和性能优化：
     - `prewarmBookmarks(keyDims, pages)`：预热指定页面的 bookmark 缓存

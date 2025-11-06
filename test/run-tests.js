@@ -4,11 +4,11 @@
  */
 
 // 简单的测试框架模拟
-global.describe = function(name, fn) {
+global.describe = function (name, fn) {
   console.log(`\n📦 ${name}`);
   // 提供一个带有 timeout 方法的上下文对象
   const context = {
-    timeout: function(ms) {
+    timeout: function (ms) {
       // 暂时忽略超时设置
       return this;
     }
@@ -16,7 +16,7 @@ global.describe = function(name, fn) {
   fn.call(context);
 };
 
-global.it = function(name, fn) {
+global.it = function (name, fn) {
   return new Promise(async (resolve, reject) => {
     try {
       await fn();
@@ -37,11 +37,11 @@ global.it = function(name, fn) {
 global.__beforeHooks = [];
 global.__afterHooks = [];
 
-global.before = function(fn) {
+global.before = function (fn) {
   global.__beforeHooks.push(fn);
 };
 
-global.after = function(fn) {
+global.after = function (fn) {
   global.__afterHooks.push(fn);
 };
 
@@ -88,6 +88,9 @@ async function runTests() {
   } else if (testSuite === 'bookmarks') {
     testFiles = ['./unit/features/bookmarks.test.js'];
     title = 'Bookmark 维护 APIs 测试套件';
+  } else if (testSuite === 'invalidate') {
+    testFiles = ['./unit/features/invalidate.test.js'];
+    title = 'invalidate() 方法测试套件';
   } else if (testSuite === 'utils') {
     testFiles = [
       './unit/utils/cursor.test.js',
@@ -115,7 +118,7 @@ async function runTests() {
     console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'bookmarks', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'bookmarks', 'invalidate', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const overallStartTime = Date.now();
@@ -181,7 +184,7 @@ async function runTests() {
 
     // 收集此文件的测试
     const originalIt = global.it;
-    global.it = function(name, fn) {
+    global.it = function (name, fn) {
       tests.push({ name, fn });
     };
 

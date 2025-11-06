@@ -7,6 +7,27 @@
 
 注：状态对应主分支最新实现；历史变化请参见 CHANGELOG。
 
+---
+
+## 📊 实现状态统计
+
+**最后更新**: 2025-11-06
+
+| 分类 | 已实现 ✅ | 计划中 🗺️ | 未实现 ❌ | 手动/受限 ☑️ | 总计 |
+|------|----------|----------|----------|-------------|------|
+| **核心功能** | 23 | 2 | 5 | 2 | 32 |
+| **MongoDB 读方法** | 9 | 0 | 3 | 0 | 12 |
+| **MongoDB 写方法** | 0 | 0 | 7 | 0 | 7 |
+| **MongoDB 索引** | 0 | 0 | 5 | 0 | 5 |
+| **MongoDB 事务** | 0 | 0 | 3 | 0 | 3 |
+| **MongoDB 其他** | 0 | 0 | 15 | 0 | 15 |
+| **总计** | **32** | **2** | **38** | **2** | **74** |
+
+**完成度**: 43.2% (32/74)  
+**核心功能完成度**: 71.9% (23/32)
+
+---
+
 ## 能力矩阵（非表格版）
 
 > 说明：使用分节 + 清单表示。状态：✅ 已实现 | 🗺️ 计划中 | ❌ 未实现 | ☑️ 手动/受限。
@@ -20,7 +41,7 @@
     - 未实现。
 - 🗺️ SQLite
     - 未实现。
-- 🗺️ 查询运算符映射（operators）
+- ❌ 查询运算符映射（operators）
     - 预研草案，尚未实现跨库翻译。
 
 ### 数据模型 / Schema
@@ -53,7 +74,7 @@
     - index.d.ts；含 CacheLike、Find/Count、getNamespace、getDefaults。
 - ✅ getDefaults()
     - 返回当前实例默认配置视图。
-- 🗺️ 模块格式
+- ❌ 模块格式
     - 目前 CJS；ESM 条件导出未实现。
 
 ### 连接与运维
@@ -190,20 +211,256 @@
 - ❌ apiVersion / 传输与压缩参数（驱动层能力）
 
 ## MongoDB 方法覆盖现状（已合并至能力矩阵）
-> 说明：MongoDB 方法覆盖情况已并入上方“能力矩阵”主表（分类以“MongoDB 方法（…）”开头）。后续更新请直接维护表格行，避免与该段落重复。
+> 说明：MongoDB 方法覆盖情况已并入上方"能力矩阵"主表（分类以"MongoDB 方法（…）"开头）。后续更新请直接维护表格行，避免与该段落重复。
+
+---
+
+## ❌ 未实现功能清单（按优先级排序）
+
+### 🔴 P2 - 能力扩展（中期规划）
+
+#### 数据库支持
+1. ❌ **PostgreSQL 适配器**
+   - 只读 API：findOne/find/count/findPage
+   - Keyset 分页支持
+   - 统一游标与书签机制
+
+2. ❌ **MySQL 适配器**
+   - 只读 API：findOne/find/count/findPage
+   - 分页支持
+
+3. ❌ **SQLite 适配器**
+   - 只读 API：findOne/find/count/findPage
+   - 轻量级场景支持
+
+#### 模块与运算符
+4. ❌ **ESM 条件导出**
+   - package.json exports: { require, import, types }
+   - 保持 CJS 兼容性
+
+5. ❌ **查询运算符映射层（基础）**
+   - 覆盖基本比较：=, !=, >, <, >=, <=, in, nin
+   - 逻辑运算：and, or, not
+   - 适配器声明支持矩阵
+
+#### 高级查询选项
+6. ❌ **高级查询/游标选项统一抽象**
+   - batchSize/hint/collation/noCursorTimeout/tailable
+   - max/min/returnKey/allowPartialResults
+   - readPreference/readConcern
+
+7. ❌ **comment / let 支持**
+   - 查询注释（调试用）
+   - let 变量绑定（聚合场景）
+
+8. ❌ **readPreferenceTags**
+   - 读偏好标签（MongoDB 特定）
+
+### 🟡 P3 - 写操作支持（长期规划）
+
+#### 写 API（基础）
+9. ❌ **insertOne / insertMany**
+   - 单条/批量插入
+   - 自动失效缓存
+
+10. ❌ **updateOne / updateMany**
+    - 单条/批量更新
+    - 自动失效缓存
+
+11. ❌ **replaceOne**
+    - 完整替换文档
+    - 自动失效缓存
+
+12. ❌ **deleteOne / deleteMany**
+    - 单条/批量删除
+    - 自动失效缓存
+
+#### 写 API（高级）
+13. ❌ **bulkWrite**
+    - 批量混合操作
+    - 性能优化
+
+14. ❌ **findOneAndUpdate**
+    - 原子查询并更新
+    - 返回更新前/后文档
+
+15. ❌ **findOneAndReplace**
+    - 原子查询并替换
+    - 返回替换前/后文档
+
+16. ❌ **findOneAndDelete**
+    - 原子查询并删除
+    - 返回删除前文档
+
+### 🟢 P4 - 索引与管理（运维功能）
+
+#### 索引管理
+17. ❌ **createIndex / createIndexes**
+    - 创建单个/多个索引
+    - 索引选项：unique/sparse/TTL/partial
+
+18. ❌ **dropIndex / dropIndexes**
+    - 删除索引
+
+19. ❌ **listIndexes**
+    - 列出所有索引
+
+20. ❌ **索引选项统一抽象**
+    - unique/sparse/TTL/partialFilterExpression
+    - collation/hidden/wildcard/columnstore
+
+#### 集合与数据库管理
+21. ❌ **listCollections / listDatabases**
+    - 列出集合/数据库
+
+22. ❌ **dropDatabase**
+    - 删除数据库
+
+23. ❌ **db.stats() / coll.stats()**
+    - 数据库/集合统计信息
+
+24. ❌ **runCommand**
+    - 执行原始数据库命令
+
+#### 服务器管理
+25. ❌ **serverStatus / ping / buildInfo**
+    - 服务器状态/健康检查/版本信息
+
+26. ❌ **profilingLevel / setProfilingLevel**
+    - 查询性能分析级别
+
+27. ❌ **用户与角色管理**
+    - 创建/删除用户
+    - 授权/撤销权限
+
+#### 高级集合特性
+28. ❌ **renameCollection / collMod / convertToCapped**
+    - 重命名集合/修改集合/转换为固定集合
+
+29. ❌ **validator / validationLevel / validationAction**
+    - Schema 验证器配置
+
+30. ❌ **time-series / clustered / capped 支持态度**
+    - 时间序列集合
+    - 集群索引集合
+    - 固定大小集合
+
+### 🔵 P5 - 事务与高级特性（企业功能）
+
+#### 事务支持
+31. ❌ **startSession**
+    - 创建会话
+
+32. ❌ **withTransaction**
+    - 事务执行器
+
+33. ❌ **commit/abort**
+    - 提交/回滚事务
+
+34. ❌ **readConcern / readPreference / causalConsistency**
+    - 读关注级别
+    - 读偏好
+    - 因果一致性
+
+#### Change Streams
+35. ❌ **watch**
+    - 监听集合/数据库变更
+
+36. ❌ **Change Streams 关键选项**
+    - fullDocument/fullDocumentBeforeChange
+    - resumeAfter/startAfter/startAtOperationTime
+
+#### GridFS
+37. ❌ **GridFSBucket 及 API**
+    - openUploadStream/openDownloadStream
+    - 大文件存储支持
+
+38. ❌ **GridFS 选项**
+    - chunkSizeBytes/disableMD5
+
+---
+
+## 优先级说明
+
+| 优先级 | 说明 | 目标时间 | 重要性 |
+|--------|------|---------|--------|
+| 🔴 **P2** | 能力扩展 | 1-2 个月 | 高 - 提升跨数据库能力 |
+| 🟡 **P3** | 写操作支持 | 2-3 个月 | 中 - 完整 CRUD 能力 |
+| 🟢 **P4** | 索引与管理 | 3-6 个月 | 中低 - 运维便利性 |
+| 🔵 **P5** | 事务与高级特性 | 6+ 个月 | 低 - 企业级功能 |
+
+---
+
+## MongoDB 方法（Writes）（全部未实现 ❌）
+- ❌ insertOne / insertMany
+- ❌ updateOne / updateMany
+- ❌ replaceOne
+- ❌ deleteOne / deleteMany
+- ❌ bulkWrite
+- ❌ findOneAndUpdate / findOneAndReplace / findOneAndDelete
+    - 写路径当前不在范围内；不提供自动失效。
+
+## MongoDB 方法（Indexes）（全部未实现 ❌）
+- ❌ createIndex / createIndexes
+- ❌ dropIndex / dropIndexes
+- ❌ listIndexes
+- ❌ 索引选项统一抽象（unique/sparse/TTL/partialFilterExpression/collation …）
+- ❌ hidden / wildcard / columnstore
+
+## MongoDB 方法（Transactions & Sessions）（全部未实现 ❌）
+- ❌ startSession/withTransaction/commit/abort
+- ❌ readConcern / readPreference / causalConsistency
+
+## MongoDB 方法（Change Streams）（全部未实现 ❌）
+- ❌ watch
+- ❌ 关键选项（fullDocument/fullDocumentBeforeChange/resumeAfter/startAfter/startAtOperationTime）
+
+## MongoDB 方法（Admin/DB/Collection）（全部未实现 ❌）
+- ❌ listCollections / listDatabases
+- ❌ dropDatabase
+- ❌ db.stats() / coll.stats()
+- ❌ runCommand
+- ❌ serverStatus / ping / buildInfo
+- ❌ profilingLevel / setProfilingLevel
+- ❌ 用户与角色管理
+- ❌ renameCollection / collMod / convertToCapped
+- ❌ validator / validationLevel / validationAction
+- ❌ time-series / clustered / capped 支持态度
+
+## MongoDB 方法（GridFS）（全部未实现 ❌）
+- ❌ GridFSBucket 及 API（openUploadStream/openDownloadStream …）
+- ❌ 选项（chunkSizeBytes/disableMD5）
+
+## MongoDB 方法（Options & Driver-level）（全部未实现 ❌）
+- ❌ collation / readPreference / readConcern / writeConcern（统一抽象）
+- ❌ explain / allowDiskUse / let / comment（聚合相关）
+- ❌ 时间序列/特殊集合能力封装（如 TTL index 管理）
+- ❌ apiVersion / 传输与压缩参数（驱动层能力）
+
+---
 
 ## 里程碑（示例）
 - [Unreleased]
-  - ✅ 多层缓存（本地+远端）
-  - 🗺️ 更多数据库适配器（PostgreSQL/MySQL/SQLite）
+  - ✅ Bookmark 维护 APIs（prewarmBookmarks/listBookmarks/clearBookmarks）
+  - ✅ explain 诊断 API
+  - ✅ 性能基准测试框架
+  - ✅ 示例验证自动化（CI 集成）
   - 🗺️ ESM 条件导出
+  - 🗺️ PostgreSQL 适配器
+  - 🗺️ MySQL 适配器
+  - 🗺️ SQLite 适配器
+  - 🗺️ 运算符映射层
 
 ## Not Goals（短期非目标）
-- 提供写 API 的自动失效（由调用方手动失效或在业务层封装）。
+- 提供写 API 的自动失效（由调用方手动失效或在业务层封装）
+- GridFS 支持（大文件存储，不在当前范围）
+- Change Streams（实时变更监听，企业级功能）
 
-## 能力缺口与优先级（2025-11-05 更新）
+---
 
-### P0（已完成 ✅）- 直接提升可用性/生产稳定性
+## 能力缺口与优先级（2025-11-06 更新）
+
+### ✅ P0（已完成）- 直接提升可用性/生产稳定性
 - ✅ **Logger.js 测试覆盖率提升**：从 37.28% 提升至 93.22%（2025-11-05 完成）
   - 新增 20+ 测试用例覆盖 withTraceId 嵌套、异步传播、边界情况、所有日志级别
   - 语句覆盖率提升 +55.94%，分支覆盖率 +46.92%，函数覆盖率达到 100%
@@ -219,7 +476,7 @@
   - 9/9 测试套件通过（278+ 测试用例）
   - 总耗时 <5s（快速反馈）
 
-### P1（扩展能力面）
+### ✅ P1（已完成）- 扩展能力面
 - ✅ **分支覆盖率提升**：从 61.51% 提升至 65.9%（2025-11-05 完成）
   - cache.js: 51.11% → 62.96% (+11.85%)
   - index.js: 44.44% → 75% (+30.56%)
@@ -229,24 +486,34 @@
   - 创建 scripts/verify-examples.js 自动验证所有示例
   - 所有示例改为使用 Memory Server
   - CI workflow 添加示例验证步骤
-- ✅ stream（find 流式返回）
-- ✅ 聚合（aggregate/透传）
-- ✅ distinct / explain（诊断用途）
-- 🗺️ 查询运算符映射层（operators）基础运算符支持
+- ✅ **性能基准测试框架**（2025-11-06 完成）
+  - test/benchmark/run-benchmarks.js 统一运行器
+  - 测试 13 个场景（findOne/find/count/findPage/aggregate/distinct）
+  - 记录性能基线（test/benchmark/BASELINE.md）
+  - npm run benchmark 命令
+- ✅ **stream（find 流式返回）**
+- ✅ **聚合（aggregate/透传）**
+- ✅ **distinct / explain（诊断用途）**
+- ✅ **Bookmark 维护 APIs**
 
-### P2（生态/打包与多数据库）
-  - 模块格式：ESM 条件导出
-  - PostgreSQL 适配器（从只读最小集起步）
-  - MySQL 适配器（从只读最小集起步）
-  - SQLite 适配器（从只读最小集起步）
-- P3（高级功能）
-  - 写 API（insertOne/updateOne/deleteOne 等）
-  - 索引管理（createIndex/dropIndex/listIndexes）
-  - 事务与会话（startSession/withTransaction）
-- Not Goals（短期不做）
-  - 写路径自动失效（保持由业务手动失效或上层封装）
-  - GridFS 支持
-  - Change Streams
+### 🗺️ P2（规划中）- 生态/打包与多数据库
+- 🗺️ **模块格式**：ESM 条件导出
+- 🗺️ **PostgreSQL 适配器**（从只读最小集起步）
+- 🗺️ **MySQL 适配器**（从只读最小集起步）
+- 🗺️ **SQLite 适配器**（从只读最小集起步）
+- 🗺️ **查询运算符映射层（operators）**：基础运算符支持
+
+### ❌ P3（未规划）- 高级功能
+- ❌ **写 API**（insertOne/updateOne/deleteOne 等）
+- ❌ **索引管理**（createIndex/dropIndex/listIndexes）
+- ❌ **事务与会话**（startSession/withTransaction）
+
+### ⛔ Not Goals（短期不做）
+- 写路径自动失效（保持由业务手动失效或上层封装）
+- GridFS 支持
+- Change Streams
+
+---
 
 ## 设计与实现要点（提纲）
 - 深分页
@@ -333,8 +600,53 @@
    - 逻辑运算：and, or, not
    - 适配器声明支持矩阵
 
-> 更新时间：2025-09-26 20:47
+---
+
+## 📈 开发进度追踪
+
+### 最近完成（2025-11-05 ~ 2025-11-06）
+- ✅ P0 全部完成（Logger 测试、TypeScript 类型、CI/CD、测试套件）
+- ✅ P1 全部完成（分支覆盖率、示例验证、性能基准、核心 API）
+- ✅ Bookmark 维护 APIs（3个）
+- ✅ explain 诊断 API
+- ✅ 性能基准测试框架
+
+### 下一步计划（P2 - 2025-11 ~ 2026-01）
+1. **ESM 条件导出**（预计 2 周）
+   - package.json exports 配置
+   - 保持 CJS 兼容性
+   - 测试双模块导入
+
+2. **PostgreSQL 适配器**（预计 4 周）
+   - 只读 API：findOne/find/count/findPage
+   - Keyset 分页支持
+   - 统一游标与书签机制
+
+3. **运算符映射层基础**（预计 3 周）
+   - 基本比较运算符
+   - 逻辑运算符
+   - 适配器支持矩阵
+
+### 质量指标
+
+| 指标 | 当前值 | 目标值 | 状态 |
+|------|--------|--------|------|
+| **语句覆盖率** | 77.04% | ≥70% | ✅ 达标 |
+| **分支覆盖率** | 65.9% | ≥65% | ✅ 达标 |
+| **函数覆盖率** | 81.42% | ≥70% | ✅ 达标 |
+| **测试套件** | 9/9 通过 | 全部通过 | ✅ 健康 |
+| **测试用例数** | 278+ | - | ✅ 充足 |
+| **CI 健康度** | 5/5 | 5/5 | ✅ 优秀 |
+| **示例验证** | 自动化 | 自动化 | ✅ 完成 |
+| **性能基线** | 已建立 | 已建立 | ✅ 完成 |
+
+---
+
+> 更新时间：2025-11-06
 
 ## 关联
-- 历史变更：见 ./CHANGELOG.md
-- 入门与示例：见 ./README.md
+- 历史变更：见 [CHANGELOG.md](./CHANGELOG.md)
+- 入门与示例：见 [README.md](./README.md)
+- 详细文档：见 [docs/](./docs/)
+- 示例代码：见 [examples/](./examples/)
+- 测试用例：见 [test/](./test/)

@@ -23,6 +23,9 @@
 
 ```bash
 npm i monsqlize
+
+# 如需 Redis 多层缓存（可选）
+npm i ioredis
 ```
 
 ---
@@ -312,6 +315,65 @@ msq.on('error', (data) => {
 
 ---
 
+### 5. 多层缓存（本地内存 + Redis）
+
+```js
+const MonSQLize = require('monsqlize');
+
+// ✅ 最简单：直接传 Redis URL
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'shop',
+  config: { uri: 'mongodb://localhost:27017' },
+  
+  cache: {
+    multiLevel: true,                     // 启用多层缓存
+    
+    // 本地缓存配置
+    local: {
+      maxSize: 10000,                     // 本地缓存 1 万条
+      enableStats: true
+    },
+    
+    // 远端 Redis 缓存（直接传 URL）
+    remote: MonSQLize.createRedisCacheAdapter('redis://localhost:6379/0'),
+    
+    // 缓存策略
+    policy: {
+      writePolicy: 'both',                // 'both' | 'local-first-async-remote'
+      backfillLocalOnRemoteHit: true      // 远端命中时回填本地
+    }
+  }
+});
+
+const { collection } = await msq.connect();
+
+// 第 1 次查询：缓存 miss → 查询 MongoDB → 存入本地 + Redis
+const products1 = await collection('products').find({
+  query: { category: 'electronics' },
+  cache: 10000,                           // 缓存 10 秒
+  maxTimeMS: 3000
+});
+
+// 第 2 次查询：本地缓存命中（0.001ms）
+const products2 = await collection('products').find({
+  query: { category: 'electronics' },
+  cache: 10000,
+  maxTimeMS: 3000
+});
+
+// 如果本地缓存过期，但 Redis 还有 → 从 Redis 读取（1-2ms）并回填本地
+```
+
+**性能对比**：
+- 本地缓存命中：0.001ms
+- Redis 缓存命中：1-2ms
+- 数据库查询：10ms+
+
+**详细文档**: [docs/cache.md](./docs/cache.md#多层缓存)
+
+---
+
 ## 示例代码
 
 所有示例代码位于 [examples/](./examples/) 目录：
@@ -320,6 +382,7 @@ msq.on('error', (data) => {
 |---------|------|
 | [find.examples.js](./examples/find.examples.js) | find 查询示例（数组和流式） |
 | [findPage.examples.js](./examples/findPage.examples.js) | 分页查询示例（游标/跳页/总数） |
+| [multi-level-cache.examples.js](./examples/multi-level-cache.examples.js) | 多层缓存示例（本地 + Redis） |
 | [aggregate.examples.js](./examples/aggregate.examples.js) | 聚合管道示例 |
 | [distinct.examples.js](./examples/distinct.examples.js) | 字段去重示例 |
 | [count.examples.js](./examples/count.examples.js) | 统计查询示例 |
