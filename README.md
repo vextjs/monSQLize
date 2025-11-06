@@ -2,1325 +2,408 @@
 
 一个面向多数据库的统一（Mongo 风格）读 API。目前支持 MongoDB。目标是在不同后端之间平滑切换，同时保持熟悉的查询形态与选项。
 
-## 目录
-- [状态](#status)
-- [安装](#install)
-- [快速开始](#quick-start)
-- [find 查询](#find-query)
-- [聚合查询（aggregate](#aggregate)
-- [字段去重（distinct）](#distinct)
-- [深度分页（findPage）](#deep-pagination-agg)
-- [统一 findPage：游标 + 跳页 + offset + totals](#findpage-unified)
-- [返回耗时（meta）](#返回耗时meta)
-- [缓存与失效](#cache)
-  - [缓存配置](#缓存配置)
-  - [缓存行为与细节](#缓存行为与细节)
-  - [统计与可观测性](#统计与可观测性)
-  - [缓存操作方法](#缓存操作方法)
-  - [invalidate(op) 用法](#invalidate)
-- [跨库访问注意事项](#cross-db)
-- [说明](#notes)
-- [连接管理](#连接管理)
-- [事件（Mongo）](#事件mongo)
-- [健康检查与事件（Mongo）](#健康检查与事件mongo)
+## 特性
 
-<a id='status'></a>
-## 状态（速览）
+- ✅ **MongoDB 适配器**：完整支持 MongoDB 查询功能
+- ✅ **内置缓存**：TTL/LRU/命名空间失效/并发去重
+- ✅ **跨库访问**：轻松访问不同数据库的集合
+- ✅ **性能优化**：慢查询日志、查询超时控制
+- ✅ **类型安全**：完整的 TypeScript 类型声明
 
-- 已实现：MongoDB 适配器；find/findOne/count；内置缓存（TTL/LRU/命名空间失效/并发去重）；跨库访问；默认值（maxTimeMS/findLimit）；慢查询日志；TypeScript 类型。
-- 新增：多层缓存（本地+远端，MultiLevelCache）；更多数据库适配器（PostgreSQL/MySQL/SQLite）、ESM 条件导出、深分页/流式返回/聚合等仍在规划中。
-- 完整能力矩阵与路线图请见：STATUS.md。
+## 状态
 
-<a id='install'></a>
+- **已实现**：MongoDB 适配器；find/findOne/count；内置缓存；跨库访问；默认值（maxTimeMS/findLimit）；慢查询日志；TypeScript 类型
+- **规划中**：多层缓存（本地+远端）；更多数据库适配器（PostgreSQL/MySQL/SQLite）
+
+**完整能力矩阵与路线图**：[STATUS.md](./STATUS.md)
+
+---
+
 ## 安装
-```
+
+```bash
 npm i monsqlize
 ```
 
-<a id='quick-start'></a>
-## 快速开始（含默认配置与自动 instanceId）
+---
+
+## 快速开始
+
 ```js
 const MonSQLize = require('monsqlize');
+
 (async () => {
-    const { db, collection } = await (new MonSQLize({
-        type: 'mongodb',
-        databaseName: 'example',
-        config: { uri: 'mongodb://localhost:27017' },
-        maxTimeMS: 3000, //全局默认配置（本实例的默认 maxTimeMS）
-        findLimit:10,  // 分成查询每页数量，默认:10
-    }).connect());
+  // 创建实例并连接
+  const { db, collection } = await new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'example',
+    config: { uri: 'mongodb://localhost:27017' },
+    maxTimeMS: 3000,        // 全局查询超时（毫秒）
+    findLimit: 10,          // find 默认 limit
+  }).connect();
 
-  // 单次查询可覆盖 maxTimeMS；cache 为毫秒
-  const one = await collection('test').findOne({ query: {}, cache: 5000, maxTimeMS: 1500 });
-  console.log(one);
-
-  // find 的安全默认：未传 limit 时使用全局 findLimit（默认 10）；传 0 表示不限制
-  const list = await collection('test').find({ query: {} }); // 等效 limit=10
-  const all = await collection('test').find({ query: {}, limit: 0 }); // 不限制
-
-  // 写后失效（可选 op：'find' | 'findOne' | 'count'）
-  await collection('test').invalidate();      // 失效该集合的全部读缓存
-  await collection('test').invalidate('find'); // 仅失效 find 的缓存
-
-  // —— 跨库访问（Cross-DB）——
-  // 1) 访问其他数据库下的集合
-  const docOther = await db('analytics').collection('events').findOne({
-    query: { type: 'click' },
-    cache: 3000,             // 可选缓存（毫秒）
-    maxTimeMS: 1500          // 单次查询的超时覆盖
+  // 查询单个文档
+  const one = await collection('test').findOne({
+    query: { status: 'active' },
+    cache: 5000,            // 缓存 5 秒
+    maxTimeMS: 1500         // 覆盖全局超时
   });
-  console.log('analytics.events ->', docOther);
+  console.log('findOne ->', one);
 
-  // 2) 在同一调用中进行多次跨库查询（顺序执行）
-  const [u1, u2] = [
-    await db('users_db').collection('users').findOne({ query: { name: 'Alice' }, cache: 2000 }),
-    await db('users_db').collection('users').findOne({ query: { name: 'Bob' } })
-  ];
-  console.log(u1, u2);
+  // 查询多个文档
+  const list = await collection('test').find({
+    query: { category: 'electronics' },
+    limit: 10,              // 限制 10 条
+    cache: 3000             // 缓存 3 秒
+  });
+  console.log('find ->', list.length);
+
+  // 跨库访问
+  const event = await db('analytics').collection('events').findOne({
+    query: { type: 'click' },
+    cache: 3000,
+    maxTimeMS: 1500
+  });
+  console.log('跨库查询 ->', event);
 })();
 ```
 
-<a id='find-query'></a>
-## find 查询（含流式传输）
+---
 
-`find(options)` 支持批量查询文档，并可选择以数组或流式方式返回结果。
+## 核心 API
 
-### 基本用法
+### 查询方法
 
-#### 数组模式（默认）
-返回完整的文档数组，适合中小数据量场景。
+| 方法 | 说明 | 文档链接 |
+|------|------|---------|
+| **find()** | 批量查询（支持数组和流式） | [docs/find.md](./docs/find.md) |
+| **findOne()** | 查询单个文档 | [docs/findOne.md](./docs/findOne.md) |
+| **findPage()** | 分页查询（游标/跳页/总数） | [docs/findPage.md](./docs/findPage.md) |
+| **aggregate()** | 聚合管道查询 | [docs/aggregate.md](./docs/aggregate.md) |
+| **distinct()** | 字段去重查询 | [docs/distinct.md](./docs/distinct.md) |
+| **count()** | 统计文档数量 | [docs/count.md](./docs/count.md) |
+| **explain()** | 查询计划分析 | [docs/explain.md](./docs/explain.md) |
+
+### 缓存与维护
+
+| 方法 | 说明 | 文档链接 |
+|------|------|---------|
+| **cache** | 缓存策略配置 | [docs/cache.md](./docs/cache.md) |
+| **prewarmBookmarks()** | 预热分页书签 | [docs/bookmarks.md](./docs/bookmarks.md) |
+| **listBookmarks()** | 列出书签信息 | [docs/bookmarks.md](./docs/bookmarks.md) |
+| **clearBookmarks()** | 清理书签缓存 | [docs/bookmarks.md](./docs/bookmarks.md) |
+
+### 连接与事件
+
+| 主题 | 说明 | 文档链接 |
+|------|------|---------|
+| **连接管理** | 连接、关闭、跨库访问 | [docs/connection.md](./docs/connection.md) |
+| **事件系统** | 监听连接、错误、慢查询 | [docs/events.md](./docs/events.md) |
+
+---
+
+## 主要功能示例
+
+### 1. find 查询（支持流式传输）
 
 ```js
-const MonSQLize = require('monsqlize');
-const { collection } = await new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'example',
-  config: { uri: 'mongodb://localhost:27017' },
-}).connect();
-
-// 基本查询：返回数组
-const docs = await collection('logs').find({
-  query: { level: 'error' },
-  sort: { timestamp: -1 },
-  limit: 100,
-  cache: 3000,
-  maxTimeMS: 2000,
-});
-console.log(docs); // 返回文档数组
-```
-
-### 流式传输模式
-> 提示：可在构造时通过 defaults 配置 streamBatchSize（默认 1000）。
-
-当需要处理大量数据时，通过设置 `stream: true` 开启流式传输，避免一次性加载所有数据到内存。
-
-#### 适用场景
-- **大数据量导出**：数十万、数百万条记录的导出操作
-- **实时处理**：逐条处理文档，边读边写
-- **内存受限**：避免大数组占用过多内存
-- **数据转换**：需要对每条记录进行复杂转换或外部 API 调用
-
-#### 参数说明
-```js
-find({
-  query?: object,              // Mongo 查询条件
-  sort?: object,               // 排序规则
-  limit?: number,              // 限制返回数量（0 表示不限制）
-  projection?: object,         // 字段投影
-
-  // —— 流式传输专属 ——
-  stream?: boolean,            // 设为 true 开启流式传输
-  batchSize?: number,          // 每批次读取大小（默认继承 defaults.streamBatchSize，通常为 1000）
-
-  // —— 透传与通用 ——
-  cache?: number,              // 读穿缓存 TTL（毫秒）；流式模式下仅缓存整体结果
-  maxTimeMS?: number,          // 查询超时（毫秒）
-  hint?: any,                  // 强制使用特定索引（可选）
-  collation?: any,             // 排序规则（可选）
-})
-```
-
-#### 流式传输示例
-
-##### 1. 基础流式处理
-```js
-// 开启流式传输
-const stream = await collection('logs').find({
-  query: { level: 'error', timestamp: { $gte: new Date('2025-01-01') } },
-  sort: { timestamp: 1 },
-  stream: true,               // 关键：开启流式传输
-  batchSize: 500,             // 可选：自定义批次大小
-  maxTimeMS: 30000,           // 给足够的超时时间
+// 数组模式（默认）
+const products = await collection('products').find({
+  query: { category: 'electronics', inStock: true },
+  projection: { name: 1, price: 1 },
+  sort: { price: -1 },
+  limit: 20,
+  cache: 5000
 });
 
-let count = 0;
-
-stream
-  .on('data', (doc) => {
-    // 逐条处理文档
-    count++;
-    console.log(`处理第 ${count} 条:`, doc._id);
-
-    // 这里可以进行各种处理：
-    // - 写入文件
-    // - 调用外部 API
-    // - 数据转换
-    // - 插入另一个数据库
-  })
-  .on('end', () => {
-    console.log(`流式处理完成，共处理 ${count} 条记录`);
-  })
-  .on('error', (err) => {
-    console.error('流式处理出错:', err);
-  });
-```
-
-##### 2. 流式导出到 CSV
-```js
-const fs = require('fs');
-const { createObjectCsvWriter } = require('csv-writer');
-
-const csvWriter = createObjectCsvWriter({
-  path: 'export.csv',
-  header: [
-    { id: '_id', title: 'ID' },
-    { id: 'timestamp', title: '时间' },
-    { id: 'message', title: '消息' },
-  ]
+// 流式传输（大数据量）
+const stream = await collection('products').find({
+  query: { category: 'electronics' },
+  stream: true,              // 返回流
+  cache: 0                   // 禁用缓存
 });
 
-const stream = await collection('logs').find({
-  query: { level: 'error' },
-  sort: { timestamp: -1 },
-  projection: { _id: 1, timestamp: 1, message: 1 },
-  stream: true,
-  batchSize: 1000,
-});
-
-const records = [];
-stream
-  .on('data', (doc) => {
-    records.push(doc);
-
-    // 每 5000 条写入一次，避免内存积压
-    if (records.length >= 5000) {
-      csvWriter.writeRecords(records.splice(0, 5000));
-    }
-  })
-  .on('end', async () => {
-    // 写入剩余记录
-    if (records.length > 0) {
-      await csvWriter.writeRecords(records);
-    }
-    console.log('CSV 导出完成');
-  });
-```
-
-##### 3. 流式传输 + 背压控制
-```js
-const stream = await collection('logs').find({
-  query: { level: 'error' },
-  stream: true,
-  batchSize: 100,
-});
-
-stream.on('data', async (doc) => {
-  // 暂停流，处理当前文档
-  stream.pause();
-
-  try {
-    // 模拟耗时操作（如调用外部 API）
-    await processDocument(doc);
-  } catch (err) {
-    console.error('处理失败:', err);
-  } finally {
-    // 恢复流
-    stream.resume();
-  }
+stream.on('data', (doc) => {
+  console.log('处理文档:', doc);
 });
 
 stream.on('end', () => {
-  console.log('处理完成');
+  console.log('✅ 所有文档处理完成');
 });
 ```
 
-##### 4. 流式传输 + Transform
-```js
-const { Transform } = require('stream');
+**详细文档**: [docs/find.md](./docs/find.md)
 
-// 创建转换流
-const transformer = new Transform({
-  objectMode: true,
-  transform(doc, encoding, callback) {
-    // 对每条文档进行转换
-    const transformed = {
-      id: doc._id.toString(),
-      date: doc.timestamp.toISOString(),
-      msg: doc.message.toUpperCase(),
-    };
-    callback(null, JSON.stringify(transformed) + '\n');
-  }
-});
+---
 
-const stream = await collection('logs').find({
-  query: { level: 'error' },
-  stream: true,
-});
-
-const output = fs.createWriteStream('output.jsonl');
-
-// 管道：数据库流 -> 转换 -> 文件
-stream.pipe(transformer).pipe(output);
-
-output.on('finish', () => {
-  console.log('数据已写入 output.jsonl');
-});
-```
-
-#### 流式传输 + 缓存
-- **缓存行为**：当 `stream: true` 且 `cache > 0` 时，仅缓存整体查询结果（完整文档数组），不推荐对大数据量使用缓存。
-- **缓存键**：包含 `op=find | query | sort | limit | projection`。
-- **建议**：流式传输通常用于大数据量场景，此时应避免使用缓存（`cache: 0` 或不传），直连数据库。
+### 2. findPage 分页查询
 
 ```js
-// 不推荐：大数据量 + 缓存
-const stream = await collection('logs').find({
-  query: { level: 'error' },
-  stream: true,
-  cache: 60000,  // ❌ 会缓存所有数据，占用大量内存
-});
-
-// 推荐：大数据量直连
-const stream = await collection('logs').find({
-  query: { level: 'error' },
-  stream: true,   // ✅ 流式 + 直连，内存友好
-});
-```
-
-#### 性能优化建议
-1. **索引优化**：为 `query` 和 `sort` 字段建立合适的复合索引
-2. **投影裁剪**：使用 `projection` 只返回需要的字段，减少网络传输
-3. **批次大小**：根据文档大小调整 `batchSize`（小文档用 2000-5000，大文档用 500-1000）
-4. **超时设置**：大数据量场景给足够的 `maxTimeMS`（如 60000-300000 毫秒）
-5. **背压控制**：处理慢时使用 `pause()/resume()` 控制流速
-
-#### 透传选项（Mongo 专属）
-支持在 options 里传 `hint`/`collation`，分别透传至原生 `find` 的对应参数。
-
-```js
-const stream = await collection('logs').find({
-  query: { timestamp: { $gte: new Date('2025-01-01') } },
-  sort: { timestamp: 1 },
-  stream: true,
-  hint: { timestamp: 1, _id: 1 },      // 强制使用复合索引
-  collation: { locale: 'zh' },         // 中文排序规则
-});
-```
-
-> 兼容性提示：`find hint` 需要较新的 MongoDB/Node 驱动版本（建议 MongoDB ≥ 4.2，Node 驱动 ≥ 5.x）。
-
-#### 错误处理
-```js
-const stream = await collection('logs').find({
-  query: { level: 'error' },
-  stream: true,
-});
-
-stream
-  .on('data', (doc) => {
-    try {
-      // 处理文档
-      processDoc(doc);
-    } catch (err) {
-      console.error('文档处理失败:', doc._id, err);
-      // 决定是否继续还是中止流
-    }
-  })
-  .on('error', (err) => {
-    // 数据库/网络错误
-    console.error('流错误:', err);
-    stream.destroy(); // 清理资源
-  })
-  .on('end', () => {
-    console.log('流正常结束');
-  });
-```
-
-#### 注意事项
-- 流式传输期间，游标会保持打开状态，请确保及时处理完成或调用 `stream.destroy()` 释放资源。
-- 流式模式下无法获取总数，如需总数请单独调用 `count()`。
-- 流式 + 缓存不适合大数据量场景，建议直连数据库。
-- 流式传输不支持 `meta` 返回格式（因为返回的是 Stream 对象而非数组）。
-</a>
-
-<a id='aggregate'></a>
-## 聚合查询（aggregate，含流式传输）
-
-`aggregate(pipeline, options)` 支持以数组形式传入聚合管道，并在管道中使用 `$lookup` 等操作符进行联表查询。支持数组模式和流式传输两种返回方式。
-
-> 📖 **详细文档**：[aggregate 方法完整文档](./docs/aggregate.md) | [示例代码](./examples/aggregate.examples.js) | [测试用例](./test/aggregate.test.js)
-
-### 基本用法
-
-#### 数组模式（默认）
-返回完整的结果数组，适合中小数据量的聚合场景。
-
-```js
-const MonSQLize = require('monsqlize');
-const { collection } = await new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'example',
-  config: { uri: 'mongodb://localhost:27017' },
-}).connect();
-
-const pipeline = [
-  {
-    $lookup: {
-      from: 'user',
-      let: { userId: { $toObjectId: '$userId' } },
-      pipeline: [ { $match: { $expr: { $eq: ['$_id','$$userId'] } } } ],
-      as: 'userInfo'
-    }
-  },
-  { $match: { status: 'paid' } },
-  { $sort: { createdAt: -1, _id: 1 } },
-  { $limit: 10 }
-];
-
-// 聚合查询：返回数组
-const result = await collection('orders').aggregate(pipeline, {
-  cache: 3000,
-  maxTimeMS: 5000,
-});
-console.log(result); // 返回文档数组
-```
-
-### 流式传输模式
-> 提示：可在构造时通过 defaults 配置 aggregateMaxTimeMS（默认 10s）和 streamBatchSize（默认 1000）。如需允许落盘，请在本次调用显式传入 allowDiskUse: true。
-
-当聚合结果数据量较大时，通过设置 `stream: true` 开启流式传输，逐条处理结果。
-
-#### 适用场景
-- **大规模数据分析**：需要聚合处理数百万条记录
-- **复杂联表导出**：多表 JOIN 后的大量结果需要导出
-- **ETL 管道**：从一个集合聚合转换后写入另一个系统
-- **实时报表生成**：边聚合边生成报表文件
-
-#### 参数说明
-```js
-aggregate(pipeline, {
-  // —— 流式传输专属 ——
-  stream?: boolean,            // 设为 true 开启流式传输
-  batchSize?: number,          // 每批次读取大小（默认继承 defaults.streamBatchSize，通常为 1000）
-
-  // —— 透传与通用 ——
-  cache?: number,              // 读穿缓存 TTL（毫秒）；流式模式下不推荐使用缓存
-  maxTimeMS?: number,          // 聚合超时（毫秒），默认继承 defaults.aggregateMaxTimeMS（10s）
-  allowDiskUse?: boolean,      // 允许落盘（大管道时必需），显式开启（默认不启用）
-  hint?: any,                  // 强制使用特定索引（可选）
-  collation?: any,             // 排序规则（可选）
-})
-```
-
-#### 流式传输示例
-
-##### 1. 基础流式聚合
-```js
-// 复杂聚合 + 流式处理
-const pipeline = [
-  { $match: { createdAt: { $gte: new Date('2025-01-01') } } },
-  {
-    $lookup: {
-      from: 'users',
-      localField: 'userId',
-      foreignField: '_id',
-      as: 'user'
-    }
-  },
-  { $unwind: '$user' },
-  {
-    $project: {
-      orderId: '$_id',
-      amount: 1,
-      userName: '$user.name',
-      userEmail: '$user.email',
-    }
-  },
-  { $sort: { createdAt: -1 } }
-];
-
-const stream = await collection('orders').aggregate(pipeline, {
-  stream: true,               // 关键：开启流式传输
-  batchSize: 500,
-  maxTimeMS: 60000,           // 复杂聚合需要更长超时
-  allowDiskUse: true,         // 大数据量允许落盘
-});
-
-let count = 0;
-stream
-  .on('data', (doc) => {
-    count++;
-    console.log(`处理第 ${count} 条聚合结果:`, doc);
-    // 处理联表后的数据
-  })
-  .on('end', () => {
-    console.log(`聚合流式处理完成，共 ${count} 条`);
-  })
-  .on('error', (err) => {
-    console.error('聚合流错误:', err);
-  });
-```
-
-##### 2. 流式聚合导出 Excel
-```js
-const ExcelJS = require('exceljs');
-
-const pipeline = [
-  { $match: { status: 'completed', year: 2025 } },
-  {
-    $group: {
-      _id: '$category',
-      totalAmount: { $sum: '$amount' },
-      count: { $sum: 1 },
-      avgAmount: { $avg: '$amount' }
-    }
-  },
-  { $sort: { totalAmount: -1 } }
-];
-
-const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
-  filename: 'report.xlsx'
-});
-const worksheet = workbook.addWorksheet('销售统计');
-
-// 添加表头
-worksheet.columns = [
-  { header: '类别', key: 'category', width: 20 },
-  { header: '总金额', key: 'totalAmount', width: 15 },
-  { header: '订单数', key: 'count', width: 10 },
-  { header: '平均金额', key: 'avgAmount', width: 15 }
-];
-
-const stream = await collection('orders').aggregate(pipeline, {
-  stream: true,
-  allowDiskUse: true,
-  maxTimeMS: 120000,
-});
-
-stream
-  .on('data', (doc) => {
-    worksheet.addRow({
-      category: doc._id,
-      totalAmount: doc.totalAmount,
-      count: doc.count,
-      avgAmount: doc.avgAmount.toFixed(2)
-    }).commit();
-  })
-  .on('end', async () => {
-    await workbook.commit();
-    console.log('Excel 报表生成完成');
-  })
-  .on('error', (err) => {
-    console.error('导出失败:', err);
-  });
-```
-
-##### 3. 流式聚合 + 数据清洗 + 写入
-```js
-// 从一个集合聚合，清洗后写入另一个集合
-const pipeline = [
-  { $match: { processed: false } },
-  {
-    $lookup: {
-      from: 'metadata',
-      localField: 'metaId',
-      foreignField: '_id',
-      as: 'meta'
-    }
-  },
-  { $unwind: { path: '$meta', preserveNullAndEmptyArrays: true } }
-];
-
-const stream = await collection('raw_data').aggregate(pipeline, {
-  stream: true,
-  batchSize: 1000,
-  allowDiskUse: true,
-});
-
-const targetColl = collection('processed_data');
-const batch = [];
-const BATCH_SIZE = 100;
-
-stream.on('data', async (doc) => {
-  // 暂停流进行处理
-  stream.pause();
-
-  try {
-    // 数据清洗与转换
-    const cleaned = {
-      sourceId: doc._id,
-      value: doc.value * 1.1, // 业务逻辑
-      metadata: doc.meta ? doc.meta.info : null,
-      processedAt: new Date()
-    };
-
-    batch.push(cleaned);
-
-    // 批量写入
-    if (batch.length >= BATCH_SIZE) {
-      await targetColl.insertMany(batch.splice(0, BATCH_SIZE));
-    }
-  } catch (err) {
-    console.error('处理失败:', doc._id, err);
-  } finally {
-    stream.resume();
-  }
-});
-
-stream.on('end', async () => {
-  // 写入剩余数据
-  if (batch.length > 0) {
-    await targetColl.insertMany(batch);
-  }
-  console.log('ETL 完成');
-});
-```
-
-##### 4. 流式聚合 + 分组统计
-```js
-const pipeline = [
-  { $match: { year: 2025 } },
-  {
-    $group: {
-      _id: { month: { $month: '$createdAt' }, category: '$category' },
-      total: { $sum: '$amount' }
-    }
-  },
-  { $sort: { '_id.month': 1, '_id.category': 1 } }
-];
-
-const stream = await collection('transactions').aggregate(pipeline, {
-  stream: true,
-  allowDiskUse: true,
-});
-
-// 使用 Map 收集按月统计
-const monthlyStats = new Map();
-
-stream
-  .on('data', (doc) => {
-    const month = doc._id.month;
-    if (!monthlyStats.has(month)) {
-      monthlyStats.set(month, { month, categories: [] });
-    }
-    monthlyStats.get(month).categories.push({
-      category: doc._id.category,
-      total: doc.total
-    });
-  })
-  .on('end', () => {
-    console.log('月度统计:', Array.from(monthlyStats.values()));
-  });
-```
-
-#### 流式传输 + 缓存
-- **缓存行为**：当 `stream: true` 且 `cache > 0` 时，仅缓存整体聚合结果（完整数组），**强烈不推荐**对大数据量聚合使用缓存。
-- **缓存键**：包含 `op=aggregate | pipelineHash`。
-- **建议**：聚合流式传输通常用于大数据分析，应完全避免使用缓存（`cache: 0` 或不传）。
-
-```js
-// ❌ 不推荐：大数据量聚合 + 缓存
-const stream = await collection('orders').aggregate(pipeline, {
-  stream: true,
-  cache: 60000,      // 会缓存所有聚合结果，内存爆炸
-  allowDiskUse: true,
-});
-
-// ✅ 推荐：大数据量聚合直连
-const stream = await collection('orders').aggregate(pipeline, {
-  stream: true,       // 流式 + 直连 + 落盘
-  allowDiskUse: true,
-});
-```
-
-#### 性能优化建议
-1. **索引优化**：为 `$match`、`$sort` 和 `$lookup` 的关联字段建立索引
-2. **管道顺序**：尽早使用 `$match` 和 `$project` 过滤和裁剪数据
-3. **允许落盘**：大数据量聚合务必设置 `allowDiskUse: true`
-4. **分批处理**：调整 `batchSize` 平衡内存与网络开销（建议 500-2000）
-5. **超时设置**：复杂聚合给足够的 `maxTimeMS`（如 60000-300000 毫秒）
-6. **避免 `$lookup` 笛卡尔积**：使用 `let` 和 `pipeline` 精确控制联表条件
-
-#### 透传选项（Mongo 专属）
-支持在 options 里传 `hint`/`collation`，分别透传至原生 `aggregate` 的对应参数。
-
-```js
-const stream = await collection('orders').aggregate(pipeline, {
-  stream: true,
-  hint: { createdAt: 1, status: 1 },   // 强制使用复合索引
-  collation: { locale: 'zh' },         // 中文排序
-  allowDiskUse: true,
-  maxTimeMS: 60000,
-});
-```
-
-> 兼容性提示：`aggregate hint` 需要较新的 MongoDB/Node 驱动版本（建议 MongoDB ≥ 4.2，Node 驱动 ≥ 5.x）。
-
-#### 错误处理与资源管理
-```js
-const stream = await collection('orders').aggregate(pipeline, {
-  stream: true,
-  allowDiskUse: true,
-});
-
-stream
-  .on('data', (doc) => {
-    try {
-      // 处理聚合结果
-      processAggregatedDoc(doc);
-    } catch (err) {
-      console.error('文档处理失败:', err);
-      // 可选：达到错误阈值后中止
-    }
-  })
-  .on('error', (err) => {
-    // 聚合管道错误（索引缺失、内存不足等）
-    console.error('聚合流错误:', err.message);
-    stream.destroy(); // 立即释放资源
-  })
-  .on('end', () => {
-    console.log('聚合流正常结束');
-  });
-
-// 超时保护
-setTimeout(() => {
-  if (!stream.destroyed) {
-    console.warn('聚合超时，强制关闭');
-    stream.destroy();
-  }
-}, 300000); // 5分钟超时
-```
-
-#### 注意事项
-- 流式聚合期间，游标会保持打开状态，请确保及时处理完成或调用 `stream.destroy()` 释放资源。
-- 复杂聚合（含 `$lookup`、`$group`）务必设置 `allowDiskUse: true`，否则可能因内存限制失败。
-- 流式模式下无法获取总数，如需总数请在管道末尾添加 `$count` 阶段单独执行。
-- 流式聚合不支持 `meta` 返回格式（因为返回的是 Stream 对象而非数组）。
-- `$lookup` 在流式场景下仍会逐条执行联表，注意关联集合的索引优化。
-
-> 说明：当前 Mongo 适配器的 `aggregate` 基于原生驱动实现，未来跨数据库将复用该方法名，以各自最优实现（如 SQL Join）。
-</a>
-
-<a id='distinct'></a>
-## 字段去重（distinct）
-
-`distinct(field, options)` 支持查询某个字段的所有不同值，返回去重后的值数组。
-
-> 📖 **详细文档**：[distinct 方法完整文档](./docs/distinct.md) | [示例代码](./examples/distinct.examples.js) | [测试用例](./test/distinct.test.js)
-
-### 基本用法
-```js
-const MonSQLize = require('monsqlize');
-const { collection } = await new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'example',
-  config: { uri: 'mongodb://localhost:27017' },
-}).connect();
-
-// 查询所有不同的用户 ID
-const userIds = await collection('orders').distinct('userId', {
-  query: { status: 'paid' },
+// 游标分页（推荐）
+const page1 = await collection('products').findPage({
+  query: { category: 'electronics' },
+  limit: 20,
   sort: { createdAt: -1 },
-  limit: 1000,
-  cache: 3000,
-  maxTimeMS: 5000,
+  bookmarks: {
+    step: 10,                // 每 10 页缓存一个书签
+    maxHops: 20,             // 最多跳跃 20 次
+    ttlMs: 3600000           // 书签缓存 1 小时
+  }
 });
-console.log(userIds);
+
+console.log('第 1 页:', page1.data);
+console.log('下一页游标:', page1.cursor);
+
+// 使用游标获取下一页
+const page2 = await collection('products').findPage({
+  query: { category: 'electronics' },
+  limit: 20,
+  cursor: page1.cursor       // 传入上一页的游标
+});
+
+// 跳页模式（跳到第 100 页）
+const page100 = await collection('products').findPage({
+  query: { category: 'electronics' },
+  limit: 20,
+  page: 100,                 // 跳到第 100 页
+  bookmarks: { step: 10, maxHops: 20, ttlMs: 3600000 }
+});
 ```
 
-### 注意事项
-- 返回结果为数组，包含所有不同的字段值。
-- 支持与 `find` 相同的查询条件与选项。
-- 默认不启用缓存，直连数据库；可选传入 `cache` 启用读穿缓存。
+**详细文档**: [docs/findPage.md](./docs/findPage.md)
 
-欢迎 PR。
+---
 
+### 3. aggregate 聚合查询
 
-### 辅助方法与慢查询日志
-- 获取默认配置（全局 maxTimeMS、findLimit、namespace、slowQueryMs）：
 ```js
+// 统计订单总额
+const stats = await collection('orders').aggregate({
+  pipeline: [
+    { $match: { status: 'completed', date: { $gte: new Date('2025-01-01') } } },
+    { $group: {
+        _id: '$category',
+        total: { $sum: '$amount' },
+        count: { $sum: 1 },
+        avgAmount: { $avg: '$amount' }
+      }
+    },
+    { $sort: { total: -1 } }
+  ],
+  cache: 60000,              // 缓存 1 分钟
+  maxTimeMS: 5000
+});
+
+console.log('聚合结果:', stats);
+```
+
+**详细文档**: [docs/aggregate.md](./docs/aggregate.md)
+
+---
+
+### 4. 缓存策略
+
+```js
+// 配置全局缓存
 const msq = new MonSQLize({
   type: 'mongodb',
-  databaseName: 'example',
-  config: { uri: 'mongodb://localhost:27017' },
-  slowQueryMs: 800
-});
-await msq.connect();
-console.log(msq.getDefaults());
-```
-- 获取集合访问器的命名空间（便于调试与手动失效脚本）：
-```js
-const ns = db('example').collection('users').getNamespace();
-// => { iid, type: 'mongodb', db: 'example', collection: 'users' }
-```
-- 慢查询日志：findOne/find/find/count 会在一次调用耗时超过 slowQueryMs（默认为 500ms）时输出 warn 日志。
-
-
-
-### 多层缓存（本地+远端）
-- 通过配置 `cache.multiLevel=true` 启用；默认本地内存 + 可选远端实现（用户可注入 Redis/Memcached 等实现）。
-- 读路径：本地命中最快；本地未命中则查远端；远端命中将异步回填本地；两者均未命中则回源数据库并双写缓存。
-- 写路径：默认双写（本地+远端）；可配置 `writePolicy='local-first-async-remote'` 以降低尾延迟。
-- 失效：集合访问器 `invalidate(op?)` 复用原有命名空间键形状，调用后将执行本地 delPattern；如需跨节点一致性，可结合外部 pub/sub 在构造 MultiLevelCache 时传入 `publish` 函数。
-- 降级：远端不可用时不影响正确性，最多影响命中率。
-
-示例：
-```js
-const MonSQLize = require('monsqlize');
-const msq = await new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'example',
+  databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
   cache: {
-    multiLevel: true,
-    // 本地层：使用内置内存缓存配置
-    local: { maxSize: 100000, enableStats: true },
-    // 远端层：可注入一个实现了 CacheLike 的适配器；
-    // 若仅提供普通对象，这里会退化为一个“内存实现”占位（方便本地开发）
-    // 生产环境建议注入真正的远端实现（如 Redis 适配器）。
-    remote: { /* 例如：由业务注入 redisCache 实例 */ },
-    policy: {
-      writePolicy: 'local-first-async-remote',
-      backfillLocalOnRemoteHit: true,
-    }
-  },
-}).connect();
+    maxSize: 100000,         // 最大缓存 10 万条
+    enableStats: true        // 启用统计
+  }
+});
+
+// 查询级缓存
+const products = await collection('products').find({
+  query: { category: 'electronics' },
+  cache: 5000,               // 缓存 5 秒
+  maxTimeMS: 3000
+});
+
+// 获取缓存统计
+const stats = msq.getCacheStats();
+console.log('缓存统计:', {
+  命中率: stats.hitRate,
+  缓存条目: stats.size,
+  淘汰次数: stats.evictions
+});
+
+// 缓存失效（写操作后）
+await collection('products').insertOne({ name: 'New Product', price: 999 });
+// 自动清理 products 集合的所有缓存
 ```
 
-提示：也可在上层自行构建 MultiLevelCache 并作为 `cache` 直接注入（需 `require('monsqlize/lib/multi-level-cache')`）。
-
-
-## 查询执行计划分析（explain）
-
-### 概述
-`explain` 方法用于分析查询执行计划，帮助诊断性能问题和优化查询策略。它不返回实际数据，专用于诊断。
-
-**核心特性**:
-- ✅ 3 种 verbosity 模式（queryPlanner / executionStats / allPlansExecution）
-- ✅ 支持所有查询参数（query, projection, sort, limit, skip, hint, collation, maxTimeMS）
-- ✅ 禁用缓存（诊断专用）
-- ✅ 慢查询日志集成（执行耗时 > `slowQueryMs` 阈值）
-- ✅ 错误处理（无效 verbosity 抛出 `INVALID_EXPLAIN_VERBOSITY`）
-
-### 使用场景
-1. **验证索引使用** - 检查查询是否使用了预期的索引
-2. **诊断慢查询** - 分析查询瓶颈（全表扫描、内存排序等）
-3. **对比查询策略** - 比较不同 hint/query 的性能差异
-4. **优化复杂查询** - 分析聚合、联表等复杂查询的执行计划
-
-详细使用方法请参考：[examples/explain.examples.js](examples/explain.examples.js)
+**详细文档**: [docs/cache.md](./docs/cache.md)
 
 ---
 
-## Bookmark 维护 APIs
-
-### 概述
-`prewarmBookmarks`、`listBookmarks`、`clearBookmarks` 三个 API 用于管理 findPage 的 bookmark 缓存，适用于运维调试和性能优化。
-
-**核心特性**:
-- ✅ 智能 Hash 匹配：自动应用 `ensureStableSort` 规范化，确保与 findPage 使用相同的缓存键
-- ✅ 精确控制：支持按 `keyDims` 管理特定查询的 bookmark
-- ✅ 全局操作：不传 `keyDims` 可操作所有 bookmark（适用于全局重置）
-- ✅ 失败检测：`prewarmBookmarks` 自动检测超出范围的页面
-- ✅ 缓存可用性检查：所有 API 在缓存不可用时抛出 `CACHE_UNAVAILABLE` 错误
-
-### 使用场景
-1. **系统启动预热** - 预热热点页面，减少首次查询延迟
-2. **运维监控** - 查看已缓存的页面分布
-3. **数据变更后清除缓存** - 确保查询最新数据
-4. **内存管理** - 按需清理缓存释放资源
-
-### API 说明
-
-#### 1. prewarmBookmarks(keyDims, pages)
-预热指定页面的 bookmark 缓存。
+### 5. 连接管理
 
 ```js
-// 预热常用页面
-const result = await collection('products').prewarmBookmarks(
-  { query: { status: 'active' }, sort: { createdAt: -1 }, limit: 10 },
-  [1, 2, 3]  // 预热前 3 页
-);
-
-console.log('预热成功:', result.warmed);  // 成功预热的页数
-console.log('预热失败:', result.failed);  // 失败的页数（超出范围等）
-console.log('缓存键数:', result.keys.length);
-```
-
-#### 2. listBookmarks(keyDims?)
-列出已缓存的 bookmark（支持按查询过滤或查看全部）。
-
-```js
-// 列出特定查询的 bookmark
-const list = await collection('orders').listBookmarks({
-  query: { status: 'pending' },
-  sort: { createdAt: -1 },
-  limit: 50
-});
-
-console.log('已缓存页面:', list.pages);  // [1, 2, 3]
-console.log('缓存数量:', list.count);
-
-// 列出所有 bookmark（不传 keyDims）
-const allList = await collection('orders').listBookmarks();
-console.log('总缓存数:', allList.count);
-```
-
-#### 3. clearBookmarks(keyDims?)
-清除指定查询或全部 bookmark 缓存。
-
-```js
-// 清除特定查询的 bookmark
-const clearResult = await collection('products').clearBookmarks({
-  query: { category: 'books' },
-  sort: { title: 1 },
-  limit: 10
-});
-
-console.log('已清除:', clearResult.cleared, '个 bookmark');
-
-// 清除所有 bookmark（不传 keyDims）
-await collection('products').clearBookmarks();
-console.log('已清空所有 bookmark');
-```
-
-详细使用方法和完整工作流请参考：[examples/bookmarks.examples.js](examples/bookmarks.examples.js)
-
----
-
-## 查询执行计划分析（explain）- 详细参数
-
-### verbosity 模式
-
-#### 1. queryPlanner（默认）
-返回查询优化器选择的执行计划，**不执行查询**。最轻量，适合快速检查索引使用情况。
-
-```js
-const plan = await collection('users').explain({
-  query: { age: { $gte: 25 } }
-  // verbosity: 'queryPlanner' // 默认值
-});
-
-console.log('使用索引:', plan.queryPlanner.winningPlan.inputStage?.indexName);
-console.log('执行策略:', plan.queryPlanner.winningPlan.stage);
-```
-
-#### 2. executionStats
-实际执行查询并返回详细统计信息（扫描文档数、耗时等）。适合性能分析。
-
-```js
-const stats = await collection('products').explain({
-  query: { category: 'Electronics', price: { $gte: 500 } },
-  sort: { price: -1 },
-  limit: 10,
-  verbosity: 'executionStats'
-});
-
-console.log('扫描文档数:', stats.executionStats.totalDocsExamined);
-console.log('返回文档数:', stats.executionStats.nReturned);
-console.log('执行耗时:', stats.executionStats.executionTimeMillis, 'ms');
-console.log('查询效率:', (stats.executionStats.nReturned / stats.executionStats.totalDocsExamined * 100).toFixed(2) + '%');
-```
-
-#### 3. allPlansExecution
-返回所有候选执行计划及其试执行结果。适合理解优化器的选择过程。
-
-```js
-const allPlans = await collection('orders').explain({
-  query: { customerId: 'CUS050', status: 'completed', total: { $gte: 1000 } },
-  verbosity: 'allPlansExecution'
-});
-
-console.log('候选计划数:', allPlans.executionStats.allPlansExecution?.length);
-console.log('获胜计划索引:', allPlans.queryPlanner.winningPlan.inputStage?.indexName);
-```
-
-### 参数说明
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `query` | `object` | 查询条件（同 find） |
-| `projection` | `object` | 字段投影 |
-| `sort` | `object` | 排序规则 |
-| `limit` | `number` | 返回文档数限制 |
-| `skip` | `number` | 跳过文档数 |
-| `hint` | `object\|string` | 强制使用指定索引 |
-| `collation` | `object` | 排序规则（locale, strength 等） |
-| `maxTimeMS` | `number` | 查询超时时间（毫秒） |
-| `verbosity` | `string` | 详细程度：`'queryPlanner'`（默认）/ `'executionStats'` / `'allPlansExecution'` |
-
-### 实用示例
-
-#### 索引优化对比
-```js
-// 1. 无索引查询
-const noIndexPlan = await collection('logs').explain({
-  query: { level: 'ERROR', service: 'api-server' },
-  verbosity: 'executionStats'
-});
-console.log('无索引扫描:', noIndexPlan.executionStats.totalDocsExamined, '个文档');
-
-// 2. 创建索引
-await collection('logs')._collection.createIndex({ level: 1, service: 1 });
-
-// 3. 有索引查询
-const withIndexPlan = await collection('logs').explain({
-  query: { level: 'ERROR', service: 'api-server' },
-  verbosity: 'executionStats'
-});
-console.log('索引查询扫描:', withIndexPlan.executionStats.totalDocsExamined, '个文档');
-console.log('性能提升:', ((1 - withIndexPlan.executionStats.totalDocsExamined / noIndexPlan.executionStats.totalDocsExamined) * 100).toFixed(2) + '%');
-```
-
-#### 使用 hint 强制索引
-```js
-// 创建多个索引
-await collection('inventory')._collection.createIndex({ category: 1, quantity: 1 }, { name: 'cat_qty_idx' });
-await collection('inventory')._collection.createIndex({ warehouse: 1, quantity: 1 }, { name: 'wh_qty_idx' });
-
-// 让优化器自动选择
-const autoPlan = await collection('inventory').explain({
-  query: { category: 'electronics', warehouse: 'wh-01', quantity: { $gte: 500 } },
-  verbosity: 'executionStats'
-});
-console.log('自动选择索引:', autoPlan.queryPlanner.winningPlan.inputStage?.indexName);
-
-// 强制使用 category 索引
-const hintPlan = await collection('inventory').explain({
-  query: { category: 'electronics', warehouse: 'wh-01', quantity: { $gte: 500 } },
-  hint: { category: 1, quantity: 1 },
-  verbosity: 'executionStats'
-});
-console.log('强制使用索引:', hintPlan.queryPlanner.winningPlan.inputStage?.indexName);
-console.log('扫描文档对比:', autoPlan.executionStats.totalDocsExamined, 'vs', hintPlan.executionStats.totalDocsExamined);
-```
-
-#### 慢查询诊断
-```js
-const slowPlan = await collection('analytics').explain({
-  query: {
-    timestamp: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), $lte: new Date() },
-    'metadata.device': 'mobile'
-  },
-  sort: { timestamp: -1 },
-  limit: 100,
-  verbosity: 'executionStats'
-});
-
-console.log('执行方式:', slowPlan.queryPlanner.winningPlan.stage);
-console.log('扫描文档:', slowPlan.executionStats.totalDocsExamined);
-console.log('执行耗时:', slowPlan.executionStats.executionTimeMillis, 'ms');
-
-if (slowPlan.queryPlanner.winningPlan.stage === 'COLLSCAN') {
-  console.log('⚠️  问题: 全表扫描 - 建议创建索引: { timestamp: -1, "metadata.device": 1 }');
-}
-
-if (slowPlan.queryPlanner.winningPlan.inputStage?.stage === 'SORT') {
-  console.log('⚠️  问题: 内存排序 - 建议创建支持排序的索引');
-}
-```
-
-### 注意事项
-- **explain 不返回实际数据**，仅返回执行计划和统计信息
-- **禁用缓存**：explain 查询不会触发缓存读写
-- **慢查询日志**：当 `verbosity = 'executionStats'` 或 `'allPlansExecution'` 且执行耗时 > `slowQueryMs` 时，会记录慢查询日志
-- **生产环境**：executionStats 和 allPlansExecution 会实际执行查询，可能影响性能，建议在低峰期使用
-- **hint 谨慎使用**：强制指定索引可能绕过优化器的智能选择，使用前应通过 explain 验证性能提升
-
-### 更多示例
-完整的实用场景请参考 [`examples/explain.examples.js`](examples/explain.examples.js)：
-- 示例 1: 基本查询计划分析
-- 示例 2: 执行统计分析
-- 示例 3: 索引优化分析
-- 示例 4: hint 强制索引选择
-- 示例 5: 所有候选计划分析
-
----
-
-## 返回耗时（meta）
-- 支持在所有读 API 上按次返回耗时与元信息（opt-in，不改默认返回类型）。
-- 使用方法：在 options 中传入 `meta: true` 或 `meta: { level: 'sub', includeCache: true }`。
-  - findOne/find/count/find：当 `meta` 为真时返回 `{ data, meta }`；不传则维持原返回（对象/数组/数字）。
-  - findPage：当 `meta` 为真时在返回对象上附加 `meta` 字段；`level:'sub'` 时返回每个 hop/offset 的子步骤耗时。
-
-示例：
-```js
-// 单条查询：返回耗时
-const { data, meta } = await coll.findOne({ query:{ name: 'Alice' }, cache: 2000, maxTimeMS: 1500, meta: true });
-console.log(meta.durationMs);
-
-// 分页：总耗时
-const page = await coll.findPage({ query:{ status:'paid' }, sort:{ createdAt:-1,_id:1 }, limit:20, page:37, meta:true });
-console.log(page.meta.durationMs);
-
-// 分页：子步骤耗时（跳页时可见每个 hop 的耗时）
-const page2 = await coll.findPage({ query:{ status:'paid' }, sort:{ createdAt:-1,_id:1 }, limit:20, page:128, jump:{ step:20 }, meta:{ level:'sub', includeCache:true } });
-console.table(page2.meta.steps);
-```
-
-> 说明：
-> - 默认不返回 meta，需显式开启；开销很小，仅一次时间戳与对象组装。
-> - includeCache 仅包含去敏维度（如 cacheTtl 等，具体依实现）。
-
-## 连接管理
-
-### 并发连接保护
-`connect()` 方法内置并发锁机制，确保高并发场景下只建立一个连接：
-
-```js
-const MonSQLize = require('monsqlize');
 const msq = new MonSQLize({
   type: 'mongodb',
-  databaseName: 'example',
-  config: { uri: 'mongodb://localhost:27017' },
+  databaseName: 'shop',
+  config: { uri: 'mongodb://localhost:27017' }
 });
 
-// 高并发场景：10 个并发请求
- const promises = Array(10).fill(null).map(() => msq.connect());
-const results = await Promise.all(promises);
+// 连接
+const { db, collection } = await msq.connect();
 
-// 所有请求返回同一个连接对象
-console.log(results[0] === results[1]); // true
-```
-
-**特性**：
-- ✅ 首次调用建立连接，后续调用直接返回缓存的连接对象
-- ✅ 并发请求等待同一个 Promise，避免重复连接
-- ✅ 连接失败或成功后自动清理锁状态
-
-### 参数验证
-`collection()` 和 `db()` 方法内置参数校验，确保接收合法参数：
-
-```js
-const { collection, db } = await msq.connect();
-
-// ✅ 正常使用
-const users = collection('users');
-const orders = db('shop').collection('orders');
-
-// ❌ 无效参数（会抛出错误）
-try {
-  collection('');           // 错误：INVALID_COLLECTION_NAME
-  collection(null);         // 错误：INVALID_COLLECTION_NAME
-  collection(123);          // 错误：INVALID_COLLECTION_NAME
-  db('').collection('test'); // 错误：INVALID_DATABASE_NAME
-} catch (err) {
-  console.error(err.code, err.message);
-}
-```
-
-**验证规则**：
-- 集合名必须是**非空字符串**，不允许 null/undefined/空字符串/纯空格
-- 数据库名（如果提供）必须是**非空字符串**
-- 错误信息明确指出问题和要求
-
-### 资源清理
-`close()` 方法会正确清理所有资源，防止内存泄漏：
-
-```js
-const MonSQLize = require('monsqlize');
-const msq = new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'example',
-  config: { uri: 'mongodb://localhost:27017' },
+// 跨库访问
+const analyticsEvent = await db('analytics').collection('events').findOne({
+  query: { type: 'click' },
+  cache: 3000
 });
 
-// 多次连接-关闭循环（安全）
-for (let i = 0; i < 5; i++) {
-  await msq.connect();
-  const { collection } = await msq.connect();
-  
-  // 使用连接...
-  await collection('test').find({ query: {} });
-  
-  // 关闭连接
-  await msq.close();
-  // ✅ 内存已正确清理
-}
+// 关闭连接
+await msq.close();
 ```
 
-**清理内容**：
-- ✅ 关闭 MongoDB 客户端连接
-- ✅ 清理实例 ID 缓存（`_iidCache`）
-- ✅ 清理连接锁（`_connecting`）
-- ✅ 释放所有内部引用
+**详细文档**: [docs/connection.md](./docs/connection.md)
 
-**注意事项**：
-- 多次调用 `close()` 是安全的，不会抛出错误
-- 关闭后再调用 `connect()` 会重新建立连接
-- 建议在应用关闭时调用 `close()` 释放资源
+---
 
-### 错误处理
+### 6. 事件监听
 
 ```js
-try {
-  const msq = new MonSQLize({
-    type: 'mongodb',
-    databaseName: 'example',
-    config: { uri: 'mongodb://invalid-host:27017' },
+// 监听慢查询
+msq.on('slow-query', (data) => {
+  console.warn('慢查询警告:', {
+    操作: data.operation,
+    集合: data.collectionName,
+    耗时: data.duration,
+    查询: data.query
   });
-  
-  await msq.connect();
-} catch (err) {
-  // 连接失败错误
-  console.error('连接失败:', err.message);
-  // ✅ 连接锁已自动清理，可以安全重试
-}
+});
+
+// 监听连接状态
+msq.on('connected', (data) => {
+  console.log('✅ 数据库连接成功');
+});
+
+msq.on('error', (data) => {
+  console.error('❌ 数据库错误:', data.error.message);
+});
 ```
 
-## 事件（Mongo）
-- 事件基于 Node.js EventEmitter，进程内有效：
-  - `connected`: `{ type, db, scope, iid? }`
-  - `closed`: `{ type, db, iid? }`
-  - `error`: `{ type, db, error, iid? }`
-  - `slow-query`: `{ op, ns, durationMs, startTs, endTs, maxTimeMS, ... }`（去敏）
-  - `query`（可选）：每次读操作完成后触发；需在构造 defaults 中开启 `metrics.emitQueryEvent=true`。
-- 实例还暴露：`on/off/once/emit`。
+**详细文档**: [docs/events.md](./docs/events.md)
 
-用法示例：
-```js
-const msq = new MonSQLize({ type:'mongodb', databaseName:'example', config:{ uri:'mongodb://localhost:27017' }, defaults:{ metrics:{ emitQueryEvent:false } } });
-msq.on('connected', info => console.log('[connected]', info));
-msq.on('closed', info => console.log('[closed]', info));
-msq.on('error', info => console.error('[error]', info));
-msq.on('slow-query', meta => console.warn('[slow-query]', meta));
-// 可选：开启 query 事件
-// const msq = new MonSQLize({ ..., defaults:{ metrics:{ emitQueryEvent:true } } });
-msq.on('query', meta => console.log('[query]', meta));
-await msq.connect();
-```
+---
 
-## 健康检查与事件（Mongo）
-- 健康检查：`await msq.health()` 返回 `{ status: 'up'|'down', connected, defaults, cache?, driver }` 摘要视图。
-- 事件钩子：
-  - `msq.on('connected', payload => {})`
-  - `msq.on('closed', payload => {})`
-  - `msq.on('error', payload => {})`
-  - `msq.on('slow-query', meta => {})`（仅输出去敏形状与阈值/耗时等元信息，不含敏感值）
+## 示例代码
 
-示例：
-```js
-const msq = new MonSQLize({ type:'mongodb', databaseName:'example', config:{ uri:'mongodb://localhost:27017' } });
-msq.on('slow-query', (meta) => console.warn('slow-query', meta));
-await msq.connect();
-console.log(await msq.health());
-```
+所有示例代码位于 [examples/](./examples/) 目录：
 
-## 开发与测试
+| 示例文件 | 说明 |
+|---------|------|
+| [find.examples.js](./examples/find.examples.js) | find 查询示例（数组和流式） |
+| [findPage.examples.js](./examples/findPage.examples.js) | 分页查询示例（游标/跳页/总数） |
+| [aggregate.examples.js](./examples/aggregate.examples.js) | 聚合管道示例 |
+| [distinct.examples.js](./examples/distinct.examples.js) | 字段去重示例 |
+| [count.examples.js](./examples/count.examples.js) | 统计查询示例 |
+| [explain.examples.js](./examples/explain.examples.js) | 查询计划分析示例 |
+| [bookmarks.examples.js](./examples/bookmarks.examples.js) | 书签维护示例 |
+| [findOne.examples.js](./examples/findOne.examples.js) | findOne 查询示例 |
 
-### 测试覆盖率
+---
 
-**当前覆盖率**（截至 2025-11-05）：
-
-| 指标 | 覆盖率 | 目标 | 状态 |
-|------|--------|------|------|
-| 语句 (Statements) | **77.04%** | ≥70% | ✅ |
-| 分支 (Branch) | 61.51% | ≥65% | ⚠️ |
-| 函数 (Functions) | **81.42%** | ≥70% | ✅ |
-| 行 (Lines) | **79.52%** | ≥70% | ✅ |
-
-**核心模块覆盖率**：
-
-| 模块 | 语句 | 分支 | 函数 | 行 | 状态 |
-|------|------|------|------|-----|------|
-| **logger.js** | **93.22%** | **76.92%** | **100%** | **94.54%** | ✅ 优秀 |
-| **constants.js** | 100% | 100% | 100% | 100% | ✅ 完美 |
-| **errors.js** | 100% | 81.81% | 100% | 100% | ✅ 优秀 |
-| **connect.js** | 84.21% | 50% | 100% | 83.33% | ✅ 良好 |
-
-**运行测试**：
-```bash
-# 运行所有测试
-npm test
-
-# 运行覆盖率报告
-npm run coverage
-
-# 运行特定测试套件
-npm test find
-npm test logger
-npm test infrastructure
-
-# 运行性能基准测试
-npm run benchmark
-```
-
-**测试结构**：
-- `test/unit/features/` - 功能性测试（业务功能）
-- `test/unit/infrastructure/` - 基础设施测试（日志、缓存、错误码）
-- `test/unit/utils/` - 工具函数测试（纯函数）
-- `test/integration/` - 集成测试
-- `test/benchmark/` - 性能基准测试
-
-详细测试说明请参考 [test/README.md](test/README.md)
-
-### 性能基准测试
-
-**运行基准测试**：
-```bash
-npm run benchmark
-```
-
-**基准测试覆盖**：
-- findOne（简单查询、带缓存）
-- find（10条、50条、带排序）
-- count（空查询、条件查询、带缓存）
-- findPage（游标分页、跳页分页）
-- aggregate（简单聚合、复杂聚合）
-- distinct（去重查询）
-
-**性能基线**：
-- 缓存效果显著：findOne 带缓存 14,763 ops/sec vs 简单查询 3,361 ops/sec（4.4倍提升）
-- count 缓存提升：14,723 ops/sec vs 条件查询 994 ops/sec（14.8倍提升）
-- estimatedDocumentCount 比 countDocuments 快 6.7倍
-- 详细基线数据请参考 [test/benchmark/BASELINE.md](test/benchmark/BASELINE.md)
-
-### 代码质量
-
-**Lint 检查**：
-```bash
-npm run lint
-npm run lint:fix
-```
-
-**CI/CD**：
-- 测试矩阵：Node.js 18.x/20.x × Ubuntu/Windows
-- 覆盖率自动上传到 Codecov
-- 每次 PR 自动运行测试和 Lint 检查
-
-### 项目结构
+## 项目结构
 
 ```
 monSQLize/
-├── lib/                    # 源代码
-│   ├── mongodb/           # MongoDB 适配器
-│   ├── common/            # 通用工具
-│   ├── logger.js          # 日志系统
-│   ├── errors.js          # 错误码系统
-│   ├── constants.js       # 常量配置
-│   └── cache.js           # 缓存系统
-├── test/                  # 测试代码
-│   ├── unit/             # 单元测试
-│   ├── integration/      # 集成测试
-│   └── benchmark/        # 性能基准测试
-│       ├── run-benchmarks.js  # 基准测试运行器
-│       └── BASELINE.md        # 性能基线数据
-├── examples/             # 示例代码
-├── docs/                 # 详细文档
-├── analysis-reports/     # 分析报告（永久保留）
-├── scripts/              # 工具脚本
-│   └── verify/           # 验证脚本
-└── .github/              # CI/CD 配置
+├── lib/                     # 源代码
+│   ├── index.js            # 主入口
+│   ├── mongodb/            # MongoDB 适配器
+│   └── common/             # 通用工具
+├── docs/                    # 详细文档
+│   ├── find.md             # find 方法文档
+│   ├── findPage.md         # findPage 方法文档
+│   ├── aggregate.md        # aggregate 方法文档
+│   ├── distinct.md         # distinct 方法文档
+│   ├── count.md            # count 方法文档
+│   ├── explain.md          # explain 方法文档
+│   ├── bookmarks.md        # Bookmark 维护文档
+│   ├── connection.md       # 连接管理文档
+│   ├── cache.md            # 缓存策略文档
+│   └── events.md           # 事件系统文档
+├── examples/                # 示例代码
+├── test/                    # 测试用例
+├── index.d.ts               # TypeScript 类型声明
+├── package.json
+├── README.md                # 本文件
+├── CHANGELOG.md             # 版本历史
+├── STATUS.md                # 功能状态
+└── LICENSE
 ```
 
-详细规范请参考 [guidelines/](../guidelines/)
+---
+
+## 开发与测试
+
+### 运行测试
+
+```bash
+# 安装依赖
+npm ci
+
+# 运行所有测试
+npm test
+
+# 运行单个测试
+npm test -- test/unit/features/find.test.js
+
+# 查看测试覆盖率
+npm run coverage
+```
+
+### 本地开发
+
+```bash
+# 安装 MongoDB Memory Server（测试用）
+npm install
+
+# 启动本地 MongoDB（如果需要）
+docker run -d -p 27017:27017 --name mongodb mongo:latest
+
+# 运行示例
+node examples/find.examples.js
+```
+
+**测试文档**: [docs/MONGODB-MEMORY-SERVER.md](./docs/MONGODB-MEMORY-SERVER.md)
+
+---
+
+## 贡献指南
+
+欢迎贡献！请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md) 了解详细信息。
+
+### 贡献流程
+
+1. Fork 项目
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'feat: Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 提交 Pull Request
+
+---
+
+## 许可证
+
+MIT License - 详见 [LICENSE](./LICENSE) 文件
+
+---
+
+## 链接
+
+- **项目主页**: https://github.com/your-username/monSQLize
+- **问题反馈**: https://github.com/your-username/monSQLize/issues
+- **变更日志**: [CHANGELOG.md](./CHANGELOG.md)
+- **功能状态**: [STATUS.md](./STATUS.md)
+
+---
+
+## 致谢
+
+感谢所有贡献者和使用者的支持！

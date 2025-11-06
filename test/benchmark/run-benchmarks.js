@@ -137,6 +137,18 @@ async function runBenchmarks() {
         }
     });
 
+    suite.add('find - 带缓存', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').find({
+                query: { status: 'active' },
+                limit: 10,
+                cache: 60000
+            });
+            deferred.resolve();
+        }
+    });
+
     // ========================================
     // count 基准测试
     // ========================================
@@ -199,6 +211,21 @@ async function runBenchmarks() {
         }
     });
 
+    suite.add('findPage - 带缓存', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('users').findPage({
+                query: { status: 'active' },
+                sort: { _id: 1 },
+                limit: 20,
+                page: 1,
+                totals: 'none',
+                cache: 60000
+            });
+            deferred.resolve();
+        }
+    });
+
     // ========================================
     // aggregate 基准测试
     // ========================================
@@ -221,12 +248,14 @@ async function runBenchmarks() {
             await collection('products').aggregate(
                 [
                     { $match: { inStock: true } },
-                    { $group: { 
-                        _id: '$category', 
-                        count: { $sum: 1 },
-                        avgPrice: { $avg: '$price' },
-                        totalSales: { $sum: '$sales' }
-                    }},
+                    {
+                        $group: {
+                            _id: '$category',
+                            count: { $sum: 1 },
+                            avgPrice: { $avg: '$price' },
+                            totalSales: { $sum: '$sales' }
+                        }
+                    },
                     { $sort: { totalSales: -1 } }
                 ]
             );
@@ -245,20 +274,30 @@ async function runBenchmarks() {
         }
     });
 
+    suite.add('distinct - 带缓存', {
+        defer: true,
+        fn: async (deferred) => {
+            await collection('products').distinct('category', {
+                cache: 60000
+            });
+            deferred.resolve();
+        }
+    });
+
     // 运行测试
     suite.on('cycle', (event) => {
         console.log(String(event.target));
     });
 
-    suite.on('complete', function() {
+    suite.on('complete', function () {
         console.log('\n╔═══════════════════════════════════════════════════════════╗');
         console.log('║              📊 基准测试完成                              ║');
         console.log('╚═══════════════════════════════════════════════════════════╝\n');
-        
+
         console.log('最快的测试：');
         const fastest = this.filter('fastest').map('name');
         fastest.forEach(name => console.log(`  🏆 ${name}`));
-        
+
         console.log('\n性能排行（按 ops/sec 降序）：');
         const sorted = this.slice().sort((a, b) => b.hz - a.hz);
         sorted.forEach((bench, i) => {
