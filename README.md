@@ -79,26 +79,46 @@ const MonSQLize = require('monsqlize');
 | **find()** | 批量查询（支持数组和流式） | [docs/find.md](./docs/find.md) |
 | **findOne()** | 查询单个文档 | [docs/findOne.md](./docs/findOne.md) |
 | **findPage()** | 分页查询（游标/跳页/总数） | [docs/findPage.md](./docs/findPage.md) |
+| **stream()** | 流式查询（find 的语法糖） | [docs/find.md](./docs/find.md#流式传输) |
 | **aggregate()** | 聚合管道查询 | [docs/aggregate.md](./docs/aggregate.md) |
 | **distinct()** | 字段去重查询 | [docs/distinct.md](./docs/distinct.md) |
 | **count()** | 统计文档数量 | [docs/count.md](./docs/count.md) |
 | **explain()** | 查询计划分析 | [docs/explain.md](./docs/explain.md) |
+
+### 集合管理
+
+| 方法 | 说明 | 文档链接 |
+|------|------|---------|
+| **createCollection()** | 创建集合 | [docs/collection-management.md](./docs/collection-management.md) |
+| **dropCollection()** | 删除集合 | [docs/collection-management.md](./docs/collection-management.md) |
+| **createView()** | 创建视图集合 | [docs/collection-management.md](./docs/collection-management.md) |
 
 ### 缓存与维护
 
 | 方法 | 说明 | 文档链接 |
 |------|------|---------|
 | **cache** | 缓存策略配置 | [docs/cache.md](./docs/cache.md) |
+| **invalidate()** | 手动失效缓存 | [docs/cache.md](./docs/cache.md#缓存失效-api) |
 | **prewarmBookmarks()** | 预热分页书签 | [docs/bookmarks.md](./docs/bookmarks.md) |
 | **listBookmarks()** | 列出书签信息 | [docs/bookmarks.md](./docs/bookmarks.md) |
 | **clearBookmarks()** | 清理书签缓存 | [docs/bookmarks.md](./docs/bookmarks.md) |
 
 ### 连接与事件
 
-| 主题 | 说明 | 文档链接 |
+| 方法 | 说明 | 文档链接 |
 |------|------|---------|
-| **连接管理** | 连接、关闭、跨库访问 | [docs/connection.md](./docs/connection.md) |
-| **事件系统** | 监听连接、错误、慢查询 | [docs/events.md](./docs/events.md) |
+| **connect()** | 连接数据库 | [docs/connection.md](./docs/connection.md) |
+| **close()** | 关闭连接 | [docs/connection.md](./docs/connection.md#关闭连接) |
+| **health()** | 健康检查 | [docs/connection.md](./docs/connection.md#健康检查) |
+| **on()** / **off()** | 事件监听/取消 | [docs/events.md](./docs/events.md) |
+
+### 工具方法
+
+| 方法 | 说明 | 文档链接 |
+|------|------|---------|
+| **getCache()** | 获取缓存实例 | [docs/utilities.md](./docs/utilities.md) |
+| **getDefaults()** | 获取默认配置 | [docs/utilities.md](./docs/utilities.md) |
+| **getNamespace()** | 获取命名空间信息 | [docs/utilities.md](./docs/utilities.md) |
 
 ---
 

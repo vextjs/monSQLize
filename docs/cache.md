@@ -8,7 +8,8 @@ monSQLize 提供了强大的内置缓存系统，支持 TTL（生存时间）、
 
 - ✅ **TTL 过期**：自动淘汰过期数据
 - ✅ **LRU 淘汰**：缓存满时淘汰最少使用的条目
-- ✅ **多层缓存**：查询结果 + Bookmark 分页
+- ✅ **多层缓存架构**：本地缓存（LRU-Cache）+ 远端缓存（Redis/Memcached）
+- ✅ **双层缓存机制**：查询结果缓存 + Bookmark 分页缓存
 - ✅ **自动失效**：insert/update/delete 自动清理相关缓存
 - ✅ **统计监控**：命中率、淘汰统计、内存占用
 
@@ -213,11 +214,178 @@ await collection('test').find({ query: { d: 4 }, cache: 60000 });  // 缓存 [c:
 
 ## 多层缓存
 
-monSQLize 支持两层缓存：
-1. **查询结果缓存**：缓存 find/findOne/aggregate/distinct 等查询结果
-2. **Bookmark 缓存**：缓存 findPage 分页游标
+monSQLize 提供两种多层缓存机制：
 
-### 查询结果缓存
+### 1. 本地 + 远端缓存架构（MultiLevelCache）
+
+支持本地内存缓存（LRU-Cache）+ 远端缓存（Redis/Memcached）的两层架构，实现更高的缓存命中率和更大的缓存容量。
+
+#### 缓存策略
+
+**读操作**：
+1. 优先从本地缓存读取（内存，速度快）
+2. 本地未命中则查询远端缓存（网络，速度较慢）
+3. 远端命中则异步回填到本地缓存（可配置）
+4. 远端失败则优雅降级（返回 undefined）
+
+**写操作**：
+- `both`（默认）：本地 + 远端双写，保证一致性
+- `local-first-async-remote`：本地优先，远端异步写入，提升性能
+
+**删除操作**：
+- 删除本地缓存（立即生效）
+- 删除远端缓存（尽力而为）
+- `delPattern` 支持可选的集群广播机制
+
+#### 配置示例
+
+```javascript
+const MonSQLize = require('monsqlize');
+const Redis = require('ioredis');
+
+// 创建 Redis 客户端（远端缓存）
+const redis = new Redis({
+  host: 'localhost',
+  port: 6379,
+  db: 0
+});
+
+// 封装 Redis 为 CacheLike 接口
+const remoteCache = {
+  async get(key) {
+    const val = await redis.get(key);
+    return val ? JSON.parse(val) : undefined;
+  },
+  async set(key, val, ttl = 0) {
+    const str = JSON.stringify(val);
+    if (ttl > 0) {
+      await redis.setex(key, Math.ceil(ttl / 1000), str);
+    } else {
+      await redis.set(key, str);
+    }
+  },
+  async del(key) {
+    return await redis.del(key) > 0;
+  },
+  async exists(key) {
+    return await redis.exists(key) > 0;
+  },
+  async getMany(keys) {
+    const values = await redis.mget(keys);
+    const result = {};
+    keys.forEach((key, i) => {
+      if (values[i]) result[key] = JSON.parse(values[i]);
+    });
+    return result;
+  },
+  async setMany(obj, ttl = 0) {
+    const pipeline = redis.pipeline();
+    for (const [key, val] of Object.entries(obj)) {
+      const str = JSON.stringify(val);
+      if (ttl > 0) {
+        pipeline.setex(key, Math.ceil(ttl / 1000), str);
+      } else {
+        pipeline.set(key, str);
+      }
+    }
+    await pipeline.exec();
+    return true;
+  },
+  async delMany(keys) {
+    return await redis.del(...keys);
+  }
+};
+
+// 配置本地 + 远端缓存
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'shop',
+  config: { uri: 'mongodb://localhost:27017' },
+  
+  cache: {
+    maxSize: 10000,       // 本地缓存 1 万条
+    enableStats: true,
+    
+    // 配置远端缓存
+    remote: remoteCache,  // 或直接传递配置对象
+    
+    // 或使用详细配置
+    // remote: {
+    //   get: async (key) => { ... },
+    //   set: async (key, val, ttl) => { ... },
+    //   del: async (key) => { ... },
+    //   // ... 其他方法
+    //   timeoutMs: 50       // 远端操作超时时间（默认 50ms）
+    // }
+  }
+});
+
+const { collection } = await msq.connect();
+
+// 使用缓存查询（自动使用本地 + 远端两层）
+const products = await collection('products').find({
+  query: { category: 'electronics' },
+  cache: 5000,           // 缓存 5 秒
+  maxTimeMS: 3000
+});
+
+// 命中流程：
+// 1. 查本地缓存 → 命中则返回（最快）
+// 2. 本地未命中 → 查远端缓存 → 命中则返回 + 回填本地
+// 3. 远端未命中 → 查询 MongoDB → 存入本地 + 远端
+```
+
+#### 策略配置
+
+```javascript
+const msq = new MonSQLize({
+  // ...
+  cache: {
+    maxSize: 10000,
+    remote: remoteCache,
+    
+    // 写策略配置
+    policy: {
+      writePolicy: 'both',                      // 'both' | 'local-first-async-remote'
+      backfillLocalOnRemoteHit: true            // 远端命中时回填本地（默认 true）
+    },
+    
+    remoteTimeoutMs: 50                         // 远端操作超时（默认 50ms）
+  }
+});
+```
+
+#### 性能对比
+
+| 场景 | 仅本地缓存 | 本地 + 远端缓存 | 提升 |
+|------|-----------|----------------|------|
+| 热点数据 | 0.1ms | 0.1ms | 无差异 |
+| 冷数据（本地未命中）| 查询 MongoDB（10ms+）| 查询 Redis（1-2ms）| **5-10倍** |
+| 缓存容量 | 受内存限制（1-10万）| Redis 可达百万级 | **10-100倍** |
+| 集群一致性 | 每个节点独立 | 共享 Redis，一致性强 | ✅ |
+
+#### 最佳实践
+
+1. **本地缓存配置**
+   - 设置合理的 `maxSize`（推荐 1-10 万条）
+   - 热点数据优先存入本地
+
+2. **远端缓存配置**
+   - Redis 连接池配置（避免连接耗尽）
+   - 设置合理的超时时间（推荐 50-100ms）
+   - 监控 Redis 内存使用
+
+3. **写策略选择**
+   - 强一致性场景：使用 `both`（默认）
+   - 高并发写入：使用 `local-first-async-remote`
+
+4. **故障降级**
+   - 远端缓存故障自动降级到本地缓存
+   - 不影响业务正常运行
+
+---
+
+### 2. 查询结果 + Bookmark 双层缓存
 
 ```javascript
 const { collection } = await msq.connect();
@@ -738,6 +906,242 @@ const page1 = await collection('products').findPage({
 
 ---
 
+## 缓存失效 API
+
+### invalidate()
+
+手动清除指定集合的所有缓存。适用于需要立即刷新缓存的场景。
+
+#### 方法签名
+
+```javascript
+await collection('collectionName').invalidate()
+```
+
+#### 参数说明
+
+无参数。清除当前绑定集合的所有查询缓存。
+
+#### 返回值
+
+```javascript
+Promise<void>
+```
+
+---
+
+### 使用场景
+
+#### 1. 数据批量更新后刷新缓存
+
+```javascript
+const { collection } = await msq.connect();
+
+// 批量更新产品价格
+await collection('products').updateMany({
+  query: { category: 'electronics' },
+  update: { $mul: { price: 0.9 } }  // 全部打 9 折
+});
+
+// 立即清除缓存
+await collection('products').invalidate();
+
+console.log('✅ 缓存已清除，下次查询将获取最新数据');
+```
+
+---
+
+#### 2. 外部数据源变更时强制刷新
+
+```javascript
+// 场景：通过其他工具修改了数据库
+// 需要手动清除 monSQLize 的缓存
+
+const { collection } = await msq.connect();
+
+// 清除 users 集合的缓存
+await collection('users').invalidate();
+
+console.log('✅ users 集合缓存已清除');
+
+// 下次查询将从数据库获取最新数据
+const users = await collection('users').find({
+  query: {},
+  cache: 60000
+});
+```
+
+---
+
+#### 3. 定时刷新缓存
+
+```javascript
+const { collection } = await msq.connect();
+
+// 每 5 分钟刷新一次 products 缓存
+setInterval(async () => {
+  await collection('products').invalidate();
+  console.log('✅ products 缓存已刷新');
+}, 5 * 60 * 1000);
+```
+
+---
+
+#### 4. 多集合缓存清除
+
+```javascript
+const { collection } = await msq.connect();
+
+// 清除多个集合的缓存
+async function clearAllCache() {
+  const collections = ['products', 'users', 'orders', 'configs'];
+  
+  for (const name of collections) {
+    await collection(name).invalidate();
+    console.log(`✅ ${name} 缓存已清除`);
+  }
+}
+
+await clearAllCache();
+```
+
+---
+
+#### 5. 条件性缓存清除
+
+```javascript
+const { collection } = await msq.connect();
+
+// 根据更新结果决定是否清除缓存
+const updateResult = await collection('products').updateOne({
+  query: { id: 123 },
+  update: { $set: { featured: true } }
+});
+
+if (updateResult.modifiedCount > 0) {
+  // 只有实际更新了文档才清除缓存
+  await collection('products').invalidate();
+  console.log('✅ 缓存已清除');
+} else {
+  console.log('⚠️ 无文档更新，保留缓存');
+}
+```
+
+---
+
+### 与自动失效的区别
+
+| 特性 | 自动失效 | 手动失效（invalidate） |
+|------|---------|----------------------|
+| **触发方式** | 写操作自动触发 | 手动调用 |
+| **清除范围** | 当前集合所有缓存 | 当前集合所有缓存 |
+| **适用场景** | 大多数写操作 | 外部修改、批量更新、定时刷新 |
+| **是否需要调用** | 自动，无需调用 | 需要显式调用 |
+
+**示例对比**：
+
+```javascript
+// 自动失效（无需调用 invalidate）
+await collection('products').updateOne({
+  query: { id: 123 },
+  update: { $set: { price: 999 } }
+});
+// ✅ 缓存自动清除
+
+// 手动失效（需要显式调用）
+// 场景：使用 MongoDB Shell 或其他工具修改了数据
+await collection('products').invalidate();
+// ✅ 手动清除缓存
+```
+
+---
+
+### 最佳实践
+
+#### 1. 避免过度使用
+
+```javascript
+// ❌ 不推荐：每次查询前都清除缓存
+await collection('products').invalidate();
+const products = await collection('products').find({
+  query: {},
+  cache: 60000
+});
+
+// ✅ 推荐：只在必要时清除缓存
+// 大多数情况下，写操作会自动清除缓存
+// 只有在外部修改或特殊需求时才手动清除
+```
+
+---
+
+#### 2. 结合缓存监控
+
+```javascript
+const cache = msq.getCache();
+
+// 清除缓存前记录统计
+const beforeStats = cache.getStats();
+console.log('清除前缓存项:', beforeStats.size);
+
+// 清除缓存
+await collection('products').invalidate();
+
+// 清除后记录统计
+const afterStats = cache.getStats();
+console.log('清除后缓存项:', afterStats.size);
+console.log('清除数量:', beforeStats.size - afterStats.size);
+```
+
+---
+
+#### 3. 批量清除时使用并行
+
+```javascript
+// ✅ 并行清除（更快）
+const collections = ['products', 'users', 'orders'];
+
+await Promise.all(
+  collections.map(name => collection(name).invalidate())
+);
+
+console.log('✅ 所有缓存已清除');
+```
+
+---
+
+#### 4. 定时刷新的错误处理
+
+```javascript
+// 定时刷新缓存，带错误处理
+setInterval(async () => {
+  try {
+    await collection('products').invalidate();
+    console.log('✅ products 缓存已刷新');
+  } catch (error) {
+    console.error('❌ 缓存刷新失败:', error.message);
+  }
+}, 5 * 60 * 1000);
+```
+
+---
+
+### 注意事项
+
+1. **清除范围**：`invalidate()` 只清除指定集合的查询缓存，不影响其他集合
+2. **性能影响**：清除缓存后，下次查询需要访问数据库，会有性能损耗
+3. **不清除 Bookmarks**：`invalidate()` 不清除 findPage 的 Bookmark 缓存，需要使用 `clearBookmarks()`
+4. **无需频繁调用**：大多数写操作会自动失效缓存，无需手动调用
+
+---
+
+### 相关方法
+
+- **`clearBookmarks(collectionName?)`** - 清除 findPage 的 Bookmark 缓存（参见 [Bookmarks 文档](./bookmarks.md)）
+- **`getCache()`** - 获取缓存实例，可调用 `clear()` 清除所有缓存（参见 [工具方法文档](./utilities.md)）
+
+---
+
 ## 参考资料
 
 - [LRU 缓存算法](https://en.wikipedia.org/wiki/Cache_replacement_policies#Least_recently_used_(LRU))
@@ -746,3 +1150,4 @@ const page1 = await collection('products').findPage({
 - [monSQLize README](../README.md)
 - [findPage 文档](./findPage.md)
 - [Bookmarks 文档](./bookmarks.md)
+- [工具方法文档](./utilities.md)
