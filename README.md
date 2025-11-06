@@ -800,6 +800,171 @@ const msq = await new MonSQLize({
 提示：也可在上层自行构建 MultiLevelCache 并作为 `cache` 直接注入（需 `require('monsqlize/lib/multi-level-cache')`）。
 
 
+## 查询执行计划分析（explain）
+
+### 概述
+`explain` 方法用于分析查询执行计划，帮助诊断性能问题和优化查询策略。它不返回实际数据，专用于诊断。
+
+**核心特性**:
+- ✅ 3 种 verbosity 模式（queryPlanner / executionStats / allPlansExecution）
+- ✅ 支持所有查询参数（query, projection, sort, limit, skip, hint, collation, maxTimeMS）
+- ✅ 禁用缓存（诊断专用）
+- ✅ 慢查询日志集成（执行耗时 > `slowQueryMs` 阈值）
+- ✅ 错误处理（无效 verbosity 抛出 `INVALID_EXPLAIN_VERBOSITY`）
+
+### 使用场景
+1. **验证索引使用** - 检查查询是否使用了预期的索引
+2. **诊断慢查询** - 分析查询瓶颈（全表扫描、内存排序等）
+3. **对比查询策略** - 比较不同 hint/query 的性能差异
+4. **优化复杂查询** - 分析聚合、联表等复杂查询的执行计划
+
+### verbosity 模式
+
+#### 1. queryPlanner（默认）
+返回查询优化器选择的执行计划，**不执行查询**。最轻量，适合快速检查索引使用情况。
+
+```js
+const plan = await collection('users').explain({
+  query: { age: { $gte: 25 } }
+  // verbosity: 'queryPlanner' // 默认值
+});
+
+console.log('使用索引:', plan.queryPlanner.winningPlan.inputStage?.indexName);
+console.log('执行策略:', plan.queryPlanner.winningPlan.stage);
+```
+
+#### 2. executionStats
+实际执行查询并返回详细统计信息（扫描文档数、耗时等）。适合性能分析。
+
+```js
+const stats = await collection('products').explain({
+  query: { category: 'Electronics', price: { $gte: 500 } },
+  sort: { price: -1 },
+  limit: 10,
+  verbosity: 'executionStats'
+});
+
+console.log('扫描文档数:', stats.executionStats.totalDocsExamined);
+console.log('返回文档数:', stats.executionStats.nReturned);
+console.log('执行耗时:', stats.executionStats.executionTimeMillis, 'ms');
+console.log('查询效率:', (stats.executionStats.nReturned / stats.executionStats.totalDocsExamined * 100).toFixed(2) + '%');
+```
+
+#### 3. allPlansExecution
+返回所有候选执行计划及其试执行结果。适合理解优化器的选择过程。
+
+```js
+const allPlans = await collection('orders').explain({
+  query: { customerId: 'CUS050', status: 'completed', total: { $gte: 1000 } },
+  verbosity: 'allPlansExecution'
+});
+
+console.log('候选计划数:', allPlans.executionStats.allPlansExecution?.length);
+console.log('获胜计划索引:', allPlans.queryPlanner.winningPlan.inputStage?.indexName);
+```
+
+### 参数说明
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `query` | `object` | 查询条件（同 find） |
+| `projection` | `object` | 字段投影 |
+| `sort` | `object` | 排序规则 |
+| `limit` | `number` | 返回文档数限制 |
+| `skip` | `number` | 跳过文档数 |
+| `hint` | `object\|string` | 强制使用指定索引 |
+| `collation` | `object` | 排序规则（locale, strength 等） |
+| `maxTimeMS` | `number` | 查询超时时间（毫秒） |
+| `verbosity` | `string` | 详细程度：`'queryPlanner'`（默认）/ `'executionStats'` / `'allPlansExecution'` |
+
+### 实用示例
+
+#### 索引优化对比
+```js
+// 1. 无索引查询
+const noIndexPlan = await collection('logs').explain({
+  query: { level: 'ERROR', service: 'api-server' },
+  verbosity: 'executionStats'
+});
+console.log('无索引扫描:', noIndexPlan.executionStats.totalDocsExamined, '个文档');
+
+// 2. 创建索引
+await collection('logs')._collection.createIndex({ level: 1, service: 1 });
+
+// 3. 有索引查询
+const withIndexPlan = await collection('logs').explain({
+  query: { level: 'ERROR', service: 'api-server' },
+  verbosity: 'executionStats'
+});
+console.log('索引查询扫描:', withIndexPlan.executionStats.totalDocsExamined, '个文档');
+console.log('性能提升:', ((1 - withIndexPlan.executionStats.totalDocsExamined / noIndexPlan.executionStats.totalDocsExamined) * 100).toFixed(2) + '%');
+```
+
+#### 使用 hint 强制索引
+```js
+// 创建多个索引
+await collection('inventory')._collection.createIndex({ category: 1, quantity: 1 }, { name: 'cat_qty_idx' });
+await collection('inventory')._collection.createIndex({ warehouse: 1, quantity: 1 }, { name: 'wh_qty_idx' });
+
+// 让优化器自动选择
+const autoPlan = await collection('inventory').explain({
+  query: { category: 'electronics', warehouse: 'wh-01', quantity: { $gte: 500 } },
+  verbosity: 'executionStats'
+});
+console.log('自动选择索引:', autoPlan.queryPlanner.winningPlan.inputStage?.indexName);
+
+// 强制使用 category 索引
+const hintPlan = await collection('inventory').explain({
+  query: { category: 'electronics', warehouse: 'wh-01', quantity: { $gte: 500 } },
+  hint: { category: 1, quantity: 1 },
+  verbosity: 'executionStats'
+});
+console.log('强制使用索引:', hintPlan.queryPlanner.winningPlan.inputStage?.indexName);
+console.log('扫描文档对比:', autoPlan.executionStats.totalDocsExamined, 'vs', hintPlan.executionStats.totalDocsExamined);
+```
+
+#### 慢查询诊断
+```js
+const slowPlan = await collection('analytics').explain({
+  query: {
+    timestamp: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), $lte: new Date() },
+    'metadata.device': 'mobile'
+  },
+  sort: { timestamp: -1 },
+  limit: 100,
+  verbosity: 'executionStats'
+});
+
+console.log('执行方式:', slowPlan.queryPlanner.winningPlan.stage);
+console.log('扫描文档:', slowPlan.executionStats.totalDocsExamined);
+console.log('执行耗时:', slowPlan.executionStats.executionTimeMillis, 'ms');
+
+if (slowPlan.queryPlanner.winningPlan.stage === 'COLLSCAN') {
+  console.log('⚠️  问题: 全表扫描 - 建议创建索引: { timestamp: -1, "metadata.device": 1 }');
+}
+
+if (slowPlan.queryPlanner.winningPlan.inputStage?.stage === 'SORT') {
+  console.log('⚠️  问题: 内存排序 - 建议创建支持排序的索引');
+}
+```
+
+### 注意事项
+- **explain 不返回实际数据**，仅返回执行计划和统计信息
+- **禁用缓存**：explain 查询不会触发缓存读写
+- **慢查询日志**：当 `verbosity = 'executionStats'` 或 `'allPlansExecution'` 且执行耗时 > `slowQueryMs` 时，会记录慢查询日志
+- **生产环境**：executionStats 和 allPlansExecution 会实际执行查询，可能影响性能，建议在低峰期使用
+- **hint 谨慎使用**：强制指定索引可能绕过优化器的智能选择，使用前应通过 explain 验证性能提升
+
+### 更多示例
+完整的实用场景请参考 [`examples/explain.examples.js`](examples/explain.examples.js)：
+- 示例 1: 基本查询计划分析
+- 示例 2: 执行统计分析
+- 示例 3: 索引优化分析
+- 示例 4: hint 强制索引选择
+- 示例 5: 所有候选计划分析
+
+---
+
 ## 返回耗时（meta）
 - 支持在所有读 API 上按次返回耗时与元信息（opt-in，不改默认返回类型）。
 - 使用方法：在 options 中传入 `meta: true` 或 `meta: { level: 'sub', includeCache: true }`。

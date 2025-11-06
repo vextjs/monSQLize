@@ -187,6 +187,19 @@ declare module 'monsqlize' {
         noCursorTimeout?: boolean;       // 禁用游标超时（默认 false）
     }
 
+    // Explain 选项（查询执行计划诊断）
+    interface ExplainOptions {
+        query?: object;                  // 查询条件
+        projection?: object;             // 字段投影
+        sort?: Record<string, 1 | -1>;   // 排序配置
+        limit?: number;                  // 限制返回数量
+        skip?: number;                   // 跳过数量
+        maxTimeMS?: number;              // 查询超时时间（毫秒）
+        hint?: any;                      // 索引提示
+        collation?: any;                 // 排序规则
+        verbosity?: 'queryPlanner' | 'executionStats' | 'allPlansExecution'; // 详细程度（默认 'queryPlanner'）
+    }
+
     // 跳页相关类型
     interface JumpOptions {
         step?: number;                    // 书签密度：每隔 step 页存一个书签；默认 10
@@ -326,6 +339,9 @@ declare module 'monsqlize' {
 
         // stream：返回 Node.js 可读流
         stream(options?: StreamOptions): NodeJS.ReadableStream;
+
+        // explain：查询执行计划诊断
+        explain(options?: ExplainOptions): Promise<any>;
 
         // findPage：已在 PageResult 中包含 meta 字段，无需重载
         findPage(options: FindPageOptions): Promise<PageResult>;

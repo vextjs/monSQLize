@@ -5,6 +5,26 @@
 ## [未发布]
 
 ### 新增
+- **[P2.1] explain 诊断 API**（2025-11-06）
+  - 新增 `explain(options)` 方法，用于查询执行计划分析和性能诊断
+  - 支持 3 种 verbosity 模式：
+    - `queryPlanner`（默认）：返回查询优化器选择的执行计划（不执行查询）
+    - `executionStats`：实际执行查询并返回详细统计信息（扫描文档数、耗时等）
+    - `allPlansExecution`：返回所有候选执行计划及其试执行结果
+  - 支持参数：query, projection, sort, limit, skip, maxTimeMS, hint, collation
+  - 特性：
+    - 禁用缓存（诊断专用，不影响正常查询性能）
+    - 集成慢查询日志（执行耗时 > slowQueryMs 阈值）
+    - 错误处理：无效 verbosity 抛出 INVALID_EXPLAIN_VERBOSITY
+  - 使用场景：
+    - 验证索引是否被正确使用
+    - 诊断慢查询根本原因
+    - 对比不同查询策略的性能
+    - 分析复杂查询的执行计划
+  - 测试：15 个测试用例覆盖所有参数和边界情况
+  - 示例：`examples/explain.examples.js` 包含 5 个实用场景
+  - 类型声明：`ExplainOptions` 接口完整类型支持
+
 - **[P1.3] 性能基准测试框架**（2025-11-06）
   - 创建 `test/benchmark/run-benchmarks.js` 统一的基准测试运行器
   - 使用 benchmark.js 测试所有核心 API 性能

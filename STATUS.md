@@ -105,8 +105,12 @@
     - 支持 MongoDB 聚合管道透传；支持 maxTimeMS/allowDiskUse/hint/collation/comment；默认禁用缓存（cache=0）；可选返回 meta 耗时信息。
 - ✅ distinct
     - 支持字段去重查询；支持 query/maxTimeMS/collation/hint；默认启用缓存；可选返回 meta 耗时信息。
-- ❌ explain
-    - 诊断用途；建议透传且禁用缓存（规划中）。
+- ✅ explain
+    - **查询执行计划分析**（诊断专用，不返回数据）
+    - 支持 3 种 verbosity：queryPlanner（默认）/ executionStats / allPlansExecution
+    - 支持参数：query, projection, sort, limit, skip, maxTimeMS, hint, collation
+    - 特性：禁用缓存、慢查询日志集成、INVALID_EXPLAIN_VERBOSITY 错误处理
+    - 使用场景：索引使用验证、慢查询诊断、查询策略对比、复杂查询分析
 - ❌ 高级查询/游标选项统一抽象
     - batchSize/hint/collation/noCursorTimeout/tailable/max/min/returnKey/allowPartialResults/
       readPreference/readConcern。
