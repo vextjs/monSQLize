@@ -12,8 +12,8 @@
 
 ## 状态
 
-- **已实现**：MongoDB 适配器；find/findOne/count；内置缓存；跨库访问；默认值（maxTimeMS/findLimit）；慢查询日志；TypeScript 类型
-- **规划中**：多层缓存（本地+远端）；更多数据库适配器（PostgreSQL/MySQL/SQLite）
+- **已实现**：MongoDB 适配器；find/findOne/count；内置缓存；多层缓存（本地+远端）；跨库访问；默认值（maxTimeMS/findLimit）；慢查询日志；TypeScript 类型
+- **规划中**：更多数据库适配器（PostgreSQL/MySQL/SQLite）；Redis 缓存适配器
 
 **完整能力矩阵与路线图**：[STATUS.md](./STATUS.md)
 
