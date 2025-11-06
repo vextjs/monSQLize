@@ -4,6 +4,7 @@
  */
 
 const MonSQLize = require('../lib');
+const { stopMemoryServer } = require('../lib/mongodb/connect');
 
 // ============================================================================
 // 常量配置
@@ -147,6 +148,8 @@ async function example1_BasicQuery() {
 
     } catch (error) {
         console.error('示例 1 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -174,11 +177,13 @@ async function example2_ConditionalQuery() {
 
     } catch (error) {
         console.error('示例 2 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
 /**
- * 示例 3: 投影查询 - 只返回指定字段
+ * 示例 3: 投影查询 - 只返回需要的字段
  */
 async function example3_ProjectionQuery() {
     console.log('\n=== 示例 3: 投影查询 ===');
@@ -201,6 +206,8 @@ async function example3_ProjectionQuery() {
 
     } catch (error) {
         console.error('示例 3 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -233,6 +240,8 @@ async function example4_ComplexQuery() {
 
     } catch (error) {
         console.error('示例 4 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -266,6 +275,8 @@ async function example5_ArrayQuery() {
 
     } catch (error) {
         console.error('示例 5 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -301,6 +312,8 @@ async function example6_CachedQuery() {
 
     } catch (error) {
         console.error('示例 6 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -328,6 +341,8 @@ async function example7_ExplainQuery() {
 
     } catch (error) {
         console.error('示例 7 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -354,6 +369,8 @@ async function example8_CollationQuery() {
 
     } catch (error) {
         console.error('示例 8 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -378,6 +395,8 @@ async function example9_ErrorHandling() {
     } catch (error) {
         console.error('查询出错:', error.message);
         console.error('错误代码:', error.code);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -413,6 +432,8 @@ async function example10_BestPractices() {
 
     } catch (error) {
         console.error('示例 10 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -442,6 +463,9 @@ async function runAllExamples() {
 
     } catch (error) {
         console.error('\n❌ 示例运行失败:', error.message);
+    } finally {
+        // 显式停止 Memory Server，否则 Node.js 进程会卡住
+        await stopMemoryServer();
     }
 }
 

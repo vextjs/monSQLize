@@ -1,7 +1,17 @@
 // bookmarks.examples.js - Bookmark 维护 APIs 示例
 // 用途：管理 findPage 的 bookmark 缓存，用于运维调试、性能优化
 
-const MonSQLize = require('..');
+const MonSQLize = require('../lib');
+const { stopMemoryServer } = require('../lib/mongodb/connect');
+
+// MongoDB 连接配置 - 使用内存数据库方便独立运行
+const DB_CONFIG = {
+    type: 'mongodb',
+    databaseName: 'example_bookmarks',
+    config: { useMemoryServer: true },
+    cache: { enabled: true, maxSize: 1000 },
+    defaults: { limit: 10, bookmarkTTL: 3600000 } // bookmark 缓存 1 小时
+};
 
 /**
  * 示例 1: 预热常用页面的 bookmark 缓存
@@ -10,17 +20,11 @@ const MonSQLize = require('..');
 async function example1_PrewarmBookmarks() {
     console.log('\n========== 示例 1: 预热 bookmark 缓存 ==========');
     
-    const client = new MonSQLize({
-        type: 'mongodb',
-        uri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
-        databaseName: 'example_bookmarks',
-        cache: { enabled: true, maxSize: 1000 },
-        defaults: { limit: 10, bookmarkTTL: 3600000 } // bookmark 缓存 1 小时
-    });
+    const client = new MonSQLize(DB_CONFIG);
 
     try {
-        await client.connect();
-        const products = client.db().collection('products');
+        const { collection } = await client.connect();
+        const products = collection('products');
 
         // 预热前 3 页的 bookmark（常用的热点页面）
         const keyDims = {
@@ -51,16 +55,11 @@ async function example1_PrewarmBookmarks() {
 async function example2_ListBookmarks() {
     console.log('\n========== 示例 2: 列出 bookmark 缓存 ==========');
     
-    const client = new MonSQLize({
-        type: 'mongodb',
-        uri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
-        databaseName: 'example_bookmarks',
-        cache: { enabled: true, maxSize: 1000 }
-    });
+    const client = new MonSQLize(DB_CONFIG);
 
     try {
-        await client.connect();
-        const products = client.db().collection('products');
+        const { collection } = await client.connect();
+        const products = collection('products');
 
         // 先预热一些页面
         const keyDims = {
@@ -97,16 +96,11 @@ async function example2_ListBookmarks() {
 async function example3_ClearBookmarks() {
     console.log('\n========== 示例 3: 清除 bookmark 缓存 ==========');
     
-    const client = new MonSQLize({
-        type: 'mongodb',
-        uri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
-        databaseName: 'example_bookmarks',
-        cache: { enabled: true, maxSize: 1000 }
-    });
+    const client = new MonSQLize(DB_CONFIG);
 
     try {
-        await client.connect();
-        const products = client.db().collection('products');
+        const { collection } = await client.connect();
+        const products = collection('products');
 
         // 预热两个不同的查询
         const keyDims1 = { query: { category: 'books' }, sort: { title: 1 }, limit: 10 };
@@ -145,16 +139,11 @@ async function example3_ClearBookmarks() {
 async function example4_ClearAllBookmarks() {
     console.log('\n========== 示例 4: 清除所有 bookmark 缓存 ==========');
     
-    const client = new MonSQLize({
-        type: 'mongodb',
-        uri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
-        databaseName: 'example_bookmarks',
-        cache: { enabled: true, maxSize: 1000 }
-    });
+    const client = new MonSQLize(DB_CONFIG);
 
     try {
-        await client.connect();
-        const products = client.db().collection('products');
+        const { collection } = await client.connect();
+        const products = collection('products');
 
         // 预热多个查询
         await products.prewarmBookmarks({ sort: { _id: 1 }, limit: 10 }, [1, 2]);
@@ -186,16 +175,11 @@ async function example4_ClearAllBookmarks() {
 async function example5_CompleteWorkflow() {
     console.log('\n========== 示例 5: 完整工作流 ==========');
     
-    const client = new MonSQLize({
-        type: 'mongodb',
-        uri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
-        databaseName: 'example_bookmarks',
-        cache: { enabled: true, maxSize: 1000 }
-    });
+    const client = new MonSQLize(DB_CONFIG);
 
     try {
-        await client.connect();
-        const orders = client.db().collection('orders');
+        const { collection } = await client.connect();
+        const orders = collection('orders');
 
         const keyDims = {
             query: { status: 'pending' },
@@ -245,8 +229,7 @@ async function runAll() {
     console.log('========================================');
     console.log('MonSQLize Bookmark 维护 APIs 示例');
     console.log('========================================');
-    console.log('\n注意：这些示例需要 MongoDB 服务运行在 localhost:27017');
-    console.log('或通过环境变量 MONGODB_URI 指定连接串\n');
+    console.log('\n使用内存数据库运行示例，无需外部 MongoDB 服务\n');
 
     try {
         await example1_PrewarmBookmarks();
@@ -260,11 +243,11 @@ async function runAll() {
         console.log('========================================\n');
     } catch (error) {
         console.error('\n❌ 示例运行失败:', error.message);
-        console.error('\n请确保:');
-        console.error('  1. MongoDB 服务正在运行');
-        console.error('  2. 连接字符串正确（默认: mongodb://localhost:27017）');
-        console.error('  3. 数据库可访问\n');
+        console.error('错误堆栈:', error.stack);
         process.exit(1);
+    } finally {
+        // 显式停止 Memory Server，否则 Node.js 进程会卡住
+        await stopMemoryServer();
     }
 }
 

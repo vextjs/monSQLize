@@ -4,6 +4,7 @@
  */
 
 const MonSQLize = require('../lib');
+const { stopMemoryServer } = require('../lib/mongodb/connect');
 
 // ============================================================================
 // 常量配置
@@ -152,6 +153,8 @@ async function example1_BasicCount() {
 
     } catch (error) {
         console.error('示例 1 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -199,11 +202,13 @@ async function example2_ConditionalCount() {
 
     } catch (error) {
         console.error('示例 2 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
 /**
- * 示例 3: 多集合统计 - 业务报表数据
+ * 示例 3: 多集合统计 - 业务报表
  */
 async function example3_MultiCollectionStats() {
     console.log('\n=== 示例 3: 多集合统计 ===');
@@ -253,11 +258,13 @@ async function example3_MultiCollectionStats() {
 
     } catch (error) {
         console.error('示例 3 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
 /**
- * 示例 4: 日期范围统计 - 时间段分析
+ * 示例 4: 日期范围统计
  */
 async function example4_DateRangeCount() {
     console.log('\n=== 示例 4: 日期范围统计 ===');
@@ -304,11 +311,13 @@ async function example4_DateRangeCount() {
 
     } catch (error) {
         console.error('示例 4 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
 /**
- * 示例 5: 数组字段统计 - 标签和分类
+ * 示例 5: 数组字段统计
  */
 async function example5_ArrayFieldCount() {
     console.log('\n=== 示例 5: 数组字段统计 ===');
@@ -343,11 +352,13 @@ async function example5_ArrayFieldCount() {
 
     } catch (error) {
         console.error('示例 5 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
 /**
- * 示例 6: 缓存统计 - 性能优化
+ * 示例 6: 缓存统计
  */
 async function example6_CachedCount() {
     console.log('\n=== 示例 6: 缓存统计 ===');
@@ -393,11 +404,13 @@ async function example6_CachedCount() {
 
     } catch (error) {
         console.error('示例 6 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
 /**
- * 示例 7: 查询执行计划 - 性能分析
+ * 示例 7: 查询执行计划
  */
 async function example7_ExplainCount() {
     console.log('\n=== 示例 7: 查询执行计划 ===');
@@ -429,6 +442,8 @@ async function example7_ExplainCount() {
 
     } catch (error) {
         console.error('示例 7 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -463,6 +478,8 @@ async function example8_HintCount() {
 
     } catch (error) {
         console.error('示例 8 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -507,11 +524,13 @@ async function example9_ErrorHandling() {
 
     } catch (error) {
         console.error('示例 9 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
 /**
- * 示例 10: 最佳实践 - 综合示例
+ * 示例 10: 最佳实践
  */
 async function example10_BestPractices() {
     console.log('\n=== 示例 10: 最佳实践 ===');
@@ -579,6 +598,8 @@ async function example10_BestPractices() {
 
     } catch (error) {
         console.error('示例 10 出错:', error.message);
+    } finally {
+        await monSQLize.close();
     }
 }
 
@@ -608,12 +629,22 @@ async function runAllExamples() {
 
     } catch (error) {
         console.error('\n❌ 示例运行失败:', error.message);
+        console.error('错误堆栈:', error.stack);
+        throw error;  // 重新抛出错误，让外层处理
+    } finally {
+        // 显式停止 Memory Server，否则 Node.js 进程会卡住
+        await stopMemoryServer();
     }
 }
 
 // 如果直接运行此文件，则执行所有示例
 if (require.main === module) {
-    runAllExamples().catch(console.error);
+    runAllExamples()
+        .then(() => process.exit(0))
+        .catch(error => {
+            console.error('Fatal error:', error);
+            process.exit(1);
+        });
 }
 
 module.exports = {

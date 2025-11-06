@@ -4,6 +4,7 @@
  */
 
 const MonSQLize = require('../lib');
+const { stopMemoryServer } = require('../lib/mongodb/connect');
 
 // ============================================================================
 // 常量配置
@@ -1412,10 +1413,15 @@ async function main() {
 
 // 运行示例
 if (require.main === module) {
-  main().catch(error => {
-    console.error('\n❌ 程序执行出错:', error);
-    process.exit(1);
-  });
+  main()
+    .catch(error => {
+      console.error('\n❌ 程序执行出错:', error);
+      process.exit(1);
+    })
+    .finally(async () => {
+      // 显式停止 Memory Server，否则 Node.js 进程会卡住
+      await stopMemoryServer();
+    });
 }
 
 // 导出示例函数供其他模块使用

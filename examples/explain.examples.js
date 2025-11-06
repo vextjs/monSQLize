@@ -13,6 +13,7 @@
  */
 
 const MonSQLize = require('../lib');
+const { stopMemoryServer } = require('../lib/mongodb/connect');
 
 // MongoDB 连接配置 - 使用内存数据库方便独立运行
 const DB_CONFIG = {
@@ -353,11 +354,13 @@ async function runAllExamples() {
         console.log("- 查询优化最佳实践: 见项目文档");
         console.log("\n");
 
-        process.exit(0);
     } catch (error) {
         console.error("\n❌ 示例运行失败:", error.message);
         console.error(error.stack);
         process.exit(1);
+    } finally {
+        // 显式停止 Memory Server，否则 Node.js 进程会卡住
+        await stopMemoryServer();
     }
 }
 

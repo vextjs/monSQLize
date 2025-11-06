@@ -4,6 +4,7 @@
  */
 
 const MonSQLize = require('../lib');
+const { stopMemoryServer } = require('../lib/mongodb/connect');
 
 // ============================================================================
 // 常量配置
@@ -919,7 +920,13 @@ async function runAllExamples() {
 // ============================================================================
 
 if (require.main === module) {
-    runAllExamples().catch(console.error);
+    runAllExamples()
+        .catch(console.error)
+        .finally(async () => {
+            // 显式停止 Memory Server，否则 Node.js 进程会卡住
+            const { stopMemoryServer } = require('../lib/mongodb/connect');
+            await stopMemoryServer();
+        });
 }
 
 module.exports = {
