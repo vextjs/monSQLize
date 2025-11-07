@@ -17,13 +17,16 @@
 |------|----------|----------|----------|-------------|------|
 | **核心功能** | 23 | 2 | 5 | 2 | 32 |
 | **MongoDB 读方法** | 9 | 0 | 3 | 0 | 12 |
-| **MongoDB 写方法** | 0 | 0 | 7 | 0 | 7 |
+| **MongoDB 写方法 - Insert** | 0 | 0 | 2 | 0 | 2 |
+| **MongoDB 写方法 - Update** | 0 | 0 | 5 | 0 | 5 |
+| **MongoDB 写方法 - Delete** | 0 | 0 | 3 | 0 | 3 |
+| **MongoDB 写方法 - Bulk** | 0 | 0 | 1 | 0 | 1 |
 | **MongoDB 索引** | 0 | 0 | 5 | 0 | 5 |
 | **MongoDB 事务** | 0 | 0 | 3 | 0 | 3 |
 | **MongoDB 其他** | 0 | 0 | 15 | 0 | 15 |
-| **总计** | **32** | **2** | **38** | **2** | **74** |
+| **总计** | **32** | **2** | **42** | **2** | **78** |
 
-**完成度**: 43.2% (32/74)  
+**完成度**: 41.0% (32/78)  
 **核心功能完成度**: 71.9% (23/32)
 
 ---
@@ -148,13 +151,24 @@
 - ☑️ 高级查询/游标选项（已评估，分阶段实施）
     - ✅ 已支持: hint, collation, batchSize, comment (find/findOne/count/aggregate), **readPreference (全局配置)**
 
-### MongoDB 方法（Writes）
-- ❌ insertOne / insertMany
-- ❌ updateOne / updateMany
+### MongoDB 方法（Writes - Insert）
+- ❌ insertOne
+- ❌ insertMany
+
+### MongoDB 方法（Writes - Update）
+- ❌ updateOne
+- ❌ updateMany
 - ❌ replaceOne
-- ❌ deleteOne / deleteMany
+- ❌ findOneAndUpdate
+- ❌ findOneAndReplace
+
+### MongoDB 方法（Writes - Delete）
+- ❌ deleteOne
+- ❌ deleteMany
+- ❌ findOneAndDelete
+
+### MongoDB 方法（Writes - Bulk）
 - ❌ bulkWrite
-- ❌ findOneAndUpdate / findOneAndReplace / findOneAndDelete
     - 写路径当前不在范围内；不提供自动失效。
 
 ### MongoDB 方法（Indexes）
@@ -248,62 +262,80 @@
 
 ### 🟡 P3 - 写操作支持（长期规划）
 
-#### 写 API（基础）
-9. ❌ **insertOne / insertMany**
-   - 单条/批量插入
-   - 自动失效缓存
+#### Insert 操作
+9. ❌ **insertOne**
+   - 单条插入
+   - 手动失效缓存（collection.invalidate('insertOne')）
 
-10. ❌ **updateOne / updateMany**
-    - 单条/批量更新
-    - 自动失效缓存
+10. ❌ **insertMany**
+    - 批量插入
+    - 手动失效缓存（collection.invalidate('insertMany')）
 
-11. ❌ **replaceOne**
+#### Update 操作
+11. ❌ **updateOne**
+    - 单条更新
+    - 手动失效缓存（collection.invalidate('updateOne')）
+
+12. ❌ **updateMany**
+    - 批量更新
+    - 手动失效缓存（collection.invalidate('updateMany')）
+
+13. ❌ **replaceOne**
     - 完整替换文档
-    - 自动失效缓存
-
-12. ❌ **deleteOne / deleteMany**
-    - 单条/批量删除
-    - 自动失效缓存
-
-#### 写 API（高级）
-13. ❌ **bulkWrite**
-    - 批量混合操作
-    - 性能优化
+    - 手动失效缓存（collection.invalidate('replaceOne')）
 
 14. ❌ **findOneAndUpdate**
     - 原子查询并更新
     - 返回更新前/后文档
+    - 手动失效缓存
 
 15. ❌ **findOneAndReplace**
     - 原子查询并替换
     - 返回替换前/后文档
+    - 手动失效缓存
 
-16. ❌ **findOneAndDelete**
+#### Delete 操作
+16. ❌ **deleteOne**
+    - 单条删除
+    - 手动失效缓存（collection.invalidate('deleteOne')）
+
+17. ❌ **deleteMany**
+    - 批量删除
+    - 手动失效缓存（collection.invalidate('deleteMany')）
+
+18. ❌ **findOneAndDelete**
     - 原子查询并删除
     - 返回删除前文档
+    - 手动失效缓存
+
+#### Bulk 操作
+19. ❌ **bulkWrite**
+    - 批量混合操作（insert/update/delete）
+    - 性能优化
+    - 手动失效缓存（collection.invalidate('bulkWrite')）
 
 ### 🟢 P4 - 索引与管理（运维功能）
 
 #### 索引管理
-17. ❌ **createIndex / createIndexes**
+20. ❌ **createIndex / createIndexes**
     - 创建单个/多个索引
     - 索引选项：unique/sparse/TTL/partial
 
-18. ❌ **dropIndex / dropIndexes**
+21. ❌ **dropIndex / dropIndexes**
     - 删除索引
 
-19. ❌ **listIndexes**
+22. ❌ **listIndexes**
     - 列出所有索引
 
-20. ❌ **索引选项统一抽象**
+23. ❌ **索引选项统一抽象**
     - unique/sparse/TTL/partialFilterExpression
     - collation/hidden/wildcard/columnstore
 
 #### 集合与数据库管理
-21. ❌ **listCollections / listDatabases**
+24. ❌ **listCollections / listDatabases**
     - 列出集合/数据库
 
-22. ❌ **dropDatabase**
+25. ❌ **dropDatabase**
     - 删除数据库
 
 23. ❌ **db.stats() / coll.stats()**
@@ -378,54 +410,6 @@
 | 🟡 **P3** | 写操作支持 | 2-3 个月 | 中 - 完整 CRUD 能力 |
 | 🟢 **P4** | 索引与管理 | 3-6 个月 | 中低 - 运维便利性 |
 | 🔵 **P5** | 事务与高级特性 | 6+ 个月 | 低 - 企业级功能 |
-
----
-
-## MongoDB 方法（Writes）（全部未实现 ❌）
-- ❌ insertOne / insertMany
-- ❌ updateOne / updateMany
-- ❌ replaceOne
-- ❌ deleteOne / deleteMany
-- ❌ bulkWrite
-- ❌ findOneAndUpdate / findOneAndReplace / findOneAndDelete
-    - 写路径当前不在范围内；不提供自动失效。
-
-## MongoDB 方法（Indexes）（全部未实现 ❌）
-- ❌ createIndex / createIndexes
-- ❌ dropIndex / dropIndexes
-- ❌ listIndexes
-- ❌ 索引选项统一抽象（unique/sparse/TTL/partialFilterExpression/collation …）
-- ❌ hidden / wildcard / columnstore
-
-## MongoDB 方法（Transactions & Sessions）（全部未实现 ❌）
-- ❌ startSession/withTransaction/commit/abort
-- ❌ readConcern / readPreference / causalConsistency
-
-## MongoDB 方法（Change Streams）（全部未实现 ❌）
-- ❌ watch
-- ❌ 关键选项（fullDocument/fullDocumentBeforeChange/resumeAfter/startAfter/startAtOperationTime）
-
-## MongoDB 方法（Admin/DB/Collection）（全部未实现 ❌）
-- ❌ listCollections / listDatabases
-- ❌ dropDatabase
-- ❌ db.stats() / coll.stats()
-- ❌ runCommand
-- ❌ serverStatus / ping / buildInfo
-- ❌ profilingLevel / setProfilingLevel
-- ❌ 用户与角色管理
-- ❌ renameCollection / collMod / convertToCapped
-- ❌ validator / validationLevel / validationAction
-- ❌ time-series / clustered / capped 支持态度
-
-## MongoDB 方法（GridFS）（全部未实现 ❌）
-- ❌ GridFSBucket 及 API（openUploadStream/openDownloadStream …）
-- ❌ 选项（chunkSizeBytes/disableMD5）
-
-## MongoDB 方法（Options & Driver-level）（全部未实现 ❌）
-- ❌ collation / readPreference / readConcern / writeConcern（统一抽象）
-- ❌ explain / allowDiskUse / let / comment（聚合相关）
-- ❌ 时间序列/特殊集合能力封装（如 TTL index 管理）
-- ❌ apiVersion / 传输与压缩参数（驱动层能力）
 
 ---
 
