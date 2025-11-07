@@ -27,7 +27,61 @@ async find(options = {})
 | `stream` | Boolean | 否 | `false` | 是否返回流对象 |
 | `batchSize` | Number | 否 | - | 流式查询或数组查询时的批次大小 |
 | `cache` | Number | 否 | `0` | 缓存 TTL（毫秒），大于 0 时启用缓存 |
+| `comment` | String | 否 | - | 查询注释，用于生产环境日志跟踪和性能分析 |
 | `explain` | Boolean/String | 否 | - | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+
+### comment 配置
+
+查询注释用于在 MongoDB 日志中标识查询来源，便于生产环境的运维监控和性能分析：
+
+```javascript
+comment: 'UserAPI:listProducts:user_12345'
+```
+
+**命名建议**：
+```javascript
+// 格式：服务名:操作:标识符
+comment: 'ProductAPI:getList:session_abc123'
+comment: 'OrderService:getUserOrders:traceId=xyz789'
+comment: 'AdminDashboard:getTotalActive:admin_user_5'
+```
+
+**使用场景**：
+- **生产环境监控**：在 MongoDB 日志中识别查询来源
+- **慢查询诊断**：快速定位慢查询的业务场景
+- **分布式追踪**：结合 traceId 实现完整链路追踪
+- **性能优化**：A/B 测试不同查询策略的性能差异
+- **审计与合规**：记录查询发起者和业务场景
+
+**最佳实践**：
+- ✅ 使用统一的命名格式："服务名:操作:标识符"
+- ✅ 包含关键信息（用户ID、会话ID、traceId）
+- ✅ 避免包含敏感数据（密码、身份证号等）
+- ✅ 保持简洁（建议 <100 字符）
+- ✅ 在生产环境启用 MongoDB 慢查询日志（slowOpThresholdMs）
+
+**MongoDB 日志示例**：
+```json
+{
+  "t": { "$date": "2025-11-07T08:00:00.000Z" },
+  "c": "COMMAND",
+  "msg": "Slow query",
+  "attr": {
+    "type": "find",
+    "ns": "mydb.products",
+    "command": {
+      "find": "products",
+      "filter": { "category": "electronics" },
+      "comment": "ProductAPI:listProducts:user_12345"
+    },
+    "durationMillis": 523
+  }
+}
+```
+
+**参考文档**：
+- [MongoDB comment 参数官方文档](https://www.mongodb.com/docs/manual/reference/command/find/#std-label-find-cmd-comment)
+- [Database Profiler](https://www.mongodb.com/docs/manual/reference/command/profile/)
 
 ### projection 配置
 

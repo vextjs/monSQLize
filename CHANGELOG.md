@@ -5,6 +5,14 @@
 ## [未发布]
 
 ### 新增
+- **comment 参数支持**（2025-11-07）
+  - 为 `find`、`findOne`、`count` 方法添加 `comment` 参数，用于生产环境日志跟踪
+  - 支持在 MongoDB 日志中标识查询来源、业务场景、用户/会话/traceId 等关键信息
+  - TypeScript 类型声明已同步更新（`FindOptions`、`CountOptions`）
+  - 示例文件：`examples/comment-parameter.examples.js`（5 个使用场景）
+  - 适用场景：生产环境运维、慢查询诊断、分布式追踪、A/B 测试分析
+  - 参考：MongoDB 官方文档 [Database Profiler](https://www.mongodb.com/docs/manual/reference/command/profile/)
+
 - **Bookmark 维护 API**（2025-11-06）
   - 新增 `prewarmBookmarks(keyDims, pages)` - 预热指定页面的 bookmark 缓存
   - 新增 `listBookmarks(keyDims?)` - 列出已缓存的 bookmark，支持按查询维度过滤

@@ -142,6 +142,8 @@ declare module 'monsqlize' {
         hint?: any;
         /** Mongo-only: 透传 collation 到驱动 */
         collation?: any;
+        /** 查询注释（用于生产环境日志跟踪）*/
+        comment?: string;
         meta?: boolean | MetaOptions;    // 返回耗时元信息
     }
     interface CountOptions {
@@ -152,6 +154,8 @@ declare module 'monsqlize' {
         hint?: any;
         /** Mongo-only: 透传 collation 到 countDocuments */
         collation?: any;
+        /** 查询注释（用于生产环境日志跟踪）*/
+        comment?: string;
         meta?: boolean | MetaOptions;    // 返回耗时元信息
     }
 

@@ -23,7 +23,39 @@ async findOne(options = {})
 | `collation` | Object | 否 | - | 指定排序规则（用于字符串排序） |
 | `maxTimeMS` | Number | 否 | 全局配置 | 查询超时时间（毫秒） |
 | `cache` | Number | 否 | `0` | 缓存 TTL（毫秒），大于 0 时启用缓存 |
+| `comment` | String | 否 | - | 查询注释，用于生产环境日志跟踪和性能分析 |
 | `explain` | Boolean/String | 否 | - | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+
+### comment 配置
+
+查询注释用于在 MongoDB 日志中标识查询来源，便于生产环境的运维监控和性能分析：
+
+```javascript
+comment: 'ProductDetailPage:loadProduct:session_abc123'
+```
+
+**使用场景**：
+- **业务场景标识**：标识查询来自哪个页面或功能
+- **用户追踪**：记录查询关联的用户或会话
+- **分布式追踪**：结合 traceId 关联完整请求链路
+- **性能分析**：在慢查询日志中快速定位问题
+
+**示例**：
+```javascript
+// 用户详情页查询
+const user = await collection('users').findOne({
+  query: { _id: userId },
+  comment: 'UserProfile:loadUser:session_xyz'
+});
+
+// 商品详情页查询
+const product = await collection('products').findOne({
+  query: { sku: 'PROD-001' },
+  comment: 'ProductPage:getDetails:traceId=abc123'
+});
+```
+
+**参考**：完整的 comment 使用指南请参考 [find 方法文档](./find.md#comment-配置)
 
 ### projection 配置
 

@@ -21,7 +21,39 @@ async count(options = {})
 | `collation` | Object | 否 | - | 指定排序规则（用于字符串比较） |
 | `maxTimeMS` | Number | 否 | 全局配置 | 查询超时时间（毫秒） |
 | `cache` | Number | 否 | `0` | 缓存 TTL（毫秒），大于 0 时启用缓存 |
+| `comment` | String | 否 | - | 查询注释，用于生产环境日志跟踪和性能分析 |
 | `explain` | Boolean/String | 否 | - | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+
+### comment 配置
+
+查询注释用于在 MongoDB 日志中标识统计查询的用途：
+
+```javascript
+comment: 'AdminDashboard:getTotalActiveUsers:admin_user_5'
+```
+
+**使用场景**：
+- **仪表盘统计**：标识各种统计指标的查询来源
+- **定期任务**：标识定时统计任务
+- **监控告警**：标识监控系统的统计查询
+- **数据分析**：标识数据分析相关的统计
+
+**示例**：
+```javascript
+// 活跃用户统计
+const activeCount = await collection('users').count({
+  query: { status: 'active' },
+  comment: 'Dashboard:activeUsers:daily_report'
+});
+
+// 订单量统计
+const orderCount = await collection('orders').count({
+  query: { createdAt: { $gte: today } },
+  comment: 'Analytics:todayOrders:cronjob_hourly'
+});
+```
+
+**参考**：完整的 comment 使用指南请参考 [find 方法文档](./find.md#comment-配置)
 
 ### query 配置
 

@@ -136,14 +136,16 @@ const products = await collection('products').find({
   projection: { name: 1, price: 1 },
   sort: { price: -1 },
   limit: 20,
-  cache: 5000
+  cache: 5000,
+  comment: 'ProductAPI:listProducts:user_123'  // 生产环境日志跟踪（可选）
 });
 
 // 流式传输（大数据量）
 const stream = await collection('products').find({
   query: { category: 'electronics' },
   stream: true,              // 返回流
-  cache: 0                   // 禁用缓存
+  cache: 0,                  // 禁用缓存
+  comment: 'ExportService:streamProducts'      // 标识查询来源
 });
 
 stream.on('data', (doc) => {
