@@ -5,6 +5,15 @@
 ## [未发布]
 
 ### 新增
+- **readPreference 副本集读偏好支持**（2025-11-07）
+  - 在连接配置中添加 `readPreference` 选项，支持副本集读写分离场景
+  - 支持 5 种读偏好模式：`primary`（默认）、`primaryPreferred`、`secondary`、`secondaryPreferred`、`nearest`
+  - 适用场景：副本集部署、降低主节点负载、全球分布式部署
+  - TypeScript 类型声明已同步更新（`BaseOptions.readPreference`）
+  - 示例文件：`examples/readPreference.examples.js`（7 个使用场景）
+  - 测试覆盖：mongodb-connect.test.js 新增 readPreference 配置透传测试
+  - ⚠️ 注意：仅全局配置（连接级别），MongoDB 专属特性，读从节点可能有复制延迟
+
 - **comment 参数支持**（2025-11-07）
   - 为 `find`、`findOne`、`count` 方法添加 `comment` 参数，用于生产环境日志跟踪
   - 支持在 MongoDB 日志中标识查询来源、业务场景、用户/会话/traceId 等关键信息

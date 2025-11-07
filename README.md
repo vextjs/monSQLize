@@ -290,7 +290,42 @@ await msq.close();
 
 ---
 
-### 6. 事件监听
+### 6. 副本集读偏好配置（readPreference）
+
+```js
+// 副本集读写分离（降低主节点负载）
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'shop',
+  config: {
+    uri: 'mongodb://host1:27017,host2:27018,host3:27019/?replicaSet=rs0',
+    readPreference: 'secondaryPreferred'  // 优先读从节点
+  }
+});
+
+await msq.connect();
+const { collection } = msq;
+
+// 所有查询自动从从节点读取（降低主节点负载）
+const products = await collection('products').find({
+  query: { category: 'electronics' }
+});
+
+console.log(`✅ 从从节点读取 ${products.length} 条数据`);
+```
+
+**支持的读偏好模式**:
+- `primary` - 仅读主节点（默认）
+- `primaryPreferred` - 优先读主节点，主节点故障时读从节点
+- `secondary` - 仅读从节点（适合分析/报表）
+- `secondaryPreferred` - 优先读从节点（推荐，读写分离）
+- `nearest` - 读最近的节点（全球分布式部署）
+
+**详细文档**: [docs/readPreference.md](./docs/readPreference.md)
+
+---
+
+### 7. 事件监听
 
 ```js
 // 监听慢查询

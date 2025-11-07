@@ -122,6 +122,14 @@ declare module 'monsqlize' {
         findLimit?: number; // 全局默认 find limit（未传 limit 时使用；0 表示不限制）
         namespace?: { instanceId?: string; scope?: 'database' | 'connection' };
         slowQueryMs?: number; // 慢查询日志阈值（毫秒），默认 500
+        /** MongoDB 副本集读偏好（全局配置）
+         * - 'primary': 仅读主节点（默认）
+         * - 'primaryPreferred': 优先读主节点，主节点不可用时读从节点
+         * - 'secondary': 仅读从节点
+         * - 'secondaryPreferred': 优先读从节点，从节点不可用时读主节点
+         * - 'nearest': 读最近的节点（低延迟）
+         */
+        readPreference?: 'primary' | 'primaryPreferred' | 'secondary' | 'secondaryPreferred' | 'nearest';
         // 统一默认（新增可选项）
         findPageMaxLimit?: number;          // 深分页页大小上限（默认 500）
         cursorSecret?: string;              // 可选：游标签名密钥（如启用 HMAC 验签）
