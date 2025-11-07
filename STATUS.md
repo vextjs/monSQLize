@@ -147,9 +147,6 @@
     - 使用场景：系统启动预热、运维监控、数据变更后清除缓存、内存管理
 - ☑️ 高级查询/游标选项（已评估，分阶段实施）
     - ✅ 已支持: hint, collation, batchSize, comment (find/findOne/count/aggregate), **readPreference (全局配置)**
-    - 🗺️ P2 可选实施: max/min, readConcern, let
-    - ❌ 不实施: noCursorTimeout, tailable, returnKey, allowPartialResults, readPreferenceTags
-    - 详细评估: [analysis-reports/2025-11-06-advanced-query-options-evaluation.md](../../guidelines/analysis-reports/2025-11-06-advanced-query-options-evaluation.md)
 
 ### MongoDB 方法（Writes）
 - ❌ insertOne / insertMany
