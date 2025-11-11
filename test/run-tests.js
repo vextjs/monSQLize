@@ -17,9 +17,17 @@ global.describe = function (name, fn) {
 };
 
 global.it = function (name, fn) {
+  // 提供一个带有 timeout 方法的上下文对象
+  const context = {
+    timeout: function (ms) {
+      // 暂时忽略超时设置
+      return this;
+    }
+  };
+
   return new Promise(async (resolve, reject) => {
     try {
-      await fn();
+      await fn.call(context);
       console.log(`  ✓ ${name}`);
       resolve();
     } catch (error) {
@@ -36,6 +44,8 @@ global.it = function (name, fn) {
 // 改为支持多个钩子
 global.__beforeHooks = [];
 global.__afterHooks = [];
+global.__beforeEachHooks = [];
+global.__afterEachHooks = [];
 
 global.before = function (fn) {
   global.__beforeHooks.push(fn);
@@ -43,6 +53,14 @@ global.before = function (fn) {
 
 global.after = function (fn) {
   global.__afterHooks.push(fn);
+};
+
+global.beforeEach = function (fn) {
+  global.__beforeEachHooks.push(fn);
+};
+
+global.afterEach = function (fn) {
+  global.__afterEachHooks.push(fn);
 };
 
 // 运行测试
@@ -112,13 +130,19 @@ async function runTests() {
   } else if (testSuite === 'logger') {
     testFiles = ['./unit/infrastructure/logger.test.js'];
     title = '日志系统测试套件';
+  } else if (testSuite === 'insertOne') {
+    testFiles = ['./unit/features/insertOne.test.js'];
+    title = 'insertOne 方法测试套件';
+  } else if (testSuite === 'insertMany') {
+    testFiles = ['./unit/features/insertMany.test.js'];
+    title = 'insertMany 方法测试套件';
   } else if (testSuite === 'all') {
     // all 模式：顺序执行各个测试套件，避免并发初始化问题
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
     console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'bookmarks', 'invalidate', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const overallStartTime = Date.now();
@@ -160,7 +184,7 @@ async function runTests() {
     process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|explain|bookmarks|utils|infrastructure|logger|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|explain|bookmarks|insertOne|insertMany|utils|infrastructure|logger|all]\n');
     process.exit(1);
   }
 
@@ -180,6 +204,8 @@ async function runTests() {
     // 为每个文件重置钩子和测试
     global.__beforeHooks = [];
     global.__afterHooks = [];
+    global.__beforeEachHooks = [];
+    global.__afterEachHooks = [];
     const tests = [];
 
     // 收集此文件的测试
@@ -233,12 +259,45 @@ async function runTests() {
 
     // 运行此文件的所有测试
     for (const test of tests) {
+      // 运行 beforeEach 钩子
+      if (global.__beforeEachHooks.length > 0) {
+        try {
+          for (const beforeEachHook of global.__beforeEachHooks) {
+            await beforeEachHook();
+          }
+        } catch (error) {
+          console.error(`❌ beforeEach 钩子失败 (${testFile}):`, error.message);
+          failed++;
+          allFailedTests.push({ name: test.name, error, file: testFile });
+          continue; // 跳过这个测试
+        }
+      }
+
+      // 运行测试
       try {
-        await test.fn();
+        // 提供 this 上下文，包含 timeout 方法
+        const testContext = {
+          timeout: function (ms) {
+            // 暂时忽略超时设置
+            return this;
+          }
+        };
+        await test.fn.call(testContext);
         passed++;
       } catch (error) {
         failed++;
         allFailedTests.push({ name: test.name, error, file: testFile });
+      }
+
+      // 运行 afterEach 钩子
+      if (global.__afterEachHooks.length > 0) {
+        try {
+          for (const afterEachHook of global.__afterEachHooks) {
+            await afterEachHook();
+          }
+        } catch (error) {
+          console.error(`\n⚠️  afterEach 钩子警告 (${testFile}):`, error.message);
+        }
       }
     }
 

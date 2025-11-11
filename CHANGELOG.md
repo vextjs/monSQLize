@@ -5,6 +5,32 @@
 ## [未发布]
 
 ### 新增
+- **insertOne 和 insertMany 写操作文档补充**（2025-11-10）
+  - README.md：添加"写入操作"表格和详细使用示例（第 8 节）
+  - index.d.ts：添加 TypeScript 类型声明（InsertOneOptions、InsertOneResult、InsertManyOptions、InsertManyResult、WriteConcern）
+  - docs/write-operations.md：创建详细文档（全面的 API 说明、使用示例、性能对比、最佳实践、常见问题）
+  - 完整遵循 Guidelines v2.md 第 3.1 章"四要素"（Code ✅、Tests ✅、Examples ✅、Documentation ✅）
+
+- **insertOne 和 insertMany 写操作支持**（2025-11-10）
+  - 实现 `insertOne(document, options)` - 单文档插入操作
+    - 支持参数：writeConcern, comment, bypassDocumentValidation
+    - 返回：`{ acknowledged, insertedId }`
+    - 自动缓存失效：插入成功后自动失效该集合的所有查询缓存
+    - 慢查询日志：插入耗时超过 slowQueryMs 时记录
+    - 错误处理：检测重复键错误（E11000）并转换为标准错误码 `DUPLICATE_KEY`
+  - 实现 `insertMany(documents, options)` - 批量文档插入操作
+    - 支持参数：ordered（默认 true）, writeConcern, comment, bypassDocumentValidation
+    - 返回：`{ acknowledged, insertedCount, insertedIds }`
+    - 批量插入性能优化：500 文档批量插入比 500 次单次插入快约 50 倍
+    - 有序模式（ordered: true）：遇到错误停止，已插入文档不会回滚
+    - 无序模式（ordered: false）：遇到错误继续插入其他文档
+    - 自动缓存失效：批量插入成功后自动失效该集合的所有查询缓存
+  - 创建文件：`lib/mongodb/writes/insert-one.js`（136 行）、`lib/mongodb/writes/insert-many.js`（184 行）
+  - 测试覆盖：insertOne 测试 17 个用例，insertMany 测试 21 个用例（包括性能对比测试）
+  - 示例文件：`examples/insertOne.examples.js`、`examples/insertMany.examples.js`
+  - 错误码支持：新增 `DUPLICATE_KEY` 错误码（用于重复键检测）
+  - 测试运行器增强：支持 `beforeEach/afterEach` 钩子，支持 `this.timeout()` 方法
+
 - **readPreference 副本集读偏好支持**（2025-11-07）
   - 在连接配置中添加 `readPreference` 选项，支持副本集读写分离场景
   - 支持 5 种读偏好模式：`primary`（默认）、`primaryPreferred`、`secondary`、`secondaryPreferred`、`nearest`

@@ -88,6 +88,13 @@ const MonSQLize = require('monsqlize');
 | **count()** | 统计文档数量 | [docs/count.md](./docs/count.md) |
 | **explain()** | 查询计划分析 | [docs/explain.md](./docs/explain.md) |
 
+### 写入操作
+
+| 方法 | 说明 | 文档链接 |
+|------|------|---------|
+| **insertOne()** | 插入单个文档 | [examples/insertOne.examples.js](./examples/insertOne.examples.js) |
+| **insertMany()** | 批量插入文档（10-50x 性能提升） | [examples/insertMany.examples.js](./examples/insertMany.examples.js) |
+
 ### 集合管理
 
 | 方法 | 说明 | 文档链接 |
@@ -349,6 +356,49 @@ msq.on('error', (data) => {
 ```
 
 **详细文档**: [docs/events.md](./docs/events.md)
+
+---
+
+### 8. 写入操作（insertOne / insertMany）
+
+```js
+// 插入单个文档
+const result1 = await collection('products').insertOne({
+  document: {
+    name: 'iPhone 15 Pro',
+    price: 999,
+    category: 'electronics',
+    createdAt: new Date()
+  },
+  comment: 'ProductAPI:createProduct:user_123'  // 日志跟踪（可选）
+});
+
+console.log('插入成功:', result1.insertedId);
+
+// 批量插入文档（10-50x 性能提升）
+const result2 = await collection('products').insertMany({
+  documents: [
+    { name: 'MacBook Pro', price: 2499, category: 'electronics' },
+    { name: 'iPad Air', price: 599, category: 'electronics' },
+    { name: 'AirPods Pro', price: 249, category: 'accessories' }
+  ],
+  ordered: true,             // 遇到错误时停止（默认）
+  comment: 'ProductAPI:batchImport'
+});
+
+console.log(`成功插入 ${result2.insertedCount} 条数据`);
+
+// 自动缓存失效（插入后自动清理相关缓存）
+// 无需手动调用 invalidate()
+```
+
+**性能对比**:
+- 单条插入（insertOne）: ~10-20ms/条
+- 批量插入（insertMany）: ~0.5-1ms/条 **(10-50x 更快)**
+
+**详细示例**:
+- [examples/insertOne.examples.js](./examples/insertOne.examples.js) - 8 个完整示例（基础/错误处理/缓存失效/性能对比）
+- [examples/insertMany.examples.js](./examples/insertMany.examples.js) - 8 个完整示例（ordered/unordered 模式/性能测试）
 
 ---
 

@@ -17,16 +17,16 @@
 |------|----------|----------|----------|-------------|------|
 | **核心功能** | 23 | 2 | 5 | 2 | 32 |
 | **MongoDB 读方法** | 9 | 0 | 3 | 0 | 12 |
-| **MongoDB 写方法 - Insert** | 0 | 0 | 2 | 0 | 2 |
+| **MongoDB 写方法 - Insert** | 2 | 0 | 0 | 0 | 2 |
 | **MongoDB 写方法 - Update** | 0 | 0 | 5 | 0 | 5 |
 | **MongoDB 写方法 - Delete** | 0 | 0 | 3 | 0 | 3 |
 | **MongoDB 写方法 - Bulk** | 0 | 0 | 1 | 0 | 1 |
 | **MongoDB 索引** | 0 | 0 | 5 | 0 | 5 |
 | **MongoDB 事务** | 0 | 0 | 3 | 0 | 3 |
 | **MongoDB 其他** | 0 | 0 | 15 | 0 | 15 |
-| **总计** | **32** | **2** | **42** | **2** | **78** |
+| **总计** | **34** | **2** | **40** | **2** | **78** |
 
-**完成度**: 41.0% (32/78)  
+**完成度**: 43.6% (34/78)  
 **核心功能完成度**: 71.9% (23/32)
 
 ---
@@ -152,8 +152,8 @@
     - ✅ 已支持: hint, collation, batchSize, comment (find/findOne/count/aggregate), **readPreference (全局配置)**
 
 ### MongoDB 方法（Writes - Insert）
-- ❌ insertOne
-- ❌ insertMany
+- ✅ insertOne
+- ✅ insertMany
 
 ### MongoDB 方法（Writes - Update）
 - ❌ updateOne
