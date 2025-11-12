@@ -4,6 +4,42 @@
 
 ## [未发布]
 
+### Fixed
+- **修复 insertOne 测试失败**（2025-11-12）
+  - 修复慢查询日志测试的时序问题
+  - 改用 Promise + logger 拦截代替事件监听（项目尚未实现事件系统）
+  - 使用 -1ms 阈值代替 0ms 确保日志总是触发（解决快速操作可能 0ms 的问题）
+  - 所有 insertOne 测试现在全部通过（22/22）✅
+
+### Added
+- **新增测试文件提升覆盖率**（2025-11-12）
+  - 创建 `test/unit/infrastructure/redis-cache.test.js` - Redis 缓存适配器测试（基本操作、TTL、错误处理、序列化）
+  - 创建 `test/unit/common/shape-builders.test.js` - 形状构建器测试（元信息提取、pipeline 处理、游标处理、去敏验证）
+  - 创建 `test/unit/common/log.test.js` - 日志工具测试（慢查询检测、元数据结构、格式化、错误处理）
+  - 扩展 `test/unit/infrastructure/connection.test.js` - 连接错误处理测试（无效配置、网络超时、并发错误、健康检查）
+  - 目标：提升分支覆盖率从 63.88% 到 ≥70%（Profile 要求）
+
+- **项目全面分析报告**（2025-11-12）
+  - 创建 `analysis-reports/2025-11-12-comprehensive-analysis.md` - 项目健康度评估和改进建议
+  - 创建 `analysis-reports/2025-11-12-action-plan.md` - 详细的行动计划和优先级
+  - 分析内容包括：
+    - 代码质量分析（测试覆盖率、代码风格）
+    - 架构分析（设计模式、扩展性）
+    - 性能分析（缓存机制、查询优化）
+    - 文档质量分析（完整性、可用性）
+    - 依赖和安全分析
+    - 风险和挑战识别
+  - 关键发现：
+    - ✅ 整体质量良好（7.75/10）
+    - ⚠️ 分支覆盖率不达标（63.88% < 65%）
+    - ⚠️ 部分测试失败（insertOne 慢查询日志）
+    - ⚠️ Redis 缓存适配器未充分测试（1.49%）
+  - 行动计划：
+    - P0: 修复测试失败，提升覆盖率到 ≥70%
+    - P1: 补充文档（迁移指南、性能指南、架构文档）
+    - P2: 完善写操作（update/delete）
+    - P3: 索引管理、事务支持、PostgreSQL 适配器
+
 ### Changed
 - **explain 示例和测试更新**（2025-11-12）
   - `examples/explain.examples.js`：所有示例从旧版 `explain({ query, verbosity })` 改为原生风格 `find(filter, { explain })`

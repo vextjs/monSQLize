@@ -335,54 +335,59 @@ describe('insertOne 方法测试套件', function () {
         });
 
         it('应该在超过阈值时记录慢查询日志', async () => {
-            // 创建新实例，配置极低的阈值
+            // 创建新实例，配置极低的阈值（但不是 0，因为操作可能 0ms）
             const msqSlow = new MonSQLize({
                 type: 'mongodb',
                 databaseName: 'test_insertone_slowlog',
                 config: { useMemoryServer: true },
-                slowQueryMs: 0  // 设置为 0ms，确保触发
+                slowQueryMs: -1  // 设置为 -1，确保任何操作都会触发（因为 duration 总是 >= 0）
             });
 
             try {
                 const conn = await msqSlow.connect();
                 const testCollection = conn.collection;
 
-                // 捕获日志
-                const logMessages = [];
+                // 捕获日志 - 使用数组和 Promise 结合
+                let logCaptured = false;
+                let capturedLog = null;
+                let resolveLog;
+                const logPromise = new Promise((resolve) => {
+                    resolveLog = resolve;
+                });
+
                 const originalWarn = msqSlow.logger.warn;
                 msqSlow.logger.warn = function (message, meta) {
-                    logMessages.push({ message, meta });
-                    // 也调用原始的 warn
+                    // 调用原始 warn
                     if (originalWarn) {
                         originalWarn.call(this, message, meta);
+                    }
+                    // 捕获慢查询日志
+                    if (message && message.includes('慢操作警告')) {
+                        logCaptured = true;
+                        capturedLog = { message, meta };
+                        resolveLog({ message, meta });
                     }
                 };
 
                 // 执行插入
                 await testCollection('users').insertOne({ name: 'Slow Test' });
 
+                // 等待日志异步处理（最多等待 500ms）
+                await Promise.race([
+                    logPromise,
+                    new Promise(resolve => setTimeout(resolve, 500))
+                ]);
+
                 // 恢复原始 logger
                 msqSlow.logger.warn = originalWarn;
 
                 // 验证日志
-                const slowLogs = logMessages.filter(log =>
-                    log.message && (
-                        log.message.includes('慢操作警告') ||
-                        (log.meta && log.meta.threshold !== undefined)
-                    )
-                );
-
-                assert.ok(
-                    slowLogs.length > 0,
-                    '应该记录慢查询日志'
-                );
-
-                // 验证日志内容
-                const slowLog = slowLogs[0];
-                assert.ok(slowLog.meta, '日志应该包含 meta 信息');
-                assert.strictEqual(slowLog.meta.threshold, 0, '阈值应该是配置的 0ms');
-                assert.ok(slowLog.meta.ns, '日志应该包含命名空间');
-                assert.ok(slowLog.meta.duration !== undefined, '日志应该包含执行时间');
+                assert.ok(logCaptured, '应该记录慢查询日志');
+                assert.ok(capturedLog, '应该捕获到日志内容');
+                assert.ok(capturedLog.meta, '日志应该包含 meta 信息');
+                assert.strictEqual(capturedLog.meta.threshold, -1, '阈值应该是配置的 -1ms');
+                assert.ok(capturedLog.meta.ns, '日志应该包含命名空间');
+                assert.ok(capturedLog.meta.duration !== undefined, '日志应该包含执行时间');
             } finally {
                 await msqSlow.close();
             }
@@ -437,22 +442,30 @@ describe('insertOne 方法测试套件', function () {
                 type: 'mongodb',
                 databaseName: 'test_insertone_meta',
                 config: { useMemoryServer: true },
-                slowQueryMs: 0
+                slowQueryMs: -1  // 使用 -1 确保触发
             });
 
             try {
                 const conn = await msqMeta.connect();
                 const testCollection = conn.collection;
 
-                // 捕获日志
+                // 捕获日志 - 使用 Promise
                 let capturedMeta = null;
+                let resolveLog;
+                const logPromise = new Promise((resolve) => {
+                    resolveLog = resolve;
+                });
+
                 const originalWarn = msqMeta.logger.warn;
                 msqMeta.logger.warn = function (message, meta) {
-                    if (message && message.includes('慢操作警告')) {
-                        capturedMeta = meta;
-                    }
+                    // 调用原始 warn
                     if (originalWarn) {
                         originalWarn.call(this, message, meta);
+                    }
+                    // 捕获慢查询日志
+                    if (message && message.includes('慢操作警告')) {
+                        capturedMeta = meta;
+                        resolveLog(meta);
                     }
                 };
 
@@ -462,6 +475,12 @@ describe('insertOne 方法测试套件', function () {
                     { comment: 'test-comment' }
                 );
 
+                // 等待日志异步处理（最多等待 500ms）
+                await Promise.race([
+                    logPromise,
+                    new Promise(resolve => setTimeout(resolve, 500))
+                ]);
+
                 // 恢复原始 logger
                 msqMeta.logger.warn = originalWarn;
 
@@ -470,7 +489,7 @@ describe('insertOne 方法测试套件', function () {
                 assert.ok(capturedMeta.ns, '应该包含命名空间');
                 assert.ok(capturedMeta.ns.includes('test_insertone_meta'), '命名空间应该包含数据库名');
                 assert.ok(capturedMeta.ns.includes('users'), '命名空间应该包含集合名');
-                assert.strictEqual(capturedMeta.threshold, 0, '应该包含阈值');
+                assert.strictEqual(capturedMeta.threshold, -1, '应该包含阈值');
                 assert.ok(typeof capturedMeta.duration === 'number', '应该包含执行时间');
                 assert.ok(capturedMeta.insertedId, '应该包含插入的 ID');
                 assert.strictEqual(capturedMeta.insertedId.toString(), result.insertedId.toString());
