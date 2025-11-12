@@ -34,16 +34,26 @@ async aggregate(pipeline = [], options = {})
 
 ### options 对象属性
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `maxTimeMS` | Number | 否 | 全局配置 | 查询超时时间（毫秒） |
-| `allowDiskUse` | Boolean | 否 | `false` | 是否允许使用磁盘（处理大数据集时） |
-| `collation` | Object | 否 | - | 字符串排序规则 |
-| `hint` | Object/String | 否 | - | 指定使用的索引 |
-| `comment` | String | 否 | - | 查询注释（用于日志和分析） |
-| `stream` | Boolean | 否 | `false` | 是否返回流对象 |
-| `batchSize` | Number | 否 | - | 流式查询或数组查询时的批次大小 |
-| `explain` | Boolean/String | 否 | - | 返回查询执行计划 |
+| 参数 | 类型 | 必填 | 默认值 | 来源 | 说明 |
+|------|------|------|--------|------|------|
+| `maxTimeMS` | Number | 否 | 全局配置 | MongoDB 原生 ✅ | 查询超时时间（毫秒） |
+| `allowDiskUse` | Boolean | 否 | `false` | MongoDB 原生 ✅ | 是否允许使用磁盘（处理大数据集时） |
+| `collation` | Object | 否 | - | MongoDB 原生 ✅ | 字符串排序规则 |
+| `hint` | Object/String | 否 | - | MongoDB 原生 ✅ | 指定使用的索引 |
+| `comment` | String | 否 | - | MongoDB 原生 ✅ | 查询注释（用于日志和分析） |
+| `batchSize` | Number | 否 | - | MongoDB 原生 ✅ | 流式查询或数组查询时的批次大小 |
+| `explain` | Boolean/String | 否 | - | MongoDB 原生 ✅ | 返回查询执行计划 |
+| `stream` | Boolean | 否 | `false` | monSQLize 扩展 🔧 | 是否返回流对象（也可通过 `.stream()` 链式方法调用） |
+| `cache` | Number | 否 | `0` | monSQLize 扩展 🔧 | 缓存 TTL（毫秒），大于 0 时启用缓存 |
+| `meta` | Boolean/Object | 否 | `false` | monSQLize 扩展 🔧 | 返回查询元数据（执行时间、缓存命中率等） |
+
+**图例说明**:
+- ✅ **MongoDB 原生**: 该参数是 MongoDB 官方支持的标准功能
+- 🔧 **monSQLize 扩展**: monSQLize 独有的扩展功能
+
+**MongoDB 参考文档**: 
+- [aggregate() 方法](https://www.mongodb.com/docs/manual/reference/method/db.collection.aggregate/)
+- [聚合管道](https://www.mongodb.com/docs/manual/core/aggregation-pipeline/)
 
 ### allowDiskUse 说明
 

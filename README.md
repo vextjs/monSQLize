@@ -4,11 +4,25 @@
 
 ## 特性
 
-- ✅ **MongoDB 适配器**：完整支持 MongoDB 查询功能
-- ✅ **内置缓存**：TTL/LRU/命名空间失效/并发去重
-- ✅ **跨库访问**：轻松访问不同数据库的集合
-- ✅ **性能优化**：慢查询日志、查询超时控制
-- ✅ **类型安全**：完整的 TypeScript 类型声明
+### 🔵 MongoDB 原生功能支持
+
+monSQLize 完整封装了 MongoDB 的原生功能：
+
+- ✅ **标准查询方法**：find/findOne/aggregate/count/distinct
+- ✅ **链式调用 API**：完整支持 MongoDB 游标的所有链式方法
+- ✅ **所有查询选项**：projection/sort/limit/skip/hint/collation 等
+
+### 🔧 monSQLize 扩展功能
+
+在 MongoDB 原生功能基础上，提供额外的便利性和性能优化：
+
+- 🔧 **智能缓存**：TTL/LRU/命名空间失效/并发去重
+- 🔧 **深度分页**：游标分页（支持前后翻页、跳页、书签）
+- 🔧 **性能监控**：慢查询日志、查询超时控制、元数据返回
+- 🔧 **跨库访问**：轻松访问不同数据库的集合
+- 🔧 **类型安全**：完整的 TypeScript 类型声明
+
+**📚 详细对比**: 查看 [MongoDB 原生 vs monSQLize 扩展](./docs/mongodb-native-vs-extensions.md)
 
 ## 状态
 

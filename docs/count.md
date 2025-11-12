@@ -43,16 +43,25 @@ async count(query = {}, options = {})
 
 ### options 参数对象
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `hint` | Object/String | 否 | - | 指定查询使用的索引（仅 countDocuments） |
-| `collation` | Object | 否 | - | 指定排序规则（用于字符串比较，仅 countDocuments） |
-| `skip` | Number | 否 | - | 跳过的文档数量（仅 countDocuments） |
-| `limit` | Number | 否 | - | 限制统计的文档数量（仅 countDocuments） |
-| `maxTimeMS` | Number | 否 | 全局配置 | 查询超时时间（毫秒） |
-| `cache` | Number | 否 | `0` | 缓存 TTL（毫秒），大于 0 时启用缓存 |
-| `comment` | String | 否 | - | 查询注释，用于生产环境日志跟踪和性能分析 |
-| `explain` | Boolean/String | 否 | - | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+| 参数 | 类型 | 必填 | 默认值 | 来源 | 说明 |
+|------|------|------|--------|------|------|
+| `hint` | Object/String | 否 | - | MongoDB 原生 ✅ | 指定查询使用的索引（仅 countDocuments） |
+| `collation` | Object | 否 | - | MongoDB 原生 ✅ | 指定排序规则（用于字符串比较，仅 countDocuments） |
+| `skip` | Number | 否 | - | MongoDB 原生 ✅ | 跳过的文档数量（仅 countDocuments） |
+| `limit` | Number | 否 | - | MongoDB 原生 ✅ | 限制统计的文档数量（仅 countDocuments） |
+| `maxTimeMS` | Number | 否 | 全局配置 | MongoDB 原生 ✅ | 查询超时时间（毫秒） |
+| `comment` | String | 否 | - | MongoDB 原生 ✅ | 查询注释，用于生产环境日志跟踪和性能分析 |
+| `explain` | Boolean/String | 否 | - | MongoDB 原生 ✅ | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+| `cache` | Number | 否 | `0` | monSQLize 扩展 🔧 | 缓存 TTL（毫秒），大于 0 时启用缓存 |
+| `meta` | Boolean/Object | 否 | `false` | monSQLize 扩展 🔧 | 返回查询元数据（执行时间、缓存命中率等） |
+
+**图例说明**:
+- ✅ **MongoDB 原生**: 该参数是 MongoDB 官方支持的标准功能
+- 🔧 **monSQLize 扩展**: monSQLize 独有的扩展功能
+
+**MongoDB 参考文档**: 
+- [countDocuments()](https://www.mongodb.com/docs/manual/reference/method/db.collection.countDocuments/)
+- [estimatedDocumentCount()](https://www.mongodb.com/docs/manual/reference/method/db.collection.estimatedDocumentCount/)
 
 ### 性能优化说明
 

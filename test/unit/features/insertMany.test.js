@@ -370,4 +370,163 @@ describe('insertMany 方法测试套件', function () {
             assert.ok(duration1 < duration2, '批量插入应该比多次单个插入快');
         });
     });
+
+    describe('慢查询监控测试', () => {
+        it('应该使用配置的 slowQueryMs', async () => {
+            const msqWithSlowConfig = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertmany_slow',
+                config: { useMemoryServer: true },
+                slowQueryMs: 50
+            });
+
+            try {
+                await msqWithSlowConfig.connect();
+
+                assert.strictEqual(
+                    msqWithSlowConfig.defaults.slowQueryMs,
+                    50,
+                    'slowQueryMs 配置应该生效'
+                );
+            } finally {
+                await msqWithSlowConfig.close();
+            }
+        });
+
+        it('应该在超过阈值时记录慢查询日志', async () => {
+            const msqSlow = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertmany_slowlog',
+                config: { useMemoryServer: true },
+                slowQueryMs: 0
+            });
+
+            try {
+                const conn = await msqSlow.connect();
+                const testCollection = conn.collection;
+
+                const logMessages = [];
+                const originalWarn = msqSlow.logger.warn;
+                msqSlow.logger.warn = function (message, meta) {
+                    logMessages.push({ message, meta });
+                    if (originalWarn) {
+                        originalWarn.call(this, message, meta);
+                    }
+                };
+
+                await testCollection('users').insertMany([
+                    { name: 'User1' },
+                    { name: 'User2' }
+                ]);
+
+                msqSlow.logger.warn = originalWarn;
+
+                const slowLogs = logMessages.filter(log =>
+                    log.message && (
+                        log.message.includes('慢操作警告') ||
+                        (log.meta && log.meta.threshold !== undefined)
+                    )
+                );
+
+                assert.ok(slowLogs.length > 0, '应该记录慢查询日志');
+
+                const slowLog = slowLogs[0];
+                assert.ok(slowLog.meta, '日志应该包含 meta 信息');
+                assert.strictEqual(slowLog.meta.threshold, 0, '阈值应该是配置的 0ms');
+                assert.ok(slowLog.meta.documentCount !== undefined, '日志应该包含文档数量');
+                assert.strictEqual(slowLog.meta.documentCount, 2, '文档数量应该是 2');
+            } finally {
+                await msqSlow.close();
+            }
+        });
+
+        it('慢查询日志应该包含批量插入的元数据', async () => {
+            const msqMeta = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertmany_meta',
+                config: { useMemoryServer: true },
+                slowQueryMs: 0
+            });
+
+            try {
+                const conn = await msqMeta.connect();
+                const testCollection = conn.collection;
+
+                let capturedMeta = null;
+                const originalWarn = msqMeta.logger.warn;
+                msqMeta.logger.warn = function (message, meta) {
+                    if (message && message.includes('慢操作警告')) {
+                        capturedMeta = meta;
+                    }
+                    if (originalWarn) {
+                        originalWarn.call(this, message, meta);
+                    }
+                };
+
+                const result = await testCollection('users').insertMany(
+                    [
+                        { name: 'User1' },
+                        { name: 'User2' },
+                        { name: 'User3' }
+                    ],
+                    { comment: 'batch-insert-test', ordered: false }
+                );
+
+                msqMeta.logger.warn = originalWarn;
+
+                assert.ok(capturedMeta, '应该捕获到日志元数据');
+                assert.ok(capturedMeta.ns, '应该包含命名空间');
+                assert.strictEqual(capturedMeta.threshold, 0, '应该包含阈值');
+                assert.ok(typeof capturedMeta.duration === 'number', '应该包含执行时间');
+                assert.strictEqual(capturedMeta.documentCount, 3, '应该包含文档数量');
+                assert.strictEqual(capturedMeta.insertedCount, 3, '应该包含插入成功的数量');
+                assert.strictEqual(capturedMeta.ordered, false, '应该包含 ordered 参数');
+                assert.strictEqual(capturedMeta.comment, 'batch-insert-test', '应该包含 comment 参数');
+            } finally {
+                await msqMeta.close();
+            }
+        });
+
+        it('应该在未超过阈值时不记录慢查询日志', async () => {
+            const msqFast = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertmany_fast',
+                config: { useMemoryServer: true },
+                slowQueryMs: 10000
+            });
+
+            try {
+                const conn = await msqFast.connect();
+                const testCollection = conn.collection;
+
+                const logMessages = [];
+                const originalWarn = msqFast.logger.warn;
+                msqFast.logger.warn = function (message, meta) {
+                    logMessages.push({ message, meta });
+                    if (originalWarn) {
+                        originalWarn.call(this, message, meta);
+                    }
+                };
+
+                await testCollection('users').insertMany([
+                    { name: 'Fast1' },
+                    { name: 'Fast2' }
+                ]);
+
+                msqFast.logger.warn = originalWarn;
+
+                const slowLogs = logMessages.filter(log =>
+                    log.message && log.message.includes('慢操作警告')
+                );
+
+                assert.strictEqual(
+                    slowLogs.length,
+                    0,
+                    '未超过阈值时不应该记录慢查询日志'
+                );
+            } finally {
+                await msqFast.close();
+            }
+        });
+    });
 });

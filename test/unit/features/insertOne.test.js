@@ -287,4 +287,197 @@ describe('insertOne 方法测试套件', function () {
             assert.strictEqual(doc.createdAt.getTime(), now.getTime());
         });
     });
+
+    describe('慢查询监控测试', () => {
+        it('应该使用配置的 slowQueryMs', async () => {
+            // 创建新实例，配置 slowQueryMs
+            const msqWithSlowConfig = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertone_slow',
+                config: { useMemoryServer: true },
+                slowQueryMs: 50  // 配置 50ms 阈值
+            });
+
+            try {
+                await msqWithSlowConfig.connect();
+
+                // 验证配置生效
+                assert.strictEqual(
+                    msqWithSlowConfig.defaults.slowQueryMs,
+                    50,
+                    'slowQueryMs 配置应该生效'
+                );
+            } finally {
+                await msqWithSlowConfig.close();
+            }
+        });
+
+        it('应该使用默认的 slowQueryMs (500ms)', async () => {
+            // 未配置 slowQueryMs，应使用默认值
+            const msqDefault = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertone_default',
+                config: { useMemoryServer: true }
+            });
+
+            try {
+                await msqDefault.connect();
+
+                // 验证默认值
+                assert.strictEqual(
+                    msqDefault.defaults.slowQueryMs,
+                    500,
+                    'slowQueryMs 默认值应该是 500ms'
+                );
+            } finally {
+                await msqDefault.close();
+            }
+        });
+
+        it('应该在超过阈值时记录慢查询日志', async () => {
+            // 创建新实例，配置极低的阈值
+            const msqSlow = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertone_slowlog',
+                config: { useMemoryServer: true },
+                slowQueryMs: 0  // 设置为 0ms，确保触发
+            });
+
+            try {
+                const conn = await msqSlow.connect();
+                const testCollection = conn.collection;
+
+                // 捕获日志
+                const logMessages = [];
+                const originalWarn = msqSlow.logger.warn;
+                msqSlow.logger.warn = function (message, meta) {
+                    logMessages.push({ message, meta });
+                    // 也调用原始的 warn
+                    if (originalWarn) {
+                        originalWarn.call(this, message, meta);
+                    }
+                };
+
+                // 执行插入
+                await testCollection('users').insertOne({ name: 'Slow Test' });
+
+                // 恢复原始 logger
+                msqSlow.logger.warn = originalWarn;
+
+                // 验证日志
+                const slowLogs = logMessages.filter(log =>
+                    log.message && (
+                        log.message.includes('慢操作警告') ||
+                        (log.meta && log.meta.threshold !== undefined)
+                    )
+                );
+
+                assert.ok(
+                    slowLogs.length > 0,
+                    '应该记录慢查询日志'
+                );
+
+                // 验证日志内容
+                const slowLog = slowLogs[0];
+                assert.ok(slowLog.meta, '日志应该包含 meta 信息');
+                assert.strictEqual(slowLog.meta.threshold, 0, '阈值应该是配置的 0ms');
+                assert.ok(slowLog.meta.ns, '日志应该包含命名空间');
+                assert.ok(slowLog.meta.duration !== undefined, '日志应该包含执行时间');
+            } finally {
+                await msqSlow.close();
+            }
+        });
+
+        it('应该在未超过阈值时不记录慢查询日志', async () => {
+            // 创建新实例，配置极高的阈值
+            const msqFast = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertone_fast',
+                config: { useMemoryServer: true },
+                slowQueryMs: 10000  // 设置为 10 秒，正常操作不会超过
+            });
+
+            try {
+                const conn = await msqFast.connect();
+                const testCollection = conn.collection;
+
+                // 捕获日志
+                const logMessages = [];
+                const originalWarn = msqFast.logger.warn;
+                msqFast.logger.warn = function (message, meta) {
+                    logMessages.push({ message, meta });
+                    if (originalWarn) {
+                        originalWarn.call(this, message, meta);
+                    }
+                };
+
+                // 执行插入
+                await testCollection('users').insertOne({ name: 'Fast Test' });
+
+                // 恢复原始 logger
+                msqFast.logger.warn = originalWarn;
+
+                // 验证没有慢查询日志
+                const slowLogs = logMessages.filter(log =>
+                    log.message && log.message.includes('慢操作警告')
+                );
+
+                assert.strictEqual(
+                    slowLogs.length,
+                    0,
+                    '未超过阈值时不应该记录慢查询日志'
+                );
+            } finally {
+                await msqFast.close();
+            }
+        });
+
+        it('慢查询日志应该包含正确的元数据', async () => {
+            const msqMeta = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertone_meta',
+                config: { useMemoryServer: true },
+                slowQueryMs: 0
+            });
+
+            try {
+                const conn = await msqMeta.connect();
+                const testCollection = conn.collection;
+
+                // 捕获日志
+                let capturedMeta = null;
+                const originalWarn = msqMeta.logger.warn;
+                msqMeta.logger.warn = function (message, meta) {
+                    if (message && message.includes('慢操作警告')) {
+                        capturedMeta = meta;
+                    }
+                    if (originalWarn) {
+                        originalWarn.call(this, message, meta);
+                    }
+                };
+
+                // 执行插入
+                const result = await testCollection('users').insertOne(
+                    { name: 'Meta Test' },
+                    { comment: 'test-comment' }
+                );
+
+                // 恢复原始 logger
+                msqMeta.logger.warn = originalWarn;
+
+                // 验证元数据
+                assert.ok(capturedMeta, '应该捕获到日志元数据');
+                assert.ok(capturedMeta.ns, '应该包含命名空间');
+                assert.ok(capturedMeta.ns.includes('test_insertone_meta'), '命名空间应该包含数据库名');
+                assert.ok(capturedMeta.ns.includes('users'), '命名空间应该包含集合名');
+                assert.strictEqual(capturedMeta.threshold, 0, '应该包含阈值');
+                assert.ok(typeof capturedMeta.duration === 'number', '应该包含执行时间');
+                assert.ok(capturedMeta.insertedId, '应该包含插入的 ID');
+                assert.strictEqual(capturedMeta.insertedId.toString(), result.insertedId.toString());
+                assert.strictEqual(capturedMeta.comment, 'test-comment', '应该包含 comment 参数');
+            } finally {
+                await msqMeta.close();
+            }
+        });
+    });
 });

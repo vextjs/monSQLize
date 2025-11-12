@@ -4,38 +4,75 @@
 
 monSQLize 现已支持完整的 MongoDB 风格链式调用 API，提供更直观、更灵活的查询构建方式。链式调用方法与 options 参数方式完全兼容，您可以根据需要选择任一方式。
 
+### 🔵 MongoDB 原生 vs monSQLize 扩展
+
+本文档中的所有链式方法都是 **MongoDB 原生支持的游标方法**，monSQLize 提供了完整的封装和实现：
+
+- ✅ **MongoDB 原生支持**: 所有列出的链式方法都对应 MongoDB 游标的原生方法
+- 🔄 **monSQLize 封装**: 在原生方法基础上增加了缓存、错误处理、性能监控等功能
+- 📚 **参考**: [MongoDB Cursor 官方文档](https://www.mongodb.com/docs/manual/reference/method/js-cursor/)
+
+**monSQLize 独有的扩展参数** (仅在 options 方式中可用):
+- `cache` - 缓存 TTL 配置（monSQLize 扩展）
+- `stream` - 流式返回（通过 `.stream()` 方法调用）
+
+---
+
 ## 支持的链式方法
 
 ### find() 链式方法
 
-| 方法 | 参数 | 说明 | 示例 |
-|------|------|------|------|
-| **`.limit(n)`** | `number` | 限制返回文档数量 | `.limit(10)` |
-| **`.skip(n)`** | `number` | 跳过文档数量 | `.skip(20)` |
-| **`.sort(spec)`** | `Object` | 排序规则 | `.sort({ price: -1 })` |
-| **`.project(spec)`** | `Object` | 字段投影 | `.project({ name: 1, price: 1 })` |
-| **`.hint(spec)`** | `Object\|String` | 索引提示 | `.hint({ category: 1 })` |
-| **`.collation(spec)`** | `Object` | 排序规则 | `.collation({ locale: 'zh' })` |
-| **`.comment(str)`** | `String` | 查询注释 | `.comment('test query')` |
-| **`.maxTimeMS(ms)`** | `Number` | 超时时间 | `.maxTimeMS(5000)` |
-| **`.batchSize(n)`** | `Number` | 批处理大小 | `.batchSize(100)` |
-| **`.explain(v)`** | `String` | 执行计划 | `.explain('executionStats')` |
-| **`.stream()`** | - | 返回流 | `.stream()` |
-| **`.toArray()`** | - | 显式执行 | `.toArray()` |
+所有方法均为 **MongoDB 原生支持** ✅
 
-#### aggregate() 链式方法
+| 方法 | 参数 | MongoDB 原生 | 说明 | 示例 |
+|------|------|-------------|------|------|
+| **`.limit(n)`** | `number` | ✅ | 限制返回文档数量 | `.limit(10)` |
+| **`.skip(n)`** | `number` | ✅ | 跳过文档数量 | `.skip(20)` |
+| **`.sort(spec)`** | `Object` | ✅ | 排序规则 | `.sort({ price: -1 })` |
+| **`.project(spec)`** | `Object` | ✅ | 字段投影 | `.project({ name: 1, price: 1 })` |
+| **`.hint(spec)`** | `Object\|String` | ✅ | 索引提示 | `.hint({ category: 1 })` |
+| **`.collation(spec)`** | `Object` | ✅ | 排序规则 | `.collation({ locale: 'zh' })` |
+| **`.comment(str)`** | `String` | ✅ | 查询注释 | `.comment('test query')` |
+| **`.maxTimeMS(ms)`** | `Number` | ✅ | 超时时间 | `.maxTimeMS(5000)` |
+| **`.batchSize(n)`** | `Number` | ✅ | 批处理大小 | `.batchSize(100)` |
+| **`.explain(v)`** | `String` | ✅ | 执行计划 | `.explain('executionStats')` |
+| **`.stream()`** | - | ✅ | 返回流 | `.stream()` |
+| **`.toArray()`** | - | ✅ | 显式执行 | `.toArray()` |
 
-| 方法 | 参数 | 说明 | 示例 |
-|------|------|------|------|
-| **`.hint(spec)`** | `Object\|String` | 索引提示 | `.hint({ status: 1 })` |
-| **`.collation(spec)`** | `Object` | 排序规则 | `.collation({ locale: 'zh' })` |
-| **`.comment(str)`** | `String` | 查询注释 | `.comment('test')` |
-| **`.maxTimeMS(ms)`** | `Number` | 超时时间 | `.maxTimeMS(5000)` |
-| **`.allowDiskUse(bool)`** | `Boolean` | 允许磁盘使用 | `.allowDiskUse(true)` |
-| **`.batchSize(n)`** | `Number` | 批处理大小 | `.batchSize(100)` |
-| **`.explain(v)`** | `String` | 执行计划 | `.explain('executionStats')` |
-| **`.stream()`** | - | 返回流 | `.stream()` |
-| **`.toArray()`** | - | 显式执行 | `.toArray()` |
+**MongoDB 参考文档**:
+- [cursor.limit()](https://www.mongodb.com/docs/manual/reference/method/cursor.limit/)
+- [cursor.skip()](https://www.mongodb.com/docs/manual/reference/method/cursor.skip/)
+- [cursor.sort()](https://www.mongodb.com/docs/manual/reference/method/cursor.sort/)
+- [cursor.project()](https://www.mongodb.com/docs/manual/reference/method/cursor.project/)
+- [更多游标方法...](https://www.mongodb.com/docs/manual/reference/method/js-cursor/)
+
+---
+
+### aggregate() 链式方法
+
+所有方法均为 **MongoDB 原生支持** ✅
+
+### aggregate() 链式方法
+
+所有方法均为 **MongoDB 原生支持** ✅
+
+| 方法 | 参数 | MongoDB 原生 | 说明 | 示例 |
+|------|------|-------------|------|------|
+| **`.hint(spec)`** | `Object\|String` | ✅ | 索引提示 | `.hint({ status: 1 })` |
+| **`.collation(spec)`** | `Object` | ✅ | 排序规则 | `.collation({ locale: 'zh' })` |
+| **`.comment(str)`** | `String` | ✅ | 查询注释 | `.comment('test')` |
+| **`.maxTimeMS(ms)`** | `Number` | ✅ | 超时时间 | `.maxTimeMS(5000)` |
+| **`.allowDiskUse(bool)`** | `Boolean` | ✅ | 允许磁盘使用 | `.allowDiskUse(true)` |
+| **`.batchSize(n)`** | `Number` | ✅ | 批处理大小 | `.batchSize(100)` |
+| **`.explain(v)`** | `String` | ✅ | 执行计划 | `.explain('executionStats')` |
+| **`.stream()`** | - | ✅ | 返回流 | `.stream()` |
+| **`.toArray()`** | - | ✅ | 显式执行 | `.toArray()` |
+
+**MongoDB 参考文档**:
+- [cursor.hint()](https://www.mongodb.com/docs/manual/reference/method/cursor.hint/)
+- [cursor.collation()](https://www.mongodb.com/docs/manual/reference/method/cursor.collation/)
+- [cursor.allowDiskUse()](https://www.mongodb.com/docs/manual/reference/method/cursor.allowDiskUse/)
+- [更多聚合游标方法...](https://www.mongodb.com/docs/manual/reference/method/js-cursor/)
 
 ---
 

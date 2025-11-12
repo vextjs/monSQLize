@@ -13,12 +13,24 @@ monSQLize 提供两种写入方法：
 | **insertOne** | 插入单个文档 | ~10-20ms/条 | 实时单条写入、交互式操作 |
 | **insertMany** | 批量插入文档 | ~0.5-1ms/条 **(10-50x 更快)** | 数据导入、批量创建、初始化数据 |
 
-**核心特性**:
-- ✅ **自动缓存失效** - 插入后自动清理相关缓存
-- ✅ **写确认级别** - 支持自定义 writeConcern（w/j/wtimeout）
-- ✅ **错误处理** - 统一错误码（DUPLICATE_KEY/VALIDATION_ERROR）
-- ✅ **日志跟踪** - 支持 comment 参数用于生产环境监控
+### 🔵 MongoDB 原生 vs monSQLize 扩展
+
+**方法本身**: MongoDB 原生 ✅
+- `insertOne()` 和 `insertMany()` 都是 MongoDB 官方支持的标准方法
+- 所有参数（writeConcern、ordered、comment 等）都是 MongoDB 原生支持
+
+**monSQLize 扩展功能**: 🔧
+- ✅ **自动缓存失效** - 插入后自动清理相关缓存（monSQLize 独有）
+- ✅ **统一错误码** - DUPLICATE_KEY/VALIDATION_ERROR 等统一错误处理
 - ✅ **慢查询监控** - 自动记录耗时超过阈值的写入操作
+- ✅ **详细日志** - DEBUG/WARN 级别的操作日志
+
+**核心特性**:
+- ✅ **自动缓存失效** 🔧 - 插入后自动清理相关缓存（monSQLize 扩展）
+- ✅ **写确认级别** ✅ - 支持自定义 writeConcern（MongoDB 原生）
+- ✅ **错误处理** 🔧 - 统一错误码（monSQLize 扩展）
+- ✅ **日志跟踪** ✅ - 支持 comment 参数用于生产环境监控（MongoDB 原生）
+- ✅ **慢查询监控** 🔧 - 自动记录耗时超过阈值的写入操作（monSQLize 扩展）
 
 ---
 
@@ -42,14 +54,20 @@ collection(name: string).insertOne(document: object, options?: InsertOneOptions)
 
 **第二个参数：options**（可选）
 
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| **writeConcern** | `object` | `{ w: 1 }` | 写确认级别 |
-| **writeConcern.w** | `number \| 'majority'` | `1` | 写确认级别（1=主节点确认，'majority'=多数节点确认） |
-| **writeConcern.j** | `boolean` | `false` | 是否等待日志落盘 |
-| **writeConcern.wtimeout** | `number` | - | 写超时时间（毫秒） |
-| **bypassDocumentValidation** | `boolean` | `false` | 跳过文档验证（不推荐） |
-| **comment** | `string` | - | 查询注释，用于生产环境日志跟踪 |
+| 参数 | 类型 | 默认值 | 来源 | 说明 |
+|------|------|--------|------|------|
+| **writeConcern** | `object` | `{ w: 1 }` | MongoDB 原生 ✅ | 写确认级别 |
+| **writeConcern.w** | `number \| 'majority'` | `1` | MongoDB 原生 ✅ | 写确认级别（1=主节点确认，'majority'=多数节点确认） |
+| **writeConcern.j** | `boolean` | `false` | MongoDB 原生 ✅ | 是否等待日志落盘 |
+| **writeConcern.wtimeout** | `number` | - | MongoDB 原生 ✅ | 写超时时间（毫秒） |
+| **bypassDocumentValidation** | `boolean` | `false` | MongoDB 原生 ✅ | 跳过文档验证（不推荐） |
+| **comment** | `string` | - | MongoDB 原生 ✅ | 查询注释，用于生产环境日志跟踪 |
+
+**图例说明**:
+- ✅ **MongoDB 原生**: 该参数是 MongoDB 官方支持的标准功能
+
+**MongoDB 参考文档**: 
+- [insertOne()](https://www.mongodb.com/docs/manual/reference/method/db.collection.insertOne/)
 
 #### 返回值
 
@@ -80,12 +98,18 @@ collection(name: string).insertMany(documents: object[], options?: InsertManyOpt
 
 **第二个参数：options**（可选）
 
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| **ordered** | `boolean` | `true` | 是否有序插入（true=遇到错误时停止，false=继续插入其他文档） |
-| **writeConcern** | `object` | `{ w: 1 }` | 写确认级别（同 insertOne） |
-| **bypassDocumentValidation** | `boolean` | `false` | 跳过文档验证（不推荐） |
-| **comment** | `string` | - | 查询注释，用于生产环境日志跟踪 |
+| 参数 | 类型 | 默认值 | 来源 | 说明 |
+|------|------|--------|------|------|
+| **ordered** | `boolean` | `true` | MongoDB 原生 ✅ | 是否有序插入（true=遇到错误时停止，false=继续插入其他文档） |
+| **writeConcern** | `object` | `{ w: 1 }` | MongoDB 原生 ✅ | 写确认级别（同 insertOne） |
+| **bypassDocumentValidation** | `boolean` | `false` | MongoDB 原生 ✅ | 跳过文档验证（不推荐） |
+| **comment** | `string` | - | MongoDB 原生 ✅ | 查询注释，用于生产环境日志跟踪 |
+
+**图例说明**:
+- ✅ **MongoDB 原生**: 该参数是 MongoDB 官方支持的标准功能
+
+**MongoDB 参考文档**: 
+- [insertMany()](https://www.mongodb.com/docs/manual/reference/method/db.collection.insertMany/)
 
 #### 返回值
 

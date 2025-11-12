@@ -47,21 +47,25 @@ async distinct(field, filter = {}, options = {})
 
 ### options 参数对象
 
-**核心选项**（MongoDB 原生支持）：
+**核心选项**（MongoDB 原生 ✅）：
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `maxTimeMS` | Number | 否 | - | 查询超时时间（毫秒），防止长时间查询阻塞 |
-| `collation` | Object | 否 | - | 排序规则配置，用于字符串比较和去重（如不区分大小写） |
-| `comment` | String | 否 | - | 查询注释，用于日志和性能分析 |
-| `session` | ClientSession | 否 | - | 事务会话对象，用于事务操作 |
+| 参数 | 类型 | 必填 | 默认值 | 来源 | 说明 |
+|------|------|------|--------|------|------|
+| `maxTimeMS` | Number | 否 | - | MongoDB 原生 ✅ | 查询超时时间（毫秒），防止长时间查询阻塞 |
+| `collation` | Object | 否 | - | MongoDB 原生 ✅ | 排序规则配置，用于字符串比较和去重（如不区分大小写） |
+| `comment` | String | 否 | - | MongoDB 原生 ✅ | 查询注释，用于日志和性能分析 |
+| `session` | ClientSession | 否 | - | MongoDB 原生 ✅ | 事务会话对象，用于事务操作 |
 
-**扩展选项**（monSQLize 增强）：
+**扩展选项**（monSQLize 扩展 🔧）：
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `cache` | Number | 否 | `0` | 缓存 TTL（毫秒），大于 0 时启用缓存 |
-| `explain` | Boolean/String | 否 | - | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+| 参数 | 类型 | 必填 | 默认值 | 来源 | 说明 |
+|------|------|------|--------|------|------|
+| `cache` | Number | 否 | `0` | monSQLize 扩展 🔧 | 缓存 TTL（毫秒），大于 0 时启用缓存 |
+| `meta` | Boolean/Object | 否 | `false` | monSQLize 扩展 🔧 | 返回查询元数据（执行时间、缓存命中率等） |
+| `explain` | Boolean/String | 否 | - | MongoDB 原生 ✅ | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+
+**MongoDB 参考文档**: 
+- [distinct()](https://www.mongodb.com/docs/manual/reference/method/db.collection.distinct/)
 
 ### comment 配置
 

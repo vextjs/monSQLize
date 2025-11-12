@@ -90,20 +90,28 @@ MongoDB 标准查询条件对象，支持所有 MongoDB 查询操作符。
 
 ### options 对象属性
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `projection` | Object/Array | 否 | - | 字段投影配置，指定返回的字段 |
-| `sort` | Object | 否 | - | 排序规则，如 `{ createdAt: -1, name: 1 }` |
-| `limit` | Number | 否 | 全局配置 | 限制返回的文档数量 |
-| `skip` | Number | 否 | - | 跳过指定数量的文档（不推荐大数据量使用） |
-| `hint` | Object/String | 否 | - | 指定查询使用的索引 |
-| `collation` | Object | 否 | - | 指定排序规则（用于字符串排序） |
-| `maxTimeMS` | Number | 否 | 全局配置 | 查询超时时间（毫秒） |
-| `stream` | Boolean | 否 | `false` | 是否返回流对象 |
-| `batchSize` | Number | 否 | - | 流式查询或数组查询时的批次大小 |
-| `cache` | Number | 否 | `0` | 缓存 TTL（毫秒），大于 0 时启用缓存 |
-| `comment` | String | 否 | - | 查询注释，用于生产环境日志跟踪和性能分析 |
-| `explain` | Boolean/String | 否 | - | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+| 参数 | 类型 | 必填 | 默认值 | 来源 | 说明 |
+|------|------|------|--------|------|------|
+| `projection` | Object/Array | 否 | - | MongoDB 原生 ✅ | 字段投影配置，指定返回的字段 |
+| `sort` | Object | 否 | - | MongoDB 原生 ✅ | 排序规则，如 `{ createdAt: -1, name: 1 }` |
+| `limit` | Number | 否 | 全局配置 | MongoDB 原生 ✅ | 限制返回的文档数量 |
+| `skip` | Number | 否 | - | MongoDB 原生 ✅ | 跳过指定数量的文档（不推荐大数据量使用） |
+| `hint` | Object/String | 否 | - | MongoDB 原生 ✅ | 指定查询使用的索引 |
+| `collation` | Object | 否 | - | MongoDB 原生 ✅ | 指定排序规则（用于字符串排序） |
+| `maxTimeMS` | Number | 否 | 全局配置 | MongoDB 原生 ✅ | 查询超时时间（毫秒） |
+| `batchSize` | Number | 否 | - | MongoDB 原生 ✅ | 流式查询或数组查询时的批次大小 |
+| `comment` | String | 否 | - | MongoDB 原生 ✅ | 查询注释，用于生产环境日志跟踪和性能分析 |
+| `explain` | Boolean/String | 否 | - | MongoDB 原生 ✅ | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+| `stream` | Boolean | 否 | `false` | monSQLize 扩展 🔧 | 是否返回流对象（也可通过 `.stream()` 链式方法调用） |
+| `cache` | Number | 否 | `0` | monSQLize 扩展 🔧 | 缓存 TTL（毫秒），大于 0 时启用缓存 |
+
+**图例说明**:
+- ✅ **MongoDB 原生**: 该参数/方法是 MongoDB 官方支持的标准功能
+- 🔧 **monSQLize 扩展**: monSQLize 独有的扩展功能，提供额外的便利性
+
+**MongoDB 参考文档**: 
+- [find() 方法](https://www.mongodb.com/docs/manual/reference/method/db.collection.find/)
+- [游标方法](https://www.mongodb.com/docs/manual/reference/method/js-cursor/)
 
 ### comment 配置
 
