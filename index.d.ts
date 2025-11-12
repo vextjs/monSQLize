@@ -139,7 +139,6 @@ declare module 'monsqlize' {
         };
     }
     interface FindOptions {
-        query?: any;
         projection?: Record<string, any> | string[];
         sort?: Record<string, 1 | -1>;
         limit?: number;
@@ -155,7 +154,6 @@ declare module 'monsqlize' {
         meta?: boolean | MetaOptions;    // 返回耗时元信息
     }
     interface CountOptions {
-        query?: any;
         cache?: number;
         maxTimeMS?: number;
         /** Mongo-only: 透传 hint 到 countDocuments */
@@ -164,7 +162,7 @@ declare module 'monsqlize' {
         collation?: any;
         /** 查询注释（用于生产环境日志跟踪）*/
         comment?: string;
-        meta?: boolean | MetaOptions;    // 返回耗时元信息
+        meta?: boolean | MetaOptions;
     }
 
     interface AggregateOptions {
@@ -178,7 +176,6 @@ declare module 'monsqlize' {
     }
 
     interface DistinctOptions {
-        query?: any;                     // 过滤条件，只对匹配的文档进行去重
         cache?: number;                  // 缓存时间（毫秒），默认继承实例缓存配置
         maxTimeMS?: number;              // 查询超时时间（毫秒）
         collation?: any;                 // 排序规则（可选）
@@ -220,7 +217,6 @@ declare module 'monsqlize' {
     }
 
     interface StreamOptions {
-        query?: any;                     // 查询条件
         projection?: Record<string, any> | string[];  // 字段投影
         sort?: Record<string, 1 | -1>;   // 排序配置
         limit?: number;                  // 限制返回数量
@@ -234,7 +230,6 @@ declare module 'monsqlize' {
 
     // Explain 选项（查询执行计划诊断）
     interface ExplainOptions {
-        query?: object;                  // 查询条件
         projection?: object;             // 字段投影
         sort?: Record<string, 1 | -1>;   // 排序配置
         limit?: number;                  // 限制返回数量
@@ -384,35 +379,35 @@ declare module 'monsqlize' {
         createView(viewName: string, source: string, pipeline?: any[]): Promise<boolean>;
 
         // findOne 重载：支持 meta 参数
-        findOne(options?: Omit<FindOptions, 'meta'>): Promise<any | null>;
-        findOne(options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<any | null>>;
-        findOne(options?: FindOptions): Promise<any | null | ResultWithMeta<any | null>>;
+        findOne(query?: any, options?: Omit<FindOptions, 'meta'>): Promise<any | null>;
+        findOne(query: any, options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<any | null>>;
+        findOne(query?: any, options?: FindOptions): Promise<any | null | ResultWithMeta<any | null>>;
 
-        // find 重载：支持 meta 参数
-        find(options?: Omit<FindOptions, 'meta'>): Promise<any[]>;
-        find(options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<any[]>>;
-        find(options?: FindOptions): Promise<any[] | ResultWithMeta<any[]>>;
+        // find 重载：支持 meta 参数和链式调用 (v2.0+)
+        find<T = any>(query?: any): FindChain<T>;
+        find<T = any>(query: any, options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;
+        find<T = any>(query?: any, options?: FindOptions): Promise<T[]> | FindChain<T> | ResultWithMeta<T[]>;
 
         // count 重载：支持 meta 参数
-        count(options?: Omit<CountOptions, 'meta'>): Promise<number>;
-        count(options: CountOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<number>>;
-        count(options?: CountOptions): Promise<number | ResultWithMeta<number>>;
+        count(query?: any, options?: Omit<CountOptions, 'meta'>): Promise<number>;
+        count(query: any, options: CountOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<number>>;
+        count(query?: any, options?: CountOptions): Promise<number | ResultWithMeta<number>>;
 
-        // aggregate 重载：支持 meta 参数
-        aggregate(pipeline?: any[], options?: Omit<AggregateOptions, 'meta'>): Promise<any[]>;
-        aggregate(pipeline: any[], options: AggregateOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<any[]>>;
-        aggregate(pipeline?: any[], options?: AggregateOptions): Promise<any[] | ResultWithMeta<any[]>>;
+        // aggregate 重载：支持 meta 参数和链式调用 (v2.0+)
+        aggregate<T = any>(pipeline?: any[]): AggregateChain<T>;
+        aggregate<T = any>(pipeline: any[], options: AggregateOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;
+        aggregate<T = any>(pipeline?: any[], options?: AggregateOptions): Promise<T[]> | AggregateChain<T> | ResultWithMeta<T[]>;
 
         // distinct 重载：支持 meta 参数
-        distinct<T = any>(field: string, options?: Omit<DistinctOptions, 'meta'>): Promise<T[]>;
-        distinct<T = any>(field: string, options: DistinctOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;
-        distinct<T = any>(field: string, options?: DistinctOptions): Promise<T[] | ResultWithMeta<T[]>>;
+        distinct<T = any>(field: string, query?: any, options?: Omit<DistinctOptions, 'meta'>): Promise<T[]>;
+        distinct<T = any>(field: string, query: any, options: DistinctOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;
+        distinct<T = any>(field: string, query?: any, options?: DistinctOptions): Promise<T[] | ResultWithMeta<T[]>>;
 
         // stream：返回 Node.js 可读流
-        stream(options?: StreamOptions): NodeJS.ReadableStream;
+        stream(query?: any, options?: StreamOptions): NodeJS.ReadableStream;
 
         // explain：查询执行计划诊断
-        explain(options?: ExplainOptions): Promise<any>;
+        explain(query?: any, options?: ExplainOptions): Promise<any>;
 
         // Bookmark 维护 APIs
         prewarmBookmarks(keyDims: BookmarkKeyDims, pages: number[]): Promise<PrewarmBookmarksResult>;
@@ -470,5 +465,308 @@ declare module 'monsqlize' {
 
         /** 健康检查 */
         health(): Promise<HealthView>;
+    }
+
+    // ============================================================================
+    // 链式调用 API (v2.0+)
+    // ============================================================================
+
+    /**
+     * Collation 选项（字符串排序规则）
+     */
+    interface CollationOptions {
+        locale: string;                  // 语言代码，如 'zh', 'en'
+        strength?: number;               // 比较级别：1=基本, 2=重音, 3=大小写
+        caseLevel?: boolean;             // 是否区分大小写
+        caseFirst?: 'upper' | 'lower';   // 大小写优先级
+        numericOrdering?: boolean;       // 数字排序
+        alternate?: 'non-ignorable' | 'shifted'; // 空格和标点处理
+        maxVariable?: 'punct' | 'space'; // 最大可变字符
+        backwards?: boolean;             // 反向比较
+    }
+
+    /**
+     * Explain 执行计划结果
+     */
+    interface ExplainResult {
+        queryPlanner: {
+            plannerVersion: number;
+            namespace: string;
+            indexFilterSet: boolean;
+            parsedQuery?: any;
+            winningPlan: any;
+            rejectedPlans: any[];
+        };
+        executionStats?: {
+            executionSuccess: boolean;
+            nReturned: number;
+            executionTimeMillis: number;
+            totalKeysExamined: number;
+            totalDocsExamined: number;
+            executionStages: any;
+            allPlansExecution?: any[];
+        };
+        serverInfo?: {
+            host: string;
+            port: number;
+            version: string;
+            gitVersion: string;
+        };
+        ok: number;
+    }
+
+    /**
+     * FindChain - find 查询的链式调用构建器
+     *
+     * @template T - 文档类型
+     *
+     * @example
+     * // 基础链式调用
+     * const results = await collection<Product>('products')
+     *   .find({ category: 'electronics' })
+     *   .limit(10)
+     *   .skip(5)
+     *   .sort({ price: -1 });
+     *
+     * @example
+     * // 复杂链式调用
+     * const results = await collection<Product>('products')
+     *   .find({ inStock: true })
+     *   .sort({ rating: -1 })
+     *   .skip(10)
+     *   .limit(20)
+     *   .project({ name: 1, price: 1 })
+     *   .hint({ category: 1, price: -1 })
+     *   .maxTimeMS(5000);
+     */
+    interface FindChain<T = any> extends PromiseLike<T[]> {
+        /**
+         * 限制返回文档数量
+         * @param n - 限制数量，必须为非负数
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 n 不是非负数
+         */
+        limit(n: number): FindChain<T>;
+
+        /**
+         * 跳过指定数量的文档
+         * @param n - 跳过数量，必须为非负数
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 n 不是非负数
+         */
+        skip(n: number): FindChain<T>;
+
+        /**
+         * 设置排序规则
+         * @param spec - 排序配置，如 { price: -1, name: 1 }
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 spec 不是对象或数组
+         */
+        sort(spec: Record<string, 1 | -1> | Array<[string, 1 | -1]>): FindChain<T>;
+
+        /**
+         * 设置字段投影
+         * @param spec - 投影配置，如 { name: 1, price: 1 }
+         * @returns 返回带有投影类型的新链
+         * @throws {Error} 如果 spec 不是对象或数组
+         */
+        project<K extends keyof T>(spec: Record<K, 1 | 0> | Array<K>): FindChain<Pick<T, K>>;
+        project(spec: Record<string, 1 | 0> | string[]): FindChain<Partial<T>>;
+
+        /**
+         * 设置索引提示（强制使用指定索引）
+         * @param spec - 索引名称或索引规格
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 spec 为空
+         */
+        hint(spec: Record<string, 1 | -1> | string): FindChain<T>;
+
+        /**
+         * 设置排序规则（用于字符串排序）
+         * @param spec - 排序规则配置
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 spec 不是对象
+         */
+        collation(spec: CollationOptions): FindChain<T>;
+
+        /**
+         * 设置查询注释（用于日志追踪）
+         * @param str - 注释内容
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 str 不是字符串
+         */
+        comment(str: string): FindChain<T>;
+
+        /**
+         * 设置查询超时时间
+         * @param ms - 超时时间（毫秒）
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 ms 不是非负数
+         */
+        maxTimeMS(ms: number): FindChain<T>;
+
+        /**
+         * 设置批处理大小
+         * @param n - 批处理大小
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 n 不是非负数
+         */
+        batchSize(n: number): FindChain<T>;
+
+        /**
+         * 返回查询执行计划（不执行查询）
+         * @param verbosity - 详细级别
+         * @returns 执行计划
+         */
+        explain(verbosity?: 'queryPlanner' | 'executionStats' | 'allPlansExecution'): Promise<ExplainResult>;
+
+        /**
+         * 返回流式结果
+         * @returns MongoDB 游标流
+         */
+        stream(): NodeJS.ReadableStream;
+
+        /**
+         * 显式转换为数组（执行查询）
+         * @returns 查询结果数组
+         * @throws {Error} 如果查询已执行
+         */
+        toArray(): Promise<T[]>;
+
+        /**
+         * Promise.then 接口
+         */
+        then<TResult1 = T[], TResult2 = never>(
+            onfulfilled?: ((value: T[]) => TResult1 | PromiseLike<TResult1>) | null,
+            onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
+        ): Promise<TResult1 | TResult2>;
+
+        /**
+         * Promise.catch 接口
+         */
+        catch<TResult = never>(
+            onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null
+        ): Promise<T[] | TResult>;
+
+        /**
+         * Promise.finally 接口
+         */
+        finally(onfinally?: (() => void) | null): Promise<T[]>;
+    }
+
+    /**
+     * AggregateChain - aggregate 查询的链式调用构建器
+     *
+     * @template T - 文档类型
+     *
+     * @example
+     * // 基础聚合
+     * const results = await collection<Order>('orders')
+     *   .aggregate([
+     *     { $match: { status: 'paid' } },
+     *     { $group: { _id: '$category', total: { $sum: '$amount' } } }
+     *   ])
+     *   .allowDiskUse(true);
+     *
+     * @example
+     * // 复杂聚合
+     * const results = await collection<Order>('orders')
+     *   .aggregate([
+     *     { $match: { status: 'paid' } },
+     *     { $sort: { createdAt: -1 } },
+     *     { $limit: 100 }
+     *   ])
+     *   .hint({ status: 1, createdAt: -1 })
+     *   .allowDiskUse(true)
+     *   .maxTimeMS(10000);
+     */
+    interface AggregateChain<T = any> extends PromiseLike<T[]> {
+        /**
+         * 设置索引提示（强制使用指定索引）
+         * @param spec - 索引名称或索引规格
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 spec 为空
+         */
+        hint(spec: Record<string, 1 | -1> | string): AggregateChain<T>;
+
+        /**
+         * 设置排序规则（用于字符串排序）
+         * @param spec - 排序规则配置
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 spec 不是对象
+         */
+        collation(spec: CollationOptions): AggregateChain<T>;
+
+        /**
+         * 设置查询注释（用于日志追踪）
+         * @param str - 注释内容
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 str 不是字符串
+         */
+        comment(str: string): AggregateChain<T>;
+
+        /**
+         * 设置查询超时时间
+         * @param ms - 超时时间（毫秒）
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 ms 不是非负数
+         */
+        maxTimeMS(ms: number): AggregateChain<T>;
+
+        /**
+         * 允许使用磁盘进行大数据量排序/分组
+         * @param bool - 是否允许
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 bool 不是布尔值
+         */
+        allowDiskUse(bool: boolean): AggregateChain<T>;
+
+        /**
+         * 设置批处理大小
+         * @param n - 批处理大小
+         * @returns 返回自身以支持链式调用
+         * @throws {Error} 如果 n 不是非负数
+         */
+        batchSize(n: number): AggregateChain<T>;
+
+        /**
+         * 返回聚合执行计划（不执行聚合）
+         * @param verbosity - 详细级别
+         * @returns 执行计划
+         */
+        explain(verbosity?: 'queryPlanner' | 'executionStats' | 'allPlansExecution'): Promise<ExplainResult>;
+
+        /**
+         * 返回流式结果
+         * @returns MongoDB 游标流
+         */
+        stream(): NodeJS.ReadableStream;
+
+        /**
+         * 显式转换为数组（执行聚合）
+         * @returns 聚合结果数组
+         * @throws {Error} 如果查询已执行
+         */
+        toArray(): Promise<T[]>;
+
+        /**
+         * Promise.then 接口
+         */
+        then<TResult1 = T[], TResult2 = never>(
+            onfulfilled?: ((value: T[]) => TResult1 | PromiseLike<TResult1>) | null,
+            onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
+        ): Promise<TResult1 | TResult2>;
+
+        /**
+         * Promise.catch 接口
+         */
+        catch<TResult = never>(
+            onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null
+        ): Promise<T[] | TResult>;
+
+        /**
+         * Promise.finally 接口
+         */
+        finally(onfinally?: (() => void) | null): Promise<T[]>;
     }
 }

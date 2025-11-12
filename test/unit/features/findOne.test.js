@@ -6,7 +6,7 @@
 const MonSQLize = require('../../../lib');
 const assert = require('assert');
 
-describe('findOne 方法测试套件', function() {
+describe('findOne 方法测试套件', function () {
   this.timeout(30000); // 设置超时时间为 30 秒
 
   let msq;
@@ -15,7 +15,7 @@ describe('findOne 方法测试套件', function() {
   const testData = [];
 
   // 准备测试数据
-  before(async function() {
+  before(async function () {
     console.log('🔧 初始化测试环境...');
 
     msq = new MonSQLize({
@@ -105,7 +105,7 @@ describe('findOne 方法测试套件', function() {
     console.log('✅ 索引创建完成\n');
   });
 
-  after(async function() {
+  after(async function () {
     console.log('🧹 清理测试环境...');
     if (msq && nativeCollection) {
       // 清理测试索引
@@ -133,11 +133,9 @@ describe('findOne 方法测试套件', function() {
     console.log('✅ 清理完成');
   });
 
-  describe('1. 基础查询功能', function() {
-    it('1.1 应该返回单个对象或 null', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: {}
-      });
+  describe('1. 基础查询功能', function () {
+    it('1.1 应该返回单个对象或 null', async function () {
+      const result = await findOneCollection('test_users').findOne({});
 
       assert.ok(typeof result === 'object', '应该返回对象或 null');
       if (result !== null) {
@@ -146,19 +144,16 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('1.2 应该正确应用查询条件', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: { status: 'active' }
-      });
+    it('1.2 应该正确应用查询条件', async function () {
+      const result = await findOneCollection('test_users').findOne({ status: 'active' });
 
       if (result !== null) {
         assert.equal(result.status, 'active', '返回的用户应该是活跃状态');
       }
     });
 
-    it('1.3 应该正确应用排序', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: {},
+    it('1.3 应该正确应用排序', async function () {
+      const result = await findOneCollection('test_users').findOne({}, {
         sort: { totalSpent: -1 }
       });
 
@@ -173,9 +168,8 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('1.4 应该正确应用字段投影', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: {},
+    it('1.4 应该正确应用字段投影', async function () {
+      const result = await findOneCollection('test_users').findOne({}, {
         projection: { name: 1, email: 1 }
       });
 
@@ -188,9 +182,8 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('1.5 应该支持数组格式的投影', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: {},
+    it('1.5 应该支持数组格式的投影', async function () {
+      const result = await findOneCollection('test_users').findOne({}, {
         projection: ['name', 'email', 'role']
       });
 
@@ -203,41 +196,34 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('1.6 应该返回 null 当没有匹配记录时', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: { userId: 'NONEXISTENT' }
-      });
+    it('1.6 应该返回 null 当没有匹配记录时', async function () {
+      const result = await findOneCollection('test_users').findOne({ userId: 'NONEXISTENT' });
 
       assert.equal(result, null, '应该返回 null 当没有匹配记录');
     });
   });
 
-  describe('2. 查询条件和操作符', function() {
-    it('2.1 应该支持 $eq 操作符', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: { role: { $eq: 'admin' } }
-      });
+  describe('2. 查询条件和操作符', function () {
+    it('2.1 应该支持 $eq 操作符', async function () {
+      const result = await findOneCollection('test_users').findOne({ role: { $eq: 'admin' } });
 
       if (result !== null) {
         assert.equal(result.role, 'admin', '应该返回管理员用户');
       }
     });
 
-    it('2.2 应该支持 $ne 操作符', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: { role: { $ne: 'admin' } }
-      });
+    it('2.2 应该支持 $ne 操作符', async function () {
+      const result = await findOneCollection('test_users').findOne({ role: { $ne: 'admin' } });
 
       if (result !== null) {
         assert.notEqual(result.role, 'admin', '不应该返回管理员用户');
       }
     });
 
-    it('2.3 应该支持 $gt 和 $lt 操作符', async function() {
+    it('2.3 应该支持 $gt 和 $lt 操作符', async function () {
       const result = await findOneCollection('test_users').findOne({
-        query: {
-          totalSpent: { $gt: 5000, $lt: 15000 }
-        },
+        totalSpent: { $gt: 5000, $lt: 15000 }
+      }, {
         sort: { totalSpent: -1 }
       });
 
@@ -247,34 +233,28 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('2.4 应该支持 $in 操作符', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: { role: { $in: ['admin', 'vip'] } }
-      });
+    it('2.4 应该支持 $in 操作符', async function () {
+      const result = await findOneCollection('test_users').findOne({ role: { $in: ['admin', 'vip'] } });
 
       if (result !== null) {
         assert.ok(['admin', 'vip'].includes(result.role), '角色应该在指定列表中');
       }
     });
 
-    it('2.5 应该支持 $nin 操作符', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: { role: { $nin: ['admin'] } }
-      });
+    it('2.5 应该支持 $nin 操作符', async function () {
+      const result = await findOneCollection('test_users').findOne({ role: { $nin: ['admin'] } });
 
       if (result !== null) {
         assert.notEqual(result.role, 'admin', '角色不应该在排除列表中');
       }
     });
 
-    it('2.6 应该支持 $and 操作符', async function() {
+    it('2.6 应该支持 $and 操作符', async function () {
       const result = await findOneCollection('test_users').findOne({
-        query: {
-          $and: [
-            { status: 'active' },
-            { verified: true }
-          ]
-        }
+        $and: [
+          { status: 'active' },
+          { verified: true }
+        ]
       });
 
       if (result !== null) {
@@ -283,14 +263,12 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('2.7 应该支持 $or 操作符', async function() {
+    it('2.7 应该支持 $or 操作符', async function () {
       const result = await findOneCollection('test_users').findOne({
-        query: {
-          $or: [
-            { role: 'admin' },
-            { level: { $gte: 8 } }
-          ]
-        }
+        $or: [
+          { role: 'admin' },
+          { level: { $gte: 8 } }
+        ]
       });
 
       if (result !== null) {
@@ -302,15 +280,13 @@ describe('findOne 方法测试套件', function() {
     });
   });
 
-  describe('3. 排序和限制', function() {
-    it('3.1 应该支持单字段排序', async function() {
-      const result1 = await findOneCollection('test_users').findOne({
-        query: {},
+  describe('3. 排序和限制', function () {
+    it('3.1 应该支持单字段排序', async function () {
+      const result1 = await findOneCollection('test_users').findOne({}, {
         sort: { createdAt: -1 }
       });
 
-      const result2 = await findOneCollection('test_users').findOne({
-        query: {},
+      const result2 = await findOneCollection('test_users').findOne({}, {
         sort: { createdAt: 1 }
       });
 
@@ -322,9 +298,8 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('3.2 应该支持多字段排序', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: {},
+    it('3.2 应该支持多字段排序', async function () {
+      const result = await findOneCollection('test_users').findOne({}, {
         sort: { status: 1, totalSpent: -1 }
       });
 
@@ -339,7 +314,7 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('3.3 应该支持 collation 排序规则', async function() {
+    it('3.3 应该支持 collation 排序规则', async function () {
       // 插入测试数据用于 collation 测试
       await nativeCollection.insertOne({
         userId: 'COLLATION-TEST',
@@ -349,8 +324,7 @@ describe('findOne 方法测试套件', function() {
         status: 'active'
       });
 
-      const result = await findOneCollection('test_users').findOne({
-        query: { username: 'TESTUSER' },
+      const result = await findOneCollection('test_users').findOne({ username: 'TESTUSER' }, {
         collation: { locale: 'en', strength: 2 }
       });
 
@@ -363,21 +337,18 @@ describe('findOne 方法测试套件', function() {
     });
   });
 
-  describe('4. 缓存功能', function() {
-    it('4.1 应该支持缓存查询', async function() {
+  describe('4. 缓存功能', function () {
+    it('4.1 应该支持缓存查询', async function () {
       const startTime = Date.now();
 
       // 第一次查询，不使用缓存
-      const result1 = await findOneCollection('test_users').findOne({
-        query: { userId: 'USER-00001' }
-      });
+      const result1 = await findOneCollection('test_users').findOne({ userId: 'USER-00001' });
 
       const firstQueryTime = Date.now() - startTime;
 
       // 第二次查询，使用缓存
       const startTime2 = Date.now();
-      const result2 = await findOneCollection('test_users').findOne({
-        query: { userId: 'USER-00001' },
+      const result2 = await findOneCollection('test_users').findOne({ userId: 'USER-00001' }, {
         cache: 5000
       });
 
@@ -387,10 +358,9 @@ describe('findOne 方法测试套件', function() {
       // 注意：缓存可能不会显著提升单次查询性能，这里主要验证功能
     });
 
-    it('4.2 应该正确处理缓存过期', async function() {
+    it('4.2 应该正确处理缓存过期', async function () {
       // 查询并缓存
-      const result1 = await findOneCollection('test_users').findOne({
-        query: { userId: 'USER-00001' },
+      const result1 = await findOneCollection('test_users').findOne({ userId: 'USER-00001' }, {
         cache: 100 // 100ms 缓存
       });
 
@@ -398,8 +368,7 @@ describe('findOne 方法测试套件', function() {
       await new Promise(resolve => setTimeout(resolve, 150));
 
       // 再次查询，应该重新执行
-      const result2 = await findOneCollection('test_users').findOne({
-        query: { userId: 'USER-00001' },
+      const result2 = await findOneCollection('test_users').findOne({ userId: 'USER-00001' }, {
         cache: 100
       });
 
@@ -407,10 +376,9 @@ describe('findOne 方法测试套件', function() {
     });
   });
 
-  describe('5. 执行计划和性能', function() {
-    it('5.1 应该支持 explain 查询', async function() {
-      const plan = await findOneCollection('test_users').findOne({
-        query: { status: 'active' },
+  describe('5. 执行计划和性能', function () {
+    it('5.1 应该支持 explain 查询', async function () {
+      const plan = await findOneCollection('test_users').findOne({ status: 'active' }, {
         explain: 'executionStats'
       });
 
@@ -419,9 +387,8 @@ describe('findOne 方法测试套件', function() {
       assert.ok(typeof plan.executionStats.executionTimeMillis === 'number', '应该包含执行时间');
     });
 
-    it('5.2 应该支持 hint 索引提示', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: { email: 'user1@example.com' },
+    it('5.2 应该支持 hint 索引提示', async function () {
+      const result = await findOneCollection('test_users').findOne({ email: 'user1@example.com' }, {
         hint: { email: 1 }
       });
 
@@ -430,9 +397,8 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('5.3 应该支持 maxTimeMS 超时设置', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: { status: 'active' },
+    it('5.3 应该支持 maxTimeMS 超时设置', async function () {
+      const result = await findOneCollection('test_users').findOne({ status: 'active' }, {
         maxTimeMS: 5000
       });
 
@@ -443,12 +409,10 @@ describe('findOne 方法测试套件', function() {
     });
   });
 
-  describe('6. 错误处理', function() {
-    it('6.1 应该处理无效查询条件', async function() {
+  describe('6. 错误处理', function () {
+    it('6.1 应该处理无效查询条件', async function () {
       try {
-        await findOneCollection('test_users').findOne({
-          query: { $invalid: 'operator' }
-        });
+        await findOneCollection('test_users').findOne({ $invalid: 'operator' });
         // 如果没有抛出错误，验证结果为 null
         assert.ok(true, '查询应该成功或返回 null');
       } catch (error) {
@@ -456,11 +420,9 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('6.2 应该处理不存在的集合', async function() {
+    it('6.2 应该处理不存在的集合', async function () {
       try {
-        await findOneCollection('nonexistent_collection').findOne({
-          query: {}
-        });
+        await findOneCollection('nonexistent_collection').findOne({});
         assert.ok(true, '应该正常处理不存在的集合');
       } catch (error) {
         // MongoDB 可能抛出错误或返回 null
@@ -468,10 +430,9 @@ describe('findOne 方法测试套件', function() {
       }
     });
 
-    it('6.3 应该处理无效的投影配置', async function() {
+    it('6.3 应该处理无效的投影配置', async function () {
       try {
-        const result = await findOneCollection('test_users').findOne({
-          query: {},
+        const result = await findOneCollection('test_users').findOne({}, {
           projection: { name: 1, status: 0, email: 1 } // 混合包含和排除
         });
 
@@ -485,22 +446,20 @@ describe('findOne 方法测试套件', function() {
     });
   });
 
-  describe('7. 边界情况', function() {
-    it('7.1 应该处理空查询条件', async function() {
+  describe('7. 边界情况', function () {
+    it('7.1 应该处理空查询条件', async function () {
       const result = await findOneCollection('test_users').findOne({});
 
       assert.ok(typeof result === 'object', '应该返回对象或 null');
     });
 
-    it('7.2 应该处理空结果集', async function() {
-      const result = await findOneCollection('test_users').findOne({
-        query: { userId: 'EMPTY-RESULT' }
-      });
+    it('7.2 应该处理空结果集', async function () {
+      const result = await findOneCollection('test_users').findOne({ userId: 'EMPTY-RESULT' });
 
       assert.equal(result, null, '应该返回 null');
     });
 
-    it('7.3 应该处理大文档', async function() {
+    it('7.3 应该处理大文档', async function () {
       // 插入一个大文档
       const largeDoc = {
         userId: 'LARGE-DOC',
@@ -511,8 +470,7 @@ describe('findOne 方法测试套件', function() {
 
       await nativeCollection.insertOne(largeDoc);
 
-      const result = await findOneCollection('test_users').findOne({
-        query: { userId: 'LARGE-DOC' },
+      const result = await findOneCollection('test_users').findOne({ userId: 'LARGE-DOC' }, {
         projection: { userId: 1, name: 1, largeField: 1 }
       });
 
@@ -526,16 +484,16 @@ describe('findOne 方法测试套件', function() {
     });
   });
 
-  describe('8. 并发和性能', function() {
-    it('8.1 应该支持并发查询', async function() {
+  describe('8. 并发和性能', function () {
+    it('8.1 应该支持并发查询', async function () {
       const promises = [];
 
       for (let i = 1; i <= 10; i++) {
         promises.push(
-          findOneCollection('test_users').findOne({
-            query: { status: 'active' },
-            cache: 1000
-          })
+          findOneCollection('test_users').findOne(
+            { status: 'active' },
+            { cache: 1000 }
+          )
         );
       }
 
@@ -549,7 +507,7 @@ describe('findOne 方法测试套件', function() {
       });
     });
 
-    it('8.2 应该正确处理慢查询日志', async function() {
+    it('8.2 应该正确处理慢查询日志', async function () {
       // 设置一个很小的慢查询阈值来触发日志
       const originalMsq = new MonSQLize({
         type: 'mongodb',
@@ -563,9 +521,9 @@ describe('findOne 方法测试套件', function() {
       const slowCollection = conn.collection;
 
       // 执行一个可能较慢的查询
-      const result = await slowCollection('test_users').findOne({
-        query: { status: 'active' }
-      });
+      const result = await slowCollection('test_users').findOne(
+        { status: 'active' }
+      );
 
       if (result !== null) {
         assert.equal(result.status, 'active', '应该返回活跃用户');

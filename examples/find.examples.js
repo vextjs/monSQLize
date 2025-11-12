@@ -15,7 +15,7 @@ const { stopMemoryServer } = require('../lib/mongodb/connect');
 const DB_CONFIG = {
     type: 'mongodb',
     databaseName: 'ecommerce',
-    config:{ useMemoryServer: true }
+    config: { useMemoryServer: true }
 };
 
 // 集合名称常量
@@ -361,10 +361,10 @@ async function example1_basicQueries() {
     try {
         // 查询所有活跃用户
         console.log('\n1️⃣ 查询所有活跃用户（限制 10 条）：');
-        const activeUsers = await collection(COLLECTIONS.USERS).find({
-            query: { status: 'active' },
-            limit: 10
-        });
+        const activeUsers = await collection(COLLECTIONS.USERS).find(
+            { status: 'active' },
+            { limit: 10 }
+        );
 
         console.log(`  - 找到 ${activeUsers.length} 个活跃用户`);
         if (activeUsers.length > 0) {
@@ -373,11 +373,13 @@ async function example1_basicQueries() {
 
         // 带字段投影的查询
         console.log('\n2️⃣ 查询用户基本信息（仅返回指定字段）：');
-        const userProfiles = await collection(COLLECTIONS.USERS).find({
-            query: { status: 'active' },
-            projection: { name: 1, email: 1, createdAt: 1 },
-            limit: 5
-        });
+        const userProfiles = await collection(COLLECTIONS.USERS).find(
+            { status: 'active' },
+            {
+                projection: { name: 1, email: 1, createdAt: 1 },
+                limit: 5
+            }
+        );
 
         console.log(`  - 返回 ${userProfiles.length} 条记录`);
         if (userProfiles.length > 0) {
@@ -386,12 +388,14 @@ async function example1_basicQueries() {
 
         // 带排序的查询
         console.log('\n3️⃣ 查询最新注册的用户：');
-        const newUsers = await collection(COLLECTIONS.USERS).find({
-            query: { status: 'active' },
-            sort: { createdAt: -1 },
-            projection: ['name', 'email', 'createdAt'],
-            limit: 10
-        });
+        const newUsers = await collection(COLLECTIONS.USERS).find(
+            { status: 'active' },
+            {
+                sort: { createdAt: -1 },
+                projection: ['name', 'email', 'createdAt'],
+                limit: 10
+            }
+        );
 
         console.log(`  - 返回 ${newUsers.length} 个最新用户`);
         if (newUsers.length > 0) {
@@ -422,14 +426,16 @@ async function example2_complexQueries() {
     try {
         // 范围查询
         console.log('\n1️⃣ 查询指定金额范围的订单：');
-        const orders = await collection(COLLECTIONS.ORDERS).find({
-            query: {
+        const orders = await collection(COLLECTIONS.ORDERS).find(
+            {
                 amount: { $gte: 100, $lte: 1000 },
                 status: 'paid'
             },
-            sort: { amount: -1 },
-            limit: 20
-        });
+            {
+                sort: { amount: -1 },
+                limit: 20
+            }
+        );
 
         console.log(`  - 找到 ${orders.length} 个订单`);
         if (orders.length > 0) {
@@ -439,15 +445,17 @@ async function example2_complexQueries() {
 
         // 多状态查询
         console.log('\n2️⃣ 查询已支付或已完成的订单：');
-        const paidOrders = await collection(COLLECTIONS.ORDERS).find({
-            query: {
+        const paidOrders = await collection(COLLECTIONS.ORDERS).find(
+            {
                 status: { $in: ['paid', 'completed'] },
                 createdAt: { $gte: new Date('2024-01-01') }
             },
-            sort: { createdAt: -1 },
-            projection: { orderId: 1, status: 1, amount: 1, createdAt: 1 },
-            limit: 15
-        });
+            {
+                sort: { createdAt: -1 },
+                projection: { orderId: 1, status: 1, amount: 1, createdAt: 1 },
+                limit: 15
+            }
+        );
 
         console.log(`  - 找到 ${paidOrders.length} 个订单`);
         const statusCount = {};
@@ -458,20 +466,24 @@ async function example2_complexQueries() {
 
         // 逻辑组合查询
         console.log('\n3️⃣ 复杂逻辑组合查询：');
-        const vipUsers = await collection(COLLECTIONS.USERS).find({
-            query: {
+        const vipUsers = await collection(COLLECTIONS.USERS).find(
+            {
                 $or: [
                     { role: 'vip' },
-                    { $and: [
+                    {
+                        $and: [
                             { totalSpent: { $gte: 10000 } },
                             { orderCount: { $gte: 50 } }
-                        ]}
+                        ]
+                    }
                 ],
                 status: 'active'
             },
-            sort: { totalSpent: -1 },
-            limit: 20
-        });
+            {
+                sort: { totalSpent: -1 },
+                limit: 20
+            }
+        );
 
         console.log(`  - 找到 ${vipUsers.length} 个 VIP 用户`);
         if (vipUsers.length > 0) {
@@ -480,16 +492,18 @@ async function example2_complexQueries() {
 
         // 数组查询
         console.log('\n4️⃣ 查询带特定标签的商品：');
-        const products = await collection(COLLECTIONS.PRODUCTS).find({
-            query: {
+        const products = await collection(COLLECTIONS.PRODUCTS).find(
+            {
                 tags: { $all: ['electronics', 'sale'] },
                 inStock: true,
                 price: { $lte: 500 }
             },
-            sort: { sales: -1, price: 1 },
-            projection: { name: 1, price: 1, tags: 1, sales: 1 },
-            limit: 10
-        });
+            {
+                sort: { sales: -1, price: 1 },
+                projection: { name: 1, price: 1, tags: 1, sales: 1 },
+                limit: 10
+            }
+        );
 
         console.log(`  - 找到 ${products.length} 个商品`);
         if (products.length > 0) {
@@ -521,34 +535,40 @@ async function example3_pagination() {
 
         // 第一页
         console.log('\n1️⃣ 获取第 1 页：');
-        const page1 = await collection(COLLECTIONS.PRODUCTS).find({
-            query: { category: 'books', inStock: true },
-            sort: { publishDate: -1, _id: 1 },
-            limit: pageSize,
-            skip: 0
-        });
+        const page1 = await collection(COLLECTIONS.PRODUCTS).find(
+            { category: 'books', inStock: true },
+            {
+                sort: { publishDate: -1, _id: 1 },
+                limit: pageSize,
+                skip: 0
+            }
+        );
 
         console.log(`  - 返回 ${page1.length} 条记录`);
 
         // 第二页
         console.log('\n2️⃣ 获取第 2 页：');
-        const page2 = await collection(COLLECTIONS.PRODUCTS).find({
-            query: { category: 'books', inStock: true },
-            sort: { publishDate: -1, _id: 1 },
-            limit: pageSize,
-            skip: pageSize
-        });
+        const page2 = await collection(COLLECTIONS.PRODUCTS).find(
+            { category: 'books', inStock: true },
+            {
+                sort: { publishDate: -1, _id: 1 },
+                limit: pageSize,
+                skip: pageSize
+            }
+        );
 
         console.log(`  - 返回 ${page2.length} 条记录`);
 
         // 第三页
         console.log('\n3️⃣ 获取第 3 页：');
-        const page3 = await collection(COLLECTIONS.PRODUCTS).find({
-            query: { category: 'books', inStock: true },
-            sort: { publishDate: -1, _id: 1 },
-            limit: pageSize,
-            skip: pageSize * 2
-        });
+        const page3 = await collection(COLLECTIONS.PRODUCTS).find(
+            { category: 'books', inStock: true },
+            {
+                sort: { publishDate: -1, _id: 1 },
+                limit: pageSize,
+                skip: pageSize * 2
+            }
+        );
 
         console.log(`  - 返回 ${page3.length} 条记录`);
 
@@ -584,17 +604,19 @@ async function example4_streamProcessing() {
     try {
         // 流式统计订单数据
         console.log('\n1️⃣ 流式统计 2024 年订单数据：');
-        const stream = await collection(COLLECTIONS.ORDERS).find({
-            query: {
+        const stream = await collection(COLLECTIONS.ORDERS).find(
+            {
                 createdAt: {
                     $gte: new Date('2024-01-01'),
                     $lt: new Date('2025-01-01')
                 }
             },
-            sort: { createdAt: 1 },
-            stream: true,
-            batchSize: 1000
-        });
+            {
+                sort: { createdAt: 1 },
+                stream: true,
+                batchSize: 1000
+            }
+        );
 
         let totalOrders = 0;
         let totalAmount = 0;
@@ -652,13 +674,15 @@ async function example4_streamProcessing() {
 
         // 流式导出用户数据
         console.log('\n2️⃣ 流式导出数据到 CSV：');
-        const exportStream = await collection(COLLECTIONS.USERS).find({
-            query: { status: 'active' },
-            projection: { name: 1, email: 1, createdAt: 1 },
-            sort: { createdAt: -1 },
-            stream: true,
-            batchSize: 500
-        });
+        const exportStream = await collection(COLLECTIONS.USERS).find(
+            { status: 'active' },
+            {
+                projection: { name: 1, email: 1, createdAt: 1 },
+                sort: { createdAt: -1 },
+                stream: true,
+                batchSize: 500
+            }
+        );
 
         let exportCount = 0;
         const csvLines = ['Name,Email,CreatedAt'];
@@ -711,12 +735,14 @@ async function example5_indexOptimization() {
     try {
         // 查看查询执行计划
         console.log('\n1️⃣ 分析查询执行计划：');
-        const plan = await collection(COLLECTIONS.ORDERS).find({
-            query: { status: 'paid', amount: { $gte: 500 } },
-            sort: { createdAt: -1 },
-            limit: 20,
-            explain: 'executionStats'
-        });
+        const plan = await collection(COLLECTIONS.ORDERS).find(
+            { status: 'paid', amount: { $gte: 500 } },
+            {
+                sort: { createdAt: -1 },
+                limit: 20,
+                explain: 'executionStats'
+            }
+        );
 
         if (plan.executionStats) {
             console.log(`  - 执行时间: ${plan.executionStats.executionTimeMillis} ms`);
@@ -735,12 +761,14 @@ async function example5_indexOptimization() {
         // 强制使用索引
         console.log('\n2️⃣ 使用 hint 强制指定索引：');
         try {
-            const ordersWithHint = await collection(COLLECTIONS.ORDERS).find({
-                query: { status: 'paid' },
-                sort: { createdAt: -1 },
-                hint: { status: 1, createdAt: -1 },
-                limit: 10
-            });
+            const ordersWithHint = await collection(COLLECTIONS.ORDERS).find(
+                { status: 'paid' },
+                {
+                    sort: { createdAt: -1 },
+                    hint: { status: 1, createdAt: -1 },
+                    limit: 10
+                }
+            );
             console.log(`  - 返回 ${ordersWithHint.length} 条记录`);
             console.log('  ✅ 成功使用指定索引');
         } catch (error) {
@@ -752,12 +780,14 @@ async function example5_indexOptimization() {
         console.log('\n3️⃣ 设置查询超时时间：');
         try {
             const startTime = Date.now();
-            const products = await collection(COLLECTIONS.PRODUCTS).find({
-                query: { category: 'electronics' },
-                sort: { sales: -1 },
-                maxTimeMS: 5000,  // 5 秒超时
-                limit: 50
-            });
+            const products = await collection(COLLECTIONS.PRODUCTS).find(
+                { category: 'electronics' },
+                {
+                    sort: { sales: -1 },
+                    maxTimeMS: 5000,  // 5 秒超时
+                    limit: 50
+                }
+            );
             const duration = Date.now() - startTime;
             console.log(`  - 查询完成: ${products.length} 条记录`);
             console.log(`  - 实际耗时: ${duration} ms`);
@@ -793,12 +823,14 @@ async function example6_caching() {
         // 首次查询（未缓存）
         console.log('\n1️⃣ 首次查询分类列表：');
         const start1 = Date.now();
-        const categories1 = await collection(COLLECTIONS.CATEGORIES).find({
-            query: { enabled: true },
-            sort: { order: 1 },
-            projection: ['name', 'slug', 'order'],
-            cache: 300000  // 缓存 5 分钟
-        });
+        const categories1 = await collection(COLLECTIONS.CATEGORIES).find(
+            { enabled: true },
+            {
+                sort: { order: 1 },
+                projection: ['name', 'slug', 'order'],
+                cache: 300000  // 缓存 5 分钟
+            }
+        );
         const duration1 = Date.now() - start1;
         console.log(`  - 返回 ${categories1.length} 个分类`);
         console.log(`  - 耗时: ${duration1} ms`);
@@ -806,12 +838,14 @@ async function example6_caching() {
         // 第二次查询（使用缓存）
         console.log('\n2️⃣ 第二次查询（应从缓存读取）：');
         const start2 = Date.now();
-        const categories2 = await collection(COLLECTIONS.CATEGORIES).find({
-            query: { enabled: true },
-            sort: { order: 1 },
-            projection: ['name', 'slug', 'order'],
-            cache: 300000
-        });
+        const categories2 = await collection(COLLECTIONS.CATEGORIES).find(
+            { enabled: true },
+            {
+                sort: { order: 1 },
+                projection: ['name', 'slug', 'order'],
+                cache: 300000
+            }
+        );
         const duration2 = Date.now() - start2;
         console.log(`  - 返回 ${categories2.length} 个分类`);
         console.log(`  - 耗时: ${duration2} ms`);
@@ -819,23 +853,27 @@ async function example6_caching() {
 
         // 缓存热门商品
         console.log('\n3️⃣ 缓存热门商品列表：');
-        const hotProducts = await collection(COLLECTIONS.PRODUCTS).find({
-            query: { hot: true, inStock: true },
-            sort: { sales: -1 },
-            projection: { name: 1, price: 1, image: 1, sales: 1 },
-            limit: 20,
-            cache: 600000  // 缓存 10 分钟
-        });
+        const hotProducts = await collection(COLLECTIONS.PRODUCTS).find(
+            { hot: true, inStock: true },
+            {
+                sort: { sales: -1 },
+                projection: { name: 1, price: 1, image: 1, sales: 1 },
+                limit: 20,
+                cache: 600000  // 缓存 10 分钟
+            }
+        );
         console.log(`  - 返回 ${hotProducts.length} 个热门商品`);
         console.log('  - 缓存时间: 10 分钟');
 
         // 缓存配置信息
         console.log('\n4️⃣ 缓存系统配置：');
-        const configs = await collection(COLLECTIONS.SETTINGS).find({
-            query: { type: 'system' },
-            projection: { key: 1, value: 1 },
-            cache: 3600000  // 缓存 1 小时
-        });
+        const configs = await collection(COLLECTIONS.SETTINGS).find(
+            { type: 'system' },
+            {
+                projection: { key: 1, value: 1 },
+                cache: 3600000  // 缓存 1 小时
+            }
+        );
         console.log(`  - 返回 ${configs.length} 条配置`);
         console.log('  - 缓存时间: 1 小时');
     } finally {
@@ -862,28 +900,32 @@ async function example7_collation() {
     try {
         // 不区分大小写的查询
         console.log('\n1️⃣ 不区分大小写查询用户名：');
-        const users = await collection(COLLECTIONS.USERS).find({
-            query: { username: 'user2' },
-            collation: {
-                locale: 'en',
-                strength: 2  // 不区分大小写
-            },
-            limit: 10
-        });
+        const users = await collection(COLLECTIONS.USERS).find(
+            { username: 'user2' },
+            {
+                collation: {
+                    locale: 'en',
+                    strength: 2  // 不区分大小写
+                },
+                limit: 10
+            }
+        );
         console.log(`  - 找到 ${users.length} 个用户（匹配 user2, User2, USER2 等）`);
 
         // 中文排序
         console.log('\n2️⃣ 按中文拼音排序：');
-        const chineseProducts = await collection(COLLECTIONS.PRODUCTS).find({
-            query: { language: 'zh' },
-            sort: { name: 1 },
-            collation: {
-                locale: 'zh',
-                numericOrdering: true
-            },
-            projection: ['name'],
-            limit: 20
-        });
+        const chineseProducts = await collection(COLLECTIONS.PRODUCTS).find(
+            { language: 'zh' },
+            {
+                sort: { name: 1 },
+                collation: {
+                    locale: 'zh',
+                    numericOrdering: true
+                },
+                projection: ['name'],
+                limit: 20
+            }
+        );
         console.log(`  - 返回 ${chineseProducts.length} 个商品`);
         if (chineseProducts.length > 0) {
             console.log('  - 排序示例:', chineseProducts.slice(0, 5).map(p => p.name).join(', '));
@@ -894,6 +936,115 @@ async function example7_collation() {
     }
 
     console.log('\n✅ 示例 7 完成\n');
+}
+
+// ============================================================================
+// 示例 8: 链式调用 API (v2.0 新增)
+// ============================================================================
+async function example8_chainingAPI() {
+    console.log('\n📖 示例 8: 链式调用 API (✨ v2.0 新增)');
+    console.log('='.repeat(60));
+
+    const msq = createMonSQLizeInstance();
+    const { collection } = await msq.connect();
+
+    // 准备数据
+    const { needCleanup } = await prepareExampleData(msq);
+
+    try {
+        // 基础链式调用
+        console.log('\n1️⃣ 基础链式调用 - limit 和 skip：');
+        const basic = await collection(COLLECTIONS.PRODUCTS)
+            .find({ category: 'electronics' })
+            .limit(5)
+            .skip(2);
+        console.log(`  - 找到 ${basic.length} 个商品（跳过前2个，限制5个）`);
+
+        // 排序链式调用
+        console.log('\n2️⃣ 排序查询：');
+        const sorted = await collection(COLLECTIONS.PRODUCTS)
+            .find({ inStock: true })
+            .sort({ price: -1 })
+            .limit(10);
+        console.log(`  - 找到 ${sorted.length} 个有库存商品，按价格降序`);
+        if (sorted.length > 0) {
+            console.log(`  - 最高价: ¥${sorted[0].price}`);
+            console.log(`  - 最低价: ¥${sorted[sorted.length - 1].price}`);
+        }
+
+        // 字段投影
+        console.log('\n3️⃣ 字段投影：');
+        const projected = await collection(COLLECTIONS.PRODUCTS)
+            .find({ category: 'electronics' })
+            .project({ name: 1, price: 1 })
+            .limit(5);
+        console.log(`  - 找到 ${projected.length} 个商品（仅返回指定字段）`);
+        if (projected.length > 0) {
+            console.log(`  - 字段: ${Object.keys(projected[0]).join(', ')}`);
+        }
+
+        // 复杂链式调用组合
+        console.log('\n4️⃣ 复杂查询组合：');
+        const complex = await collection(COLLECTIONS.PRODUCTS)
+            .find({ inStock: true, hot: true })
+            .sort({ rating: -1, sales: -1 })
+            .skip(3)
+            .limit(10)
+            .project({ name: 1, price: 1, rating: 1, sales: 1 })
+            .maxTimeMS(5000)
+            .comment('ProductAPI:getHotProducts');
+        console.log(`  - 找到 ${complex.length} 个热门商品`);
+        console.log(`  - 应用: 排序 + 分页 + 投影 + 超时 + 注释`);
+
+        // 链式调用 vs options 参数对比
+        console.log('\n5️⃣ 链式调用 vs options 参数（结果应该相同）：');
+        const query = { category: 'books' };
+
+        // 方式1：链式调用
+        const startTime1 = Date.now();
+        const results1 = await collection(COLLECTIONS.PRODUCTS)
+            .find(query)
+            .sort({ price: -1 })
+            .limit(10);
+        const duration1 = Date.now() - startTime1;
+
+        // 方式2：options 参数
+        const startTime2 = Date.now();
+        const results2 = await collection(COLLECTIONS.PRODUCTS).find(query, {
+            sort: { price: -1 },
+            limit: 10
+        });
+        const duration2 = Date.now() - startTime2;
+
+        console.log(`  - 链式调用: ${results1.length} 条记录 (${duration1}ms)`);
+        console.log(`  - options参数: ${results2.length} 条记录 (${duration2}ms)`);
+        console.log(`  - 结果一致: ${results1.length === results2.length ? '✅ 是' : '❌ 否'}`);
+
+        // 显式 toArray() 调用
+        console.log('\n6️⃣ 显式 toArray() 调用：');
+        const explicit = await collection(COLLECTIONS.PRODUCTS)
+            .find({ rating: { $gte: 4.5 } })
+            .sort({ rating: -1 })
+            .limit(5)
+            .toArray();
+        console.log(`  - 找到 ${explicit.length} 个高评分商品`);
+
+        // 链式调用的 explain
+        console.log('\n7️⃣ 链式调用 explain（性能分析）：');
+        const plan = await collection(COLLECTIONS.PRODUCTS)
+            .find({ category: 'electronics', inStock: true })
+            .sort({ price: -1 })
+            .limit(10)
+            .explain('executionStats');
+        console.log(`  - 扫描文档: ${plan.executionStats.totalDocsExamined}`);
+        console.log(`  - 返回文档: ${plan.executionStats.nReturned}`);
+        console.log(`  - 执行时间: ${plan.executionStats.executionTimeMillis}ms`);
+    } finally {
+        await cleanupExampleData(msq, needCleanup);
+        await msq.close();
+    }
+
+    console.log('\n✅ 示例 8 完成\n');
 }
 
 // ============================================================================
@@ -920,6 +1071,7 @@ async function runAllExamples() {
         await example5_indexOptimization();
         await example6_caching();
         await example7_collation();
+        await example8_chainingAPI();
 
         console.log('\n' + '='.repeat(60));
         console.log('  ✅ 所有示例运行完成！');
@@ -933,7 +1085,7 @@ async function runAllExamples() {
         await msqCleanup.connect();
         await cleanupExampleData(msqCleanup, needCleanup);
         await msqCleanup.close();
-        
+
         // 显式停止 Memory Server，否则 Node.js 进程会卡住
         await stopMemoryServer();
     }
@@ -957,6 +1109,12 @@ if (require.main === module) {
 module.exports = {
     example1_basicQueries,
     example2_complexQueries,
+    example3_pagination,
+    example4_streamProcessing,
+    example5_indexOptimization,
+    example6_caching,
+    example7_collation,
+    example8_chainingAPI,
     example3_pagination,
     example4_streamProcessing,
     example5_indexOptimization,

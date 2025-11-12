@@ -123,15 +123,20 @@ async function main() {
         // ============================================================
         console.log('【示例 6】重复键错误处理');
 
-        // 先创建唯一索引
-        await collection('users').createIndex({ email: 1 }, { unique: true });
-        console.log('✅ 创建唯一索引: email');
+        // 先插入一个文档
+        await collection('users').insertOne({
+            _id: 'fixed-id-123',
+            name: 'First User',
+            email: 'first@example.com'
+        });
+        console.log('✅ 首次插入成功');
 
         try {
-            // 尝试插入重复的 email
+            // 尝试插入相同的 _id
             await collection('users').insertOne({
-                name: 'Alice Duplicate',
-                email: 'alice@example.com' // 这个 email 已存在
+                _id: 'fixed-id-123',
+                name: 'Second User',
+                email: 'second@example.com'
             });
         } catch (error) {
             console.log('❌ 捕获到重复键错误:');
@@ -139,6 +144,7 @@ async function main() {
             console.log('- message:', error.message);
             console.log('提示: monSQLize 自动将 MongoDB E11000 错误转换为标准错误码');
         }
+        console.log();
         console.log();
 
         // ============================================================

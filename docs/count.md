@@ -2,27 +2,63 @@
 
 ## 概述
 
-`count` 是 monSQLize 提供的统计查询方法，用于快速统计 MongoDB 集合中匹配指定条件的文档数量。支持查询条件、索引提示、缓存和性能优化等功能。
+`count` 是 monSQLize 提供的统计查询方法，用于快速统计 MongoDB 集合中匹配指定条件的文档数量。内部使用 MongoDB 原生推荐的 `countDocuments()` 和 `estimatedDocumentCount()` 方法，支持索引提示、缓存和性能优化等功能。
 
 ## 方法签名
 
 ```javascript
-async count(options = {})
+async count(query = {}, options = {})
 ```
 
 ## 参数说明
 
-### options 对象属性
+### query 参数
+
+查询条件对象，使用 MongoDB 标准查询语法。
+
+**类型**：`Object`  
+**必填**：否  
+**默认值**：`{}`（空对象表示统计所有文档）
+
+**示例**：
+
+```javascript
+// 简单查询
+{ status: 'active' }
+
+// 范围查询
+{ age: { $gte: 18, $lt: 60 } }
+
+// 逻辑查询
+{
+  $or: [
+    { status: 'active' },
+    { verified: true }
+  ]
+}
+
+// 空查询（统计所有文档，自动使用 estimatedDocumentCount 优化）
+{}
+```
+
+### options 参数对象
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `query` | Object | 否 | `{}` | MongoDB 查询条件，如 `{ status: 'active', age: { $gt: 18 } }` |
-| `hint` | Object/String | 否 | - | 指定查询使用的索引 |
-| `collation` | Object | 否 | - | 指定排序规则（用于字符串比较） |
+| `hint` | Object/String | 否 | - | 指定查询使用的索引（仅 countDocuments） |
+| `collation` | Object | 否 | - | 指定排序规则（用于字符串比较，仅 countDocuments） |
+| `skip` | Number | 否 | - | 跳过的文档数量（仅 countDocuments） |
+| `limit` | Number | 否 | - | 限制统计的文档数量（仅 countDocuments） |
 | `maxTimeMS` | Number | 否 | 全局配置 | 查询超时时间（毫秒） |
 | `cache` | Number | 否 | `0` | 缓存 TTL（毫秒），大于 0 时启用缓存 |
 | `comment` | String | 否 | - | 查询注释，用于生产环境日志跟踪和性能分析 |
 | `explain` | Boolean/String | 否 | - | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+
+### 性能优化说明
+
+**自动选择最优方法**：
+- 当 `query` 为空对象 `{}` 时，自动使用 `estimatedDocumentCount()`（基于集合元数据，性能最优）
+- 当 `query` 有查询条件时，使用 `countDocuments()`（精确统计，支持索引）
 
 ### comment 配置
 
@@ -41,59 +77,52 @@ comment: 'AdminDashboard:getTotalActiveUsers:admin_user_5'
 **示例**：
 ```javascript
 // 活跃用户统计
-const activeCount = await collection('users').count({
-  query: { status: 'active' },
-  comment: 'Dashboard:activeUsers:daily_report'
-});
+const activeCount = await collection('users').count(
+  { status: 'active' },
+  { comment: 'Dashboard:activeUsers:daily_report' }
+);
 
 // 订单量统计
-const orderCount = await collection('orders').count({
-  query: { createdAt: { $gte: today } },
-  comment: 'Analytics:todayOrders:cronjob_hourly'
-});
+const orderCount = await collection('orders').count(
+  { createdAt: { $gte: today } },
+  { comment: 'Analytics:todayOrders:cronjob_hourly' }
+);
 ```
 
 **参考**：完整的 comment 使用指南请参考 [find 方法文档](./find.md#comment-配置)
 
-### query 配置
-
-查询条件使用 MongoDB 标准查询语法：
-
-```javascript
-// 简单查询
-query: { status: 'active' }
-
-// 范围查询
-query: { age: { $gte: 18, $lt: 60 } }
-
-// 逻辑查询
-query: {
-  $or: [
-    { status: 'active' },
-    { verified: true }
-  ]
-}
-
-// 空查询（统计所有文档）
-query: {}
-```
-
 ### hint 配置
 
-强制 MongoDB 使用指定的索引：
+强制 MongoDB 使用指定的索引（仅在使用 countDocuments 时有效）：
 
 ```javascript
 // 使用索引名称
-hint: 'status_createdAt_idx'
+{ hint: 'status_createdAt_idx' }
 
 // 使用索引定义
-hint: { status: 1, createdAt: -1 }
+{ hint: { status: 1, createdAt: -1 } }
 ```
 
 **使用场景**：
 - MongoDB 查询优化器选择了错误的索引
 - 需要强制使用特定索引以保证性能
 - 测试不同索引的性能差异
+
+### skip 和 limit 配置
+
+控制统计的文档范围（仅在使用 countDocuments 时有效）：
+
+```javascript
+// 统计第 100 到第 200 个匹配的文档
+await collection('users').count(
+  { status: 'active' },
+  { skip: 100, limit: 100 }
+);
+```
+
+**使用场景**：
+- 分页统计（仅统计当前页的文档数）
+- 抽样统计（仅统计部分匹配文档）
 
 ### collation 配置
 
@@ -119,9 +148,12 @@ collation: {
 默认情况下，`count` 方法返回一个 Promise，resolve 为匹配的文档数量：
 
 ```javascript
-const activeUserCount = await collection('users').count({
-  query: { status: 'active' }
-});
+### 普通模式返回数字
+
+默认情况下，`count` 方法返回一个 Promise，resolve 为匹配的文档数量：
+
+```javascript
+const activeUserCount = await collection('users').count({ status: 'active' });
 
 // activeUserCount = 42
 ```
@@ -133,10 +165,10 @@ const activeUserCount = await collection('users').count({
 当 `explain` 为 true 或指定级别时，返回查询执行计划：
 
 ```javascript
-const plan = await collection('users').count({
-  query: { status: 'active' },
-  explain: 'executionStats'
-});
+const plan = await collection('users').count(
+  { status: 'active' },
+  { explain: 'executionStats' }
+);
 
 // plan = {
 //   queryPlanner: { ... },
@@ -158,20 +190,16 @@ const plan = await collection('users').count({
 最简单的统计方式：
 
 ```javascript
-// 统计所有用户
+// 统计所有用户（空查询，自动使用 estimatedDocumentCount）
 const totalUsers = await collection('users').count();
 console.log(`总用户数: ${totalUsers}`);
 
 // 统计活跃用户
-const activeUsers = await collection('users').count({
-  query: { status: 'active' }
-});
+const activeUsers = await collection('users').count({ status: 'active' });
 console.log(`活跃用户数: ${activeUsers}`);
 
 // 统计特定角色用户
-const adminCount = await collection('users').count({
-  query: { role: 'admin' }
-});
+const adminCount = await collection('users').count({ role: 'admin' });
 console.log(`管理员数量: ${adminCount}`);
 ```
 
@@ -187,38 +215,30 @@ console.log(`管理员数量: ${adminCount}`);
 ```javascript
 // 范围统计
 const highValueOrders = await collection('orders').count({
-  query: {
-    amount: { $gte: 1000 },
-    status: 'completed'
-  }
+  amount: { $gte: 1000 },
+  status: 'completed'
 });
 
 // 逻辑组合统计
 const vipOrHighLevelUsers = await collection('users').count({
-  query: {
-    $or: [
-      { role: 'vip' },
-      { level: { $gte: 10 } }
-    ],
-    verified: true
-  }
+  $or: [
+    { role: 'vip' },
+    { level: { $gte: 10 } }
+  ],
+  verified: true
 });
 
 // 数组字段统计
 const featuredProducts = await collection('products').count({
-  query: {
-    tags: 'featured',
-    inStock: true
-  }
+  tags: 'featured',
+  inStock: true
 });
 
 // 日期范围统计
 const recentOrders = await collection('orders').count({
-  query: {
-    createdAt: {
-      $gte: new Date('2025-01-01'),
-      $lt: new Date('2025-02-01')
-    }
+  createdAt: {
+    $gte: new Date('2025-01-01'),
+    $lt: new Date('2025-02-01')
   }
 });
 ```
@@ -229,19 +249,19 @@ const recentOrders = await collection('orders').count({
 
 ```javascript
 // 强制使用索引
-const count = await collection('orders').count({
-  query: { 
+const count = await collection('orders').count(
+  { 
     status: 'completed',
     createdAt: { $gte: new Date('2025-01-01') }
   },
-  hint: { status: 1, createdAt: -1 }
-});
+  { hint: { status: 1, createdAt: -1 } }
+);
 
 // 查看执行计划
-const plan = await collection('orders').count({
-  query: { status: 'completed' },
-  explain: 'executionStats'
-});
+const plan = await collection('orders').count(
+  { status: 'completed' },
+  { explain: 'executionStats' }
+);
 
 console.log('执行时间:', plan.executionStats.executionTimeMillis, 'ms');
 console.log('扫描文档数:', plan.executionStats.totalDocsExamined);
@@ -252,7 +272,7 @@ console.log('扫描索引键数:', plan.executionStats.totalKeysExamined);
 - 为常用统计字段创建索引
 - 使用复合索引优化多条件统计
 - 定期分析慢查询并优化索引
-- 空查询时使用 `estimatedDocumentCount`（自动优化）
+- 空查询时自动使用 `estimatedDocumentCount`（性能最优）
 
 ### 4. 缓存使用
 
@@ -260,16 +280,16 @@ console.log('扫描索引键数:', plan.executionStats.totalKeysExamined);
 
 ```javascript
 // 缓存 5 分钟
-const activeUserCount = await collection('users').count({
-  query: { status: 'active' },
-  cache: 5 * 60 * 1000  // 5 分钟
-});
+const activeUserCount = await collection('users').count(
+  { status: 'active' },
+  { cache: 5 * 60 * 1000 }  // 5 分钟
+);
 
 // 第二次查询会从缓存返回
-const cachedCount = await collection('users').count({
-  query: { status: 'active' },
-  cache: 5 * 60 * 1000
-});
+const cachedCount = await collection('users').count(
+  { status: 'active' },
+  { cache: 5 * 60 * 1000 }
+);
 ```
 
 **缓存策略**：
@@ -287,9 +307,7 @@ monSQLize 自动优化空查询（无查询条件）：
 const totalUsers = await collection('users').count();
 
 // 有条件查询使用 countDocuments（精确，但较慢）
-const activeUsers = await collection('users').count({
-  query: { status: 'active' }
-});
+const activeUsers = await collection('users').count({ status: 'active' });
 ```
 
 **性能差异**：
@@ -302,10 +320,10 @@ const activeUsers = await collection('users').count({
 
 ```javascript
 try {
-  const count = await collection('users').count({
-    query: { status: 'active' },
-    maxTimeMS: 1000
-  });
+  const count = await collection('users').count(
+    { status: 'active' },
+    { maxTimeMS: 1000 }
+  );
   console.log('统计结果:', count);
 } catch (error) {
   if (error.code === 'NOT_CONNECTED') {
@@ -330,28 +348,20 @@ try {
 
 ```javascript
 // ❌ 不推荐：未索引字段统计（慢）
-const count = await collection('orders').count({
-  query: { customerName: 'Alice' }  // customerName 未索引
-});
+const count = await collection('orders').count({ customerName: 'Alice' });  // customerName 未索引
 
 // ✅ 推荐：索引字段统计（快）
-const count = await collection('orders').count({
-  query: { customerId: 'USER-001' }  // customerId 已索引
-});
+const count = await collection('orders').count({ customerId: 'USER-001' });  // customerId 已索引
 ```
 
 ### 2. 查询条件优化
 
 ```javascript
 // ❌ 不推荐：正则表达式统计（慢）
-const count = await collection('users').count({
-  query: { email: { $regex: /^admin/ } }
-});
+const count = await collection('users').count({ email: { $regex: /^admin/ } });
 
 // ✅ 推荐：精确匹配或前缀索引
-const count = await collection('users').count({
-  query: { role: 'admin' }
-});
+const count = await collection('users').count({ role: 'admin' });
 ```
 
 ### 3. 缓存策略
@@ -359,14 +369,12 @@ const count = await collection('users').count({
 ```javascript
 // ✅ 推荐：频繁统计启用缓存
 const getDashboardStats = async () => {
-  const totalUsers = await collection('users').count({
-    cache: 60000  // 1 分钟缓存
-  });
+  const totalUsers = await collection('users').count({}, { cache: 60000 });  // 1 分钟缓存
   
-  const activeUsers = await collection('users').count({
-    query: { status: 'active' },
-    cache: 60000
-  });
+  const activeUsers = await collection('users').count(
+    { status: 'active' },
+    { cache: 60000 }
+  );
   
   return { totalUsers, activeUsers };
 };
@@ -376,10 +384,20 @@ const getDashboardStats = async () => {
 
 ```javascript
 // 为大数据量统计设置合理超时
-const count = await collection('orders').count({
-  query: { status: 'completed' },
-  maxTimeMS: 5000  // 5 秒超时
-});
+const count = await collection('orders').count(
+  { status: 'completed' },
+  { maxTimeMS: 5000 }  // 5 秒超时
+);
+```
+
+### 5. skip 和 limit 优化
+
+```javascript
+// 统计前 1000 个匹配的文档（抽样统计）
+const sampleCount = await collection('orders').count(
+  { status: 'completed' },
+  { limit: 1000 }
+);
 ```
 
 ## 最佳实践

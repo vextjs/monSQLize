@@ -6,7 +6,7 @@
 const MonSQLize = require('../../../lib');
 const assert = require('assert');
 
-describe('distinct 方法测试套件', function() {
+describe('distinct 方法测试套件', function () {
   this.timeout(30000); // 设置超时时间为 30 秒
 
   let msq;
@@ -15,7 +15,7 @@ describe('distinct 方法测试套件', function() {
   const testData = [];
 
   // 准备测试数据
-  before(async function() {
+  before(async function () {
     console.log('🔧 初始化测试环境...');
 
     msq = new MonSQLize({
@@ -109,7 +109,7 @@ describe('distinct 方法测试套件', function() {
     console.log('✅ 索引创建完成\n');
   });
 
-  after(async function() {
+  after(async function () {
     console.log('🧹 清理测试环境...');
     if (msq && nativeCollection) {
       // 清理测试索引
@@ -135,15 +135,15 @@ describe('distinct 方法测试套件', function() {
     console.log('✅ 清理完成');
   });
 
-  describe('1. 基础去重功能', function() {
-    it('1.1 应该返回数组格式的结果', async function() {
+  describe('1. 基础去重功能', function () {
+    it('1.1 应该返回数组格式的结果', async function () {
       const result = await distinctCollection('test_products').distinct('category');
 
       assert.ok(Array.isArray(result), '应该返回数组');
       assert.ok(result.length > 0, '应该有数据');
     });
 
-    it('1.2 应该正确去重分类字段', async function() {
+    it('1.2 应该正确去重分类字段', async function () {
       const result = await distinctCollection('test_products').distinct('category');
 
       // 根据测试数据，应该有3个分类
@@ -153,7 +153,7 @@ describe('distinct 方法测试套件', function() {
       assert.equal(result.length, 3, '应该有3个唯一分类');
     });
 
-    it('1.3 应该正确去重年份字段', async function() {
+    it('1.3 应该正确去重年份字段', async function () {
       const result = await distinctCollection('test_products').distinct('year');
 
       // 根据测试数据，应该有5个年份（2020-2024）
@@ -165,7 +165,7 @@ describe('distinct 方法测试套件', function() {
       });
     });
 
-    it('1.4 应该支持字段名作为字符串参数', async function() {
+    it('1.4 应该支持字段名作为字符串参数', async function () {
       const result = await distinctCollection('test_products').distinct('category');
 
       assert.ok(Array.isArray(result), '应该返回数组');
@@ -173,42 +173,34 @@ describe('distinct 方法测试套件', function() {
     });
   });
 
-  describe('2. 带查询条件的去重', function() {
-    it('2.1 应该正确应用简单查询条件', async function() {
-      const result = await distinctCollection('test_products').distinct('category', {
-        query: { inStock: true }
-      });
+  describe('2. 带查询条件的去重', function () {
+    it('2.1 应该正确应用简单查询条件', async function () {
+      const result = await distinctCollection('test_products').distinct('category', { inStock: true });
 
       assert.ok(Array.isArray(result), '应该返回数组');
       assert.ok(result.length > 0, '应该有数据');
       assert.ok(result.length <= 3, '分类数量不应超过3');
     });
 
-    it('2.2 应该正确应用复杂查询条件', async function() {
+    it('2.2 应该正确应用复杂查询条件', async function () {
       const result = await distinctCollection('test_products').distinct('category', {
-        query: {
-          inStock: true,
-          price: { $gte: 1000 }
-        }
+        inStock: true,
+        price: { $gte: 1000 }
       });
 
       assert.ok(Array.isArray(result), '应该返回数组');
       // 结果可能为空或有数据，取决于随机价格
     });
 
-    it('2.3 应该处理返回空结果的查询', async function() {
-      const result = await distinctCollection('test_products').distinct('category', {
-        query: { price: { $gt: 999999 } }
-      });
+    it('2.3 应该处理返回空结果的查询', async function () {
+      const result = await distinctCollection('test_products').distinct('category', { price: { $gt: 999999 } });
 
       assert.ok(Array.isArray(result), '应该返回数组');
       assert.equal(result.length, 0, '应该返回空数组');
     });
 
-    it('2.4 应该支持 $in 操作符', async function() {
-      const result = await distinctCollection('test_products').distinct('category', {
-        query: { category: { $in: ['electronics', 'books'] } }
-      });
+    it('2.4 应该支持 $in 操作符', async function () {
+      const result = await distinctCollection('test_products').distinct('category', { category: { $in: ['electronics', 'books'] } });
 
       assert.ok(Array.isArray(result), '应该返回数组');
       assert.ok(result.length >= 1 && result.length <= 2, '应该返回1-2个分类');
@@ -218,8 +210,8 @@ describe('distinct 方法测试套件', function() {
     });
   });
 
-  describe('3. 嵌套字段去重', function() {
-    it('3.1 应该支持嵌套字段去重', async function() {
+  describe('3. 嵌套字段去重', function () {
+    it('3.1 应该支持嵌套字段去重', async function () {
       const result = await distinctCollection('test_products').distinct('specs.size');
 
       assert.ok(Array.isArray(result), '应该返回数组');
@@ -227,7 +219,7 @@ describe('distinct 方法测试套件', function() {
         '应该包含尺寸值');
     });
 
-    it('3.2 应该支持深层嵌套字段', async function() {
+    it('3.2 应该支持深层嵌套字段', async function () {
       const result = await distinctCollection('test_products').distinct('specs.color');
 
       assert.ok(Array.isArray(result), '应该返回数组');
@@ -235,18 +227,16 @@ describe('distinct 方法测试套件', function() {
       assert.ok(result.includes('red') || result.includes('blue'), '应该包含颜色值');
     });
 
-    it('3.3 嵌套字段应该支持查询条件', async function() {
-      const result = await distinctCollection('test_products').distinct('specs.size', {
-        query: { inStock: true }
-      });
+    it('3.3 嵌套字段应该支持查询条件', async function () {
+      const result = await distinctCollection('test_products').distinct('specs.size', { inStock: true });
 
       assert.ok(Array.isArray(result), '应该返回数组');
       assert.ok(result.length > 0, '应该有数据');
     });
   });
 
-  describe('4. 数组字段去重', function() {
-    it('4.1 应该展开数组并去重', async function() {
+  describe('4. 数组字段去重', function () {
+    it('4.1 应该展开数组并去重', async function () {
       const result = await distinctCollection('test_products').distinct('tags');
 
       assert.ok(Array.isArray(result), '应该返回数组');
@@ -254,28 +244,24 @@ describe('distinct 方法测试套件', function() {
       assert.ok(result.length > 0, '应该有标签数据');
     });
 
-    it('4.2 数组字段去重应该支持查询条件', async function() {
-      const result = await distinctCollection('test_products').distinct('tags', {
-        query: { sales: { $gte: 500 } }
-      });
+    it('4.2 数组字段去重应该支持查询条件', async function () {
+      const result = await distinctCollection('test_products').distinct('tags', { sales: { $gte: 500 } });
 
       assert.ok(Array.isArray(result), '应该返回数组');
       // 结果可能为空或有数据
     });
 
-    it('4.3 空数组应该不返回任何值', async function() {
+    it('4.3 空数组应该不返回任何值', async function () {
       // 查询 tags 为空数组的商品的 tags
-      const result = await distinctCollection('test_products').distinct('tags', {
-        query: { tags: { $size: 0 } }
-      });
+      const result = await distinctCollection('test_products').distinct('tags', { tags: { $size: 0 } });
 
       assert.ok(Array.isArray(result), '应该返回数组');
       // 空数组的文档不会贡献任何 distinct 值
     });
   });
 
-  describe('5. collation（排序规则）', function() {
-    it('5.1 默认应该区分大小写', async function() {
+  describe('5. collation（排序规则）', function () {
+    it('5.1 默认应该区分大小写', async function () {
       const result = await distinctCollection('test_products').distinct('brand');
 
       assert.ok(Array.isArray(result), '应该返回数组');
@@ -283,8 +269,8 @@ describe('distinct 方法测试套件', function() {
       assert.ok(result.length >= 2, '应该有至少2个不同的品牌');
     });
 
-    it('5.2 使用 collation 应该不区分大小写', async function() {
-      const result = await distinctCollection('test_products').distinct('brand', {
+    it('5.2 使用 collation 应该不区分大小写', async function () {
+      const result = await distinctCollection('test_products').distinct('brand', {}, {
         collation: {
           locale: 'en',
           strength: 1  // 不区分大小写
@@ -296,9 +282,8 @@ describe('distinct 方法测试套件', function() {
       // 注意：实际返回的可能是其中一个，具体取决于 MongoDB 版本和数据顺序
     });
 
-    it('5.3 collation 应该与查询条件配合使用', async function() {
-      const result = await distinctCollection('test_products').distinct('brand', {
-        query: { inStock: true },
+    it('5.3 collation 应该与查询条件配合使用', async function () {
+      const result = await distinctCollection('test_products').distinct('brand', { inStock: true }, {
         collation: {
           locale: 'en',
           strength: 1
@@ -309,32 +294,24 @@ describe('distinct 方法测试套件', function() {
     });
   });
 
-  describe('6. 缓存功能', function() {
-    it('6.1 应该支持缓存', async function() {
-      const result1 = await distinctCollection('test_products').distinct('category', {
-        cache: 60000  // 60秒
-      });
+  describe('6. 缓存功能', function () {
+    it('6.1 应该支持缓存', async function () {
+      const result1 = await distinctCollection('test_products').distinct('category', {}, { cache: 60000 });  // 60秒
 
-      const result2 = await distinctCollection('test_products').distinct('category', {
-        cache: 60000
-      });
+      const result2 = await distinctCollection('test_products').distinct('category', {}, { cache: 60000 });
 
       assert.deepEqual(result1.sort(), result2.sort(), '缓存结果应该一致');
     });
 
-    it('6.2 缓存应该提升性能', async function() {
+    it('6.2 缓存应该提升性能', async function () {
       // 第一次查询（无缓存）
       const start1 = Date.now();
-      await distinctCollection('test_products').distinct('category', {
-        cache: 60000
-      });
+      await distinctCollection('test_products').distinct('category', {}, { cache: 60000 });
       const time1 = Date.now() - start1;
 
       // 第二次查询（使用缓存）
       const start2 = Date.now();
-      await distinctCollection('test_products').distinct('category', {
-        cache: 60000
-      });
+      await distinctCollection('test_products').distinct('category', {}, { cache: 60000 });
       const time2 = Date.now() - start2;
 
       // 缓存查询应该更快（但不是严格要求，因为数据量小）
@@ -342,27 +319,19 @@ describe('distinct 方法测试套件', function() {
       assert.ok(true, '缓存功能正常');
     });
 
-    it('6.3 不同查询条件应该使用不同缓存', async function() {
-      const result1 = await distinctCollection('test_products').distinct('category', {
-        query: { inStock: true },
-        cache: 60000
-      });
+    it('6.3 不同查询条件应该使用不同缓存', async function () {
+      const result1 = await distinctCollection('test_products').distinct('category', { inStock: true }, { cache: 60000 });
 
-      const result2 = await distinctCollection('test_products').distinct('category', {
-        query: { inStock: false },
-        cache: 60000
-      });
+      const result2 = await distinctCollection('test_products').distinct('category', { inStock: false }, { cache: 60000 });
 
       // 两个查询可能返回不同的结果
       assert.ok(Array.isArray(result1), '第一个查询应该返回数组');
       assert.ok(Array.isArray(result2), '第二个查询应该返回数组');
     });
 
-    it('6.4 应该支持手动清除缓存', async function() {
+    it('6.4 应该支持手动清除缓存', async function () {
       // 先执行一次缓存查询
-      await distinctCollection('test_products').distinct('category', {
-        cache: 60000
-      });
+      await distinctCollection('test_products').distinct('category', {}, { cache: 60000 });
 
       // 清除缓存
       const deleted = await distinctCollection('test_products').invalidate('distinct');
@@ -372,44 +341,31 @@ describe('distinct 方法测试套件', function() {
     });
   });
 
-  describe('7. explain 功能', function() {
-    it('7.1 应该支持 explain: true', async function() {
-      const result = await distinctCollection('test_products').distinct('category', {
-        explain: true
-      });
+  describe('7. explain 功能', function () {
+    it('7.1 应该支持 explain: true', async function () {
+      const result = await distinctCollection('test_products').distinct('category', {}, { explain: true });
 
       assert.ok(typeof result === 'object', '应该返回对象');
       assert.ok(result.queryPlanner || result.stages, '应该包含查询计划');
     });
 
-    it('7.2 应该支持 explain: "executionStats"', async function() {
-      const result = await distinctCollection('test_products').distinct('category', {
-        explain: 'executionStats'
-      });
+    it('7.2 应该支持 explain: "executionStats"', async function () {
+      const result = await distinctCollection('test_products').distinct('category', {}, { explain: 'executionStats' });
 
       assert.ok(typeof result === 'object', '应该返回对象');
       assert.ok(result.executionStats || result.stages, '应该包含执行统计');
     });
 
-    it('7.3 explain 应该与查询条件配合使用', async function() {
-      const result = await distinctCollection('test_products').distinct('category', {
-        query: { inStock: true },
-        explain: 'executionStats'
-      });
+    it('7.3 explain 应该与查询条件配合使用', async function () {
+      const result = await distinctCollection('test_products').distinct('category', { inStock: true }, { explain: 'executionStats' });
 
       assert.ok(typeof result === 'object', '应该返回对象');
     });
 
-    it('7.4 explain 不应该触发缓存', async function() {
-      const result1 = await distinctCollection('test_products').distinct('category', {
-        cache: 60000,
-        explain: 'executionStats'
-      });
+    it('7.4 explain 不应该触发缓存', async function () {
+      const result1 = await distinctCollection('test_products').distinct('category', {}, { cache: 60000, explain: 'executionStats' });
 
-      const result2 = await distinctCollection('test_products').distinct('category', {
-        cache: 60000,
-        explain: 'executionStats'
-      });
+      const result2 = await distinctCollection('test_products').distinct('category', {}, { cache: 60000, explain: 'executionStats' });
 
       // explain 结果应该包含执行统计，不应该被缓存
       assert.ok(result1.executionStats || result1.stages, '应该有执行统计');
@@ -417,20 +373,16 @@ describe('distinct 方法测试套件', function() {
     });
   });
 
-  describe('8. maxTimeMS 超时控制', function() {
-    it('8.1 应该支持 maxTimeMS 参数', async function() {
-      const result = await distinctCollection('test_products').distinct('category', {
-        maxTimeMS: 5000
-      });
+  describe('8. maxTimeMS 超时控制', function () {
+    it('8.1 应该支持 maxTimeMS 参数', async function () {
+      const result = await distinctCollection('test_products').distinct('category', {}, { maxTimeMS: 5000 });
 
       assert.ok(Array.isArray(result), '应该返回数组');
     });
 
-    it('8.2 超时应该抛出错误', async function() {
+    it('8.2 超时应该抛出错误', async function () {
       try {
-        await distinctCollection('test_products').distinct('category', {
-          maxTimeMS: 1  // 极短超时
-        });
+        await distinctCollection('test_products').distinct('category', {}, { maxTimeMS: 1 });  // 极短超时
         // 如果没有抛出错误，可能是查询太快了
         assert.ok(true, '查询完成（可能太快而未超时）');
       } catch (error) {
@@ -440,15 +392,15 @@ describe('distinct 方法测试套件', function() {
     });
   });
 
-  describe('9. 边界情况和错误处理', function() {
-    it('9.1 应该处理不存在的字段', async function() {
+  describe('9. 边界情况和错误处理', function () {
+    it('9.1 应该处理不存在的字段', async function () {
       const result = await distinctCollection('test_products').distinct('nonExistentField');
 
       assert.ok(Array.isArray(result), '应该返回数组');
       // 不存在的字段会返回空数组或包含 undefined/null
     });
 
-    it('9.2 应该处理空集合', async function() {
+    it('9.2 应该处理空集合', async function () {
       const db = msq._adapter.db;
       await db.collection('test_empty').deleteMany({});
 
@@ -458,7 +410,7 @@ describe('distinct 方法测试套件', function() {
       assert.equal(result.length, 0, '空集合应该返回空数组');
     });
 
-    it('9.3 应该处理 null 值', async function() {
+    it('9.3 应该处理 null 值', async function () {
       const db = msq._adapter.db;
       const testColl = db.collection('test_null_distinct');
 
@@ -481,7 +433,7 @@ describe('distinct 方法测试套件', function() {
       await testColl.drop();
     });
 
-    it('9.4 应该处理空字符串', async function() {
+    it('9.4 应该处理空字符串', async function () {
       const db = msq._adapter.db;
       const testColl = db.collection('test_empty_string');
 
@@ -502,7 +454,7 @@ describe('distinct 方法测试套件', function() {
       await testColl.drop();
     });
 
-    it('9.5 应该处理大数据量', async function() {
+    it('9.5 应该处理大数据量', async function () {
       // 使用现有的100条数据
       const result = await distinctCollection('test_products').distinct('productId');
 
@@ -511,11 +463,11 @@ describe('distinct 方法测试套件', function() {
     });
   });
 
-  describe('10. 与其他方法的集成', function() {
-    it('10.1 distinct 结果应该与 find 一致', async function() {
+  describe('10. 与其他方法的集成', function () {
+    it('10.1 distinct 结果应该与 find 一致', async function () {
       const distinctResult = await distinctCollection('test_products').distinct('category');
 
-      const findResult = await distinctCollection('test_products').find({
+      const findResult = await distinctCollection('test_products').find({}, {
         projection: ['category'],
         limit: 1000
       });
@@ -526,19 +478,17 @@ describe('distinct 方法测试套件', function() {
         'distinct 和 find 的结果应该一致');
     });
 
-    it('10.2 distinct 应该与 count 结果相关', async function() {
+    it('10.2 distinct 应该与 count 结果相关', async function () {
       const categories = await distinctCollection('test_products').distinct('category');
 
       for (const category of categories) {
-        const count = await distinctCollection('test_products').count({
-          query: { category }
-        });
+        const count = await distinctCollection('test_products').count({ category });
 
         assert.ok(count > 0, `分类 ${category} 应该有数据`);
       }
     });
 
-    it('10.3 应该支持命名空间隔离', async function() {
+    it('10.3 应该支持命名空间隔离', async function () {
       const result1 = await distinctCollection('test_products').distinct('category');
       const result2 = await distinctCollection('test_empty', 'another_db').distinct('category');
 
@@ -548,8 +498,8 @@ describe('distinct 方法测试套件', function() {
     });
   });
 
-  describe('11. 性能测试', function() {
-    it('11.1 索引应该提升 distinct 性能', async function() {
+  describe('11. 性能测试', function () {
+    it('11.1 索引应该提升 distinct 性能', async function () {
       // 使用有索引的字段
       const start1 = Date.now();
       await distinctCollection('test_products').distinct('category');
@@ -559,11 +509,9 @@ describe('distinct 方法测试套件', function() {
       assert.ok(time1 < 1000, 'distinct 应该在1秒内完成');
     });
 
-    it('11.2 带查询条件的 distinct 应该能利用索引', async function() {
+    it('11.2 带查询条件的 distinct 应该能利用索引', async function () {
       const start = Date.now();
-      const result = await distinctCollection('test_products').distinct('category', {
-        query: { inStock: true }
-      });
+      const result = await distinctCollection('test_products').distinct('category', { inStock: true });
       const time = Date.now() - start;
 
       console.log(`  带条件的 distinct 耗时: ${time}ms`);
@@ -572,18 +520,15 @@ describe('distinct 方法测试套件', function() {
     });
   });
 
-  describe('12. 实际应用场景测试', function() {
-    it('12.1 获取筛选器选项', async function() {
-      const categories = await distinctCollection('test_products').distinct('category', {
-        query: { inStock: true },
-        cache: 5 * 60 * 1000
-      });
+  describe('12. 实际应用场景测试', function () {
+    it('12.1 获取筛选器选项', async function () {
+      const categories = await distinctCollection('test_products').distinct('category', { inStock: true }, { cache: 5 * 60 * 1000 });
 
       assert.ok(Array.isArray(categories), '应该返回数组');
       assert.ok(categories.length > 0, '应该有分类数据');
     });
 
-    it('12.2 统计维度值', async function() {
+    it('12.2 统计维度值', async function () {
       const years = await distinctCollection('test_products').distinct('year');
       const categories = await distinctCollection('test_products').distinct('category');
 
@@ -593,13 +538,11 @@ describe('distinct 方法测试套件', function() {
       console.log(`  统计维度: ${years.length} 个年份, ${categories.length} 个分类`);
     });
 
-    it('12.3 多维度组合查询', async function() {
+    it('12.3 多维度组合查询', async function () {
       const categories = await distinctCollection('test_products').distinct('category');
 
       for (const category of categories) {
-        const sizes = await distinctCollection('test_products').distinct('specs.size', {
-          query: { category }
-        });
+        const sizes = await distinctCollection('test_products').distinct('specs.size', { category });
 
         assert.ok(Array.isArray(sizes), `分类 ${category} 应该有尺寸数据`);
         console.log(`  ${category}: ${sizes.length} 种尺寸`);

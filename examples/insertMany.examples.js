@@ -49,15 +49,11 @@ async function main() {
         // ============================================================
         console.log('【示例 2】有序插入（ordered: true，默认）');
 
-        // 先创建唯一索引
-        await collection('products').createIndex({ sku: 1 }, { unique: true });
-        console.log('✅ 创建唯一索引: sku');
-
         const products1 = [
-            { name: 'Product A', sku: 'SKU001', price: 100 },
-            { name: 'Product B', sku: 'SKU002', price: 200 },
-            { name: 'Product C', sku: 'SKU001', price: 300 }, // ❌ 重复 SKU
-            { name: 'Product D', sku: 'SKU003', price: 400 }  // ⚠️ 不会被插入
+            { _id: 'prod-001', name: 'Product A', price: 100 },
+            { _id: 'prod-002', name: 'Product B', price: 200 },
+            { _id: 'prod-001', name: 'Product C', price: 300 }, // ❌ 重复 _id
+            { _id: 'prod-003', name: 'Product D', price: 400 }  // ⚠️ 不会被插入
         ];
 
         try {
@@ -65,12 +61,11 @@ async function main() {
         } catch (error) {
             console.log('❌ 有序插入遇到错误时停止:');
             console.log('- code:', error.code);
-            console.log('- insertedCount:', error.insertedCount); // 前 2 个成功
             console.log('提示: 有序模式下，遇到错误立即停止，后续文档不会插入');
         }
 
         // 验证插入结果
-        const count1 = await collection('products').count({ query: {} });
+        const count1 = await collection('products').count({});
         console.log('products 集合文档数:', count1); // 应该是 2
         console.log();
 
@@ -80,10 +75,10 @@ async function main() {
         console.log('【示例 3】无序插入（ordered: false）');
 
         const products2 = [
-            { name: 'Product E', sku: 'SKU004', price: 500 },
-            { name: 'Product F', sku: 'SKU001', price: 600 }, // ❌ 重复 SKU
-            { name: 'Product G', sku: 'SKU005', price: 700 }, // ✅ 会被插入
-            { name: 'Product H', sku: 'SKU006', price: 800 }  // ✅ 会被插入
+            { _id: 'prod-004', name: 'Product E', price: 500 },
+            { _id: 'prod-001', name: 'Product F', price: 600 }, // ❌ 重复 _id
+            { _id: 'prod-005', name: 'Product G', price: 700 }, // ✅ 会被插入
+            { _id: 'prod-006', name: 'Product H', price: 800 }  // ✅ 会被插入
         ];
 
         try {
@@ -91,12 +86,11 @@ async function main() {
         } catch (error) {
             console.log('❌ 无序插入遇到错误但继续处理其他文档:');
             console.log('- code:', error.code);
-            console.log('- insertedCount:', error.insertedCount); // 3 个成功（跳过重复的）
             console.log('提示: 无序模式下，遇到错误继续插入其他文档');
         }
 
         // 验证插入结果
-        const count2 = await collection('products').count({ query: {} });
+        const count2 = await collection('products').count({});
         console.log('products 集合文档数:', count2); // 应该是 5 (2 + 3)
         console.log();
 

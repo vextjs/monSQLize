@@ -46,27 +46,33 @@ const MonSQLize = require('monsqlize');
   }).connect();
 
   // 查询单个文档
-  const one = await collection('test').findOne({
-    query: { status: 'active' },
-    cache: 5000,            // 缓存 5 秒
-    maxTimeMS: 1500         // 覆盖全局超时
-  });
+  const one = await collection('test').findOne(
+    { status: 'active' },
+    {
+      cache: 5000,            // 缓存 5 秒
+      maxTimeMS: 1500         // 覆盖全局超时
+    }
+  );
   console.log('findOne ->', one);
 
   // 查询多个文档
-  const list = await collection('test').find({
-    query: { category: 'electronics' },
-    limit: 10,              // 限制 10 条
-    cache: 3000             // 缓存 3 秒
-  });
+  const list = await collection('test').find(
+    { category: 'electronics' },
+    {
+      limit: 10,              // 限制 10 条
+      cache: 3000             // 缓存 3 秒
+    }
+  );
   console.log('find ->', list.length);
 
   // 跨库访问
-  const event = await db('analytics').collection('events').findOne({
-    query: { type: 'click' },
-    cache: 3000,
-    maxTimeMS: 1500
-  });
+  const event = await db('analytics').collection('events').findOne(
+    { type: 'click' },
+    {
+      cache: 3000,
+      maxTimeMS: 1500
+    }
+  );
   console.log('跨库查询 ->', event);
 })();
 ```
@@ -138,22 +144,26 @@ const MonSQLize = require('monsqlize');
 
 ```js
 // 数组模式（默认）
-const products = await collection('products').find({
-  query: { category: 'electronics', inStock: true },
-  projection: { name: 1, price: 1 },
-  sort: { price: -1 },
-  limit: 20,
-  cache: 5000,
-  comment: 'ProductAPI:listProducts:user_123'  // 生产环境日志跟踪（可选）
-});
+const products = await collection('products').find(
+  { category: 'electronics', inStock: true },
+  {
+    projection: { name: 1, price: 1 },
+    sort: { price: -1 },
+    limit: 20,
+    cache: 5000,
+    comment: 'ProductAPI:listProducts:user_123'  // 生产环境日志跟踪（可选）
+  }
+);
 
 // 流式传输（大数据量）
-const stream = await collection('products').find({
-  query: { category: 'electronics' },
-  stream: true,              // 返回流
-  cache: 0,                  // 禁用缓存
-  comment: 'ExportService:streamProducts'      // 标识查询来源
-});
+const stream = await collection('products').find(
+  { category: 'electronics' },
+  {
+    stream: true,              // 返回流
+    cache: 0,                  // 禁用缓存
+    comment: 'ExportService:streamProducts'      // 标识查询来源
+  }
+);
 
 stream.on('data', (doc) => {
   console.log('处理文档:', doc);
@@ -172,34 +182,40 @@ stream.on('end', () => {
 
 ```js
 // 游标分页（推荐）
-const page1 = await collection('products').findPage({
-  query: { category: 'electronics' },
-  limit: 20,
-  sort: { createdAt: -1 },
-  bookmarks: {
-    step: 10,                // 每 10 页缓存一个书签
-    maxHops: 20,             // 最多跳跃 20 次
-    ttlMs: 3600000           // 书签缓存 1 小时
+const page1 = await collection('products').findPage(
+  { category: 'electronics' },
+  {
+    limit: 20,
+    sort: { createdAt: -1 },
+    bookmarks: {
+      step: 10,                // 每 10 页缓存一个书签
+      maxHops: 20,             // 最多跳跃 20 次
+      ttlMs: 3600000           // 书签缓存 1 小时
+    }
   }
-});
+);
 
 console.log('第 1 页:', page1.data);
 console.log('下一页游标:', page1.cursor);
 
 // 使用游标获取下一页
-const page2 = await collection('products').findPage({
-  query: { category: 'electronics' },
-  limit: 20,
-  cursor: page1.cursor       // 传入上一页的游标
-});
+const page2 = await collection('products').findPage(
+  { category: 'electronics' },
+  {
+    limit: 20,
+    cursor: page1.cursor       // 传入上一页的游标
+  }
+);
 
 // 跳页模式（跳到第 100 页）
-const page100 = await collection('products').findPage({
-  query: { category: 'electronics' },
-  limit: 20,
-  page: 100,                 // 跳到第 100 页
-  bookmarks: { step: 10, maxHops: 20, ttlMs: 3600000 }
-});
+const page100 = await collection('products').findPage(
+  { category: 'electronics' },
+  {
+    limit: 20,
+    page: 100,                 // 跳到第 100 页
+    bookmarks: { step: 10, maxHops: 20, ttlMs: 3600000 }
+  }
+);
 ```
 
 **详细文档**: [docs/findPage.md](./docs/findPage.md)
@@ -248,11 +264,13 @@ const msq = new MonSQLize({
 });
 
 // 查询级缓存
-const products = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 5000,               // 缓存 5 秒
-  maxTimeMS: 3000
-});
+const products = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 5000,               // 缓存 5 秒
+    maxTimeMS: 3000
+  }
+);
 
 // 获取缓存统计
 const stats = msq.getCacheStats();
@@ -284,10 +302,12 @@ const msq = new MonSQLize({
 const { db, collection } = await msq.connect();
 
 // 跨库访问
-const analyticsEvent = await db('analytics').collection('events').findOne({
-  query: { type: 'click' },
-  cache: 3000
-});
+const analyticsEvent = await db('analytics').collection('events').findOne(
+  { type: 'click' },
+  {
+    cache: 3000
+  }
+);
 
 // 关闭连接
 await msq.close();
@@ -314,9 +334,9 @@ await msq.connect();
 const { collection } = msq;
 
 // 所有查询自动从从节点读取（降低主节点负载）
-const products = await collection('products').find({
-  query: { category: 'electronics' }
-});
+const products = await collection('products').find(
+  { category: 'electronics' }
+);
 
 console.log(`✅ 从从节点读取 ${products.length} 条数据`);
 ```
@@ -436,18 +456,22 @@ const msq = new MonSQLize({
 const { collection } = await msq.connect();
 
 // 第 1 次查询：缓存 miss → 查询 MongoDB → 存入本地 + Redis
-const products1 = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 10000,                           // 缓存 10 秒
-  maxTimeMS: 3000
-});
+const products1 = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 10000,                           // 缓存 10 秒
+    maxTimeMS: 3000
+  }
+);
 
 // 第 2 次查询：本地缓存命中（0.001ms）
-const products2 = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 10000,
-  maxTimeMS: 3000
-});
+const products2 = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 10000,
+    maxTimeMS: 3000
+  }
+);
 
 // 如果本地缓存过期，但 Redis 还有 → 从 Redis 读取（1-2ms）并回填本地
 ```

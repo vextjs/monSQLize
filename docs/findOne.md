@@ -7,16 +7,31 @@
 ## 方法签名
 
 ```javascript
-async findOne(options = {})
+async findOne(query = {}, options = {})
 ```
 
 ## 参数说明
+
+### query 参数
+
+**类型**: `Object`  
+**默认值**: `{}`  
+**必填**: 否
+
+MongoDB 查询条件对象，支持所有 MongoDB 查询操作符。
+
+**示例**:
+```javascript
+{ status: 'active' }
+{ age: { $gte: 18, $lte: 65 } }
+{ tags: { $in: ['featured', 'hot'] } }
+{ $or: [{ priority: 'high' }, { urgent: true }] }
+```
 
 ### options 对象属性
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `query` | Object | 否 | `{}` | MongoDB 查询条件，如 `{ status: 'active', age: { $gt: 18 } }` |
 | `projection` | Object/Array | 否 | - | 字段投影配置，指定返回的字段 |
 | `sort` | Object | 否 | - | 排序规则，如 `{ createdAt: -1, name: 1 }` |
 | `hint` | Object/String | 否 | - | 指定查询使用的索引 |
@@ -43,16 +58,20 @@ comment: 'ProductDetailPage:loadProduct:session_abc123'
 **示例**：
 ```javascript
 // 用户详情页查询
-const user = await collection('users').findOne({
-  query: { _id: userId },
-  comment: 'UserProfile:loadUser:session_xyz'
-});
+const user = await collection('users').findOne(
+  { _id: userId },
+  {
+    comment: 'UserProfile:loadUser:session_xyz'
+  }
+);
 
 // 商品详情页查询
-const product = await collection('products').findOne({
-  query: { sku: 'PROD-001' },
-  comment: 'ProductPage:getDetails:traceId=abc123'
-});
+const product = await collection('products').findOne(
+  { sku: 'PROD-001' },
+  {
+    comment: 'ProductPage:getDetails:traceId=abc123'
+  }
+);
 ```
 
 **参考**：完整的 comment 使用指南请参考 [find 方法文档](./find.md#comment-配置)
@@ -139,9 +158,9 @@ collation: {
 默认情况下，`findOne` 方法返回一个 Promise，resolve 为匹配的第一条文档或 null：
 
 ```javascript
-const user = await collection('users').findOne({
-  query: { email: 'alice@example.com' }
-});
+const user = await collection('users').findOne(
+  { email: 'alice@example.com' }
+);
 
 // user = { _id: '...', name: 'Alice', email: 'alice@example.com', ... }
 // 或 null（如果未找到）
@@ -154,10 +173,12 @@ const user = await collection('users').findOne({
 当 `explain` 为 true 或指定级别时，返回查询执行计划：
 
 ```javascript
-const plan = await collection('users').findOne({
-  query: { email: 'alice@example.com' },
-  explain: 'executionStats'
-});
+const plan = await collection('users').findOne(
+  { email: 'alice@example.com' },
+  {
+    explain: 'executionStats'
+  }
+);
 
 // plan = {
 //   queryPlanner: { ... },
@@ -180,21 +201,25 @@ const plan = await collection('users').findOne({
 
 ```javascript
 // 根据 ID 查询用户
-const user = await collection('users').findOne({
-  query: { _id: ObjectId('507f1f77bcf86cd799439011') }
-});
+const user = await collection('users').findOne(
+  { _id: ObjectId('507f1f77bcf86cd799439011') }
+);
 
 // 根据条件查询
-const activeUser = await collection('users').findOne({
-  query: { status: 'active' },
-  sort: { createdAt: -1 }  // 获取最新的活跃用户
-});
+const activeUser = await collection('users').findOne(
+  { status: 'active' },
+  {
+    sort: { createdAt: -1 }  // 获取最新的活跃用户
+  }
+);
 
 // 指定返回字段
-const userProfile = await collection('users').findOne({
-  query: { email: 'alice@example.com' },
-  projection: { name: 1, email: 1, avatar: 1 }
-});
+const userProfile = await collection('users').findOne(
+  { email: 'alice@example.com' },
+  {
+    projection: { name: 1, email: 1, avatar: 1 }
+  }
+);
 ```
 
 **适用场景**：
@@ -208,33 +233,37 @@ const userProfile = await collection('users').findOne({
 
 ```javascript
 // 范围查询
-const order = await collection('orders').findOne({
-  query: {
+const order = await collection('orders').findOne(
+  {
     amount: { $gte: 1000 },
     status: 'paid'
   },
-  sort: { createdAt: -1 }
-});
+  {
+    sort: { createdAt: -1 }
+  }
+);
 
 // 逻辑组合查询
-const user = await collection('users').findOne({
-  query: {
+const user = await collection('users').findOne(
+  {
     $or: [
       { role: 'admin' },
       { level: { $gte: 10 } }
     ],
     verified: true
   }
-});
+);
 
 // 数组查询
-const product = await collection('products').findOne({
-  query: {
+const product = await collection('products').findOne(
+  {
     tags: 'featured',
     'reviews.rating': { $gte: 4.5 }
   },
-  sort: { rating: -1 }
-});
+  {
+    sort: { rating: -1 }
+  }
+);
 ```
 
 ### 3. 使用索引优化
@@ -243,16 +272,20 @@ const product = await collection('products').findOne({
 
 ```javascript
 // 强制使用索引
-const user = await collection('users').findOne({
-  query: { email: 'alice@example.com' },
-  hint: { email: 1 }
-});
+const user = await collection('users').findOne(
+  { email: 'alice@example.com' },
+  {
+    hint: { email: 1 }
+  }
+);
 
 // 查看执行计划
-const plan = await collection('users').findOne({
-  query: { email: 'alice@example.com' },
-  explain: 'executionStats'
-});
+const plan = await collection('users').findOne(
+  { email: 'alice@example.com' },
+  {
+    explain: 'executionStats'
+  }
+);
 ```
 
 **性能优化建议**：
@@ -266,10 +299,12 @@ const plan = await collection('users').findOne({
 
 ```javascript
 // 缓存 5 分钟
-const user = await collection('users').findOne({
-  query: { _id: ObjectId('507f1f77bcf86cd799439011') },
-  cache: 5 * 60 * 1000  // 5 分钟
-});
+const user = await collection('users').findOne(
+  { _id: ObjectId('507f1f77bcf86cd799439011') },
+  {
+    cache: 5 * 60 * 1000  // 5 分钟
+  }
+);
 ```
 
 **缓存策略**：
@@ -283,9 +318,9 @@ const user = await collection('users').findOne({
 
 ```javascript
 try {
-  const user = await collection('users').findOne({
-    query: { email: 'alice@example.com' }
-  });
+  const user = await collection('users').findOne(
+    { email: 'alice@example.com' }
+  );
 } catch (error) {
   if (error.code === 'NOT_CONNECTED') {
     console.error('数据库未连接');

@@ -103,6 +103,9 @@ async function runTests() {
   } else if (testSuite === 'explain') {
     testFiles = ['./unit/features/explain.test.js'];
     title = 'Explain API 测试套件';
+  } else if (testSuite === 'chaining') {
+    testFiles = ['./unit/features/chaining.test.js'];
+    title = '链式调用方法测试套件';
   } else if (testSuite === 'bookmarks') {
     testFiles = ['./unit/features/bookmarks.test.js'];
     title = 'Bookmark 维护 APIs 测试套件';
@@ -136,13 +139,16 @@ async function runTests() {
   } else if (testSuite === 'insertMany') {
     testFiles = ['./unit/features/insertMany.test.js'];
     title = 'insertMany 方法测试套件';
+  } else if (testSuite === 'insertBatch') {
+    testFiles = ['./unit/features/insertBatch.test.js'];
+    title = 'insertBatch 方法测试套件';
   } else if (testSuite === 'all') {
     // all 模式：顺序执行各个测试套件，避免并发初始化问题
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
     console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const overallStartTime = Date.now();
@@ -184,7 +190,7 @@ async function runTests() {
     process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|explain|bookmarks|insertOne|insertMany|utils|infrastructure|logger|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|utils|infrastructure|logger|all]\n');
     process.exit(1);
   }
 

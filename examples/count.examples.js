@@ -137,15 +137,11 @@ async function example1_BasicCount() {
         console.log('总用户数:', totalUsers);
 
         // 统计活跃用户
-        const activeUsers = await collection(COLLECTIONS.USERS).count({
-            query: { status: 'active' }
-        });
+        const activeUsers = await collection(COLLECTIONS.USERS).count({ status: 'active' });
         console.log('活跃用户数:', activeUsers);
 
         // 统计非活跃用户
-        const inactiveUsers = await collection(COLLECTIONS.USERS).count({
-            query: { status: 'inactive' }
-        });
+        const inactiveUsers = await collection(COLLECTIONS.USERS).count({ status: 'inactive' });
         console.log('非活跃用户数:', inactiveUsers);
 
         // 验证统计结果
@@ -169,35 +165,27 @@ async function example2_ConditionalCount() {
 
     try {
         // 范围统计：高消费用户（消费超过 10000）
-        const highSpenders = await collection(COLLECTIONS.USERS).count({
-            query: { totalSpent: { $gte: 10000 } }
-        });
+        const highSpenders = await collection(COLLECTIONS.USERS).count({ totalSpent: { $gte: 10000 } });
         console.log('高消费用户数:', highSpenders);
 
         // 逻辑组合统计：VIP 或高等级用户
         const vipOrHighLevel = await collection(COLLECTIONS.USERS).count({
-            query: {
-                $or: [
-                    { role: 'vip' },
-                    { level: { $gte: 8 } }
-                ]
-            }
+            $or: [
+                { role: 'vip' },
+                { level: { $gte: 8 } }
+            ]
         });
         console.log('VIP 或高等级用户数:', vipOrHighLevel);
 
         // 多条件统计：活跃且已验证的用户
         const activeVerified = await collection(COLLECTIONS.USERS).count({
-            query: {
-                status: 'active',
-                verified: true
-            }
+            status: 'active',
+            verified: true
         });
         console.log('活跃且已验证用户数:', activeVerified);
 
         // $ne 操作符：非管理员用户
-        const nonAdmins = await collection(COLLECTIONS.USERS).count({
-            query: { role: { $ne: 'admin' } }
-        });
+        const nonAdmins = await collection(COLLECTIONS.USERS).count({ role: { $ne: 'admin' } });
         console.log('非管理员用户数:', nonAdmins);
 
     } catch (error) {
@@ -231,9 +219,7 @@ async function example3_MultiCollectionStats() {
 
         // 商品统计
         const totalProducts = await collection(COLLECTIONS.PRODUCTS).count();
-        const inStockProducts = await collection(COLLECTIONS.PRODUCTS).count({
-            query: { inStock: true }
-        });
+        const inStockProducts = await collection(COLLECTIONS.PRODUCTS).count({ inStock: true });
         const outOfStock = totalProducts - inStockProducts;
 
         console.log('商品统计:');
@@ -243,12 +229,8 @@ async function example3_MultiCollectionStats() {
 
         // 订单统计
         const totalOrders = await collection(COLLECTIONS.ORDERS).count();
-        const completedOrders = await collection(COLLECTIONS.ORDERS).count({
-            query: { status: 'completed' }
-        });
-        const pendingOrders = await collection(COLLECTIONS.ORDERS).count({
-            query: { status: 'pending' }
-        });
+        const completedOrders = await collection(COLLECTIONS.ORDERS).count({ status: 'completed' });
+        const pendingOrders = await collection(COLLECTIONS.ORDERS).count({ status: 'pending' });
 
         console.log('\n订单统计:');
         console.log(`  总订单数: ${totalOrders}`);
@@ -279,32 +261,24 @@ async function example4_DateRangeCount() {
         const oneMonthAgo = new Date(now - 30 * 24 * 3600000);
 
         // 最近 24 小时的订单
-        const last24Hours = await collection(COLLECTIONS.ORDERS).count({
-            query: { createdAt: { $gte: oneDayAgo } }
-        });
+        const last24Hours = await collection(COLLECTIONS.ORDERS).count({ createdAt: { $gte: oneDayAgo } });
         console.log('最近 24 小时订单数:', last24Hours);
 
         // 最近 7 天的订单
-        const last7Days = await collection(COLLECTIONS.ORDERS).count({
-            query: { createdAt: { $gte: oneWeekAgo } }
-        });
+        const last7Days = await collection(COLLECTIONS.ORDERS).count({ createdAt: { $gte: oneWeekAgo } });
         console.log('最近 7 天订单数:', last7Days);
 
         // 最近 30 天的订单
-        const last30Days = await collection(COLLECTIONS.ORDERS).count({
-            query: { createdAt: { $gte: oneMonthAgo } }
-        });
+        const last30Days = await collection(COLLECTIONS.ORDERS).count({ createdAt: { $gte: oneMonthAgo } });
         console.log('最近 30 天订单数:', last30Days);
 
         // 特定日期范围的订单
         const startDate = new Date('2025-01-01');
         const endDate = new Date('2025-02-01');
         const rangeOrders = await collection(COLLECTIONS.ORDERS).count({
-            query: {
-                createdAt: {
-                    $gte: startDate,
-                    $lt: endDate
-                }
+            createdAt: {
+                $gte: startDate,
+                $lt: endDate
             }
         });
         console.log(`2025年1月订单数: ${rangeOrders}`);
@@ -327,27 +301,19 @@ async function example5_ArrayFieldCount() {
 
     try {
         // 统计包含 'featured' 标签的商品
-        const featuredProducts = await collection(COLLECTIONS.PRODUCTS).count({
-            query: { tags: 'featured' }
-        });
+        const featuredProducts = await collection(COLLECTIONS.PRODUCTS).count({ tags: 'featured' });
         console.log('精选商品数:', featuredProducts);
 
         // 统计包含 'hot' 标签的商品
-        const hotProducts = await collection(COLLECTIONS.PRODUCTS).count({
-            query: { tags: 'hot' }
-        });
+        const hotProducts = await collection(COLLECTIONS.PRODUCTS).count({ tags: 'hot' });
         console.log('热门商品数:', hotProducts);
 
         // 统计电子产品类别
-        const electronics = await collection(COLLECTIONS.PRODUCTS).count({
-            query: { category: 'electronics' }
-        });
+        const electronics = await collection(COLLECTIONS.PRODUCTS).count({ category: 'electronics' });
         console.log('电子产品数:', electronics);
 
         // 统计图书类别
-        const books = await collection(COLLECTIONS.PRODUCTS).count({
-            query: { category: 'books' }
-        });
+        const books = await collection(COLLECTIONS.PRODUCTS).count({ category: 'books' });
         console.log('图书数:', books);
 
     } catch (error) {
@@ -371,26 +337,26 @@ async function example6_CachedCount() {
 
         // 第一次查询（无缓存）
         const startTime1 = Date.now();
-        const count1 = await collection(COLLECTIONS.USERS).count({
-            query: { status: 'active' },
-            cache: 60000  // 缓存 1 分钟
-        });
+        const count1 = await collection(COLLECTIONS.USERS).count(
+            { status: 'active' },
+            { cache: 60000 }  // 缓存 1 分钟
+        );
         const time1 = Date.now() - startTime1;
 
         // 第二次查询（使用缓存）
         const startTime2 = Date.now();
-        const count2 = await collection(COLLECTIONS.USERS).count({
-            query: { status: 'active' },
-            cache: 60000
-        });
+        const count2 = await collection(COLLECTIONS.USERS).count(
+            { status: 'active' },
+            { cache: 60000 }
+        );
         const time2 = Date.now() - startTime2;
 
         // 第三次查询（使用缓存）
         const startTime3 = Date.now();
-        const count3 = await collection(COLLECTIONS.USERS).count({
-            query: { status: 'active' },
-            cache: 60000
-        });
+        const count3 = await collection(COLLECTIONS.USERS).count(
+            { status: 'active' },
+            { cache: 60000 }
+        );
         const time3 = Date.now() - startTime3;
 
         console.log('统计结果:', count1);
@@ -420,9 +386,7 @@ async function example7_ExplainCount() {
 
     try {
         // 查看空查询执行计划
-        const plan1 = await collection(COLLECTIONS.USERS).count({
-            explain: 'executionStats'
-        });
+        const plan1 = await collection(COLLECTIONS.USERS).count({}, { explain: 'executionStats' });
 
         console.log('空查询执行计划:');
         console.log('  执行时间:', plan1.executionStats?.executionTimeMillis || 0, 'ms');
@@ -430,10 +394,10 @@ async function example7_ExplainCount() {
         console.log('  是否使用估算:', plan1.command?.estimatedDocumentCount ? '是' : '否');
 
         // 查看条件查询执行计划
-        const plan2 = await collection(COLLECTIONS.USERS).count({
-            query: { status: 'active' },
-            explain: 'executionStats'
-        });
+        const plan2 = await collection(COLLECTIONS.USERS).count(
+            { status: 'active' },
+            { explain: 'executionStats' }
+        );
 
         console.log('\n条件查询执行计划:');
         console.log('  执行时间:', plan2.executionStats?.executionTimeMillis || 0, 'ms');
@@ -469,10 +433,10 @@ async function example8_HintCount() {
         }
 
         // 使用索引提示
-        const count = await collection(COLLECTIONS.USERS).count({
-            query: { status: 'active' },
-            hint: { status: 1 }
-        });
+        const count = await collection(COLLECTIONS.USERS).count(
+            { status: 'active' },
+            { hint: { status: 1 } }
+        );
 
         console.log('使用索引提示统计结果:', count);
 
@@ -503,9 +467,7 @@ async function example9_ErrorHandling() {
 
         // 测试 2: 无效的查询条件
         try {
-            const count = await collection(COLLECTIONS.USERS).count({
-                query: { $invalidOperator: 'value' }
-            });
+            const count = await collection(COLLECTIONS.USERS).count({ $invalidOperator: 'value' });
             console.log('无效查询条件统计结果:', count);
         } catch (error) {
             console.log('无效查询条件错误:', error.message);
@@ -513,10 +475,10 @@ async function example9_ErrorHandling() {
 
         // 测试 3: 超时处理
         try {
-            const count = await collection(COLLECTIONS.ORDERS).count({
-                query: { status: 'completed' },
-                maxTimeMS: 1  // 设置极短超时测试
-            });
+            const count = await collection(COLLECTIONS.ORDERS).count(
+                { status: 'completed' },
+                { maxTimeMS: 1 }  // 设置极短超时测试
+            );
             console.log('超时测试统计结果:', count);
         } catch (error) {
             console.log('超时错误:', error.message.includes('timeout') ? '查询超时' : error.message);
@@ -544,42 +506,34 @@ async function example10_BestPractices() {
         // 最佳实践：使用缓存、设置超时、索引优化
         const dashboardStats = await Promise.all([
             // 总用户数（空查询，自动优化）
-            collection(COLLECTIONS.USERS).count({
-                cache: 300000  // 缓存 5 分钟
-            }),
+            collection(COLLECTIONS.USERS).count({}, { cache: 300000 }),  // 缓存 5 分钟
 
             // 活跃用户数（索引字段，缓存）
-            collection(COLLECTIONS.USERS).count({
-                query: { status: 'active' },
-                cache: 60000,  // 缓存 1 分钟
-                maxTimeMS: 5000
-            }),
+            collection(COLLECTIONS.USERS).count(
+                { status: 'active' },
+                { cache: 60000, maxTimeMS: 5000 }  // 缓存 1 分钟
+            ),
 
             // VIP 用户数
-            collection(COLLECTIONS.USERS).count({
-                query: { role: 'vip' },
-                cache: 60000,
-                maxTimeMS: 5000
-            }),
+            collection(COLLECTIONS.USERS).count(
+                { role: 'vip' },
+                { cache: 60000, maxTimeMS: 5000 }
+            ),
 
             // 总订单数
-            collection(COLLECTIONS.ORDERS).count({
-                cache: 300000
-            }),
+            collection(COLLECTIONS.ORDERS).count({}, { cache: 300000 }),
 
             // 待处理订单数
-            collection(COLLECTIONS.ORDERS).count({
-                query: { status: 'pending' },
-                cache: 30000,  // 缓存 30 秒（更新频繁）
-                maxTimeMS: 5000
-            }),
+            collection(COLLECTIONS.ORDERS).count(
+                { status: 'pending' },
+                { cache: 30000, maxTimeMS: 5000 }  // 缓存 30 秒（更新频繁）
+            ),
 
             // 已完成订单数
-            collection(COLLECTIONS.ORDERS).count({
-                query: { status: 'completed' },
-                cache: 60000,
-                maxTimeMS: 5000
-            })
+            collection(COLLECTIONS.ORDERS).count(
+                { status: 'completed' },
+                { cache: 60000, maxTimeMS: 5000 }
+            )
         ]);
 
         const [totalUsers, activeUsers, vipUsers, totalOrders, pendingOrders, completedOrders] = dashboardStats;

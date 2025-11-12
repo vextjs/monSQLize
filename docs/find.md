@@ -4,19 +4,94 @@
 
 `find` 是 monSQLize 提供的基础查询方法，用于从 MongoDB 集合中查询多条文档记录。支持查询条件、排序、分页、投影、流式处理和缓存等功能。
 
+## 调用方式
+
+monSQLize 提供两种查询方式，功能完全等价：
+
+### 方式 1: 链式调用（推荐）
+
+```javascript
+// 基础链式调用
+const results = await collection('products')
+  .find({ category: 'electronics' })
+  .limit(10)
+  .skip(5)
+  .sort({ price: -1 });
+
+// 复杂链式调用
+const results = await collection('products')
+  .find({ category: 'electronics', inStock: true })
+  .sort({ rating: -1, sales: -1 })
+  .skip(10)
+  .limit(20)
+  .project({ name: 1, price: 1, rating: 1 })
+  .hint({ category: 1, price: -1 })
+  .maxTimeMS(5000)
+  .comment('ProductAPI:getList');
+```
+
+**支持的链式方法**:
+- `.limit(n)` - 限制返回数量
+- `.skip(n)` - 跳过文档数
+- `.sort(spec)` - 排序规则
+- `.project(spec)` - 字段投影
+- `.hint(spec)` - 索引提示
+- `.collation(spec)` - 排序规则
+- `.comment(str)` - 查询注释
+- `.maxTimeMS(ms)` - 超时时间
+- `.batchSize(n)` - 批处理大小
+- `.explain(v)` - 执行计划
+- `.stream()` - 流式返回
+- `.toArray()` - 显式转换为数组
+
+📚 **详细文档**: 查看 [链式调用完整 API 文档](./chaining-api.md)
+
+### 方式 2: options 参数（传统方式，完全兼容）
+
+```javascript
+const results = await collection('products').find(
+  { category: 'electronics' },
+  {
+    sort: { price: -1 },
+    limit: 10,
+    skip: 5,
+    projection: { name: 1, price: 1 }
+  }
+);
+```
+
+**两种方式完全等价**，可以根据个人偏好和场景选择使用。
+
+---
+
 ## 方法签名
 
 ```javascript
-async find(options = {})
+// 链式调用方式
+collection(name).find(query)
+  .limit(n)
+  .skip(n)
+  .sort(spec)
+  // ... 其他链式方法
+
+// options 参数方式
+async find(query = {}, options = {})
 ```
 
+**参数说明**：
+- `query` (Object): MongoDB 查询条件，如 `{ status: 'active', age: { $gt: 18 } }`
+- `options` (Object): 查询选项配置（仅 options 参数方式需要）
+
 ## 参数说明
+
+### query 参数
+
+MongoDB 标准查询条件对象，支持所有 MongoDB 查询操作符。
 
 ### options 对象属性
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `query` | Object | 否 | `{}` | MongoDB 查询条件，如 `{ status: 'active', age: { $gt: 18 } }` |
 | `projection` | Object/Array | 否 | - | 字段投影配置，指定返回的字段 |
 | `sort` | Object | 否 | - | 排序规则，如 `{ createdAt: -1, name: 1 }` |
 | `limit` | Number | 否 | 全局配置 | 限制返回的文档数量 |
@@ -165,10 +240,10 @@ collation: {
 默认情况下，`find` 方法返回一个 Promise，resolve 为文档数组：
 
 ```javascript
-const users = await collection('users').find({
-  query: { status: 'active' },
-  limit: 10
-});
+const users = await collection('users').find(
+  { status: 'active' },
+  { limit: 10 }
+);
 
 // users = [
 //   { _id: '...', name: 'Alice', status: 'active', ... },
@@ -184,12 +259,14 @@ const users = await collection('users').find({
 当 `stream: true` 时，返回一个 MongoDB Cursor Stream 对象：
 
 ```javascript
-const stream = await collection('orders').find({
-  query: { status: 'completed' },
-  sort: { completedAt: -1 },
-  stream: true,
-  batchSize: 100
-});
+const stream = await collection('orders').find(
+  { status: 'completed' },
+  {
+    sort: { completedAt: -1 },
+    stream: true,
+    batchSize: 100
+  }
+);
 
 // stream 是 Node.js Readable Stream
 stream.on('data', (doc) => console.log(doc));
@@ -204,10 +281,10 @@ stream.on('error', (err) => console.error('错误:', err));
 当 `explain` 为 true 或指定级别时，返回查询执行计划：
 
 ```javascript
-const plan = await collection('orders').find({
-  query: { status: 'paid' },
-  explain: 'executionStats'
-});
+const plan = await collection('orders').find(
+  { status: 'paid' },
+  { explain: 'executionStats' }
+);
 
 // plan = {
 //   queryPlanner: { ... },
@@ -230,22 +307,24 @@ const plan = await collection('orders').find({
 
 ```javascript
 // 查询所有活跃用户
-const users = await collection('users').find({
-  query: { status: 'active' }
-});
+const users = await collection('users').find(
+  { status: 'active' }
+);
 
 // 查询指定字段
-const users = await collection('users').find({
-  query: { status: 'active' },
-  projection: { name: 1, email: 1 }
-});
+const users = await collection('users').find(
+  { status: 'active' },
+  { projection: { name: 1, email: 1 } }
+);
 
 // 带排序的查询
-const users = await collection('users').find({
-  query: { status: 'active' },
-  sort: { createdAt: -1 },
-  limit: 20
-});
+const users = await collection('users').find(
+  { status: 'active' },
+  {
+    sort: { createdAt: -1 },
+    limit: 20
+  }
+);
 ```
 
 **适用场景**：
@@ -261,12 +340,14 @@ const users = await collection('users').find({
 const page = 2;
 const pageSize = 20;
 
-const users = await collection('users').find({
-  query: { status: 'active' },
-  sort: { createdAt: -1 },
-  skip: (page - 1) * pageSize,
-  limit: pageSize
-});
+const users = await collection('users').find(
+  { status: 'active' },
+  {
+    sort: { createdAt: -1 },
+    skip: (page - 1) * pageSize,
+    limit: pageSize
+  }
+);
 ```
 
 **性能注意**：
@@ -279,14 +360,16 @@ const users = await collection('users').find({
 流式处理大数据集，避免内存溢出：
 
 ```javascript
-const stream = await collection('orders').find({
-  query: {
+const stream = await collection('orders').find(
+  {
     createdAt: { $gte: new Date('2024-01-01') }
   },
-  sort: { createdAt: 1 },
-  stream: true,
-  batchSize: 1000
-});
+  {
+    sort: { createdAt: 1 },
+    stream: true,
+    batchSize: 1000
+  }
+);
 
 let count = 0;
 let totalAmount = 0;
@@ -320,32 +403,32 @@ stream.on('error', (err) => {
 
 ```javascript
 // 范围查询
-const orders = await collection('orders').find({
-  query: {
+const orders = await collection('orders').find(
+  {
     amount: { $gte: 100, $lte: 1000 },
     status: { $in: ['paid', 'completed'] },
     createdAt: { $gte: new Date('2024-01-01') }
   },
-  sort: { amount: -1 }
-});
+  { sort: { amount: -1 } }
+);
 
 // 逻辑组合查询
-const users = await collection('users').find({
-  query: {
+const users = await collection('users').find(
+  {
     $or: [
       { role: 'admin' },
       { $and: [{ level: { $gte: 5 } }, { verified: true }] }
     ]
   }
-});
+);
 
 // 数组查询
-const products = await collection('products').find({
-  query: {
+const products = await collection('products').find(
+  {
     tags: { $all: ['electronics', 'discount'] },
     'reviews.rating': { $gte: 4.5 }
   }
-});
+);
 ```
 
 ### 5. 使用索引优化
@@ -354,10 +437,13 @@ const products = await collection('products').find({
 
 ```javascript
 // 查看执行计划
-const plan = await collection('orders').find({
-  query: { status: 'paid', amount: { $gte: 1000 } },
-  sort: { createdAt: -1 },
-  explain: 'executionStats'
+const plan = await collection('orders').find(
+  { status: 'paid', amount: { $gte: 1000 } },
+  {
+    sort: { createdAt: -1 },
+    explain: 'executionStats'
+  }
+);
 });
 
 console.log('执行时间:', plan.executionStats.executionTimeMillis, 'ms');
@@ -365,12 +451,14 @@ console.log('扫描文档数:', plan.executionStats.totalDocsExamined);
 console.log('使用的索引:', plan.executionStats.inputStage?.indexName);
 
 // 强制使用索引
-const orders = await collection('orders').find({
-  query: { status: 'paid' },
-  sort: { createdAt: -1 },
-  hint: 'status_createdAt_idx',
-  limit: 100
-});
+const orders = await collection('orders').find(
+  { status: 'paid' },
+  {
+    sort: { createdAt: -1 },
+    hint: 'status_createdAt_idx',
+    limit: 100
+  }
+);
 ```
 
 ### 6. 缓存查询结果
@@ -379,20 +467,24 @@ const orders = await collection('orders').find({
 
 ```javascript
 // 缓存 5 分钟
-const categories = await collection('categories').find({
-  query: { enabled: true },
-  sort: { order: 1 },
-  cache: 300000  // 5 * 60 * 1000
-});
+const categories = await collection('categories').find(
+  { enabled: true },
+  {
+    sort: { order: 1 },
+    cache: 300000  // 5 * 60 * 1000
+  }
+);
 
 // 热门商品列表，缓存 10 分钟
-const hotProducts = await collection('products').find({
-  query: { hot: true, inStock: true },
-  sort: { sales: -1 },
-  limit: 20,
-  projection: ['name', 'price', 'image'],
-  cache: 600000  // 10 * 60 * 1000
-});
+const hotProducts = await collection('products').find(
+  { hot: true, inStock: true },
+  {
+    sort: { sales: -1 },
+    limit: 20,
+    projection: ['name', 'price', 'image'],
+    cache: 600000  // 10 * 60 * 1000
+  }
+);
 ```
 
 **缓存说明**：
@@ -409,15 +501,15 @@ const hotProducts = await collection('products').find({
 
 ```javascript
 // ❌ 不好：可能返回数百万条数据
-const users = await collection('users').find({
-  query: { status: 'active' }
-});
+const users = await collection('users').find(
+  { status: 'active' }
+);
 
 // ✅ 好：限制返回数量
-const users = await collection('users').find({
-  query: { status: 'active' },
-  limit: 100
-});
+const users = await collection('users').find(
+  { status: 'active' },
+  { limit: 100 }
+);
 ```
 
 ### 2. 只查询需要的字段
@@ -426,60 +518,66 @@ const users = await collection('users').find({
 
 ```javascript
 // ❌ 不好：返回所有字段
-const users = await collection('users').find({
-  query: { status: 'active' }
-});
+const users = await collection('users').find(
+  { status: 'active' }
+);
 
 // ✅ 好：只返回需要的字段
-const users = await collection('users').find({
-  query: { status: 'active' },
-  projection: { name: 1, email: 1 }
-});
+const users = await collection('users').find(
+  { status: 'active' },
+  { projection: { name: 1, email: 1 } }
+);
 ```
 
 ### 3. 为排序字段建立索引
 
 ```javascript
 // 确保有索引：db.orders.createIndex({ status: 1, createdAt: -1 })
-const orders = await collection('orders').find({
-  query: { status: 'paid' },
-  sort: { createdAt: -1 },
-  limit: 20
-});
+const orders = await collection('orders').find(
+  { status: 'paid' },
+  {
+    sort: { createdAt: -1 },
+    limit: 20
+  }
+);
 ```
 
 ### 4. 避免大 skip
 
 ```javascript
 // ❌ 不好：skip 大数据量性能差
-const page10000 = await collection('orders').find({
-  query: {},
-  skip: 99990,
-  limit: 10
-});
+const page10000 = await collection('orders').find(
+  {},
+  {
+    skip: 99990,
+    limit: 10
+  }
+);
 
 // ✅ 好：使用 findPage 进行游标分页
-const page = await collection('orders').findPage({
-  query: {},
-  limit: 10,
-  after: lastCursor
-});
+const page = await collection('orders').findPage(
+  {},
+  {
+    limit: 10,
+    after: lastCursor
+  }
+);
 ```
 
 ### 5. 大数据集使用流式处理
 
 ```javascript
 // ❌ 不好：一次性加载所有数据到内存
-const allOrders = await collection('orders').find({
-  query: { year: 2024 }
-});
+const allOrders = await collection('orders').find(
+  { year: 2024 }
+);
 allOrders.forEach(order => process(order));
 
 // ✅ 好：流式处理
-const stream = await collection('orders').find({
-  query: { year: 2024 },
-  stream: true
-});
+const stream = await collection('orders').find(
+  { year: 2024 },
+  { stream: true }
+);
 stream.on('data', order => process(order));
 ```
 
@@ -488,20 +586,20 @@ stream.on('data', order => process(order));
 防止慢查询阻塞系统：
 
 ```javascript
-const users = await collection('users').find({
-  query: { complexCondition: '...' },
-  maxTimeMS: 5000  // 5 秒超时
-});
+const users = await collection('users').find(
+  { complexCondition: '...' },
+  { maxTimeMS: 5000 }  // 5 秒超时
+);
 ```
 
 ## 错误处理
 
 ```javascript
 try {
-  const users = await collection('users').find({
-    query: { status: 'active' },
-    maxTimeMS: 5000
-  });
+  const users = await collection('users').find(
+    { status: 'active' },
+    { maxTimeMS: 5000 }
+  );
   
   console.log(`找到 ${users.length} 个用户`);
 } catch (error) {
@@ -602,21 +700,25 @@ try {
 db.orders.createIndex({ status: 1, createdAt: -1, amount: 1 });
 
 // 2. 使用索引排序
-const orders = await collection('orders').find({
-  query: { status: 'paid' },
-  sort: { createdAt: -1 },  // 使用索引字段排序
-  projection: { amount: 1, createdAt: 1 },  // 投影使用索引字段
-  limit: 100,
-  hint: { status: 1, createdAt: -1 }  // 强制使用索引
-});
+const orders = await collection('orders').find(
+  { status: 'paid' },
+  {
+    sort: { createdAt: -1 },  // 使用索引字段排序
+    projection: { amount: 1, createdAt: 1 },  // 投影使用索引字段
+    limit: 100,
+    hint: { status: 1, createdAt: -1 }  // 强制使用索引
+  }
+);
 
 // 3. 避免：对未索引字段排序大数据集
 // ❌ 性能差
-const orders = await collection('orders').find({
-  query: {},
-  sort: { randomField: -1 },  // 未索引字段
-  limit: 10000  // 大数据量
-});
+const orders = await collection('orders').find(
+  {},
+  {
+    sort: { randomField: -1 },  // 未索引字段
+    limit: 10000  // 大数据量
+  }
+);
 ```
 
 ### Q7: 如何调试慢查询？
@@ -624,11 +726,13 @@ const orders = await collection('orders').find({
 **A**: 慢查询调试步骤：
 ```javascript
 // 1. 使用 explain 查看执行计划
-const plan = await collection('orders').find({
-  query: { status: 'paid', amount: { $gte: 1000 } },
-  sort: { createdAt: -1 },
-  explain: 'executionStats'
-});
+const plan = await collection('orders').find(
+  { status: 'paid', amount: { $gte: 1000 } },
+  {
+    sort: { createdAt: -1 },
+    explain: 'executionStats'
+  }
+);
 
 console.log('执行时间:', plan.executionStats.executionTimeMillis, 'ms');
 console.log('扫描文档:', plan.executionStats.totalDocsExamined);
@@ -654,76 +758,90 @@ msq.on('slow-query', (meta) => {
 
 ```javascript
 // ❌ 危险：可能返回数百万条数据
-const users = await collection('users').find({
-  query: { status: 'active' }
+const users = await collection('users').find(
+  { status: 'active' }
 });
 
 // ✅ 安全：限制返回数量
-const users = await collection('users').find({
-  query: { status: 'active' },
-  limit: 100
-});
+const users = await collection('users').find(
+  { status: 'active' },
+  {
+    limit: 100
+  }
+);
 ```
 
 ### 2. 使用投影减少数据传输
 
 ```javascript
 // ❌ 返回所有字段（包括大文本、二进制等）
-const users = await collection('users').find({
-  query: { status: 'active' },
-  limit: 100
-});
+const users = await collection('users').find(
+  { status: 'active' },
+  {
+    limit: 100
+  }
+);
 
 // ✅ 只返回需要的字段
-const users = await collection('users').find({
-  query: { status: 'active' },
-  projection: { name: 1, email: 1, avatar: 1 },
-  limit: 100
-});
+const users = await collection('users').find(
+  { status: 'active' },
+  {
+    projection: { name: 1, email: 1, avatar: 1 },
+    limit: 100
+  }
+);
 ```
 
 ### 3. 复合排序确保稳定性
 
 ```javascript
 // ❌ 不稳定：相同 createdAt 的顺序不确定
-const orders = await collection('orders').find({
-  query: {},
-  sort: { createdAt: -1 },
-  limit: 20
-});
+const orders = await collection('orders').find(
+  {},
+  {
+    sort: { createdAt: -1 },
+    limit: 20
+  }
+);
 
 // ✅ 稳定：添加 _id 确保排序稳定
-const orders = await collection('orders').find({
-  query: {},
-  sort: { createdAt: -1, _id: 1 },
-  limit: 20
-});
+const orders = await collection('orders').find(
+  {},
+  {
+    sort: { createdAt: -1, _id: 1 },
+    limit: 20
+  }
+);
 ```
 
 ### 4. 合理使用缓存
 
 ```javascript
 // 适合缓存的场景
-const categories = await collection('categories').find({
-  query: { enabled: true },
-  sort: { order: 1 },
-  cache: 600000  // 缓存 10 分钟（数据变化不频繁）
-});
+const categories = await collection('categories').find(
+  { enabled: true },
+  {
+    sort: { order: 1 },
+    cache: 600000  // 缓存 10 分钟（数据变化不频繁）
+  }
+);
 
 // 不适合缓存的场景
-const realtimeOrders = await collection('orders').find({
-  query: { status: 'pending' },
-  sort: { createdAt: -1 },
-  // 不设置 cache（实时数据）
-});
+const realtimeOrders = await collection('orders').find(
+  { status: 'pending' },
+  {
+    sort: { createdAt: -1 }
+    // 不设置 cache（实时数据）
+  }
+);
 ```
 
 ### 5. 处理异常情况
 
 ```javascript
-async function safeFind(collectionName, options) {
+async function safeFind(collectionName, query, options) {
   try {
-    const result = await collection(collectionName).find(options);
+    const result = await collection(collectionName).find(query, options);
     return { success: true, data: result };
   } catch (error) {
     if (error.code === 50) {  // MongoDB 超时错误
@@ -745,11 +863,13 @@ async function safeFind(collectionName, options) {
 ```javascript
 // 使用流式处理批量操作
 async function batchProcess(collectionName, processFunc, batchSize = 1000) {
-  const stream = await collection(collectionName).find({
-    query: {},
-    stream: true,
-    batchSize
-  });
+  const stream = await collection(collectionName).find(
+    {},
+    {
+      stream: true,
+      batchSize
+    }
+  );
 
   let batch = [];
   let processedCount = 0;

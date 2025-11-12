@@ -814,5 +814,91 @@ describe('aggregate 方法测试套件', function() {
             assert.ok(result.length > 0, '应该返回数据');
         });
     });
+
+    describe('12. 链式调用集成测试', function() {
+        it('12.1 应该支持基础链式调用', async function() {
+            const results = await aggregateCollection('test_orders')
+                .aggregate([
+                    { $match: { status: 'paid' } },
+                    { $limit: 10 }
+                ])
+                .comment('测试链式调用');
+
+            assert.ok(Array.isArray(results), '应该返回数组');
+            assert.ok(results.length > 0, '应该返回数据');
+        });
+
+        it('12.2 应该支持 hint 链式调用', async function() {
+            const results = await aggregateCollection('test_orders')
+                .aggregate([
+                    { $match: { status: 'paid' } },
+                    { $sort: { createdAt: -1 } },
+                    { $limit: 10 }
+                ])
+                .hint({ status: 1, createdAt: -1 });
+
+            assert.ok(Array.isArray(results), '应该返回数组');
+        });
+
+        it('12.3 应该支持 allowDiskUse 链式调用', async function() {
+            const results = await aggregateCollection('test_orders')
+                .aggregate([
+                    { $group: { _id: '$category', total: { $sum: '$amount' } } },
+                    { $sort: { total: -1 } }
+                ])
+                .allowDiskUse(true);
+
+            assert.ok(Array.isArray(results), '应该返回数组');
+            assert.ok(results.length > 0, '应该返回数据');
+        });
+
+        it('12.4 应该支持多个链式调用组合', async function() {
+            const results = await aggregateCollection('test_orders')
+                .aggregate([
+                    { $match: { status: 'paid' } },
+                    { $group: { _id: '$category', count: { $sum: 1 } } },
+                    { $sort: { count: -1 } }
+                ])
+                .allowDiskUse(true)
+                .maxTimeMS(5000)
+                .comment('复杂链式调用');
+
+            assert.ok(Array.isArray(results), '应该返回数组');
+        });
+
+        it('12.5 链式调用应该与 options 参数结果一致', async function() {
+            const pipeline = [
+                { $match: { status: 'paid' } },
+                { $group: { _id: '$category', total: { $sum: '$amount' } } }
+            ];
+
+            // 方式1：链式调用
+            const results1 = await aggregateCollection('test_orders')
+                .aggregate(pipeline)
+                .allowDiskUse(true)
+                .maxTimeMS(5000);
+
+            // 方式2：options 参数
+            const results2 = await aggregateCollection('test_orders').aggregate(pipeline, {
+                allowDiskUse: true,
+                maxTimeMS: 5000
+            });
+
+            // 结果应该一致
+            assert.equal(results1.length, results2.length, '返回数量应该一致');
+        });
+
+        it('12.6 链式调用应该支持 .toArray() 显式调用', async function() {
+            const results = await aggregateCollection('test_orders')
+                .aggregate([
+                    { $match: { status: 'paid' } },
+                    { $limit: 5 }
+                ])
+                .toArray();
+
+            assert.ok(Array.isArray(results), '应该返回数组');
+            assert.ok(results.length <= 5, '应该不超过 limit');
+        });
+    });
 });
 

@@ -31,20 +31,25 @@ monSQLize 提供两种写入方法：
 #### 方法签名
 
 ```typescript
-collection(name: string).insertOne(options: InsertOneOptions): Promise<InsertOneResult>
+collection(name: string).insertOne(document: object, options?: InsertOneOptions): Promise<InsertOneResult>
 ```
 
 #### 参数详解
 
-| 参数 | 类型 | 必需 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| **document** | `object` | ✅ | - | 要插入的文档对象 |
-| **writeConcern** | `object` | ❌ | `{ w: 1 }` | 写确认级别 |
-| **writeConcern.w** | `number \| 'majority'` | ❌ | `1` | 写确认级别（1=主节点确认，'majority'=多数节点确认） |
-| **writeConcern.j** | `boolean` | ❌ | `false` | 是否等待日志落盘 |
-| **writeConcern.wtimeout** | `number` | ❌ | - | 写超时时间（毫秒） |
-| **bypassDocumentValidation** | `boolean` | ❌ | `false` | 跳过文档验证（不推荐） |
-| **comment** | `string` | ❌ | - | 查询注释，用于生产环境日志跟踪 |
+**第一个参数：document**（必需）
+- 类型：`object`
+- 说明：要插入的文档对象
+
+**第二个参数：options**（可选）
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| **writeConcern** | `object` | `{ w: 1 }` | 写确认级别 |
+| **writeConcern.w** | `number \| 'majority'` | `1` | 写确认级别（1=主节点确认，'majority'=多数节点确认） |
+| **writeConcern.j** | `boolean` | `false` | 是否等待日志落盘 |
+| **writeConcern.wtimeout** | `number` | - | 写超时时间（毫秒） |
+| **bypassDocumentValidation** | `boolean` | `false` | 跳过文档验证（不推荐） |
+| **comment** | `string` | - | 查询注释，用于生产环境日志跟踪 |
 
 #### 返回值
 
@@ -64,18 +69,23 @@ collection(name: string).insertOne(options: InsertOneOptions): Promise<InsertOne
 #### 方法签名
 
 ```typescript
-collection(name: string).insertMany(options: InsertManyOptions): Promise<InsertManyResult>
+collection(name: string).insertMany(documents: object[], options?: InsertManyOptions): Promise<InsertManyResult>
 ```
 
 #### 参数详解
 
-| 参数 | 类型 | 必需 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| **documents** | `object[]` | ✅ | - | 要插入的文档数组 |
-| **ordered** | `boolean` | ❌ | `true` | 是否有序插入（true=遇到错误时停止，false=继续插入其他文档） |
-| **writeConcern** | `object` | ❌ | `{ w: 1 }` | 写确认级别（同 insertOne） |
-| **bypassDocumentValidation** | `boolean` | ❌ | `false` | 跳过文档验证（不推荐） |
-| **comment** | `string` | ❌ | - | 查询注释，用于生产环境日志跟踪 |
+**第一个参数：documents**（必需）
+- 类型：`object[]`
+- 说明：要插入的文档数组
+
+**第二个参数：options**（可选）
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| **ordered** | `boolean` | `true` | 是否有序插入（true=遇到错误时停止，false=继续插入其他文档） |
+| **writeConcern** | `object` | `{ w: 1 }` | 写确认级别（同 insertOne） |
+| **bypassDocumentValidation** | `boolean` | `false` | 跳过文档验证（不推荐） |
+| **comment** | `string` | - | 查询注释，用于生产环境日志跟踪 |
 
 #### 返回值
 
@@ -103,13 +113,11 @@ collection(name: string).insertMany(options: InsertManyOptions): Promise<InsertM
 const { collection } = await msq.connect();
 
 const result = await collection('products').insertOne({
-  document: {
-    name: 'iPhone 15 Pro',
-    price: 999,
-    category: 'electronics',
-    inStock: true,
-    createdAt: new Date()
-  }
+  name: 'iPhone 15 Pro',
+  price: 999,
+  category: 'electronics',
+  inStock: true,
+  createdAt: new Date()
 });
 
 console.log('插入成功:', result.insertedId);
@@ -119,13 +127,11 @@ console.log('插入成功:', result.insertedId);
 #### 2. 批量插入文档
 
 ```javascript
-const result = await collection('products').insertMany({
-  documents: [
-    { name: 'MacBook Pro', price: 2499, category: 'electronics' },
-    { name: 'iPad Air', price: 599, category: 'electronics' },
-    { name: 'AirPods Pro', price: 249, category: 'accessories' }
-  ]
-});
+const result = await collection('products').insertMany([
+  { name: 'MacBook Pro', price: 2499, category: 'electronics' },
+  { name: 'iPad Air', price: 599, category: 'electronics' },
+  { name: 'AirPods Pro', price: 249, category: 'accessories' }
+]);
 
 console.log(`成功插入 ${result.insertedCount} 条数据`);
 console.log('插入的 ID:', result.insertedIds);
@@ -141,15 +147,17 @@ console.log('插入的 ID:', result.insertedIds);
 
 ```javascript
 // 在生产环境中，使用 comment 标识查询来源，便于日志分析和慢查询追踪
-const result = await collection('orders').insertOne({
-  document: {
+const result = await collection('orders').insertOne(
+  {
     userId: 'user_123',
     items: [{ productId: 'prod_456', quantity: 2 }],
     totalAmount: 1998,
     status: 'pending'
   },
-  comment: 'OrderAPI:createOrder:user_123'  // 格式: 服务名:方法名:用户ID
-});
+  {
+    comment: 'OrderAPI:createOrder:user_123'  // 格式: 服务名:方法名:用户ID
+  }
+);
 
 // MongoDB 日志会包含此 comment，便于追踪和分析
 console.log('订单创建成功:', result.insertedId);
@@ -172,19 +180,21 @@ comment: 'DataMigration:seedUsers:v2.0'
 
 ```javascript
 // 金融交易、订单等关键数据，使用 { w: 'majority', j: true } 确保数据安全
-const result = await collection('transactions').insertOne({
-  document: {
+const result = await collection('transactions').insertOne(
+  {
     userId: 'user_789',
     amount: 10000,
     type: 'transfer',
     timestamp: new Date()
   },
-  writeConcern: {
-    w: 'majority',    // 等待多数节点确认
-    j: true,          // 等待日志落盘
-    wtimeout: 5000    // 5 秒超时
+  {
+    writeConcern: {
+      w: 'majority',    // 等待多数节点确认
+      j: true,          // 等待日志落盘
+      wtimeout: 5000    // 5 秒超时
+    }
   }
-});
+);
 
 console.log('交易记录已安全写入:', result.insertedId);
 ```
@@ -208,14 +218,14 @@ console.log('交易记录已安全写入:', result.insertedId);
 
 ```javascript
 // ordered: true（默认）- 遇到错误时停止
-const result = await collection('products').insertMany({
-  documents: [
+const result = await collection('products').insertMany(
+  [
     { _id: 1, name: 'Product A' },  // ✅ 插入成功
     { _id: 1, name: 'Product B' },  // ❌ 重复键错误，停止
     { _id: 2, name: 'Product C' }   // ⏸️ 不会尝试插入
   ],
-  ordered: true  // 遇到错误时停止（默认）
-});
+  { ordered: true }  // 遇到错误时停止（默认）
+);
 
 // 结果: 只有第 1 条成功插入
 ```
@@ -226,14 +236,14 @@ const result = await collection('products').insertMany({
 
 ```javascript
 // ordered: false - 遇到错误时继续插入其他文档
-const result = await collection('products').insertMany({
-  documents: [
+const result = await collection('products').insertMany(
+  [
     { _id: 1, name: 'Product A' },  // ✅ 插入成功
     { _id: 1, name: 'Product B' },  // ❌ 重复键错误，但继续
     { _id: 2, name: 'Product C' }   // ✅ 插入成功
   ],
-  ordered: false  // 继续插入其他文档
-});
+  { ordered: false }  // 继续插入其他文档
+);
 
 console.log(`成功插入 ${result.insertedCount} 条`);
 // 输出: 成功插入 2 条（第 1 和第 3 条）
@@ -255,10 +265,8 @@ console.log(`成功插入 ${result.insertedCount} 条`);
 ```javascript
 try {
   const result = await collection('products').insertOne({
-    document: {
-      _id: 'duplicate_id',
-      name: 'Product X'
-    }
+    _id: 'duplicate_id',
+    name: 'Product X'
   });
   console.log('插入成功:', result.insertedId);
 } catch (err) {
@@ -291,27 +299,25 @@ try {
 
 ```javascript
 // 第 1 步: 查询产品（缓存结果）
-const products1 = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 60000  // 缓存 60 秒
-});
+const products1 = await collection('products').find(
+  { category: 'electronics' },
+  { cache: 60000 }  // 缓存 60 秒
+);
 console.log('首次查询:', products1.length);  // 输出: 10
 
 // 第 2 步: 插入新产品（自动失效缓存）
 await collection('products').insertOne({
-  document: {
-    name: 'New Product',
-    category: 'electronics',
-    price: 599
-  }
+  name: 'New Product',
+  category: 'electronics',
+  price: 599
 });
 console.log('✅ 插入后自动清理缓存');
 
 // 第 3 步: 再次查询（缓存已失效，重新查询数据库）
-const products2 = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 60000
-});
+const products2 = await collection('products').find(
+  { category: 'electronics' },
+  { cache: 60000 }
+);
 console.log('插入后查询:', products2.length);  // 输出: 11（新数据）
 ```
 
@@ -339,14 +345,14 @@ const testData = Array.from({ length: 100 }, (_, i) => ({
 // ❌ 方式 1: 循环单条插入（慢）
 console.time('单条插入');
 for (const doc of testData) {
-  await collection('products').insertOne({ document: doc });
+  await collection('products').insertOne(doc);
 }
 console.timeEnd('单条插入');
 // 输出: 单条插入: 1250ms
 
 // ✅ 方式 2: 批量插入（快 10-50 倍）
 console.time('批量插入');
-await collection('products').insertMany({ documents: testData });
+await collection('products').insertMany(testData);
 console.timeEnd('批量插入');
 // 输出: 批量插入: 45ms
 
@@ -367,30 +373,26 @@ console.timeEnd('批量插入');
 
 ```javascript
 // ✅ 好的做法: 使用 comment 标识查询来源
-await collection('orders').insertOne({
-  document: orderData,
-  comment: 'OrderAPI:createOrder:user_123'
-});
+await collection('orders').insertOne(
+  orderData,
+  { comment: 'OrderAPI:createOrder:user_123' }
+);
 
 // ❌ 不好的做法: 不使用 comment，难以追踪慢查询
-await collection('orders').insertOne({
-  document: orderData
-});
+await collection('orders').insertOne(orderData);
 ```
 
 ### 2. 写确认级别（writeConcern）
 
 ```javascript
 // ✅ 好的做法: 关键数据使用 majority + j: true
-await collection('transactions').insertOne({
-  document: transactionData,
-  writeConcern: { w: 'majority', j: true }
-});
+await collection('transactions').insertOne(
+  transactionData,
+  { writeConcern: { w: 'majority', j: true } }
+);
 
 // ❌ 不好的做法: 关键数据使用默认设置（可能丢失数据）
-await collection('transactions').insertOne({
-  document: transactionData
-});
+await collection('transactions').insertOne(transactionData);
 ```
 
 ### 3. 错误处理
@@ -398,7 +400,7 @@ await collection('transactions').insertOne({
 ```javascript
 // ✅ 好的做法: 捕获并处理特定错误
 try {
-  await collection('products').insertOne({ document: productData });
+  await collection('products').insertOne(productData);
 } catch (err) {
   if (err.code === 'DUPLICATE_KEY') {
     // 处理重复键
@@ -411,7 +413,7 @@ try {
 
 // ❌ 不好的做法: 忽略错误或笼统处理
 try {
-  await collection('products').insertOne({ document: productData });
+  await collection('products').insertOne(productData);
 } catch (err) {
   console.log('插入失败');  // 信息不足
 }
@@ -421,13 +423,11 @@ try {
 
 ```javascript
 // ✅ 好的做法: 使用 insertMany() 批量插入
-await collection('products').insertMany({
-  documents: [doc1, doc2, doc3, ...]
-});
+await collection('products').insertMany([doc1, doc2, doc3, ...]);
 
 // ❌ 不好的做法: 循环单条插入
 for (const doc of documents) {
-  await collection('products').insertOne({ document: doc });
+  await collection('products').insertOne(doc);
 }
 ```
 
@@ -435,16 +435,16 @@ for (const doc of documents) {
 
 ```javascript
 // ✅ 数据导入场景: 使用 unordered 提高成功率
-await collection('products').insertMany({
-  documents: importedData,
-  ordered: false  // 跳过错误，继续插入
-});
+await collection('products').insertMany(
+  importedData,
+  { ordered: false }  // 跳过错误，继续插入
+);
 
 // ✅ 事务性操作: 使用 ordered 保证一致性
-await collection('orders').insertMany({
-  documents: orderItems,
-  ordered: true  // 遇到错误时停止
-});
+await collection('orders').insertMany(
+  orderItems,
+  { ordered: true }  // 遇到错误时停止
+);
 ```
 
 ---
@@ -516,7 +516,7 @@ await msq.connect();
 **A**: 捕获 `DUPLICATE_KEY` 错误：
 ```javascript
 try {
-  await collection('products').insertOne({ document: { _id: 'dup', ... } });
+  await collection('products').insertOne({ _id: 'dup', name: 'Product' });
 } catch (err) {
   if (err.code === 'DUPLICATE_KEY') {
     console.log('文档已存在，跳过插入');
@@ -531,7 +531,7 @@ try {
 const BATCH_SIZE = 1000;
 for (let i = 0; i < allData.length; i += BATCH_SIZE) {
   const batch = allData.slice(i, i + BATCH_SIZE);
-  await collection('products').insertMany({ documents: batch });
+  await collection('products').insertMany(batch);
 }
 ```
 

@@ -38,9 +38,9 @@ describe('insertOne 方法测试套件', function () {
 
     describe('基本功能测试', () => {
         it('应该成功插入单个文档', async () => {
-            const result = await collection('users').insertOne({
-                document: { name: 'Alice', age: 25, email: 'alice@example.com' }
-            });
+            const result = await collection('users').insertOne(
+                { name: 'Alice', age: 25, email: 'alice@example.com' }
+            );
 
             assert.ok(result, '返回结果不应为空');
             assert.ok(result.insertedId, '应该返回 insertedId');
@@ -56,9 +56,9 @@ describe('insertOne 方法测试套件', function () {
 
         it('应该支持插入包含 _id 的文档', async () => {
             const customId = 'custom-id-123';
-            const result = await collection('users').insertOne({
-                document: { _id: customId, name: 'Bob', age: 30 }
-            });
+            const result = await collection('users').insertOne(
+                { _id: customId, name: 'Bob', age: 30 }
+            );
 
             assert.strictEqual(result.insertedId, customId, 'insertedId 应该是自定义的 ID');
 
@@ -70,9 +70,9 @@ describe('insertOne 方法测试套件', function () {
         });
 
         it('应该支持插入空对象', async () => {
-            const result = await collection('users').insertOne({
-                document: {}
-            });
+            const result = await collection('users').insertOne(
+                {}
+            );
 
             assert.ok(result.insertedId, '应该返回 insertedId');
 
@@ -84,14 +84,12 @@ describe('insertOne 方法测试套件', function () {
 
         it('应该支持插入嵌套对象', async () => {
             const result = await collection('users').insertOne({
-                document: {
-                    name: 'Charlie',
-                    address: {
-                        city: 'Beijing',
-                        street: 'Chang\'an Ave'
-                    },
-                    tags: ['developer', 'nodejs']
-                }
+                name: 'Charlie',
+                address: {
+                    city: 'Beijing',
+                    street: 'Chang\'an Ave'
+                },
+                tags: ['developer', 'nodejs']
             });
 
             assert.ok(result.insertedId);
@@ -107,7 +105,7 @@ describe('insertOne 方法测试套件', function () {
     describe('参数验证测试', () => {
         it('应该在 document 缺失时抛出错误', async () => {
             try {
-                await collection('users').insertOne({});
+                await collection('users').insertOne();
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DOCUMENT_REQUIRED');
@@ -117,7 +115,7 @@ describe('insertOne 方法测试套件', function () {
 
         it('应该在 document 为 null 时抛出错误', async () => {
             try {
-                await collection('users').insertOne({ document: null });
+                await collection('users').insertOne(null);
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DOCUMENT_REQUIRED');
@@ -126,7 +124,7 @@ describe('insertOne 方法测试套件', function () {
 
         it('应该在 document 为数组时抛出错误', async () => {
             try {
-                await collection('users').insertOne({ document: [{ name: 'Alice' }] });
+                await collection('users').insertOne([{ name: 'Alice' }]);
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DOCUMENT_REQUIRED');
@@ -135,7 +133,7 @@ describe('insertOne 方法测试套件', function () {
 
         it('应该在 document 为字符串时抛出错误', async () => {
             try {
-                await collection('users').insertOne({ document: 'not an object' });
+                await collection('users').insertOne('not an object');
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DOCUMENT_REQUIRED');
@@ -144,7 +142,7 @@ describe('insertOne 方法测试套件', function () {
 
         it('应该在 document 为数字时抛出错误', async () => {
             try {
-                await collection('users').insertOne({ document: 123 });
+                await collection('users').insertOne(123);
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DOCUMENT_REQUIRED');
@@ -157,15 +155,15 @@ describe('insertOne 方法测试套件', function () {
             const docId = 'duplicate-id';
 
             // 第一次插入
-            await collection('users').insertOne({
-                document: { _id: docId, name: 'First' }
-            });
+            await collection('users').insertOne(
+                { _id: docId, name: 'First' }
+            );
 
             // 第二次插入相同 _id
             try {
-                await collection('users').insertOne({
-                    document: { _id: docId, name: 'Second' }
-                });
+                await collection('users').insertOne(
+                    { _id: docId, name: 'Second' }
+                );
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DUPLICATE_KEY');
@@ -176,42 +174,48 @@ describe('insertOne 方法测试套件', function () {
 
     describe('缓存失效测试', () => {
         it('应该在插入后自动失效缓存', async () => {
-            // 1. 查询并缓存结果
-            await collection('users').find({
-                query: {},
-                cache: 5000
-            });
+            // 1. 先插入一些初始数据
+            await collection('users').insertOne(
+                { name: 'Initial', age: 20 }
+            );
+
+            // 2. 查询并缓存结果
+            await collection('users').find({}, { cache: 5000 });
 
             const stats1 = msq.cache.getStats();
             const size1 = stats1.size;
             assert.ok(size1 > 0, '应该有缓存');
 
-            // 2. 插入新文档
-            await collection('users').insertOne({
-                document: { name: 'Cache Test', age: 35 }
-            });
+            // 3. 插入新文档
+            await collection('users').insertOne(
+                { name: 'Cache Test', age: 35 }
+            );
 
-            // 3. 验证缓存已清空
+            // 4. 验证缓存已清空
             const stats2 = msq.cache.getStats();
             assert.strictEqual(stats2.size, 0, '插入后缓存应该被清空');
         });
 
         it('应该只失效当前集合的缓存', async () => {
-            // 1. 在两个集合中创建缓存
-            await collection('users').find({ query: {}, cache: 5000 });
-            await collection('products').find({ query: {}, cache: 5000 });
+            // 1. 先在两个集合插入初始数据
+            await collection('users').insertOne({ name: 'InitUser' });
+            await collection('products').insertOne({ name: 'InitProduct' });
+
+            // 2. 在两个集合中创建缓存
+            await collection('users').find({}, { cache: 5000 });
+            await collection('products').find({}, { cache: 5000 });
 
             const stats1 = msq.cache.getStats();
             assert.ok(stats1.size >= 2, '应该有多个缓存');
 
             // 2. 仅在 users 集合插入
-            await collection('users').insertOne({
-                document: { name: 'User1' }
-            });
+            await collection('users').insertOne(
+                { name: 'User1' }
+            );
 
             // 3. users 缓存应该被清除，products 缓存应该保留
-            const usersCache = await collection('users').find({ query: {}, cache: 5000 });
-            const productsCache = await collection('products').find({ query: {}, cache: 5000 });
+            const usersCache = await collection('users').find({}, { cache: 5000 });
+            const productsCache = await collection('products').find({}, { cache: 5000 });
 
             // products 的缓存应该还在（命中缓存）
             const stats2 = msq.cache.getStats();
@@ -221,19 +225,19 @@ describe('insertOne 方法测试套件', function () {
 
     describe('选项参数测试', () => {
         it('应该支持 comment 参数', async () => {
-            const result = await collection('users').insertOne({
-                document: { name: 'With Comment' },
-                comment: 'test comment'
-            });
+            const result = await collection('users').insertOne(
+                { name: 'With Comment' },
+                { comment: 'test comment' }
+            );
 
             assert.ok(result.insertedId);
         });
 
         it('应该支持 writeConcern 参数', async () => {
-            const result = await collection('users').insertOne({
-                document: { name: 'With WriteConcern' },
-                writeConcern: { w: 1 }
-            });
+            const result = await collection('users').insertOne(
+                { name: 'With WriteConcern' },
+                { writeConcern: { w: 1 } }
+            );
 
             assert.ok(result.insertedId);
         });
@@ -242,11 +246,9 @@ describe('insertOne 方法测试套件', function () {
     describe('边界用例测试', () => {
         it('应该能插入包含特殊字符的文档', async () => {
             const result = await collection('users').insertOne({
-                document: {
-                    name: '张三',
-                    description: 'Special chars: !@#$%^&*()',
-                    unicode: '😀🎉'
-                }
+                name: '张三',
+                description: 'Special chars: !@#$%^&*()',
+                unicode: '😀🎉'
             });
 
             assert.ok(result.insertedId);
@@ -264,9 +266,7 @@ describe('insertOne 方法测试套件', function () {
                 data: 'x'.repeat(10000) // 10KB 字符串
             };
 
-            const result = await collection('users').insertOne({
-                document: largeDoc
-            });
+            const result = await collection('users').insertOne(largeDoc);
 
             assert.ok(result.insertedId);
         });
@@ -274,10 +274,8 @@ describe('insertOne 方法测试套件', function () {
         it('应该能插入包含 Date 对象的文档', async () => {
             const now = new Date();
             const result = await collection('users').insertOne({
-                document: {
-                    name: 'Date Test',
-                    createdAt: now
-                }
+                name: 'Date Test',
+                createdAt: now
             });
 
             assert.ok(result.insertedId);

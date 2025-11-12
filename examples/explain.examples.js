@@ -50,16 +50,22 @@ async function example1_basicQueryPlan() {
         // 在 age 字段上创建索引
         await nativeUsers.createIndex({ age: 1 });
 
-        // 分析查询计划
-        const plan = await users.explain({
-            query: { age: { $gte: 25 } }
-        });
+        console.log("\n方式 1: 链式调用（与原生 MongoDB 一致）");
+        console.log("-".repeat(70));
+        const plan1 = await users.find({ age: { $gte: 25 } }).explain('queryPlanner');
+        console.log(`- 使用索引: ${plan1.queryPlanner.winningPlan.inputStage?.indexName || "无"}`);
+        console.log(`- 执行策略: ${plan1.queryPlanner.winningPlan.stage}`);
 
-        console.log("\n查询: { age: { $gte: 25 } }");
-        console.log("\n执行计划摘要:");
-        console.log(`- 使用索引: ${plan.queryPlanner.winningPlan.inputStage?.indexName || "无"}`);
-        console.log(`- 执行策略: ${plan.queryPlanner.winningPlan.stage}`);
-        console.log(`- 方向: ${plan.queryPlanner.winningPlan.direction || "N/A"}`);
+        console.log("\n方式 2: options 参数");
+        console.log("-".repeat(70));
+        const plan2 = await users.find(
+            { age: { $gte: 25 } },
+            { explain: true }  // 或 'queryPlanner'
+        );
+        console.log(`- 使用索引: ${plan2.queryPlanner.winningPlan.inputStage?.indexName || "无"}`);
+        console.log(`- 执行策略: ${plan2.queryPlanner.winningPlan.stage}`);
+
+        console.log("\n✅ 两种方式返回相同的执行计划");
 
         console.log("\n✅ queryPlanner 模式适合快速检查索引使用情况");
     } finally {
@@ -101,12 +107,14 @@ async function example2_executionStats() {
         await nativeProducts.createIndex({ category: 1, price: 1 });
 
         // 分析带排序的查询
-        const stats = await products.explain({
-            query: { category: "Electronics", price: { $gte: 500 } },
-            sort: { price: -1 },
-            limit: 10,
-            verbosity: "executionStats"
-        });
+        const stats = await products.find(
+            { category: "Electronics", price: { $gte: 500 } },
+            {
+                sort: { price: -1 },
+                limit: 10,
+                explain: "executionStats"
+            }
+        );
 
         console.log("\n查询: { category: 'Electronics', price: { $gte: 500 } }");
         console.log("排序: { price: -1 }, 限制: 10 条");
@@ -158,10 +166,10 @@ async function example3_indexOptimization() {
 
         // 1. 无索引的查询
         console.log("\n场景 1: 无索引查询");
-        const noIndexPlan = await logs.explain({
-            query: { level: "ERROR", service: "service-5" },
-            verbosity: "executionStats"
-        });
+        const noIndexPlan = await logs.find(
+            { level: "ERROR", service: "service-5" },
+            { explain: "executionStats" }
+        );
 
         console.log("执行统计:");
         console.log(`- 扫描文档: ${noIndexPlan.executionStats.totalDocsExamined}`);
@@ -173,10 +181,10 @@ async function example3_indexOptimization() {
         await nativeLogs.createIndex({ level: 1, service: 1 });
 
         console.log("\n场景 2: 使用索引查询");
-        const withIndexPlan = await logs.explain({
-            query: { level: "ERROR", service: "service-5" },
-            verbosity: "executionStats"
-        });
+        const withIndexPlan = await logs.find(
+            { level: "ERROR", service: "service-5" },
+            { explain: "executionStats" }
+        );
 
         console.log("执行统计:");
         console.log(`- 扫描文档: ${withIndexPlan.executionStats.totalDocsExamined}`);
@@ -234,21 +242,23 @@ async function example4_hintUsage() {
 
         // 1. 让优化器自动选择
         console.log("\n场景 1: 优化器自动选择索引");
-        const autoPlan = await inventory.explain({
+        const autoPlan = await inventory.find(
             query,
-            verbosity: "executionStats"
-        });
+            { explain: "executionStats" }
+        );
 
         console.log(`- 选择索引: ${autoPlan.queryPlanner.winningPlan.inputStage?.indexName || "无"}`);
         console.log(`- 扫描文档: ${autoPlan.executionStats.totalDocsExamined}`);
 
         // 2. 强制使用 category 索引
         console.log("\n场景 2: 强制使用 category 索引");
-        const hintPlan = await inventory.explain({
+        const hintPlan = await inventory.find(
             query,
-            hint: { category: 1, quantity: 1 },
-            verbosity: "executionStats"
-        });
+            {
+                hint: { category: 1, quantity: 1 },
+                explain: "executionStats"
+            }
+        );
 
         console.log(`- 使用索引: ${hintPlan.queryPlanner.winningPlan.inputStage?.indexName}`);
         console.log(`- 扫描文档: ${hintPlan.executionStats.totalDocsExamined}`);
@@ -301,14 +311,14 @@ async function example5_allPlansExecution() {
         await nativeOrders.createIndex({ createdAt: -1 });
 
         // 复杂查询，优化器需要在多个索引间选择
-        const allPlans = await orders.explain({
-            query: {
+        const allPlans = await orders.find(
+            {
                 customerId: "CUS050",
                 status: "completed",
                 total: { $gte: 1000 }
             },
-            verbosity: "allPlansExecution"
-        });
+            { explain: "allPlansExecution" }
+        );
 
         console.log("\n查询: { customerId: 'CUS050', status: 'completed', total: { $gte: 1000 } }");
 
@@ -333,6 +343,61 @@ async function example5_allPlansExecution() {
     }
 }
 
+/**
+ * 示例 6: 链式调用（与原生 MongoDB 完全一致）
+ *
+ * 演示链式调用 .explain() 方法，与原生 MongoDB 语法完全一致
+ */
+async function example6_chainExplain() {
+    console.log("\n" + "=".repeat(70));
+    console.log("示例 6: 链式调用（与原生 MongoDB 完全一致）");
+    console.log("=".repeat(70));
+
+    const msq = new MonSQLize(DB_CONFIG);
+    const { collection } = await msq.connect();
+    const products = collection("products");
+    const db = msq._adapter.db;
+    const nativeProducts = db.collection("products");
+
+    try {
+        // 准备测试数据
+        const docs = [];
+        for (let i = 0; i < 100; i++) {
+            docs.push({
+                name: `Product ${i}`,
+                category: ["Electronics", "Books", "Clothing"][i % 3],
+                price: Math.floor(Math.random() * 1000) + 50,
+                inStock: i % 4 !== 0
+            });
+        }
+        await nativeProducts.insertMany(docs);
+        await nativeProducts.createIndex({ category: 1 });
+
+        console.log("\n场景 1: 简单链式调用");
+        console.log("-".repeat(70));
+        const plan1 = await products.find({ category: "Electronics" }).explain();
+        console.log(`使用索引: ${plan1.queryPlanner.winningPlan.inputStage?.indexName || "无"}`);
+
+        console.log("\n场景 2: 指定 verbosity");
+        console.log("-".repeat(70));
+        const plan2 = await products.find({ category: "Books" }).explain("executionStats");
+        console.log(`扫描文档: ${plan2.executionStats.totalDocsExamined}`);
+        console.log(`返回文档: ${plan2.executionStats.nReturned}`);
+        console.log(`执行时间: ${plan2.executionStats.executionTimeMillis}ms`);
+
+        console.log("\n场景 3: 带查询选项的链式调用");
+        console.log("-".repeat(70));
+        const plan3 = await products
+            .find({ inStock: true }, { sort: { price: 1 }, limit: 10 })
+            .explain("queryPlanner");
+        console.log(`查询计划: ${plan3.queryPlanner.winningPlan.stage}`);
+
+        console.log("\n✅ 链式调用与原生 MongoDB 完全一致");
+    } finally {
+        await msq.close();
+    }
+}
+
 // 运行所有示例
 async function runAllExamples() {
     try {
@@ -345,6 +410,7 @@ async function runAllExamples() {
         await example3_indexOptimization();
         await example4_hintUsage();
         await example5_allPlansExecution();
+        await example6_chainExplain();
 
         console.log("\n" + "=".repeat(70));
         console.log("✅ 所有示例运行完成！");

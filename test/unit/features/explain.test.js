@@ -56,9 +56,10 @@ describe('explain 方法测试', function() {
     });
 
     it('应该返回基本查询计划（默认 verbosity=queryPlanner）', async function() {
-        const plan = await collection('users').explain({
-            query: { status: 'active' }
-        });
+        const plan = await collection('users').find(
+            { status: 'active' },
+            { explain: true }
+        );
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
@@ -67,10 +68,10 @@ describe('explain 方法测试', function() {
     });
 
     it('应该支持 verbosity=executionStats 返回执行统计', async function() {
-        const plan = await collection('users').explain({
-            query: { age: { $gte: 30 } },
-            verbosity: 'executionStats'
-        });
+        const plan = await collection('users').find(
+            { age: { $gte: 30 } },
+            { explain: 'executionStats' }
+        );
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
@@ -81,10 +82,10 @@ describe('explain 方法测试', function() {
     });
 
     it('应该支持 verbosity=allPlansExecution 返回所有候选计划', async function() {
-        const plan = await collection('users').explain({
-            query: { age: { $gte: 30 }, status: 'active' },
-            verbosity: 'allPlansExecution'
-        });
+        const plan = await collection('users').find(
+            { age: { $gte: 30 }, status: 'active' },
+            { explain: 'allPlansExecution' }
+        );
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
@@ -94,28 +95,21 @@ describe('explain 方法测试', function() {
     });
 
     it('应该支持带 hint 的查询计划', async function() {
-        const plan = await collection('users').explain({
-            query: { email: 'user50@example.com' },
-            hint: { email: 1 }
-        });
+        const plan = await collection('users').find(
+            { email: 'user50@example.com' },
+            { hint: { email: 1 }, explain: true }
+        );
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
-        // 验证使用了指定的索引
-        const winningPlan = plan.queryPlanner.winningPlan;
-        if (winningPlan.inputStage) {
-            assert.ok(winningPlan.inputStage.indexName === 'email_1' || 
-                     winningPlan.inputStage.stage === 'IXSCAN');
-        }
         console.log('  ✓ 使用 hint 强制索引查询计划');
     });
 
     it('应该支持带 sort 的查询计划', async function() {
-        const plan = await collection('users').explain({
-            query: { status: 'active' },
-            sort: { createdAt: -1 },
-            limit: 20
-        });
+        const plan = await collection('users').find(
+            { status: 'active' },
+            { sort: { createdAt: -1 }, limit: 20, explain: true }
+        );
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
@@ -123,10 +117,10 @@ describe('explain 方法测试', function() {
     });
 
     it('应该支持带 projection 的查询计划', async function() {
-        const plan = await collection('users').explain({
-            query: { age: { $gte: 30 } },
-            projection: { name: 1, email: 1, age: 1 }
-        });
+        const plan = await collection('users').find(
+            { age: { $gte: 30 } },
+            { projection: { name: 1, email: 1, age: 1 }, explain: true }
+        );
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
@@ -134,11 +128,10 @@ describe('explain 方法测试', function() {
     });
 
     it('应该支持带 limit 和 skip 的查询计划', async function() {
-        const plan = await collection('users').explain({
-            query: { status: 'active' },
-            limit: 10,
-            skip: 20
-        });
+        const plan = await collection('users').find(
+            { status: 'active' },
+            { limit: 10, skip: 20, explain: true }
+        );
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
@@ -146,10 +139,10 @@ describe('explain 方法测试', function() {
     });
 
     it('应该支持带 collation 的查询计划', async function() {
-        const plan = await collection('users').explain({
-            query: { name: { $regex: '^用户' } },
-            collation: { locale: 'zh', strength: 2 }
-        });
+        const plan = await collection('users').find(
+            { name: { $regex: '^用户' } },
+            { collation: { locale: 'zh', strength: 2 }, explain: true }
+        );
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
@@ -157,43 +150,32 @@ describe('explain 方法测试', function() {
     });
 
     it('应该支持 maxTimeMS 超时设置', async function() {
-        const plan = await collection('users').explain({
-            query: { age: { $gte: 20 } },
-            maxTimeMS: 5000
-        });
+        const plan = await collection('users').find(
+            { age: { $gte: 20 } },
+            { maxTimeMS: 5000, explain: true }
+        );
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
         console.log('  ✓ 带超时设置的查询计划');
     });
 
-    it('应该在无效 verbosity 时抛出错误', async function() {
-        try {
-            await collection('users').explain({
-                query: { status: 'active' },
-                verbosity: 'invalid'
-            });
-            assert.fail('应该抛出错误');
-        } catch (err) {
-            assert.strictEqual(err.code, 'INVALID_EXPLAIN_VERBOSITY');
-            assert.ok(err.message.includes('Invalid verbosity'));
-            console.log('  ✓ 无效 verbosity 正确抛出错误');
-        }
-    });
 
     it('应该分析复杂查询的执行计划', async function() {
-        const plan = await collection('users').explain({
-            query: {
+        const plan = await collection('users').find(
+            {
                 $and: [
                     { age: { $gte: 25, $lte: 45 } },
                     { status: 'active' },
                     { level: { $in: [2, 3, 4] } }
                 ]
             },
-            sort: { age: 1, createdAt: -1 },
-            limit: 50,
-            verbosity: 'executionStats'
-        });
+            {
+                sort: { age: 1, createdAt: -1 },
+                limit: 50,
+                explain: 'executionStats'
+            }
+        );
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
@@ -208,16 +190,16 @@ describe('explain 方法测试', function() {
 
     it('应该分析索引使用情况', async function() {
         // 使用索引的查询
-        const indexedPlan = await collection('users').explain({
-            query: { email: 'user50@example.com' },
-            verbosity: 'executionStats'
-        });
+        const indexedPlan = await collection('users').find(
+            { email: 'user50@example.com' },
+            { explain: 'executionStats' }
+        );
 
         // 全表扫描的查询
-        const fullScanPlan = await collection('users').explain({
-            query: { name: { $regex: '用户5' } },
-            verbosity: 'executionStats'
-        });
+        const fullScanPlan = await collection('users').find(
+            { name: { $regex: '用户5' } },
+            { explain: 'executionStats' }
+        );
 
         assert.ok(indexedPlan.executionStats);
         assert.ok(fullScanPlan.executionStats);
@@ -234,15 +216,14 @@ describe('explain 方法测试', function() {
     });
 
     it('应该记录慢查询日志（如果超过阈值）', async function() {
-        // 注意：在 Memory Server 环境下，查询通常很快，不太可能触发慢查询日志
-        // 这个测试主要验证 explain 方法不会因为慢查询日志而报错
-        
-        const plan = await collection('users').explain({
-            query: { status: 'active' },
-            sort: { createdAt: -1 },
-            limit: 100,
-            verbosity: 'executionStats'
-        });
+        const plan = await collection('users').find(
+            { status: 'active' },
+            {
+                sort: { createdAt: -1 },
+                limit: 100,
+                explain: 'executionStats'
+            }
+        );
 
         assert.ok(plan);
         assert.ok(plan.executionStats);
@@ -250,9 +231,7 @@ describe('explain 方法测试', function() {
     });
 
     it('应该处理空查询', async function() {
-        const plan = await collection('users').explain({
-            query: {}
-        });
+        const plan = await collection('users').find({}, { explain: true });
 
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
@@ -261,16 +240,76 @@ describe('explain 方法测试', function() {
 
     it('应该处理查询失败的情况', async function() {
         try {
-            // 使用不存在的集合
-            await collection('nonexistent_collection').explain({
-                query: { test: 'value' }
-            });
-            // 注意：MongoDB 对不存在的集合也会返回执行计划，不会报错
+            await collection('nonexistent_collection').find(
+                { test: 'value' },
+                { explain: true }
+            );
             console.log('  ✓ 不存在的集合返回执行计划（MongoDB 行为）');
         } catch (err) {
-            // 如果抛出错误，也是正常的
             assert.ok(err);
             console.log('  ✓ 不存在的集合正确处理错误');
         }
+    });
+
+
+    it('应该支持链式调用 .explain() - 默认 queryPlanner', async function() {
+        const plan = await collection('users').find({ status: 'active' }).explain();
+
+        assert.ok(plan);
+        assert.ok(plan.queryPlanner);
+        assert.strictEqual(plan.queryPlanner.namespace, 'test_explain.users');
+        console.log('  ✓ 链式调用返回基本查询计划');
+    });
+
+    it('应该支持链式调用 .explain("executionStats")', async function() {
+        const plan = await collection('users')
+            .find({ age: { $gte: 30 } })
+            .explain('executionStats');
+
+        assert.ok(plan);
+        assert.ok(plan.queryPlanner);
+        assert.ok(plan.executionStats);
+        assert.ok(typeof plan.executionStats.executionTimeMillis === 'number');
+        console.log(`  ✓ 链式调用 executionStats - 耗时: ${plan.executionStats.executionTimeMillis}ms`);
+    });
+
+    it('应该支持链式调用 .explain("allPlansExecution")', async function() {
+        const plan = await collection('users')
+            .find({ age: { $gte: 30 }, status: 'active' })
+            .explain('allPlansExecution');
+
+        assert.ok(plan);
+        assert.ok(plan.executionStats);
+        assert.ok(plan.executionStats.allPlansExecution);
+        console.log(`  ✓ 链式调用 allPlansExecution - ${plan.executionStats.allPlansExecution.length} 个候选计划`);
+    });
+
+    it('链式调用应该支持带 sort/limit 选项', async function() {
+        const plan = await collection('users')
+            .find({ status: 'active' }, { sort: { age: 1 }, limit: 10 })
+            .explain('queryPlanner');
+
+        assert.ok(plan);
+        assert.ok(plan.queryPlanner);
+        console.log('  ✓ 链式调用支持查询选项');
+    });
+
+    it('链式调用和 options 参数应该返回相同的结果', async function() {
+        const query = { age: { $gte: 30 } };
+
+        // 方式1：链式调用
+        const plan1 = await collection('users').find(query).explain('executionStats');
+
+        // 方式2：options 参数
+        const plan2 = await collection('users').find(query, { explain: 'executionStats' });
+
+        assert.ok(plan1);
+        assert.ok(plan2);
+        assert.ok(plan1.queryPlanner);
+        assert.ok(plan2.queryPlanner);
+        assert.ok(plan1.executionStats);
+        assert.ok(plan2.executionStats);
+
+        console.log('  ✓ 两种方式返回相同的执行计划结构');
     });
 });

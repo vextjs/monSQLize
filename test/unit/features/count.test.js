@@ -148,9 +148,7 @@ describe('count 方法测试套件', function() {
     });
 
     it('1.3 应该正确应用查询条件', async function() {
-      const completedCount = await countCollection('test_orders').count({
-        query: { status: 'completed' }
-      });
+      const completedCount = await countCollection('test_orders').count({ status: 'completed' });
 
       // 验证统计结果
       const expected = testData.filter(d => d.status === 'completed').length;
@@ -158,9 +156,7 @@ describe('count 方法测试套件', function() {
     });
 
     it('1.4 应该返回 0 当没有匹配文档时', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { status: 'nonexistent_status' }
-      });
+      const count = await countCollection('test_orders').count({ status: 'nonexistent_status' });
 
       assert.equal(count, 0, '应该返回 0 当没有匹配文档');
     });
@@ -174,58 +170,42 @@ describe('count 方法测试套件', function() {
 
   describe('2. 查询条件和操作符', function() {
     it('2.1 应该支持 $eq 操作符', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { status: { $eq: 'completed' } }
-      });
+      const count = await countCollection('test_orders').count({ status: { $eq: 'completed' } });
 
       const expected = testData.filter(d => d.status === 'completed').length;
       assert.equal(count, expected, '应该统计出正确数量');
     });
 
     it('2.2 应该支持 $ne 操作符', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { status: { $ne: 'cancelled' } }
-      });
+      const count = await countCollection('test_orders').count({ status: { $ne: 'cancelled' } });
 
       const expected = testData.filter(d => d.status !== 'cancelled').length;
       assert.equal(count, expected, '应该统计出非取消状态的订单');
     });
 
     it('2.3 应该支持 $gt 和 $lt 操作符', async function() {
-      const count = await countCollection('test_orders').count({
-        query: {
-          amount: { $gt: 1000, $lt: 3000 }
-        }
-      });
+      const count = await countCollection('test_orders').count({ amount: { $gt: 1000, $lt: 3000 } });
 
       const expected = testData.filter(d => d.amount > 1000 && d.amount < 3000).length;
       assert.equal(count, expected, '应该统计出金额在指定范围内的订单');
     });
 
     it('2.4 应该支持 $gte 和 $lte 操作符', async function() {
-      const count = await countCollection('test_orders').count({
-        query: {
-          amount: { $gte: 1000, $lte: 3000 }
-        }
-      });
+      const count = await countCollection('test_orders').count({ amount: { $gte: 1000, $lte: 3000 } });
 
       const expected = testData.filter(d => d.amount >= 1000 && d.amount <= 3000).length;
       assert.equal(count, expected, '应该统计出金额在指定范围内的订单（包含边界）');
     });
 
     it('2.5 应该支持 $in 操作符', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { status: { $in: ['completed', 'paid'] } }
-      });
+      const count = await countCollection('test_orders').count({ status: { $in: ['completed', 'paid'] } });
 
       const expected = testData.filter(d => ['completed', 'paid'].includes(d.status)).length;
       assert.equal(count, expected, '应该统计出指定状态的订单');
     });
 
     it('2.6 应该支持 $nin 操作符', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { status: { $nin: ['cancelled'] } }
-      });
+      const count = await countCollection('test_orders').count({ status: { $nin: ['cancelled'] } });
 
       const expected = testData.filter(d => !['cancelled'].includes(d.status)).length;
       assert.equal(count, expected, '应该统计出不在排除列表中的订单');
@@ -233,12 +213,10 @@ describe('count 方法测试套件', function() {
 
     it('2.7 应该支持 $and 操作符', async function() {
       const count = await countCollection('test_orders').count({
-        query: {
-          $and: [
-            { status: 'completed' },
-            { verified: true }
-          ]
-        }
+        $and: [
+          { status: 'completed' },
+          { verified: true }
+        ]
       });
 
       const expected = testData.filter(d => d.status === 'completed' && d.verified === true).length;
@@ -247,12 +225,10 @@ describe('count 方法测试套件', function() {
 
     it('2.8 应该支持 $or 操作符', async function() {
       const count = await countCollection('test_orders').count({
-        query: {
-          $or: [
-            { status: 'completed' },
-            { amount: { $gte: 4000 } }
-          ]
-        }
+        $or: [
+          { status: 'completed' },
+          { amount: { $gte: 4000 } }
+        ]
       });
 
       const expected = testData.filter(d => d.status === 'completed' || d.amount >= 4000).length;
@@ -261,11 +237,9 @@ describe('count 方法测试套件', function() {
 
     it('2.9 应该支持多条件组合查询', async function() {
       const count = await countCollection('test_orders').count({
-        query: {
-          status: 'completed',
-          amount: { $gte: 1000 },
-          verified: true
-        }
+        status: 'completed',
+        amount: { $gte: 1000 },
+        verified: true
       });
 
       const expected = testData.filter(d =>
@@ -279,18 +253,14 @@ describe('count 方法测试套件', function() {
 
   describe('3. 数组字段统计', function() {
     it('3.1 应该支持数组字段查询', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { tags: 'urgent' }
-      });
+      const count = await countCollection('test_orders').count({ tags: 'urgent' });
 
       const expected = testData.filter(d => d.tags.includes('urgent')).length;
       assert.equal(count, expected, '应该统计出包含指定标签的订单');
     });
 
     it('3.2 应该支持 $all 操作符', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { tags: { $all: ['urgent', 'vip'] } }
-      });
+      const count = await countCollection('test_orders').count({ tags: { $all: ['urgent', 'vip'] } });
 
       const expected = testData.filter(d =>
         d.tags.includes('urgent') && d.tags.includes('vip')
@@ -304,9 +274,7 @@ describe('count 方法测试套件', function() {
       const now = new Date();
       const oneDayAgo = new Date(now - 24 * 3600000);
 
-      const count = await countCollection('test_orders').count({
-        query: { createdAt: { $gte: oneDayAgo } }
-      });
+      const count = await countCollection('test_orders').count({ createdAt: { $gte: oneDayAgo } });
 
       assert.ok(count >= 0, '应该返回有效的统计结果');
       assert.ok(count <= 100, '统计结果不应超过总数');
@@ -318,11 +286,9 @@ describe('count 方法测试套件', function() {
       const endDate = new Date(now - 24 * 3600000);
 
       const count = await countCollection('test_orders').count({
-        query: {
-          createdAt: {
-            $gte: startDate,
-            $lt: endDate
-          }
+        createdAt: {
+          $gte: startDate,
+          $lt: endDate
         }
       });
 
@@ -333,35 +299,23 @@ describe('count 方法测试套件', function() {
   describe('5. 缓存功能', function() {
     it('5.1 应该支持缓存统计', async function() {
       // 第一次查询
-      const count1 = await countCollection('test_orders').count({
-        query: { status: 'completed' },
-        cache: 5000
-      });
+      const count1 = await countCollection('test_orders').count({ status: 'completed' }, { cache: 5000 });
 
       // 第二次查询（应该从缓存返回）
-      const count2 = await countCollection('test_orders').count({
-        query: { status: 'completed' },
-        cache: 5000
-      });
+      const count2 = await countCollection('test_orders').count({ status: 'completed' }, { cache: 5000 });
 
       assert.equal(count1, count2, '缓存查询结果应该相同');
     });
 
     it('5.2 应该正确处理缓存过期', async function() {
       // 查询并缓存
-      const count1 = await countCollection('test_orders').count({
-        query: { status: 'paid' },
-        cache: 100 // 100ms 缓存
-      });
+      const count1 = await countCollection('test_orders').count({ status: 'paid' }, { cache: 100 }); // 100ms 缓存
 
       // 等待缓存过期
       await new Promise(resolve => setTimeout(resolve, 150));
 
       // 再次查询
-      const count2 = await countCollection('test_orders').count({
-        query: { status: 'paid' },
-        cache: 100
-      });
+      const count2 = await countCollection('test_orders').count({ status: 'paid' }, { cache: 100 });
 
       assert.equal(count1, count2, '结果应该相同');
     });
@@ -369,10 +323,7 @@ describe('count 方法测试套件', function() {
 
   describe('6. 执行计划和性能', function() {
     it('6.1 应该支持 explain 查询', async function() {
-      const plan = await countCollection('test_orders').count({
-        query: { status: 'completed' },
-        explain: 'executionStats'
-      });
+      const plan = await countCollection('test_orders').count({ status: 'completed' }, { explain: 'executionStats' });
 
       assert.ok(plan, '应该返回执行计划');
       // 修复：MongoDB 聚合管道的 explain 结构可能不同
@@ -383,20 +334,14 @@ describe('count 方法测试套件', function() {
     });
 
     it('6.2 应该支持 hint 索引提示', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { status: 'completed' },
-        hint: { status: 1 }
-      });
+      const count = await countCollection('test_orders').count({ status: 'completed' }, { hint: { status: 1 } });
 
       assert.ok(count >= 0, '使用索引提示应该返回有效结果');
     });
 
     it('6.3 应该支持 maxTimeMS 超时设置', async function() {
       try {
-        const count = await countCollection('test_orders').count({
-          query: { status: 'completed' },
-          maxTimeMS: 5000
-        });
+        const count = await countCollection('test_orders').count({ status: 'completed' }, { maxTimeMS: 5000 });
 
         assert.ok(count >= 0, '应该在超时时间内返回结果');
       } catch (error) {
@@ -406,9 +351,7 @@ describe('count 方法测试套件', function() {
     });
 
     it('6.4 空查询应该使用 estimatedDocumentCount', async function() {
-      const plan = await countCollection('test_orders').count({
-        explain: 'executionStats'
-      });
+      const plan = await countCollection('test_orders').count({}, { explain: 'executionStats' });
 
       // 检查是否使用了快速统计
       const usedEstimate = plan.command?.estimatedDocumentCount ||
@@ -428,10 +371,7 @@ describe('count 方法测试套件', function() {
         amount: 100
       });
 
-      const count = await countCollection('test_orders').count({
-        query: { status: 'test' },
-        collation: { locale: 'en', strength: 2 }  // 不区分大小写
-      });
+      const count = await countCollection('test_orders').count({ status: 'test' }, { collation: { locale: 'en', strength: 2 } });  // 不区分大小写
 
       assert.ok(count >= 1, '应该找到不区分大小写的匹配');
 
@@ -443,9 +383,7 @@ describe('count 方法测试套件', function() {
   describe('8. 错误处理', function() {
     it('8.1 应该处理无效查询条件', async function() {
       try {
-        await countCollection('test_orders').count({
-          query: { $invalidOperator: 'value' }
-        });
+        await countCollection('test_orders').count({ $invalidOperator: 'value' });
         assert.ok(true, '应该正常处理或抛出错误');
       } catch (error) {
         assert.ok(error, '应该抛出错误');
@@ -459,9 +397,7 @@ describe('count 方法测试套件', function() {
     });
 
     it('8.3 应该处理空查询对象', async function() {
-      const count = await countCollection('test_orders').count({
-        query: {}
-      });
+      const count = await countCollection('test_orders').count({});
 
       assert.equal(count, 100, '空查询应该统计所有文档');
     });
@@ -469,26 +405,20 @@ describe('count 方法测试套件', function() {
 
   describe('9. 边界情况', function() {
     it('9.1 应该正确处理 null 值查询', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { completedAt: null }
-      });
+      const count = await countCollection('test_orders').count({ completedAt: null });
 
       assert.ok(count >= 0, '应该返回有效的统计结果');
     });
 
     it('9.2 应该正确处理布尔值查询', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { verified: true }
-      });
+      const count = await countCollection('test_orders').count({ verified: true });
 
       const expected = testData.filter(d => d.verified === true).length;
       assert.equal(count, expected, '应该统计出已验证的订单');
     });
 
     it('9.3 应该正确处理数值 0 查询', async function() {
-      const count = await countCollection('test_orders').count({
-        query: { priority: 0 }
-      });
+      const count = await countCollection('test_orders').count({ priority: 0 });
 
       const expected = testData.filter(d => d.priority === 0).length;
       assert.equal(count, expected, '应该统计出优先级为 0 的订单');
@@ -502,9 +432,7 @@ describe('count 方法测试套件', function() {
         amount: 100
       });
 
-      const count = await countCollection('test_orders').count({
-        query: { status: '' }
-      });
+      const count = await countCollection('test_orders').count({ status: '' });
 
       assert.ok(count >= 1, '应该能查询空字符串');
 
@@ -520,9 +448,7 @@ describe('count 方法测试套件', function() {
       const time1 = Date.now() - start1;
 
       const start2 = Date.now();
-      await countCollection('test_orders').count({
-        query: { status: 'completed' }
-      });
+      await countCollection('test_orders').count({ status: 'completed' });
       const time2 = Date.now() - start2;
 
       console.log(`      空查询耗时: ${time1}ms, 条件查询耗时: ${time2}ms`);
@@ -531,9 +457,7 @@ describe('count 方法测试套件', function() {
 
     it('10.2 索引字段查询应该快速', async function() {
       const start = Date.now();
-      const count = await countCollection('test_orders').count({
-        query: { status: 'completed' }  // status 有索引
-      });
+      const count = await countCollection('test_orders').count({ status: 'completed' });  // status 有索引
       const duration = Date.now() - start;
 
       console.log(`      索引查询耗时: ${duration}ms, 结果: ${count}`);
@@ -542,11 +466,9 @@ describe('count 方法测试套件', function() {
 
     it('10.3 复合条件查询应该正常工作', async function() {
       const count = await countCollection('test_orders').count({
-        query: {
-          status: 'completed',
-          amount: { $gte: 1000 },
-          verified: true
-        }
+        status: 'completed',
+        amount: { $gte: 1000 },
+        verified: true
       });
 
       assert.ok(count >= 0, '复合查询应该返回有效结果');

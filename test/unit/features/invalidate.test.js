@@ -51,21 +51,25 @@ describe('invalidate() - 缓存失效', function () {
 
     describe('基本功能', () => {
         it('应该清除指定集合的所有缓存', async () => {
+            // 0. 先清空所有缓存，确保测试独立性
+            await collection('products').invalidate();
+            msq._adapter.cache.clear();
+
             // 1. 执行查询并缓存
-            const result1 = await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            const result1 = await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
             assert.strictEqual(result1.length, 2);
 
             // 2. 验证缓存命中
             const stats1 = msq._adapter.cache.getStats();
             const hits1 = stats1.hits;
 
-            await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
 
             const stats2 = msq._adapter.cache.getStats();
             assert.strictEqual(stats2.hits, hits1 + 1, '应该命中缓存');
@@ -76,10 +80,10 @@ describe('invalidate() - 缓存失效', function () {
 
             // 4. 验证缓存已清除（再次查询不会命中缓存）
             const hits2 = stats2.hits;
-            await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
 
             const stats3 = msq._adapter.cache.getStats();
             // 缓存已清除，所以不会增加命中次数
@@ -87,54 +91,57 @@ describe('invalidate() - 缓存失效', function () {
         });
 
         it('应该只清除指定集合的缓存，不影响其他集合', async () => {
-            // 1. 缓存两个不同集合的查询
-            await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            // 0. 先清空所有缓存
+            msq._adapter.cache.clear();
 
-            await collection('test').find({
-                query: {},
-                cache: 60000
-            });
+            // 1. 缓存两个不同集合的查询
+            await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
+
+            await collection('test').find(
+                {},
+                { cache: 60000 }
+            );
 
             // 2. 清除 products 集合的缓存
             await collection('products').invalidate();
 
             // 3. 验证 products 缓存已清除
             const hits1 = msq._adapter.cache.getStats().hits;
-            await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
             const hits2 = msq._adapter.cache.getStats().hits;
             assert.strictEqual(hits2, hits1, 'products 缓存已清除');
 
             // 4. 验证 test 缓存仍然有效
-            await collection('test').find({
-                query: {},
-                cache: 60000
-            });
+            await collection('test').find(
+                {},
+                { cache: 60000 }
+            );
             const hits3 = msq._adapter.cache.getStats().hits;
             assert.strictEqual(hits3, hits2 + 1, 'test 缓存应该仍然有效');
         });
 
         it('应该清除所有操作类型的缓存（find/findOne/count）', async () => {
             // 1. 缓存不同操作类型
-            await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
 
-            await collection('products').findOne({
-                query: { name: 'Product A' },
-                cache: 60000
-            });
+            await collection('products').findOne(
+                { name: 'Product A' },
+                { cache: 60000 }
+            );
 
-            await collection('products').count({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            await collection('products').count(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
 
             // 2. 清除缓存
             await collection('products').invalidate();
@@ -142,20 +149,20 @@ describe('invalidate() - 缓存失效', function () {
             // 3. 验证所有类型的缓存都已清除
             const hits1 = msq._adapter.cache.getStats().hits;
 
-            await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
 
-            await collection('products').findOne({
-                query: { name: 'Product A' },
-                cache: 60000
-            });
+            await collection('products').findOne(
+                { name: 'Product A' },
+                { cache: 60000 }
+            );
 
-            await collection('products').count({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            await collection('products').count(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
 
             const hits2 = msq._adapter.cache.getStats().hits;
             assert.strictEqual(hits2, hits1, '所有类型的缓存都应该已清除');
@@ -164,36 +171,41 @@ describe('invalidate() - 缓存失效', function () {
 
     describe('指定操作类型清除', () => {
         it('应该支持按操作类型清除缓存（op 参数）', async () => {
-            // 1. 缓存不同操作类型
-            await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            // 0. 清空缓存并重置统计
+            msq._adapter.cache.clear();
+            msq._adapter.cache.resetStats();
 
-            await collection('products').count({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            // 1. 缓存不同操作类型
+            await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
+
+            await collection('products').findOne(
+                { name: 'Product A' },
+                { cache: 60000 }
+            );
 
             // 2. 只清除 find 操作的缓存
-            await collection('products').invalidate('find');
+            const deleted = await collection('products').invalidate('find');
+            assert.ok(deleted >= 0, '应该返回删除数量');
 
-            // 3. 验证 find 缓存已清除
+            // 3. 验证 find 缓存已清除（再次查询会miss）
             const hits1 = msq._adapter.cache.getStats().hits;
-            await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
             const hits2 = msq._adapter.cache.getStats().hits;
             assert.strictEqual(hits2, hits1, 'find 缓存已清除');
 
-            // 4. 验证 count 缓存仍然有效
-            await collection('products').count({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            // 4. 验证 findOne 缓存仍然有效（再次查询会hit）
+            await collection('products').findOne(
+                { name: 'Product A' },
+                { cache: 60000 }
+            );
             const hits3 = msq._adapter.cache.getStats().hits;
-            assert.strictEqual(hits3, hits2 + 1, 'count 缓存应该仍然有效');
+            assert.strictEqual(hits3, hits2 + 1, 'findOne 缓存应该仍然有效');
         });
     });
 
@@ -227,10 +239,10 @@ describe('invalidate() - 缓存失效', function () {
 
         it('应该处理连续的 invalidate 调用', async () => {
             // 1. 缓存查询
-            await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
 
             // 2. 连续清除多次
             await collection('products').invalidate();
@@ -239,10 +251,10 @@ describe('invalidate() - 缓存失效', function () {
 
             // 3. 验证缓存确实已清除
             const hits1 = msq._adapter.cache.getStats().hits;
-            await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
             const hits2 = msq._adapter.cache.getStats().hits;
             assert.strictEqual(hits2, hits1, '缓存应该已清除');
         });
@@ -251,10 +263,10 @@ describe('invalidate() - 缓存失效', function () {
     describe('实际使用场景', () => {
         it('场景1: 外部工具修改数据后清除缓存', async () => {
             // 1. 查询并缓存
-            const result1 = await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            const result1 = await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
             assert.strictEqual(result1.length, 2);
 
             // 2. 模拟外部工具修改数据（直接操作 MongoDB）
@@ -268,17 +280,17 @@ describe('invalidate() - 缓存失效', function () {
             await collection('products').invalidate();
 
             // 4. 再次查询，应该获取最新数据（包含新插入的记录）
-            const result2 = await collection('products').find({
-                query: { category: 'electronics' },
-                cache: 60000
-            });
+            const result2 = await collection('products').find(
+                { category: 'electronics' },
+                { cache: 60000 }
+            );
             assert.strictEqual(result2.length, 3, '应该获取最新数据');
         });
 
         it('场景2: 批量清除多个集合的缓存', async () => {
             // 1. 缓存多个集合
-            await collection('products').find({ query: {}, cache: 60000 });
-            await collection('test').find({ query: {}, cache: 60000 });
+            await collection('products').find({}, { cache: 60000 });
+            await collection('test').find({}, { cache: 60000 });
 
             // 2. 批量清除
             const collections = ['products', 'test'];
@@ -288,8 +300,8 @@ describe('invalidate() - 缓存失效', function () {
 
             // 3. 验证所有缓存都已清除
             const hits1 = msq._adapter.cache.getStats().hits;
-            await collection('products').find({ query: {}, cache: 60000 });
-            await collection('test').find({ query: {}, cache: 60000 });
+            await collection('products').find({}, { cache: 60000 });
+            await collection('test').find({}, { cache: 60000 });
             const hits2 = msq._adapter.cache.getStats().hits;
             assert.strictEqual(hits2, hits1, '所有缓存都应该已清除');
         });

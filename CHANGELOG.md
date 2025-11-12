@@ -4,6 +4,86 @@
 
 ## [未发布]
 
+### Changed
+- **explain 示例和测试更新**（2025-11-12）
+  - `examples/explain.examples.js`：所有示例从旧版 `explain({ query, verbosity })` 改为原生风格 `find(filter, { explain })`
+  - 示例 1-5 全部更新为使用 options 参数的方式
+  - 保持与 MongoDB 原生 API 完全一致的调用风格
+
+- **explain 链式调用支持**（2025-11-12）
+  - ✨ 新增链式调用支持：
+    - `collection.find({ ... }).explain('executionStats')`
+    - `collection.aggregate([...]).explain('executionStats')`
+  - 完全兼容原生 MongoDB 的链式调用语法
+  - 通过在 Promise 上添加 explain() 方法实现
+  - 同时保留 options 参数方式：
+    - `find(filter, { explain: 'executionStats' })`
+    - `aggregate(pipeline, { explain: 'executionStats' })`
+  - ❌ 删除独立 explain 方法：`collection.explain({ query, verbosity })`（API 与原生不一致）
+  - 现在只支持两种方式：链式调用和 options 参数，都与原生 MongoDB 兼容
+  - 更新所有测试用例，使用新的 API
+
+- **explain 文档重构**（2025-11-12）
+  - 明确使用原生 MongoDB `Cursor.explain()` 方法
+  - 支持两种调用方式：链式调用和 options 参数
+  - 新增与原生 MongoDB 的对比：实现原理和使用示例
+  - 新增聚合管道的 explain 示例：管道分析、优化建议、阶段性能对比
+  - 新增常见问题章节：verbosity 选择、性能影响、执行计划解读、索引问题诊断、聚合管道优化
+
+- **distinct 文档重构**（2025-11-12）  - 明确使用原生 MongoDB `Collection.distinct()` 方法
+  - 扩展 options 参数：新增 `session`（事务支持）、`comment`（查询注释）、`collation`（排序规则）等原生选项
+  - 新增使用模式：事务中的 distinct 查询（第 9 节）
+  - 新增使用建议章节：何时使用 distinct、性能考虑、缓存策略
+  - 优化常见问题：新增 Q1（monSQLize 与原生 MongoDB 的区别）、Q7（事务使用）
+  - 扩展最佳实践：从 7 条增加到 10 条，包含索引优化、缓存策略、事务使用等
+
+- **estimated-count 文档重构**（2025-11-12）
+  - 明确使用原生 MongoDB `estimatedDocumentCount()` 方法
+  - 扩展 options 参数：新增 `maxTimeMS`（超时控制）、`comment`（查询注释）等原生选项
+  - 新增性能对比章节：estimatedDocumentCount vs countDocuments vs count（性能差异对比）
+  - 新增使用建议章节：何时使用 estimatedDocumentCount、性能考虑
+  - 优化最佳实践：从简单列表扩展为详细说明，包含具体代码示例
+
+- **count 文档重构**（2025-11-12）
+  - 明确使用原生 MongoDB `countDocuments()` 方法
+  - 扩展 options 参数：新增 `skip`、`session`、`hint`、`comment` 等原生选项
+  - 新增使用模式：事务中的 count 查询、使用 hint 指定索引
+  - 优化最佳实践：添加具体代码示例和场景说明
+
+- **distinct 方法 API 重构**（2025-11-11）
+  - 方法签名变更：从 `distinct(field, options)` 改为 `distinct(field, query, options)`，将 query 参数独立出来
+  - 新增参数支持：`comment`（查询注释，用于日志和性能分析）
+  - 与 MongoDB 原生 API 保持一致：使用原生 `collection.distinct(field, query, options)` 方法
+  - 更新文档：`docs/distinct.md` - 反映新的 API 格式和参数说明
+  - 更新示例：`examples/distinct.examples.js` - 所有 10 个示例迁移到新 API
+  - ⚠️ **破坏性变更**：不兼容旧版本 `distinct('field', { query: {...} })` 格式，需修改为 `distinct('field', query, options)`
+
+- **count 方法 API 重构**（2025-11-11）
+  - 使用 MongoDB 原生推荐的 API：`countDocuments()` 和 `estimatedDocumentCount()`
+  - 方法签名变更：从 `count(options)` 改为 `count(query, options)`，将 query 参数独立出来
+  - 新增参数支持：`skip`、`limit`（用于分页统计和抽样统计）
+  - 性能优化：空查询自动使用 `estimatedDocumentCount()`（基于元数据，毫秒级）
+  - 更新文档：`docs/count.md` - 反映新的 API 格式和参数说明
+  - 更新示例：`examples/count.examples.js` - 所有示例迁移到新 API
+  - 创建迁移指南：`docs/count-migration-guide.md` - 帮助用户从旧版本迁移
+  - ⚠️ **破坏性变更**：不兼容旧版本 `count({ query: {...} })` 格式，需按迁移指南修改代码
+
+- **find 和 findOne 方法 API 重构**（2025-11-12）
+  - 方法签名变更：从 `find(options)` / `findOne(options)` 改为 `find(query, options)` / `findOne(query, options)`，将 query 参数独立出来
+  - 与 MongoDB 原生 API 保持一致：使用原生 `collection.find(query, options)` / `collection.findOne(query, options)` 方法
+  - 更新文档：
+    - `docs/find.md` - 反映新的 API 格式和参数说明（29 个代码示例全部更新）
+    - `docs/findOne.md` - 反映新的 API 格式和参数说明（15 个代码示例全部更新）
+    - `README.md` - 更新所有代码示例（13 个示例）
+  - 更新示例：
+    - `examples/find.examples.js` - 所有 10 个示例迁移到新 API
+    - `examples/findOne.examples.js` - 所有 7 个示例迁移到新 API
+  - 更新 TypeScript 定义：
+    - `index.d.ts` - 更新方法签名和接口定义
+    - 移除 `FindOptions.query` 字段
+    - 所有方法签名（find/findOne/count/distinct/stream/explain）改为两参数形式
+  - ⚠️ **破坏性变更**：不兼容旧版本 `find({ query: {...} })` 格式，需修改为 `find(query, options)`
+
 ### 新增
 - **insertOne 和 insertMany 写操作文档补充**（2025-11-10）
   - README.md：添加"写入操作"表格和详细使用示例（第 8 节）

@@ -387,38 +387,28 @@ async function example02_distinctWithQuery() {
 
         console.log('\n2.1 获取在售商品的分类');
         console.log('-'.repeat(80));
-        const inStockCategories = await collection(COLLECTIONS.PRODUCTS).distinct('category', {
-            query: { inStock: true }
-        });
+        const inStockCategories = await collection(COLLECTIONS.PRODUCTS).distinct('category', { inStock: true });
         console.log('在售商品分类:', inStockCategories);
 
         console.log('\n2.2 获取活跃用户的角色');
         console.log('-'.repeat(80));
-        const activeRoles = await collection(COLLECTIONS.USERS).distinct('role', {
-            query: { status: 'active' }
-        });
+        const activeRoles = await collection(COLLECTIONS.USERS).distinct('role', { status: 'active' });
         console.log('活跃用户角色:', activeRoles);
 
         console.log('\n2.3 获取已完成订单的客户ID（前5个）');
         console.log('-'.repeat(80));
-        const completedCustomers = await collection(COLLECTIONS.ORDERS).distinct('customerId', {
-            query: { status: 'completed' }
-        });
+        const completedCustomers = await collection(COLLECTIONS.ORDERS).distinct('customerId', { status: 'completed' });
         console.log('已完成订单的客户数:', completedCustomers.length);
         console.log('示例客户ID:', completedCustomers.slice(0, 5));
 
         console.log('\n2.4 获取高价商品（>=1000元）的品牌');
         console.log('-'.repeat(80));
-        const expensiveBrands = await collection(COLLECTIONS.PRODUCTS).distinct('brand', {
-            query: { price: { $gte: 1000 } }
-        });
+        const expensiveBrands = await collection(COLLECTIONS.PRODUCTS).distinct('brand', { price: { $gte: 1000 } });
         console.log('高价商品品牌:', expensiveBrands);
 
         console.log('\n2.5 获取2023年订单的支付方式');
         console.log('-'.repeat(80));
-        const payment2023 = await collection(COLLECTIONS.ORDERS).distinct('payment.method', {
-            query: { year: 2023 }
-        });
+        const payment2023 = await collection(COLLECTIONS.ORDERS).distinct('payment.method', { year: 2023 });
         console.log('2023年支付方式:', payment2023);
 
         if (needCleanup) {
@@ -506,9 +496,7 @@ async function example04_arrayFieldDistinct() {
 
         console.log('\n4.3 获取热门商品的标签');
         console.log('-'.repeat(80));
-        const hotTags = await collection(COLLECTIONS.PRODUCTS).distinct('tags', {
-            query: { sales: { $gte: 500 } }
-        });
+        const hotTags = await collection(COLLECTIONS.PRODUCTS).distinct('tags', { sales: { $gte: 500 } });
         console.log('热门商品标签:', hotTags);
 
         if (needCleanup) {
@@ -544,7 +532,7 @@ async function example05_caseInsensitiveDistinct() {
 
         console.log('\n5.2 不区分大小写去重');
         console.log('-'.repeat(80));
-        const usernamesCaseInsensitive = await collection(COLLECTIONS.USERS).distinct('username', {
+        const usernamesCaseInsensitive = await collection(COLLECTIONS.USERS).distinct('username', {}, {
             collation: {
                 locale: 'en',
                 strength: 1  // 1 = 忽略大小写和重音
@@ -586,39 +574,29 @@ async function example06_complexQueryDistinct() {
 
         console.log('\n6.1 获取高评分（>=4分）商品的分类');
         console.log('-'.repeat(80));
-        const highRatedCategories = await collection(COLLECTIONS.PRODUCTS).distinct('category', {
-            query: { rating: { $gte: 4 } }
-        });
+        const highRatedCategories = await collection(COLLECTIONS.PRODUCTS).distinct('category', { rating: { $gte: 4 } });
         console.log('高评分商品分类:', highRatedCategories);
 
         console.log('\n6.2 获取VIP用户所在的城市');
         console.log('-'.repeat(80));
         const vipCities = await collection(COLLECTIONS.USERS).distinct('address.city', {
-            query: {
-                role: 'vip',
-                status: 'active'
-            }
+            role: 'vip',
+            status: 'active'
         });
         console.log('VIP用户城市:', vipCities);
 
         console.log('\n6.3 获取近30天订单的货币类型');
         console.log('-'.repeat(80));
         const recentDate = new Date(Date.now() - 30 * 86400000);
-        const recentCurrencies = await collection(COLLECTIONS.ORDERS).distinct('currency', {
-            query: {
-                createdAt: { $gte: recentDate }
-            }
-        });
+        const recentCurrencies = await collection(COLLECTIONS.ORDERS).distinct('currency', { createdAt: { $gte: recentDate } });
         console.log('近30天货币类型:', recentCurrencies);
 
         console.log('\n6.4 获取已验证的正面评论的语言');
         console.log('-'.repeat(80));
         const languages = await collection(COLLECTIONS.REVIEWS).distinct('language', {
-            query: {
-                verified: true,
-                sentiment: 'positive',
-                rating: { $gte: 4 }
-            }
+            verified: true,
+            sentiment: 'positive',
+            rating: { $gte: 4 }
         });
         console.log('正面评论语言:', languages);
 
@@ -650,9 +628,7 @@ async function example07_distinctWithCache() {
         console.log('\n7.1 第一次查询（无缓存）');
         console.log('-'.repeat(80));
         const start1 = Date.now();
-        const categories1 = await collection(COLLECTIONS.PRODUCTS).distinct('category', {
-            cache: 60000  // 缓存 60 秒
-        });
+        const categories1 = await collection(COLLECTIONS.PRODUCTS).distinct('category', {}, { cache: 60000 });  // 缓存 60 秒
         const time1 = Date.now() - start1;
         console.log('商品分类:', categories1);
         console.log('查询耗时:', time1, 'ms');
@@ -660,9 +636,7 @@ async function example07_distinctWithCache() {
         console.log('\n7.2 第二次查询（使用缓存）');
         console.log('-'.repeat(80));
         const start2 = Date.now();
-        const categories2 = await collection(COLLECTIONS.PRODUCTS).distinct('category', {
-            cache: 60000
-        });
+        const categories2 = await collection(COLLECTIONS.PRODUCTS).distinct('category', {}, { cache: 60000 });
         const time2 = Date.now() - start2;
         console.log('商品分类:', categories2);
         console.log('查询耗时:', time2, 'ms');
@@ -670,10 +644,7 @@ async function example07_distinctWithCache() {
 
         console.log('\n7.3 缓存用户角色列表（10分钟）');
         console.log('-'.repeat(80));
-        const roles = await collection(COLLECTIONS.USERS).distinct('role', {
-            query: { status: 'active' },
-            cache: 10 * 60 * 1000  // 缓存 10 分钟
-        });
+        const roles = await collection(COLLECTIONS.USERS).distinct('role', { status: 'active' }, { cache: 10 * 60 * 1000 });  // 缓存 10 分钟
         console.log('活跃用户角色:', roles);
         console.log('✅ 结果已缓存 10 分钟');
 
@@ -709,9 +680,7 @@ async function example08_distinctExplain() {
 
         console.log('\n8.1 查看查询执行计划');
         console.log('-'.repeat(80));
-        const plan1 = await collection(COLLECTIONS.PRODUCTS).distinct('category', {
-            explain: 'executionStats'
-        });
+        const plan1 = await collection(COLLECTIONS.PRODUCTS).distinct('category', {}, { explain: 'executionStats' });
 
         console.log('查询阶段:', plan1.queryPlanner?.winningPlan?.stage || 'N/A');
         console.log('扫描文档数:', plan1.executionStats?.totalDocsExamined || 'N/A');
@@ -720,10 +689,7 @@ async function example08_distinctExplain() {
 
         console.log('\n8.2 带查询条件的执行计划');
         console.log('-'.repeat(80));
-        const plan2 = await collection(COLLECTIONS.PRODUCTS).distinct('category', {
-            query: { inStock: true },
-            explain: 'executionStats'
-        });
+        const plan2 = await collection(COLLECTIONS.PRODUCTS).distinct('category', { inStock: true }, { explain: 'executionStats' });
 
         console.log('查询阶段:', plan2.queryPlanner?.winningPlan?.stage || 'N/A');
         console.log('扫描文档数:', plan2.executionStats?.totalDocsExamined || 'N/A');
@@ -758,26 +724,15 @@ async function example09_practicalUseCases() {
         console.log('\n9.1 构建筛选器选项（电商网站）');
         console.log('-'.repeat(80));
         const filterOptions = {
-            categories: await collection(COLLECTIONS.PRODUCTS).distinct('category', {
-                query: { inStock: true },
-                cache: 5 * 60 * 1000  // 缓存5分钟
-            }),
-            brands: await collection(COLLECTIONS.PRODUCTS).distinct('brand', {
-                query: { inStock: true },
-                cache: 5 * 60 * 1000
-            }),
-            colors: await collection(COLLECTIONS.PRODUCTS).distinct('color', {
-                query: { inStock: true },
-                cache: 5 * 60 * 1000
-            })
+            categories: await collection(COLLECTIONS.PRODUCTS).distinct('category', { inStock: true }, { cache: 5 * 60 * 1000 }),  // 缓存5分钟
+            brands: await collection(COLLECTIONS.PRODUCTS).distinct('brand', { inStock: true }, { cache: 5 * 60 * 1000 }),
+            colors: await collection(COLLECTIONS.PRODUCTS).distinct('color', { inStock: true }, { cache: 5 * 60 * 1000 })
         };
         console.log('筛选器选项:', JSON.stringify(filterOptions, null, 2));
 
         console.log('\n9.2 获取用户管理面板的角色列表');
         console.log('-'.repeat(80));
-        const adminRoles = await collection(COLLECTIONS.USERS).distinct('role', {
-            cache: 10 * 60 * 1000  // 缓存10分钟
-        });
+        const adminRoles = await collection(COLLECTIONS.USERS).distinct('role', {}, { cache: 10 * 60 * 1000 });  // 缓存10分钟
         console.log('可用角色:', adminRoles);
 
         console.log('\n9.3 订单报表：获取所有订单年份（用于下拉选择）');
@@ -818,9 +773,7 @@ async function example10_errorHandling() {
 
         console.log('\n10.1 处理空结果');
         console.log('-'.repeat(80));
-        const emptyResult = await collection(COLLECTIONS.PRODUCTS).distinct('category', {
-            query: { price: { $gt: 999999 } }  // 不存在的条件
-        });
+        const emptyResult = await collection(COLLECTIONS.PRODUCTS).distinct('category', { price: { $gt: 999999 } });  // 不存在的条件
         console.log('空结果:', emptyResult);
         console.log('结果类型:', Array.isArray(emptyResult) ? '数组' : typeof emptyResult);
         console.log('结果长度:', emptyResult.length);

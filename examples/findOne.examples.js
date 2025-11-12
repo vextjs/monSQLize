@@ -135,9 +135,9 @@ async function example1_BasicQuery() {
         await db.collection(COLLECTIONS.USERS).insertMany(users);
 
         // 查询第一个用户
-        const firstUser = await collection(COLLECTIONS.USERS).findOne({
-            query: { userId: 'USER-00001' }
-        });
+        const firstUser = await collection(COLLECTIONS.USERS).findOne(
+            { userId: 'USER-00001' }
+        );
 
         console.log('查询结果:', firstUser ? {
             userId: firstUser.userId,
@@ -164,10 +164,10 @@ async function example2_ConditionalQuery() {
 
     try {
         // 查询活跃用户，按创建时间倒序，返回最新的一个
-        const activeUser = await collection(COLLECTIONS.USERS).findOne({
-            query: { status: 'active' },
-            sort: { createdAt: -1 }
-        });
+        const activeUser = await collection(COLLECTIONS.USERS).findOne(
+            { status: 'active' },
+            { sort: { createdAt: -1 } }
+        );
 
         console.log('最新活跃用户:', activeUser ? {
             userId: activeUser.userId,
@@ -193,10 +193,10 @@ async function example3_ProjectionQuery() {
 
     try {
         // 只返回用户的基本信息字段
-        const user = await collection(COLLECTIONS.USERS).findOne({
-            query: { role: 'admin' },
-            projection: { name: 1, email: 1, role: 1 }
-        });
+        const user = await collection(COLLECTIONS.USERS).findOne(
+            { role: 'admin' },
+            { projection: { name: 1, email: 1, role: 1 } }
+        );
 
         console.log('管理员信息:', user ? {
             name: user.name,
@@ -222,14 +222,14 @@ async function example4_ComplexQuery() {
 
     try {
         // 查询高消费且已验证的用户
-        const vipUser = await collection(COLLECTIONS.USERS).findOne({
-            query: {
+        const vipUser = await collection(COLLECTIONS.USERS).findOne(
+            {
                 totalSpent: { $gte: 10000 },
                 verified: true,
                 status: 'active'
             },
-            sort: { totalSpent: -1 }
-        });
+            { sort: { totalSpent: -1 } }
+        );
 
         console.log('VIP 用户:', vipUser ? {
             userId: vipUser.userId,
@@ -261,10 +261,10 @@ async function example5_ArrayQuery() {
         await db.collection(COLLECTIONS.PRODUCTS).insertMany(products);
 
         // 查询热门商品
-        const hotProduct = await collection(COLLECTIONS.PRODUCTS).findOne({
-            query: { hot: true },
-            sort: { rating: -1 }
-        });
+        const hotProduct = await collection(COLLECTIONS.PRODUCTS).findOne(
+            { hot: true },
+            { sort: { rating: -1 } }
+        );
 
         console.log('热门商品:', hotProduct ? {
             productId: hotProduct.productId,
@@ -292,18 +292,18 @@ async function example6_CachedQuery() {
     try {
         // 启用 30 秒缓存
         const startTime = Date.now();
-        const user = await collection(COLLECTIONS.USERS).findOne({
-            query: { userId: 'USER-00001' },
-            cache: 30000  // 30 秒
-        });
+        const user = await collection(COLLECTIONS.USERS).findOne(
+            { userId: 'USER-00001' },
+            { cache: 30000 }  // 30 秒
+        );
         const firstQueryTime = Date.now() - startTime;
 
         // 再次查询，应该从缓存返回
         const startTime2 = Date.now();
-        const user2 = await collection(COLLECTIONS.USERS).findOne({
-            query: { userId: 'USER-00001' },
-            cache: 30000
-        });
+        const user2 = await collection(COLLECTIONS.USERS).findOne(
+            { userId: 'USER-00001' },
+            { cache: 30000 }
+        );
         const secondQueryTime = Date.now() - startTime2;
 
         console.log('首次查询耗时:', firstQueryTime, 'ms');
@@ -328,10 +328,10 @@ async function example7_ExplainQuery() {
 
     try {
         // 查看查询执行计划
-        const plan = await collection(COLLECTIONS.USERS).findOne({
-            query: { status: 'active' },
-            explain: 'executionStats'
-        });
+        const plan = await collection(COLLECTIONS.USERS).findOne(
+            { status: 'active' },
+            { explain: 'executionStats' }
+        );
 
         console.log('执行计划:', {
             executionTimeMillis: plan.executionStats?.executionTimeMillis,
@@ -357,10 +357,10 @@ async function example8_CollationQuery() {
 
     try {
         // 不区分大小写查询用户名
-        const user = await collection(COLLECTIONS.USERS).findOne({
-            query: { username: 'User1' },
-            collation: { locale: 'en', strength: 2 }  // 不区分大小写
-        });
+        const user = await collection(COLLECTIONS.USERS).findOne(
+            { username: 'User1' },
+            { collation: { locale: 'en', strength: 2 } }  // 不区分大小写
+        );
 
         console.log('找到的用户:', user ? {
             userId: user.userId,
@@ -385,10 +385,10 @@ async function example9_ErrorHandling() {
 
     try {
         // 查询不存在的集合或字段
-        const result = await collection('nonexistent_collection').findOne({
-            query: { invalidField: 'value' },
-            maxTimeMS: 1000
-        });
+        const result = await collection('nonexistent_collection').findOne(
+            { invalidField: 'value' },
+            { maxTimeMS: 1000 }
+        );
 
         console.log('查询结果:', result);
 
@@ -411,17 +411,19 @@ async function example10_BestPractices() {
 
     try {
         // 最佳实践：指定排序、投影、缓存
-        const user = await collection(COLLECTIONS.USERS).findOne({
-            query: {
+        const user = await collection(COLLECTIONS.USERS).findOne(
+            {
                 status: 'active',
                 verified: true,
                 level: { $gte: 5 }
             },
-            projection: ['name', 'email', 'level', 'totalSpent'],
-            sort: { level: -1, totalSpent: -1 },
-            cache: 60000,  // 1 分钟缓存
-            maxTimeMS: 2000
-        });
+            {
+                projection: ['name', 'email', 'level', 'totalSpent'],
+                sort: { level: -1, totalSpent: -1 },
+                cache: 60000,  // 1 分钟缓存
+                maxTimeMS: 2000
+            }
+        );
 
         console.log('优质用户:', user ? {
             name: user.name,

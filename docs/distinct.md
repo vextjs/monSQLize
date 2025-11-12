@@ -2,12 +2,12 @@
 
 ## 概述
 
-`distinct` 是 monSQLize 提供的字段去重查询方法，用于从 MongoDB 集合中获取指定字段的所有唯一值。支持查询条件过滤、排序规则和缓存等功能。
+`distinct` 是 monSQLize 提供的字段去重查询方法，用于从 MongoDB 集合中获取指定字段的所有唯一值。**直接使用 MongoDB 原生 `Collection.distinct()` 方法**，支持查询条件过滤、排序规则和扩展选项。
 
 ## 方法签名
 
 ```javascript
-async distinct(field, options = {})
+async distinct(field, filter = {}, options = {})
 ```
 
 ## 参数说明
@@ -18,15 +18,113 @@ async distinct(field, options = {})
 |------|------|------|------|
 | `field` | String | 是 | 要去重的字段名，支持嵌套字段（如 `'user.name'`、`'address.city'`） |
 
-### options 对象属性
+### filter 参数
+
+查询条件对象，只对匹配的文档进行去重，使用 MongoDB 标准查询语法。
+
+**类型**：`Object`  
+**必填**：否  
+**默认值**：`{}`（空对象表示对所有文档去重）
+
+**示例**：
+
+```javascript
+// 简单条件
+{ inStock: true }
+
+// 范围查询
+{ price: { $gte: 1000 } }
+
+// 逻辑组合
+{
+  status: 'active',
+  verified: true
+}
+
+// 空查询（对所有文档去重）
+{}
+```
+
+### options 参数对象
+
+**核心选项**（MongoDB 原生支持）：
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `query` | Object | 否 | `{}` | MongoDB 查询条件，只对匹配的文档进行去重 |
-| `maxTimeMS` | Number | 否 | 全局配置 | 查询超时时间（毫秒） |
-| `collation` | Object | 否 | - | 排序规则（用于字符串比较） |
+| `maxTimeMS` | Number | 否 | - | 查询超时时间（毫秒），防止长时间查询阻塞 |
+| `collation` | Object | 否 | - | 排序规则配置，用于字符串比较和去重（如不区分大小写） |
+| `comment` | String | 否 | - | 查询注释，用于日志和性能分析 |
+| `session` | ClientSession | 否 | - | 事务会话对象，用于事务操作 |
+
+**扩展选项**（monSQLize 增强）：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
 | `cache` | Number | 否 | `0` | 缓存 TTL（毫秒），大于 0 时启用缓存 |
 | `explain` | Boolean/String | 否 | - | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
+
+### comment 配置
+
+查询注释用于在 MongoDB 日志和性能分析工具中标识去重查询的用途。
+
+**格式建议**：
+```javascript
+comment: 'Module:Action:Context'
+```
+
+**使用场景**：
+- **筛选器选项**：标识各种下拉列表、筛选器的数据来源
+- **数据统计**：标识数据维度的统计查询
+- **性能分析**：追踪慢查询来源，帮助定位优化点
+
+**示例**：
+```javascript
+// 获取商品分类（用于筛选器）
+const categories = await collection('products').distinct(
+  'category',
+  { inStock: true },
+  { comment: 'FilterOptions:getCategories:shop_page' }
+);
+
+// 获取用户角色（用于管理后台）
+const roles = await collection('users').distinct(
+  'role',
+  {},
+  { comment: 'AdminPanel:getUserRoles:users_page' }
+);
+```
+
+### session 配置
+
+在事务中执行 distinct 查询：
+
+```javascript
+const session = client.startSession();
+try {
+  await session.withTransaction(async () => {
+    // 在事务中获取去重数据
+    const categories = await collection('products').distinct(
+      'category',
+      { inStock: true },
+      { session }
+    );
+    
+    // 其他事务操作...
+  });
+} finally {
+  await session.endSession();
+}
+```
+
+**使用场景**：
+- 需要保证数据一致性的去重查询
+- 与其他写操作在同一事务中执行
+- 需要隔离级别保证的查询
+
+**注意事项**：
+- session 必须是有效的 MongoDB ClientSession 对象
+- 事务中的 distinct 查询会受到事务隔离级别影响
+- 不支持跨分片集合的事务
 
 ### collation 配置
 
@@ -53,9 +151,7 @@ collation: {
 默认情况下，`distinct` 方法返回一个 Promise，resolve 为去重后的值数组：
 
 ```javascript
-const categories = await collection('products').distinct('category', {
-  query: { inStock: true }
-});
+const categories = await collection('products').distinct('category', { inStock: true });
 
 // categories = ['electronics', 'books', 'clothing']
 ```
@@ -72,10 +168,11 @@ const categories = await collection('products').distinct('category', {
 当 `explain` 为 true 或指定级别时，返回查询执行计划：
 
 ```javascript
-const plan = await collection('products').distinct('category', {
-  query: { inStock: true },
-  explain: 'executionStats'
-});
+const plan = await collection('products').distinct(
+  'category',
+  { inStock: true },
+  { explain: 'executionStats' }
+);
 
 // plan = {
 //   queryPlanner: { ... },
@@ -120,19 +217,13 @@ const years = await collection('orders').distinct('year');
 
 ```javascript
 // 获取在售商品的所有分类
-const activeCategories = await collection('products').distinct('category', {
-  query: { inStock: true }
-});
+const activeCategories = await collection('products').distinct('category', { inStock: true });
 
 // 获取活跃用户的角色列表
-const activeRoles = await collection('users').distinct('role', {
-  query: { status: 'active' }
-});
+const activeRoles = await collection('users').distinct('role', { status: 'active' });
 
 // 获取已完成订单的客户ID列表
-const completedCustomers = await collection('orders').distinct('customerId', {
-  query: { status: 'completed' }
-});
+const completedCustomers = await collection('orders').distinct('customerId', { status: 'completed' });
 ```
 
 **适用场景**：
@@ -184,7 +275,7 @@ const allTags = await collection('products').distinct('tags');
 
 ```javascript
 // 不区分大小写获取用户名
-const usernames = await collection('users').distinct('username', {
+const usernames = await collection('users').distinct('username', {}, {
   collation: {
     locale: 'en',
     strength: 1  // 1 = 忽略大小写和重音
@@ -206,23 +297,17 @@ const usernames = await collection('users').distinct('username', {
 
 ```javascript
 // 获取高价商品的分类
-const expensiveCategories = await collection('products').distinct('category', {
-  query: { price: { $gte: 1000 } }
-});
+const expensiveCategories = await collection('products').distinct('category', { price: { $gte: 1000 } });
 
 // 获取近30天订单的客户ID
 const recentCustomers = await collection('orders').distinct('customerId', {
-  query: {
-    createdAt: { $gte: new Date(Date.now() - 30 * 86400000) }
-  }
+  createdAt: { $gte: new Date(Date.now() - 30 * 86400000) }
 });
 
 // 获取评分高的商品标签
 const topTags = await collection('products').distinct('tags', {
-  query: {
-    rating: { $gte: 4.5 },
-    inStock: true
-  }
+  rating: { $gte: 4.5 },
+  inStock: true
 });
 ```
 
@@ -237,15 +322,10 @@ const topTags = await collection('products').distinct('tags', {
 
 ```javascript
 // 缓存商品分类列表 5 分钟
-const categories = await collection('products').distinct('category', {
-  cache: 5 * 60 * 1000
-});
+const categories = await collection('products').distinct('category', {}, { cache: 5 * 60 * 1000 });
 
 // 缓存用户角色列表 10 分钟
-const roles = await collection('users').distinct('role', {
-  query: { status: 'active' },
-  cache: 10 * 60 * 1000
-});
+const roles = await collection('users').distinct('role', { status: 'active' }, { cache: 10 * 60 * 1000 });
 ```
 
 **适用场景**：
@@ -264,15 +344,10 @@ const roles = await collection('users').distinct('role', {
 
 ```javascript
 // 查看基础执行计划
-const plan1 = await collection('products').distinct('category', {
-  explain: true
-});
+const plan1 = await collection('products').distinct('category', {}, { explain: true });
 
 // 查看详细执行统计
-const plan2 = await collection('products').distinct('category', {
-  query: { inStock: true },
-  explain: 'executionStats'
-});
+const plan2 = await collection('products').distinct('category', { inStock: true }, { explain: 'executionStats' });
 
 console.log('扫描文档数:', plan2.executionStats.totalDocsExamined);
 console.log('执行时间:', plan2.executionStats.executionTimeMillis, 'ms');
@@ -282,6 +357,45 @@ console.log('执行时间:', plan2.executionStats.executionTimeMillis, 'ms');
 - 性能优化和调试
 - 索引效果验证
 - 慢查询分析
+
+### 9. 事务中的 distinct 查询
+
+在事务上下文中执行 distinct 查询，保证数据一致性：
+
+```javascript
+const session = client.startSession();
+try {
+  await session.withTransaction(async () => {
+    // 在事务中获取活跃用户的角色
+    const roles = await collection('users').distinct(
+      'role',
+      { status: 'active' },
+      { session }
+    );
+    
+    // 基于角色进行其他操作
+    for (const role of roles) {
+      await collection('permissions').updateMany(
+        { role },
+        { $set: { lastChecked: new Date() } },
+        { session }
+      );
+    }
+  });
+} finally {
+  await session.endSession();
+}
+```
+
+**适用场景**：
+- 需要保证数据一致性的去重查询
+- 与其他写操作在同一事务中执行
+- 需要隔离级别保证的查询
+
+**注意事项**：
+- session 必须是有效的 MongoDB ClientSession 对象
+- 事务中的查询会受到隔离级别影响
+- 不支持跨分片集合的事务
 
 ## 性能优化建议
 
@@ -312,7 +426,7 @@ const allTags = await collection('products').distinct('tags');
 
 // ✅ 更好：只扫描在售商品
 const activeTags = await collection('products').distinct('tags', {
-  query: { inStock: true }
+  inStock: true
 });
 ```
 
@@ -340,7 +454,62 @@ const allTags = await collection('products').distinct('tags');
 
 ## 常见问题
 
-### Q1: distinct 与 aggregate + $group 的区别？
+### Q1: monSQLize 的 distinct 与原生 MongoDB 的区别？
+
+monSQLize 的 `distinct()` **直接调用原生 MongoDB 的 `Collection.distinct()` 方法**，并在此基础上提供了扩展功能：
+
+**原生 MongoDB distinct**：
+```javascript
+db.collection('products').distinct('category', { inStock: true }, {
+  maxTimeMS: 5000,
+  collation: { locale: 'en', strength: 1 },
+  comment: 'getCategories'
+});
+```
+
+**monSQLize distinct（完全兼容 + 扩展）**：
+```javascript
+collection('products').distinct('category', { inStock: true }, {
+  // 原生 MongoDB 选项（直接传递）
+  maxTimeMS: 5000,
+  collation: { locale: 'en', strength: 1 },
+  comment: 'getCategories',
+  session: clientSession,
+  
+  // monSQLize 扩展选项
+  cache: 5 * 60 * 1000,  // 缓存 5 分钟
+  explain: 'executionStats'  // 性能分析
+});
+```
+
+**扩展功能说明**：
+
+1. **缓存支持** (`cache`)
+   - 自动缓存查询结果，减少数据库压力
+   - 适用于不常变化的数据（分类、标签等）
+   - 使用 `collection.invalidate('distinct')` 手动清除缓存
+
+2. **性能分析** (`explain`)
+   - 返回查询执行计划而非实际结果
+   - 支持多种详细级别：`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'`
+   - 帮助优化索引和查询性能
+
+3. **自动事件发射**
+   - 发射 `beforeDistinct` 和 `afterDistinct` 事件
+   - 支持查询日志记录和监控
+
+4. **统一错误处理**
+   - 包装原生错误，提供更友好的错误信息
+   - 集成 monSQLize 的错误处理机制
+
+**核心原则**：
+- ✅ 所有原生 MongoDB 的 distinct 选项都被原样传递
+- ✅ 扩展选项（cache、explain）由 monSQLize 处理后再调用原生方法
+- ✅ 行为完全兼容原生 MongoDB，只是提供了额外的便利功能
+
+### Q2: distinct 与 aggregate + $group 的区别？
+
+### Q2: distinct 与 aggregate + $group 的区别？
 
 **distinct**：
 - 简单易用，语法直观
@@ -358,7 +527,7 @@ const allTags = await collection('products').distinct('tags');
 - 简单去重使用 `distinct`
 - 需要计算、转换或多字段聚合使用 `aggregate`
 
-### Q2: distinct 返回的数组是否有序？
+### Q3: distinct 返回的数组是否有序？
 
 默认情况下，distinct 返回的数组**无序**。如果需要排序，应在获取结果后手动排序：
 
@@ -367,7 +536,7 @@ const categories = await collection('products').distinct('category');
 const sortedCategories = categories.sort();
 ```
 
-### Q3: 如何处理 null 值？
+### Q4: 如何处理 null 值？
 
 distinct 会将 `null` 值作为一个唯一值返回：
 
@@ -377,12 +546,10 @@ const categories = await collection('products').distinct('category');
 // 返回：['electronics', 'books', null]
 
 // 如果想排除 null 值，使用查询条件
-const categoriesWithoutNull = await collection('products').distinct('category', {
-  query: { category: { $ne: null } }
-});
+const categoriesWithoutNull = await collection('products').distinct('category', { category: { $ne: null } });
 ```
 
-### Q4: 如何统计每个唯一值的数量？
+### Q5: 如何统计每个唯一值的数量？
 
 distinct 只返回唯一值，不返回计数。如需计数，使用 aggregate：
 
@@ -395,7 +562,7 @@ const categoryCounts = await collection('products').aggregate([
 // 返回：[{ _id: 'electronics', count: 45 }, { _id: 'books', count: 30 }, ...]
 ```
 
-### Q5: distinct 支持多字段去重吗？
+### Q6: distinct 支持多字段去重吗？
 
 distinct 只支持单字段去重。如需多字段组合去重，使用 aggregate：
 
@@ -404,6 +571,104 @@ distinct 只支持单字段去重。如需多字段组合去重，使用 aggrega
 const combinations = await collection('products').aggregate([
   { $group: { _id: { category: '$category', brand: '$brand' } } }
 ]);
+```
+
+### Q7: 如何在事务中使用 distinct？
+
+将 ClientSession 对象通过 `session` 选项传递：
+
+```javascript
+const session = client.startSession();
+try {
+  await session.withTransaction(async () => {
+    const roles = await collection('users').distinct(
+      'role',
+      { status: 'active' },
+      { session }  // 传递 session
+    );
+    // 其他事务操作...
+  });
+} finally {
+  await session.endSession();
+}
+```
+
+## 使用建议
+
+### 何时使用 distinct
+
+**✅ 推荐使用场景**：
+- 获取分类、标签等枚举值列表
+- 构建下拉列表和筛选器选项
+- 简单的数据维度统计
+- 不需要计数或其他聚合计算
+
+**❌ 不推荐场景**：
+- 需要统计每个值的数量（使用 `aggregate` + `$group`）
+- 需要多字段组合去重（使用 `aggregate`）
+- 需要对结果进行复杂转换（使用 `aggregate`）
+- 字段是超大数组且数据量很大（考虑性能影响）
+
+### 性能考虑
+
+**优化要点**：
+1. **为 distinct 字段创建索引**
+   ```javascript
+   await db.collection('products').createIndex({ category: 1 });
+   ```
+
+2. **使用查询条件缩小范围**
+   ```javascript
+   // ❌ 扫描所有文档
+   const tags = await collection('products').distinct('tags');
+   
+   // ✅ 只扫描在售商品
+   const tags = await collection('products').distinct('tags', { inStock: true });
+   ```
+
+3. **启用缓存（不常变化的数据）**
+   ```javascript
+   const categories = await collection('products').distinct('category', {}, {
+     cache: 30 * 60 * 1000  // 缓存 30 分钟
+   });
+   ```
+
+4. **使用 explain 分析性能**
+   ```javascript
+   const plan = await collection('products').distinct('category', {}, {
+     explain: 'executionStats'
+   });
+   console.log('执行时间:', plan.executionStats.executionTimeMillis, 'ms');
+   ```
+
+### 缓存策略
+
+**适合缓存的数据**：
+- 分类、标签等元数据（变化频率低）
+- 枚举值列表（状态、角色等）
+- 筛选器选项（不需要实时更新）
+
+**不适合缓存的数据**：
+- 频繁更新的字段
+- 需要实时准确性的统计数据
+- 用户相关的敏感数据
+
+**缓存时长建议**：
+```javascript
+// 元数据：30 分钟 - 1 小时
+const categories = await collection('products').distinct('category', {}, {
+  cache: 30 * 60 * 1000
+});
+
+// 筛选器选项：5 - 10 分钟
+const brands = await collection('products').distinct('brand', { inStock: true }, {
+  cache: 5 * 60 * 1000
+});
+
+// 实时数据：不缓存
+const recentStatuses = await collection('orders').distinct('status', {
+  createdAt: { $gte: new Date(Date.now() - 3600000) }
+});
 ```
 
 ## 相关方法
@@ -415,13 +680,131 @@ const combinations = await collection('products').aggregate([
 
 ## 最佳实践
 
-1. **为常用的 distinct 字段创建索引**
-2. **使用查询条件缩小扫描范围**
-3. **对不常变化的数据启用缓存**
-4. **使用 explain 分析性能瓶颈**
-5. **大数据集避免对数组字段进行 distinct**
-6. **需要排序时手动对结果排序**
-7. **需要计数时使用 aggregate 而非 distinct**
+### 1. 索引优化
+为常用的 distinct 字段创建索引，显著提升查询性能：
+
+```javascript
+// 单字段索引
+await db.collection('products').createIndex({ category: 1 });
+
+// 复合索引（带查询条件时）
+await db.collection('products').createIndex({ inStock: 1, category: 1 });
+```
+
+### 2. 缩小查询范围
+使用查询条件减少需要扫描的文档数量：
+
+```javascript
+// ❌ 不好：扫描所有文档
+const tags = await collection('products').distinct('tags');
+
+// ✅ 更好：只扫描相关文档
+const tags = await collection('products').distinct('tags', {
+  inStock: true,
+  category: 'electronics'
+});
+```
+
+### 3. 合理使用缓存
+对不常变化的数据启用缓存，减少数据库压力：
+
+```javascript
+// 元数据缓存 30 分钟
+const categories = await collection('products').distinct('category', {}, {
+  cache: 30 * 60 * 1000
+});
+
+// 需要实时数据时不使用缓存
+const recentStatuses = await collection('orders').distinct('status', {
+  createdAt: { $gte: new Date(Date.now() - 3600000) }
+});
+```
+
+### 4. 性能分析
+使用 `explain` 分析查询性能，优化索引：
+
+```javascript
+const plan = await collection('products').distinct('category', { inStock: true }, {
+  explain: 'executionStats'
+});
+
+console.log('扫描文档数:', plan.executionStats.totalDocsExamined);
+console.log('执行时间:', plan.executionStats.executionTimeMillis, 'ms');
+console.log('是否使用索引:', plan.executionStats.executionStages.stage);
+```
+
+### 5. 避免大数组字段去重
+对包含大量元素的数组字段进行 distinct 操作可能很慢：
+
+```javascript
+// ⚠️ 注意：如果 tags 数组很大，性能可能不佳
+const allTags = await collection('products').distinct('tags');
+
+// 考虑添加查询条件或使用聚合管道
+const popularTags = await collection('products').distinct('tags', {
+  viewCount: { $gte: 100 }
+});
+```
+
+### 6. 结果排序
+distinct 返回的数组无序，需要排序时手动处理：
+
+```javascript
+const categories = await collection('products').distinct('category');
+const sorted = categories.sort((a, b) => a.localeCompare(b));
+```
+
+### 7. 添加查询注释
+使用 `comment` 选项标识查询用途，便于日志分析：
+
+```javascript
+const roles = await collection('users').distinct('role', {}, {
+  comment: 'AdminPanel:getRoles:user_management'
+});
+```
+
+### 8. 事务中的查询
+需要数据一致性时，在事务中执行 distinct：
+
+```javascript
+const session = client.startSession();
+try {
+  await session.withTransaction(async () => {
+    const roles = await collection('users').distinct('role', {}, { session });
+    // 基于角色的其他事务操作...
+  });
+} finally {
+  await session.endSession();
+}
+```
+
+### 9. 处理 null 值
+根据业务需求决定是否包含 null 值：
+
+```javascript
+// 包含 null
+const allCategories = await collection('products').distinct('category');
+
+// 排除 null
+const validCategories = await collection('products').distinct('category', {
+  category: { $ne: null, $exists: true }
+});
+```
+
+### 10. 使用 collation 处理多语言
+多语言环境下使用 collation 确保正确去重：
+
+```javascript
+// 不区分大小写的去重
+const usernames = await collection('users').distinct('username', {}, {
+  collation: { locale: 'en', strength: 1 }
+});
+
+// 中文排序规则
+const chineseNames = await collection('users').distinct('name', {}, {
+  collation: { locale: 'zh' }
+});
+```
 
 ## 示例代码
 
