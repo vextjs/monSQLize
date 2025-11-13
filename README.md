@@ -8,7 +8,10 @@
 
 monSQLize 完整封装了 MongoDB 的原生功能：
 
+- ✅ **完整 CRUD 操作**：Create/Read/Update (75% 完成，Delete 计划中)
 - ✅ **标准查询方法**：find/findOne/aggregate/count/distinct
+- ✅ **写入操作**：insertOne/insertMany/updateOne/updateMany/replaceOne
+- ✅ **原子操作**：findOneAndUpdate/findOneAndReplace (支持计数器、乐观锁)
 - ✅ **链式调用 API**：完整支持 MongoDB 游标的所有链式方法
 - ✅ **所有查询选项**：projection/sort/limit/skip/hint/collation 等
 
@@ -17,6 +20,7 @@ monSQLize 完整封装了 MongoDB 的原生功能：
 在 MongoDB 原生功能基础上，提供额外的便利性和性能优化：
 
 - 🔧 **智能缓存**：TTL/LRU/命名空间失效/并发去重
+- 🔧 **自动缓存失效**：写操作后自动清理相关缓存
 - 🔧 **深度分页**：游标分页（支持前后翻页、跳页、书签）
 - 🔧 **性能监控**：慢查询日志、查询超时控制、元数据返回
 - 🔧 **跨库访问**：轻松访问不同数据库的集合
@@ -26,10 +30,34 @@ monSQLize 完整封装了 MongoDB 的原生功能：
 
 ## 状态
 
-- **已实现**：MongoDB 适配器；find/findOne/count；内置缓存；多层缓存（本地+远端）；跨库访问；默认值（maxTimeMS/findLimit）；慢查询日志；TypeScript 类型
-- **规划中**：更多数据库适配器（PostgreSQL/MySQL/SQLite）；Redis 缓存适配器
+**CRUD 完成度**: 75% (Create ✅ / Read ✅ / Update ✅ / Delete ⏳)
+
+- **已实现**：
+  - **Create**: insertOne, insertMany, insertBatch
+  - **Read**: find, findOne, findPage, aggregate, count, distinct, explain
+  - **Update**: updateOne, updateMany, replaceOne, findOneAndUpdate, findOneAndReplace
+  - **其他**: 智能缓存、多层缓存、跨库访问、慢查询日志、TypeScript 类型
+  
+- **计划中**：
+  - **Delete**: deleteOne, deleteMany, findOneAndDelete
+  - **数据库适配器**: PostgreSQL, MySQL, SQLite
+  - **缓存适配器**: Redis
 
 **完整能力矩阵与路线图**：[STATUS.md](./STATUS.md)
+
+### 📊 MongoDB 原生 vs monSQLize 增强
+
+| 功能类别 | MongoDB 原生 | monSQLize | 主要增强 |
+|---------|-------------|-----------|---------|
+| **查询操作** | ✅ | ✅ | 智能缓存、游标分页、慢查询日志 |
+| **插入操作** | ✅ | ✅ | 高性能批量插入 (10-50x)、慢查询监控 |
+| **更新操作** | ✅ | ✅ | 自动缓存失效、完整错误处理 |
+| **删除操作** | ✅ | ⏳ 计划中 | 自动缓存失效（计划） |
+| **聚合操作** | ✅ | ✅ | 缓存支持、流式处理 |
+| **执行计划** | ✅ | ✅ | 集成到查询链 |
+| **跨库访问** | 手动切换 | ✅ | 一行代码切换 |
+| **缓存管理** | ❌ | ✅ | TTL/LRU/自动失效/多层缓存 |
+| **性能监控** | 需配置 | ✅ | 开箱即用的慢查询日志 |
 
 ---
 
@@ -88,6 +116,28 @@ const MonSQLize = require('monsqlize');
     }
   );
   console.log('跨库查询 ->', event);
+
+  // 更新单个文档
+  const updateResult = await collection('users').updateOne(
+    { userId: 'user123' },
+    { $set: { status: 'active', updatedAt: new Date() } }
+  );
+  console.log('更新成功 ->', updateResult.modifiedCount);
+
+  // 批量更新
+  const batchResult = await collection('users').updateMany(
+    { status: 'inactive' },
+    { $set: { status: 'active' } }
+  );
+  console.log('批量更新 ->', batchResult.modifiedCount, '条');
+
+  // 原子操作（计数器）
+  const counter = await collection('counters').findOneAndUpdate(
+    { name: 'orderNumber' },
+    { $inc: { value: 1 } },
+    { returnDocument: 'after', upsert: true }
+  );
+  console.log('订单号 ->', counter.value);
 })();
 ```
 
@@ -114,6 +164,11 @@ const MonSQLize = require('monsqlize');
 |------|------|---------|
 | **insertOne()** | 插入单个文档 | [examples/insertOne.examples.js](./examples/insertOne.examples.js) |
 | **insertMany()** | 批量插入文档（10-50x 性能提升） | [examples/insertMany.examples.js](./examples/insertMany.examples.js) |
+| **updateOne()** | 更新单个文档 | [docs/update-one.md](./docs/update-one.md) |
+| **updateMany()** | 批量更新多个文档 | [docs/update-many.md](./docs/update-many.md) |
+| **replaceOne()** | 完整替换单个文档 | [docs/replace-one.md](./docs/replace-one.md) |
+| **findOneAndUpdate()** | 原子地查找并更新 | [docs/find-one-and-update.md](./docs/find-one-and-update.md) |
+| **findOneAndReplace()** | 原子地查找并替换 | [docs/find-one-and-replace.md](./docs/find-one-and-replace.md) |
 
 ### 集合管理
 

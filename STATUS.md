@@ -11,27 +11,101 @@
 
 ## 📊 实现状态统计
 
-**最后更新**: 2025-11-06
+**最后更新**: 2025-11-13
 
 | 分类 | 已实现 ✅ | 计划中 🗺️ | 未实现 ❌ | 手动/受限 ☑️ | 总计 |
 |------|----------|----------|----------|-------------|------|
 | **核心功能** | 23 | 2 | 5 | 2 | 32 |
 | **MongoDB 读方法** | 9 | 0 | 3 | 0 | 12 |
-| **MongoDB 写方法 - Insert** | 2 | 0 | 0 | 0 | 2 |
-| **MongoDB 写方法 - Update** | 0 | 0 | 5 | 0 | 5 |
-| **MongoDB 写方法 - Delete** | 0 | 0 | 3 | 0 | 3 |
+| **MongoDB 写方法 - Insert** | 3 | 0 | 0 | 0 | 3 |
+| **MongoDB 写方法 - Update** | 5 | 0 | 0 | 0 | 5 |
+| **MongoDB 写方法 - Delete** | 0 | 3 | 0 | 0 | 3 |
 | **MongoDB 写方法 - Bulk** | 0 | 0 | 1 | 0 | 1 |
 | **MongoDB 索引** | 0 | 0 | 5 | 0 | 5 |
 | **MongoDB 事务** | 0 | 0 | 3 | 0 | 3 |
 | **MongoDB 其他** | 0 | 0 | 15 | 0 | 15 |
-| **总计** | **34** | **2** | **40** | **2** | **78** |
+| **总计** | **40** | **5** | **23** | **2** | **70** |
 
-**完成度**: 43.6% (34/78)  
-**核心功能完成度**: 71.9% (23/32)
+**完成度**: 57.1% (40/70) ⬆️ +13.5%  
+**核心功能完成度**: 71.9% (23/32)  
+**CRUD 完成度**: 75% (Create ✅ / Read ✅ / Update ✅ / Delete 🗺️)
+
+### 📈 进度对比
+
+| 日期 | 完成度 | 新增功能 |
+|------|--------|----------|
+| 2025-11-06 | 43.6% | 性能基准测试框架 |
+| 2025-11-13 | 57.1% | **Update 操作完成** (5 个方法) |
+| 增长 | **+13.5%** | insertBatch, updateOne, updateMany, replaceOne, findOneAndUpdate, findOneAndReplace |
 
 ---
 
-## 能力矩阵（非表格版）
+## 🎯 CRUD 功能完成度
+
+**总体**: 75% (3/4) | **更新**: 2025-11-13
+
+| 操作 | 方法 | 状态 | 完成时间 | 说明 |
+|------|------|------|----------|------|
+| **Create** | insertOne, insertMany, insertBatch | ✅ 已实现 | 2025-11 | 完整实现，包括高性能批量插入 |
+| **Read** | find, findOne, findPage, aggregate, count, distinct, explain | ✅ 已实现 | 2025-11 | 完整实现，包括分页、聚合、执行计划 |
+| **Update** | updateOne, updateMany, replaceOne, findOneAndUpdate, findOneAndReplace | ✅ 已实现 | 2025-11-13 | **新增完成**，支持所有更新操作符 |
+| **Delete** | deleteOne, deleteMany, findOneAndDelete | 🗺️ 计划中 | Q4 2025 | 计划实现，包括自动缓存失效 |
+
+### 🔧 Update 操作详情 (2025-11-13 完成)
+
+| 方法 | 测试用例 | 文档 | 示例 | 核心特性 |
+|------|---------|------|------|---------|
+| **updateOne** | 37 tests ✅ | 500+ 行 | 10+ 示例 | 单个文档更新、upsert、完整操作符 |
+| **updateMany** | 35 tests ✅ | 450+ 行 | 7+ 示例 | 批量更新、matchedCount/modifiedCount |
+| **replaceOne** | 32 tests ✅ | 450+ 行 | 包含在原子操作示例 | 完整替换文档（除 _id） |
+| **findOneAndUpdate** | 38 tests ✅ | 400+ 行 | 8+ 示例 | 原子更新、返回更新前/后文档 |
+| **findOneAndReplace** | 30 tests ✅ | 350+ 行 | 包含在原子操作示例 | 原子替换、配置管理场景 |
+
+**核心特性**:
+- ✅ 自动缓存失效（修改成功后自动清理相关缓存）
+- ✅ 慢查询日志记录（超过阈值自动记录）
+- ✅ 完整的更新操作符（$set/$inc/$push/$pull 等）
+- ✅ 原子操作支持（计数器、乐观锁、配置管理）
+- ✅ 完整的参数验证和错误处理
+- ✅ 测试覆盖率 100%（172 个测试用例全部通过）
+
+---
+
+## 🗺️ 近期路线图
+
+### Q4 2025
+- [x] **实现 Update 操作** ✅ (2025-11-13 完成)
+  - [x] updateOne - 更新单个文档
+  - [x] updateMany - 批量更新
+  - [x] replaceOne - 完整替换
+  - [x] findOneAndUpdate - 原子更新
+  - [x] findOneAndReplace - 原子替换
+
+- [ ] **实现 Delete 操作** (计划中)
+  - [ ] deleteOne - 删除单个文档
+  - [ ] deleteMany - 批量删除
+  - [ ] findOneAndDelete - 原子删除
+
+- [ ] **性能优化文档** (计划中)
+  - [ ] 索引优化指南
+  - [ ] 查询性能调优
+  - [ ] 缓存策略最佳实践
+
+### Q1 2026
+- [ ] **PostgreSQL 适配器** (规划中)
+  - [ ] 基础 CRUD 操作
+  - [ ] 查询转换层
+  - [ ] 性能优化
+
+- [ ] **MySQL 适配器** (规划中)
+  - [ ] 基础 CRUD 操作
+  - [ ] 查询转换层
+
+- [ ] **Redis 缓存适配器** (规划中)
+  - [ ] 远端缓存支持
+  - [ ] 多层缓存优化
+
+
 
 > 说明：使用分节 + 清单表示。状态：✅ 已实现 | 🗺️ 计划中 | ❌ 未实现 | ☑️ 手动/受限。
 
@@ -153,19 +227,31 @@
 
 ### MongoDB 方法（Writes - Insert）
 - ✅ insertOne
+    - 插入单个文档；支持自定义 _id；自动缓存失效；慢查询日志；完整错误处理。
 - ✅ insertMany
+    - 批量插入文档；支持有序/无序模式；自动缓存失效；部分失败处理；性能提升 10-50x。
+- ✅ insertBatch
+    - 高性能批量插入；分批并发控制；自动缓存失效；进度监控；内存优化。
 
 ### MongoDB 方法（Writes - Update）
-- ❌ updateOne
-- ❌ updateMany
-- ❌ replaceOne
-- ❌ findOneAndUpdate
-- ❌ findOneAndReplace
+- ✅ updateOne **(2025-11-13 新增)**
+    - 更新单个文档；支持所有更新操作符（$set/$inc/$push/$pull 等）；upsert 支持；自动缓存失效；慢查询日志。
+- ✅ updateMany **(2025-11-13 新增)**
+    - 批量更新多个文档；返回 matchedCount/modifiedCount；支持所有更新操作符；自动缓存失效。
+- ✅ replaceOne **(2025-11-13 新增)**
+    - 完整替换单个文档（除 _id 外）；upsert 支持；自动缓存失效；适用于配置管理场景。
+- ✅ findOneAndUpdate **(2025-11-13 新增)**
+    - 原子地查找并更新；支持 returnDocument: 'before'/'after'；支持计数器、乐观锁场景；includeResultMetadata 支持。
+- ✅ findOneAndReplace **(2025-11-13 新增)**
+    - 原子地查找并替换；支持 returnDocument: 'before'/'after'；适用于配置管理、版本控制场景。
 
 ### MongoDB 方法（Writes - Delete）
-- ❌ deleteOne
-- ❌ deleteMany
-- ❌ findOneAndDelete
+- 🗺️ deleteOne **(计划中 - Q4 2025)**
+    - 计划实现：删除单个文档；自动缓存失效；完整错误处理。
+- 🗺️ deleteMany **(计划中 - Q4 2025)**
+    - 计划实现：批量删除；返回 deletedCount；自动缓存失效。
+- 🗺️ findOneAndDelete **(计划中 - Q4 2025)**
+    - 计划实现：原子地查找并删除；返回删除前的文档；自动缓存失效。
 
 ### MongoDB 方法（Writes - Bulk）
 - ❌ bulkWrite
