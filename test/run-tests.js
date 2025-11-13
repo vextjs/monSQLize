@@ -142,13 +142,37 @@ async function runTests() {
   } else if (testSuite === 'insertBatch') {
     testFiles = ['./unit/features/insertBatch.test.js'];
     title = 'insertBatch 方法测试套件';
+  } else if (testSuite === 'updateOne') {
+    testFiles = ['./unit/features/updateOne.test.js'];
+    title = 'updateOne 方法测试套件';
+  } else if (testSuite === 'updateMany') {
+    testFiles = ['./unit/features/updateMany.test.js'];
+    title = 'updateMany 方法测试套件';
+  } else if (testSuite === 'replaceOne') {
+    testFiles = ['./unit/features/replaceOne.test.js'];
+    title = 'replaceOne 方法测试套件';
+  } else if (testSuite === 'findOneAndUpdate') {
+    testFiles = ['./unit/features/findOneAndUpdate.test.js'];
+    title = 'findOneAndUpdate 方法测试套件';
+  } else if (testSuite === 'findOneAndReplace') {
+    testFiles = ['./unit/features/findOneAndReplace.test.js'];
+    title = 'findOneAndReplace 方法测试套件';
+  } else if (testSuite === 'deleteOne') {
+    testFiles = ['./unit/features/deleteOne.test.js'];
+    title = 'deleteOne 方法测试套件';
+  } else if (testSuite === 'deleteMany') {
+    testFiles = ['./unit/features/deleteMany.test.js'];
+    title = 'deleteMany 方法测试套件';
+  } else if (testSuite === 'findOneAndDelete') {
+    testFiles = ['./unit/features/findOneAndDelete.test.js'];
+    title = 'findOneAndDelete 方法测试套件';
   } else if (testSuite === 'all') {
     // all 模式：顺序执行各个测试套件，避免并发初始化问题
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
     console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const overallStartTime = Date.now();

@@ -4,6 +4,63 @@
 
 ## [未发布]
 
+### Added
+- **新增 3 个删除方法**（2025-11-13）
+  - `deleteOne(filter, options)` - 删除单个匹配的文档
+  - `deleteMany(filter, options)` - 批量删除所有匹配的文档
+  - `findOneAndDelete(filter, options)` - 原子地查找并删除文档
+  - 所有方法支持 collation、hint、maxTimeMS、writeConcern、comment 等选项
+  - 自动缓存失效机制（删除成功后自动清理相关缓存）
+  - 慢查询日志记录（超过阈值时自动记录详细信息）
+  - 完整的参数验证和错误处理
+  - findOneAndDelete 支持 projection、sort 选项
+  - findOneAndDelete 支持 includeResultMetadata 选项（返回完整元数据）
+  - 完整的测试覆盖（60+ 个测试用例）
+  - 详细的 JSDoc 文档和代码示例
+  - 实现完整 CRUD 操作链（Create ✅ / Read ✅ / Update ✅ / Delete ✅）
+
+### Changed
+- **文档结构优化**（2025-11-13）
+  - 将 `docs/api/` 子目录中的更新操作文档移到 `docs/` 根目录
+  - 重命名 `docs/api/README.md` 为 `docs/update-operations.md`
+  - 统一文档结构：所有 API 文档现在都在同一层级
+  - 改进：更容易查找和浏览文档，结构更清晰一致
+  - 移除 `docs/FAQ.md` - 项目尚在完善中，后期会更强大时再添加完整的 FAQ
+
+### Fixed
+- **insertMany 慢查询日志修复**（2025-11-13）
+  - 修复 `slowQueryMs` 设置为 `0` 时慢查询日志未被记录的 bug
+  - 根本原因：使用 `||` 运算符导致 `0` 被视为 falsy 值，回退到默认值 `1000`
+  - 解决方案：改用空值合并运算符 `??` 代替 `||`
+  - 影响：慢查询监控测试从 23/25 通过提升到 25/25 通过
+  - 影响范围：不影响核心功能，仅影响性能监控
+
+### Added
+- **P1 文档补充完成**（2025-11-13）
+  - 更新 README.md - 添加更新操作快速示例（updateOne/updateMany/findOneAndUpdate）
+  - 更新 README.md - 突出 CRUD 完整性（75% 完成）
+  - 更新 README.md - 添加 MongoDB 原生 vs monSQLize 功能对照表
+  - 更新 STATUS.md - CRUD 功能完成度矩阵（Create ✅ / Read ✅ / Update ✅ / Delete 🗺️）
+  - 更新 STATUS.md - Update 操作详情表格（5 个方法，172 个测试用例）
+  - 更新 STATUS.md - 近期路线图（Q4 2025 / Q1 2026）
+  - 完成度提升：文档完整性从 90% → 95%
+
+### Added
+- **新增 5 个更新方法**（2025-11-12）
+  - `updateOne(filter, update, options)` - 更新单个文档
+  - `updateMany(filter, update, options)` - 批量更新多个文档
+  - `replaceOne(filter, replacement, options)` - 完整替换单个文档
+  - `findOneAndUpdate(filter, update, options)` - 原子地查找并更新文档
+  - `findOneAndReplace(filter, replacement, options)` - 原子地查找并替换文档
+  - 所有方法支持 upsert、writeConcern、comment 等选项
+  - 自动缓存失效机制（修改成功后自动清理相关缓存）
+  - 慢查询日志记录（超过阈值时自动记录详细信息）
+  - 完整的参数验证和错误处理
+  - 支持 returnDocument 选项（"before" 或 "after"）
+  - 支持 includeResultMetadata 选项（返回完整元数据）
+  - 完整的测试覆盖（170+ 个测试用例）
+  - 详细的 JSDoc 文档和代码示例
+
 ### Fixed
 - **修复 insertOne 测试失败**（2025-11-12）
   - 修复慢查询日志测试的时序问题

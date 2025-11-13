@@ -8,10 +8,11 @@
 
 monSQLize 完整封装了 MongoDB 的原生功能：
 
-- ✅ **完整 CRUD 操作**：Create/Read/Update (75% 完成，Delete 计划中)
+- ✅ **完整 CRUD 操作**：Create/Read/Update/Delete (100% 完成)
 - ✅ **标准查询方法**：find/findOne/aggregate/count/distinct
 - ✅ **写入操作**：insertOne/insertMany/updateOne/updateMany/replaceOne
-- ✅ **原子操作**：findOneAndUpdate/findOneAndReplace (支持计数器、乐观锁)
+- ✅ **删除操作**：deleteOne/deleteMany/findOneAndDelete
+- ✅ **原子操作**：findOneAndUpdate/findOneAndReplace/findOneAndDelete (支持计数器、乐观锁、队列消费)
 - ✅ **链式调用 API**：完整支持 MongoDB 游标的所有链式方法
 - ✅ **所有查询选项**：projection/sort/limit/skip/hint/collation 等
 
@@ -30,16 +31,16 @@ monSQLize 完整封装了 MongoDB 的原生功能：
 
 ## 状态
 
-**CRUD 完成度**: 75% (Create ✅ / Read ✅ / Update ✅ / Delete ⏳)
+**CRUD 完成度**: 100% (Create ✅ / Read ✅ / Update ✅ / Delete ✅)
 
 - **已实现**：
   - **Create**: insertOne, insertMany, insertBatch
   - **Read**: find, findOne, findPage, aggregate, count, distinct, explain
   - **Update**: updateOne, updateMany, replaceOne, findOneAndUpdate, findOneAndReplace
+  - **Delete**: deleteOne, deleteMany, findOneAndDelete
   - **其他**: 智能缓存、多层缓存、跨库访问、慢查询日志、TypeScript 类型
   
 - **计划中**：
-  - **Delete**: deleteOne, deleteMany, findOneAndDelete
   - **数据库适配器**: PostgreSQL, MySQL, SQLite
   - **缓存适配器**: Redis
 

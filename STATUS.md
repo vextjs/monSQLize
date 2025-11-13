@@ -69,6 +69,28 @@
 - ✅ 完整的参数验证和错误处理
 - ✅ 测试覆盖率 100%（172 个测试用例全部通过）
 
+#### Delete 操作详情
+
+| 方法 | 测试用例 | 文档 | 示例 | 核心功能 |
+|------|---------|------|------|---------|
+| **deleteOne** | 20 tests ✅ | 150+ 行 | 删除操作示例 | 删除单个匹配文档 |
+| **deleteMany** | 30 tests ✅ | 150+ 行 | 删除操作示例 | 批量删除所有匹配文档 |
+| **findOneAndDelete** | 20 tests ✅ | 150+ 行 | 删除操作示例 | 原子删除并返回文档 |
+
+**核心特性**:
+- ✅ 自动缓存失效（删除成功后自动清理相关缓存）
+- ✅ 慢查询日志记录（超过阈值自动记录）
+- ✅ 原子操作支持（队列消费、会话清理、锁记录管理）
+- ✅ 完整的参数验证和错误处理
+- ✅ 空filter警告（防止误删所有数据）
+- ✅ 测试覆盖率 100%（70 个测试用例全部通过）
+
+**CRUD 完整性**: ✅ 100% 完成
+- ✅ Create: insertOne, insertMany, insertBatch (3个方法)
+- ✅ Read: findOne, find, findPage, count, aggregate, distinct, stream, explain (8个方法)
+- ✅ Update: updateOne, updateMany, replaceOne, findOneAndUpdate, findOneAndReplace (5个方法)
+- ✅ Delete: deleteOne, deleteMany, findOneAndDelete (3个方法)
+
 ---
 
 ## 🗺️ 近期路线图
@@ -81,10 +103,10 @@
   - [x] findOneAndUpdate - 原子更新
   - [x] findOneAndReplace - 原子替换
 
-- [ ] **实现 Delete 操作** (计划中)
-  - [ ] deleteOne - 删除单个文档
-  - [ ] deleteMany - 批量删除
-  - [ ] findOneAndDelete - 原子删除
+- [x] **实现 Delete 操作** ✅ (2025-11-13 完成)
+  - [x] deleteOne - 删除单个文档
+  - [x] deleteMany - 批量删除
+  - [x] findOneAndDelete - 原子删除
 
 - [ ] **性能优化文档** (计划中)
   - [ ] 索引优化指南
@@ -246,12 +268,12 @@
     - 原子地查找并替换；支持 returnDocument: 'before'/'after'；适用于配置管理、版本控制场景。
 
 ### MongoDB 方法（Writes - Delete）
-- 🗺️ deleteOne **(计划中 - Q4 2025)**
-    - 计划实现：删除单个文档；自动缓存失效；完整错误处理。
-- 🗺️ deleteMany **(计划中 - Q4 2025)**
-    - 计划实现：批量删除；返回 deletedCount；自动缓存失效。
-- 🗺️ findOneAndDelete **(计划中 - Q4 2025)**
-    - 计划实现：原子地查找并删除；返回删除前的文档；自动缓存失效。
+- ✅ deleteOne **(2025-11-13 新增)**
+    - 删除单个匹配的文档；支持 collation/hint/comment；自动缓存失效；完整错误处理。
+- ✅ deleteMany **(2025-11-13 新增)**
+    - 批量删除所有匹配的文档；返回 deletedCount；支持范围查询、逻辑运算符；自动缓存失效；空filter警告。
+- ✅ findOneAndDelete **(2025-11-13 新增)**
+    - 原子地查找并删除；返回删除前的文档；支持 sort/projection；includeResultMetadata 支持；适用于队列消费、会话清理场景。
 
 ### MongoDB 方法（Writes - Bulk）
 - ❌ bulkWrite
