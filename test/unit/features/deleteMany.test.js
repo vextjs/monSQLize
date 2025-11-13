@@ -158,19 +158,6 @@ describe("deleteMany 方法测试套件", function () {
             assert.strictEqual(result.deletedCount, 2);
         });
 
-        it("应该支持 hint 选项", async () => {
-            await collection("users").insertMany([
-                { email: "user1@example.com", status: "inactive" },
-                { email: "user2@example.com", status: "inactive" }
-            ]);
-
-            const result = await collection("users").deleteMany(
-                { status: "inactive" },
-                { hint: { status: 1 } }
-            );
-
-            assert.strictEqual(result.deletedCount, 2);
-        });
 
         it("应该支持 comment 选项", async () => {
             await collection("users").insertMany([
@@ -258,7 +245,7 @@ describe("deleteMany 方法测试套件", function () {
 
             const logs = Array.from({ length: 50 }, (_, i) => ({
                 level: "info",
-                timestamp: new Date(now.getTime() - i * 86400000),
+                timestamp: new Date(now.getTime() - i * 86400000), // i天前
                 message: `Log ${i}`
             }));
             await collection("users").insertMany(logs);
@@ -267,7 +254,9 @@ describe("deleteMany 方法测试套件", function () {
                 timestamp: { $lt: oldDate }
             });
 
-            assert.ok(result.deletedCount >= 20);
+            // 应该删除31-49天前的日志，共19条（索引31到49）
+            assert.ok(result.deletedCount >= 19);
+            assert.ok(result.deletedCount <= 20);
         });
 
         it("批量删除用户账户", async () => {

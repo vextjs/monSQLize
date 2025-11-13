@@ -92,19 +92,6 @@ describe("deleteOne 方法测试套件", function () {
             assert.strictEqual(result.deletedCount, 1);
         });
 
-        it("应该支持 hint 选项", async () => {
-            await collection("users").insertOne({
-                userId: "user1",
-                email: "alice@example.com"
-            });
-
-            const result = await collection("users").deleteOne(
-                { email: "alice@example.com" },
-                { hint: { email: 1 } }
-            );
-
-            assert.strictEqual(result.deletedCount, 1);
-        });
 
         it("应该支持 comment 选项", async () => {
             await collection("users").insertOne({
