@@ -5,6 +5,17 @@
 ## [未发布]
 
 ### Added
+- **MongoDB 驱动版本检测和警告机制**（2025-11-17）
+  - 在 `result-handler.js` 中添加了驱动版本自动检测功能
+  - 当检测到不支持的驱动版本（<6.x 或 >6.x）时自动输出警告日志
+  - 当遇到非预期的返回值格式时输出详细的诊断日志
+  - 帮助开发者及早发现驱动版本兼容性问题
+- **MongoDB 驱动版本兼容性指南文档**（2025-11-17）
+  - 新增 `docs/mongodb-driver-compatibility.md` 完整兼容性指南
+  - 包含当前支持的驱动版本说明
+  - 包含驱动版本差异详解
+  - 包含未来驱动升级的标准流程和检查清单
+  - 包含开发者指南和 FAQ
 - **新增 3 个删除方法**（2025-11-13）
   - `deleteOne(filter, options)` - 删除单个匹配的文档
   - `deleteMany(filter, options)` - 批量删除所有匹配的文档
@@ -20,6 +31,14 @@
   - 实现完整 CRUD 操作链（Create ✅ / Read ✅ / Update ✅ / Delete ✅）
 
 ### Changed
+- **增强 result-handler.js 的诊断能力**（2025-11-17）
+  - `handleFindOneAndResult()` 函数现在接受可选的 `logger` 参数
+  - 自动检测 MongoDB 驱动版本并在首次调用时输出诊断信息
+  - 当返回值格式异常时输出详细的警告日志
+  - 帮助快速定位和诊断驱动兼容性问题
+- **README 添加兼容性说明**（2025-11-17）
+  - 在"安装"章节添加了 MongoDB 驱动版本兼容性说明
+  - 提供兼容性指南和技术报告的链接
 - **API 文档更新 - MongoDB 驱动版本说明**（2025-11-17）
   - 在 `docs/find-one-and-update.md` 中添加了 MongoDB 驱动 6.x 的兼容性说明
   - 在 `docs/find-one-and-replace.md` 中添加了驱动版本说明和完整返回值示例

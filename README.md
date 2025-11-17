@@ -71,6 +71,18 @@ npm i monsqlize
 npm i ioredis
 ```
 
+### 兼容性说明
+
+**支持的 MongoDB 驱动版本**:
+- ✅ MongoDB Node.js Driver 6.x（完全测试并支持）
+- ⚠️ 其他版本未经充分测试
+
+monSQLize 内部已处理 MongoDB 驱动 6.x 的 API 变更（特别是 `findOneAnd*` 方法），确保 API 行为一致。
+
+**详细说明**: 
+- 📖 [MongoDB 驱动版本兼容性指南](./docs/mongodb-driver-compatibility.md) - 驱动升级指南和最佳实践
+- 📄 [技术分析报告](./analysis-reports/2025-11-17-mongodb-driver-6x-compatibility-FINAL.md) - 详细的技术实现
+
 ---
 
 ## 快速开始
