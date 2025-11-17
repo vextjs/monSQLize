@@ -13,6 +13,7 @@ monSQLize 完整封装了 MongoDB 的原生功能：
 - ✅ **写入操作**：insertOne/insertMany/updateOne/updateMany/replaceOne
 - ✅ **删除操作**：deleteOne/deleteMany/findOneAndDelete
 - ✅ **原子操作**：findOneAndUpdate/findOneAndReplace/findOneAndDelete (支持计数器、乐观锁、队列消费)
+- ✅ **索引管理**：createIndex/createIndexes/listIndexes/dropIndex/dropIndexes (支持所有索引选项)
 - ✅ **链式调用 API**：完整支持 MongoDB 游标的所有链式方法
 - ✅ **所有查询选项**：projection/sort/limit/skip/hint/collation 等
 
@@ -31,13 +32,14 @@ monSQLize 完整封装了 MongoDB 的原生功能：
 
 ## 状态
 
-**CRUD 完成度**: 100% (Create ✅ / Read ✅ / Update ✅ / Delete ✅)
+**CRUD + 索引管理完成度**: 100% (Create ✅ / Read ✅ / Update ✅ / Delete ✅ / Index ✅)
 
 - **已实现**：
   - **Create**: insertOne, insertMany, insertBatch
   - **Read**: find, findOne, findPage, aggregate, count, distinct, explain
   - **Update**: updateOne, updateMany, replaceOne, findOneAndUpdate, findOneAndReplace
   - **Delete**: deleteOne, deleteMany, findOneAndDelete
+  - **索引管理**: createIndex, createIndexes, listIndexes, dropIndex, dropIndexes
   - **其他**: 智能缓存、多层缓存、跨库访问、慢查询日志、TypeScript 类型
   
 - **计划中**：
@@ -151,6 +153,23 @@ const MonSQLize = require('monsqlize');
     { returnDocument: 'after', upsert: true }
   );
   console.log('订单号 ->', counter.value);
+
+  // 索引管理
+  // 创建唯一索引
+  await collection('users').createIndex({ email: 1 }, { unique: true });
+  
+  // 批量创建索引
+  await collection('products').createIndexes([
+    { key: { category: 1, price: -1 } },
+    { key: { sku: 1 }, unique: true }
+  ]);
+  
+  // 列出所有索引
+  const indexes = await collection('users').listIndexes();
+  console.log('索引列表 ->', indexes.map(idx => idx.name));
+  
+  // 删除索引
+  await collection('users').dropIndex('old_index');
 })();
 ```
 
@@ -190,6 +209,18 @@ const MonSQLize = require('monsqlize');
 | **createCollection()** | 创建集合 | [docs/collection-management.md](./docs/collection-management.md) |
 | **dropCollection()** | 删除集合 | [docs/collection-management.md](./docs/collection-management.md) |
 | **createView()** | 创建视图集合 | [docs/collection-management.md](./docs/collection-management.md) |
+
+### 索引管理
+
+| 方法 | 说明 | 文档链接 |
+|------|------|---------|
+| **createIndex()** | 创建单个索引（支持所有索引选项） | [docs/create-index.md](./docs/create-index.md) |
+| **createIndexes()** | 批量创建多个索引 | [docs/create-indexes.md](./docs/create-indexes.md) |
+| **listIndexes()** | 列出集合的所有索引 | [docs/list-indexes.md](./docs/list-indexes.md) |
+| **dropIndex()** | 删除指定索引 | [docs/drop-index.md](./docs/drop-index.md) |
+| **dropIndexes()** | 删除所有索引（_id 除外） | [docs/drop-index.md](./docs/drop-index.md#dropIndexes) |
+
+**索引选项支持**: unique, sparse, expireAfterSeconds (TTL), partialFilterExpression, collation, hidden, 通配符, 文本索引等
 
 ### 缓存与维护
 

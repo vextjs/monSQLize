@@ -5,6 +5,32 @@
 ## [未发布]
 
 ### Added
+- **完整的索引管理功能**（2025-11-17）
+  - `createIndex(keys, options)` - 创建单个索引，支持所有 MongoDB 索引选项
+  - `createIndexes(indexSpecs)` - 批量创建多个索引，提高部署效率
+  - `listIndexes()` - 列出集合的所有索引，支持索引审计和监控
+  - `dropIndex(indexName)` - 删除指定索引，禁止删除 _id 索引
+  - `dropIndexes()` - 删除所有索引（_id 除外），适用于索引重建
+  - **完整的索引选项支持**：
+    - unique（唯一索引）、sparse（稀疏索引）、expireAfterSeconds（TTL 索引）
+    - partialFilterExpression（部分索引）、collation（排序规则）、hidden（隐藏索引）
+    - wildcardProjection（通配符投影）、weights（文本索引权重）等所有选项
+  - **健壮的错误处理**：
+    - 灵活的错误码匹配（兼容不同 MongoDB 驱动版本）
+    - 友好的错误消息和完整的错误分类
+    - 统一的返回格式
+  - **完整的日志记录**：
+    - 操作开始/成功/失败日志
+    - 性能指标（duration）
+    - 详细的操作参数记录
+  - **完整的测试和文档**：
+    - 50+ 测试用例，100% 通过
+    - 10 个完整示例（examples/indexes.examples.js）
+    - 5 个详细 API 文档（docs/*.md）
+    - 完整的索引管理指南
+  - 实现了项目目标中的索引管理环节：explain() → **createIndex()** → 性能优化闭环
+
+### Added
 - **MongoDB 驱动版本检测和警告机制**（2025-11-17）
   - 在 `result-handler.js` 中添加了驱动版本自动检测功能
   - 当检测到不支持的驱动版本（<6.x 或 >6.x）时自动输出警告日志
