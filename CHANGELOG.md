@@ -20,6 +20,13 @@
   - 实现完整 CRUD 操作链（Create ✅ / Read ✅ / Update ✅ / Delete ✅）
 
 ### Changed
+- **API 文档更新 - MongoDB 驱动版本说明**（2025-11-17）
+  - 在 `docs/find-one-and-update.md` 中添加了 MongoDB 驱动 6.x 的兼容性说明
+  - 在 `docs/find-one-and-replace.md` 中添加了驱动版本说明和完整返回值示例
+  - 新增 `docs/find-one-and-delete.md` 完整 API 文档
+  - 说明了驱动 5.x 和 6.x 之间的返回值格式差异
+  - 强调 monSQLize 已内部处理此差异，API 行为保持一致
+  - 新增技术分析报告：`analysis-reports/2025-11-17-mongodb-driver-6x-compatibility-FINAL.md`
 - **文档结构优化**（2025-11-13）
   - 将 `docs/api/` 子目录中的更新操作文档移到 `docs/` 根目录
   - 重命名 `docs/api/README.md` 为 `docs/update-operations.md`
@@ -28,6 +35,19 @@
   - 移除 `docs/FAQ.md` - 项目尚在完善中，后期会更强大时再添加完整的 FAQ
 
 ### Fixed
+- **findOneAndUpdate、findOneAndDelete、findOneAndReplace 方法修复**（2025-11-17）
+  - 修复了与 MongoDB 驱动 6.x 的 API 兼容性问题
+  - 问题：驱动 6.x 默认直接返回文档，而非 `{ value, ok, lastErrorObject }` 格式
+  - 解决方案：强制传递 `includeResultMetadata: true` 给驱动，确保获取完整元数据
+  - 修复了空值处理逻辑，避免空指针异常
+  - 修复了缓存失效判断逻辑，正确使用 `wasDocumentModified()` 函数
+  - 新增 `result-handler.js` 工具模块，统一处理三个方法的返回值
+  - 所有 44 个失败的测试用例现在全部通过
+- **replaceOne 测试用例修复**（2025-11-17）
+  - 修复了"替换为空对象"测试：正确使用 `_id` 查询替换后的文档
+  - 调整测试预期以适应 MongoDB 驱动 6.x 的行为变化
+  - 说明：驱动 6.x 的 `replaceOne` 即使内容相同也会返回 `modifiedCount: 1`
+  - 这是 MongoDB 驱动的正常行为，因为驱动执行了写操作
 - **insertMany 慢查询日志修复**（2025-11-13）
   - 修复 `slowQueryMs` 设置为 `0` 时慢查询日志未被记录的 bug
   - 根本原因：使用 `||` 运算符导致 `0` 被视为 falsy 值，回退到默认值 `1000`

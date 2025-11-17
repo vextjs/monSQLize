@@ -48,6 +48,22 @@ collection(collectionName).findOneAndUpdate(filter, update, options)
 }
 ```
 
+> **⚠️ 重要提示 - MongoDB 驱动 6.x 兼容性**
+> 
+> monSQLize 使用 MongoDB Node.js 驱动 6.x，该版本对 `findOneAndUpdate` 的返回值格式进行了重要变更：
+> 
+> **驱动 6.x (当前版本)**:
+> - 默认直接返回文档对象
+> - 需要显式设置 `includeResultMetadata: true` 才返回完整元数据
+> 
+> **驱动 5.x 及更早版本**:
+> - 默认返回完整元数据 `{ value, ok, lastErrorObject }`
+> 
+> **✅ monSQLize 的处理**:
+> - 已在内部自动处理此差异，用户无需关心驱动版本
+> - API 行为保持一致，向后兼容
+> - 详见技术分析报告: `analysis-reports/2025-11-17-mongodb-driver-6x-compatibility.md`
+
 ## 核心特性
 
 ### 原子性保证
