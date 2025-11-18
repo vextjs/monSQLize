@@ -406,6 +406,50 @@ declare module 'monsqlize' {
          */
         findOneById(id: string | any, options?: Omit<FindOptions, 'meta'>): Promise<any | null>;
 
+        /**
+         * 批量通过 _id 查询多个文档（便利方法）
+         * @param ids - _id 数组（支持字符串和 ObjectId 混合）
+         * @param options - 查询选项
+         * @returns Promise<文档数组>
+         * @throws {Error} 当 ids 参数无效时
+         * @example
+         * // 字符串 ID 数组
+         * const users = await collection('users').findByIds([
+         *   '507f1f77bcf86cd799439011',
+         *   '507f1f77bcf86cd799439012'
+         * ]);
+         *
+         * @example
+         * // ObjectId 数组
+         * const users = await collection('users').findByIds([
+         *   new ObjectId('507f1f77bcf86cd799439011'),
+         *   new ObjectId('507f1f77bcf86cd799439012')
+         * ]);
+         *
+         * @example
+         * // 混合类型 + 选项
+         * const users = await collection('users').findByIds(
+         *   ['507f1f77bcf86cd799439011', new ObjectId('507f1f77bcf86cd799439012')],
+         *   {
+         *     projection: { name: 1, email: 1 },
+         *     sort: { name: 1 },
+         *     cache: 5000,
+         *     preserveOrder: true
+         *   }
+         * );
+         */
+        findByIds(
+            ids: Array<string | any>,
+            options?: {
+                projection?: Record<string, any>;
+                sort?: Record<string, 1 | -1>;
+                cache?: number;
+                maxTimeMS?: number;
+                comment?: string;
+                preserveOrder?: boolean;
+            }
+        ): Promise<any[]>;
+
         // find 重载：支持 meta 参数和链式调用 (v2.0+)
         find<T = any>(query?: any): FindChain<T>;
         find<T = any>(query: any, options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;

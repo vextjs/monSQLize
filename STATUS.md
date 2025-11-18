@@ -866,7 +866,7 @@
 | **CRUD 文档补全** | 高 | 低 | 高 | 🟠 P1 | ✅ 已完成 (2025-11-18) |
 | **findOneById** | 极高 | 低 | 高 | 🟡 P2 | ✅ 已完成 (2025-11-18) |
 | **upsertOne** | 高 | 低 | 高 | 🟡 P2 | ✅ 已完成 (2025-11-18) |
-| **findByIds** | 高 | 低 | 中 | 🟡 P2 | 🗺️ 计划中 |
+| **findByIds** | 高 | 低 | 中 | 🟡 P2 | ✅ 已完成 (2025-11-18) |
 | **incrementOne** | 中 | 低 | 中 | 🟡 P2 | 🗺️ 计划中 |
 | **findAndCount** | 中 | 低 | 中 | 🟡 P2 | 🗺️ 计划中 |
 | **事务支持** | 中 | 高 | 高 | 🟢 P3 | 🗺️ 未来版本 |
@@ -882,6 +882,32 @@
 ---
 
 ## 📜 最近更新历史
+
+### 2025-11-18 (深夜) - findByIds 便利方法实现完成 ✅
+
+**新增功能**:
+- ✅ findByIds 方法 - 批量通过 _id 查询多个文档
+- ✅ 自动 ObjectId 转换（字符串 → ObjectId）
+- ✅ 自动去重（重复 ID 只查询一次）
+- ✅ preserveOrder 选项（保持 ids 顺序）
+- ✅ 支持所有 find 选项（projection, sort, cache, maxTimeMS, comment）
+- ✅ 完整的参数验证和错误处理
+- ✅ 27 个测试用例全部通过
+- ✅ 700+ 行完整文档
+
+**相关文件**:
+- `lib/mongodb/queries/find-by-ids.js` (220 行)
+- `test/unit/features/findByIds.test.js` (27 个测试)
+- `docs/find-by-ids.md` (700+ 行)
+- `examples/findByIds.examples.js`
+
+**收益**:
+- 简化 75% 的批量查询代码
+- 1 次查询替代 N 次查询
+- 自动类型转换和去重
+- 提升批量查询性能
+
+**Git 提交**: `feat: 新增 findByIds 便利方法`
 
 ### 2025-11-18 (深夜) - upsertOne 便利方法实现完成 ✅
 

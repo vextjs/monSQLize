@@ -22,6 +22,7 @@
 | [find.md](find.md) | `find()` | 查询多个文档 |
 | [findOne.md](findOne.md) | `findOne()` | 查询单个文档 |
 | [find-one-by-id.md](find-one-by-id.md) | `findOneById()` | 通过 _id 查询单个文档（便利方法）⭐ |
+| [find-by-ids.md](find-by-ids.md) | `findByIds()` | 批量通过 _id 查询多个文档（便利方法）⭐ |
 | [findPage.md](findPage.md) | `findPage()` | 游标分页查询 |
 | [count.md](count.md) | `count()` | 统计文档数量 |
 | [distinct.md](distinct.md) | `distinct()` | 去重查询 |
@@ -153,6 +154,6 @@
 
 ---
 
-**文档总数**: 32个（新增：upsert-one.md）  
+**文档总数**: 33个（新增：find-by-ids.md）  
 **最后更新**: 2025-11-18
 

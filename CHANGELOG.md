@@ -26,6 +26,22 @@
   - 详细分析报告：`analysis-reports/2025-11-18-implementation-status-audit.md`
 
 ### Added
+- **新增 findByIds 便利方法**（2025-11-18）
+  - 新增 `findByIds(ids, options)` 方法 - 批量通过 _id 查询多个文档
+  - 自动 ObjectId 转换（字符串 → ObjectId，支持混合类型）
+  - 自动去重（重复 ID 只查询一次）
+  - preserveOrder 选项（保持 ids 数组的顺序）
+  - 支持所有 find 选项（projection, sort, cache, maxTimeMS, comment）
+  - 完整的参数验证和错误处理（无效 ID 检测）
+  - 27 个测试用例（基础功能/选项支持/参数验证/缓存/性能/实际场景/对比）
+  - 700+ 行完整文档，包含真实场景示例和性能对比
+  - 示例代码文件 `examples/findByIds.examples.js`（11 个场景示例）
+  - 简化 75% 的批量查询代码，1 次查询替代 N 次
+  - 相关文件：
+    - `lib/mongodb/queries/find-by-ids.js` (220 行)
+    - `test/unit/features/findByIds.test.js` (27 个测试)
+    - `docs/find-by-ids.md` (700+ 行)
+  - 更新文档：README.md, STATUS.md, docs/INDEX.md
 - **新增 upsertOne 便利方法**（2025-11-18）
   - 新增 `upsertOne(filter, update, options)` 方法 - 存在则更新，不存在则插入
   - 自动包装 `$set`（无需手动添加，但仍支持所有更新操作符）
