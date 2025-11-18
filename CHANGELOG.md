@@ -52,6 +52,20 @@
   - 实现了项目目标中的索引管理环节：explain() → **createIndex()** → 性能优化闭环
 
 ### Added
+- **新增 findOneById 便利方法**（2025-11-18）
+  - 新增 `findOneById(id, options)` 方法 - 通过 _id 快速查询单个文档
+  - 自动处理字符串到 ObjectId 的转换（字符串 → ObjectId）
+  - 支持所有 findOne 选项（projection, cache, maxTimeMS, comment）
+  - 完整的参数验证和错误处理
+  - 21 个测试用例（基础功能/选项支持/缓存/参数验证/边界情况/性能对比/集成测试）
+  - 750+ 行完整文档，包含真实场景示例和最佳实践
+  - 示例代码文件 `examples/findOneById.examples.js`
+  - 简化 80% 的单文档查询代码，提升开发效率
+  - 相关文件：
+    - `lib/mongodb/queries/find-one-by-id.js` (165 行)
+    - `test/unit/features/findOneById.test.js` (21 个测试)
+    - `docs/find-one-by-id.md` (750+ 行)
+  - 更新文档：README.md, STATUS.md, docs/INDEX.md
 - **更新 STATUS.md 记录阶段1完成**（2025-11-18）
   - 更新文档完成度统计（新增"文档完成度: 100%"指标）
   - 更新进度对比表（新增 2025-11-18 下午的文档补全成果）

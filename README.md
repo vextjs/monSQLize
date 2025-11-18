@@ -183,6 +183,7 @@ const MonSQLize = require('monsqlize');
 |------|------|---------|
 | **find()** | 批量查询（支持数组和流式） | [docs/find.md](./docs/find.md) |
 | **findOne()** | 查询单个文档 | [docs/findOne.md](./docs/findOne.md) |
+| **findOneById()** | 通过 _id 查询单个文档（自动 ObjectId 转换）⭐ | [docs/find-one-by-id.md](./docs/find-one-by-id.md) |
 | **findPage()** | 分页查询（游标/跳页/总数） | [docs/findPage.md](./docs/findPage.md) |
 | **stream()** | 流式查询（find 的语法糖） | [docs/find.md](./docs/find.md#流式传输) |
 | **aggregate()** | 聚合管道查询 | [docs/aggregate.md](./docs/aggregate.md) |
@@ -663,6 +664,7 @@ const products2 = await collection('products').find(
 |---------|------|
 | [find.examples.js](./examples/find.examples.js) | find 查询示例（数组和流式） |
 | [findOne.examples.js](./examples/findOne.examples.js) | findOne 查询示例 |
+| [findOneById.examples.js](./examples/findOneById.examples.js) | findOneById 查询示例（字符串/ObjectId）⭐ |
 | [findPage.examples.js](./examples/findPage.examples.js) | 分页查询示例（游标/跳页/总数） |
 | [aggregate.examples.js](./examples/aggregate.examples.js) | 聚合管道示例 |
 | [distinct.examples.js](./examples/distinct.examples.js) | 字段去重示例 |

@@ -383,6 +383,29 @@ declare module 'monsqlize' {
         findOne(query: any, options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<any | null>>;
         findOne(query?: any, options?: FindOptions): Promise<any | null | ResultWithMeta<any | null>>;
 
+        /**
+         * 通过 _id 查询单个文档（便利方法）
+         * @param id - 文档的 _id（字符串会自动转换为 ObjectId）
+         * @param options - 查询选项（支持 projection, cache, maxTimeMS, comment）
+         * @returns Promise<文档 | null>
+         * @throws {Error} 当 id 参数无效时
+         * @example
+         * // 字符串 ID（自动转换）
+         * const user = await collection('users').findOneById('507f1f77bcf86cd799439011');
+         *
+         * @example
+         * // ObjectId
+         * const user = await collection('users').findOneById(new ObjectId(userId));
+         *
+         * @example
+         * // 带选项
+         * const user = await collection('users').findOneById(userId, {
+         *   projection: { name: 1, email: 1 },
+         *   cache: 5000
+         * });
+         */
+        findOneById(id: string | any, options?: Omit<FindOptions, 'meta'>): Promise<any | null>;
+
         // find 重载：支持 meta 参数和链式调用 (v2.0+)
         find<T = any>(query?: any): FindChain<T>;
         find<T = any>(query: any, options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;

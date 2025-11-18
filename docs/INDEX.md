@@ -21,6 +21,7 @@
 |------|------|------|
 | [find.md](find.md) | `find()` | 查询多个文档 |
 | [findOne.md](findOne.md) | `findOne()` | 查询单个文档 |
+| [find-one-by-id.md](find-one-by-id.md) | `findOneById()` | 通过 _id 查询单个文档（便利方法）⭐ |
 | [findPage.md](findPage.md) | `findPage()` | 游标分页查询 |
 | [count.md](count.md) | `count()` | 统计文档数量 |
 | [distinct.md](distinct.md) | `distinct()` | 去重查询 |
@@ -146,6 +147,6 @@
 
 ---
 
-**文档总数**: 30个（新增：mongodb-native-vs-extensions.md）  
+**文档总数**: 31个（新增：find-one-by-id.md）  
 **最后更新**: 2025-11-18
 
