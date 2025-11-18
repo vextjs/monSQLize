@@ -19,16 +19,16 @@
 | **MongoDB 读方法** | 9 | 0 | 3 | 0 | 12 |
 | **MongoDB 写方法 - Insert** | 3 | 0 | 0 | 0 | 3 |
 | **MongoDB 写方法 - Update** | 5 | 0 | 0 | 0 | 5 |
-| **MongoDB 写方法 - Delete** | 0 | 3 | 0 | 0 | 3 |
+| **MongoDB 写方法 - Delete** | 3 | 0 | 0 | 0 | 3 |
 | **MongoDB 写方法 - Bulk** | 0 | 0 | 1 | 0 | 1 |
 | **MongoDB 索引** | 5 | 0 | 0 | 0 | 5 |
 | **MongoDB 事务** | 0 | 0 | 3 | 0 | 3 |
 | **MongoDB 其他** | 0 | 0 | 15 | 0 | 15 |
-| **总计** | **45** | **5** | **18** | **2** | **70** |
+| **总计** | **48** | **2** | **18** | **2** | **70** |
 
-**完成度**: 64.3% (45/70) ⬆️ +7.2%  
-**核心功能完成度**: 87.5% (28/32)  
-**CRUD + 索引完成度**: 100% (Create ✅ / Read ✅ / Update ✅ / Delete 🗺️ / Index ✅)
+**完成度**: 68.6% (48/70) ⬆️ +4.3%  
+**核心功能完成度**: 93.8% (30/32) ⬆️ +6.3%  
+**CRUD + 索引完成度**: 100% (Create ✅ / Read ✅ / Update ✅ / Delete ✅ / Index ✅)
 
 ### 📈 进度对比
 
@@ -37,7 +37,8 @@
 | 2025-11-06 | 43.6% | 性能基准测试框架 |
 | 2025-11-13 | 57.1% | **Update 操作完成** (5 个方法) |
 | 2025-11-17 | 64.3% | **索引管理完成** (5 个方法) |
-| 增长 | **+7.2%** | createIndex, createIndexes, listIndexes, dropIndex, dropIndexes |
+| 2025-11-18 | 68.6% | **Delete 操作已完成** (修正状态记录) |
+| 增长 | **+4.3%** | STATUS.md 修正，Delete 方法已在 2025-11-13 实现 |
 
 ---
 
@@ -51,7 +52,7 @@
 | **Read** | find, findOne, findPage, aggregate, count, distinct, explain | ✅ 已实现 | 2025-11 | 完整实现，包括分页、聚合、执行计划 |
 | **Update** | updateOne, updateMany, replaceOne, findOneAndUpdate, findOneAndReplace | ✅ 已实现 | 2025-11-13 | 完整实现，支持所有更新操作符 |
 | **索引管理** | createIndex, createIndexes, listIndexes, dropIndex, dropIndexes | ✅ 已实现 | 2025-11-17 | **新增完成**，支持所有索引选项 |
-| **Delete** | deleteOne, deleteMany, findOneAndDelete | 🗺️ 计划中 | Q4 2025 | 计划实现，包括自动缓存失效 |
+| **Delete** | deleteOne, deleteMany, findOneAndDelete | ✅ 已实现 | 2025-11-13 | 完整实现，包括自动缓存失效 |
 
 ### 🔧 Update 操作详情 (2025-11-13 完成)
 
@@ -71,13 +72,22 @@
 - ✅ 完整的参数验证和错误处理
 - ✅ 测试覆盖率 100%（172 个测试用例全部通过）
 
-#### Delete 操作详情
+### 🔧 Delete 操作详情 (2025-11-13 已完成，STATUS修正于 2025-11-18)
 
 | 方法 | 测试用例 | 文档 | 示例 | 核心功能 |
 |------|---------|------|------|---------|
-| **deleteOne** | 20 tests ✅ | 150+ 行 | 删除操作示例 | 删除单个匹配文档 |
-| **deleteMany** | 30 tests ✅ | 150+ 行 | 删除操作示例 | 批量删除所有匹配文档 |
-| **findOneAndDelete** | 20 tests ✅ | 150+ 行 | 删除操作示例 | 原子删除并返回文档 |
+| **deleteOne** | 15 tests ✅ | 共享文档 | delete-operations.examples.js | 删除单个匹配文档、自动缓存失效 |
+| **deleteMany** | 12 tests ✅ | 共享文档 | delete-operations.examples.js | 批量删除所有匹配文档、自动缓存失效 |
+| **findOneAndDelete** | 18 tests ✅ | 400+ 行 | delete-operations.examples.js | 原子删除并返回被删除的文档 |
+
+**核心特性**:
+- ✅ 自动缓存失效（删除成功后自动清理相关缓存）
+- ✅ 慢查询日志记录（超过阈值自动记录）
+- ✅ 完整的参数验证和错误处理
+- ✅ 测试覆盖率 100%（45 个测试用例全部通过）
+- ✅ 支持所有 MongoDB 删除选项（collation, hint, maxTimeMS, writeConcern, comment）
+
+**说明**: Delete 方法在 2025-11-13 已完整实现，但 STATUS.md 错误标记为"计划中"，已于 2025-11-18 修正。
 
 **核心特性**:
 - ✅ 自动缓存失效（删除成功后自动清理相关缓存）
@@ -428,7 +438,17 @@
     - 手动失效缓存
 
 #### Bulk 操作
-19. ❌ **bulkWrite**
+19. ❌ **bulkWrite** - 不建议实现
+    - 批量混合操作（insert/update/delete）
+    - **评估结论**: 不推荐实现
+    - **理由**: 
+      - ✅ 现有方法已覆盖 90% 场景（insertMany/updateMany/deleteMany）
+      - ✅ 实现成本高但收益低
+      - ✅ 缓存失效逻辑极其复杂（混合操作难以预测影响）
+      - ✅ 用户可通过分别调用或事务达到同样效果
+      - ✅ 保持 API 简洁性
+    - **替代方案**: 使用多个独立方法或事务（Session + withTransaction）
+    - **详细分析**: 参见 `analysis-reports/2025-11-18-implementation-status-audit.md`
     - 批量混合操作（insert/update/delete）
     - 性能优化
     - 手动失效缓存（collection.invalidate('bulkWrite')）
@@ -735,7 +755,75 @@
 
 ---
 
-> 更新时间：2025-11-06
+## 📅 下阶段实现计划
+
+> **更新日期**: 2025-11-18  
+> **详细分析**: `analysis-reports/2025-11-18-implementation-status-audit.md`
+
+### 🔴 P0 - 立即执行（已完成 ✅）
+
+| 任务 | 状态 | 完成日期 |
+|------|------|---------|
+| 修正 STATUS.md 中 Delete 方法状态 | ✅ 完成 | 2025-11-18 |
+| 更新 CRUD 完成度统计 | ✅ 完成 | 2025-11-18 |
+
+### 🟠 P1 - 短期补充（本月计划）
+
+| 序号 | 任务 | 说明 | 预计工作量 | 优先级 |
+|------|------|------|-----------|--------|
+| 1 | 补充 deleteOne 文档 | 创建 `docs/delete-one.md` | 2 小时 | 🟠 高 |
+| 2 | 补充 deleteMany 文档 | 创建 `docs/delete-many.md` | 2 小时 | 🟠 高 |
+| 3 | 补充 insertOne 文档（可选） | 创建 `docs/insert-one.md` | 2 小时 | 🟡 中 |
+| 4 | 补充 insertMany 文档（可选） | 创建 `docs/insert-many.md` | 2 小时 | 🟡 中 |
+| 5 | 更新文档索引 | 更新 `docs/INDEX.md` | 1 小时 | 🟡 中 |
+
+**总工作量**: 6-10 小时
+
+### 🟡 P2 - 便利性增强（下月计划）
+
+| 序号 | 功能 | 说明 | 预计工作量 | 收益 |
+|------|------|------|-----------|------|
+| 1 | **findOneById** | 快捷方法：`findOne({ _id })` | 4 小时 | 简化 80% 单文档查询 |
+| 2 | **findByIds** | 批量查询：`find({ _id: { $in: ids } })` | 4 小时 | 简化批量查询 |
+| 3 | **upsertOne** | 便捷的 upsert 方法 | 4 小时 | 简化 upsert 操作 |
+| 4 | **incrementOne** | 原子计数器便捷方法 | 4 小时 | 简化计数器操作 |
+| 5 | **findAndCount** | 同时返回数据和总数 | 4 小时 | 减少查询次数 |
+
+**总工作量**: 16-20 小时  
+**收益**: 提升开发效率，减少样板代码
+
+### 🟢 P3 - 高级特性（未来版本）
+
+| 类别 | 功能 | 优先级 | 说明 |
+|------|------|--------|------|
+| **事务支持** | startSession, withTransaction | P3 | 多文档原子性操作 |
+| **Watch API** | watch, changeStream | P3 | 实时数据监听 |
+| **全文搜索** | textSearch, createTextIndex | P3 | 文本检索功能 |
+| **地理空间** | geoNear, geoWithin | P3 | 地理位置查询 |
+| **GridFS** | 文件存储 API | P3 | 大文件存储 |
+
+### 📊 功能实现优先级矩阵
+
+| 功能 | 使用频率 | 实现难度 | 收益 | 优先级 |
+|------|---------|---------|------|--------|
+| **deleteOne/deleteMany 文档** | 高 | 低 | 高 | 🟠 P1 |
+| **findOneById** | 极高 | 低 | 高 | 🟡 P2 |
+| **upsertOne** | 高 | 低 | 高 | 🟡 P2 |
+| **findByIds** | 高 | 低 | 中 | 🟡 P2 |
+| **incrementOne** | 中 | 低 | 中 | 🟡 P2 |
+| **事务支持** | 中 | 高 | 高 | 🟢 P3 |
+| **Watch API** | 低 | 高 | 中 | 🟢 P3 |
+| **bulkWrite** | 低 | 高 | 低 | ❌ 不推荐 |
+
+### 🎯 推荐实现顺序
+
+1. **阶段 1** (本月): 补全文档 → deleteOne, deleteMany, insertOne, insertMany
+2. **阶段 2** (下月): 便利方法 → findOneById, upsertOne, findByIds
+3. **阶段 3** (未来): 高级特性 → 事务, Watch API
+
+---
+
+> 更新时间：2025-11-18
 
 ## 关联
 - 历史变更：见 [CHANGELOG.md](./CHANGELOG.md)

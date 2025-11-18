@@ -4,6 +4,27 @@
 
 ## [未发布]
 
+### Fixed
+- **修复 mongodb-native-vs-extensions.md 表格格式**（2025-11-18）
+  - 修复"性能对比"表格缺少空行导致渲染错误
+  - 在表格前后添加必要的空行，确保 Markdown 正确渲染
+  - 修复了 2 处表格格式问题（深度分页性能对比表格）
+- **修复 README.md 文档问题**（2025-11-18）
+  - 修正章节编号重复问题（两个"5. 多层缓存"）
+  - 修正 insertOne/insertMany 的 API 调用示例（移除错误的嵌套 document 结构）
+  - 新增"10. 删除操作"示例章节（deleteOne/deleteMany/findOneAndDelete）
+  - 完善示例代码列表（新增 delete-operations、update、replace、indexes 等示例文件链接）
+  - 确认删除操作的自动缓存失效功能已完整实现
+- **STATUS.md 状态修正**（2025-11-18）
+  - 修正了 Delete 方法（deleteOne, deleteMany, findOneAndDelete）的状态记录
+  - 这些方法实际已在 2025-11-13 完整实现，但 STATUS.md 错误标记为"计划中"
+  - 更新完成度统计：从 64.3% 提升到 68.6%
+  - 更新核心功能完成度：从 87.5% 提升到 93.8%
+  - 更新 CRUD 完成度：Delete 从"计划中"改为"已实现"
+  - 添加 bulkWrite 不推荐实现的说明和理由
+  - 添加下阶段实现计划章节（P1/P2/P3 优先级分类）
+  - 详细分析报告：`analysis-reports/2025-11-18-implementation-status-audit.md`
+
 ### Added
 - **完整的索引管理功能**（2025-11-17）
   - `createIndex(keys, options)` - 创建单个索引，支持所有 MongoDB 索引选项
@@ -31,6 +52,45 @@
   - 实现了项目目标中的索引管理环节：explain() → **createIndex()** → 性能优化闭环
 
 ### Added
+- **新增 MongoDB 原生 vs monSQLize 扩展功能对比文档**（2025-11-18）
+  - 创建 `docs/mongodb-native-vs-extensions.md` 详细对比文档
+  - 10 大功能对比：缓存、分页、性能监控、跨库访问等
+  - 包含性能基准数据和使用建议
+  - 修正 README.md 中删除操作的错误状态（从"计划中"改为"已实现"）
+- **更新文档索引和导航**（2025-11-18）
+  - 更新 `docs/INDEX.md` 添加 4 个新文档的索引条目
+  - 在写入操作章节新增"删除操作"分类
+  - 更新 CRUD 分类，补充 delete 操作的详细链接
+  - 更新快速开始路径，包含完整的 CRUD 学习顺序
+  - 文档总数从 25 个增加到 29 个
+  - 更新 `README.md` 核心 API 列表
+  - 在写入操作表格中添加 deleteOne、deleteMany、findOneAndDelete 文档链接
+  - 将 insertOne、insertMany 链接从示例改为独立文档
+  - 所有文档链接已验证，确保可访问性
+- **补充独立 API 文档**（2025-11-18）
+  - 新增 `docs/delete-one.md` - deleteOne 方法完整文档
+  - 新增 `docs/delete-many.md` - deleteMany 方法完整文档
+  - 新增 `docs/insert-one.md` - insertOne 方法完整文档
+  - 新增 `docs/insert-many.md` - insertMany 方法完整文档
+  - 每个文档包含：语法、参数、返回值、核心特性、常见场景、错误处理、性能优化、最佳实践
+  - 总计新增 4 个文档，约 **4000+ 行**详细文档
+  - 完成了审计报告中 P1 优先级任务（阶段1：文档补全）
+  - 相关报告：`analysis-reports/2025-11-18-implementation-status-audit.md`
+- **MongoDB 驱动 API 使用检查完成**（2025-11-18）
+  - 完成代码库中所有直接使用 MongoDB 驱动 API 的检查
+  - 确认所有 `findOneAnd*` 方法都正确使用了 `result-handler` 模块
+  - 确认其他写操作方法（insertOne/updateOne/deleteOne 等）不受驱动版本影响
+  - 确认所有读操作和索引管理方法不受驱动版本影响
+  - 检查范围：13 个写操作文件、7 个读操作文件、5 个索引管理文件
+  - 检查结果：✅ 无问题发现，所有代码已正确处理驱动兼容性
+  - 详细报告：`analysis-reports/2025-11-18-driver-api-usage-check.md`
+- **result-handler 工具模块单元测试**（2025-11-18）
+  - 新增 `test/unit/utils/result-handler.test.js` 独立单元测试文件
+  - 70 个测试用例，100% 通过率，全面覆盖 result-handler 的所有功能
+  - 测试覆盖：基础功能、边界情况、异常输入、真实使用场景、集成场景模拟
+  - 测试包含 `handleFindOneAndResult()` 和 `wasDocumentModified()` 两个核心函数
+  - 验证了 MongoDB 驱动 5.x 和 6.x 的兼容性处理逻辑
+  - 作为工具函数的使用文档和质量保证
 - **MongoDB 驱动版本检测和警告机制**（2025-11-17）
   - 在 `result-handler.js` 中添加了驱动版本自动检测功能
   - 当检测到不支持的驱动版本（<6.x 或 >6.x）时自动输出警告日志

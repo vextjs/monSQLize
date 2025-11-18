@@ -8,6 +8,7 @@
 
 | 文档 | 说明 |
 |------|------|
+| [mongodb-native-vs-extensions.md](mongodb-native-vs-extensions.md) | **MongoDB 原生 vs monSQLize 扩展功能对比** |
 | [connection.md](connection.md) | 连接管理和配置 |
 | [cache.md](cache.md) | 缓存系统（LRU + TTL） |
 | [events.md](events.md) | 事件系统 |
@@ -32,8 +33,10 @@
 
 | 文档 | 方法 | 说明 |
 |------|------|------|
-| [write-operations.md](write-operations.md) | `insertOne()`, `insertMany()` | 插入文档（完整指南） |
+| [insert-one.md](insert-one.md) | `insertOne()` | 插入单个文档 |
+| [insert-many.md](insert-many.md) | `insertMany()` | 批量插入文档（10-50x 性能提升） |
 | [insertBatch.md](insertBatch.md) | `insertBatch()` | 大批量插入（分批+重试） |
+| [write-operations.md](write-operations.md) | 所有插入方法 | 插入操作完整指南 |
 
 ### 更新操作
 
@@ -45,6 +48,14 @@
 | [replace-one.md](replace-one.md) | `replaceOne()` | 完整替换文档 |
 | [find-one-and-update.md](find-one-and-update.md) | `findOneAndUpdate()` | 原子更新并返回 |
 | [find-one-and-replace.md](find-one-and-replace.md) | `findOneAndReplace()` | 原子替换并返回 |
+
+### 删除操作
+
+| 文档 | 方法 | 说明 |
+|------|------|------|
+| [delete-one.md](delete-one.md) | `deleteOne()` | 删除单个文档 |
+| [delete-many.md](delete-many.md) | `deleteMany()` | 批量删除文档 |
+| [find-one-and-delete.md](find-one-and-delete.md) | `findOneAndDelete()` | 原子删除并返回 |
 
 ---
 
@@ -84,8 +95,10 @@
 ### CRUD 操作
 
 **Create (创建)**:
-- [write-operations.md](write-operations.md) - insertOne, insertMany
-- [insertBatch.md](insertBatch.md) - insertBatch
+- [insert-one.md](insert-one.md) - insertOne（插入单个文档）
+- [insert-many.md](insert-many.md) - insertMany（批量插入，10-50x 性能提升）
+- [insertBatch.md](insertBatch.md) - insertBatch（超大批量插入）
+- [write-operations.md](write-operations.md) - 插入操作完整指南
 
 **Read (读取)**:
 - [find.md](find.md) - find
@@ -103,7 +116,9 @@
 - [find-one-and-replace.md](find-one-and-replace.md) - findOneAndReplace
 
 **Delete (删除)**:
-- ⏳ 计划中
+- [delete-one.md](delete-one.md) - deleteOne（删除单个文档）
+- [delete-many.md](delete-many.md) - deleteMany（批量删除）
+- [find-one-and-delete.md](find-one-and-delete.md) - findOneAndDelete（原子删除并返回）
 
 ### 高级查询
 
@@ -124,12 +139,13 @@
 
 1. [connection.md](connection.md) - 了解如何连接数据库
 2. [find.md](find.md) - 学习基础查询
-3. [write-operations.md](write-operations.md) - 学习插入数据
-4. [update-operations.md](update-operations.md) - 学习更新数据
-5. [cache.md](cache.md) - 了解缓存机制
+3. [insert-one.md](insert-one.md) / [insert-many.md](insert-many.md) - 学习插入数据
+4. [update-one.md](update-one.md) / [update-many.md](update-many.md) - 学习更新数据
+5. [delete-one.md](delete-one.md) / [delete-many.md](delete-many.md) - 学习删除数据
+6. [cache.md](cache.md) - 了解缓存机制
 
 ---
 
-**文档总数**: 25个  
-**最后更新**: 2025-11-13
+**文档总数**: 30个（新增：mongodb-native-vs-extensions.md）  
+**最后更新**: 2025-11-18
 

@@ -55,7 +55,7 @@ monSQLize 完整封装了 MongoDB 的原生功能：
 | **查询操作** | ✅ | ✅ | 智能缓存、游标分页、慢查询日志 |
 | **插入操作** | ✅ | ✅ | 高性能批量插入 (10-50x)、慢查询监控 |
 | **更新操作** | ✅ | ✅ | 自动缓存失效、完整错误处理 |
-| **删除操作** | ✅ | ⏳ 计划中 | 自动缓存失效（计划） |
+| **删除操作** | ✅ | ✅ | 自动缓存失效、慢查询监控 |
 | **聚合操作** | ✅ | ✅ | 缓存支持、流式处理 |
 | **执行计划** | ✅ | ✅ | 集成到查询链 |
 | **跨库访问** | 手动切换 | ✅ | 一行代码切换 |
@@ -194,13 +194,16 @@ const MonSQLize = require('monsqlize');
 
 | 方法 | 说明 | 文档链接 |
 |------|------|---------|
-| **insertOne()** | 插入单个文档 | [examples/insertOne.examples.js](./examples/insertOne.examples.js) |
-| **insertMany()** | 批量插入文档（10-50x 性能提升） | [examples/insertMany.examples.js](./examples/insertMany.examples.js) |
+| **insertOne()** | 插入单个文档 | [docs/insert-one.md](./docs/insert-one.md) |
+| **insertMany()** | 批量插入文档（10-50x 性能提升） | [docs/insert-many.md](./docs/insert-many.md) |
 | **updateOne()** | 更新单个文档 | [docs/update-one.md](./docs/update-one.md) |
 | **updateMany()** | 批量更新多个文档 | [docs/update-many.md](./docs/update-many.md) |
 | **replaceOne()** | 完整替换单个文档 | [docs/replace-one.md](./docs/replace-one.md) |
+| **deleteOne()** | 删除单个文档 | [docs/delete-one.md](./docs/delete-one.md) |
+| **deleteMany()** | 批量删除文档 | [docs/delete-many.md](./docs/delete-many.md) |
 | **findOneAndUpdate()** | 原子地查找并更新 | [docs/find-one-and-update.md](./docs/find-one-and-update.md) |
 | **findOneAndReplace()** | 原子地查找并替换 | [docs/find-one-and-replace.md](./docs/find-one-and-replace.md) |
+| **findOneAndDelete()** | 原子地查找并删除 | [docs/find-one-and-delete.md](./docs/find-one-and-delete.md) |
 
 ### 集合管理
 
@@ -496,28 +499,32 @@ msq.on('error', (data) => {
 
 ```js
 // 插入单个文档
-const result1 = await collection('products').insertOne({
-  document: {
+const result1 = await collection('products').insertOne(
+  {
     name: 'iPhone 15 Pro',
     price: 999,
     category: 'electronics',
     createdAt: new Date()
   },
-  comment: 'ProductAPI:createProduct:user_123'  // 日志跟踪（可选）
-});
+  {
+    comment: 'ProductAPI:createProduct:user_123'  // 日志跟踪（可选）
+  }
+);
 
 console.log('插入成功:', result1.insertedId);
 
 // 批量插入文档（10-50x 性能提升）
-const result2 = await collection('products').insertMany({
-  documents: [
+const result2 = await collection('products').insertMany(
+  [
     { name: 'MacBook Pro', price: 2499, category: 'electronics' },
     { name: 'iPad Air', price: 599, category: 'electronics' },
     { name: 'AirPods Pro', price: 249, category: 'accessories' }
   ],
-  ordered: true,             // 遇到错误时停止（默认）
-  comment: 'ProductAPI:batchImport'
-});
+  {
+    ordered: true,             // 遇到错误时停止（默认）
+    comment: 'ProductAPI:batchImport'
+  }
+);
 
 console.log(`成功插入 ${result2.insertedCount} 条数据`);
 
@@ -535,7 +542,57 @@ console.log(`成功插入 ${result2.insertedCount} 条数据`);
 
 ---
 
-### 5. 多层缓存（本地内存 + Redis）
+### 10. 删除操作（deleteOne / deleteMany）
+
+```js
+// 删除单个文档
+const result1 = await collection('users').deleteOne(
+  { userId: 'user123' },
+  {
+    comment: 'UserAPI:deleteUser:admin'  // 日志跟踪（可选）
+  }
+);
+
+console.log('删除结果:', result1.deletedCount);  // 0 或 1
+
+// 批量删除文档
+const result2 = await collection('logs').deleteMany(
+  { createdAt: { $lt: new Date('2024-01-01') } },
+  {
+    comment: 'CleanupJob:deleteOldLogs'
+  }
+);
+
+console.log(`成功删除 ${result2.deletedCount} 条旧日志`);
+
+// 原子删除并返回被删除的文档
+const deletedUser = await collection('users').findOneAndDelete(
+  { userId: 'user456' },
+  {
+    projection: { name: 1, email: 1 },  // 只返回需要的字段
+    sort: { createdAt: -1 }              // 如果有多个匹配，删除最新的
+  }
+);
+
+console.log('已删除用户:', deletedUser);  // 返回被删除的文档或 null
+
+// 自动缓存失效（删除后自动清理相关缓存）
+// 无需手动调用 invalidate()
+```
+
+**自动缓存失效**: ✅ 所有删除操作成功后，自动清理相关集合的缓存
+
+**详细文档**:
+- [docs/delete-one.md](./docs/delete-one.md) - deleteOne 完整文档
+- [docs/delete-many.md](./docs/delete-many.md) - deleteMany 完整文档（含分批删除策略）
+- [docs/find-one-and-delete.md](./docs/find-one-and-delete.md) - 原子删除操作
+
+**详细示例**:
+- [examples/delete-operations.examples.js](./examples/delete-operations.examples.js) - 完整示例（基础/批量/原子操作）
+
+---
+
+### 11. 多层缓存（本地内存 + Redis）
 
 ```js
 const MonSQLize = require('monsqlize');
@@ -605,14 +662,22 @@ const products2 = await collection('products').find(
 | 示例文件 | 说明 |
 |---------|------|
 | [find.examples.js](./examples/find.examples.js) | find 查询示例（数组和流式） |
+| [findOne.examples.js](./examples/findOne.examples.js) | findOne 查询示例 |
 | [findPage.examples.js](./examples/findPage.examples.js) | 分页查询示例（游标/跳页/总数） |
-| [multi-level-cache.examples.js](./examples/multi-level-cache.examples.js) | 多层缓存示例（本地 + Redis） |
 | [aggregate.examples.js](./examples/aggregate.examples.js) | 聚合管道示例 |
 | [distinct.examples.js](./examples/distinct.examples.js) | 字段去重示例 |
 | [count.examples.js](./examples/count.examples.js) | 统计查询示例 |
 | [explain.examples.js](./examples/explain.examples.js) | 查询计划分析示例 |
+| [insertOne.examples.js](./examples/insertOne.examples.js) | insertOne 插入示例 |
+| [insertMany.examples.js](./examples/insertMany.examples.js) | insertMany 批量插入示例 |
+| [updateOne.examples.js](./examples/updateOne.examples.js) | updateOne 更新示例 |
+| [updateMany.examples.js](./examples/updateMany.examples.js) | updateMany 批量更新示例 |
+| [delete-operations.examples.js](./examples/delete-operations.examples.js) | 删除操作示例（deleteOne/deleteMany/findOneAndDelete） |
+| [replace-and-atomic-ops.examples.js](./examples/replace-and-atomic-ops.examples.js) | 替换和原子操作示例 |
+| [indexes.examples.js](./examples/indexes.examples.js) | 索引管理示例 |
+| [multi-level-cache.examples.js](./examples/multi-level-cache.examples.js) | 多层缓存示例（本地 + Redis） |
 | [bookmarks.examples.js](./examples/bookmarks.examples.js) | 书签维护示例 |
-| [findOne.examples.js](./examples/findOne.examples.js) | findOne 查询示例 |
+| [chaining.examples.js](./examples/chaining.examples.js) | 链式调用示例 |
 
 ---
 
