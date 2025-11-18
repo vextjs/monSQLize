@@ -26,6 +26,21 @@
   - 详细分析报告：`analysis-reports/2025-11-18-implementation-status-audit.md`
 
 ### Added
+- **新增 upsertOne 便利方法**（2025-11-18）
+  - 新增 `upsertOne(filter, update, options)` 方法 - 存在则更新，不存在则插入
+  - 自动包装 `$set`（无需手动添加，但仍支持所有更新操作符）
+  - 支持所有 MongoDB 更新操作符（$inc, $push, $setOnInsert 等）
+  - 完整的参数验证和错误处理
+  - 自动缓存失效（操作成功后）
+  - 23 个测试用例（基础功能/返回值/选项/参数验证/缓存/实际场景/边界/对比）
+  - 700+ 行完整文档，包含真实场景示例和最佳实践
+  - 示例代码文件 `examples/upsertOne.examples.js`（8 个场景示例）
+  - 简化 67% 的 upsert 代码，语义更清晰
+  - 相关文件：
+    - `lib/mongodb/writes/upsert-one.js` (160 行)
+    - `test/unit/features/upsertOne.test.js` (23 个测试)
+    - `docs/upsert-one.md` (700+ 行)
+  - 更新文档：README.md, STATUS.md, docs/INDEX.md
 - **完整的索引管理功能**（2025-11-17）
   - `createIndex(keys, options)` - 创建单个索引，支持所有 MongoDB 索引选项
   - `createIndexes(indexSpecs)` - 批量创建多个索引，提高部署效率

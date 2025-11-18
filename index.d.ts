@@ -444,6 +444,49 @@ declare module 'monsqlize' {
         insertOne(options: InsertOneOptions): Promise<InsertOneResult>;
         insertMany(options: InsertManyOptions): Promise<InsertManyResult>;
 
+        /**
+         * Upsert 单个文档（存在则更新，不存在则插入）- 便利方法
+         * @param filter - 查询条件
+         * @param update - 更新内容（直接字段或操作符）
+         * @param options - 操作选项
+         * @returns Promise<UpsertOneResult>
+         * @example
+         * // 基础用法（自动包装 $set）
+         * const result = await collection('users').upsertOne(
+         *   { userId: 'user123' },
+         *   { name: 'Alice', age: 30 }
+         * );
+         *
+         * @example
+         * // 使用更新操作符
+         * const result = await collection('users').upsertOne(
+         *   { userId: 'user123' },
+         *   { $set: { name: 'Alice' }, $inc: { count: 1 } }
+         * );
+         *
+         * @example
+         * // 带选项
+         * const result = await collection('configs').upsertOne(
+         *   { key: 'theme' },
+         *   { value: 'dark' },
+         *   { maxTimeMS: 5000, comment: 'sync-config' }
+         * );
+         */
+        upsertOne(
+            filter: Record<string, any>,
+            update: Record<string, any>,
+            options?: {
+                maxTimeMS?: number;
+                comment?: string;
+            }
+        ): Promise<{
+            acknowledged: boolean;
+            matchedCount: number;
+            modifiedCount: number;
+            upsertedId?: any;
+            upsertedCount: number;
+        }>;
+
         invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
     }
 

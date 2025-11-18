@@ -50,6 +50,12 @@
 | [find-one-and-update.md](find-one-and-update.md) | `findOneAndUpdate()` | 原子更新并返回 |
 | [find-one-and-replace.md](find-one-and-replace.md) | `findOneAndReplace()` | 原子替换并返回 |
 
+### 便利方法（Convenience Methods）
+
+| 文档 | 方法 | 说明 |
+|------|------|------|
+| [upsert-one.md](upsert-one.md) | `upsertOne()` | 存在则更新，不存在则插入 ⭐ |
+
 ### 删除操作
 
 | 文档 | 方法 | 说明 |
@@ -147,6 +153,6 @@
 
 ---
 
-**文档总数**: 31个（新增：find-one-by-id.md）  
+**文档总数**: 32个（新增：upsert-one.md）  
 **最后更新**: 2025-11-18
 
