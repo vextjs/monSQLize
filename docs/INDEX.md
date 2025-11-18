@@ -56,6 +56,7 @@
 | 文档 | 方法 | 说明 |
 |------|------|------|
 | [upsert-one.md](upsert-one.md) | `upsertOne()` | 存在则更新，不存在则插入 ⭐ |
+| [increment-one.md](increment-one.md) | `incrementOne()` | 原子递增/递减字段值 ⭐ |
 
 ### 删除操作
 
@@ -154,6 +155,6 @@
 
 ---
 
-**文档总数**: 33个（新增：find-by-ids.md）  
+**文档总数**: 34个（新增：increment-one.md）  
 **最后更新**: 2025-11-18
 

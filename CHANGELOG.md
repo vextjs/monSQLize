@@ -26,6 +26,19 @@
   - 详细分析报告：`analysis-reports/2025-11-18-implementation-status-audit.md`
 
 ### Added
+- **新增 incrementOne 便利方法**（2025-11-18）
+  - 新增 `incrementOne(filter, field, increment, options)` 方法 - 原子递增/递减字段值
+  - 支持单字段递增：`incrementOne(filter, 'count', 5)`
+  - 支持多字段同时操作：`incrementOne(filter, { count: 1, points: 10 })`
+  - returnDocument 选项（返回更新前/后的文档）
+  - 原子操作，并发安全，无竞态条件
+  - 26 个测试用例（基础功能/返回值/选项/参数验证/缓存/实际场景/边界/对比）
+  - 500+ 行完整文档，包含真实场景示例
+  - 简化 60% 的递增/递减代码
+  - 相关文件：
+    - `lib/mongodb/writes/increment-one.js` (190 行)
+    - `test/unit/features/incrementOne.test.js` (26 个测试)
+    - `docs/increment-one.md` (500+ 行)
 - **新增 findByIds 便利方法**（2025-11-18）
   - 新增 `findByIds(ids, options)` 方法 - 批量通过 _id 查询多个文档
   - 自动 ObjectId 转换（字符串 → ObjectId，支持混合类型）

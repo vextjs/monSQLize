@@ -202,6 +202,7 @@ const MonSQLize = require('monsqlize');
 | **updateMany()** | 批量更新多个文档 | [docs/update-many.md](./docs/update-many.md) |
 | **replaceOne()** | 完整替换单个文档 | [docs/replace-one.md](./docs/replace-one.md) |
 | **upsertOne()** | 存在则更新，不存在则插入 ⭐ | [docs/upsert-one.md](./docs/upsert-one.md) |
+| **incrementOne()** | 原子递增/递减字段值 ⭐ | [docs/increment-one.md](./docs/increment-one.md) |
 | **deleteOne()** | 删除单个文档 | [docs/delete-one.md](./docs/delete-one.md) |
 | **deleteMany()** | 批量删除文档 | [docs/delete-many.md](./docs/delete-many.md) |
 | **findOneAndUpdate()** | 原子地查找并更新 | [docs/find-one-and-update.md](./docs/find-one-and-update.md) |
@@ -678,6 +679,7 @@ const products2 = await collection('products').find(
 | [updateOne.examples.js](./examples/updateOne.examples.js) | updateOne 更新示例 |
 | [updateMany.examples.js](./examples/updateMany.examples.js) | updateMany 批量更新示例 |
 | [upsertOne.examples.js](./examples/upsertOne.examples.js) | upsertOne 便利方法示例（存在则更新，不存在则插入）⭐ |
+| [incrementOne.examples.js](./examples/incrementOne.examples.js) | incrementOne 原子递增/递减示例 ⭐ |
 | [delete-operations.examples.js](./examples/delete-operations.examples.js) | 删除操作示例（deleteOne/deleteMany/findOneAndDelete） |
 | [replace-and-atomic-ops.examples.js](./examples/replace-and-atomic-ops.examples.js) | 替换和原子操作示例 |
 | [indexes.examples.js](./examples/indexes.examples.js) | 索引管理示例 |

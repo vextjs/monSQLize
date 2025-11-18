@@ -406,7 +406,7 @@ declare module 'monsqlize' {
          */
         findOneById(id: string | any, options?: Omit<FindOptions, 'meta'>): Promise<any | null>;
 
-        /**
+u        /**
          * 批量通过 _id 查询多个文档（便利方法）
          * @param ids - _id 数组（支持字符串和 ObjectId 混合）
          * @param options - 查询选项
@@ -529,6 +529,31 @@ declare module 'monsqlize' {
             modifiedCount: number;
             upsertedId?: any;
             upsertedCount: number;
+        }>;
+
+        /**
+         * 原子递增/递减字段值（便利方法）
+         * @param filter - 查询条件
+         * @param field - 字段名或字段-增量对象
+         * @param increment - 增量（默认 1，负数为递减）
+         * @param options - 操作选项
+         * @returns Promise<IncrementOneResult>
+         */
+        incrementOne(
+            filter: Record<string, any>,
+            field: string | Record<string, number>,
+            increment?: number,
+            options?: {
+                returnDocument?: 'before' | 'after';
+                projection?: Record<string, any>;
+                maxTimeMS?: number;
+                comment?: string;
+            }
+        ): Promise<{
+            acknowledged: boolean;
+            matchedCount: number;
+            modifiedCount: number;
+            value: any | null;
         }>;
 
         invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;

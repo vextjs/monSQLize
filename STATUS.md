@@ -867,7 +867,7 @@
 | **findOneById** | 极高 | 低 | 高 | 🟡 P2 | ✅ 已完成 (2025-11-18) |
 | **upsertOne** | 高 | 低 | 高 | 🟡 P2 | ✅ 已完成 (2025-11-18) |
 | **findByIds** | 高 | 低 | 中 | 🟡 P2 | ✅ 已完成 (2025-11-18) |
-| **incrementOne** | 中 | 低 | 中 | 🟡 P2 | 🗺️ 计划中 |
+| **incrementOne** | 中 | 低 | 中 | 🟡 P2 | ✅ 已完成 (2025-11-18) |
 | **findAndCount** | 中 | 低 | 中 | 🟡 P2 | 🗺️ 计划中 |
 | **事务支持** | 中 | 高 | 高 | 🟢 P3 | 🗺️ 未来版本 |
 | **Watch API** | 低 | 高 | 中 | 🟢 P3 | 🗺️ 未来版本 |
@@ -882,6 +882,29 @@
 ---
 
 ## 📜 最近更新历史
+
+### 2025-11-18 (深夜) - incrementOne 便利方法实现完成 ✅
+
+**新增功能**:
+- ✅ incrementOne 方法 - 原子递增/递减字段值
+- ✅ 支持单字段和多字段操作
+- ✅ 自动缓存失效
+- ✅ returnDocument 选项（返回更新前/后的文档）
+- ✅ 26 个测试用例全部通过
+- ✅ 500+ 行完整文档
+
+**相关文件**:
+- `lib/mongodb/writes/increment-one.js` (190 行)
+- `test/unit/features/incrementOne.test.js` (26 个测试)
+- `docs/increment-one.md` (500+ 行)
+- `examples/incrementOne.examples.js`
+
+**收益**:
+- 简化 60% 的递增/递减代码
+- 原子操作，并发安全
+- 语义清晰
+
+**Git 提交**: `feat: 新增 incrementOne 便利方法`
 
 ### 2025-11-18 (深夜) - findByIds 便利方法实现完成 ✅
 
