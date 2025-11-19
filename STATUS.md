@@ -354,8 +354,55 @@
     - weights（文本索引权重）、default_language（文本索引语言）等所有 MongoDB 索引选项
 
 ### MongoDB 方法（Transactions & Sessions）
-- ❌ startSession/withTransaction/commit/abort
-- ❌ readConcern / readPreference / causalConsistency
+
+#### 事务功能（✅ 最小化方案实施 - v0.3.0）
+- ✅ **startSession/withTransaction/commit/abort** - 计划实施最小化方案
+  - **最终决策**: ✅ 实施（v0.3.0，3 周）
+  - **必要性评级**: ⭐⭐⭐⭐☆ (4/5) - 重新评估后提升
+  - **实施优先级**: P1（高优先级，v0.3.0）
+  - **核心创新**: 🌟 **事务感知的智能缓存**（独特竞争力）
+    - 延迟失效：事务内操作不立即失效缓存，提交时批量失效
+    - 事务级缓存：事务内查询使用独立缓存，不污染全局缓存
+    - 智能失效：自动分析操作影响范围，精确失效相关缓存
+    - 正确性保证：回滚时不失效缓存（数据未改变）
+  - **最小化方案**（vs 完整方案）:
+    - 仅支持 MongoDB（暂不跨数据库）
+    - 核心 API 优先（withTransaction/startTransaction）
+    - 高级功能后续增强（嵌套事务/分布式事务）
+  - **开发成本**: 3 周（vs 原估算 15 周）
+    - Week 1: 核心实现（Transaction Manager + 事务感知缓存）
+    - Week 2: 测试和文档（50+ 测试用例）
+    - Week 3: 增强和发布（钩子/选项/TypeScript）
+  - **重新评估理由**:
+    1. **独特竞争力**: 事务 + 智能缓存 = 竞品无法比拟
+       - Mongoose: 有事务，无缓存
+       - monSQLize: 有事务 + 有缓存 + 性能最优
+    2. **成本可控**: 最小化方案 3 周（vs 完整方案 15 周）
+    3. **ROI 大幅提升**: 15% per week（vs 之前 1%）
+       - 显性需求 15% + 潜在需求 30% = 总计 45% 场景覆盖
+    4. **完整解决方案**: 不再是"半成品"，具备企业级能力
+    5. **多数据库基础**: 为 PostgreSQL/MySQL 事务奠定基础
+  - **详细方案**: 参见 `analysis-reports/2025-11-18-transactions-minimal-implementation-plan.md`
+  - **之前分析**: 参见 `analysis-reports/2025-11-18-transactions-necessity-analysis.md`
+
+#### 读取控制功能（可选实施）
+- ⚠️ **readPreference（单次查询级别）** - 可选实施
+  - **必要性评级**: ⭐⭐⭐☆☆ (3/5)
+  - **实施优先级**: P2（中期，可选）
+  - **当前状态**: 全局配置已支持，单次查询级别未支持
+  - **实施成本**: 低（1-2 天，仅需透传参数）
+  - **建议时机**: v0.3.0（如有时间）
+  
+- ⚠️ **readConcern** - 可选实施
+  - **必要性评级**: ⭐⭐☆☆☆ (2/5)
+  - **实施优先级**: P3（长期，可选）
+  - **实施成本**: 低（1-2 天，仅需透传参数）
+  - **建议时机**: v1.0.0（按需）
+  
+- ❌ **causalConsistency** - 不建议实施
+  - **必要性评级**: ⭐☆☆☆☆ (1/5)
+  - **实施优先级**: P4（不推荐）
+  - **理由**: 需求极低（~1%），需要完整 session 支持（成本高）
 
 ### MongoDB 方法（Change Streams）
 - ❌ watch
