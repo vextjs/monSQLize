@@ -2,7 +2,7 @@
  * 事务优化测试 - 只读优化和文档级别锁
  */
 
-const { expect } = require('chai');
+const assert = require('assert').strict;
 const MonSQLize = require('../../..');
 
 describe('事务优化功能', function () {
