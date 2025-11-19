@@ -14,6 +14,7 @@ monSQLize 完整封装了 MongoDB 的原生功能：
 - ✅ **删除操作**：deleteOne/deleteMany/findOneAndDelete
 - ✅ **原子操作**：findOneAndUpdate/findOneAndReplace/findOneAndDelete (支持计数器、乐观锁、队列消费)
 - ✅ **索引管理**：createIndex/createIndexes/listIndexes/dropIndex/dropIndexes (支持所有索引选项)
+- ✅ **事务支持**：完整的 MongoDB 事务（自动管理/手动管理，缓存锁，重试，超时，监控）🆕
 - ✅ **链式调用 API**：完整支持 MongoDB 游标的所有链式方法
 - ✅ **所有查询选项**：projection/sort/limit/skip/hint/collation 等
 
@@ -23,6 +24,7 @@ monSQLize 完整封装了 MongoDB 的原生功能：
 
 - 🔧 **智能缓存**：TTL/LRU/命名空间失效/并发去重
 - 🔧 **自动缓存失效**：写操作后自动清理相关缓存
+- 🔧 **事务支持**：自动管理/手动管理，缓存锁，重试，超时，监控 🆕
 - 🔧 **深度分页**：游标分页（支持前后翻页、跳页、书签）
 - 🔧 **性能监控**：慢查询日志、查询超时控制、元数据返回
 - 🔧 **跨库访问**：轻松访问不同数据库的集合
@@ -40,6 +42,7 @@ monSQLize 完整封装了 MongoDB 的原生功能：
   - **Update**: updateOne, updateMany, replaceOne, findOneAndUpdate, findOneAndReplace
   - **Delete**: deleteOne, deleteMany, findOneAndDelete
   - **索引管理**: createIndex, createIndexes, listIndexes, dropIndex, dropIndexes
+  - **事务支持**: withTransaction, startTransaction, 缓存锁, 重试, 超时, 监控 🆕
   - **其他**: 智能缓存、多层缓存、跨库访问、慢查询日志、TypeScript 类型
   
 - **计划中**：
@@ -173,6 +176,103 @@ const MonSQLize = require('monsqlize');
 })();
 ```
 
+### 事务支持 🆕
+
+**完整的 MongoDB 事务管理功能，支持原子性操作和自动重试机制。**
+
+```js
+const MonSQLize = require('monsqlize');
+
+(async () => {
+  const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'bank',
+    config: { uri: 'mongodb://localhost:27017' },  // 需要副本集或分片集群
+    // 事务配置（可选）
+    transaction: {
+      maxRetries: 3,                            // 最大重试次数
+      defaultReadConcern: { level: 'snapshot' } // 默认读关注级别
+    }
+  });
+
+  await msq.connect();
+  const { collection } = await msq.connect();
+
+  // ===== 方式 1: 自动事务管理（推荐⭐）=====
+  const result = await msq.withTransaction(async (tx) => {
+    // 从账户 A 扣款
+    await collection('accounts').updateOne(
+      { _id: 'A' },
+      { $inc: { balance: -100 } },
+      { session: tx.session }  // 🔑 传递 session
+    );
+
+    // 给账户 B 加款
+    await collection('accounts').updateOne(
+      { _id: 'B' },
+      { $inc: { balance: 100 } },
+      { session: tx.session }  // 🔑 传递 session
+    );
+
+    // ✅ 成功：自动提交
+    // ❌ 失败：自动回滚
+    return { success: true, amount: 100 };
+  });
+
+  console.log('转账成功:', result);
+
+  // ===== 方式 2: 手动事务管理（完整控制）=====
+  const tx = await msq.startTransaction();
+  try {
+    await collection('accounts').updateOne(
+      { _id: 'A' },
+      { $inc: { balance: -100 } },
+      { session: tx.session }
+    );
+    await collection('accounts').updateOne(
+      { _id: 'B' },
+      { $inc: { balance: 100 } },
+      { session: tx.session }
+    );
+    
+    await tx.commit();  // 手动提交
+  } catch (error) {
+    await tx.abort();   // 手动回滚
+    throw error;
+  }
+
+  // ===== 高级特性 =====
+  // 自动重试瞬态错误
+  await msq.withTransaction(async (tx) => {
+    // 遇到 TransientTransactionError 会自动重试
+  }, { 
+    enableRetry: true, 
+    maxRetries: 5 
+  });
+
+  // 多集合原子操作
+  await msq.withTransaction(async (tx) => {
+    await collection('users').updateOne({...}, {...}, { session: tx.session });
+    await collection('orders').insertOne({...}, { session: tx.session });
+    await collection('inventory').updateMany({...}, {...}, { session: tx.session });
+  });
+})();
+```
+
+**核心特性**：
+- ✅ **自动管理** - 自动提交/回滚，简化错误处理
+- ✅ **手动管理** - 完整生命周期控制
+- ✅ **自动重试** - 智能处理瞬态错误（TransientTransactionError）
+- ✅ **缓存锁机制** - 事务期间锁定缓存键，防止脏数据 🆕
+- ✅ **写时失效** - 事务中立即失效缓存，提交后释放锁 🆕
+- ✅ **会话管理** - 自动创建和清理 MongoDB 会话
+- ✅ **隔离性** - 支持快照隔离级别和读关注配置
+
+**详细文档**: 
+- 📖 [事务快速开始指南](./docs/transaction-quickstart.md)
+- 📄 [完整示例代码](./examples/transaction.examples.js)
+- 🧪 [测试套件](./test/transaction.test.js)
+
 ---
 
 ## 核心 API
@@ -238,6 +338,19 @@ const MonSQLize = require('monsqlize');
 | **prewarmBookmarks()** | 预热分页书签 | [docs/bookmarks.md](./docs/bookmarks.md) |
 | **listBookmarks()** | 列出书签信息 | [docs/bookmarks.md](./docs/bookmarks.md) |
 | **clearBookmarks()** | 清理书签缓存 | [docs/bookmarks.md](./docs/bookmarks.md) |
+
+### 事务管理 🆕
+
+| 方法 | 说明 | 文档链接 |
+|------|------|---------|
+| **withTransaction()** | 自动事务管理（推荐⭐） | [docs/transaction-quickstart.md](./docs/transaction-quickstart.md) |
+| **startTransaction()** | 手动事务管理（完整控制） | [docs/transaction-quickstart.md](./docs/transaction-quickstart.md) |
+| **commit()** | 提交事务 | [docs/transaction-quickstart.md](./docs/transaction-quickstart.md) |
+| **abort()** | 中止事务 | [docs/transaction-quickstart.md](./docs/transaction-quickstart.md) |
+
+**特性**: 自动重试、缓存感知、会话管理、隔离性保证
+
+**系统要求**: MongoDB 4.0+ 且部署在副本集或分片集群上
 
 ### 连接与事件
 

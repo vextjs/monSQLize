@@ -166,13 +166,16 @@ async function runTests() {
   } else if (testSuite === 'findOneAndDelete') {
     testFiles = ['./unit/features/findOneAndDelete.test.js'];
     title = 'findOneAndDelete 方法测试套件';
+  } else if (testSuite === 'transaction') {
+    testFiles = ['./unit/features/transaction-unit.test.js'];
+    title = 'MongoDB 事务单元测试套件';
   } else if (testSuite === 'all') {
     // all 模式：顺序执行各个测试套件，避免并发初始化问题
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
     console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'transaction', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const overallStartTime = Date.now();
@@ -214,7 +217,7 @@ async function runTests() {
     process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|utils|infrastructure|logger|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|updateOne|updateMany|replaceOne|findOneAndUpdate|findOneAndReplace|deleteOne|deleteMany|findOneAndDelete|transaction|utils|infrastructure|logger|all]\n');
     process.exit(1);
   }
 
@@ -378,4 +381,6 @@ runTests().catch(error => {
   console.error('错误详情:', error.stack);
   process.exit(1);
 });
+
+
 

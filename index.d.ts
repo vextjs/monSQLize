@@ -47,6 +47,112 @@ declare module 'monsqlize' {
         UNSUPPORTED_DATABASE = 'UNSUPPORTED_DATABASE',
     }
 
+    // ============================================================================
+    // 事务相关类型定义（Transaction API）
+    // ============================================================================
+
+    /**
+     * MongoDB 事务会话（原生 ClientSession）
+     * @since v0.2.0
+     */
+    interface MongoSession {
+        /** 会话 ID */
+        id: any;
+        /** 是否在事务中 */
+        inTransaction(): boolean;
+        /** 事务状态 */
+        transaction?: {
+            state: string;
+        };
+        /** 结束会话 */
+        endSession(): void;
+        /** 其他 MongoDB 原生方法 */
+        [key: string]: any;
+    }
+
+    /**
+     * 事务选项配置
+     * @since v0.2.0
+     */
+    interface TransactionOptions {
+        /** 读关注级别（Read Concern） */
+        readConcern?: {
+            level: 'local' | 'majority' | 'snapshot' | 'linearizable' | 'available';
+        };
+        /** 读偏好（Read Preference） */
+        readPreference?: 'primary' | 'primaryPreferred' | 'secondary' | 'secondaryPreferred' | 'nearest';
+        /** 因果一致性（Causal Consistency） */
+        causalConsistency?: boolean;
+        /** 事务最大执行时间（毫秒） */
+        maxDuration?: number;
+        /** 是否启用自动重试 */
+        enableRetry?: boolean;
+        /** 最大重试次数 */
+        maxRetries?: number;
+        /** 重试延迟（毫秒） */
+        retryDelay?: number;
+        /** 重试退避系数 */
+        retryBackoff?: number;
+        /** 是否启用缓存锁 */
+        enableCacheLock?: boolean;
+        /** 缓存锁清理间隔（毫秒） */
+        lockCleanupInterval?: number;
+    }
+
+    /**
+     * Transaction 事务类
+     * 封装 MongoDB 原生会话，提供事务生命周期管理
+     * @since v0.2.0
+     */
+    interface Transaction {
+        /** 事务唯一 ID */
+        readonly id: string;
+
+        /** MongoDB 原生会话对象（传递给查询方法） */
+        readonly session: MongoSession;
+
+        /**
+         * 启动事务
+         * @returns Promise<void>
+         */
+        start(): Promise<void>;
+
+        /**
+         * 提交事务
+         * @returns Promise<void>
+         */
+        commit(): Promise<void>;
+
+        /**
+         * 中止（回滚）事务
+         * @returns Promise<void>
+         */
+        abort(): Promise<void>;
+
+        /**
+         * 结束会话（清理资源）
+         * @returns Promise<void>
+         */
+        end(): Promise<void>;
+
+        /**
+         * 获取事务执行时长（毫秒）
+         * @returns number
+         */
+        getDuration(): number;
+
+        /**
+         * 获取事务信息
+         * @returns 事务状态信息
+         */
+        getInfo(): {
+            id: string;
+            status: 'pending' | 'started' | 'committed' | 'aborted';
+            duration: number;
+            sessionId: string;
+        };
+    }
+
     /**
      * 标准错误接口
      */
@@ -130,6 +236,12 @@ declare module 'monsqlize' {
          * - 'nearest': 读最近的节点（低延迟）
          */
         readPreference?: 'primary' | 'primaryPreferred' | 'secondary' | 'secondaryPreferred' | 'nearest';
+        /**
+         * 事务配置（MongoDB Transaction API）
+         * 需要 MongoDB 4.0+ 且部署在副本集或分片集群上
+         * @since v0.2.0
+         */
+        transaction?: TransactionOptions | false;
         // 统一默认（新增可选项）
         findPageMaxLimit?: number;          // 深分页页大小上限（默认 500）
         cursorSecret?: string;              // 可选：游标签名密钥（如启用 HMAC 验签）
@@ -600,6 +712,39 @@ u        /**
 
         /** 健康检查 */
         health(): Promise<HealthView>;
+
+        /**
+         * 创建手动事务会话
+         * @param options - 事务选项
+         * @returns Transaction 实例
+         * @since v0.2.0
+         * @example
+         * const tx = await msq.startTransaction();
+         * try {
+         *   await collection('users').updateOne({...}, {...}, { session: tx.session });
+         *   await tx.commit();
+         * } catch (error) {
+         *   await tx.abort();
+         * }
+         */
+        startTransaction(options?: TransactionOptions): Promise<Transaction>;
+
+        /**
+         * 自动管理事务生命周期（推荐）
+         * @param callback - 事务回调函数
+         * @param options - 事务选项
+         * @returns 回调函数的返回值
+         * @since v0.2.0
+         * @example
+         * await msq.withTransaction(async (tx) => {
+         *   await collection('accounts').updateOne({ _id: 'A' }, { $inc: { balance: -100 } }, { session: tx.session });
+         *   await collection('accounts').updateOne({ _id: 'B' }, { $inc: { balance: 100 } }, { session: tx.session });
+         * });
+         */
+        withTransaction<T = any>(
+            callback: (transaction: Transaction) => Promise<T>,
+            options?: TransactionOptions
+        ): Promise<T>;
     }
 
     // ============================================================================

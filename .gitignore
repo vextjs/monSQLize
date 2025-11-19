@@ -9,6 +9,7 @@ lerna-debug.log*
 
 analysis-reports/
 bug-analysis/
+design/
 
 .nyc_output/
 
