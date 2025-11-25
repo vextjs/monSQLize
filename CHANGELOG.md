@@ -6,6 +6,40 @@
 
 ### Added
 
+#### 🌐 分布式部署支持 - v2.2.0（2025-11-25 - 完成）
+
+**分布式缓存失效** ✅
+- ✨ 基于 Redis Pub/Sub 实现跨实例缓存失效广播
+- ✨ 自动订阅失效消息并更新本地缓存
+- ✨ 支持通配符模式匹配（如 `user:*`）
+- ✨ 实例ID隔离，避免自我触发
+- ✨ 1-5ms 延迟的实时广播
+- 🔧 **关键修复**: 添加 `setPublish()` 方法动态注入广播回调，确保分布式失效正常工作
+
+**分布式事务锁** ✅
+- 🔒 基于 Redis 实现跨实例的事务缓存锁
+- 🔒 使用 SET NX EX 原子操作获取锁
+- 🔒 支持锁的自动过期（默认5分钟）
+- 🔒 使用 Lua 脚本批量释放锁
+- 🔒 防止事务中间状态被其他实例缓存
+
+**核心文件** ✅
+- 📦 `lib/distributed-cache-invalidator.js` - 缓存失效广播器
+- 📦 `lib/transaction/DistributedCacheLockManager.js` - 分布式锁管理器
+- 📦 `lib/index.js` - 集成分布式组件
+
+**文档** ✅
+- 📚 `docs/distributed-deployment.md` - 完整的部署指南（5种架构方案）
+- 📚 `examples/distributed-deployment.examples.js` - 3个可运行示例
+- 📚 `docs/INDEX.md` - 更新文档索引
+- 📚 `README.md` - 更新功能说明
+
+**配置支持** ✅
+- ⚙️ `cache.distributed.enabled` - 启用分布式缓存失效
+- ⚙️ `cache.distributed.redisUrl` - Redis连接URL
+- ⚙️ `cache.distributed.channel` - 自定义频道
+- ⚙️ `cache.transaction.distributedLock` - 配置分布式事务锁
+
 #### 🚀 事务性能优化 - v2.1.0（2025-11-19 18:30 - 完成）
 
 **优化1: 只读优化** ✅

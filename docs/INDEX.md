@@ -11,6 +11,9 @@
 | [mongodb-native-vs-extensions.md](mongodb-native-vs-extensions.md) | **MongoDB 原生 vs monSQLize 扩展功能对比** |
 | [connection.md](connection.md) | 连接管理和配置 |
 | [cache.md](cache.md) | 缓存系统（LRU + TTL） |
+| [transaction.md](transaction.md) | 事务管理（自动重试、缓存锁） |
+| [transaction-optimizations.md](transaction-optimizations.md) | 事务优化策略 |
+| [distributed-deployment.md](distributed-deployment.md) | **分布式部署指南（多实例缓存一致性）⭐** |
 | [events.md](events.md) | 事件系统 |
 
 ---
@@ -94,6 +97,7 @@
 | [utilities.md](utilities.md) | 工具函数 |
 | [collection-management.md](collection-management.md) | 集合管理 |
 | [readPreference.md](readPreference.md) | 读偏好设置 |
+| [distributed-deployment.md](distributed-deployment.md) | **分布式部署配置** |
 | [MONGODB-MEMORY-SERVER.md](MONGODB-MEMORY-SERVER.md) | 内存数据库测试 |
 
 ---
@@ -152,9 +156,11 @@
 4. [update-one.md](update-one.md) / [update-many.md](update-many.md) - 学习更新数据
 5. [delete-one.md](delete-one.md) / [delete-many.md](delete-many.md) - 学习删除数据
 6. [cache.md](cache.md) - 了解缓存机制
+7. [transaction.md](transaction.md) - 学习事务管理
+8. [distributed-deployment.md](distributed-deployment.md) - **多实例部署（生产环境必读）**
 
 ---
 
-**文档总数**: 34个（新增：increment-one.md）  
-**最后更新**: 2025-11-18
+**文档总数**: 37个（新增：distributed-deployment.md）  
+**最后更新**: 2025-11-25
 

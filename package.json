@@ -23,10 +23,12 @@
   },
   "devDependencies": {
     "benchmark": "^2.1.4",
+    "chai": "^6.2.1",
     "eslint": "^8.57.0",
-    "mocha": "^11.7.4",
+    "mocha": "^11.7.5",
     "mongodb-memory-server": "^10.1.2",
-    "nyc": "^15.1.0"
+    "nyc": "^15.1.0",
+    "sinon": "^21.0.0"
   },
   "nyc": {
     "include": [
