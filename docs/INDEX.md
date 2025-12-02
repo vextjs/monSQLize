@@ -97,8 +97,23 @@
 | [utilities.md](utilities.md) | 工具函数 |
 | [collection-management.md](collection-management.md) | 集合管理 |
 | [readPreference.md](readPreference.md) | 读偏好设置 |
+| [count-queue.md](count-queue.md) | **Count 队列控制（高并发优化）⭐** |
 | [distributed-deployment.md](distributed-deployment.md) | **分布式部署配置** |
 | [MONGODB-MEMORY-SERVER.md](MONGODB-MEMORY-SERVER.md) | 内存数据库测试 |
+
+---
+
+## 🔧 兼容性与测试
+
+| 文档 | 说明 |
+|------|------|
+| [COMPATIBILITY.md](COMPATIBILITY.md) | 完整兼容性矩阵 |
+| [COMPATIBILITY-TESTING-GUIDE.md](COMPATIBILITY-TESTING-GUIDE.md) | 兼容性测试指南 |
+| [mongodb-driver-compatibility.md](mongodb-driver-compatibility.md) | Driver 版本兼容性详解 |
+| [findOneAnd-return-value-unified.md](findOneAnd-return-value-unified.md) | findOneAnd* 返回值统一说明 |
+| [driver-7x-testing-guide.md](driver-7x-testing-guide.md) | Driver 7.x 测试指南 |
+| [esm-support.md](esm-support.md) | ES Module (import) 支持 ✨ |
+| [node-version-testing-guide.md](node-version-testing-guide.md) | Node.js 多版本测试指南 |
 
 ---
 
@@ -161,6 +176,11 @@
 
 ---
 
-**文档总数**: 37个（新增：distributed-deployment.md）  
-**最后更新**: 2025-11-25
+**文档总数**: 44个  
+**最后更新**: 2025-01-02  
+**新增**: 
+- ✨ esm-support.md - ES Module (import) 支持
+- ✨ findOneAnd-return-value-unified.md - 返回值统一说明
+- ✨ driver-7x-testing-guide.md - Driver 7.x 测试指南
+- ✨ node-version-testing-guide.md - Node.js 多版本测试
 

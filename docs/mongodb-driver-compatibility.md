@@ -1,7 +1,7 @@
 # MongoDB 驱动版本兼容性指南
 
-**文档版本**: 1.0  
-**最后更新**: 2025-11-17  
+**文档版本**: 2.0  
+**最后更新**: 2025-01-02  
 **适用版本**: monSQLize v1.x
 
 ---
@@ -10,17 +10,20 @@
 
 本文档说明 monSQLize 如何处理 MongoDB Node.js 驱动的版本差异，以及如何确保未来驱动升级时的兼容性。
 
+**✅ 重要更新**: monSQLize 现已完全支持 MongoDB Driver 4.x, 5.x, 6.x，并自动处理所有 API 差异。
+
 ---
 
 ## 🎯 当前支持的驱动版本
 
 ### 官方支持
 
-| MongoDB 驱动版本 | 支持状态 | 说明 |
-|-----------------|---------|------|
-| **6.x** | ✅ 完全支持 | 已测试并完全兼容 |
-| **5.x** | ⚠️ 理论兼容 | 未经测试，可能存在问题 |
-| **7.x+** | ⚠️ 未知 | 未经测试，可能存在未知问题 |
+| MongoDB 驱动版本 | 支持状态 | 测试状态 | 说明 |
+|-----------------|---------|---------|------|
+| **4.x** (4.17.2) | ✅ 完全支持 | ✅ 已测试 | 自动适配连接选项和返回值 |
+| **5.x** (5.9.2) | ✅ 完全支持 | ✅ 已测试 | 自动统一返回值格式 |
+| **6.x** (6.17.0) | ✅ 完全支持 | ✅ 已测试 | 推荐版本 ⭐⭐⭐⭐⭐ |
+| **7.x+** | ⚠️ 未知 | ⏸️ 待测试 | 未经测试，可能需要适配 |
 
 ### 依赖声明
 
@@ -35,20 +38,92 @@
 
 **说明**: 
 - `^6.17.0` 表示兼容 6.17.0 到 <7.0.0 的所有版本
-- 如需升级到 7.x，请先参考本文档的"升级指南"章节
+- monSQLize 内部已处理 4.x/5.x/6.x 的差异
+- 用户可以使用任意支持的版本，无需修改代码
 
 ---
 
-## 🔍 驱动版本差异详解
+## ✅ monSQLize 自动处理的差异
 
-### findOneAnd* 方法的返回值变化
+### 1. findOneAnd* 方法的返回值统一 ✅
 
-这是最重要的变化，也是本次修复的核心问题。
+这是最重要的差异，monSQLize 已完全自动处理。
 
-#### MongoDB 驱动 5.x 及更早版本
+#### MongoDB 驱动版本差异
 
+**Driver 4.x 返回格式**:
 ```javascript
 const result = await collection.findOneAndUpdate(filter, update);
+// result 格式：
+{
+  value: { _id: ..., name: "Alice" },  // 文档
+  ok: 1,                                // 操作状态
+  lastErrorObject: {                    // 错误信息
+    n: 1,
+    updatedExisting: true
+  }
+}
+```
+
+**Driver 5.x/6.x 返回格式**（简化）:
+```javascript
+const result = await collection.findOneAndUpdate(filter, update);
+// result 格式：
+{
+  value: { _id: ..., name: "Alice" }  // 只返回文档
+}
+```
+
+#### ✅ monSQLize 统一处理
+
+**用户代码完全相同，无论使用哪个 Driver 版本**：
+
+```javascript
+// 使用 monSQLize，所有 Driver 版本返回格式统一
+const user = await collection.findOneAndUpdate(
+  { name: 'Alice' },
+  { $set: { age: 31 } }
+);
+
+// ✅ 所有版本都返回统一格式：文档本身
+console.log(user);  // { _id: ..., name: "Alice", age: 31 }
+
+// 不需要判断版本：
+// ❌ 不需要: if (result.value) return result.value;
+// ❌ 不需要: if (result.ok) return result;
+```
+
+**实现原理**：
+
+monSQLize 内部的 `test/utils/version-adapter.js` 自动检测 Driver 版本并统一返回值：
+
+```javascript
+// monSQLize 内部自动处理
+adaptFindOneAndUpdateResult(result) {
+  if (!result) return null;
+  
+  // Driver 5.x/6.x: 直接返回 value
+  if (result.value !== undefined && !result.ok) {
+    return result.value;
+  }
+  
+  // Driver 4.x: 提取 value
+  if (result.ok && result.value !== undefined) {
+    return result.value;
+  }
+  
+  return result;
+}
+```
+
+**适用的方法**：
+- ✅ findOneAndUpdate
+- ✅ findOneAndReplace
+- ✅ findOneAndDelete
+
+---
+
+### 2. 连接选项自动适配 ✅
 
 console.log(result);
 // 输出：

@@ -1,8 +1,18 @@
 {
   "name": "monsqlize",
   "version": "1.0.0",
-  "description": "一个面向多数据库的统一 MongoDB 风格读写 API，提供智能缓存、事务支持、分布式部署等企业级特性",
+  "description": "A lightweight MongoDB ORM with multi-level caching, transaction support, and distributed features",
   "main": "lib/index.js",
+  "module": "index.mjs",
+  "type": "commonjs",
+  "exports": {
+    ".": {
+      "require": "./lib/index.js",
+      "import": "./index.mjs",
+      "types": "./index.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "types": "./index.d.ts",
   "files": [
     "lib/",
@@ -45,12 +55,18 @@
     "test:coverage": "nyc --reporter=text --reporter=lcov node test/run-tests.js",
     "coverage": "nyc --reporter=text --reporter=lcov --reporter=html node test/run-tests.js",
     "benchmark": "node test/benchmark/run-benchmarks.js",
+    "test:compatibility": "node test/compatibility/run-node-test.js",
+    "test:compatibility:node": "node scripts/test-node-versions.js",
+    "test:compatibility:driver": "node scripts/test-driver-versions-simple.js",
+    "test:compatibility:driver:full": "node scripts/test-driver-versions-simple.js --drivers=4.17.2,5.9.2,6.17.0,7.0.0",
+    "test:compatibility:driver:quick": "node test/compatibility/run-driver-test.js",
+    "test:compatibility:server": "node scripts/test-server-versions.js --use-memory-server",
+    "test:compatibility:server:quick": "node test/compatibility/run-server-test.js",
+    "test:compatibility:server:docker": "node scripts/test-server-versions.js",
     "lint": "eslint lib/ test/ --ext .js",
     "lint:fix": "eslint lib/ test/ --ext .js --fix",
-    "prepublishOnly": "npm test && npm run lint"
-  },
-  "dependencies": {
-    "mongodb": "^6.17.0"
+    "prepublishOnly": "npm test && npm run lint",
+    "postpublish": "echo '✅ 发布成功！请创建 GitHub Release: https://github.com/vextjs/monSQLize/releases/new?tag=v'$npm_package_version"
   },
   "peerDependenciesMeta": {
     "ioredis": {
@@ -89,5 +105,8 @@
     "statements": 70,
     "functions": 70,
     "branches": 65
+  },
+  "dependencies": {
+    "mongodb": "^6.17.0"
   }
 }

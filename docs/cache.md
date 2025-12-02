@@ -43,28 +43,41 @@ const msq = new MonSQLize({
 
 ```javascript
 const { collection } = await msq.connect();
+const products = collection('products');
 
-// 缓存 5 秒
-const products = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 5000,           // 缓存 5000ms
-  maxTimeMS: 3000
-});
+// 缓存 5 秒（5000 毫秒）
+const result1 = await products.find(
+  { category: 'electronics' },
+  { 
+    cache: 5000,        // 缓存 5000ms
+    maxTimeMS: 3000 
+  }
+);
 
-// 不使用缓存
-const realtimeData = await collection('orders').find({
-  query: { status: 'pending' },
-  cache: 0,              // 禁用缓存
-  maxTimeMS: 3000
-});
+// 不使用缓存（cache: 0）
+const realtimeData = await collection('orders').find(
+  { status: 'pending' },
+  { 
+    cache: 0,           // 禁用缓存
+    maxTimeMS: 3000 
+  }
+);
 
-// 长期缓存（1 小时）
-const staticConfig = await collection('config').findOne({
-  query: { key: 'site_settings' },
-  cache: 3600000,        // 缓存 1 小时
-  maxTimeMS: 3000
-});
+// 长期缓存（1 小时 = 3600000 毫秒）
+const staticConfig = await collection('config').findOne(
+  { key: 'site_settings' },
+  { 
+    cache: 3600000,     // 缓存 1 小时
+    maxTimeMS: 3000 
+  }
+);
 ```
+
+**重要说明**:
+- ✅ `cache` 参数的值是**毫秒数**（TTL）
+- ✅ `cache: 0` 表示禁用缓存
+- ✅ 默认值：未设置时不使用缓存
+- ❌ **不支持** `cache: true` 和单独的 `ttl` 参数
 
 ---
 
@@ -87,17 +100,24 @@ const key = `${dbName}:${collName}:${hash(query)}:${hash(projection)}:${hash(sor
 
 ```javascript
 // 以下 3 个查询会生成 3 个不同的缓存键
-await collection('products').find({
-  query: { category: 'electronics' },
-  limit: 10,
-  cache: 5000
-});
 
-await collection('products').find({
-  query: { category: 'electronics' },
-  limit: 20,              // 不同的 limit
-  cache: 5000
-});
+// 查询 1
+await collection('products').find(
+  { category: 'electronics' },
+  { limit: 10, cache: 5000 }
+);
+
+// 查询 2（不同的 limit）
+await collection('products').find(
+  { category: 'electronics' },
+  { limit: 20, cache: 5000 }  // ← limit 不同
+);
+
+// 查询 3（不同的 sort）
+await collection('products').find(
+  { category: 'electronics' },
+  { limit: 10, sort: { price: 1 }, cache: 5000 }  // ← 有 sort
+);
 
 await collection('products').find({
   query: { category: 'books' },  // 不同的 query
