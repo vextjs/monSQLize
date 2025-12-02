@@ -1,8 +1,43 @@
 {
   "name": "monsqlize",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "一个面向多数据库的统一 MongoDB 风格读写 API，提供智能缓存、事务支持、分布式部署等企业级特性",
   "main": "lib/index.js",
   "types": "./index.d.ts",
+  "files": [
+    "lib/",
+    "index.d.ts",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "mongodb",
+    "database",
+    "orm",
+    "cache",
+    "transaction",
+    "distributed",
+    "pagination",
+    "performance",
+    "mongodb-driver",
+    "nosql",
+    "query-builder",
+    "api"
+  ],
+  "author": "vext.js Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vextjs/monSQLize.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vextjs/monSQLize/issues"
+  },
+  "homepage": "https://github.com/vextjs/monSQLize#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
   "scripts": {
     "test": "node test/run-tests.js",
     "test:unit": "node test/run-tests.js",
@@ -11,7 +46,8 @@
     "coverage": "nyc --reporter=text --reporter=lcov --reporter=html node test/run-tests.js",
     "benchmark": "node test/benchmark/run-benchmarks.js",
     "lint": "eslint lib/ test/ --ext .js",
-    "lint:fix": "eslint lib/ test/ --ext .js --fix"
+    "lint:fix": "eslint lib/ test/ --ext .js --fix",
+    "prepublishOnly": "npm test && npm run lint"
   },
   "dependencies": {
     "mongodb": "^6.17.0"
@@ -20,6 +56,9 @@
     "ioredis": {
       "optional": true
     }
+  },
+  "optionalDependencies": {
+    "ioredis": "^5.8.2"
   },
   "devDependencies": {
     "benchmark": "^2.1.4",
@@ -37,7 +76,8 @@
     "exclude": [
       "test/**",
       "examples/**",
-      "scripts/**"
+      "scripts/**",
+      "reports/**"
     ],
     "reporter": [
       "text",
@@ -49,8 +89,5 @@
     "statements": 70,
     "functions": 70,
     "branches": 65
-  },
-  "optionalDependencies": {
-    "ioredis": "^5.8.2"
   }
 }

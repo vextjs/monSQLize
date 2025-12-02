@@ -1,0 +1,60 @@
+# 测试文件
+test/
+*.test.js
+coverage/
+.nyc_output/
+
+# 开发文件
+examples/
+scripts/
+reports/
+analysis-reports/
+benchmarks/
+
+# 文档构建
+docs/.build/
+docs/.temp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# 开发配置
+.eslintrc*
+.prettierrc*
+.editorconfig
+tsconfig.json
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 其他
+TODO.md
+ROADMAP.md
+CONTRIBUTING.md
+

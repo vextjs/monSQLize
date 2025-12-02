@@ -91,6 +91,21 @@ async function runTests() {
   } else if (testSuite === 'findOne') {
     testFiles = ['./unit/features/findOne.test.js'];
     title = 'findOne 方法测试套件';
+  } else if (testSuite === 'findOneById') {
+    testFiles = ['./unit/features/findOneById.test.js'];
+    title = 'findOneById 便利方法测试套件';
+  } else if (testSuite === 'findByIds') {
+    testFiles = ['./unit/features/findByIds.test.js'];
+    title = 'findByIds 便利方法测试套件';
+  } else if (testSuite === 'findAndCount') {
+    testFiles = ['./unit/features/findAndCount.test.js'];
+    title = 'findAndCount 便利方法测试套件';
+  } else if (testSuite === 'upsertOne') {
+    testFiles = ['./unit/features/upsertOne.test.js'];
+    title = 'upsertOne 便利方法测试套件';
+  } else if (testSuite === 'incrementOne') {
+    testFiles = ['./unit/features/incrementOne.test.js'];
+    title = 'incrementOne 便利方法测试套件';
   } else if (testSuite === 'count') {
     testFiles = ['./unit/features/count.test.js'];
     title = 'count 方法测试套件';
@@ -127,7 +142,12 @@ async function runTests() {
       './unit/infrastructure/errors.test.js',
       './unit/infrastructure/logger.test.js',
       './unit/infrastructure/index.test.js',
-      './unit/infrastructure/mongodb-connect.test.js'
+      './unit/infrastructure/mongodb-connect.test.js',
+      // Admin/Management 功能测试 (v0.3.0+)
+      './unit/infrastructure/admin.test.js',
+      './unit/infrastructure/database.test.js',
+      './unit/infrastructure/validation.test.js',
+      './unit/infrastructure/collection-mgmt.test.js'
     ];
     title = '基础设施测试套件';
   } else if (testSuite === 'logger') {
@@ -175,9 +195,10 @@ async function runTests() {
     console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'count', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'transaction', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
+    const failedSuites = []; // 收集失败的测试套件
     const overallStartTime = Date.now();
 
     for (const suite of suites) {
@@ -196,6 +217,7 @@ async function runTests() {
       if (result.status !== 0) {
         console.error(`\n❌ 测试套件 ${suite} 失败\n`);
         totalFailed++;
+        failedSuites.push(suite); // 记录失败的测试套件
       } else {
         console.log(`\n✅ 测试套件 ${suite} 通过\n`);
         totalPassed++;
@@ -210,6 +232,12 @@ async function runTests() {
     console.log(`✓ 通过: ${totalPassed}/${suites.length} 个测试套件`);
     if (totalFailed > 0) {
       console.log(`✗ 失败: ${totalFailed}/${suites.length} 个测试套件`);
+      console.log('\n失败的测试套件列表:');
+      console.log('─'.repeat(60));
+      failedSuites.forEach((suite, index) => {
+        console.log(`  ${index + 1}. ❌ ${suite}`);
+      });
+      console.log('─'.repeat(60));
     }
     console.log(`⏱  总耗时: ${(overallDuration / 1000).toFixed(2)} 秒`);
     console.log('═'.repeat(60) + '\n');

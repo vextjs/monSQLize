@@ -331,7 +331,7 @@ describe('incrementOne 方法测试套件', function () {
 
       // 验证缓存已失效
       const cachedData = await cache.get(`${namespace}:test`);
-      assert.strictEqual(cachedData, null, '缓存应该已失效');
+      assert.strictEqual(cachedData, undefined, '缓存应该已失效');
     });
   });
 

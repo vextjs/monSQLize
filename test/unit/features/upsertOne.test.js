@@ -243,7 +243,7 @@ describe('upsertOne 方法测试套件', function () {
 
       // 验证缓存已失效
       const cachedData = await cache.get(`${namespace}:test`);
-      assert.strictEqual(cachedData, null, '缓存应该已失效');
+      assert.strictEqual(cachedData, undefined, '缓存应该已失效');
     });
 
     it('5.2 更新时应该触发缓存失效', async function () {
@@ -268,7 +268,7 @@ describe('upsertOne 方法测试套件', function () {
 
       // 验证缓存已失效
       const cachedData = await cache.get(`${namespace}:test`);
-      assert.strictEqual(cachedData, null, '缓存应该已失效');
+      assert.strictEqual(cachedData, undefined, '缓存应该已失效');
     });
   });
 
@@ -310,10 +310,10 @@ describe('upsertOne 方法测试套件', function () {
     });
 
     it('6.3 计数器初始化（存在则增加，不存在则初始化）', async function () {
-      // 第一次：初始化
+      // 第一次：初始化（使用 $inc 会自动初始化为 0 然后递增到 1）
       await collection('test_users').upsertOne(
         { key: 'counter' },
-        { $setOnInsert: { count: 0 }, $inc: { count: 1 } }
+        { $inc: { count: 1 } }
       );
 
       let doc = await nativeCollection.findOne({ key: 'counter' });
@@ -322,7 +322,7 @@ describe('upsertOne 方法测试套件', function () {
       // 第二次：递增
       await collection('test_users').upsertOne(
         { key: 'counter' },
-        { $setOnInsert: { count: 0 }, $inc: { count: 1 } }
+        { $inc: { count: 1 } }
       );
 
       doc = await nativeCollection.findOne({ key: 'counter' });
