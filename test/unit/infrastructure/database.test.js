@@ -7,16 +7,18 @@ const assert = require('assert');
 const MonSQLize = require('../../../lib/index');
 
 describe('Database Operations', function() {
-    this.timeout(10000);
+    this.timeout(30000); // 增加超时时间，内存数据库首次启动需要更多时间
 
     let db;
     let adapter;
 
     before(async function() {
+        // 使用内存数据库，无需外部 MongoDB 服务
         db = new MonSQLize({
             type: 'mongodb',
+            databaseName: 'test_database_ops',
             config: {
-                uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/test_database_ops'
+                useMemoryServer: true // 使用内存数据库
             }
         });
         await db.connect();
@@ -44,10 +46,11 @@ describe('Database Operations', function() {
             assert.ok(typeof db.empty === 'boolean');
         });
 
-        it('应该包含 admin 数据库', async function() {
+        it('应该包含测试数据库', async function() {
             const databases = await adapter.listDatabases();
-            const hasAdmin = databases.some(db => db.name === 'admin');
-            assert.ok(hasAdmin);
+            // 内存数据库会包含我们创建的测试数据库
+            const hasTestDb = databases.some(db => db.name === 'test_database_ops');
+            assert.ok(hasTestDb, '应该包含测试数据库');
         });
 
         it('应该支持 nameOnly 选项', async function() {
@@ -58,7 +61,8 @@ describe('Database Operations', function() {
 
         it('nameOnly 应该返回数据库名称数组', async function() {
             const databases = await adapter.listDatabases({ nameOnly: true });
-            assert.ok(databases.includes('admin'));
+            // 内存数据库会包含我们创建的测试数据库
+            assert.ok(databases.includes('test_database_ops'), '应该包含测试数据库');
             databases.forEach(name => {
                 assert.strictEqual(typeof name, 'string');
             });
@@ -70,11 +74,12 @@ describe('Database Operations', function() {
         let testAdapter;
 
         beforeEach(async function() {
-            // 创建测试数据库，使用独立的 adapter
+            // 创建测试数据库，使用内存数据库
             const testDb = new MonSQLize({
                 type: 'mongodb',
+                databaseName: testDbName,
                 config: {
-                    uri: `mongodb://localhost:27017/${testDbName}`
+                    useMemoryServer: true
                 }
             });
             await testDb.connect();
@@ -143,11 +148,12 @@ describe('Database Operations', function() {
             const originalEnv = process.env.NODE_ENV;
             process.env.NODE_ENV = 'production';
 
-            // 重新创建测试数据库
+            // 重新创建测试数据库，使用内存数据库
             const testDb = new MonSQLize({
                 type: 'mongodb',
+                databaseName: `${testDbName}_prod`,
                 config: {
-                    uri: `mongodb://localhost:27017/${testDbName}_prod`
+                    useMemoryServer: true
                 }
             });
             await testDb.connect();
@@ -172,12 +178,13 @@ describe('Database Operations', function() {
         });
 
         it('删除后应该验证数据库不存在', async function() {
-            // 创建并删除测试数据库
+            // 创建并删除测试数据库，使用内存数据库
             const tempDbName = 'test_verify_drop';
             const testDb = new MonSQLize({
                 type: 'mongodb',
+                databaseName: tempDbName,
                 config: {
-                    uri: `mongodb://localhost:27017/${tempDbName}`
+                    useMemoryServer: true
                 }
             });
             await testDb.connect();
@@ -193,8 +200,10 @@ describe('Database Operations', function() {
             });
 
             // 验证不存在
-            const databases = await adapter.listDatabases({ nameOnly: true });
+            const databases = await tempAdapter.listDatabases({ nameOnly: true });
             assert.ok(!databases.includes(tempDbName));
+
+            await testDb.close();
         });
     });
 

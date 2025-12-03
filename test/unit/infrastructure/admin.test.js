@@ -7,16 +7,18 @@ const assert = require('assert');
 const MonSQLize = require('../../../lib/index');
 
 describe('Admin Operations', function() {
-    this.timeout(10000);
+    this.timeout(30000); // 增加超时时间，内存数据库首次启动需要更多时间
 
     let db;
     let adapter;
 
     before(async function() {
+        // 使用内存数据库，无需外部 MongoDB 服务
         db = new MonSQLize({
             type: 'mongodb',
+            databaseName: 'test_admin_ops',
             config: {
-                uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/test_admin_ops'
+                useMemoryServer: true // 使用内存数据库
             }
         });
         await db.connect();
@@ -101,7 +103,7 @@ describe('Admin Operations', function() {
         it('应该包含运行时间', async function() {
             const status = await adapter.serverStatus();
             assert.ok(typeof status.uptime === 'number');
-            assert.ok(status.uptime > 0);
+            assert.ok(status.uptime >= 0); // 内存数据库刚启动时 uptime 可能为 0
         });
 
         it('应该支持 scale 参数', async function() {

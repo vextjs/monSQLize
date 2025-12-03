@@ -7,17 +7,19 @@ const assert = require('assert');
 const MonSQLize = require('../../../lib/index');
 
 describe('Collection Management Operations', function() {
-    this.timeout(15000);
+    this.timeout(30000); // 增加超时时间，内存数据库首次启动需要更多时间
 
     let db;
     let collection;
     const collectionName = 'test_collection_mgmt';
 
     before(async function() {
+        // 使用内存数据库，无需外部 MongoDB 服务
         db = new MonSQLize({
             type: 'mongodb',
+            databaseName: 'test_collection_mgmt',
             config: {
-                uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/test_collection_mgmt'
+                useMemoryServer: true // 使用内存数据库
             }
         });
         await db.connect();
