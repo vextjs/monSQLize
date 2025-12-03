@@ -29,6 +29,7 @@
 | [findPage.md](findPage.md) | `findPage()` | 游标分页查询 |
 | [count.md](count.md) | `count()` | 统计文档数量 |
 | [distinct.md](distinct.md) | `distinct()` | 去重查询 |
+| [watch.md](watch.md) | `watch()` | **实时监听数据变更（Change Streams）⭐** |
 
 ---
 

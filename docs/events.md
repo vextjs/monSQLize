@@ -723,6 +723,34 @@ msq2.on('slow-query', () => console.log('msq2 慢查询'));
 
 ---
 
+## 相关文档
+
+### watch 事件
+
+如果你需要监听 MongoDB 的数据变更（而非应用的查询操作），请参考：
+
+- [watch 方法文档](./watch.md) - MongoDB Change Streams
+
+**区别**:
+- 全局事件（本文档）：监听应用的查询操作
+- watch 事件：监听 MongoDB 的数据变更
+
+**示例**:
+```javascript
+// 全局事件：监听应用的慢查询
+msq.on('slow-query', (meta) => {
+  console.warn('应用执行了慢查询');
+});
+
+// watch 事件：监听 MongoDB 的数据变更
+const watcher = collection.watch();
+watcher.on('change', (change) => {
+  console.log('MongoDB 数据变更');
+});
+```
+
+---
+
 ## 参考资料
 
 - [Node.js EventEmitter 文档](https://nodejs.org/api/events.html)

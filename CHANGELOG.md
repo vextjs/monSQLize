@@ -2,18 +2,47 @@
 
 所有显著变更将记录在此文件，遵循 Keep a Changelog 与语义化版本（SemVer）。
 
-## [Unreleased] - v1.1.0 计划
+## [1.1.0] - 2025-12-03
 
-### 🗺️ 计划功能
+### 🎊 v1.1.0 发布 - Change Streams 支持
 
-**Change Streams（实时监听）**
-- watch API - 监听集合/数据库变更
-- 智能缓存失效 - watch 事件自动失效相关缓存
-- 跨实例缓存同步 - 分布式环境下的缓存一致性
-- 自动重连机制 - 网络中断后自动恢复
-- 断点续传 - resumeToken 自动保存和恢复
+**新功能**:
+- ✨ **watch() 方法** - MongoDB Change Streams 实时监听
+  - 监听集合/数据库的数据变更（insert/update/delete/replace）
+  - 支持聚合管道过滤事件
+  - 完整的事件系统（change, error, reconnect, resume, close, fatal）
 
-**预计发布**: 2025-12 下旬
+- 🔄 **自动重连机制**
+  - 网络中断后自动重连（指数退避算法：1s → 2s → 4s → 8s → ... → 60s）
+  - resumeToken 自动管理和断点续传
+  - 智能错误分类（瞬态/持久性/致命）
+
+- 🗑️ **智能缓存失效**
+  - 监听到数据变更时自动失效相关缓存
+  - 支持精准失效（根据 operationType 和 documentKey）
+  - 自动触发跨实例缓存同步（复用 DistributedCacheInvalidator）
+
+- 📊 **统计监控**
+  - getStats() 方法获取运行统计
+  - 监控总变更数、重连次数、缓存失效次数等
+
+- 🧪 **副本集支持**
+  - mongodb-memory-server 副本集模式配置
+  - 测试环境完整支持 Change Streams
+
+**文档**:
+- 📄 新增 `docs/watch.md` - 完整 API 文档（400 行）
+- 📝 新增 `examples/watch.examples.js` - 6 个使用示例
+- 🔗 更新 `docs/events.md` 和 `docs/INDEX.md` - 交叉引用
+
+**测试**:
+- ✅ 新增 17 个单元测试（100% 通过）
+- ✅ 新增 7 个集成测试（100% 通过，副本集环境）
+- ✅ 测试覆盖率约 85%
+
+**兼容性**:
+- ✅ 完全向后兼容
+- ✅ 纯新增功能，无破坏性变更
 
 ---
 

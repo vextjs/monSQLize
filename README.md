@@ -270,6 +270,7 @@ console.log(`总计: ${result.totals?.total}, 共 ${result.totals?.totalPages} �
 - ✅ **Read**: find, findOne, findPage（游标分页）, aggregate, count, distinct
 - ✅ **Update**: updateOne, updateMany, replaceOne, findOneAndUpdate, findOneAndReplace
 - ✅ **Delete**: deleteOne, deleteMany, findOneAndDelete
+- ✅ **Watch**: watch（Change Streams 实时监听）**⭐ v1.1.0**
 
 #### **索引管理（100% 完成）**
 - ✅ createIndex, createIndexes, listIndexes, dropIndex, dropIndexes
@@ -977,6 +978,141 @@ const salesReport = await collection.aggregate([
 ```
 
 📖 详细文档：[aggregate](./docs/aggregate.md)
+
+---
+
+### 实时监听（watch）⭐ v1.1.0
+
+**监听 MongoDB 数据变更，支持自动缓存失效**：
+
+#### 1. 基础监听
+
+```javascript
+// 监听集合的所有数据变更
+const watcher = collection.watch();
+
+watcher.on('change', (change) => {
+    console.log('数据变更:', change.operationType);  // insert/update/delete/replace
+    console.log('文档ID:', change.documentKey._id);
+    console.log('完整文档:', change.fullDocument);
+});
+
+// 插入数据（会触发 change 事件）
+await collection.insertOne({ name: 'Alice', age: 25 });
+```
+
+#### 2. 过滤事件
+
+```javascript
+// 只监听 insert 和 update 操作
+const watcher = collection.watch([
+    { $match: { operationType: { $in: ['insert', 'update'] } } }
+]);
+
+watcher.on('change', (change) => {
+    console.log('新增或修改:', change.operationType);
+});
+```
+
+#### 3. 自动缓存失效 ⭐
+
+```javascript
+// 启用自动缓存失效（默认开启）
+const watcher = collection.watch([], {
+    autoInvalidateCache: true  // 数据变更时自动失效相关缓存
+});
+
+// 1. 查询并缓存数据
+const users = await collection.find({ status: 'active' }, { cache: 60000 });
+
+// 2. 更新数据（触发 watch）
+await collection.updateOne({ _id: userId }, { $set: { status: 'inactive' } });
+
+// 3. ✅ watch 自动失效相关缓存
+// 4. 下次查询自动从数据库读取最新数据
+```
+
+#### 4. 错误处理和重连
+
+```javascript
+const watcher = collection.watch();
+
+// 监听错误（自动重试瞬态错误）
+watcher.on('error', (error) => {
+    console.warn('持久性错误:', error.message);
+});
+
+// 监听重连
+watcher.on('reconnect', (info) => {
+    console.log(`第 ${info.attempt} 次重连，延迟 ${info.delay}ms`);
+});
+
+// 监听恢复
+watcher.on('resume', () => {
+    console.log('✅ 已恢复监听（断点续传）');
+});
+
+// 监听致命错误
+watcher.on('fatal', (error) => {
+    console.error('💥 致命错误（无法恢复）:', error);
+    // 通知运维
+});
+```
+
+#### 5. 统计监控
+
+```javascript
+const watcher = collection.watch();
+
+// 获取运行统计
+const stats = watcher.getStats();
+console.log('总变更数:', stats.totalChanges);
+console.log('重连次数:', stats.reconnectAttempts);
+console.log('运行时长:', stats.uptime, 'ms');
+console.log('缓存失效次数:', stats.cacheInvalidations);
+console.log('活跃状态:', stats.isActive);
+```
+
+#### 6. 优雅关闭
+
+```javascript
+// 应用退出时关闭 watcher
+process.on('SIGTERM', async () => {
+    await watcher.close();
+    await db.close();
+    process.exit(0);
+});
+```
+
+**核心特性**：
+- ✅ **自动重连**：网络中断后自动恢复（指数退避：1s → 2s → 4s → ... → 60s）
+- ✅ **断点续传**：resumeToken 自动管理，不丢失任何变更
+- ✅ **智能缓存失效**：数据变更时自动失效相关缓存
+- ✅ **跨实例同步**：分布式环境自动广播缓存失效
+- ✅ **完整事件系统**：change, error, reconnect, resume, close, fatal
+- ✅ **统计监控**：完整的运行统计和健康检查
+
+**注意事项**：
+- ⚠️ **需要副本集**：Change Streams 需要 MongoDB 4.0+ 副本集或分片集群
+- ⚠️ **测试环境**：可使用 mongodb-memory-server 副本集模式
+
+**测试环境配置**：
+```javascript
+const db = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'mydb',
+    config: { 
+        useMemoryServer: true,
+        memoryServerOptions: {
+            instance: {
+                replSet: 'rs0'  // 启用副本集（支持 Change Streams）
+            }
+        }
+    }
+});
+```
+
+📖 详细文档：[watch 方法完整指南](./docs/watch.md)
 
 ---
 

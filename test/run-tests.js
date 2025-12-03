@@ -192,13 +192,27 @@ async function runTests() {
   } else if (testSuite === 'transaction') {
     testFiles = ['./unit/features/transaction-unit.test.js'];
     title = 'MongoDB 事务单元测试套件';
+  } else if (testSuite === 'watch') {
+    // watch 测试使用 done 回调，需要用 Mocha 运行
+    console.log('\n╔═══════════════════════════════════════════════════════════╗');
+    console.log('║            运行 watch 方法单元测试套件                    ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝\n');
+
+    const { spawnSync } = require('child_process');
+    const result = spawnSync('npx', ['mocha', 'test/unit/queries/watch.test.js', '--reporter', 'spec'], {
+      cwd: process.cwd(),
+      stdio: 'inherit',
+      shell: true
+    });
+
+    process.exit(result.status);
   } else if (testSuite === 'all') {
     // all 模式：顺序执行各个测试套件，避免并发初始化问题
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
     console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'watch', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const failedSuites = []; // 收集失败的测试套件
@@ -248,7 +262,7 @@ async function runTests() {
     process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|countQueue|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|updateOne|updateMany|replaceOne|findOneAndUpdate|findOneAndReplace|deleteOne|deleteMany|findOneAndDelete|transaction|utils|infrastructure|logger|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|countQueue|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|updateOne|updateMany|replaceOne|findOneAndUpdate|findOneAndReplace|deleteOne|deleteMany|findOneAndDelete|transaction|watch|utils|infrastructure|logger|all]\n');
     process.exit(1);
   }
 
