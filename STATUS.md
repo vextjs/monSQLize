@@ -1,7 +1,7 @@
 # STATUS / ROADMAP
 
-> **最后更新**: 2025-12-02  
-> **当前版本**: 0.3.0（开发版）- Admin/Management 功能完整版  
+> **最后更新**: 2025-12-03  
+> **当前版本**: 1.0.0（正式版）✨ - 已成功发布到 npm！  
 > **综合评分**: **96/100 (A+)** - 企业级质量标准 🎉
 
 说明：本页用于集中呈现 monSQLize 的当前能力矩阵与路线图。状态标记如下：
@@ -39,12 +39,12 @@
 
 ## 📊 实现状态统计
 
-**最后更新**: 2025-12-02
+**最后更新**: 2025-12-03
 
 | 分类 | 已实现 ✅ | 计划中 🗺️ | 未实现 ❌ | 不推荐 ⛔ | 总计 |
 |------|----------|----------|----------|----------|------|
 | **核心功能** | 30 | 0 | 0 | 0 | 30 |
-| **MongoDB 读方法** | 9 | 0 | 3 | 0 | 12 |
+| **MongoDB 读方法** | 9 | 1 | 2 | 0 | 12 |
 | **便利性方法** | 5 | 0 | 0 | 0 | 5 |
 | **MongoDB 写方法 - Insert** | 3 | 0 | 0 | 0 | 3 |
 | **MongoDB 写方法 - Update** | 5 | 0 | 0 | 0 | 5 |
@@ -54,14 +54,17 @@
 | **MongoDB 事务** | 8 | 0 | 0 | 0 | 8 |
 | **分布式支持** | 3 | 0 | 0 | 0 | 3 |
 | **MongoDB Admin/Management** | 18 | 0 | 0 | 0 | 18 |
+| **MongoDB Change Streams** | 0 | 1 | 0 | 0 | 1 |
 | **MongoDB 其他** | 0 | 0 | 0 | 1 | 1 |
-| **总计** | **89** | **0** | **3** | **2** | **94** |
+| **总计** | **89** | **1** | **2** | **2** | **94** |
 
-**完成度**: **100%** (89/89，不含不推荐和其他功能) ⬆️ +1.1% 🎉  
+**完成度**: **100%** (89/89，不含计划中、不推荐和其他功能) 🎉  
 **核心功能完成度**: **100%** (30/30) 🎊  
 **CRUD + 索引 + 事务 + 便利性方法完成度**: **100%** ✅  
 **Admin/Management 功能完成度**: **100%** (18/18) ✅  
 **文档完成度**: **95%+** (findAndCount 文档待补充) ✅
+
+**v1.1.0 计划**: watch（Change Streams）实时监听功能
 
 ### 📈 进度对比
 
@@ -76,7 +79,13 @@
 | 2025-11-25 | 82.7% | **🌐 分布式支持完成** (缓存失效广播 + 分布式事务锁) |
 | 2025-12-02 (上午) | 93.3% | **✨ 便利方法完成** (4/5) + 文档改进 + STATUS 优化 🎉 |
 | 2025-12-02 (下午) | **98.9%** | **🛠️ Admin/Management 完成** (18个方法，102个测试100%通过) 🎉 |
-| 增长 | **+5.6%** | ping/buildInfo/serverStatus/stats/listDatabases/dropDatabase/listCollections/runCommand/setValidator/setValidationLevel/setValidationAction/getValidator/renameCollection/collMod/convertToCapped/createCollection |
+| 2025-12-03 | **100%** | **🎉 v1.0.0 正式版发布** - 已成功发布到 npm！ |
+| 增长 | **+1.1%** | v1.0.0 稳定发布，企业级质量标准达成 |
+
+**v1.1.0 路线图**:
+| 计划日期 | 目标功能 | 说明 |
+|---------|---------|------|
+| 2025-12 下旬 | **watch (Change Streams)** | 实时监听功能，支持智能缓存失效、跨实例同步 |
 
 ### 📚 2025-11-18 文档补全成果 (阶段1)
 
@@ -344,7 +353,27 @@
 
 ## 🗺️ 近期路线图
 
-### Q4 2025
+### 2025-12 (已完成)
+- [x] **v1.0.0 正式版发布** ✅ (2025-12-03 完成)
+  - [x] 所有核心功能实现完毕
+  - [x] Admin/Management 功能完成
+  - [x] 企业级质量标准达成
+  - [x] 完整的测试覆盖和文档
+  - [x] 成功发布到 npm
+
+### 2025-12 下旬 (v1.1.0 计划)
+- [ ] **watch (Change Streams)** - 实时监听功能
+  - [ ] 监听集合/数据库变更
+  - [ ] 智能缓存失效（watch 事件自动失效缓存）
+  - [ ] 跨实例缓存同步（分布式环境）
+  - [ ] 自动重连机制（网络中断后恢复）
+  - [ ] 断点续传（resumeToken 自动保存）
+  - [ ] 完整的文档和示例
+  - **预估工作量**: 16-24 小时
+  - **目标版本**: v1.1.0
+  - **预计发布**: 2025-12 下旬
+
+### Q4 2025 (已完成历史)
 - [x] **实现 Update 操作** ✅ (2025-11-13 完成)
   - [x] updateOne - 更新单个文档
   - [x] updateMany - 批量更新
@@ -383,8 +412,8 @@
 ### 维护承诺
 
 **版本支持**:
-- **当前版本**: 0.1.0（开发版）- 持续维护
-- **稳定版本**: v1.0.0 计划于 2026-Q3 发布
+- **当前版本**: 1.0.0（正式版）✨ - 已发布，持续维护
+- **下一版本**: v1.1.0 计划于 2025-12 下旬发布（watch 功能）
 - **LTS 支持**: 1.x 版本提供 2 年长期支持
 
 **更新承诺**:
@@ -653,10 +682,12 @@
     - `listBookmarks(keyDims?)`：列出已缓存的 bookmark（支持按查询过滤或全部）
     - `clearBookmarks(keyDims?)`：清除指定查询或全部 bookmark 缓存
 
-**未实现的读方法** (3个):
+**未实现的读方法** (2个):
 - ❌ **mapReduce** - 已弃用（MongoDB 推荐使用 aggregate）
 - ❌ **geoNear** - 地理空间查询（特殊用途）
-- ❌ **watch** - Change Streams（实时监听）
+
+**计划实现的读方法** (1个):
+- 🗺️ **watch** - Change Streams（实时监听）- v1.1.0 计划实现
 
 **高级选项** (部分支持):
 - ☑️ 链表/聚合驱动分页 - 方案A（先分页后联表）已支持；方案B（先联表后分页）计划中
@@ -785,71 +816,100 @@
 
 ### MongoDB 方法（Change Streams）
 
-#### ⛔ watch - 暂不实现
+#### 🗺️ watch - v1.1.0 计划实现
 
-**状态**: ⛔ 暂不实现（v0.2.0-v0.4.0）
+**状态**: 🗺️ 计划实现（v1.1.0）
 
-**必要性评分**: ⭐⭐☆☆☆ (2.15/10) - 低优先级
+**变更说明**: 
+- 原定位：暂不实现（与缓存定位不符）
+- 新定位：高性能 ORM 必备功能，计划实现
+- 目标版本：v1.1.0
 
-**不实现的原因**:
-1. ✅ **使用频率极低**: 预计 < 5% 用户使用
-2. ✅ **偏离项目定位**: watch 是实时流式监听，与 monSQLize "读 API + 缓存优化" 定位不符
-3. ✅ **无法跨数据库**: Change Streams 是 MongoDB 特有功能，无法抽象到 PostgreSQL/MySQL
-4. ✅ **与缓存机制不兼容**: watch 是长连接流，无法缓存
-5. ✅ **用户更倾向原生 API**: MongoDB 原生 watch API 已足够强大，无需封装
+**必要性评分**: ⭐⭐⭐⭐☆ (8/10) - 高优先级（重新评估）
+
+**实现的原因**:
+1. ✅ **高性能 ORM 定位**: 作为升级版 ORM，watch 是实时监听的核心能力
+2. ✅ **企业级场景需求**: 实时数据同步、缓存失效通知、业务事件响应
+3. ✅ **与缓存协同优化**: watch 可用于智能缓存失效、跨实例缓存同步
+4. ✅ **增强竞争力**: Mongoose 支持 watch，monSQLize 也应支持
+5. ✅ **MongoDB 原生能力**: MongoDB Change Streams 是成熟、稳定的原生功能
 
 **竞品对比**:
-- **Mongoose**: 唯一支持的主流 ORM（但使用率不高）
-- **Prisma/TypeORM/Sequelize**: 全部不支持 watch
+- **Mongoose**: 支持 watch（是主流 ORM 中唯一支持的）
+- **Prisma/TypeORM/Sequelize**: 不支持 watch
+- **monSQLize**: v1.1.0 将实现，提供高性能封装
 
-**替代方案**:
+**实现计划**（v1.1.0）:
 
-1. **使用 MongoDB 原生 API**（推荐）:
+**核心 API 设计**:
    ```javascript
-   // 获取底层 MongoDB 集合
-   const mongoCollection = db._adapter.collection;
-   
-   // 使用原生 watch API
-   const stream = mongoCollection.watch([
+   // 监听集合变化
+   const watcher = collection.watch([
      { $match: { operationType: 'insert' } }
-   ]);
-   
-   stream.on('change', (change) => {
-     console.log('Document inserted:', change.fullDocument);
+   ], {
+     fullDocument: 'updateLookup', // 返回完整文档
+     resumeAfter: resumeToken,     // 断点续传
+     startAtOperationTime: timestamp // 从指定时间开始
    });
    
-   stream.on('error', (error) => {
+   watcher.on('change', (change) => {
+     console.log('Document changed:', change);
+     // 自动触发缓存失效
+   });
+   
+   watcher.on('error', (error) => {
      console.error('Watch error:', error);
    });
+   
+   // 停止监听
+   watcher.close();
    ```
 
-2. **缓存失效场景** - 使用 monSQLize 的 invalidate 机制:
+**高级特性**:
+   - ✅ 自动重连机制（网络中断后恢复）
+   - ✅ 断点续传（resumeToken 自动保存）
+   - ✅ 智能缓存失效（watch 事件自动失效相关缓存）
+   - ✅ 跨实例缓存同步（多实例环境下的缓存一致性）
+   - ✅ 性能优化（连接池复用、事件批处理）
+
+**典型使用场景**:
    ```javascript
-   // monSQLize 已有更好的缓存失效方案
-   await collection.updateOne({ _id: userId }, { $set: { name: 'New' } });
-   await collection.invalidate('updateOne'); // 自动失效缓存
+   // 场景1: 实时数据同步
+   const userWatcher = db.model('User').watch();
+   userWatcher.on('change', async (change) => {
+     if (change.operationType === 'update') {
+       await syncToElasticsearch(change.fullDocument);
+     }
+   });
    
-   // 或使用事务（自动缓存锁）
-   await db.withTransaction(async (session) => {
-     await collection.updateOne({ _id: userId }, update, { session });
-     // 事务提交时自动失效缓存
+   // 场景2: 智能缓存失效
+   const orderWatcher = db.model('Order').watch([
+     { $match: { 'fullDocument.status': 'paid' } }
+   ]);
+   orderWatcher.on('change', (change) => {
+     // 订单状态变化时，自动失效相关缓存
+     db.model('Order').invalidate('findOne', { _id: change.documentKey._id });
+   });
+   
+   // 场景3: 业务事件响应
+   const messageWatcher = db.model('Message').watch();
+   messageWatcher.on('change', (change) => {
+     if (change.operationType === 'insert') {
+       notifyUser(change.fullDocument);
+     }
    });
    ```
 
-3. **实时数据同步场景** - 使用专业工具:
-   - **Debezium**: 企业级 CDC（Change Data Capture）工具
-   - **Kafka Connect**: MongoDB Connector 实时同步
-   - **MongoDB Atlas Triggers**: 云端事件触发器
+**实现优先级**: P1（高优先级）
+**预估工作量**: 16-24 小时
+**目标版本**: v1.1.0
+**预计发布**: 2025-12 下旬
 
 **参考文档**:
 - [MongoDB Change Streams 官方文档](https://www.mongodb.com/docs/manual/changeStreams/)
-- [Debezium MongoDB Connector](https://debezium.io/documentation/reference/connectors/mongodb.html)
+- [Mongoose Watch API](https://mongoosejs.com/docs/api/model.html#model_Model-watch)
 
-**未来规划**:
-- 🟡 v0.5.0+: 如用户强烈要求，可提供简单封装（8 小时）
-- 🟡 v1.0+: 如跨数据库实现成熟，可考虑统一事件 API
-
-**详细分析**: 参见 `reports/monSQLize/watch-feature-analysis-2025-12-02.md`
+**详细设计文档**: 将在 `docs/watch.md` 中提供完整的 API 设计和实现方案
 
 ### MongoDB 方法（Admin/DB/Collection）
 
@@ -1125,6 +1185,21 @@ db.createUser({
 
 ## ❌ 未实现功能清单（按优先级排序）
 
+**更新时间**: 2025-12-03
+
+### 🔴 P1 - 核心扩展（v1.1.0 计划）
+
+#### Change Streams（实时监听）
+1. 🗺️ **watch** - v1.1.0 计划实现
+   - 监听集合/数据库变更
+   - 智能缓存失效
+   - 跨实例缓存同步
+   - 自动重连和断点续传
+   - **预估工作量**: 16-24 小时
+   - **目标版本**: v1.1.0
+   - **预计发布**: 2025-12 下旬
+   - **详细设计**: 参见 STATUS.md "MongoDB 方法（Change Streams）"章节
+
 ### 🔴 P2 - 能力扩展（中期规划）
 
 #### 数据库支持
@@ -1300,11 +1375,13 @@ db.createUser({
 **文档**: [事务支持文档](./docs/transaction.md)
 
 #### Change Streams
-33. ⛔ **watch** - 暂不实现
+33. 🗺️ **watch** - 已移至 P1（v1.1.0 计划实现）
     - 监听集合/数据库变更
-    - **原因**: 详见"不推荐实现的功能"章节
+    - **变更说明**: 从"暂不实现"变更为"计划实现"
+    - **新定位**: 高性能 ORM 必备功能
+    - **详细设计**: 参见上方"MongoDB 方法（Change Streams）"章节
 
-34. ⛔ **Change Streams 关键选项** - 暂不实现
+34. 🗺️ **Change Streams 关键选项** - v1.1.0 一并实现
     - fullDocument/fullDocumentBeforeChange
     - resumeAfter/startAfter/startAtOperationTime
 
