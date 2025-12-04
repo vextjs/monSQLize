@@ -566,5 +566,264 @@ describe('Watch - Unit Tests', () => {
             assert(stats.cacheInvalidations > 0);
         });
     });
+
+    describe('并发安全测试 - 重连竞态条件', () => {
+
+        it('should prevent concurrent reconnect attempts', (done) => {
+            const mockStream = new EventEmitter();
+            const mockCollection = {
+                collectionName: 'test',
+                watch: () => new EventEmitter()
+            };
+            const context = {
+                cache: { delPattern: async () => 0 },
+                logger: {
+                    info: () => {},
+                    warn: () => {},
+                    error: () => {},
+                    debug: () => {}
+                }
+            };
+
+            const wrapper = new ChangeStreamWrapper(
+                mockStream,
+                mockCollection,
+                [],
+                { reconnectInterval: 100 },
+                context
+            );
+
+            let reconnectCount = 0;
+            wrapper.on('reconnect', () => {
+                reconnectCount++;
+            });
+
+            // 模拟多个并发错误
+            const error1 = new Error('Connection reset');
+            error1.code = 'ECONNRESET';
+
+            const error2 = new Error('Connection timeout');
+            error2.code = 'ETIMEDOUT';
+
+            // 同时触发多个错误
+            mockStream.emit('error', error1);
+            mockStream.emit('error', error2);
+            mockStream.emit('error', error1);
+
+            // 等待重连尝试
+            setTimeout(() => {
+                // 应该只有一次重连尝试（第二和第三次被阻止）
+                assert.strictEqual(reconnectCount, 1, 'Should only have 1 reconnect attempt');
+                wrapper.close();
+                done();
+            }, 200);
+        });
+
+        it('should handle reconnect failure without infinite recursion', (done) => {
+            let watchCallCount = 0;
+            const mockStream = new EventEmitter();
+            const mockCollection = {
+                collectionName: 'test',
+                watch: () => {
+                    watchCallCount++;
+                    // 模拟 watch 总是失败
+                    throw new Error('Watch failed');
+                }
+            };
+            const context = {
+                cache: { delPattern: async () => 0 },
+                logger: {
+                    info: () => {},
+                    warn: () => {},
+                    error: () => {},
+                    debug: () => {}
+                }
+            };
+
+            const wrapper = new ChangeStreamWrapper(
+                mockStream,
+                mockCollection,
+                [],
+                { reconnectInterval: 50, maxReconnectDelay: 100 },
+                context
+            );
+
+            // 触发重连
+            const error = new Error('Connection reset');
+            error.code = 'ECONNRESET';
+            mockStream.emit('error', error);
+
+            // 等待足够长时间观察是否有无限递归
+            setTimeout(() => {
+                // 应该有重连尝试，但不应该有大量调用（说明没有无限递归）
+                assert(watchCallCount > 0, 'Should have reconnect attempts');
+                assert(watchCallCount < 10, 'Should not have excessive reconnect attempts');
+                wrapper.close();
+                done();
+            }, 500);
+        });
+
+        it('should reset reconnecting flag even on error', (done) => {
+            const mockStream = new EventEmitter();
+            let watchCalls = 0;
+            const mockCollection = {
+                collectionName: 'test',
+                watch: () => {
+                    watchCalls++;
+                    if (watchCalls === 1) {
+                        // 第一次失败
+                        throw new Error('Watch failed');
+                    } else {
+                        // 第二次成功
+                        return new EventEmitter();
+                    }
+                }
+            };
+            const context = {
+                cache: { delPattern: async () => 0 },
+                logger: {
+                    info: () => {},
+                    warn: () => {},
+                    error: () => {},
+                    debug: () => {}
+                }
+            };
+
+            const wrapper = new ChangeStreamWrapper(
+                mockStream,
+                mockCollection,
+                [],
+                { reconnectInterval: 50 },
+                context
+            );
+
+            // 触发第一次重连
+            const error = new Error('Connection reset');
+            error.code = 'ECONNRESET';
+            mockStream.emit('error', error);
+
+            // 等待第一次重连完成并失败
+            setTimeout(() => {
+                // 检查已经有重连尝试
+                const initialAttempts = wrapper.getStats().reconnectAttempts;
+                assert(initialAttempts > 0, 'Should have initial reconnect attempt');
+
+                // 触发第二次重连（应该能成功，说明标志已重置）
+                mockStream.emit('error', error);
+
+                setTimeout(() => {
+                    // 检查有第二次重连尝试
+                    assert(watchCalls >= 2, `Should have multiple watch calls, got ${watchCalls}`);
+                    wrapper.close();
+                    done();
+                }, 300);
+            }, 250);
+        });
+    });
+
+    describe('错误处理递归防护', () => {
+
+        it('should use setTimeout to prevent synchronous recursion', (done) => {
+            const mockStream = new EventEmitter();
+            let recursionDepth = 0;
+            let maxRecursionDepth = 0;
+
+            const mockCollection = {
+                collectionName: 'test',
+                watch: () => {
+                    recursionDepth++;
+                    maxRecursionDepth = Math.max(maxRecursionDepth, recursionDepth);
+
+                    // 模拟失败
+                    const failedStream = new EventEmitter();
+                    setTimeout(() => {
+                        const error = new Error('Watch creation failed');
+                        failedStream.emit('error', error);
+                        recursionDepth--;
+                    }, 10);
+
+                    return failedStream;
+                }
+            };
+
+            const context = {
+                cache: { delPattern: async () => 0 },
+                logger: {
+                    info: () => {},
+                    warn: () => {},
+                    error: () => {},
+                    debug: () => {}
+                }
+            };
+
+            const wrapper = new ChangeStreamWrapper(
+                mockStream,
+                mockCollection,
+                [],
+                { reconnectInterval: 20 },
+                context
+            );
+
+            // 触发初始错误
+            const error = new Error('Initial error');
+            error.code = 'ECONNRESET';
+            mockStream.emit('error', error);
+
+            // 等待观察递归深度
+            setTimeout(() => {
+                // 递归深度应该很浅（因为使用了 setTimeout 避免同步递归）
+                assert(maxRecursionDepth <= 2, `Max recursion depth should be <= 2, got ${maxRecursionDepth}`);
+                wrapper.close();
+                done();
+            }, 300);
+        });
+
+        it('should check closed flag before retry', (done) => {
+            const mockStream = new EventEmitter();
+            const mockCollection = {
+                collectionName: 'test',
+                watch: () => {
+                    throw new Error('Watch failed');
+                }
+            };
+
+            let errorHandlerCalled = 0;
+            const context = {
+                cache: { delPattern: async () => 0 },
+                logger: {
+                    info: () => {},
+                    warn: () => {},
+                    error: () => { errorHandlerCalled++; },
+                    debug: () => {}
+                }
+            };
+
+            const wrapper = new ChangeStreamWrapper(
+                mockStream,
+                mockCollection,
+                [],
+                { reconnectInterval: 50 },
+                context
+            );
+
+            // 触发错误
+            const error = new Error('Connection reset');
+            error.code = 'ECONNRESET';
+            mockStream.emit('error', error);
+
+            // 立即关闭 wrapper
+            setTimeout(() => {
+                wrapper.close();
+            }, 20);
+
+            // 等待确认不会继续重试
+            setTimeout(() => {
+                const attempts = wrapper.getStats().reconnectAttempts;
+                // 应该只有很少的重试（因为已关闭）
+                assert(attempts <= 2, `Should have minimal retries after close, got ${attempts}`);
+                done();
+            }, 300);
+        });
+    });
 });
 
