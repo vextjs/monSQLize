@@ -65,7 +65,6 @@
     "test:compatibility:server:docker": "node scripts/test-server-versions.js",
     "lint": "eslint lib/ test/ --ext .js",
     "lint:fix": "eslint lib/ test/ --ext .js --fix",
-    "prepublishOnly": "npm test && npm run lint",
     "postpublish": "echo '✅ 发布成功！请创建 GitHub Release: https://github.com/vextjs/monSQLize/releases/new?tag=v'$npm_package_version"
   },
   "peerDependenciesMeta": {
