@@ -14,7 +14,7 @@ describe('事务优化功能', function () {
     before(async function () {
         // 连接本地 MongoDB（需要副本集）
         const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017?replicaSet=rs0';
-        
+
         try {
             msq = new MonSQLize({
                 type: 'mongodb',
@@ -70,7 +70,7 @@ describe('事务优化功能', function () {
                     { _id: 1 },
                     { session: tx.session }
                 );
-                
+
                 const user2 = await collection('users').findOne(
                     { _id: 2 },
                     { session: tx.session }

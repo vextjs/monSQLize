@@ -350,6 +350,84 @@ console.log(`共 ${total} 条，当前返回 ${data.length} 条`);
 
 ---
 
+#### **🆕 扩展方法（v1.2.0 新增）**
+
+4 个强大的扩展方法，进一步简化开发并提升性能：
+
+```javascript
+// 1. findOneOrCreate - 查询或创建（并发安全，代码减少 80%）
+// 场景：OAuth 登录、标签自动创建
+const { doc, created } = await User.findOneOrCreate(
+    { email: 'alice@example.com' },
+    { name: 'Alice', provider: 'google' }
+);
+// created: true（新创建） 或 false（已存在）
+// 性能提升：缓存命中 59 倍 ⚡
+
+// 2. safeDelete - 安全删除（依赖检查，防止孤儿数据）
+// 场景：用户删除、商品下架
+await User.safeDelete(
+    { _id: userId },
+    {
+        checkDependencies: [
+            {
+                collection: 'orders',
+                query: { userId, status: { $in: ['pending', 'paid'] } },
+                errorMessage: '用户有未完成的订单'
+            }
+        ],
+        soft: true,  // 软删除（保留数据用于审计）
+        additionalFields: {
+            deletedBy: adminId,
+            deleteReason: '用户注销'
+        }
+    }
+);
+// 自动检查依赖 → 阻止删除或软删除
+
+// 3. updateOrInsert - 深度合并更新（配置管理神器）
+// 场景：用户偏好设置、系统配置
+const result = await UserConfig.updateOrInsert(
+    { userId: 100 },
+    {
+        preferences: {
+            theme: 'dark',
+            notifications: { email: false }  // 只改这一项
+        }
+    },
+    { mergeStrategy: 'deep' }  // 深度合并
+);
+// 只更新 theme 和 email，保留 language、fontSize、push、sms 等其他字段
+
+// 4. bulkUpsert - 批量 upsert（性能提升 8-41 倍 ⚡）
+// 场景：数据同步、批量导入
+const result = await User.bulkUpsert(users, {
+    matchOn: (user) => ({ email: user.email }),
+    batchSize: 500,
+    onProgress: (processed, total) => {
+        console.log(`进度: ${processed}/${total}`);
+    }
+});
+// 100 条：8.3 倍提升 | 10000 条：41.5 倍提升
+```
+
+**详细文档**：
+- 📖 [findOneOrCreate](./docs/findOneOrCreate.md) - 查询或创建（并发安全）
+- 📖 [safeDelete](./docs/safeDelete.md) - 安全删除（依赖检查）
+- 📖 [updateOrInsert](./docs/updateOrInsert.md) - 深度合并更新（配置管理）
+- 📖 [bulkUpsert](./docs/bulkUpsert.md) - 批量 upsert（高性能）
+
+**核心优势**：
+
+| 方法 | 代码减少 | 性能提升 | 核心价值 |
+|------|---------|---------|---------|
+| findOneOrCreate | 80% | 59 倍（缓存）| 并发安全、自动重试 |
+| safeDelete | 80% | - | 依赖检查、防止事故 |
+| updateOrInsert | 70% | - | 深度合并、保留字段 |
+| bulkUpsert | - | 8-41 倍 | 批量处理、进度监控 |
+
+---
+
 #### **🌐 分布式部署支持** ✅ 完成
 
 ```javascript

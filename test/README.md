@@ -54,6 +54,11 @@ test/
 - `count.test.js` - 统计功能测试
 - `aggregate.test.js` - 聚合查询测试
 - `distinct.test.js` - 字段去重测试
+- **v1.2.0 扩展方法**（2024-12-04 新增）🆕:
+  - `findOneOrCreate.test.js` - 查询或创建测试（16 个测试，并发安全）
+  - `safeDelete.test.js` - 安全删除测试（16 个测试，依赖检查）
+  - `updateOrInsert.test.js` - 深度合并更新测试（14 个测试，配置管理）
+  - `bulkUpsert.test.js` - 批量 upsert 测试（12 个测试，性能优化）
 
 ### 基础设施测试（infrastructure/）
 **测试对象**: 底层支撑系统和内部工具

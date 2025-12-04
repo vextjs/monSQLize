@@ -668,6 +668,155 @@ u        /**
             value: any | null;
         }>;
 
+        /**
+         * 查询或创建文档（v1.2.0 扩展方法）
+         * @param query - 查询条件
+         * @param defaults - 如果文档不存在，用于创建的默认值
+         * @param options - 操作选项
+         * @returns Promise<FindOneOrCreateResult>
+         * @example
+         * // OAuth 登录场景
+         * const { doc, created } = await User.findOneOrCreate(
+         *   { email: 'alice@example.com' },
+         *   { name: 'Alice', provider: 'google' }
+         * );
+         */
+        findOneOrCreate(
+            query: Record<string, any>,
+            defaults: Record<string, any>,
+            options?: {
+                projection?: Record<string, any>;
+                maxTimeMS?: number;
+                comment?: string;
+                cache?: number;
+                session?: any;
+            }
+        ): Promise<{
+            doc: any;
+            created: boolean;
+        }>;
+
+        /**
+         * 安全删除文档（v1.2.0 扩展方法）
+         * @param query - 查询条件
+         * @param options - 安全删除选项
+         * @returns Promise<SafeDeleteResult>
+         * @example
+         * // 删除前检查依赖
+         * await User.safeDelete(
+         *   { _id: userId },
+         *   {
+         *     checkDependencies: [
+         *       {
+         *         collection: 'orders',
+         *         query: { userId, status: 'pending' },
+         *         errorMessage: '用户有未完成的订单'
+         *       }
+         *     ],
+         *     soft: true,
+         *     additionalFields: { deletedBy: adminId, deleteReason: '用户注销' }
+         *   }
+         * );
+         */
+        safeDelete(
+            query: Record<string, any>,
+            options?: {
+                checkDependencies?: Array<{
+                    collection: string;
+                    query: Record<string, any>;
+                    allowCount?: number;
+                    errorMessage?: string;
+                }>;
+                soft?: boolean;
+                softDeleteField?: string;
+                softDeleteValue?: any;
+                additionalFields?: Record<string, any>;
+                maxTimeMS?: number;
+                comment?: string;
+                session?: any;
+            }
+        ): Promise<{
+            deletedCount: number;
+            dependencyChecks: Array<{
+                collection: string;
+                count: number;
+                allowCount: number;
+                passed: boolean;
+            }>;
+        }>;
+
+        /**
+         * 深度合并更新或插入（v1.2.0 扩展方法）
+         * @param query - 查询条件
+         * @param update - 更新的数据
+         * @param options - 操作选项
+         * @returns Promise<UpdateOrInsertResult>
+         * @example
+         * // 配置管理：只更新指定字段，保留其他字段
+         * const result = await UserConfig.updateOrInsert(
+         *   { userId: 100 },
+         *   {
+         *     preferences: {
+         *       theme: 'dark',
+         *       notifications: { email: false }
+         *     }
+         *   },
+         *   { mergeStrategy: 'deep' }
+         * );
+         */
+        updateOrInsert(
+            query: Record<string, any>,
+            update: Record<string, any>,
+            options?: {
+                mergeStrategy?: 'replace' | 'shallow' | 'deep';
+                projection?: Record<string, any>;
+                maxTimeMS?: number;
+                comment?: string;
+                session?: any;
+            }
+        ): Promise<{
+            doc: any;
+            upserted: boolean;
+            modified: boolean;
+        }>;
+
+        /**
+         * 批量 upsert 操作（v1.2.0 扩展方法）
+         * @param items - 要 upsert 的项目列表
+         * @param options - 批量 upsert 选项
+         * @returns Promise<BulkUpsertResult>
+         * @example
+         * // 批量同步用户数据
+         * const result = await User.bulkUpsert(users, {
+         *   matchOn: (user) => ({ email: user.email }),
+         *   batchSize: 500,
+         *   onProgress: (processed, total) => {
+         *     console.log(`进度: ${processed}/${total}`);
+         *   }
+         * });
+         */
+        bulkUpsert(
+            items: Array<Record<string, any>>,
+            options: {
+                matchOn: (item: Record<string, any>) => Record<string, any>;
+                batchSize?: number;
+                onProgress?: (processed: number, total: number, batch: number, totalBatches: number) => void;
+                maxTimeMS?: number;
+                comment?: string;
+                session?: any;
+            }
+        ): Promise<{
+            upsertedCount: number;
+            modifiedCount: number;
+            totalCount: number;
+            errors: Array<{
+                batch: number;
+                startIndex: number;
+                endIndex: number;
+                error: string;
+            }>;
+        }>;
+
         invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
     }
 

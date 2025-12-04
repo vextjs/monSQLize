@@ -9,12 +9,12 @@ describe('Bookmark 维护 APIs', function() {
 
     before(async function() {
         // config.useMemoryServer = true 时，MonSQLize 内部会自动创建 MongoMemoryServer
-        client = new MonSQLize({ 
+        client = new MonSQLize({
             type: 'mongodb',
             databaseName: 'test_bookmarks',
             config: { useMemoryServer: true },
             cache: { enabled: true, maxSize: 1000 }, // 启用缓存
-            defaults: { limit: 5, bookmarkTTL: 5000 } 
+            defaults: { limit: 5, bookmarkTTL: 5000 }
         });
         const dbAccessor = await client.connect();
         accessor = dbAccessor.collection('users');
@@ -37,7 +37,7 @@ describe('Bookmark 维护 APIs', function() {
     describe('prewarmBookmarks', function() {
         it('应成功预热指定页面的 bookmark', async function() {
             await accessor.clearBookmarks(); // 清空缓存
-            
+
             const keyDims = { sort: { _id: 1 }, limit: 5 };
             const result = await accessor.prewarmBookmarks(keyDims, [1, 2, 3]);
 
@@ -52,7 +52,7 @@ describe('Bookmark 维护 APIs', function() {
 
         it('应跳过无效的页码', async function() {
             await accessor.clearBookmarks(); // 清空缓存
-            
+
             const keyDims = { sort: { _id: 1 }, limit: 5 };
             const result = await accessor.prewarmBookmarks(keyDims, [1, 0, -1, 'invalid', null]);
 
@@ -62,7 +62,7 @@ describe('Bookmark 维护 APIs', function() {
 
         it('应在超出数据范围时失败', async function() {
             await accessor.clearBookmarks(); // 清空缓存
-            
+
             const keyDims = { sort: { _id: 1 }, limit: 5 };
             const result = await accessor.prewarmBookmarks(keyDims, [100, 200]); // 超出范围
 
@@ -71,7 +71,7 @@ describe('Bookmark 维护 APIs', function() {
 
         it('应支持复杂查询的 bookmark', async function() {
             await accessor.clearBookmarks(); // 清空缓存
-            
+
             const keyDims = {
                 query: { score: { $gte: 200 } },
                 sort: { score: -1 },
@@ -108,7 +108,7 @@ describe('Bookmark 维护 APIs', function() {
     describe('listBookmarks', function() {
         it('应列出特定查询的 bookmark', async function() {
             await accessor.clearBookmarks(); // 清空缓存
-            
+
             const keyDims = { sort: { _id: 1 }, limit: 5 };
             await accessor.prewarmBookmarks(keyDims, [1, 2, 3]); // 连续页
 
@@ -121,7 +121,7 @@ describe('Bookmark 维护 APIs', function() {
 
         it('应列出所有 bookmark（不传 keyDims）', async function() {
             await accessor.clearBookmarks(); // 清空缓存
-            
+
             const keyDims1 = { sort: { _id: 1 }, limit: 5 };
             const keyDims2 = { sort: { score: -1 }, limit: 3 };
 
@@ -136,7 +136,7 @@ describe('Bookmark 维护 APIs', function() {
 
         it('应在无 bookmark 时返回空结果', async function() {
             await accessor.clearBookmarks(); // 清空缓存
-            
+
             const keyDims = { sort: { _id: 1 }, limit: 5 };
             const result = await accessor.listBookmarks(keyDims);
 
@@ -161,7 +161,7 @@ describe('Bookmark 维护 APIs', function() {
     describe('clearBookmarks', function() {
         it('应清除特定查询的 bookmark', async function() {
             await accessor.clearBookmarks(); // 清空缓存
-            
+
             const keyDims1 = { sort: { _id: 1 }, limit: 5 };
             const keyDims2 = { sort: { score: -1 }, limit: 3 };
 
@@ -182,7 +182,7 @@ describe('Bookmark 维护 APIs', function() {
 
         it('应清除所有 bookmark（不传 keyDims）', async function() {
             await accessor.clearBookmarks(); // 清空缓存
-            
+
             const keyDims1 = { sort: { _id: 1 }, limit: 5 };
             const keyDims2 = { sort: { score: -1 }, limit: 3 };
 
@@ -201,7 +201,7 @@ describe('Bookmark 维护 APIs', function() {
 
         it('应在无 bookmark 时返回 0', async function() {
             await accessor.clearBookmarks(); // 清空缓存
-            
+
             const keyDims = { sort: { _id: 1 }, limit: 5 };
             const result = await accessor.clearBookmarks(keyDims);
 

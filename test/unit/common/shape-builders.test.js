@@ -35,7 +35,7 @@ describe('shape-builders 测试套件', function () {
 
         it('应该处理空 options', () => {
             const result = buildCommonLogExtra(null);
-            
+
             assert.ok(result);
             assert.strictEqual(typeof result, 'object');
             assert.strictEqual(Object.keys(result).length, 0, '空 options 应该返回空对象');
@@ -43,7 +43,7 @@ describe('shape-builders 测试套件', function () {
 
         it('应该处理 undefined options', () => {
             const result = buildCommonLogExtra(undefined);
-            
+
             assert.ok(result);
             assert.strictEqual(typeof result, 'object');
         });
@@ -106,7 +106,7 @@ describe('shape-builders 测试套件', function () {
 
             assert.ok(result.pipelineStages);
             assert.deepStrictEqual(result.pipelineStages, ['$match', '$project']);
-            
+
             // 验证不包含敏感参数
             const resultStr = JSON.stringify(result);
             assert.ok(!resultStr.includes('secret123'), '不应该包含密码');
@@ -138,7 +138,7 @@ describe('shape-builders 测试套件', function () {
         it('应该限制 pipeline 阶段数量（最多30个）', () => {
             // 创建 50 个阶段
             const pipeline = Array(50).fill(null).map((_, i) => ({ [`$stage${i}`]: {} }));
-            
+
             const options = { pipeline };
 
             const result = buildCommonLogExtra(options);
@@ -158,7 +158,7 @@ describe('shape-builders 测试套件', function () {
 
             // 应该不报错
             const result = buildCommonLogExtra(options);
-            
+
             // 可能包含部分阶段或跳过无效阶段
             assert.ok(result.pipelineStages || result.pipelineStages === undefined);
         });
@@ -175,7 +175,7 @@ describe('shape-builders 测试套件', function () {
 
             assert.strictEqual(result.hasCursor, true);
             assert.strictEqual(result.cursorDirection, 'after');
-            
+
             // 不应该包含游标值本身（去敏）
             assert.strictEqual(result.after, undefined, '不应该包含游标值');
         });
@@ -190,7 +190,7 @@ describe('shape-builders 测试套件', function () {
 
             assert.strictEqual(result.hasCursor, true);
             assert.strictEqual(result.cursorDirection, 'before');
-            
+
             // 不应该包含游标值本身（去敏）
             assert.strictEqual(result.before, undefined, '不应该包含游标值');
         });
@@ -259,7 +259,7 @@ describe('shape-builders 测试套件', function () {
             assert.strictEqual(result.projection, undefined);
             assert.strictEqual(result.customOption, undefined);
             assert.strictEqual(result.after, undefined);
-            
+
             const resultStr = JSON.stringify(result);
             assert.ok(!resultStr.includes('Alice'), '不应该包含查询值');
             assert.ok(!resultStr.includes('password'), '不应该包含密码字段');
@@ -313,7 +313,7 @@ describe('shape-builders 测试套件', function () {
         it('应该处理包含循环引用的 pipeline（容错）', () => {
             const circular = {};
             circular.self = circular;
-            
+
             const options = {
                 pipeline: [
                     { $match: { status: 'active' } },
@@ -323,7 +323,7 @@ describe('shape-builders 测试套件', function () {
 
             // 应该不报错（内部有 try-catch）
             const result = buildCommonLogExtra(options);
-            
+
             // 可能部分提取或完全忽略 pipeline
             assert.ok(result);
         });

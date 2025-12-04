@@ -28,7 +28,7 @@ describe('explain 方法测试', function() {
         // 准备测试数据
         const usersCollection = db.collection('users');
         await usersCollection.deleteMany({});
-        
+
         const users = [];
         for (let i = 1; i <= 100; i++) {
             users.push({
@@ -180,7 +180,7 @@ describe('explain 方法测试', function() {
         assert.ok(plan);
         assert.ok(plan.queryPlanner);
         assert.ok(plan.executionStats);
-        
+
         console.log('  ✓ 复杂查询执行计划:');
         console.log(`    - 使用索引: ${plan.queryPlanner.winningPlan.inputStage?.indexName || '无'}`);
         console.log(`    - 扫描文档: ${plan.executionStats.totalDocsExamined}`);

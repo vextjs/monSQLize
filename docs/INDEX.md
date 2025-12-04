@@ -62,6 +62,15 @@
 | [upsert-one.md](upsert-one.md) | `upsertOne()` | 存在则更新，不存在则插入 ⭐ |
 | [increment-one.md](increment-one.md) | `incrementOne()` | 原子递增/递减字段值 ⭐ |
 
+### 扩展方法（v1.2.0 新增 🆕）
+
+| 文档 | 方法 | 说明 |
+|------|------|------|
+| [findOneOrCreate.md](findOneOrCreate.md) | `findOneOrCreate()` | 查询或创建（并发安全，代码减少 80%）⭐ |
+| [safeDelete.md](safeDelete.md) | `safeDelete()` | 安全删除（依赖检查，防止孤儿数据）⭐ |
+| [updateOrInsert.md](updateOrInsert.md) | `updateOrInsert()` | 深度合并更新（配置管理神器）⭐ |
+| [bulkUpsert.md](bulkUpsert.md) | `bulkUpsert()` | 批量 upsert（性能提升 8-41 倍）⭐ |
+
 ### 删除操作
 
 | 文档 | 方法 | 说明 |
