@@ -6,9 +6,11 @@
 
 [![npm version](https://img.shields.io/npm/v/monsqlize.svg)](https://www.npmjs.com/package/monsqlize)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Test](https://github.com/vextjs/monSQLize/workflows/Test%20%26%20Coverage/badge.svg)](https://github.com/vextjs/monSQLize/actions)
+[![Lint](https://github.com/vextjs/monSQLize/workflows/Lint/badge.svg)](https://github.com/vextjs/monSQLize/actions)
 [![MongoDB](https://img.shields.io/badge/MongoDB-4.4%2B-green.svg)](https://www.mongodb.com/)
 [![Performance](https://img.shields.io/badge/Performance-10--100x-red.svg)]()
-[![Coverage](https://img.shields.io/badge/Coverage-77%25-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/Coverage-77%25-brightgreen.svg)](https://codecov.io/gh/vextjs/monSQLize)
 
 [![Node.js](https://img.shields.io/badge/Node.js-14%2B-brightgreen)](https://nodejs.org/)
 [![MongoDB Driver](https://img.shields.io/badge/Driver-4.x%20%7C%205.x%20%7C%206.x%20%7C%207.x-blue)](docs/COMPATIBILITY.md)
