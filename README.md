@@ -914,7 +914,7 @@ const msq = new MonSQLize({
 
 📖 详细文档：
 - [ObjectId 转换示例](./examples/objectid-conversion.examples.js)
-- [性能测试报告](./test/performance/objectid-conversion.bench.js)
+- [性能测试报告](./docs/objectid-conversion-testing.md)
 
 ---
 
