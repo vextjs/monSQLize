@@ -790,6 +790,135 @@ console.log(`共 ${total} 条记录，当前返回 ${data.length} 条`);
 
 ---
 
+### 🆔 ObjectId 自动转换 ⭐ v1.3.0
+
+**彻底解决 ObjectId 字符串混存问题，让代码更简洁**：
+
+#### 功能特点
+
+- ✅ **自动转换** - 所有方法自动将 ObjectId 字符串转换为 ObjectId 实例
+- ✅ **零学习成本** - 无需手动调用 `new ObjectId()`
+- ✅ **高性能** - 开销 < 10%，智能缓存避免重复转换
+- ✅ **100% 兼容** - 完全向后兼容，可随时启用/禁用
+- ✅ **智能识别** - 只转换符合 ObjectId 格式的字段（24位16进制）
+- ✅ **深度支持** - 支持嵌套对象、数组、聚合管道全场景
+
+#### 基础使用
+
+```javascript
+// 默认启用，无需配置
+const msq = new MonSQLize({
+    type: 'mongodb',
+    config: { uri: 'mongodb://localhost:27017/mydb' }
+});
+
+const { collection } = await msq.connect();
+const users = collection('users');
+
+// ✅ 查询 - 使用字符串，自动转换
+const user = await users.findOne({
+    _id: '507f1f77bcf86cd799439011'  // ✅ 自动转换为 ObjectId
+});
+
+// ✅ 插入 - 文档中的 ObjectId 字符串自动转换
+await users.insertOne({
+    name: 'Alice',
+    managerId: '507f1f77bcf86cd799439012',      // ✅ 自动转换
+    departmentId: '507f1f77bcf86cd799439013'    // ✅ 自动转换
+});
+
+// ✅ 更新 - filter 和 update 中的 ObjectId 都转换
+await users.updateOne(
+    { _id: '507f1f77bcf86cd799439011' },        // ✅ 自动转换
+    { $set: { managerId: '507f1f77bcf86cd799439014' } } // ✅ 自动转换
+);
+
+// ✅ 聚合 - pipeline 中的 ObjectId 自动转换
+const results = await users.aggregate([
+    { $match: { managerId: '507f1f77bcf86cd799439011' } }, // ✅ 自动转换
+    { $lookup: {
+        from: 'departments',
+        localField: 'departmentId',
+        foreignField: '_id',
+        as: 'department'
+    }}
+]);
+```
+
+#### 解决 ObjectId 混存问题
+
+```javascript
+// 场景：数据库中 ObjectId 混存
+// - 有些文档的 userId 是 ObjectId 类型
+// - 有些文档的 userId 是 String 类型
+
+// ❌ 之前：需要分别查询
+const objectIdUsers = await users.find({ userId: new ObjectId('507f...') });
+const stringUsers = await users.find({ userId: '507f...' });
+
+// ✅ 现在：统一使用字符串，自动转换
+const allUsers = await users.find({
+    userId: '507f1f77bcf86cd799439011'  // 自动转换，能匹配 ObjectId 类型
+});
+
+// ✅ 新插入的数据自动统一为 ObjectId 类型
+await users.insertOne({
+    name: 'Bob',
+    userId: '507f1f77bcf86cd799439012'  // 存储为 ObjectId，统一数据类型
+});
+```
+
+#### 高级配置
+
+```javascript
+// 自定义配置
+const msq = new MonSQLize({
+    type: 'mongodb',
+    config: { uri: '...' },
+    autoConvertObjectId: {
+        enabled: true,                      // 启用自动转换（默认）
+        excludeFields: ['code', 'sku'],     // 排除的字段（业务编码）
+        customFieldPatterns: [/^ref.*$/],   // 自定义匹配模式
+        maxDepth: 10,                       // 最大嵌套深度（默认10）
+        logLevel: 'warn'                    // 日志级别
+    }
+});
+
+// 禁用自动转换
+const msq = new MonSQLize({
+    type: 'mongodb',
+    config: { uri: '...' },
+    autoConvertObjectId: false  // 禁用，需要手动转换
+});
+```
+
+#### 支持的场景
+
+| 场景 | 支持 | 说明 |
+|------|------|------|
+| **查询方法** | ✅ | find, findOne, count, distinct, aggregate 等 |
+| **写入方法** | ✅ | insert, update, delete, replace, upsert 等 |
+| **聚合管道** | ✅ | $match, $lookup, $graphLookup 等 |
+| **操作符** | ✅ | $in, $nin, $ne, $or, $and, $elemMatch 等 |
+| **嵌套对象** | ✅ | 支持任意深度嵌套（可配置） |
+| **数组** | ✅ | 数组中的 ObjectId 字符串自动转换 |
+| **链式调用** | ✅ | FindChain 完全支持 |
+| **事务** | ✅ | 事务内的操作自动转换 |
+| **缓存** | ✅ | 缓存键自动处理 ObjectId |
+
+#### 性能优势
+
+- **智能缓存** - 已转换的对象缓存复用，避免重复转换
+- **按需转换** - 仅转换符合条件的字段，不影响其他数据
+- **深度限制** - 防止深度嵌套导致的性能问题
+- **性能开销** - < 10%，几乎无感知
+
+📖 详细文档：
+- [ObjectId 转换示例](./examples/objectid-conversion.examples.js)
+- [性能测试报告](./test/performance/objectid-conversion.bench.js)
+
+---
+
 ### 高性能批量插入
 
 **比原生驱动快 10-50 倍**：
