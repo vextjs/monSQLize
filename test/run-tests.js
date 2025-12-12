@@ -135,7 +135,8 @@ async function runTests() {
       './unit/utils/cursor.test.js',
       './unit/utils/normalize.test.js',
       './unit/utils/page-result.test.js',
-      './unit/utils/shape-builders.test.js'
+      './unit/utils/shape-builders.test.js',
+      './unit/utils/validation.test.js'
     ];
     title = '工具函数测试套件';
   } else if (testSuite === 'infrastructure') {
