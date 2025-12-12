@@ -905,7 +905,7 @@ describe('自动 ObjectId 转换功能测试', function() {
 
     describe('事务场景', function() {
         it('事务中的 ObjectId 转换', async function() {
-            // 内存数据库不支持事务，跳过此测试
+            // 事务需要副本集环境，内存数据库副本集启动较慢，跳过
             this.skip();
         });
     });
