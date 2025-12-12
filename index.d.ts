@@ -302,6 +302,16 @@ declare module 'monsqlize' {
         wtimeout?: number;               // 写超时时间（毫秒）
     }
 
+    /**
+     * 简化的插入选项（用于简化调用形式）
+     */
+    interface InsertOneSimplifiedOptions {
+        writeConcern?: WriteConcern;     // 写确认级别（可选）
+        bypassDocumentValidation?: boolean; // 跳过文档验证（可选）
+        comment?: string;                // 查询注释（用于生产环境日志跟踪）
+        session?: any;                   // 事务会话
+    }
+
     interface InsertOneOptions {
         document: any;                   // 要插入的文档
         writeConcern?: WriteConcern;     // 写确认级别（可选）
@@ -312,6 +322,17 @@ declare module 'monsqlize' {
     interface InsertOneResult {
         acknowledged: boolean;           // 是否被确认
         insertedId: any;                 // 插入的文档 _id
+    }
+
+    /**
+     * 简化的批量插入选项（用于简化调用形式）
+     */
+    interface InsertManySimplifiedOptions {
+        ordered?: boolean;               // 是否有序插入（默认 true）
+        writeConcern?: WriteConcern;     // 写确认级别（可选）
+        bypassDocumentValidation?: boolean; // 跳过文档验证（可选）
+        comment?: string;                // 查询注释（用于生产环境日志跟踪）
+        session?: any;                   // 事务会话
     }
 
     interface InsertManyOptions {
@@ -484,16 +505,16 @@ declare module 'monsqlize' {
         driver?: { connected: boolean };
     }
 
-    interface CollectionAccessor {
+    interface CollectionAccessor<TSchema = any> {
         getNamespace(): { iid: string; type: string; db: string; collection: string };
         dropCollection(): Promise<boolean>;
         createCollection(name?: string | null, options?: any): Promise<boolean>;
         createView(viewName: string, source: string, pipeline?: any[]): Promise<boolean>;
 
-        // findOne 重载：支持 meta 参数
-        findOne(query?: any, options?: Omit<FindOptions, 'meta'>): Promise<any | null>;
-        findOne(query: any, options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<any | null>>;
-        findOne(query?: any, options?: FindOptions): Promise<any | null | ResultWithMeta<any | null>>;
+        // findOne 重载：支持 meta 参数和泛型
+        findOne<T = TSchema>(query?: any, options?: Omit<FindOptions, 'meta'>): Promise<T | null>;
+        findOne<T = TSchema>(query: any, options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T | null>>;
+        findOne<T = TSchema>(query?: any, options?: FindOptions): Promise<T | null | ResultWithMeta<T | null>>;
 
         /**
          * 通过 _id 查询单个文档（便利方法）
@@ -563,9 +584,9 @@ u        /**
         ): Promise<any[]>;
 
         // find 重载：支持 meta 参数和链式调用 (v2.0+)
-        find<T = any>(query?: any): FindChain<T>;
-        find<T = any>(query: any, options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;
-        find<T = any>(query?: any, options?: FindOptions): Promise<T[]> | FindChain<T> | ResultWithMeta<T[]>;
+        find<T = TSchema>(query?: any): FindChain<T>;
+        find<T = TSchema>(query: any, options: FindOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;
+        find<T = TSchema>(query?: any, options?: FindOptions): Promise<T[]> | FindChain<T> | ResultWithMeta<T[]>;
 
         // count 重载：支持 meta 参数
         count(query?: any, options?: Omit<CountOptions, 'meta'>): Promise<number>;
@@ -573,9 +594,9 @@ u        /**
         count(query?: any, options?: CountOptions): Promise<number | ResultWithMeta<number>>;
 
         // aggregate 重载：支持 meta 参数和链式调用 (v2.0+)
-        aggregate<T = any>(pipeline?: any[]): AggregateChain<T>;
-        aggregate<T = any>(pipeline: any[], options: AggregateOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;
-        aggregate<T = any>(pipeline?: any[], options?: AggregateOptions): Promise<T[]> | AggregateChain<T> | ResultWithMeta<T[]>;
+        aggregate<T = TSchema>(pipeline?: any[]): AggregateChain<T>;
+        aggregate<T = TSchema>(pipeline: any[], options: AggregateOptions & { meta: true | MetaOptions }): Promise<ResultWithMeta<T[]>>;
+        aggregate<T = TSchema>(pipeline?: any[], options?: AggregateOptions): Promise<T[]> | AggregateChain<T> | ResultWithMeta<T[]>;
 
         // distinct 重载：支持 meta 参数
         distinct<T = any>(field: string, query?: any, options?: Omit<DistinctOptions, 'meta'>): Promise<T[]>;
@@ -594,10 +615,13 @@ u        /**
         clearBookmarks(keyDims?: BookmarkKeyDims): Promise<ClearBookmarksResult>;
 
         // findPage：已在 PageResult 中包含 meta 字段，无需重载
-        findPage(options: FindPageOptions): Promise<PageResult>;
+        findPage<T = TSchema>(options: FindPageOptions): Promise<PageResult<T>>;
 
-        // 写入操作
+        // 写入操作 - 支持简化调用和完整配置
+        insertOne<T = TSchema>(document: T, options?: InsertOneSimplifiedOptions): Promise<InsertOneResult>;
         insertOne(options: InsertOneOptions): Promise<InsertOneResult>;
+
+        insertMany<T = TSchema>(documents: T[], options?: InsertManySimplifiedOptions): Promise<InsertManyResult>;
         insertMany(options: InsertManyOptions): Promise<InsertManyResult>;
 
         /**
@@ -672,8 +696,8 @@ u        /**
     }
 
     type DbAccessor = {
-        collection: (name: string) => CollectionAccessor;
-        db: (dbName: string) => { collection: (name: string) => CollectionAccessor };
+        collection<TSchema = any>(name: string): CollectionAccessor<TSchema>;
+        db(dbName: string): { collection<TSchema = any>(name: string): CollectionAccessor<TSchema> };
     };
 
     export default class MonSQLize {
@@ -745,6 +769,18 @@ u        /**
             callback: (transaction: Transaction) => Promise<T>,
             options?: TransactionOptions
         ): Promise<T>;
+
+        /**
+         * 创建 Redis 缓存适配器（静态方法）
+         * @param client - Redis 客户端实例（ioredis）
+         * @param options - 可选配置
+         * @returns Redis 缓存适配器实例
+         * @example
+         * const Redis = require('ioredis');
+         * const redis = new Redis();
+         * const redisCache = MonSQLize.createRedisCacheAdapter(redis);
+         */
+        static createRedisCacheAdapter(client: any, options?: any): CacheLike;
     }
 
     // ============================================================================

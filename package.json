@@ -65,6 +65,7 @@
     "test:compatibility:server:docker": "node scripts/test-server-versions.js",
     "lint": "eslint lib/ test/ --ext .js",
     "lint:fix": "eslint lib/ test/ --ext .js --fix",
+    "type-check": "tsc",
     "postpublish": "echo '✅ 发布成功！请创建 GitHub Release: https://github.com/vextjs/monSQLize/releases/new?tag=v'$npm_package_version"
   },
   "peerDependenciesMeta": {
@@ -77,13 +78,16 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@types/node": "^25.0.1",
     "benchmark": "^2.1.4",
     "chai": "^6.2.1",
     "eslint": "^9.39.1",
     "mocha": "^11.7.5",
     "mongodb-memory-server": "^10.1.2",
     "nyc": "^15.1.0",
-    "sinon": "^21.0.0"
+    "sinon": "^21.0.0",
+    "tsd": "^0.33.0",
+    "typescript": "^5.9.3"
   },
   "nyc": {
     "include": [
