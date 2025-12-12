@@ -31,7 +31,7 @@ describe('连接管理核心测试', function() {
                     `第 ${i + 1} 个连接的 collection 方法应该相同`
                 );
             }
-            
+
             // 验证底层只创建了一个 adapter
             assert.ok(msq._adapter, '应该有 _adapter');
             assert.ok(msq._adapter.client, '应该只有一个 client');
@@ -51,7 +51,7 @@ describe('连接管理核心测试', function() {
             await msq.connect();
 
             const conn = await msq.connect();
-            
+
             // 测试空字符串
             try {
                 conn.collection('');
@@ -101,17 +101,17 @@ describe('连接管理核心测试', function() {
             // 模拟多次连接和关闭循环
             for (let i = 0; i < 3; i++) {
                 await msq.connect();
-                
+
                 // 访问集合以创建缓存
                 const conn = await msq.connect();
                 const coll = conn.collection('test_coll');
                 assert.ok(coll, '应该能访问集合');
-                
+
                 // 验证缓存被创建
                 assert.ok(msq._adapter._iidCache, `第 ${i + 1} 次：应该创建 _iidCache`);
-                
+
                 await msq.close();
-                
+
                 // 验证资源已清理
                 assert.strictEqual(msq._adapter, null, `第 ${i + 1} 次：关闭后 _adapter 应该为 null`);
                 console.log(`     ✓ 第 ${i + 1} 次循环：资源已清理`);
@@ -130,7 +130,7 @@ describe('连接管理核心测试', function() {
             await msq.connect();
 
             const conn = await msq.connect();
-            
+
             // 测试空数据库名
             try {
                 conn.db('').collection('test_coll');

@@ -9,9 +9,9 @@ const MonSQLize = require('../../lib/index');
 describe('Watch - Integration Tests (Replica Set)', function() {
     // 副本集启动需要更多时间
     this.timeout(30000);
-    
+
     let msq, collection, watcher;
-    
+
     before(async function() {
         // 启动副本集模式的 MongoDB Memory Server
         msq = new MonSQLize({
@@ -26,14 +26,14 @@ describe('Watch - Integration Tests (Replica Set)', function() {
                 }
             }
         });
-        
+
         await msq.connect();
         collection = msq.dbInstance.collection('test_users');
-        
+
         // 清空集合
         await collection.deleteMany({});
     });
-    
+
     after(async function() {
         // 清理 watcher
         if (watcher && !watcher.isClosed()) {
@@ -61,20 +61,20 @@ describe('Watch - Integration Tests (Replica Set)', function() {
             // 忽略停止错误
         }
     });
-    
+
     afterEach(async function() {
         if (watcher && !watcher.isClosed()) {
             await watcher.close();
         }
     });
-    
+
     describe('基础 Change Streams', function() {
-        
+
         it('should receive insert events', function(done) {
             this.timeout(10000);
-            
+
             watcher = collection.watch();
-            
+
             watcher.on('change', (change) => {
                 try {
                     assert.strictEqual(change.operationType, 'insert');
@@ -85,22 +85,22 @@ describe('Watch - Integration Tests (Replica Set)', function() {
                     done(error);
                 }
             });
-            
+
             // 等待 watch 建立连接
             setTimeout(async () => {
                 await collection.insertOne({ name: 'Alice', age: 25 });
             }, 1000);
         });
-        
+
         it('should receive update events', function(done) {
             this.timeout(10000);
-            
+
             // 先插入数据
             collection.insertOne({ name: 'Bob', age: 30 }).then((result) => {
                 const userId = result.insertedId;
-                
+
                 watcher = collection.watch();
-                
+
                 watcher.on('change', (change) => {
                     try {
                         assert.strictEqual(change.operationType, 'update');
@@ -111,7 +111,7 @@ describe('Watch - Integration Tests (Replica Set)', function() {
                         done(error);
                     }
                 });
-                
+
                 // 等待 watch 建立连接
                 setTimeout(async () => {
                     await collection.updateOne(
@@ -121,16 +121,16 @@ describe('Watch - Integration Tests (Replica Set)', function() {
                 }, 1000);
             });
         });
-        
+
         it('should receive delete events', function(done) {
             this.timeout(10000);
-            
+
             // 先插入数据
             collection.insertOne({ name: 'Charlie', age: 35 }).then((result) => {
                 const userId = result.insertedId;
-                
+
                 watcher = collection.watch();
-                
+
                 watcher.on('change', (change) => {
                     try {
                         assert.strictEqual(change.operationType, 'delete');
@@ -140,7 +140,7 @@ describe('Watch - Integration Tests (Replica Set)', function() {
                         done(error);
                     }
                 });
-                
+
                 // 等待 watch 建立连接
                 setTimeout(async () => {
                     await collection.deleteOne({ _id: userId });
@@ -148,19 +148,19 @@ describe('Watch - Integration Tests (Replica Set)', function() {
             });
         });
     });
-    
+
     describe('Pipeline 过滤', function() {
-        
+
         it('should filter by operationType', function(done) {
             this.timeout(10000);
-            
+
             // 只监听 insert 操作
             watcher = collection.watch([
                 { $match: { operationType: 'insert' } }
             ]);
-            
+
             let eventCount = 0;
-            
+
             watcher.on('change', (change) => {
                 eventCount++;
                 try {
@@ -169,18 +169,18 @@ describe('Watch - Integration Tests (Replica Set)', function() {
                     done(error);
                 }
             });
-            
+
             // 等待 watch 建立连接
             setTimeout(async () => {
                 // 插入（应该触发）
                 const result = await collection.insertOne({ name: 'David', age: 40 });
-                
+
                 // 更新（不应该触发）
                 await collection.updateOne(
                     { _id: result.insertedId },
                     { $set: { age: 41 } }
                 );
-                
+
                 // 检查结果
                 setTimeout(() => {
                     try {
@@ -193,32 +193,32 @@ describe('Watch - Integration Tests (Replica Set)', function() {
             }, 1000);
         });
     });
-    
+
     describe('自动缓存失效', function() {
-        
+
         it('should invalidate cache on insert', function(done) {
             this.timeout(10000);
-            
+
             watcher = collection.watch([], {
                 autoInvalidateCache: true
             });
-            
+
             let cacheInvalidated = false;
-            
+
             watcher.on('change', async () => {
                 // 等待缓存失效
                 await new Promise(resolve => setTimeout(resolve, 100));
-                
+
                 const stats = watcher.getStats();
                 if (stats.cacheInvalidations > 0) {
                     cacheInvalidated = true;
                 }
             });
-            
+
             // 等待 watch 建立连接
             setTimeout(async () => {
                 await collection.insertOne({ name: 'Eve', age: 28 });
-                
+
                 // 检查结果
                 setTimeout(() => {
                     try {
@@ -231,14 +231,14 @@ describe('Watch - Integration Tests (Replica Set)', function() {
             }, 1000);
         });
     });
-    
+
     describe('统计信息', function() {
-        
+
         it('should track statistics correctly', function(done) {
             this.timeout(10000);
-            
+
             watcher = collection.watch();
-            
+
             let changeReceived = false;
 
             // 监听 change 事件
@@ -249,7 +249,7 @@ describe('Watch - Integration Tests (Replica Set)', function() {
             // 等待 watch 建立连接
             setTimeout(async () => {
                 await collection.insertOne({ name: 'Frank', age: 32 });
-                
+
                 // 等待事件处理
                 setTimeout(() => {
                     const stats = watcher.getStats();
@@ -275,16 +275,16 @@ describe('Watch - Integration Tests (Replica Set)', function() {
             }, 1000);
         });
     });
-    
+
     describe('close 方法', function() {
-        
+
         it('should close watcher properly', async function() {
             watcher = collection.watch();
-            
+
             assert.strictEqual(watcher.isClosed(), false);
-            
+
             await watcher.close();
-            
+
             assert.strictEqual(watcher.isClosed(), true);
         });
     });

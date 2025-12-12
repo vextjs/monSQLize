@@ -158,7 +158,7 @@ describe('Cursor Utils', function() {
         });
 
         it('should handle multiple round-trips', function() {
-            let data = { _id: '507f1f77bcf86cd799439011', value: 42 };
+            const data = { _id: '507f1f77bcf86cd799439011', value: 42 };
             const sort = { value: -1, _id: 1 };
 
             // 第一次编码/解码

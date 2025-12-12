@@ -8,7 +8,7 @@ global.describe = function (name, fn) {
   console.log(`\n📦 ${name}`);
   // 提供一个带有 timeout 方法的上下文对象
   const context = {
-    timeout: function (ms) {
+    timeout (ms) {
       // 暂时忽略超时设置
       return this;
     }
@@ -19,7 +19,7 @@ global.describe = function (name, fn) {
 global.it = function (name, fn) {
   // 提供一个带有 timeout 方法的上下文对象
   const context = {
-    timeout: function (ms) {
+    timeout (ms) {
       // 暂时忽略超时设置
       return this;
     }
@@ -210,7 +210,7 @@ async function runTests() {
   } else if (testSuite === 'all') {
     // all 模式：顺序执行各个测试套件，避免并发初始化问题
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
-    console.log(`║            运行 所有测试套件（顺序模式）                  ║`);
+    console.log('║            运行 所有测试套件（顺序模式）                  ║');
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
     const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'watch', 'utils', 'infrastructure'];
@@ -356,7 +356,7 @@ async function runTests() {
       try {
         // 提供 this 上下文，包含 timeout 方法
         const testContext = {
-          timeout: function (ms) {
+          timeout (ms) {
             // 暂时忽略超时设置
             return this;
           }

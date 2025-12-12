@@ -6,14 +6,14 @@ const { stopMemoryServer } = require('../lib/mongodb/connect');
     let client;
     try {
         console.log('创建 MonSQLize 实例（内部会自动启动 Memory Server）...');
-        client = new MonSQLize({ 
+        client = new MonSQLize({
             type: 'mongodb',
             databaseName: 'test_debug',
             config: { useMemoryServer: true },
             cache: { enabled: true, maxSize: 1000 },
-            defaults: { limit: 5, bookmarkTTL: 5000 } 
+            defaults: { limit: 5, bookmarkTTL: 5000 }
         });
-        
+
         console.log('连接数据库...');
         const dbAccessor = await client.connect();
         const accessor = dbAccessor.collection('users');
@@ -46,7 +46,7 @@ const { stopMemoryServer } = require('../lib/mongodb/connect');
         const cache = client._adapter.cache;
         console.log('Cache 是否存在:', !!cache);
         console.log('Cache 类型:', cache?.constructor?.name);
-        
+
         if (cache && cache.keys) {
             const allKeys = await cache.keys('*');
             console.log('缓存中的所有 key:', allKeys);

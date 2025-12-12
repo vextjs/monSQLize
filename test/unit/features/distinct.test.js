@@ -53,7 +53,7 @@ describe('distinct 方法测试套件', function () {
         inStock: i % 4 !== 0,
         sales: Math.floor(Math.random() * 1000),
         rating: 3 + Math.random() * 2,
-        tags: tags,
+        tags,
         // 测试嵌套字段
         specs: {
           weight: Math.floor(Math.random() * 1000) + 100,

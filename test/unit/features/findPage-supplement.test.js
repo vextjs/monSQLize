@@ -114,7 +114,7 @@ describe('findPage 补充测试套件', function() {
         // 使用一个可能导致超时的查询
         const result = await collection('test_orders').findPage({
           query: {
-            $where: function() { return true; } // 这种查询可能很慢
+            $where() { return true; } // 这种查询可能很慢
           },
           sort: { _id: 1 },
           limit: 10,
