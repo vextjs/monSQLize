@@ -46,7 +46,7 @@
   },
   "homepage": "https://github.com/vextjs/monSQLize#readme",
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0"
   },
   "scripts": {
     "test": "node test/run-tests.js",

@@ -12,7 +12,7 @@
 [![Performance](https://img.shields.io/badge/Performance-10--100x-red.svg)]()
 [![Coverage](https://img.shields.io/badge/Coverage-77%25-brightgreen.svg)](https://codecov.io/gh/vextjs/monSQLize)
 
-[![Node.js](https://img.shields.io/badge/Node.js-14%2B-brightgreen)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-16%2B-brightgreen)](https://nodejs.org/)
 [![MongoDB Driver](https://img.shields.io/badge/Driver-4.x%20%7C%205.x%20%7C%206.x%20%7C%207.x-blue)](docs/COMPATIBILITY.md)
 [![Module](https://img.shields.io/badge/Module-CommonJS%20%7C%20ESM-purple)]()
 [![Compatibility](https://img.shields.io/badge/Compatibility-Matrix-purple)](docs/COMPATIBILITY.md)
