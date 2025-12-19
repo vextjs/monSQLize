@@ -193,6 +193,20 @@ async function runTests() {
   } else if (testSuite === 'transaction') {
     testFiles = ['./unit/features/transaction-unit.test.js'];
     title = 'MongoDB 事务单元测试套件';
+  } else if (testSuite === 'lock') {
+    // 业务锁测试使用 Mocha 运行
+    console.log('\n╔═══════════════════════════════════════════════════════════╗');
+    console.log('║          运行 业务级分布式锁 单元测试套件                  ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝\n');
+
+    const { spawnSync } = require('child_process');
+    const result = spawnSync('npx', ['mocha', 'test/unit/lock/business-lock.test.js', '--reporter', 'spec'], {
+      cwd: process.cwd(),
+      stdio: 'inherit',
+      shell: true
+    });
+
+    process.exit(result.status);
   } else if (testSuite === 'objectIdConversion') {
     // ObjectId 转换测试使用 Mocha 运行
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
@@ -229,7 +243,7 @@ async function runTests() {
     console.log('║            运行 所有测试套件（顺序模式）                  ║');
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'objectIdConversion', 'watch', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'lock', 'objectIdConversion', 'watch', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const failedSuites = []; // 收集失败的测试套件
@@ -279,7 +293,7 @@ async function runTests() {
     process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|countQueue|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|updateOne|updateMany|replaceOne|findOneAndUpdate|findOneAndReplace|deleteOne|deleteMany|findOneAndDelete|transaction|objectIdConversion|watch|utils|infrastructure|logger|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|countQueue|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|updateOne|updateMany|replaceOne|findOneAndUpdate|findOneAndReplace|deleteOne|deleteMany|findOneAndDelete|transaction|lock|objectIdConversion|watch|utils|infrastructure|logger|all]\n');
     process.exit(1);
   }
 

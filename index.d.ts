@@ -52,6 +52,95 @@ declare module 'monsqlize' {
     // ============================================================================
 
     /**
+     * 业务锁配置选项
+     * @since v1.4.0
+     */
+    interface LockOptions {
+        /** 锁过期时间（毫秒），默认 10000 */
+        ttl?: number;
+        /** 获取锁失败时的重试次数，默认 3 */
+        retryTimes?: number;
+        /** 重试间隔（毫秒），默认 100 */
+        retryDelay?: number;
+        /** Redis 不可用时是否降级为无锁执行，默认 false */
+        fallbackToNoLock?: boolean;
+    }
+
+    /**
+     * 锁对象
+     * 表示一个已获取的锁，提供释放和续期方法
+     * @since v1.4.0
+     */
+    interface Lock {
+        /** 锁的 Key */
+        readonly key: string;
+        /** 锁的唯一ID */
+        readonly lockId: string;
+        /** 是否已释放 */
+        readonly released: boolean;
+
+        /**
+         * 释放锁
+         * @returns Promise<boolean> 是否成功释放
+         */
+        release(): Promise<boolean>;
+
+        /**
+         * 续期（延长 TTL）
+         * @param ttl - 新的过期时间（毫秒），默认使用原TTL
+         * @returns Promise<boolean> 是否成功续期
+         */
+        renew(ttl?: number): Promise<boolean>;
+
+        /**
+         * 检查锁是否仍被持有
+         * @returns boolean
+         */
+        isHeld(): boolean;
+
+        /**
+         * 获取锁持有时间（毫秒）
+         * @returns number
+         */
+        getHoldTime(): number;
+    }
+
+    /**
+     * 锁统计信息
+     * @since v1.4.0
+     */
+    interface LockStats {
+        /** 成功获取锁的次数 */
+        locksAcquired: number;
+        /** 成功释放锁的次数 */
+        locksReleased: number;
+        /** 锁检查次数 */
+        lockChecks: number;
+        /** 错误次数 */
+        errors: number;
+        /** 锁键前缀 */
+        lockKeyPrefix: string;
+        /** 锁最大持续时间 */
+        maxDuration: number;
+    }
+
+    /**
+     * 锁获取失败错误
+     * @since v1.4.0
+     */
+    class LockAcquireError extends Error {
+        readonly code: 'LOCK_ACQUIRE_FAILED';
+    }
+
+    /**
+     * 锁超时错误
+     * @since v1.4.0
+     */
+    class LockTimeoutError extends Error {
+        readonly code: 'LOCK_TIMEOUT';
+    }
+
+    /**
      * MongoDB 事务会话（原生 ClientSession）
      * @since v0.2.0
      */
@@ -769,6 +858,78 @@ u        /**
             callback: (transaction: Transaction) => Promise<T>,
             options?: TransactionOptions
         ): Promise<T>;
+
+        // ============================================================================
+        // 业务锁 API (v1.4.0+)
+        // ============================================================================
+
+        /**
+         * 业务锁：自动管理锁生命周期（推荐）
+         * @param key - 锁的唯一标识
+         * @param callback - 获取锁后执行的函数
+         * @param options - 锁选项
+         * @returns callback 的返回值
+         * @since v1.4.0
+         * @example
+         * // 库存扣减
+         * await db.withLock('inventory:SKU123', async () => {
+         *   const product = await inventory.findOne({ sku: 'SKU123' });
+         *   if (product.stock >= 1) {
+         *     await inventory.updateOne({ sku: 'SKU123' }, { $inc: { stock: -1 } });
+         *   }
+         * });
+         */
+        withLock?<T = any>(
+            key: string,
+            callback: () => Promise<T>,
+            options?: LockOptions
+        ): Promise<T>;
+
+        /**
+         * 业务锁：手动获取锁（阻塞重试）
+         * @param key - 锁的唯一标识
+         * @param options - 锁选项
+         * @returns Lock 对象
+         * @since v1.4.0
+         * @example
+         * const lock = await db.acquireLock('resource:123', { ttl: 5000 });
+         * try {
+         *   // 业务逻辑
+         * } finally {
+         *   await lock.release();
+         * }
+         */
+        acquireLock?(key: string, options?: LockOptions): Promise<Lock>;
+
+        /**
+         * 业务锁：尝试获取锁（不阻塞）
+         * @param key - 锁的唯一标识
+         * @param options - 锁选项（不包含 retryTimes）
+         * @returns Lock 对象或 null
+         * @since v1.4.0
+         * @example
+         * const lock = await db.tryAcquireLock('resource:123');
+         * if (lock) {
+         *   try {
+         *     // 业务逻辑
+         *   } finally {
+         *     await lock.release();
+         *   }
+         * } else {
+         *   console.log('资源被占用');
+         * }
+         */
+        tryAcquireLock?(key: string, options?: Omit<LockOptions, 'retryTimes'>): Promise<Lock | null>;
+
+        /**
+         * 获取锁统计信息
+         * @returns 锁统计信息
+         * @since v1.4.0
+         * @example
+         * const stats = db.getLockStats();
+         * console.log(stats.locksAcquired, stats.locksReleased);
+         */
+        getLockStats?(): LockStats;
 
         /**
          * 创建 Redis 缓存适配器（静态方法）

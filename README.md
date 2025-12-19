@@ -286,6 +286,44 @@ console.log(`总计: ${result.totals?.total}, 共 ${result.totals?.totalPages} �
 - ✅ 文档级别锁（16倍并发提升）
 - ✅ 重试、超时、监控
 
+#### **业务级分布式锁（v1.4.0 新增）** 🆕
+```javascript
+// 自动管理锁生命周期（推荐）
+await db.withLock('inventory:SKU123', async () => {
+    // 查询、计算、多表更新 - 整个流程串行执行
+    const product = await inventory.findOne({ sku: 'SKU123' });
+    const price = calculatePrice(product, user);
+    await inventory.updateOne({ sku: 'SKU123' }, { $inc: { stock: -1 } });
+    await orders.insertOne({ userId, price });
+});
+
+// 定时任务防重（多实例环境）
+const lock = await db.tryAcquireLock('cron:daily-report');
+if (lock) {
+    try {
+        await generateDailyReport();
+    } finally {
+        await lock.release();
+    }
+}
+```
+
+**特性**：
+- ✅ 基于 Redis 的分布式锁
+- ✅ 自动重试机制（可配置）
+- ✅ TTL 自动过期，防止死锁
+- ✅ 支持锁续期
+- ✅ Redis 断连降级策略
+- ✅ 内置统计监控
+
+**适用场景**：
+- ✅ 复杂订单创建（查询→计算→多表更新）
+- ✅ 定时任务防重（多实例环境）
+- ✅ 外部 API 调用后更新数据库
+- ✅ 库存扣减（复杂业务逻辑）
+
+**文档**：[完整 API 文档](./docs/business-lock.md) | [示例代码](./examples/business-lock.examples.js)
+
 #### **链式调用 API（100% 完成）**
 - ✅ sort, limit, skip, projection, hint, collation 等所有 MongoDB 游标方法
 
@@ -1253,6 +1291,7 @@ const db = new MonSQLize({
 - 📖 [完整 API 文档索引](./docs/INDEX.md)
 - 📖 [MongoDB 原生 vs monSQLize 对比](./docs/mongodb-native-vs-extensions.md)
 - 📖 [事务使用指南](./docs/transaction.md)
+- 📖 [**业务级分布式锁**](./docs/business-lock.md) 🆕 v1.4.0
 - 📖 [分布式部署指南](./docs/distributed-deployment.md)
 - 📖 [性能优化指南](./docs/transaction-optimizations.md)
 
@@ -1273,7 +1312,7 @@ const db = new MonSQLize({
 - [Schema 验证](./docs/validation.md) | [集合管理](./docs/collection-mgmt.md)
 
 **其他功能**:
-- [索引管理](./docs/indexes.md) | [聚合查询](./docs/aggregate.md)
+- [索引管理](./docs/create-index.md) | [聚合查询](./docs/aggregate.md)
 - [缓存系统](./docs/cache.md) | [链式调用](./docs/chaining-api.md)
 
 ### 示例代码
