@@ -827,6 +827,46 @@ u        /**
         health(): Promise<HealthView>;
 
         /**
+         * 获取慢查询日志（持久化存储）
+         * @param filter - 查询条件（可选）
+         * @param options - 查询选项（可选）
+         * @returns 慢查询日志数组
+         * @since v1.3.1
+         * @example
+         * // 查询所有慢查询
+         * const logs = await msq.getSlowQueryLogs({}, { limit: 10 });
+         *
+         * // 按collection过滤
+         * const userLogs = await msq.getSlowQueryLogs(
+         *   { collection: 'users' },
+         *   { sort: { count: -1 }, limit: 10 }
+         * );
+         *
+         * // 按操作类型过滤
+         * const findLogs = await msq.getSlowQueryLogs({ operation: 'find' });
+         */
+        getSlowQueryLogs(
+            filter?: Record<string, any>,
+            options?: {
+                sort?: Record<string, 1 | -1>;
+                limit?: number;
+                skip?: number;
+            }
+        ): Promise<Array<{
+            queryHash: string;
+            database: string;
+            collection: string;
+            operation: string;
+            count: number;
+            totalTimeMs: number;
+            avgTimeMs: number;
+            maxTimeMs: number;
+            minTimeMs: number;
+            firstSeen: Date;
+            lastSeen: Date;
+        }>>;
+
+        /**
          * 创建手动事务会话
          * @param options - 事务选项
          * @returns Transaction 实例

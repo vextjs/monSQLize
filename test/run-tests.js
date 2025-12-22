@@ -223,6 +223,12 @@ async function runTests() {
       process.exit(code);
     });
     return;
+  } else if (testSuite === 'slowQueryLog') {
+    testFiles = ['./slow-query-log-integration.test.js'];
+    title = '慢查询日志持久化存储测试套件';
+  } else if (testSuite === 'slowQueryLogFull') {
+    testFiles = ['./slow-query-log-comprehensive.test.js'];
+    title = '慢查询日志完整测试套件';
   } else if (testSuite === 'watch') {
     // watch 测试使用 done 回调，需要用 Mocha 运行
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
@@ -243,7 +249,7 @@ async function runTests() {
     console.log('║            运行 所有测试套件（顺序模式）                  ║');
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'lock', 'objectIdConversion', 'watch', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'lock', 'objectIdConversion', 'slowQueryLog', 'watch', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const failedSuites = []; // 收集失败的测试套件

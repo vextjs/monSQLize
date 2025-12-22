@@ -433,7 +433,24 @@ console.log(`总计: ${result.totals.total}, 共 ${result.totals.totalPages} 页
 ### 8. 🛠️ 运维监控（开箱即用）
 
 ```javascript
-// 自动记录慢查询
+// 🆕 慢查询日志持久化存储（v1.3+）
+const msq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: 'mongodb://localhost:27017/mydb' },
+  slowQueryMs: 500,
+  slowQueryLog: true  // ✅ 零配置启用，自动存储到 admin.slow_query_logs
+});
+
+await msq.connect();
+
+// 查询慢查询日志（支持去重聚合）
+const logs = await msq.getSlowQueryLogs(
+  { collection: 'users' },
+  { sort: { count: -1 }, limit: 10 }  // 查询高频慢查询Top10
+);
+// [{ queryHash: 'abc123', count: 2400, avgTimeMs: 520, maxTimeMs: 1200, ... }]
+
+// 自动记录慢查询（原有功能）
 // [WARN] Slow query { ns: 'mydb.users', duration: 1200ms, query: {...} }
 
 // 健康检查
@@ -544,7 +561,7 @@ const stats = await db.getStats();
 ### 🛠️ 企业级特性
 
 ✅ **运维监控**
-- 慢查询日志
+- 慢查询日志（支持持久化存储）🆕
 - 性能指标统计
 - 健康检查
 - 缓存命中率监控
