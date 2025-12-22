@@ -111,6 +111,7 @@
     "branches": 65
   },
   "dependencies": {
-    "mongodb": "^6.17.0"
+    "mongodb": "^6.17.0",
+    "ssh2": "^1.17.0"
   }
 }

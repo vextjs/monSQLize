@@ -10,6 +10,7 @@
 |------|------|
 | [mongodb-native-vs-extensions.md](mongodb-native-vs-extensions.md) | **MongoDB 原生 vs monSQLize 扩展功能对比** |
 | [connection.md](connection.md) | 连接管理和配置 |
+| [ssh-tunnel.md](ssh-tunnel.md) | **SSH隧道 - 安全连接内网数据库（v1.3+）🆕** |
 | [cache.md](cache.md) | 缓存系统（LRU + TTL） |
 | [transaction.md](transaction.md) | 事务管理（自动重试、缓存锁） |
 | [business-lock.md](business-lock.md) | **业务级分布式锁（v1.4.0）🆕** |

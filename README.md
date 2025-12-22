@@ -46,20 +46,25 @@ monSQLize 是一个**100% 兼容 MongoDB API** 的增强库。
 
 <table>
 <tr>
-<td width="33%" align="center">
+<td width="25%" align="center">
 <h3>🚀</h3>
 <h4>智能缓存</h4>
 <p>LRU/TTL 策略<br>自动失效<br>10~100 倍性能提升</p>
 </td>
-<td width="33%" align="center">
+<td width="25%" align="center">
 <h3>🔄</h3>
 <h4>事务优化</h4>
 <p>自动管理<br>只读优化<br>减少 30% DB 访问</p>
 </td>
-<td width="33%" align="center">
+<td width="25%" align="center">
 <h3>🌐</h3>
 <h4>分布式支持</h4>
 <p>Redis 广播<br>多实例一致性<br>业务级分布式锁</p>
+</td>
+<td width="25%" align="center">
+<h3>🔐</h3>
+<h4>SSH 隧道</h4>
+<p>安全连接内网数据库<br>密码/私钥认证<br>开箱即用</p>
 </td>
 </tr>
 </table>
@@ -210,6 +215,20 @@ await db.withTransaction(async (tx) => {
 // 业务锁（v1.4.0）
 await db.withLock('resource:key', async () => {
     // 临界区代码
+});
+
+// SSH隧道（v1.3+）- 安全连接防火墙后的MongoDB
+const db = new MonSQLize({
+    type: 'mongodb',
+    config: {
+        ssh: {
+            host: 'bastion.example.com',
+            username: 'deploy',
+            password: 'your-password',  // 或使用 privateKeyPath
+        },
+        // 自动从URI解析remoteHost和remotePort
+        uri: 'mongodb://user:pass@internal-mongo:27017/mydb'
+    }
 });
 ```
 
@@ -462,6 +481,42 @@ const stats = await db.getStats();
 // { queries: 10000, cacheHits: 9000, hitRate: 0.9 }
 ```
 
+### 9. 🔐 SSH隧道 - 安全连接内网数据库（v1.3+）
+
+```javascript
+// 场景：数据库位于防火墙后，无法直接访问
+const db = new MonSQLize({
+    type: 'mongodb',
+    config: {
+        // SSH隧道配置
+        ssh: {
+            host: 'bastion.example.com',  // SSH服务器（跳板机）
+            port: 22,
+            username: 'deploy',
+            password: 'your-password',     // ✅ 支持密码认证
+            // 或使用私钥认证（推荐）
+            // privateKeyPath: '~/.ssh/id_rsa',
+        },
+        // MongoDB连接配置（内网地址，自动从URI解析remoteHost和remotePort）
+        uri: 'mongodb://user:pass@internal-mongo:27017/mydb'
+    }
+});
+
+await db.connect();  // 自动建立SSH隧道
+// 正常使用MongoDB，无需关心隧道细节
+const users = db.collection('users');
+const data = await users.findOne({});
+await db.close();    // 自动关闭SSH隧道
+```
+
+**特性**：
+- ✅ 支持密码和私钥认证
+- ✅ 自动管理隧道生命周期
+- ✅ 完美跨平台（基于ssh2库）
+- ✅ 开箱即用，零额外配置
+
+[📖 SSH隧道详细文档](./docs/ssh-tunnel.md)
+
 ---
 
 ## 📊 性能测试报告
@@ -709,6 +764,7 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 - 📖 [MongoDB 原生 vs monSQLize 对比](./docs/mongodb-native-vs-extensions.md)
 - 📖 [事务使用指南](./docs/transaction.md)
 - 📖 [业务级分布式锁](./docs/business-lock.md) 🆕 v1.4.0
+- 📖 [SSH隧道使用指南](./docs/ssh-tunnel.md) 🆕 v1.3+
 - 📖 [分布式部署指南](./docs/distributed-deployment.md)
 - 📖 [性能优化指南](./docs/transaction-optimizations.md)
 

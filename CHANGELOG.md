@@ -10,6 +10,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.3.2](STATUS.md#v132) | 2025-12-22 | 🆕 SSH隧道支持 - 安全连接内网数据库 | [查看](STATUS.md#v132) |
 | [v1.3.1](STATUS.md#v131) | 2025-12-22 | 🆕 慢查询日志持久化存储 | [查看](STATUS.md#v131) |
 | [v1.6.0](STATUS.md#v160) | 2026-03-31 | Python SDK（跨语言客户端） | [查看](STATUS.md#v160) |
 | [v1.5.0](STATUS.md#v150) | 2026-02-28 | API服务化（RESTful API + 事务支持） | [查看](STATUS.md#v150) |
@@ -19,6 +20,62 @@
 | [v1.1.0](STATUS.md#v110) | 2025-12-03 | 新增 Change Streams 实时监听功能（watch方法） | [查看](STATUS.md#v110) |
 | [v1.0.0](STATUS.md#v100) | 2025-12-03 | 正式发布，生产就绪，已发布到 npm | [查看](STATUS.md#v100) |
 | [v0.3.0](STATUS.md#v030) | 2025-12-02 | 新增完整的 Admin/Management 功能（18个方法） | [查看](STATUS.md#v030) |
+
+---
+
+## 🆕 v1.3.2 变更详情（2025-12-22）
+
+### 新增功能
+
+1. **SSH隧道支持** 🔐
+   - 支持通过SSH隧道安全连接防火墙后的MongoDB
+   - 支持密码认证和私钥认证
+   - 自动管理隧道生命周期（connect建立，close关闭）
+   - 基于ssh2库实现，完美跨平台（Windows/Linux/macOS）
+   - 开箱即用，零额外配置
+   - 详见：[docs/ssh-tunnel.md](docs/ssh-tunnel.md)
+
+2. **配置增强**
+   - 新增`config.ssh`配置项（SSH隧道配置）
+   - 支持`remoteHost`和`remotePort`指定MongoDB地址
+   - 自动从URI解析目标地址
+
+### 使用示例
+
+```javascript
+const db = new MonSQLize({
+    type: 'mongodb',
+    config: {
+        ssh: {
+            host: 'bastion.example.com',
+            username: 'deploy',
+            password: 'your-password',  // 或使用 privateKeyPath
+        },
+        uri: 'mongodb://user:pass@internal-mongo:27017/mydb',
+        remoteHost: 'internal-mongo',
+        remotePort: 27017
+    }
+});
+
+await db.connect();  // 自动建立SSH隧道
+// 正常使用MongoDB
+await db.close();    // 自动关闭SSH隧道
+```
+
+### 技术亮点
+
+- **零学习成本**：与现有API无缝集成，无需学习新概念
+- **安全性强**：支持多种认证方式，推荐私钥认证
+- **扩展性好**：基础设施层独立，未来支持PostgreSQL/MySQL
+- **文档完整**：详细文档 + 7个示例 + 故障排查指南
+
+### 核心文件
+
+- `lib/infrastructure/ssh-tunnel-ssh2.js` - SSH隧道实现（ssh2库）
+- `lib/infrastructure/ssh-tunnel.js` - 统一入口（工厂模式）
+- `lib/infrastructure/uri-parser.js` - URI解析器
+- `examples/ssh-tunnel.examples.js` - 7个完整示例
+- `docs/ssh-tunnel.md` - 详细使用文档
 
 ---
 
