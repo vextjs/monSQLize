@@ -11,6 +11,7 @@ analysis-reports/
 bug-analysis/
 design/
 reports/
+plans/
 
 .nyc_output/
 
