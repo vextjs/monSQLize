@@ -5,7 +5,16 @@
 
 ---
 
-## 📋 目标
+## 📑 目录
+
+- [目标](#-目标)
+- [安装 nvm-windows](#-安装-nvm-windows)
+- [使用 nvm 管理 Node.js 版本](#-使用-nvm-管理-nodejs-版本)
+- [运行 Node.js 多版本测试](#-运行-nodejs-多版本测试)
+
+---
+
+## �📋 目标
 
 安装 nvm (Node Version Manager) 并使用它测试 monSQLize 在不同 Node.js 版本下的兼容性。
 
