@@ -54,6 +54,7 @@
 | [update-operations.md](update-operations.md) | 所有更新方法 | 更新操作完整指南 |
 | [update-one.md](update-one.md) | `updateOne()` | 更新单个文档 |
 | [update-many.md](update-many.md) | `updateMany()` | 批量更新文档 |
+| [updateBatch.md](updateBatch.md) | `updateBatch()` | 大批量更新（分批+重试）⭐ |
 | [replace-one.md](replace-one.md) | `replaceOne()` | 完整替换文档 |
 | [find-one-and-update.md](find-one-and-update.md) | `findOneAndUpdate()` | 原子更新并返回 |
 | [find-one-and-replace.md](find-one-and-replace.md) | `findOneAndReplace()` | 原子替换并返回 |
@@ -71,6 +72,7 @@
 |------|------|------|
 | [delete-one.md](delete-one.md) | `deleteOne()` | 删除单个文档 |
 | [delete-many.md](delete-many.md) | `deleteMany()` | 批量删除文档 |
+| [deleteBatch.md](deleteBatch.md) | `deleteBatch()` | 大批量删除（分批+重试）⭐ |
 | [find-one-and-delete.md](find-one-and-delete.md) | `findOneAndDelete()` | 原子删除并返回 |
 
 ---

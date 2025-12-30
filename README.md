@@ -630,7 +630,9 @@ await db.close();    // 自动关闭SSH隧道
 - findAndCount
 
 ✅ **性能优化**
-- 批量插入优化
+- insertBatch - 批量插入优化
+- deleteBatch - 批量删除（流式+进度监控）
+- updateBatch - 批量更新（流式+进度监控）
 - 只读事务优化
 - Count 队列控制
 - 连接池管理
@@ -803,8 +805,8 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 **CRUD 操作**:
 - [find](./docs/find.md) | [findOne](./docs/findOne.md) | [findPage](./docs/findPage.md)
 - [insertOne](./docs/insert-one.md) | [insertMany](./docs/insert-many.md) | [insertBatch](./docs/insertBatch.md)
-- [updateOne](./docs/update-one.md) | [updateMany](./docs/update-many.md) | [replaceOne](./docs/replace-one.md)
-- [deleteOne](./docs/delete-one.md) | [deleteMany](./docs/delete-many.md)
+- [updateOne](./docs/update-one.md) | [updateMany](./docs/update-many.md) | [updateBatch](./docs/updateBatch.md) | [replaceOne](./docs/replace-one.md)
+- [deleteOne](./docs/delete-one.md) | [deleteMany](./docs/delete-many.md) | [deleteBatch](./docs/deleteBatch.md)
 
 **便利方法**:
 - [findOneById](./docs/find-one-by-id.md) | [findByIds](./docs/find-by-ids.md)

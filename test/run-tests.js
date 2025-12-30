@@ -187,6 +187,12 @@ async function runTests() {
   } else if (testSuite === 'deleteMany') {
     testFiles = ['./unit/features/deleteMany.test.js'];
     title = 'deleteMany 方法测试套件';
+  } else if (testSuite === 'deleteBatch') {
+    testFiles = ['./unit/features/deleteBatch.test.js'];
+    title = 'deleteBatch 方法测试套件';
+  } else if (testSuite === 'updateBatch') {
+    testFiles = ['./unit/features/updateBatch.test.js'];
+    title = 'updateBatch 方法测试套件';
   } else if (testSuite === 'findOneAndDelete') {
     testFiles = ['./unit/features/findOneAndDelete.test.js'];
     title = 'findOneAndDelete 方法测试套件';
@@ -249,7 +255,7 @@ async function runTests() {
     console.log('║            运行 所有测试套件（顺序模式）                  ║');
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete', 'transaction', 'lock', 'objectIdConversion', 'slowQueryLog', 'watch', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'updateBatch', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'deleteBatch', 'findOneAndDelete', 'transaction', 'lock', 'objectIdConversion', 'slowQueryLog', 'watch', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const failedSuites = []; // 收集失败的测试套件
@@ -299,7 +305,7 @@ async function runTests() {
     process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|countQueue|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|updateOne|updateMany|replaceOne|findOneAndUpdate|findOneAndReplace|deleteOne|deleteMany|findOneAndDelete|transaction|lock|objectIdConversion|watch|utils|infrastructure|logger|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|countQueue|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|updateOne|updateMany|replaceOne|findOneAndUpdate|findOneAndReplace|deleteOne|deleteMany|deleteBatch|updateBatch|findOneAndDelete|transaction|lock|objectIdConversion|watch|utils|infrastructure|logger|all]\n');
     process.exit(1);
   }
 
