@@ -39,6 +39,7 @@ npm install monsqlize
   - [7. 📊 深度分页](#7--深度分页---支持千万级数据)
   - [8. 🛠️ 运维监控](#8-️-运维监控开箱即用)
   - [9. 🔐 SSH隧道](#9--ssh隧道---安全连接内网数据库v13)
+  - [10. 🎯 Model 层](#10--model-层---像-orm-一样使用v103)
 - [📊 性能测试报告](#-性能测试报告)
 - [🎨 完整功能清单](#-完整功能清单)
 - [🆚 与 MongoDB 原生驱动对比](#-与-mongodb-原生驱动对比)
@@ -549,6 +550,96 @@ await db.close();    // 自动关闭SSH隧道
 
 ---
 
+### 10. 🎯 Model 层 - 像 ORM 一样使用（v1.0.3+）
+
+monSQLize 提供了一个轻量级的 Model 层，让你可以像使用 ORM 一样定义数据模型，同时保持 MongoDB 的灵活性。
+
+```javascript
+const { Model } = require('monsqlize');
+
+// 1. 定义 Model（集成 schema-dsl 验证）
+Model.define('users', {
+    enums: {
+        role: 'admin|user|guest'
+    },
+    schema: function(dsl) {
+        return dsl({
+            username: 'string:3-32!',
+            email: 'email!',
+            role: this.enums.role.default('user'),
+            age: 'number:1-150'
+        });
+    },
+    options: {
+        timestamps: true  // 🆕 v1.0.3: 自动管理 createdAt/updatedAt
+    },
+    methods: (model) => ({
+        // 实例方法 - 注入到查询返回的文档对象
+        instance: {
+            isAdmin() {
+                return this.role === 'admin';
+            }
+        },
+        // 静态方法 - 挂载到 Model 实例
+        static: {
+            async findByEmail(email) {
+                return await model.findOne({ email });
+            }
+        }
+    }),
+    hooks: (model) => ({
+        // 生命周期钩子
+        insert: {
+            before: (ctx, docs) => {
+                // 自动添加时间戳
+                return { ...docs, createdAt: new Date() };
+            }
+        }
+    }),
+    indexes: [
+        { key: { username: 1 }, unique: true },
+        { key: { email: 1 }, unique: true }
+    ]
+});
+
+// 2. 使用 Model
+const db = new MonSQLize({ /* ... */ });
+await db.connect();
+
+const User = db.model('users');
+
+// 自动 Schema 验证
+const user = await User.insertOne({
+    username: 'john',
+    email: 'john@example.com',
+    age: 25
+}); // ✅ 验证通过
+
+// 使用实例方法
+const admin = await User.findOne({ username: 'admin' });
+console.log(admin.isAdmin()); // true
+
+// 使用静态方法
+const user = await User.findByEmail('john@example.com');
+```
+
+**特性**：
+- ✅ Schema 验证（集成 schema-dsl）
+- ✅ 自定义方法（instance + static）
+- ✅ 生命周期钩子（before/after）
+- ✅ 索引自动创建
+- ✅ 自动时间戳（v1.0.3+）
+- ✅ TypeScript 类型支持
+
+**注意**：需要安装 `schema-dsl` 依赖：
+```bash
+npm install schema-dsl
+```
+
+[📖 Model 层详细文档](./docs/model.md)
+
+---
+
 ## 📊 性能测试报告
 
 ### 测试环境
@@ -808,6 +899,9 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 - [updateOne](./docs/update-one.md) | [updateMany](./docs/update-many.md) | [updateBatch](./docs/updateBatch.md) | [replaceOne](./docs/replace-one.md)
 - [deleteOne](./docs/delete-one.md) | [deleteMany](./docs/delete-many.md) | [deleteBatch](./docs/deleteBatch.md)
 
+**Model 层**:
+- [Model API 文档](./docs/model.md) - Schema 验证、自定义方法、生命周期钩子
+
 **便利方法**:
 - [findOneById](./docs/find-one-by-id.md) | [findByIds](./docs/find-by-ids.md)
 - [upsertOne](./docs/upsert-one.md) | [incrementOne](./docs/increment-one.md) | [findAndCount](./docs/find-and-count.md)
@@ -844,6 +938,7 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 - ✅ 事务优化
 - ✅ 便利方法
 - ✅ 分布式支持
+- ✅ Model 层（v1.0.3）- Schema 验证、自定义方法、生命周期钩子
 
 ### 🚧 v1.5 (计划中)
 
@@ -851,12 +946,13 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 - 🔄 自动索引建议
 - 🔄 数据迁移工具
 - 🔄 GraphQL 支持
+- 🔄 Model 关系（relations）完善
 
 ### 🔮 v2.0 (未来)
 
 - 🔮 统一 API 支持 MySQL
 - 🔮 统一 API 支持 PostgreSQL
-- 🔮 ORM 功能
+- 🔮 完整 ORM 功能
 - 🔮 数据同步中间件
 
 ---

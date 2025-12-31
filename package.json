@@ -1,6 +1,6 @@
 {
   "name": "monsqlize",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A lightweight MongoDB ORM with multi-level caching, transaction support, and distributed features",
   "main": "lib/index.js",
   "module": "index.mjs",
@@ -68,8 +68,14 @@
     "type-check": "tsc",
     "postpublish": "echo '✅ 发布成功！请创建 GitHub Release: https://github.com/vextjs/monSQLize/releases/new?tag=v'$npm_package_version"
   },
+  "peerDependencies": {
+    "schema-dsl": "^1.0.0"
+  },
   "peerDependenciesMeta": {
     "ioredis": {
+      "optional": true
+    },
+    "schema-dsl": {
       "optional": true
     }
   },

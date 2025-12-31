@@ -249,13 +249,33 @@ async function runTests() {
     });
 
     process.exit(result.status);
+  } else if (testSuite === 'model') {
+    // Model 测试使用 Mocha 运行
+    console.log('\n╔═══════════════════════════════════════════════════════════╗');
+    console.log('║             运行 Model 层单元测试套件                     ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝\n');
+
+    const { spawnSync } = require('child_process');
+    const result = spawnSync('npx', [
+      'mocha',
+      'test/unit/model/*.test.js',
+      '--timeout', '10000',
+      '--reporter', 'spec',
+      '--exit'  // 强制退出，确保 Memory Server 清理后进程能正常结束
+    ], {
+      cwd: process.cwd(),
+      stdio: 'inherit',
+      shell: true
+    });
+
+    process.exit(result.status);
   } else if (testSuite === 'all') {
     // all 模式：顺序执行各个测试套件，避免并发初始化问题
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
     console.log('║            运行 所有测试套件（顺序模式）                  ║');
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'updateBatch', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'deleteBatch', 'findOneAndDelete', 'transaction', 'lock', 'objectIdConversion', 'slowQueryLog', 'watch', 'utils', 'infrastructure'];
+    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'updateBatch', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'deleteBatch', 'findOneAndDelete', 'transaction', 'lock', 'objectIdConversion', 'slowQueryLog', 'watch', 'model', 'utils', 'infrastructure'];
     let totalPassed = 0;
     let totalFailed = 0;
     const failedSuites = []; // 收集失败的测试套件

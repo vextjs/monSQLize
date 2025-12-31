@@ -1286,4 +1286,337 @@ u        /**
          */
         finally(onfinally?: (() => void) | null): Promise<T[]>;
     }
+
+    // ============================================================================
+    // Model 层类型定义（Model API）
+    // @since v1.0.3
+    // ============================================================================
+
+    /**
+     * Schema DSL 函数类型
+     */
+    type SchemaDSL = (dsl: any) => any;
+
+    /**
+     * Model 定义配置
+     */
+    interface ModelDefinition<T = any> {
+        /**
+         * 枚举配置（可被 schema 引用）
+         * @example
+         * enums: {
+         *   role: 'admin|user|guest',
+         *   status: 'active|inactive'
+         * }
+         */
+        enums?: Record<string, string>;
+
+        /**
+         * Schema 定义（数据验证规则）
+         * 使用 function 时，this 自动绑定到 definition，可访问 this.enums
+         *
+         * @param dsl - schema-dsl 函数
+         * @returns Schema 对象
+         *
+         * @example
+         * // 使用 function（推荐）
+         * schema: function(dsl) {
+         *   return dsl({
+         *     username: 'string:3-32!',
+         *     role: this.enums.role.default('user')
+         *   });
+         * }
+         *
+         * // 使用箭头函数
+         * schema: (dsl) => dsl({
+         *   username: 'string:3-32!',
+         *   email: 'email!'
+         * })
+         */
+        schema: SchemaDSL | ((this: ModelDefinition<T>, dsl: SchemaDSL) => any);
+
+        /**
+         * 自定义方法
+         *
+         * @param model - ModelInstance 实例
+         * @returns 包含 instance 和 static 方法的对象
+         *
+         * @example
+         * methods: (model) => ({
+         *   instance: {
+         *     checkPassword(password: string) {
+         *       return this.password === password;
+         *     }
+         *   },
+         *   static: {
+         *     async findByUsername(username: string) {
+         *       return await model.findOne({ username });
+         *     }
+         *   }
+         * })
+         */
+        methods?: (model: ModelInstance<T>) => {
+            instance?: Record<string, Function>;
+            static?: Record<string, Function>;
+        };
+
+        /**
+         * 生命周期钩子
+         *
+         * @param model - ModelInstance 实例
+         * @returns 包含各操作钩子的对象
+         *
+         * @example
+         * hooks: (model) => ({
+         *   insert: {
+         *     before: async (ctx, docs) => {
+         *       ctx.timestamp = Date.now();
+         *       return { ...docs, createdAt: new Date() };
+         *     },
+         *     after: async (ctx, result) => {
+         *       console.log('插入耗时:', Date.now() - ctx.timestamp);
+         *     }
+         *   }
+         * })
+         */
+        hooks?: (model: ModelInstance<T>) => {
+            find?: {
+                before?: (ctx: HookContext, options: any) => void | Promise<void>;
+                after?: (ctx: HookContext, result: any) => any | Promise<any>;
+            };
+            insert?: {
+                before?: (ctx: HookContext, docs: any) => any | Promise<any>;
+                after?: (ctx: HookContext, result: any) => void | Promise<void>;
+            };
+            update?: {
+                before?: (ctx: HookContext, filter: any, update: any) => [any, any] | Promise<[any, any]>;
+                after?: (ctx: HookContext, result: any) => void | Promise<void>;
+            };
+            delete?: {
+                before?: (ctx: HookContext, filter: any) => void | Promise<void>;
+                after?: (ctx: HookContext, result: any) => void | Promise<void>;
+            };
+        };
+
+        /**
+         * 索引定义（自动创建）
+         *
+         * @example
+         * indexes: [
+         *   { key: { username: 1 }, unique: true },
+         *   { key: { email: 1 }, unique: true },
+         *   { key: { status: 1, createdAt: -1 } }
+         * ]
+         */
+        indexes?: Array<{
+            key: Record<string, 1 | -1>;
+            unique?: boolean;
+            sparse?: boolean;
+            expireAfterSeconds?: number;
+            [key: string]: any;
+        }>;
+
+        /**
+         * 关系定义（预留，未完全实现）
+         */
+        relations?: Record<string, {
+            type: 'hasOne' | 'hasMany' | 'belongsTo';
+            target: string;
+            foreignKey: string;
+        }>;
+
+        /**
+         * Model 选项配置
+         * @since v1.0.3
+         */
+        options?: {
+            /**
+             * 自动时间戳
+             * 启用后自动管理 createdAt 和 updatedAt 字段
+             *
+             * @example
+             * // 简单模式：启用默认字段名
+             * options: { timestamps: true }
+             *
+             * // 自定义字段名
+             * options: {
+             *   timestamps: {
+             *     createdAt: 'created_time',
+             *     updatedAt: 'updated_time'
+             *   }
+             * }
+             *
+             * // 只启用其中一个
+             * options: {
+             *   timestamps: {
+             *     createdAt: true,
+             *     updatedAt: false
+             *   }
+             * }
+             */
+            timestamps?: boolean | {
+                /** 创建时间字段名，false 表示禁用 */
+                createdAt?: boolean | string;
+                /** 更新时间字段名，false 表示禁用 */
+                updatedAt?: boolean | string;
+            };
+        };
+    }
+
+    /**
+     * Hook 上下文
+     * 用于在 before 和 after 钩子之间传递数据
+     */
+    interface HookContext {
+        [key: string]: any;
+    }
+
+    /**
+     * 数据验证结果
+     */
+    interface ValidationResult {
+        /** 是否验证通过 */
+        valid: boolean;
+        /** 错误列表 */
+        errors: Array<{
+            field: string;
+            message: string;
+            value?: any;
+        }>;
+        /** 验证后的数据 */
+        data: any;
+    }
+
+    /**
+     * Model 类（静态方法）
+     */
+    class Model {
+        /**
+         * 注册一个 Model 定义
+         *
+         * @param collectionName - 集合名称
+         * @param definition - Model 定义对象
+         * @throws {Error} 集合名称无效、schema 未定义、Model 已存在
+         *
+         * @example
+         * Model.define('users', {
+         *   schema: (dsl) => dsl({
+         *     username: 'string:3-32!',
+         *     email: 'email!'
+         *   }),
+         *   methods: (model) => ({
+         *     instance: {
+         *       checkPassword(password) {
+         *         return this.password === password;
+         *       }
+         *     }
+         *   })
+         * });
+         */
+        static define<T = any>(collectionName: string, definition: ModelDefinition<T>): void;
+
+        /**
+         * 获取已注册的 Model 定义
+         *
+         * @param collectionName - 集合名称
+         * @returns Model 定义对象，如果不存在返回 undefined
+         */
+        static get<T = any>(collectionName: string): ModelDefinition<T> | undefined;
+
+        /**
+         * 检查 Model 是否已注册
+         *
+         * @param collectionName - 集合名称
+         * @returns 是否已注册
+         */
+        static has(collectionName: string): boolean;
+
+        /**
+         * 列出所有已注册的 Model 名称
+         *
+         * @returns Model 名称数组
+         */
+        static list(): string[];
+
+        /**
+         * 清空所有已注册的 Model（仅测试用）
+         * @private
+         */
+        static _clear(): void;
+    }
+
+    /**
+     * ModelInstance 类
+     * 继承 collection 的所有方法，并扩展 Model 特性
+     */
+    interface ModelInstance<T = any> extends Collection<T> {
+        /** 关联的 collection 对象 */
+        readonly collection: Collection<T>;
+
+        /** Model 定义对象 */
+        readonly definition: ModelDefinition<T>;
+
+        /** monSQLize 实例 */
+        readonly msq: MonSQLize;
+
+        /**
+         * 验证数据是否符合 schema 定义
+         *
+         * @param data - 待验证的数据
+         * @param options - 验证选项
+         * @returns 验证结果
+         *
+         * @example
+         * const result = User.validate({
+         *   username: 'test',
+         *   email: 'test@example.com'
+         * });
+         *
+         * if (!result.valid) {
+         *   console.error('验证失败:', result.errors);
+         * }
+         */
+        validate(data: any, options?: { locale?: 'zh-CN' | 'en-US' }): ValidationResult;
+    }
+
+    /**
+     * 扩展 MonSQLize 类，添加 model 方法
+     */
+    interface MonSQLize {
+        /**
+         * 获取已注册的 Model 实例
+         *
+         * @param collectionName - 集合名称
+         * @returns ModelInstance 实例
+         * @throws {Error} 数据库未连接、Model 未定义
+         *
+         * @example
+         * const User = msq.model('users');
+         *
+         * // 使用继承的 collection 方法
+         * const users = await User.find({ status: 'active' });
+         *
+         * // 使用自定义静态方法
+         * const admin = await User.findByUsername('admin');
+         *
+         * // 使用实例方法
+         * const user = await User.findOne({ username: 'test' });
+         * if (user.checkPassword('secret')) {
+         *   console.log('登录成功');
+         * }
+         */
+        model<T = any>(collectionName: string): ModelInstance<T>;
+
+        /**
+         * Model 类引用
+         */
+        Model: typeof Model;
+    }
+
+    /**
+     * 导出 Model 类
+     */
+    export { Model };
 }
+
+

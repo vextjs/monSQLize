@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本摘要，详细需求见 [STATUS.md](STATUS.md)  
-> **最后更新**: 2025-12-30
+> **最后更新**: 2025-12-31
 
 ---
 
@@ -9,12 +9,80 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.0.3](STATUS.md#v103) | 2025-12-31 | 新增 Model 层（Schema 验证、自定义方法、生命周期钩子、自动时间戳） | [查看](STATUS.md#v103) |
 | [v1.0.2](STATUS.md#v102) | 2025-12-30 | 新增批量操作方法（deleteBatch/updateBatch） | [查看](STATUS.md#v102) |
 | [v1.0.1](STATUS.md#v101) | 2025-12-29 | 稳定版本，生产就绪 | [查看](STATUS.md#v101) |
 | [v1.0.0](STATUS.md#v100) | 2025-12-03 | 正式发布，生产就绪，已发布到 npm | [查看](STATUS.md#v100) |
 
 ---
 
+## 🆕 v1.0.3 变更详情（2025-12-31）
+
+### 新增功能 ✨
+
+**Model 层** - ORM 式的数据模型功能
+- ✅ **Schema 验证** - 集成 schema-dsl，自动验证数据格式
+- ✅ **自定义方法** - instance 方法注入到文档，static 方法挂载到 Model
+- ✅ **生命周期钩子** - before/after 钩子支持（find/insert/update/delete）
+- ✅ **索引自动创建** - 初始化时自动创建索引
+- ✅ **枚举配置** - 可在 schema 中引用的枚举定义
+- ✅ **自动时间戳** - 自动管理 createdAt/updatedAt，支持自定义字段名
+
+### 核心 API 🔧
+
+```javascript
+// 定义 Model
+Model.define('users', {
+    schema: (dsl) => dsl({ username: 'string!', email: 'email!' }),
+    methods: (model) => ({
+        instance: { checkPassword(pwd) { return this.password === pwd; } },
+        static: { async findByUsername(name) { return await model.findOne({ username: name }); } }
+    }),
+    hooks: (model) => ({
+        insert: { before: async (ctx, docs) => ({ ...docs, createdAt: new Date() }) }
+    }),
+    indexes: [{ key: { username: 1 }, unique: true }]
+});
+
+// 使用 Model
+const User = msq.model('users');
+const user = await User.findByUsername('admin');
+if (user.checkPassword('secret')) console.log('登录成功');
+```
+
+### 测试覆盖 ✅
+
+- 新增 45 个单元测试
+  - Model 基础功能：16个（100%通过）
+  - ModelInstance：23个
+  - Hooks：6个
+- 测试覆盖率：~90%
+
+### 文档完善 📖
+
+- 新增 `docs/model.md` - 完整 API 文档（495行，精简版）
+- 新增 `docs/model-methods-design.md` - 设计文档（295行）
+- 新增 `examples/model/basic.js` - 基础使用示例
+- 新增 `examples/model/advanced.js` - 高级功能示例
+- 新增 TypeScript 类型定义（+300行）
+- 更新 `README.md`、`docs/INDEX.md`
+
+### 设计亮点 💡
+
+- ✅ **业界标准** - 参考 Mongoose、Sequelize，降低学习成本
+- ✅ **Schema 缓存** - 编译一次，重复使用，性能优化
+- ✅ **方法注入** - 自动注入到查询结果，使用自然
+- ✅ **TypeScript 支持** - 完整的泛型类型定义
+- ✅ **灵活配置** - 所有选项都可选，渐进式采用
+
+### 使用场景 🎯
+
+- ✅ 需要数据验证的场景
+- ✅ 需要扩展文档方法的场景
+- ✅ 需要生命周期控制的场景
+- ✅ 需要类 ORM 体验的场景
+
+---
 
 ## 🆕 v1.0.2 变更详情（2025-12-30）
 
