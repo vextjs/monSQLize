@@ -338,6 +338,40 @@ declare module 'monsqlize' {
             slowQueryTag?: { event?: string; code?: string };
             formatSlowQuery?: (meta: any) => any;
         };
+        /**
+         * ObjectId 自动转换配置（v1.3.0+）
+         * 自动将字符串 _id 转换为 ObjectId
+         * @default true（MongoDB）
+         * @since v1.3.0
+         */
+        autoConvertObjectId?: boolean | {
+            /** 是否启用（默认 true） */
+            enabled?: boolean;
+            /** 排除字段列表 */
+            excludeFields?: string[];
+            /** 自定义字段模式 */
+            customFieldPatterns?: string[];
+            /** 最大转换深度（默认 10） */
+            maxDepth?: number;
+            /** 日志级别（默认 'warn'） */
+            logLevel?: 'info' | 'warn' | 'error';
+        };
+        /**
+         * Count 队列配置（高并发控制）
+         * 避免大量并发 count 查询压垮数据库
+         * @default { enabled: true, concurrency: CPU核心数 }
+         * @since v1.0.0
+         */
+        countQueue?: boolean | {
+            /** 是否启用队列（默认 true） */
+            enabled?: boolean;
+            /** 并发数（默认 CPU 核心数，最少 4，最多 16） */
+            concurrency?: number;
+            /** 最大队列长度（默认 10000） */
+            maxQueueSize?: number;
+            /** 超时时间（毫秒，默认 60000） */
+            timeout?: number;
+        };
     }
     interface FindOptions {
         projection?: Record<string, any> | string[];
@@ -784,6 +818,12 @@ u        /**
         invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
     }
 
+    /**
+     * Collection 类型别名（与 CollectionAccessor 等价）
+     * @since v1.0.4
+     */
+    type Collection<TSchema = any> = CollectionAccessor<TSchema>;
+
     type DbAccessor = {
         collection<TSchema = any>(name: string): CollectionAccessor<TSchema>;
         db(dbName: string): { collection<TSchema = any>(name: string): CollectionAccessor<TSchema> };
@@ -872,7 +912,7 @@ u        /**
          * @returns Transaction 实例
          * @since v0.2.0
          * @example
-         * const tx = await msq.startTransaction();
+         * const tx = await msq.startSession();
          * try {
          *   await collection('users').updateOne({...}, {...}, { session: tx.session });
          *   await tx.commit();
@@ -880,7 +920,7 @@ u        /**
          *   await tx.abort();
          * }
          */
-        startTransaction(options?: TransactionOptions): Promise<Transaction>;
+        startSession(options?: TransactionOptions): Promise<Transaction>;
 
         /**
          * 自动管理事务生命周期（推荐）
@@ -1617,6 +1657,18 @@ u        /**
      * 导出 Model 类
      */
     export { Model };
+
+    /**
+     * 导出锁错误类型
+     * @since v1.4.0
+     */
+    export { LockAcquireError, LockTimeoutError };
+
+    /**
+     * 导出类型别名
+     * @since v1.0.4
+     */
+    export type { Collection, CollectionAccessor };
 }
 
 
