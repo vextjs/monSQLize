@@ -872,6 +872,156 @@ Model.define('users', {
 // 现在可以创建同名用户（因为 deletedAt 不同）
 ```
 
+---
+
+## 乐观锁版本控制（Version）
+
+### 什么是乐观锁？
+
+乐观锁是一种并发控制机制，通过版本号检测数据冲突：
+- 每次更新时自动递增版本号
+- 更新时验证版本号是否匹配
+- 版本号不匹配说明数据已被其他请求修改（并发冲突）
+
+**使用场景**：
+- 多用户同时编辑同一数据
+- 防止脏写（Lost Update）
+- 需要并发安全保证的场景
+
+### 基础配置
+
+```javascript
+Model.define('users', {
+    schema: (dsl) => dsl({
+        username: 'string!',
+        email: 'string!',
+        status: 'string'
+    }),
+    options: {
+        version: true  // 启用版本控制（默认字段名 version）
+    }
+});
+```
+
+### 完整配置
+
+```javascript
+Model.define('users', {
+    schema: (dsl) => dsl({
+        username: 'string!',
+        email: 'string!'
+    }),
+    options: {
+        version: {
+            enabled: true,      // 是否启用
+            field: '__v'        // 自定义字段名（默认 'version'）
+        }
+    }
+});
+```
+
+### 插入时自动初始化
+
+```javascript
+// 插入文档
+const result = await User.insertOne({
+    username: 'john',
+    email: 'john@example.com'
+});
+
+// 查询文档
+const user = await User.findOne({ _id: result.insertedId });
+console.log(user);
+// { _id: '...', username: 'john', email: 'john@example.com', version: 0 }
+```
+
+### 更新时自动递增
+
+```javascript
+// 第一次更新
+await User.updateOne({ _id }, { $set: { status: 'active' } });
+// 实际执行：{ $set: { status: 'active' }, $inc: { version: 1 } }
+
+const user = await User.findOne({ _id });
+console.log(user.version);  // 1
+
+// 第二次更新
+await User.updateOne({ _id }, { $set: { status: 'inactive' } });
+console.log(user.version);  // 2
+```
+
+### 并发冲突检测
+
+```javascript
+// 用户 A 读取数据
+const userA = await User.findOne({ _id });
+console.log(userA.version);  // 0
+
+// 用户 B 读取数据
+const userB = await User.findOne({ _id });
+console.log(userB.version);  // 0
+
+// 用户 A 先更新成功
+const resultA = await User.updateOne(
+    { _id, version: userA.version },
+    { $set: { status: 'active' } }
+);
+console.log(resultA.modifiedCount);  // 1
+
+// 用户 B 更新失败
+const resultB = await User.updateOne(
+    { _id, version: userB.version },  // 版本号已过期
+    { $set: { status: 'inactive' } }
+);
+console.log(resultB.modifiedCount);  // 0（版本号不匹配）
+```
+
+### 与其他功能协同
+
+```javascript
+Model.define('users', {
+    options: {
+        timestamps: true,  // 自动时间戳
+        softDelete: true,  // 软删除
+        version: true      // 版本控制
+    }
+});
+
+// 所有功能协同工作
+await User.insertOne({ username: 'john' });
+// { _id, username, version: 0, createdAt, updatedAt }
+
+await User.deleteOne({ _id, version: 0 });
+// 软删除时版本号递增
+```
+
+### 最佳实践
+
+```javascript
+// 并发更新场景
+async function updateUserStatus(userId, newStatus) {
+    let maxRetries = 3;
+    
+    for (let i = 0; i < maxRetries; i++) {
+        const user = await User.findOne({ _id: userId });
+        if (!user) throw new Error('User not found');
+        
+        const result = await User.updateOne(
+            { _id: userId, version: user.version },
+            { $set: { status: newStatus } }
+        );
+        
+        if (result.modifiedCount > 0) return { success: true };
+        
+        console.log(`Retry ${i + 1}/${maxRetries} (version conflict)`);
+    }
+    
+    throw new Error('Update failed due to concurrent modification');
+}
+```
+
+---
+
 ### 完整示例
 
 ```javascript

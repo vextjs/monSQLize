@@ -374,6 +374,29 @@ describe('Model - version Integration (Database Operations)', function() {
             assert.strictEqual(user.status, 'active');
             assert.strictEqual(user.email, 'newemail@example.com');
         });
+
+        it('6.4 should warn about replaceOne losing version', async () => {
+            // replaceOne 会完全替换文档，导致版本号丢失
+            // 这是预期行为，需要在文档中说明
+
+            const result = await User.insertOne({
+                username: 'john',
+                email: 'john@example.com'
+            });
+            const userId = result.insertedId;
+
+            // 使用 replaceOne 替换文档
+            await User.collection.replaceOne(
+                { _id: userId },
+                { username: 'jane', email: 'jane@example.com' }  // 完全替换，不包含 version
+            );
+
+            const user = await User.findOne({ _id: userId });
+            // version 字段会丢失（replaceOne 不触发 hooks）
+            assert.strictEqual(user.version, undefined, 'replaceOne does not preserve version (expected behavior)');
+
+            // 这是预期行为，用户应该避免使用 replaceOne
+            // 推荐使用 updateOne + $set 替代
+        });
     });
 });
-

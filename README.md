@@ -643,6 +643,7 @@ await User.restore({ _id: user._id });
 - ✅ 索引自动创建
 - ✅ 自动时间戳（v1.0.3+）
 - ✅ 软删除（v1.0.3+）
+- ✅ 乐观锁版本控制（v1.0.3+）
 - ✅ TypeScript 类型支持
 
 **注意**：需要安装 `schema-dsl` 依赖：
