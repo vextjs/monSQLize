@@ -580,5 +580,261 @@ describe('Model - version Complete Test Suite (100% Coverage)', function() {
             assert.strictEqual(post.version, 1);
         });
     });
+
+    // ========== 15. 连续更新验证（Critical）==========
+    describe('15. Sequential Updates Verification (Critical)', () => {
+        it('15.1 should maintain version consistency in sequential updates', async () => {
+            const result = await User.insertOne({
+                username: 'john',
+                email: 'john@example.com'
+            });
+            const userId = result.insertedId;
+
+            // 验证初始版本
+            let user = await User.findOne({ _id: userId });
+            assert.strictEqual(user.version, 0, 'Initial version should be 0');
+
+            // 第一次更新
+            await User.updateOne({ _id: userId }, { $set: { status: 'pending' } });
+            user = await User.findOne({ _id: userId });
+            assert.strictEqual(user.version, 1, 'After first update should be 1');
+            assert.strictEqual(user.status, 'pending');
+
+            // 第二次更新
+            await User.updateOne({ _id: userId }, { $set: { status: 'active' } });
+            user = await User.findOne({ _id: userId });
+            assert.strictEqual(user.version, 2, 'After second update should be 2');
+            assert.strictEqual(user.status, 'active');
+
+            // 第三次更新
+            await User.updateOne({ _id: userId }, { $set: { status: 'verified' } });
+            user = await User.findOne({ _id: userId });
+            assert.strictEqual(user.version, 3, 'After third update should be 3');
+            assert.strictEqual(user.status, 'verified');
+
+            // 验证版本号连续性（没有跳跃）
+            assert.strictEqual(user.version, 3, 'Version should be continuous without gaps');
+        });
+    });
+
+    // ========== 16. 冲突后重试成功（High）==========
+    describe('16. Retry After Conflict (High)', () => {
+        it('16.1 should succeed after conflict retry', async () => {
+            const result = await User.insertOne({
+                username: 'john',
+                email: 'john@example.com'
+            });
+            const userId = result.insertedId;
+
+            // 用户 A 读取
+            const userA = await User.findOne({ _id: userId });
+            assert.strictEqual(userA.version, 0);
+
+            // 用户 B 读取
+            const userB = await User.findOne({ _id: userId });
+            assert.strictEqual(userB.version, 0);
+
+            // 用户 A 先更新成功
+            const resultA = await User.updateOne(
+                { _id: userId, version: userA.version },
+                { $set: { status: 'active' } }
+            );
+            assert.strictEqual(resultA.modifiedCount, 1, 'User A should succeed');
+
+            // 用户 B 更新失败（版本号冲突）
+            const resultB = await User.updateOne(
+                { _id: userId, version: userB.version },
+                { $set: { status: 'inactive' } }
+            );
+            assert.strictEqual(resultB.modifiedCount, 0, 'User B should fail due to version conflict');
+
+            // 用户 B 重新读取最新数据
+            const latestUser = await User.findOne({ _id: userId });
+            assert.strictEqual(latestUser.version, 1, 'Latest version should be 1');
+            assert.strictEqual(latestUser.status, 'active', 'Status should be from User A');
+
+            // 用户 B 使用最新版本号重试成功
+            const retryResult = await User.updateOne(
+                { _id: userId, version: latestUser.version },
+                { $set: { status: 'inactive' } }
+            );
+            assert.strictEqual(retryResult.modifiedCount, 1, 'User B retry should succeed');
+
+            // 验证最终状态
+            const finalUser = await User.findOne({ _id: userId });
+            assert.strictEqual(finalUser.version, 2, 'Final version should be 2');
+            assert.strictEqual(finalUser.status, 'inactive', 'Final status should be from User B');
+        });
+    });
+
+    // ========== 17. 批量操作返回值验证（High）==========
+    describe('17. Batch Operation Return Values (High)', () => {
+        it('17.1 should return correct modifiedCount in updateMany', async () => {
+            // 插入测试数据
+            await User.insertMany([
+                { username: 'user1', email: 'user1@example.com', status: 'pending' },
+                { username: 'user2', email: 'user2@example.com', status: 'pending' },
+                { username: 'user3', email: 'user3@example.com', status: 'pending' }
+            ]);
+
+            // 批量更新
+            const result = await User.updateMany(
+                { status: 'pending' },
+                { $set: { status: 'active' } }
+            );
+
+            // 验证返回值
+            assert.strictEqual(result.matchedCount, 3, 'Should match 3 documents');
+            assert.strictEqual(result.modifiedCount, 3, 'Should modify 3 documents');
+
+            // 验证所有文档的版本号都递增
+            const users = await User.find({});
+            assert.strictEqual(users.length, 3);
+            users.forEach(user => {
+                assert.strictEqual(user.version, 1, 'Each user version should be 1');
+                assert.strictEqual(user.status, 'active', 'Each user status should be active');
+            });
+        });
+
+        it('17.2 should handle partial matches in updateMany', async () => {
+            // 插入测试数据
+            await User.insertMany([
+                { username: 'user1', email: 'user1@example.com', status: 'pending' },
+                { username: 'user2', email: 'user2@example.com', status: 'active' },
+                { username: 'user3', email: 'user3@example.com', status: 'pending' }
+            ]);
+
+            // 只更新 pending 状态的文档
+            const result = await User.updateMany(
+                { status: 'pending' },
+                { $set: { status: 'verified' } }
+            );
+
+            // 验证返回值
+            assert.strictEqual(result.matchedCount, 2, 'Should match 2 documents');
+            assert.strictEqual(result.modifiedCount, 2, 'Should modify 2 documents');
+
+            // 验证部分文档被更新
+            const pending = await User.find({ status: 'verified' });
+            assert.strictEqual(pending.length, 2);
+            pending.forEach(u => assert.strictEqual(u.version, 1));
+
+            const active = await User.find({ status: 'active' });
+            assert.strictEqual(active.length, 1);
+            assert.strictEqual(active[0].version, 0, 'Unchanged document should still be version 0');
+        });
+    });
+
+    // ========== 18. 自定义字段名完整流程（Medium）==========
+    describe('18. Custom Field Name Complete Flow (Medium)', () => {
+        it('18.1 should work end-to-end with custom field name', async () => {
+            // 定义使用自定义字段名的 Model
+            Model.define('custom_version_test', {
+                schema: (dsl) => dsl({
+                    name: 'string!',
+                    status: 'string'
+                }),
+                options: {
+                    version: {
+                        enabled: true,
+                        field: '__v'  // 自定义字段名
+                    }
+                }
+            });
+
+            const CustomModel = msq.model('custom_version_test');
+
+            // 插入测试
+            const result = await CustomModel.insertOne({ name: 'test' });
+            let doc = await CustomModel.findOne({ _id: result.insertedId });
+            assert.strictEqual(doc.__v, 0, 'Custom field __v should be initialized to 0');
+
+            // 更新测试
+            await CustomModel.updateOne({ _id: doc._id }, { $set: { name: 'updated' } });
+            doc = await CustomModel.findOne({ _id: doc._id });
+            assert.strictEqual(doc.__v, 1, 'Custom field __v should increment to 1');
+
+            // 并发冲突测试（使用自定义字段名）
+            const conflict = await CustomModel.updateOne(
+                { _id: doc._id, __v: 0 },  // 使用过期的版本号
+                { $set: { name: 'conflict' } }
+            );
+            assert.strictEqual(conflict.modifiedCount, 0, 'Should fail with outdated __v');
+
+            // 使用正确的版本号
+            const success = await CustomModel.updateOne(
+                { _id: doc._id, __v: 1 },  // 使用正确的版本号
+                { $set: { status: 'active' } }
+            );
+            assert.strictEqual(success.modifiedCount, 1, 'Should succeed with correct __v');
+
+            doc = await CustomModel.findOne({ _id: doc._id });
+            assert.strictEqual(doc.__v, 2, 'Custom field __v should be 2');
+            assert.strictEqual(doc.status, 'active');
+
+            // 清理
+            Model._clear();
+        });
+    });
+
+    // ========== 19. 批量导入场景（Medium）==========
+    describe('19. Batch Import Scenario (Medium)', () => {
+        it('19.1 should work correctly in batch import scenario', async () => {
+            // 模拟批量导入场景：插入 → 立即更新
+
+            // 第一步：批量插入（使用10个而不是50个）
+            const docs = [];
+            for (let i = 0; i < 10; i++) {
+                docs.push({
+                    username: `user${i}`,
+                    email: `user${i}@example.com`,
+                    status: 'imported'
+                });
+            }
+
+            const insertResult = await User.insertMany(docs);
+            assert.strictEqual(Object.keys(insertResult.insertedIds).length, 10);
+
+            // 验证所有文档版本号为0
+            let users = await User.find({ status: 'imported' });
+            assert.strictEqual(users.length, 10);
+            users.forEach(u => assert.strictEqual(u.version, 0));
+
+            // 第二步：立即批量更新（数据清洗/标准化）
+            const updateResult = await User.updateMany(
+                { status: 'imported' },
+                { $set: { status: 'active', verified: true } }
+            );
+
+            assert.strictEqual(updateResult.matchedCount, 10);
+            assert.strictEqual(updateResult.modifiedCount, 10);
+
+            // 验证所有文档版本号递增到1
+            users = await User.find({ status: 'active' });
+            assert.strictEqual(users.length, 10);
+            users.forEach(u => {
+                assert.strictEqual(u.version, 1, 'Version should be 1 after batch update');
+                assert.strictEqual(u.verified, true);
+            });
+
+            // 第三步：选择性更新
+            const selectiveResult = await User.updateMany(
+                { username: { $regex: '^user[0-4]$' } },  // 只更新 user0-user4
+                { $set: { premium: true } }
+            );
+
+            assert.strictEqual(selectiveResult.matchedCount, 5);
+            assert.strictEqual(selectiveResult.modifiedCount, 5);
+
+            // 验证部分文档版本号递增到2
+            const premiumUsers = await User.find({ premium: true });
+            assert.strictEqual(premiumUsers.length, 5);
+            premiumUsers.forEach(u => assert.strictEqual(u.version, 2));
+
+            const regularUsers = await User.find({ premium: { $ne: true } });
+            assert.strictEqual(regularUsers.length, 5);
+            regularUsers.forEach(u => assert.strictEqual(u.version, 1));
+        });
+    });
 });
 
