@@ -280,6 +280,33 @@ declare module 'monsqlize' {
     }
 
     /**
+     * SSH 隧道配置
+     * @since v1.3.0
+     */
+    interface SSHConfig {
+        /** SSH 服务器地址 */
+        host: string;
+        /** SSH 服务器端口（默认 22） */
+        port?: number;
+        /** SSH 用户名 */
+        username: string;
+        /** SSH 密码（与 privateKey 二选一） */
+        password?: string;
+        /** SSH 私钥（字符串或 Buffer，与 password 二选一） */
+        privateKey?: string | Buffer;
+        /** 私钥密码（如果私钥有加密） */
+        passphrase?: string;
+        /** 连接超时时间（毫秒，默认 30000） */
+        readyTimeout?: number;
+        /** 保持连接的间隔时间（毫秒，默认 10000） */
+        keepaliveInterval?: number;
+        /** 目标数据库主机（相对于 SSH 服务器，默认 'localhost'） */
+        dstHost?: string;
+        /** 目标数据库端口（相对于 SSH 服务器） */
+        dstPort?: number;
+    }
+
+    /**
      * 多层缓存写策略
      * - both：本地+远端双写（等待远端完成）
      * - local-first-async-remote：本地先返回，远端异步写（降低尾延迟）
@@ -311,6 +338,8 @@ declare module 'monsqlize' {
         type: DbType;
         databaseName: string;
         config: any;
+        /** SSH 隧道配置（v1.3.0+） */
+        ssh?: SSHConfig;
         cache?: CacheLike | MemoryCacheOptions | MultiLevelCacheOptions | object;
         logger?: LoggerLike;
         maxTimeMS?: number; // 全局默认查询超时（毫秒）
@@ -398,6 +427,189 @@ declare module 'monsqlize' {
         /** 查询注释（用于生产环境日志跟踪）*/
         comment?: string;
         meta?: boolean | MetaOptions;
+    }
+
+    // ============================================================================
+    // 批量操作相关类型定义（Batch Operations）
+    // ============================================================================
+
+    /**
+     * insertBatch 选项
+     * @since v1.0.0
+     */
+    interface InsertBatchOptions {
+        /** 每批插入的文档数量（默认 1000） */
+        batchSize?: number;
+        /** 并发批次数（1=串行，>1=并行，默认 1） */
+        concurrency?: number;
+        /** 批次内是否按顺序插入（默认 false） */
+        ordered?: boolean;
+        /** 进度回调函数 */
+        onProgress?: (progress: BatchProgress) => void;
+        /** 错误处理策略: 'stop'|'skip'|'collect'|'retry'（默认 'stop'） */
+        onError?: 'stop' | 'skip' | 'collect' | 'retry';
+        /** 失败批次最大重试次数（onError='retry'时有效，默认 3） */
+        retryAttempts?: number;
+        /** 重试延迟时间（毫秒，默认 1000） */
+        retryDelay?: number;
+        /** 重试回调函数 */
+        onRetry?: (retryInfo: RetryInfo) => void;
+        /** 写确认级别 */
+        writeConcern?: { w?: number | string; j?: boolean; wtimeout?: number };
+        /** 是否绕过文档验证（默认 false） */
+        bypassDocumentValidation?: boolean;
+        /** 操作注释（用于日志追踪） */
+        comment?: string;
+    }
+
+    /**
+     * updateBatch 选项
+     * @since v1.0.0
+     */
+    interface UpdateBatchOptions {
+        /** 每批更新的文档数量（默认 1000） */
+        batchSize?: number;
+        /** 是否预先 count 总数（用于进度百分比，默认 true） */
+        estimateProgress?: boolean;
+        /** 进度回调函数 */
+        onProgress?: (progress: BatchProgress) => void;
+        /** 错误处理策略: 'stop'|'skip'|'collect'|'retry'（默认 'stop'） */
+        onError?: 'stop' | 'skip' | 'collect' | 'retry';
+        /** 失败批次最大重试次数（onError='retry'时有效，默认 3） */
+        retryAttempts?: number;
+        /** 重试延迟时间（毫秒，默认 1000） */
+        retryDelay?: number;
+        /** 重试回调函数 */
+        onRetry?: (retryInfo: RetryInfo) => void;
+        /** 写确认级别 */
+        writeConcern?: { w?: number | string; j?: boolean; wtimeout?: number };
+        /** 未匹配时是否插入（默认 false） */
+        upsert?: boolean;
+        /** 数组过滤器 */
+        arrayFilters?: any[];
+        /** 操作注释（用于日志追踪） */
+        comment?: string;
+    }
+
+    /**
+     * deleteBatch 选项
+     * @since v1.0.0
+     */
+    interface DeleteBatchOptions {
+        /** 每批删除的文档数量（默认 1000） */
+        batchSize?: number;
+        /** 是否预先 count 总数（用于进度百分比，默认 true） */
+        estimateProgress?: boolean;
+        /** 进度回调函数 */
+        onProgress?: (progress: BatchProgress) => void;
+        /** 错误处理策略: 'stop'|'skip'|'collect'|'retry'（默认 'stop'） */
+        onError?: 'stop' | 'skip' | 'collect' | 'retry';
+        /** 失败批次最大重试次数（onError='retry'时有效，默认 3） */
+        retryAttempts?: number;
+        /** 重试延迟时间（毫秒，默认 1000） */
+        retryDelay?: number;
+        /** 重试回调函数 */
+        onRetry?: (retryInfo: RetryInfo) => void;
+        /** 写确认级别 */
+        writeConcern?: { w?: number | string; j?: boolean; wtimeout?: number };
+        /** 操作注释（用于日志追踪） */
+        comment?: string;
+    }
+
+    /**
+     * 批量操作进度信息
+     */
+    interface BatchProgress {
+        /** 当前批次号（从1开始） */
+        currentBatch: number;
+        /** 总批次数 */
+        totalBatches: number;
+        /** 已处理数量 */
+        inserted?: number;
+        modified?: number;
+        deleted?: number;
+        /** 总数量 */
+        total: number | null;
+        /** 完成百分比（0-100） */
+        percentage: number | null;
+        /** 错误数量 */
+        errors: number;
+        /** 重试数量 */
+        retries: number;
+    }
+
+    /**
+     * 重试信息
+     */
+    interface RetryInfo {
+        /** 批次索引（从0开始） */
+        batchIndex: number;
+        /** 当前重试次数 */
+        attempt: number;
+        /** 最大重试次数 */
+        maxAttempts: number;
+        /** 错误信息 */
+        error: Error;
+    }
+
+    /**
+     * insertBatch 返回结果
+     */
+    interface InsertBatchResult {
+        /** 是否被确认 */
+        acknowledged: boolean;
+        /** 总文档数 */
+        totalCount: number;
+        /** 成功插入数 */
+        insertedCount: number;
+        /** 总批次数 */
+        batchCount: number;
+        /** 错误列表 */
+        errors: Array<{ batchIndex: number; message: string; details?: any }>;
+        /** 重试记录列表 */
+        retries: Array<{ batchIndex: number; attempts: number; success: boolean }>;
+        /** 插入的文档 _id 映射表 */
+        insertedIds: Record<number, any>;
+    }
+
+    /**
+     * updateBatch 返回结果
+     */
+    interface UpdateBatchResult {
+        /** 是否被确认 */
+        acknowledged: boolean;
+        /** 总文档数（estimateProgress=true时有值） */
+        totalCount: number | null;
+        /** 匹配文档数 */
+        matchedCount: number;
+        /** 成功更新数 */
+        modifiedCount: number;
+        /** 插入数（upsert=true时） */
+        upsertedCount: number;
+        /** 总批次数 */
+        batchCount: number;
+        /** 错误列表 */
+        errors: Array<{ batchIndex: number; message: string; details?: any }>;
+        /** 重试记录列表 */
+        retries: Array<{ batchIndex: number; attempts: number; success: boolean }>;
+    }
+
+    /**
+     * deleteBatch 返回结果
+     */
+    interface DeleteBatchResult {
+        /** 是否被确认 */
+        acknowledged: boolean;
+        /** 总文档数（estimateProgress=true时有值） */
+        totalCount: number | null;
+        /** 成功删除数 */
+        deletedCount: number;
+        /** 总批次数 */
+        batchCount: number;
+        /** 错误列表 */
+        errors: Array<{ batchIndex: number; message: string; details?: any }>;
+        /** 重试记录列表 */
+        retries: Array<{ batchIndex: number; attempts: number; success: boolean }>;
     }
 
     interface AggregateOptions {
@@ -662,7 +874,7 @@ declare module 'monsqlize' {
          */
         findOneById(id: string | any, options?: Omit<FindOptions, 'meta'>): Promise<any | null>;
 
-u        /**
+        u        /**
          * 批量通过 _id 查询多个文档（便利方法）
          * @param ids - _id 数组（支持字符串和 ObjectId 混合）
          * @param options - 查询选项
@@ -816,6 +1028,78 @@ u        /**
         }>;
 
         invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
+
+        // ============================================================================
+        // 批量操作方法 (Batch Operations)
+        // ============================================================================
+
+        /**
+         * 大批量插入（自动分批+重试）
+         * @param documents - 要插入的文档数组
+         * @param options - 批量插入选项
+         * @returns Promise<InsertBatchResult>
+         * @since v1.0.0
+         * @example
+         * const result = await collection('products').insertBatch(largeDataset, {
+         *   batchSize: 1000,
+         *   onProgress: (p) => console.log(`${p.percentage}%`)
+         * });
+         */
+        insertBatch<T = TSchema>(documents: T[], options?: InsertBatchOptions): Promise<InsertBatchResult>;
+
+        /**
+         * 批量更新文档（流式查询+分批更新）
+         * @param filter - 查询条件
+         * @param update - 更新操作（必须使用更新操作符）
+         * @param options - 批量更新选项
+         * @returns Promise<UpdateBatchResult>
+         * @since v1.0.0
+         * @example
+         * const result = await collection('users').updateBatch(
+         *   { status: 'pending' },
+         *   { $set: { status: 'processed' } },
+         *   { batchSize: 5000, onError: 'retry' }
+         * );
+         */
+        updateBatch(
+            filter: Record<string, any>,
+            update: Record<string, any>,
+            options?: UpdateBatchOptions
+        ): Promise<UpdateBatchResult>;
+
+        /**
+         * 批量删除文档（流式查询+分批删除）
+         * @param filter - 查询条件
+         * @param options - 批量删除选项
+         * @returns Promise<DeleteBatchResult>
+         * @since v1.0.0
+         * @example
+         * const result = await collection('logs').deleteBatch(
+         *   { createdAt: { $lt: expireDate } },
+         *   { batchSize: 5000, estimateProgress: true }
+         * );
+         */
+        deleteBatch(
+            filter: Record<string, any>,
+            options?: DeleteBatchOptions
+        ): Promise<DeleteBatchResult>;
+
+        /**
+         * 查询文档并返回总数（便利方法）
+         * @param filter - 查询条件
+         * @param options - 查询选项
+         * @returns Promise<{ documents: T[], total: number }>
+         * @since v1.0.0
+         * @example
+         * const { documents, total } = await collection('users').findAndCount(
+         *   { status: 'active' },
+         *   { limit: 10, cache: 60000 }
+         * );
+         */
+        findAndCount<T = TSchema>(
+            filter?: Record<string, any>,
+            options?: FindOptions
+        ): Promise<{ documents: T[]; total: number }>;
     }
 
     /**
@@ -1500,6 +1784,24 @@ u        /**
                 /** 更新时间字段名，false 表示禁用 */
                 updatedAt?: boolean | string;
             };
+
+            /**
+             * 是否启用 Schema 验证（默认 true）
+             * @since v1.0.3
+             */
+            schemaValidation?: boolean;
+
+            /**
+             * 是否启用严格模式（不允许未定义的字段，默认 false）
+             * @since v1.0.3
+             */
+            strict?: boolean;
+
+            /**
+             * 自定义错误消息
+             * @since v1.0.3
+             */
+            messages?: Record<string, string>;
         };
     }
 
