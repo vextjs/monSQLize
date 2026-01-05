@@ -6,6 +6,7 @@
  * - Schema 验证
  * - CRUD 操作
  * - 实例方法和静态方法
+ * - timestamps 和 softDelete（v1.0.3+）
  */
 
 const MonSQLize = require('../../lib/index');
@@ -20,7 +21,8 @@ Model.define('users', {
         status: 'string'.default('active')
     }),
     options: {
-        timestamps: true  // v1.0.3+: 自动管理 createdAt/updatedAt
+        timestamps: true,  // v1.0.3+: 自动管理 createdAt/updatedAt
+        softDelete: true   // v1.0.3+: 软删除（标记删除，支持恢复）
     },
     methods: (model) => ({
         instance: {

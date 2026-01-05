@@ -619,6 +619,333 @@ Model.define('users', {
 
 ---
 
+## 软删除（softDelete）
+
+**版本**: v1.0.3+
+
+软删除标记文档为已删除，而非物理删除，支持数据恢复和审计。
+
+### 启用软删除
+
+```javascript
+// 简单模式
+Model.define('users', {
+    schema: (dsl) => dsl({ username: 'string!' }),
+    options: {
+        softDelete: true  // 使用默认配置
+    }
+});
+
+// 完整配置
+Model.define('posts', {
+    schema: (dsl) => dsl({ title: 'string!' }),
+    options: {
+        softDelete: {
+            enabled: true,           // 启用软删除
+            field: 'deletedAt',      // 字段名（可自定义）
+            type: 'timestamp',       // 'timestamp' | 'boolean'
+            ttl: 86400 * 30          // TTL 索引（30天后自动清理）
+        }
+    }
+});
+```
+
+### 配置项
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | boolean | true | 启用软删除 |
+| `field` | string | 'deletedAt' | 删除标记字段名 |
+| `type` | string | 'timestamp' | 删除标记类型（'timestamp' 或 'boolean'） |
+| `ttl` | number | null | TTL 索引（秒），自动清理已删除数据 |
+
+### 软删除操作
+
+启用软删除后，`deleteOne` 和 `deleteMany` 会自动转换为更新操作：
+
+```javascript
+const User = msq.model('users');
+
+// 软删除（标记为已删除）
+await User.deleteOne({ _id });
+// 实际执行：updateOne({ _id }, { $set: { deletedAt: new Date() } })
+
+// 批量软删除
+await User.deleteMany({ status: 'inactive' });
+// 实际执行：updateMany({ status: 'inactive' }, { $set: { deletedAt: new Date() } })
+```
+
+### 查询自动过滤
+
+启用软删除后，查询操作自动过滤已删除的文档：
+
+```javascript
+// 默认查询不返回已删除数据
+const users = await User.find({});
+// 实际执行：find({ deletedAt: null })
+
+const user = await User.findOne({ username: 'john' });
+// 实际执行：findOne({ username: 'john', deletedAt: null })
+
+const count = await User.count({ status: 'active' });
+// 实际执行：count({ status: 'active', deletedAt: null })
+```
+
+### 查询已删除数据
+
+使用专门的方法查询包含或只查询已删除的数据：
+
+```javascript
+// 查询包含已删除的所有数据
+const allUsers = await User.findWithDeleted({});
+const john = await User.findOneWithDeleted({ username: 'john' });
+const totalCount = await User.countWithDeleted({});
+
+// 只查询已删除的数据
+const deletedUsers = await User.findOnlyDeleted({});
+const deletedJohn = await User.findOneOnlyDeleted({ username: 'john' });
+const deletedCount = await User.countOnlyDeleted({});
+```
+
+### 新增方法
+
+| 方法 | 说明 |
+|------|------|
+| `findWithDeleted(filter, options)` | 查询包含已删除的文档 |
+| `findOneWithDeleted(filter, options)` | 查询单个文档（包含已删除） |
+| `countWithDeleted(filter, options)` | 统计文档数（包含已删除） |
+| `findOnlyDeleted(filter, options)` | 只查询已删除的文档 |
+| `findOneOnlyDeleted(filter, options)` | 查询单个已删除文档 |
+| `countOnlyDeleted(filter, options)` | 统计已删除的文档数 |
+| `restore(filter, options)` | 恢复已删除的文档 |
+| `restoreMany(filter, options)` | 批量恢复已删除的文档 |
+| `forceDelete(filter, options)` | 强制物理删除（不可恢复） |
+| `forceDeleteMany(filter, options)` | 批量强制物理删除 |
+
+### 恢复已删除数据
+
+```javascript
+// 恢复单个文档
+const result = await User.restore({ _id });
+// 实际执行：updateOne({ _id, deletedAt: { $ne: null } }, { $unset: { deletedAt: 1 } })
+
+// 批量恢复
+const result = await User.restoreMany({ status: 'active' });
+// 实际执行：updateMany({ status: 'active', deletedAt: { $ne: null } }, { $unset: { deletedAt: 1 } })
+```
+
+### 强制物理删除
+
+绕过软删除机制，执行真正的物理删除（不可恢复）：
+
+```javascript
+// 强制物理删除单个文档
+await User.forceDelete({ _id });
+// 实际执行：真正的 deleteOne（数据永久删除）
+
+// 批量强制删除
+await User.forceDeleteMany({ deletedAt: { $lt: thirtyDaysAgo } });
+// 实际执行：真正的 deleteMany（批量永久删除）
+```
+
+### 删除类型
+
+#### timestamp 类型（默认）
+
+```javascript
+Model.define('users', {
+    options: {
+        softDelete: { type: 'timestamp' }  // 默认
+    }
+});
+
+// 删除时记录删除时间
+{ _id, username: 'john', deletedAt: new Date('2026-01-05T10:30:00Z') }
+
+// 优点：记录删除时间，支持审计
+// 缺点：占用存储空间
+```
+
+#### boolean 类型
+
+```javascript
+Model.define('posts', {
+    options: {
+        softDelete: { type: 'boolean' }
+    }
+});
+
+// 删除时标记为 true
+{ _id, title: 'Hello', deletedAt: true }
+
+// 优点：节省存储空间
+// 缺点：不记录删除时间
+```
+
+### 自定义字段名
+
+```javascript
+Model.define('comments', {
+    options: {
+        softDelete: {
+            enabled: true,
+            field: 'removed_at'  // 自定义字段名
+        }
+    }
+});
+
+// 删除时使用 removed_at 字段
+await Comment.deleteOne({ _id });
+// { _id, content: 'Nice!', removed_at: new Date() }
+```
+
+### TTL 索引自动清理
+
+配置 TTL 索引，MongoDB 会自动删除过期的已删除数据：
+
+```javascript
+Model.define('logs', {
+    options: {
+        softDelete: {
+            enabled: true,
+            ttl: 86400 * 30  // 30天后自动清理
+        }
+    }
+});
+
+// 自动创建索引：
+// db.logs.createIndex({ deletedAt: 1 }, { expireAfterSeconds: 2592000 })
+
+// MongoDB 会自动删除 deletedAt 超过 30 天的文档
+```
+
+### 与 timestamps 协同
+
+软删除和时间戳可以同时启用：
+
+```javascript
+Model.define('products', {
+    schema: (dsl) => dsl({ name: 'string!' }),
+    options: {
+        timestamps: true,   // 自动管理 createdAt/updatedAt
+        softDelete: true    // 软删除
+    }
+});
+
+// 插入时自动添加时间戳
+await Product.insertOne({ name: 'iPhone' });
+// { _id, name: 'iPhone', createdAt: Date, updatedAt: Date }
+
+// 软删除时自动更新 updatedAt
+await Product.deleteOne({ _id });
+// { _id, name: 'iPhone', createdAt: Date, updatedAt: Date(更新), deletedAt: Date }
+```
+
+### 唯一索引处理
+
+⚠️ **注意**：软删除后，唯一索引可能失效。
+
+```javascript
+// 问题：用户 john 被软删除后
+{ username: 'john', deletedAt: new Date() }
+
+// 创建新用户 john 会失败（唯一索引冲突）
+await User.insertOne({ username: 'john' });  // ❌ 冲突
+```
+
+**解决方案**：使用复合唯一索引
+
+```javascript
+Model.define('users', {
+    schema: (dsl) => dsl({ username: 'string!' }),
+    options: {
+        softDelete: true
+    },
+    indexes: [
+        {
+            key: { username: 1, deletedAt: 1 },  // 复合索引
+            unique: true
+        }
+    ]
+});
+
+// 现在可以创建同名用户（因为 deletedAt 不同）
+```
+
+### 完整示例
+
+```javascript
+const MonSQLize = require('monsqlize');
+const { Model } = MonSQLize;
+
+// 定义 Model（启用软删除和时间戳）
+Model.define('articles', {
+    schema: (dsl) => dsl({
+        title: 'string!',
+        content: 'string!',
+        author: 'string!'
+    }),
+    options: {
+        timestamps: true,
+        softDelete: {
+            enabled: true,
+            type: 'timestamp',
+            ttl: 86400 * 30  // 30天后自动清理
+        }
+    },
+    indexes: [
+        { key: { author: 1 } },
+        { key: { title: 1, deletedAt: 1 }, unique: true }  // 复合唯一索引
+    ]
+});
+
+async function example() {
+    const msq = new MonSQLize({ type: 'mongodb', databaseName: 'blog' });
+    await msq.connect();
+    
+    const Article = msq.model('articles');
+    
+    // 1. 插入文章
+    const article = await Article.insertOne({
+        title: 'Hello World',
+        content: 'This is my first post',
+        author: 'john'
+    });
+    console.log('Created:', article);
+    // { _id, title, content, author, createdAt, updatedAt }
+    
+    // 2. 软删除文章
+    await Article.deleteOne({ _id: article._id });
+    console.log('Article soft deleted');
+    
+    // 3. 查询（自动过滤已删除）
+    const articles = await Article.find({ author: 'john' });
+    console.log('Active articles:', articles.length);  // 0
+    
+    // 4. 查询包含已删除
+    const allArticles = await Article.findWithDeleted({ author: 'john' });
+    console.log('All articles:', allArticles.length);  // 1
+    
+    // 5. 恢复文章
+    await Article.restore({ _id: article._id });
+    console.log('Article restored');
+    
+    // 6. 查询（恢复后可以查到）
+    const restoredArticle = await Article.findOne({ _id: article._id });
+    console.log('Restored:', restoredArticle.title);  // 'Hello World'
+    
+    // 7. 强制物理删除
+    await Article.forceDelete({ _id: article._id });
+    console.log('Article permanently deleted');
+    
+    await msq.close();
+}
+
+example().catch(console.error);
+```
+
+---
+
 ## 常见问题
 
 **Q: `this.password` 从哪来？**  

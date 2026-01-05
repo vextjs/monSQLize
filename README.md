@@ -571,7 +571,8 @@ Model.define('users', {
         });
     },
     options: {
-        timestamps: true  // 🆕 v1.0.3: 自动管理 createdAt/updatedAt
+        timestamps: true,  // 🆕 v1.0.3: 自动管理 createdAt/updatedAt
+        softDelete: true   // 🆕 v1.0.3: 软删除（标记删除，支持恢复）
     },
     methods: (model) => ({
         // 实例方法 - 注入到查询返回的文档对象
@@ -621,6 +622,18 @@ console.log(admin.isAdmin()); // true
 
 // 使用静态方法
 const user = await User.findByEmail('john@example.com');
+
+// 软删除（标记删除，可恢复）
+await User.deleteOne({ _id: user._id });
+
+// 查询（自动过滤已删除）
+const users = await User.find({}); // 不包含已删除用户
+
+// 查询包含已删除
+const allUsers = await User.findWithDeleted({});
+
+// 恢复已删除
+await User.restore({ _id: user._id });
 ```
 
 **特性**：
@@ -629,6 +642,7 @@ const user = await User.findByEmail('john@example.com');
 - ✅ 生命周期钩子（before/after）
 - ✅ 索引自动创建
 - ✅ 自动时间戳（v1.0.3+）
+- ✅ 软删除（v1.0.3+）
 - ✅ TypeScript 类型支持
 
 **注意**：需要安装 `schema-dsl` 依赖：
