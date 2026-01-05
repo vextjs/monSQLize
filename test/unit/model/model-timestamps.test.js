@@ -737,6 +737,155 @@ describe('Model - Timestamps 功能', function() {
             assert.strictEqual(updated.tags.length, 2, '数组应该添加新元素');
             assert.ok(updated.updatedAt > original.updatedAt, 'updatedAt 应该被更新');
         });
+
+        it('🔧 incrementOne 应该更新 updatedAt', async function() {
+            Model.define(currentCollection, {
+                schema: (dsl) => dsl({
+                    username: 'string!',
+                    points: 'number'
+                }),
+                options: {
+                    timestamps: true
+                }
+            });
+
+            msq = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test',
+                config: { useMemoryServer: true }
+            });
+            await msq.connect();
+
+            const User = msq.model(currentCollection);
+
+            // 插入数据
+            const result = await User.insertOne({
+                username: 'john',
+                points: 100
+            });
+            const original = await User.findOne({ _id: result.insertedId });
+
+            // 等待 10ms
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            // 使用 incrementOne
+            await User.incrementOne(
+                { _id: result.insertedId },
+                'points',
+                50
+            );
+
+            const updated = await User.findOne({ _id: result.insertedId });
+            assert.strictEqual(updated.points, 150, 'points 应该递增');
+            assert.ok(updated.updatedAt > original.updatedAt, 'updatedAt 应该被更新');
+        });
+    });
+
+    describe('🔧 手动时间戳不被覆盖', function() {
+        it('insertOne 时用户手动设置的 createdAt 不应该被覆盖', async function() {
+            Model.define(currentCollection, {
+                schema: (dsl) => dsl({
+                    username: 'string!'
+                }),
+                options: {
+                    timestamps: true
+                }
+            });
+
+            msq = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test',
+                config: { useMemoryServer: true }
+            });
+            await msq.connect();
+
+            const User = msq.model(currentCollection);
+
+            // 手动设置时间戳
+            const customTime = new Date('2020-01-01T00:00:00.000Z');
+            const result = await User.insertOne({
+                username: 'john',
+                createdAt: customTime,
+                updatedAt: customTime
+            });
+
+            const inserted = await User.findOne({ _id: result.insertedId });
+            assert.strictEqual(inserted.createdAt.getTime(), customTime.getTime(), 'createdAt 应该保留用户设置的值');
+            assert.strictEqual(inserted.updatedAt.getTime(), customTime.getTime(), 'updatedAt 应该保留用户设置的值');
+        });
+
+        it('insertMany 时用户手动设置的时间戳不应该被覆盖', async function() {
+            Model.define(currentCollection, {
+                schema: (dsl) => dsl({
+                    username: 'string!'
+                }),
+                options: {
+                    timestamps: true
+                }
+            });
+
+            msq = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test',
+                config: { useMemoryServer: true }
+            });
+            await msq.connect();
+
+            const User = msq.model(currentCollection);
+
+            const customTime = new Date('2020-01-01T00:00:00.000Z');
+            const now = new Date();
+
+            // 混合：一个手动设置，一个自动
+            const result = await User.insertMany([
+                { username: 'jane', createdAt: customTime, updatedAt: customTime },
+                { username: 'john' }
+            ]);
+
+            const allDocs = await User.find({}).toArray();
+            const [doc1, doc2] = allDocs.sort((a, b) => a.username.localeCompare(b.username));
+
+            // 第一个文档保留手动时间戳（jane）
+            assert.strictEqual(doc1.createdAt.getTime(), customTime.getTime(), 'createdAt 应该保留用户设置的值');
+            assert.strictEqual(doc1.updatedAt.getTime(), customTime.getTime(), 'updatedAt 应该保留用户设置的值');
+
+            // 第二个文档自动添加时间戳（john）
+            assert.ok(doc2.createdAt >= now, 'createdAt 应该自动添加');
+            assert.ok(doc2.updatedAt >= now, 'updatedAt 应该自动添加');
+        });
+
+        it('replaceOne 时用户手动设置的 updatedAt 不应该被覆盖', async function() {
+            Model.define(currentCollection, {
+                schema: (dsl) => dsl({
+                    username: 'string!'
+                }),
+                options: {
+                    timestamps: true
+                }
+            });
+
+            msq = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test',
+                config: { useMemoryServer: true }
+            });
+            await msq.connect();
+
+            const User = msq.model(currentCollection);
+
+            // 插入数据
+            const result = await User.insertOne({ username: 'john' });
+
+            // 手动设置 updatedAt
+            const customTime = new Date('2020-01-01T00:00:00.000Z');
+            await User.replaceOne(
+                { _id: result.insertedId },
+                { username: 'jane', updatedAt: customTime }
+            );
+
+            const updated = await User.findOne({ _id: result.insertedId });
+            assert.strictEqual(updated.updatedAt.getTime(), customTime.getTime(), 'updatedAt 应该保留用户设置的值');
+        });
     });
 });
 
