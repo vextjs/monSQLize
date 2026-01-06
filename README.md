@@ -198,7 +198,28 @@ monSQLize 是一个**100% 兼容 MongoDB API** 的增强库。
 
 ---
 
-## 🚀 快速开始
+## �️ 文档导航
+
+### 📚 核心概念（7 篇）
+[连接管理](./docs/connection.md) · [缓存系统](./docs/cache.md) · [事务管理](./docs/transaction.md) · [Model 层](./docs/model.md) · [业务锁](./docs/business-lock.md) · [SSH 隧道](./docs/ssh-tunnel.md) · [分布式部署](./docs/distributed-deployment.md)
+
+### 🔍 查询操作（8 篇）
+[find](./docs/find.md) · [findOne](./docs/findOne.md) · [findOneById](./docs/find-one-by-id.md) · [findByIds](./docs/find-by-ids.md) · [findPage](./docs/findPage.md) · [count](./docs/count.md) · [distinct](./docs/distinct.md) · [watch](./docs/watch.md) ⭐
+
+### ✏️ 写入操作（15 篇）
+**插入**: [insertOne](./docs/insert-one.md) · [insertMany](./docs/insert-many.md) · [insertBatch](./docs/insertBatch.md)  
+**更新**: [updateOne](./docs/update-one.md) · [updateMany](./docs/update-many.md) · [updateBatch](./docs/updateBatch.md) · [replaceOne](./docs/replace-one.md) · [findOneAndUpdate](./docs/find-one-and-update.md) · [findOneAndReplace](./docs/find-one-and-replace.md)  
+**删除**: [deleteOne](./docs/delete-one.md) · [deleteMany](./docs/delete-many.md) · [deleteBatch](./docs/deleteBatch.md) · [findOneAndDelete](./docs/find-one-and-delete.md)  
+**便利方法**: [upsertOne](./docs/upsert-one.md) · [incrementOne](./docs/increment-one.md) · [findAndCount](./docs/find-and-count.md)
+
+### 📊 聚合与工具（10+ 篇）
+[aggregate](./docs/aggregate.md) · [explain](./docs/explain.md) · [链式调用](./docs/chaining-api.md) ⭐ · [索引管理](./docs/create-index.md) · [Count 队列](./docs/count-queue.md) ⭐ · [慢查询日志](./docs/slow-query-log.md) · [书签管理](./docs/bookmarks.md) · [ESM 支持](./docs/esm-support.md)
+
+**完整文档索引**: [docs/INDEX.md](./docs/INDEX.md) - 60+ 篇详细文档
+
+---
+
+## �🚀 快速开始
 
 ### 安装
 
@@ -398,6 +419,20 @@ await users.upsertOne(
 </td>
 </tr>
 </table>
+
+**🔥 ObjectId 自动转换** - 告别手动转换
+
+```javascript
+// ❌ 原生驱动 - 每次都要转换
+const { ObjectId } = require('mongodb');
+await users.findOne({ _id: new ObjectId(userId) });
+await users.find({ _id: { $in: ids.map(id => new ObjectId(id)) } }).toArray();
+
+// ✅ monSQLize - 自动识别并转换
+await users.findOneById(userId);       // 自动转换字符串
+await users.findByIds([id1, id2, id3]); // 批量自动转换
+await users.findOne({ _id: userId });   // 查询时也自动转换
+```
 
 ### 4. 🌐 分布式部署支持
 
@@ -655,7 +690,112 @@ npm install schema-dsl
 
 ---
 
-## 📊 性能测试报告
+## � 进阶功能
+
+### 1. Change Streams - 实时监听数据变更 ⭐
+
+```javascript
+// 实时监听订单变化
+const watcher = orders.watch([
+    { $match: { 'fullDocument.status': 'pending' } }
+]);
+
+watcher.on('change', (change) => {
+    console.log('新订单:', change.fullDocument);
+    // 触发通知、更新统计、失效缓存等
+});
+
+// ✅ 自动处理：重连、错误恢复、缓存失效
+```
+
+**特性**: 支持聚合管道过滤 · 断点续传 · 自动失效相关缓存
+
+[📖 完整文档](./docs/watch.md) | [示例代码](./examples/watch.examples.js)
+
+---
+
+### 2. Count 队列控制 - 高并发优化 ⭐
+
+```javascript
+// 高并发场景：100 个用户同时请求分页
+const db = new MonSQLize({
+    countQueue: {
+        enabled: true,       // 默认启用
+        concurrency: 8       // 同时最多 8 个 count
+    }
+});
+
+// ✅ 自动队列控制，防止 count 拖垮数据库
+const result = await users.findPage({
+    query: { status: 'active' },
+    totals: { mode: 'async' }  // 自动应用队列
+});
+```
+
+**效果**: 数据库 CPU 从 100% → 30% · 其他查询不再超时
+
+[📖 完整文档](./docs/count-queue.md)
+
+---
+
+### 3. 链式调用 API - 优雅的查询构建 ⭐
+
+```javascript
+// jQuery 风格的链式调用
+const result = await users
+    .find()
+    .filter({ age: { $gte: 18 } })
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .cache(60000)
+    .exec();
+
+// ✅ 代码更清晰、可读性更强
+```
+
+[📖 完整文档](./docs/chaining-api.md) | [链式方法参考](./docs/chaining-methods.md)
+
+---
+
+### 4. Model 层乐观锁 - 防止并发修改冲突
+
+```javascript
+// 启用版本控制
+Model.define('products', {
+    schema: (dsl) => dsl({ name: 'string!', stock: 'number!' }),
+    options: { optimisticLock: true }
+});
+
+// 自动版本检查和更新
+await Product.updateOne(
+    { _id: productId, __v: 1 },           // 要求版本为 1
+    { $inc: { stock: -1 }, $inc: { __v: 1 } }  // 自动递增版本
+);
+// ❌ 如果版本不匹配（被其他请求修改），更新失败
+```
+
+[📖 Model 层文档](./docs/model.md)
+
+---
+
+### 5. ES Module 支持 - 现代 JavaScript
+
+```javascript
+// ✅ 支持 import/export
+import MonSQLize from 'monsqlize';
+
+const db = new MonSQLize({ /* ... */ });
+await db.connect();
+
+// 🎯 完美支持 TypeScript
+import type { Collection, MonSQLizeConfig } from 'monsqlize';
+```
+
+[📖 ESM 文档](./docs/esm-support.md)
+
+---
+
+## �📊 性能测试报告
 
 ### 测试环境
 
@@ -773,8 +913,9 @@ npm install schema-dsl
 
 ✅ **开发体验**
 - TypeScript 支持
-- 链式调用 API
+- 链式调用 API ⭐
 - ESM/CommonJS 双模式
+- ObjectId 自动转换 ⭐
 - 77% 测试覆盖率
 
 </td>
