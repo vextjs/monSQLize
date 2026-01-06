@@ -156,6 +156,44 @@ describe('Model - 基础功能', function() {
             }
         });
 
+        it('应该拒绝包含特殊字符的集合名称', function() {
+            const invalidNames = [
+                'user$name',  // 包含 $
+                'user.name',  // 包含 .
+                'user name',  // 包含空格
+                'user\nname', // 包含换行
+                'user\0name'  // 包含 null 字符
+            ];
+
+            invalidNames.forEach(name => {
+                try {
+                    Model.define(name, { schema: (dsl) => dsl({}) });
+                    assert.fail(`应该拒绝集合名: ${name}`);
+                } catch (err) {
+                    assert.ok(
+                        err.message.includes('Invalid collection name') ||
+                        err.message.includes('special characters'),
+                        `错误消息应该提到特殊字符，实际: ${err.message}`
+                    );
+                }
+            });
+        });
+
+    });
+
+    describe('并发场景', function() {
+
+        it('应该支持并发注册多个不同的 Model', async function() {
+            const promises = Array.from({ length: 10 }, (_, i) =>
+                Promise.resolve(Model.define(`model_${i}`, {
+                    schema: (dsl) => dsl({ name: 'string!' })
+                }))
+            );
+
+            await Promise.all(promises);
+            assert.strictEqual(Model.list().length, 10);
+        });
+
     });
 
     describe('Model.get()', function() {

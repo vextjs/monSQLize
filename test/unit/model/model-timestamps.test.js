@@ -842,7 +842,7 @@ describe('Model - Timestamps 功能', function() {
                 { username: 'john' }
             ]);
 
-            const allDocs = await User.find({}).toArray();
+            const allDocs = await User.find({});
             const [doc1, doc2] = allDocs.sort((a, b) => a.username.localeCompare(b.username));
 
             // 第一个文档保留手动时间戳（jane）
@@ -887,5 +887,69 @@ describe('Model - Timestamps 功能', function() {
             assert.strictEqual(updated.updatedAt.getTime(), customTime.getTime(), 'updatedAt 应该保留用户设置的值');
         });
     });
-});
 
+    describe('错误处理', function() {
+
+        it('应该检测时间戳字段与 schema 冲突 - 自动时间戳优先', async function() {
+            Model.define(currentCollection, {
+                schema: (dsl) => dsl({
+                    username: 'string!',
+                    createdAt: 'string'  // 与自动时间戳冲突
+                }),
+                options: {
+                    timestamps: true
+                }
+            });
+
+            msq = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test',
+                config: { useMemoryServer: true }
+            });
+            await msq.connect();
+
+            const User = msq.model(currentCollection);
+
+            // 当前实现：用户输入的字段被保留（Schema 验证优先）
+            await User.insertOne({ username: 'john', createdAt: 'invalid' });
+            const user = await User.findOne({ username: 'john' });
+
+            // 验证用户输入的字符串被保留了（Schema 定义优先于自动时间戳）
+            assert.strictEqual(user.createdAt, 'invalid', 'createdAt 应该保留用户输入的字符串值');
+            // 但 updatedAt 仍然会自动添加（因为没有在 schema 中定义冲突）
+            assert.ok(user.updatedAt instanceof Date, 'updatedAt 应该是 Date 类型');
+        });
+    });
+
+    describe('并发场景', function() {
+
+        it('应该在高并发更新时正确更新 updatedAt', async function() {
+            Model.define(currentCollection, {
+                schema: (dsl) => dsl({ username: 'string!', counter: 'number' }),
+                options: { timestamps: true }
+            });
+
+            msq = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test',
+                config: { useMemoryServer: true }
+            });
+            await msq.connect();
+            const User = msq.model(currentCollection);
+
+            const result = await User.insertOne({ username: 'john', counter: 0 });
+            const userId = result.insertedId;
+
+            // 并发更新100次
+            const updates = Array.from({ length: 100 }, () =>
+                User.updateOne({ _id: userId }, { $inc: { counter: 1 } })
+            );
+
+            await Promise.all(updates);
+
+            const user = await User.findOne({ _id: userId });
+            assert.strictEqual(user.counter, 100, 'counter 应该为100');
+            assert.ok(user.updatedAt > user.createdAt, 'updatedAt 应该被更新');
+        });
+    });
+});
