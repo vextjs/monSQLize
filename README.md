@@ -679,7 +679,81 @@ await User.restore({ _id: user._id });
 - ✅ 自动时间戳（v1.0.3+）
 - ✅ 软删除（v1.0.3+）
 - ✅ 乐观锁版本控制（v1.0.3+）
+- ✅ **关系定义和 populate（v1.2.0+）** 🆕
 - ✅ TypeScript 类型支持
+
+#### 关系定义和 populate（v1.2.0+）🆕
+
+轻松处理集合之间的关联关系，支持 one-to-one 和 one-to-many。
+
+```javascript
+// 1. 定义关系
+Model.define('users', {
+    schema: (dsl) => dsl({
+        username: 'string!',
+        profileId: 'objectId'
+    }),
+    relations: {
+        // one-to-one: 用户 → 个人资料
+        profile: {
+            from: 'profiles',         // 集合名
+            localField: 'profileId',  // 本地字段
+            foreignField: '_id',      // 外部字段
+            single: true              // 返回类型
+        },
+        // one-to-many: 用户 → 文章列表
+        posts: {
+            from: 'posts',
+            localField: '_id',
+            foreignField: 'authorId',
+            single: false             // 返回数组
+        }
+    }
+});
+
+// 2. 使用 populate
+const user = await User.findOne({ username: 'john' })
+    .populate('profile')                    // 填充 profile
+    .populate('posts', {                    // 填充 posts
+        select: 'title content',            // 只选择部分字段
+        match: { status: 'published' },     // 额外查询条件
+        sort: { createdAt: -1 },            // 排序
+        limit: 10                           // 限制数量
+    });
+
+// 3. 结果
+{
+    _id: '...',
+    username: 'john',
+    profileId: '...',
+    profile: {              // ← 自动填充
+        _id: '...',
+        bio: 'Software Engineer',
+        avatar: 'https://...'
+    },
+    posts: [                // ← 自动填充
+        { _id: '...', title: 'Post 1', content: '...' },
+        { _id: '...', title: 'Post 2', content: '...' }
+    ]
+}
+```
+
+**支持的查询方法**（全部 6 个）:
+- ✅ `find().populate()` - 批量查询
+- ✅ `findOne().populate()` - 单文档查询
+- ✅ `findByIds().populate()` - 批量 ID 查询
+- ✅ `findOneById().populate()` - 单 ID 查询
+- ✅ `findAndCount().populate()` - 带计数查询
+- ✅ `findPage().populate()` - 分页查询
+
+**特点**:
+- ✅ 极简配置（只需 4 个字段）
+- ✅ 接近 MongoDB 原生（直接对应 `$lookup`）
+- ✅ 批量查询优化（避免 N+1 问题）
+- ✅ 支持链式调用
+- ✅ 丰富的 populate 选项（select/sort/limit/skip/match）
+
+[📖 Relations 详细文档](./docs/model/relations.md)
 
 **注意**：需要安装 `schema-dsl` 依赖：
 ```bash

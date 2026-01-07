@@ -311,7 +311,9 @@ describe('Model - Error Handling', function() {
                     name: 'string!', // 必填
                     age: 'number'
                 }),
-                options: {}
+                options: {
+                    validate: true  // 🆕 启用验证
+                }
             });
 
             msq = new MonSQLize({
@@ -344,7 +346,9 @@ describe('Model - Error Handling', function() {
                     name: 'string!',
                     age: 'number!'
                 }),
-                options: {}
+                options: {
+                    validate: true  // 🆕 启用验证
+                }
             });
 
             msq = new MonSQLize({

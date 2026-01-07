@@ -1621,6 +1621,168 @@ declare module 'monsqlize' {
      */
     type SchemaDSL = (dsl: any) => any;
 
+    // ============================================================================
+    // Relations 和 Populate 类型定义
+    // @since v1.2.0
+    // ============================================================================
+
+    /**
+     * 关系配置（MongoDB 原生风格）
+     * @since v1.2.0
+     */
+    interface RelationConfig {
+        /**
+         * 关联的集合名称（MongoDB 原生集合名）
+         * @example 'posts'
+         */
+        from: string;
+
+        /**
+         * 本地字段名（用于匹配的字段）
+         * @example '_id'
+         */
+        localField: string;
+
+        /**
+         * 外部字段名（关联集合中的字段）
+         * @example 'authorId'
+         */
+        foreignField: string;
+
+        /**
+         * 返回类型
+         * - true: 返回单个文档或 null（one-to-one）
+         * - false: 返回数组（one-to-many）
+         * @default false
+         */
+        single?: boolean;
+    }
+
+    /**
+     * 虚拟字段配置
+     * @since v1.0.6
+     */
+    interface VirtualConfig {
+        /**
+         * getter 函数（必需）
+         * @example
+         * get: function() {
+         *     return `${this.firstName} ${this.lastName}`;
+         * }
+         */
+        get: (this: any) => any;
+
+        /**
+         * setter 函数（可选）
+         * @example
+         * set: function(value) {
+         *     const parts = value.split(' ');
+         *     this.firstName = parts[0];
+         *     this.lastName = parts[1];
+         * }
+         */
+        set?: (this: any, value: any) => void;
+    }
+
+    /**
+     * 默认值类型
+     * @since v1.0.6
+     */
+    type DefaultValue<T = any> = T | ((context?: any, doc?: any) => T);
+
+    /**
+     * Populate 配置
+     * @since v1.2.0
+     */
+    interface PopulateConfig {
+        /**
+         * 关系路径（relations 中定义的名称）
+         * @example 'posts'
+         */
+        path: string;
+
+        /**
+         * 字段选择（空格分隔）
+         * @example 'title content createdAt'
+         */
+        select?: string;
+
+        /**
+         * 排序规则
+         * @example { createdAt: -1 }
+         */
+        sort?: Record<string, 1 | -1>;
+
+        /**
+         * 限制返回数量
+         * @example 10
+         */
+        limit?: number;
+
+        /**
+         * 跳过数量
+         * @example 20
+         */
+        skip?: number;
+
+        /**
+         * 额外过滤条件
+         * @example { status: 'published' }
+         */
+        match?: any;
+
+        /**
+         * 嵌套 populate（支持多层关联）
+         * @example
+         * // 字符串形式
+         * populate: 'comments'
+         *
+         * // 对象形式
+         * populate: { path: 'comments', select: 'content' }
+         *
+         * // 数组形式
+         * populate: ['comments', 'likes']
+         */
+        populate?: string | PopulateConfig | (string | PopulateConfig)[];
+    }
+
+    /**
+     * PopulateProxy - 支持链式 populate 调用
+     * @since v1.2.0
+     */
+    interface PopulateProxy<T = any> extends Promise<T> {
+        /**
+         * 添加 populate 路径（链式调用）
+         *
+         * @param path - 关系路径或配置对象
+         * @returns PopulateProxy 实例，支持继续链式调用
+         *
+         * @example
+         * // 字符串形式
+         * User.findOne({ _id }).populate('posts')
+         *
+         * // 对象形式
+         * User.findOne({ _id }).populate({ path: 'posts', select: 'title' })
+         *
+         * // 链式调用
+         * User.findOne({ _id })
+         *     .populate('profile')
+         *     .populate({ path: 'posts', limit: 10 })
+         *
+         * // 嵌套 populate
+         * User.findOne({ _id }).populate({
+         *     path: 'posts',
+         *     populate: 'comments'
+         * })
+         */
+        populate(path: string): PopulateProxy<T>;
+        populate(config: PopulateConfig): PopulateProxy<T>;
+    }
+
+    // ============================================================================
+    // Model 定义类型
+    // ============================================================================
+
     /**
      * Model 定义配置
      */
@@ -1741,13 +1903,92 @@ declare module 'monsqlize' {
         }>;
 
         /**
-         * 关系定义（预留，未完全实现）
+         * 虚拟字段定义
+         * @since v1.0.6
+         *
+         * @example
+         * virtuals: {
+         *   fullName: {
+         *     get: function() {
+         *       return `${this.firstName} ${this.lastName}`;
+         *     },
+         *     set: function(value) {
+         *       const parts = value.split(' ');
+         *       this.firstName = parts[0];
+         *       this.lastName = parts[1];
+         *     }
+         *   }
+         * }
          */
-        relations?: Record<string, {
-            type: 'hasOne' | 'hasMany' | 'belongsTo';
-            target: string;
-            foreignKey: string;
-        }>;
+        virtuals?: Record<string, VirtualConfig>;
+
+        /**
+         * 默认值定义
+         * @since v1.0.6
+         *
+         * @example
+         * defaults: {
+         *   status: 'active',
+         *   createdAt: () => new Date(),
+         *   score: 0
+         * }
+         */
+        defaults?: Record<string, DefaultValue>;
+
+        /**
+         * 关系定义（MongoDB 原生风格）
+         * @since v1.2.0
+         *
+         * @example
+         * relations: {
+         *   // one-to-one
+         *   profile: {
+         *     from: 'profiles',
+         *     localField: 'profileId',
+         *     foreignField: '_id',
+         *     single: true
+         *   },
+         *   // one-to-many
+         *   posts: {
+         *     from: 'posts',
+         *     localField: '_id',
+         *     foreignField: 'authorId',
+         *     single: false
+         *   }
+         * }
+         */
+        relations?: Record<string, RelationConfig>;
+
+        /**
+         * Model 选项配置
+         * @since v1.0.3
+         */
+        /**
+         * 关系定义（MongoDB 原生风格）
+         * @since v1.2.0
+         *
+         * @example
+         * relations: {
+         * @since v1.2.0
+         *
+         * @example
+         * relations: {
+         *   // one-to-one
+         *   profile: {
+         *     from: 'profiles',
+         *     localField: 'profileId',
+         *     foreignField: '_id',
+         *     single: true
+         *   },
+         *   // one-to-many
+         *   posts: {
+         *     from: 'posts',
+         *     localField: '_id',
+         *     foreignField: 'authorId',
+         *     single: false
+         *   }
+         * }
+         */
 
         /**
          * Model 选项配置
@@ -1919,6 +2160,91 @@ declare module 'monsqlize' {
          * }
          */
         validate(data: any, options?: { locale?: 'zh-CN' | 'en-US' }): ValidationResult;
+
+        // ============================================================================
+        // 查询方法重载（支持 Populate）
+        // @since v1.2.0
+        // ============================================================================
+
+        /**
+         * 查询多个文档（支持 populate）
+         *
+         * @param filter - 查询条件
+         * @param options - 查询选项
+         * @returns PopulateProxy 实例，支持链式 populate 调用
+         *
+         * @example
+         * // 基本查询
+         * const users = await User.find({ status: 'active' });
+         *
+         * // 带 populate
+         * const users = await User.find({ status: 'active' }).populate('posts');
+         *
+         * // 嵌套 populate
+         * const users = await User.find({}).populate({
+         *     path: 'posts',
+         *     populate: 'comments'
+         * });
+         */
+        find(filter: any, options?: any): PopulateProxy<T[]>;
+
+        /**
+         * 查询单个文档（支持 populate）
+         *
+         * @param filter - 查询条件
+         * @param options - 查询选项
+         * @returns PopulateProxy 实例，支持链式 populate 调用
+         *
+         * @example
+         * const user = await User.findOne({ _id }).populate('profile').populate('posts');
+         */
+        findOne(filter: any, options?: any): PopulateProxy<T | null>;
+
+        /**
+         * 通过 ID 查询单个文档（支持 populate）
+         *
+         * @param id - 文档 ID
+         * @param options - 查询选项
+         * @returns PopulateProxy 实例，支持链式 populate 调用
+         */
+        findOneById(id: any, options?: any): PopulateProxy<T | null>;
+
+        /**
+         * 通过 ID 数组批量查询（支持 populate）
+         *
+         * @param ids - ID 数组
+         * @param options - 查询选项
+         * @returns PopulateProxy 实例，支持链式 populate 调用
+         */
+        findByIds(ids: any[], options?: any): PopulateProxy<T[]>;
+
+        /**
+         * 查询并统计总数（支持 populate）
+         *
+         * @param filter - 查询条件
+         * @param options - 查询选项
+         * @returns PopulateProxy 实例，返回 { data, total }
+         *
+         * @example
+         * const result = await User.findAndCount({ status: 'active' })
+         *     .populate('posts');
+         * // result: { data: [...], total: 100 }
+         */
+        findAndCount(filter: any, options?: any): PopulateProxy<{ data: T[]; total: number }>;
+
+        /**
+         * 分页查询（支持 populate）
+         *
+         * @param filter - 查询条件
+         * @param options - 查询选项
+         * @returns PopulateProxy 实例，返回 { data, pagination }
+         *
+         * @example
+         * const result = await User.findPage({ status: 'active' }, { page: 1, pageSize: 20 })
+         *     .populate('posts');
+         * // result: { data: [...], pagination: {...} }
+         */
+        findPage(filter: any, options?: any): PopulateProxy<{ data: T[]; pagination: any }>;
     }
 
     /**

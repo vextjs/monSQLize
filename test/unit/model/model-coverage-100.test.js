@@ -241,8 +241,18 @@ describe('Model - 100% Coverage Tests', function() {
             Model.define(currentCollection, {
                 schema: (dsl) => dsl({ name: 'string!' }),
                 relations: {
-                    posts: { type: 'hasMany', target: 'Post' },
-                    profile: { type: 'hasOne', target: 'Profile' }
+                    posts: {
+                        from: 'posts',
+                        localField: '_id',
+                        foreignField: 'userId',
+                        single: false
+                    },
+                    profile: {
+                        from: 'profiles',
+                        localField: 'profileId',
+                        foreignField: '_id',
+                        single: true
+                    }
                 },
                 options: {}
             });
@@ -258,9 +268,9 @@ describe('Model - 100% Coverage Tests', function() {
             const relations = User.getRelations();
 
             assert.ok(relations.posts, '应该有 posts 关系');
-            assert.strictEqual(relations.posts.type, 'hasMany');
+            assert.strictEqual(relations.posts.from, 'posts');
             assert.ok(relations.profile, '应该有 profile 关系');
-            assert.strictEqual(relations.profile.type, 'hasOne');
+            assert.strictEqual(relations.profile.from, 'profiles');
         });
 
         it('应该返回空对象如果没有 relations', async function() {

@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本摘要，详细需求见 [STATUS.md](STATUS.md)  
-> **最后更新**: 2025-12-31
+> **最后更新**: 2026-01-07
 
 ---
 
@@ -9,10 +9,157 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.0.6](#-v106-变更详情2026-01-07) | 2026-01-07 | 新功能：虚拟字段、默认值 + Bug 修复：嵌套 Populate + 测试改进 | [查看](#-v106-变更详情2026-01-07) |
 | [v1.0.3](STATUS.md#v103) | 2025-12-31 | 新增 Model 层（Schema 验证、自定义方法、生命周期钩子、自动时间戳） | [查看](STATUS.md#v103) |
 | [v1.0.2](STATUS.md#v102) | 2025-12-30 | 新增批量操作方法（deleteBatch/updateBatch） | [查看](STATUS.md#v102) |
 | [v1.0.1](STATUS.md#v101) | 2025-12-29 | 稳定版本，生产就绪 | [查看](STATUS.md#v101) |
-| [v1.0.0](STATUS.md#v100) | 2025-12-03 | 正式发布，生产就绪，已发布到 npm | [查看](STATUS.md#v100) |
+| [v1.0.0](STATUS.md#v100) | 2025-12-03 | 正式发布，生产就绪，已发布到 npm | | [查看](STATUS.md#v100) |
+
+---
+
+## 🆕 v1.0.6 变更详情（2026-01-07）
+
+### 新增功能 ✨
+
+**虚拟字段（Virtuals）** - 计算属性，不存储在数据库中
+- ✅ **getter 函数**: 定义计算逻辑（如 firstName + lastName = fullName）
+- ✅ **setter 函数**: 反向赋值支持（可选）
+- ✅ **自动注入**: 查询结果自动应用虚拟字段
+- ✅ **JSON 序列化**: 虚拟字段在 JSON.stringify 中可见
+
+**默认值（Defaults）** - 插入时自动填充
+- ✅ **静态默认值**: 如 status: 'active'
+- ✅ **函数默认值**: 如 createdAt: () => new Date()
+- ✅ **上下文默认值**: 如 createdBy: (ctx) => ctx.userId
+- ✅ **自动应用**: insertOne/insertMany 时自动填充
+
+**使用示例**:
+```javascript
+Model.define('users', {
+    schema: (dsl) => dsl({
+        firstName: 'string!',
+        lastName: 'string!',
+        status: 'string?',
+        score: 'number?'
+    }),
+    virtuals: {
+        fullName: {
+            get: function() {
+                return `${this.firstName} ${this.lastName}`;
+            }
+        }
+    },
+    defaults: {
+        status: 'active',
+        score: 0
+    }
+});
+
+// 使用
+await User.insertOne({ firstName: 'John', lastName: 'Doe' });
+// 自动应用默认值：status = 'active', score = 0
+
+const user = await User.findOne({ firstName: 'John' });
+console.log(user.fullName); // 'John Doe'（虚拟字段）
+```
+
+### Bug 修复 🐛
+
+**嵌套 Populate + Select 问题修复**
+- ✅ **问题描述**: 嵌套 populate 配置中使用 select 选项时，关联数据未填充
+- ✅ **根本原因**: select 选项会过滤掉用于构建关系映射的外键字段
+- ✅ **修复方案**: 在 `_selectFields` 方法中保留外键字段（keepField 参数）
+- ✅ **影响范围**: 仅影响嵌套 populate + select 的组合使用
+- 📄 **详细报告**: [nested-populate-bugfix-v1.3.0.md](../reports/monSQLize/patches/nested-populate-bugfix-v1.3.0.md)
+
+**技术细节**:
+```javascript
+// 修复前：select 会过滤掉外键字段
+_selectFields(doc, select) {
+    // 只保留 _id 和 select 中的字段
+    // ❌ 外键字段被过滤，导致映射失败
+}
+
+// 修复后：保留外键字段用于内部映射
+_selectFields(doc, select, keepField) {
+    // ✅ 保留外键字段，确保关系映射正确
+    if (keepField && doc[keepField] !== undefined) {
+        result[keepField] = doc[keepField];
+    }
+}
+```
+
+### 测试改进 ✅
+
+- ✅ 新增 31 个测试用例（全部通过）
+  - 嵌套 populate 测试：5 个
+  - Relations 边界测试：13 个
+  - Populate 高级测试：8 个
+  - 虚拟字段和默认值测试：10 个
+
+- ✅ Model 层测试覆盖率：**92.85%**
+  - Statements: 92.85% (221/238)
+  - Branches: 82.57% (199/241)
+  - Functions: 92.59% (25/27)
+  - Lines: 92.79% (219/236)
+
+- ✅ 总计测试：**58 个测试**，100% 通过
+  - model-coverage-100.test.js: 13 个
+  - model-populate-integration.test.js: 9 个
+  - model-nested-populate.test.js: 5 个
+  - model-relations-edge-cases.test.js: 13 个（新增）
+  - model-populate-advanced.test.js: 8 个（新增）
+  - model-virtuals-defaults.test.js: 10 个（新增）
+
+### 文档改进 📖
+
+- ✅ 新增 `docs/model/nested-populate.md` - 嵌套 Populate 完整文档
+- ✅ 完善 `docs/model/relations.md` - Relations 和 Populate API 文档（753 行）
+- ✅ 更新 `docs/INDEX.md` - 添加 relations 文档链接
+- ✅ 更新 `index.d.ts` - 完善 TypeScript 类型定义
+  - 新增 `VirtualConfig` 接口
+  - 新增 `DefaultValue` 类型
+  - 更新 `ModelDefinition` 接口（virtuals/defaults）
+  - 修复 `RelationConfig` 定义
+- ✅ 新增深度分析报告 `reports/monSQLize/analysis/deep-analysis-v1.0.6.md`
+
+### TypeScript 支持完善 ✅
+
+- ✅ 修复 Relations 类型定义（从 ORM 风格改为 MongoDB 原生风格）
+- ✅ 新增 PopulateProxy 接口（支持链式 populate）
+- ✅ 新增 PopulateConfig 接口（完整的 populate 选项）
+- ✅ 新增 VirtualConfig 接口（虚拟字段配置）
+- ✅ 新增 DefaultValue 类型（默认值类型）
+- ✅ 更新 ModelInstance 查询方法返回类型（6 个）
+
+### 已知问题 ⚠️
+
+- ✅ **已修复**: TypeScript 类型定义已更新，与实际实现完全匹配
+- ⚠️ 整体测试覆盖率 71.48%，分支覆盖率 61.66%（持续改进中）
+- ✅ **已确认**: 软删除和乐观锁功能已完整实现（覆盖率 >97%）
+
+### 使用建议 💡
+
+如果你在使用嵌套 populate 时遇到关联数据为空的问题，请升级到 v1.0.6：
+
+```bash
+npm install monsqlize@1.0.6
+```
+
+**受影响的使用场景**:
+```javascript
+// ❌ v1.0.5 会失败（comments 为空）
+const user = await User.findOne({ _id }).populate({
+    path: 'posts',
+    populate: {
+        path: 'comments',
+        select: 'content'  // select 会导致问题
+    }
+});
+
+// ✅ v1.0.6 已修复
+// comments 数组正确填充，且只包含 _id 和 content 字段
+```
 
 ---
 

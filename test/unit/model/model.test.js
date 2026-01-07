@@ -60,7 +60,12 @@ describe('Model - 基础功能', function() {
                     { key: { username: 1 }, unique: true }
                 ],
                 relations: {
-                    posts: { type: 'hasMany', target: 'Post' }
+                    posts: {
+                        from: 'posts',
+                        localField: '_id',
+                        foreignField: 'userId',
+                        single: false
+                    }
                 }
             };
 
