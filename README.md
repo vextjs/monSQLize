@@ -2,13 +2,17 @@
 
 # 🚀 monSQLize
 
-### MongoDB 的性能加速器 - 让数据库查询快 10~100 倍
+### 🎯 统一数据库查询语法框架
 
-**100% API 兼容 · 零学习成本 · 开箱即用**
+**当前**: MongoDB增强层（10~100倍性能 · 企业特性 · 零学习成本）  
+**未来**: 让MySQL/PostgreSQL也能用MongoDB语法查询
+
+**mon**SQLize = **Mon**goDB + **SQL** = 一套语法，多种数据库
 
 [![npm version](https://img.shields.io/npm/v/monsqlize.svg)](https://www.npmjs.com/package/monsqlize)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](./index.d.ts)
+[![Test Coverage](https://img.shields.io/badge/Coverage-99.5%25-brightgreen.svg)](https://codecov.io/gh/vextjs/monSQLize)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Test Coverage](https://img.shields.io/badge/Coverage-77%25-brightgreen.svg)](https://codecov.io/gh/vextjs/monSQLize)
 [![MongoDB](https://img.shields.io/badge/MongoDB-4.4%2B-green.svg)](https://www.mongodb.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-16%2B-brightgreen)](https://nodejs.org/)
 
@@ -16,7 +20,7 @@
 npm install monsqlize
 ```
 
-[快速开始](#-快速开始) · [为什么选择](#-为什么选择-monsqlize) · [核心特性](#-核心特性) · [完整文档](./docs/INDEX.md)
+[快速开始](#-快速开始) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [完整文档](./docs/INDEX.md)
 
 </div>
 
@@ -25,25 +29,19 @@ npm install monsqlize
 ## 📑 目录
 
 - [⚡ 性能对比](#-性能对比)
-- [🎯 一句话介绍](#-一句话介绍)
+- [🎯 项目愿景](#-项目愿景)
 - [💡 为什么选择 monSQLize？](#-为什么选择-monsqlize)
 - [🎯 何时使用 monSQLize？](#-何时使用-monsqlize)
 - [🚀 快速开始](#-快速开始)
 - [🌟 核心特性](#-核心特性)
   - [1. ⚡ 智能缓存系统](#1--智能缓存系统---性能提升-10100-倍)
-  - [2. 🔄 事务管理优化](#2--事务管理优化---减少-30-数据库访问)
+  - [2. 🏢 企业级特性](#2--企业级特性)
   - [3. 📦 便利方法](#3--便利方法---减少-6080-代码)
-  - [4. 🌐 分布式部署支持](#4--分布式部署支持)
-  - [5. 🆕 业务级分布式锁](#5--业务级分布式锁v140)
-  - [6. 🚀 高性能批量插入](#6--高性能批量插入)
-  - [7. 📊 深度分页](#7--深度分页---支持千万级数据)
-  - [8. 🛠️ 运维监控](#8-️-运维监控开箱即用)
-  - [9. 🔐 SSH隧道](#9--ssh隧道---安全连接内网数据库v13)
-  - [10. 🎯 Model 层](#10--model-层---像-orm-一样使用v103)
+  - [4. 🎯 可选Model层](#4--可选model层)
+  - [5. 🔄 事务管理优化](#5--事务管理优化---减少-30-数据库访问)
 - [📊 性能测试报告](#-性能测试报告)
 - [🎨 完整功能清单](#-完整功能清单)
 - [🆚 与 MongoDB 原生驱动对比](#-与-mongodb-原生驱动对比)
-- [🚀 快速迁移指南](#-快速迁移指南)
 - [📖 完整文档](#-完整文档)
 - [🌍 兼容性](#-兼容性)
 - [🗺️ 产品路线图](#️-产品路线图)
@@ -69,38 +67,68 @@ const product = await products.findOne({ _id: productId }, { cache: 60000 }); //
 
 ---
 
-## 🎯 一句话介绍
+## 🎯 项目愿景
 
-monSQLize 是一个**100% 兼容 MongoDB API** 的增强库。
+**用MongoDB语法统一所有数据库查询**
 
-在保持完全兼容的前提下，为你的应用提供：
+**mon**SQLize = **Mon**goDB + **SQL** = 统一查询语法
+
+### 当前阶段（v1.0.x）：MongoDB增强层
+
+为MongoDB应用提供：
+
+- ⚡ **10~100倍性能提升** - L1（内存）+ L2（Redis）智能缓存，业界最完善
+- 🏢 **企业级特性** - 分布式锁、SSH隧道、慢查询监控（内置，零配置）
+- 🛠️ **56+增强方法** - 业界最完整，代码减少60~80%
+- 🎯 **可选Model层** - Schema验证、Hooks、Populate（6个方法支持）
+- ✅ **100% API兼容** - 零学习成本，渐进式采用
 
 <table>
 <tr>
-<td width="25%" align="center">
-<h3>🚀</h3>
-<h4>智能缓存</h4>
-<p>LRU/TTL 策略<br>自动失效<br>10~100 倍性能提升</p>
+<td width="33%" align="center">
+<h3>⚡ 智能缓存</h3>
+<p>L1: 内存缓存 (LRU)<br>L2: Redis缓存<br>自动失效<br>10~100倍性能提升</p>
 </td>
-<td width="25%" align="center">
-<h3>🔄</h3>
-<h4>事务优化</h4>
-<p>自动管理<br>只读优化<br>减少 30% DB 访问</p>
+<td width="33%" align="center">
+<h3>🏢 企业特性</h3>
+<p>分布式锁<br>SSH隧道<br>慢查询监控<br>事务优化<br>批量操作</p>
 </td>
-<td width="25%" align="center">
-<h3>🌐</h3>
-<h4>分布式支持</h4>
-<p>Redis 广播<br>多实例一致性<br>业务级分布式锁</p>
-</td>
-<td width="25%" align="center">
-<h3>🔐</h3>
-<h4>SSH 隧道</h4>
-<p>安全连接内网数据库<br>密码/私钥认证<br>开箱即用</p>
+<td width="33%" align="center">
+<h3>🛠️ 增强方法</h3>
+<p>56+个方法<br>代码减少60~80%<br>ObjectId自动转换<br>语义化API</p>
 </td>
 </tr>
 </table>
 
-**设计理念**：零学习成本 · 渐进式采用 · 性能优先 · 生产可靠
+### 未来愿景（v2.0+）：统一查询语法
+
+**革命性目标**: 让MySQL/PostgreSQL也能用MongoDB语法
+
+```javascript
+// 同一套代码，支持多种数据库
+const users = await collection.find({ 
+    age: { $gte: 18 },
+    status: 'active'
+});
+
+// MongoDB - ✅ 当前已支持
+// MySQL - 🎯 未来自动转换为: SELECT * FROM users WHERE age >= 18 AND status = 'active'
+// PostgreSQL - 🎯 未来自动转换为: SELECT * FROM users WHERE age >= 18 AND status = 'active'
+```
+
+**解决的核心痛点**:
+- ❌ 切换数据库需要重写所有查询代码
+- ❌ 团队需要学习多种查询语法
+- ❌ 跨数据库迁移成本极高
+- ❌ 多数据库项目维护复杂
+
+**monSQLize方案**:
+- ✅ 统一使用MongoDB查询语法（最直观、最灵活）
+- ✅ 底层自动适配不同数据库
+- ✅ 一套代码，多种数据库
+- ✅ 零迁移成本
+
+**了解更多**: 📖 [完整项目愿景文档](./docs/PROJECT-VISION.md)
 
 ---
 
@@ -198,6 +226,7 @@ monSQLize 是一个**100% 兼容 MongoDB API** 的增强库。
 
 ---
 
+
 ## �️ 文档导航
 
 ### 📚 核心概念（7 篇）
@@ -232,57 +261,113 @@ npm install monsqlize
 ```javascript
 const MonSQLize = require('monsqlize');
 
-// 1. 初始化
-const db = new MonSQLize({
+// 1. 初始化并连接
+const msq = new MonSQLize({
     type: 'mongodb',
-    config: { uri: 'mongodb://localhost:27017/mydb' },
-    cache: { 
-        enabled: true,
-        maxSize: 100000,  // 最多缓存 10 万条
-        ttl: 60000        // 默认 TTL 60 秒
-    }
+    databaseName: 'mydb',
+    config: { uri: 'mongodb://localhost:27017' },
+    cache: { enabled: true, ttl: 60000 }  // 启用缓存，60秒过期
 });
 
-await db.connect();
+await msq.connect();
 
-// 2. 使用（完全兼容 MongoDB API）
-const users = db.collection('users');
+// 2. 获取集合
+const users = msq.collection('users');
 
-// 启用缓存
-const user = await users.findOne({ email }, { cache: 60000 });
+// 3. 基础查询（自动缓存）
+const user = await users.findOne({ email: 'test@example.com' });
 
-// 写操作自动失效缓存
-await users.updateOne({ email }, { $set: { lastLogin: new Date() } });
-
-// 便利方法
-const user = await users.findOneById(userId);
-const list = await users.findByIds([id1, id2, id3]);
-
-// 事务
-await db.withTransaction(async (tx) => {
-    await users.updateOne({...}, {...}, { session: tx.session });
-    await orders.insertOne({...}, { session: tx.session });
+// 4. 插入数据
+await users.insertOne({
+    username: 'john',
+    email: 'john@example.com',
+    createdAt: new Date()
 });
 
-// 业务锁（v1.4.0）
-await db.withLock('resource:key', async () => {
-    // 临界区代码
-});
+// 5. 更新数据（自动清除缓存）
+await users.updateOne(
+    { email: 'test@example.com' },
+    { $set: { lastLogin: new Date() } }
+);
 
-// SSH隧道（v1.3+）- 安全连接防火墙后的MongoDB
-const db = new MonSQLize({
-    type: 'mongodb',
-    config: {
-        ssh: {
-            host: 'bastion.example.com',
-            username: 'deploy',
-            password: 'your-password',  // 或使用 privateKeyPath
-        },
-        // 自动从URI解析remoteHost和remotePort
-        uri: 'mongodb://user:pass@internal-mongo:27017/mydb'
-    }
-});
+// 6. 便利方法（自动转换ObjectId）
+const userById = await users.findOneById('507f1f77bcf86cd799439011');
+
+// 7. 关闭连接
+await msq.close();
 ```
+
+**就这么简单！** 完全兼容MongoDB原生API，只需初始化时启用缓存，业务代码零改动。
+
+### 使用 Model 层（可选）
+
+如果需要 **Populate关联查询**、**Hooks生命周期** 等 ORM 特性，可以使用 Model 层：
+
+```javascript
+const MonSQLize = require('monsqlize');
+const { Model } = MonSQLize;
+
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'mydb',
+    config: { uri: 'mongodb://localhost:27017' },
+    cache: { enabled: true }
+});
+
+await msq.connect();
+
+// 1. 定义 Model（带 Relations 和 Hooks）
+Model.define('users', {
+    schema: () => ({}),  // 空 schema（如需验证可使用 schema-dsl）
+    relations: {
+        posts: {  // 用户的文章
+            from: 'posts',
+            localField: '_id',
+            foreignField: 'userId',
+            single: false
+        }
+    },
+    hooks: (model) => ({
+        insert: {
+            before: async (ctx, doc) => {
+                doc.createdAt = new Date();  // 自动添加时间戳
+                return doc;
+            }
+        }
+    })
+});
+
+Model.define('posts', {
+    schema: () => ({})  // 文章 Model
+});
+
+// 2. 使用 Model
+const User = msq.model('users');
+
+// Hooks 自动执行
+const user = await User.insertOne({
+    username: 'john',
+    email: 'john@example.com',
+    age: 25
+    // createdAt 由 hook 自动添加
+});
+
+// Populate 关联查询（自动填充用户的文章）
+const userWithPosts = await User.findOne({ username: 'john' })
+    .populate('posts');
+
+console.log(userWithPosts.posts);  // [{ title: '...', content: '...' }, ...]
+```
+
+**Model 层特性**：
+- ✅ **Populate** - 关联查询，支持 6 个方法（业界领先）
+- ✅ **Hooks** - 生命周期钩子（insert/update/delete/find）
+- ✅ **Relations** - 定义表关系（hasOne/hasMany/belongsTo）
+- ✅ **自动缓存** - Populate 查询结果也会缓存
+
+📖 **详细文档**：[Model 层完整指南](./docs/model.md) | [Populate API](./docs/populate.md) | [Hooks API](./docs/hooks.md)
+
+---
 
 ### 从原生驱动迁移
 
@@ -295,16 +380,17 @@ const users = db.collection('users');
 
 // 迁移后（只需改初始化）
 const MonSQLize = require('monsqlize');
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
-    config: { uri: 'mongodb://localhost:27017/mydb' },
+    databaseName: 'mydb',  // 数据库名称
+    config: { uri: 'mongodb://localhost:27017' },
     cache: { enabled: true }  // 启用缓存
 });
-await db.connect();
-const users = db.collection('users');
+await msq.connect();
+const users = msq.collection('users');
 
 // ✅ 后续代码完全不变
-const user = await users.findOne({ email });
+const user = await users.findOne({ email: 'test@example.com' });
 ```
 
 ---

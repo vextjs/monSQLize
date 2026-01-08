@@ -357,20 +357,20 @@ describe('Model Populate 选项组合和特殊查询方法测试', () => {
             expect(john.posts).to.have.lengthOf(2);
         });
 
-        it.skip('findPage 应该支持 populate (待实现)', async () => {
-            // TODO: 需要扩展 findPage 支持 populate 参数
+        it('findPage 应该支持 populate', async () => {
             // findPage + populate
-            const result = await User.findPage({}, { page: 1, pageSize: 10 }).populate('posts');
+            // 注意：findPage 需要 limit 参数，不是 pageSize
+            const result = await User.findPage({ limit: 10, page: 1 }).populate('posts');
 
             expect(result).to.be.an('object');
-            expect(result).to.have.property('data');
-            expect(result).to.have.property('pagination');
+            expect(result).to.have.property('items');  // findPage 返回 items，不是 data
+            expect(result).to.have.property('pageInfo');  // findPage 返回 pageInfo，不是 pagination
 
-            expect(result.data).to.be.an('array');
-            expect(result.data).to.have.lengthOf(2);
+            expect(result.items).to.be.an('array');
+            expect(result.items).to.have.lengthOf(2);
 
             // 验证 populate
-            const john = result.data.find(u => u.username === 'john');
+            const john = result.items.find(u => u.username === 'john');
             expect(john.posts).to.be.an('array');
             expect(john.posts).to.have.lengthOf(2);
         });

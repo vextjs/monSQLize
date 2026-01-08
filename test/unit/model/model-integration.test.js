@@ -167,7 +167,6 @@ describe('Model - Integration Tests', function() {
 
     describe('Model hooks 执行顺序测试', () => {
         it('应该按正确顺序执行 hooks（如果实现了）', async function() {
-            // 注意：这个测试假设 Model 支持 hooks，如果没实现则跳过
             const hookOrder = [];
 
             Model.define(currentCollection, {
@@ -175,16 +174,18 @@ describe('Model - Integration Tests', function() {
                 options: {
                     timestamps: true
                 },
-                hooks: {
-                    beforeInsert: async (doc) => {
-                        hookOrder.push('beforeInsert');
-                        return doc;
-                    },
-                    afterInsert: async (doc) => {
-                        hookOrder.push('afterInsert');
-                        return doc;
+                hooks: (model) => ({
+                    insert: {  // 修改: 从insertOne改为insert
+                        before: async (ctx, doc) => {
+                            hookOrder.push('beforeInsert');
+                            return doc;
+                        },
+                        after: async (ctx, result) => {
+                            hookOrder.push('afterInsert');
+                            return result;
+                        }
                     }
-                }
+                })
             });
 
             msq = new MonSQLize({
@@ -195,12 +196,6 @@ describe('Model - Integration Tests', function() {
             await msq.connect();
 
             const User = msq.model(currentCollection);
-
-            // 检查是否支持 hooks
-            if (!User.hooks) {
-                this.skip(); // 如果不支持 hooks，跳过测试
-                return;
-            }
 
             await User.insertOne({ name: 'john' });
 
@@ -218,12 +213,16 @@ describe('Model - Integration Tests', function() {
                     timestamps: true,
                     version: true
                 },
-                hooks: {
-                    beforeInsert: async (doc) => {
-                        capturedDoc = { ...doc };
-                        return doc;
+                hooks: (model) => ({
+                    insert: {
+                        after: async (ctx, result) => {
+                            // 在 after hook 中，从数据库查询文档以验证字段已添加
+                            const doc = await model.collection.findOne({ _id: result.insertedId });
+                            capturedDoc = doc;
+                            return result;
+                        }
                     }
-                }
+                })
             });
 
             msq = new MonSQLize({
@@ -235,15 +234,9 @@ describe('Model - Integration Tests', function() {
 
             const User = msq.model(currentCollection);
 
-            // 检查是否支持 hooks
-            if (!User.hooks) {
-                this.skip(); // 如果不支持 hooks，跳过测试
-                return;
-            }
-
             await User.insertOne({ name: 'john' });
 
-            // 验证 beforeInsert hook 能访问到自动添加的字段
+            // 验证 after hook 能访问到自动添加的字段
             assert.ok(capturedDoc, 'hook 应该被执行');
             assert.ok(capturedDoc.createdAt instanceof Date, '应该有 createdAt');
             assert.ok(capturedDoc.updatedAt instanceof Date, '应该有 updatedAt');

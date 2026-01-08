@@ -467,7 +467,7 @@ describe('Model - Timestamps 功能', function() {
             assert.ok(replaced.updatedAt > original.updatedAt, 'updatedAt 应该被更新');
         });
 
-        it.skip('incrementOne 应该更新 updatedAt (暂不支持)', async function() {
+        it('incrementOne 应该更新 updatedAt', async function() {
             Model.define(currentCollection, {
                 schema: (dsl) => dsl({ username: 'string!', score: 'number' }),
                 options: {

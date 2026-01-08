@@ -264,8 +264,25 @@ describe('Model - Error Handling', function() {
             try {
                 // schema 函数可能在实例化 Model 时执行
                 const User = msq.model(currentCollection);
+
+                // 🆕 新的设计：schema错误被记录但不阻止实例化
+                // 检查是否记录了schema错误
+                if (User._schemaError) {
+                    errorCaught = true;
+                    const err = User._schemaError;
+                    assert.ok(
+                        err.message.includes('Schema construction failed'),
+                        `错误消息应该提到 schema 错误，实际: ${err.message}`
+                    );
+                }
+
+                // 即使schema失败，仍然可以执行操作（MongoDB无schema模式）
                 await User.insertOne({ name: 'john' });
+
+                // 但schema错误应该被记录
+                assert.ok(errorCaught, '应该记录schema错误');
             } catch (err) {
+                // 如果真的抛出了错误，也验证错误消息
                 errorCaught = true;
                 assert.ok(
                     err.message.includes('Schema construction failed') ||
@@ -275,10 +292,8 @@ describe('Model - Error Handling', function() {
                 );
             }
 
-            // 如果没有捕获到错误，说明当前实现延迟或忽略 schema 错误
-            if (!errorCaught) {
-                this.skip();
-            }
+            // 应该能捕获或记录错误
+            assert.ok(errorCaught, '应该捕获或记录schema错误');
         });
 
         it('应该验证 options 配置的有效性', function() {

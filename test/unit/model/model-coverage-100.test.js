@@ -140,14 +140,18 @@ describe('Model - 100% Coverage Tests', function() {
 
             const User = msq.model(currentCollection);
 
-            // 插入数据
+            // 插入第一条数据
             await User.insertOne({ name: 'john' });
 
+            // 🆕 等待索引创建完成（索引创建是异步的，使用setImmediate）
+            // 等待足够的时间让唯一索引创建完成
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // 尝试插入重复数据，应该抛出唯一索引冲突错误
             try {
                 await User.insertOne({ name: 'john' });
-                // 如果成功插入，说明唯一索引未生效（可能是异步创建）
-                // 跳过测试
-                this.skip();
+                // 如果成功插入，说明测试失败（索引未生效）
+                assert.fail('应该抛出唯一索引冲突错误');
             } catch (err) {
                 // 验证是唯一索引冲突错误
                 const isUniqueError = err.message.includes('duplicate') ||

@@ -8,9 +8,13 @@
 
 | 文档 | 说明 |
 |------|------|
+| [PROJECT-VISION.md](PROJECT-VISION.md) | **🎯 项目愿景 - 统一数据库查询语法框架（v1.0.6+）🆕** |
 | [mongodb-native-vs-extensions.md](mongodb-native-vs-extensions.md) | **MongoDB 原生 vs monSQLize 扩展功能对比** |
 | [connection.md](connection.md) | 连接管理和配置 |
 | [model.md](model.md) | **Model 层 - Schema 验证、自定义方法、生命周期钩子（v1.0.3+）** |
+| [populate.md](populate.md) | **Populate API - 关联查询（6个方法支持，业界领先）（v1.0.6+）🆕** |
+| [relations.md](relations.md) | **Relations API - 关系定义（hasOne/hasMany/belongsTo）（v1.0.6+）🆕** |
+| [hooks.md](hooks.md) | **Hooks API - 生命周期钩子（insert/update/delete/find）（v1.0.6+）🆕** |
 | [model/relations.md](model/relations.md) | **Relations 和 Populate - 关系定义和关联数据填充（v1.2.0+）🆕** |
 | [model/nested-populate.md](model/nested-populate.md) | **嵌套 Populate - 多层关系填充（v1.2.0+）🆕** |
 | [ssh-tunnel.md](ssh-tunnel.md) | **SSH隧道 - 安全连接内网数据库（v1.3+）** |

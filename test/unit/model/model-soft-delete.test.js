@@ -216,6 +216,10 @@ describe('Model - softDelete', function() {
             // 插入一个文档确保集合存在
             await User.insertOne({ username: 'john' });
 
+            // 🆕 等待索引创建完成（索引创建是异步的，使用setImmediate）
+            // 等待足够的时间让索引创建完成
+            await new Promise(resolve => setTimeout(resolve, 200));
+
             // 获取集合索引（直接返回数组）
             const indexes = await User.listIndexes();
 
@@ -224,13 +228,9 @@ describe('Model - softDelete', function() {
                 idx.key && idx.key.deleted_at === 1 && idx.expireAfterSeconds !== undefined
             );
 
-            // 注意：当前可能还没实现 TTL 索引自动创建，所以这个测试可能失败
-            // 这是预期的，测试的目的是验证需求
-            if (!ttlIndex) {
-                this.skip(); // 跳过测试，等待功能实现
-            } else {
-                assert.strictEqual(ttlIndex.expireAfterSeconds, 86400, 'TTL 应该是 86400 秒');
-            }
+            // 验证 TTL 索引已创建
+            assert.ok(ttlIndex, 'TTL 索引应该存在');
+            assert.strictEqual(ttlIndex.expireAfterSeconds, 86400, 'TTL 应该是 86400 秒');
         });
 
         it('应该不为 boolean 类型创建 TTL 索引', async function() {
