@@ -229,8 +229,8 @@ const users = await collection.find({
 
 ## �️ 文档导航
 
-### 📚 核心概念（7 篇）
-[连接管理](./docs/connection.md) · [缓存系统](./docs/cache.md) · [事务管理](./docs/transaction.md) · [Model 层](./docs/model.md) · [业务锁](./docs/business-lock.md) · [SSH 隧道](./docs/ssh-tunnel.md) · [分布式部署](./docs/distributed-deployment.md)
+### 📚 核心概念（8 篇）
+[连接管理](./docs/connection.md) · [ObjectId 自动转换](./docs/objectid-auto-convert.md) 🆕 · [缓存系统](./docs/cache.md) · [事务管理](./docs/transaction.md) · [Model 层](./docs/model.md) · [业务锁](./docs/business-lock.md) · [SSH 隧道](./docs/ssh-tunnel.md) · [分布式部署](./docs/distributed-deployment.md)
 
 ### 🔍 查询操作（8 篇）
 [find](./docs/find.md) · [findOne](./docs/findOne.md) · [findOneById](./docs/find-one-by-id.md) · [findByIds](./docs/find-by-ids.md) · [findPage](./docs/findPage.md) · [count](./docs/count.md) · [distinct](./docs/distinct.md) · [watch](./docs/watch.md) ⭐
@@ -301,7 +301,7 @@ await msq.close();
 
 ### 使用 Model 层（可选）
 
-如果需要 **Populate关联查询**、**Hooks生命周期** 等 ORM 特性，可以使用 Model 层：
+如果需要 **Schema验证**、**Populate关联查询**、**Hooks生命周期** 等 ORM 特性，可以使用 Model 层：
 
 ```javascript
 const MonSQLize = require('monsqlize');
@@ -311,14 +311,24 @@ const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'mydb',
     config: { uri: 'mongodb://localhost:27017' },
-    cache: { enabled: true }
+    cache: { enabled: true },
+    models: './models'  // 🆕 v1.0.7: 自动加载 Model 文件
 });
 
-await msq.connect();
+await msq.connect();  // 自动加载 models/*.model.js
 
-// 1. 定义 Model（带 Relations 和 Hooks）
+// 1. 定义 Model（带 Schema 验证、Relations 和 Hooks）
 Model.define('users', {
-    schema: () => ({}),  // 空 schema（如需验证可使用 schema-dsl）
+    // 🔴 Schema 验证（默认启用，v1.0.7+）
+    schema: (dsl) => dsl({
+        username: 'string:3-32!',      // 必需，3-32 字符
+        email: 'email!',               // 必需，邮箱格式
+        password: 'string:6-!',        // 必需，至少 6 字符
+        age: 'number:0-120',           // 可选，0-120 范围
+        role: 'string?'                // 可选字符串
+    }),
+    
+    // Relations（关联查询）
     relations: {
         posts: {  // 用户的文章
             from: 'posts',
@@ -327,6 +337,8 @@ Model.define('users', {
             single: false
         }
     },
+    
+    // Hooks（生命周期钩子）
     hooks: (model) => ({
         insert: {
             before: async (ctx, doc) => {
@@ -334,38 +346,83 @@ Model.define('users', {
                 return doc;
             }
         }
+    }),
+    
+    // 自定义方法
+    methods: (model) => ({
+        instance: {
+            // 文档方法（注入到查询结果）
+            checkPassword(password) {
+                return this.password === password;
+            }
+        },
+        static: {
+            // Model 方法
+            async findByUsername(username) {
+                return await model.findOne({ username });
+            }
+        }
     })
 });
 
 Model.define('posts', {
-    schema: () => ({})  // 文章 Model
+    schema: (dsl) => dsl({
+        title: 'string:1-200!',
+        content: 'string!',
+        userId: 'string!'
+    })
 });
 
 // 2. 使用 Model
 const User = msq.model('users');
 
-// Hooks 自动执行
+// ✅ Schema 验证自动生效
+try {
+    await User.insertOne({
+        username: 'jo',  // ❌ 太短，验证失败
+        email: 'invalid-email',  // ❌ 邮箱格式错误
+        age: 25
+    });
+} catch (err) {
+    console.error(err.code);  // 'VALIDATION_ERROR'
+    console.error(err.errors);  // 详细的验证错误
+}
+
+// ✅ 正确的数据
 const user = await User.insertOne({
     username: 'john',
     email: 'john@example.com',
+    password: 'secret123',
     age: 25
     // createdAt 由 hook 自动添加
 });
+
+// 使用自定义方法
+const foundUser = await User.findByUsername('john');
+if (foundUser.checkPassword('secret123')) {
+    console.log('登录成功');
+}
 
 // Populate 关联查询（自动填充用户的文章）
 const userWithPosts = await User.findOne({ username: 'john' })
     .populate('posts');
 
 console.log(userWithPosts.posts);  // [{ title: '...', content: '...' }, ...]
+
+// 禁用验证（特殊场景）
+await User.insertOne(doc, { skipValidation: true });
 ```
 
 **Model 层特性**：
+- ✅ **Schema 验证** - 自动验证数据格式（v1.0.7 默认启用）
+- ✅ **自动加载** - 扫描目录自动加载 Model 文件（v1.0.7+）
 - ✅ **Populate** - 关联查询，支持 6 个方法（业界领先）
 - ✅ **Hooks** - 生命周期钩子（insert/update/delete/find）
 - ✅ **Relations** - 定义表关系（hasOne/hasMany/belongsTo）
+- ✅ **自定义方法** - instance 方法注入到文档，static 方法挂载到 Model
 - ✅ **自动缓存** - Populate 查询结果也会缓存
 
-📖 **详细文档**：[Model 层完整指南](./docs/model.md) | [Populate API](./docs/populate.md) | [Hooks API](./docs/hooks.md)
+📖 **详细文档**：[Model 层完整指南](./docs/model.md) | [Populate API](./docs/populate.md) | [Hooks API](./docs/hooks.md) | [Schema 验证](./docs/model.md#schema-验证)
 
 ---
 

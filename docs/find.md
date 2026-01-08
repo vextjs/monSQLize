@@ -22,6 +22,28 @@
 
 `find` 是 monSQLize 提供的基础查询方法，用于从 MongoDB 集合中查询多条文档记录。支持查询条件、排序、分页、投影、流式处理和缓存等功能。
 
+### ✨ ObjectId 自动转换（v1.3.0+）
+
+从 v1.3.0 版本开始，`find` 方法支持 **ObjectId 字符串自动转换**。当查询条件中包含 ObjectId 字符串时，会自动转换为 MongoDB 的 ObjectId 对象，无需手动调用 `new ObjectId()`。
+
+```javascript
+// ✅ v1.3.0+: 自动转换 ObjectId 字符串
+const posts = await collection('posts').find({
+    authorId: '507f1f77bcf86cd799439011',      // 自动转换为 ObjectId
+    categoryId: '507f1f77bcf86cd799439012'     // 自动转换为 ObjectId
+});
+
+// ✅ 复杂查询也支持
+const docs = await collection('docs').find({
+    $or: [
+        { authorId: userId1 },   // 自动转换
+        { editorId: userId2 }    // 自动转换
+    ]
+});
+```
+
+**了解更多**: 详见 [ObjectId 自动转换文档](./objectid-auto-convert.md)
+
 ## 调用方式
 
 monSQLize 提供两种查询方式，功能完全等价：

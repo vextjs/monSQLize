@@ -11,6 +11,7 @@
 | [PROJECT-VISION.md](PROJECT-VISION.md) | **🎯 项目愿景 - 统一数据库查询语法框架（v1.0.6+）🆕** |
 | [mongodb-native-vs-extensions.md](mongodb-native-vs-extensions.md) | **MongoDB 原生 vs monSQLize 扩展功能对比** |
 | [connection.md](connection.md) | 连接管理和配置 |
+| [objectid-auto-convert.md](objectid-auto-convert.md) | **ObjectId 自动转换 - 简化 ObjectId 处理（v1.3.0+）🆕** |
 | [model.md](model.md) | **Model 层 - Schema 验证、自定义方法、生命周期钩子（v1.0.3+）** |
 | [populate.md](populate.md) | **Populate API - 关联查询（6个方法支持，业界领先）（v1.0.6+）🆕** |
 | [relations.md](relations.md) | **Relations API - 关系定义（hasOne/hasMany/belongsTo）（v1.0.6+）🆕** |

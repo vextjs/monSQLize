@@ -401,6 +401,32 @@ declare module 'monsqlize' {
             /** 超时时间（毫秒，默认 60000） */
             timeout?: number;
         };
+        /**
+         * Model 自动加载配置（v1.4.0+）
+         * 自动扫描指定目录加载 Model 定义文件
+         * @default undefined（不启用）
+         * @since v1.4.0
+         *
+         * @example
+         * // 简化配置（仅指定目录）
+         * models: './models'
+         *
+         * @example
+         * // 完整配置
+         * models: {
+         *   path: './models',
+         *   pattern: '*.model.js',  // 支持 js/ts/mjs/cjs
+         *   recursive: true         // 递归扫描子目录
+         * }
+         */
+        models?: string | {
+            /** Model 文件目录路径（相对或绝对路径） */
+            path: string;
+            /** 文件名模式（支持 glob 格式，默认 '*.model.{js,ts,mjs,cjs}'） */
+            pattern?: string;
+            /** 是否递归扫描子目录（默认 false） */
+            recursive?: boolean;
+        };
     }
     interface FindOptions {
         projection?: Record<string, any> | string[];
@@ -2028,9 +2054,11 @@ declare module 'monsqlize' {
 
             /**
              * 是否启用 Schema 验证（默认 true）
-             * @since v1.0.3
+             * 设置为 false 可禁用验证
+             * @default true
+             * @since v1.4.0 (从 v1.0.3 的 schemaValidation 更名为 validate)
              */
-            schemaValidation?: boolean;
+            validate?: boolean;
 
             /**
              * 是否启用严格模式（不允许未定义的字段，默认 false）

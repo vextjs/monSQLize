@@ -145,6 +145,331 @@ if (!result.valid) {
 
 ---
 
+## Model 自动加载（v1.0.7+）
+
+### 功能说明
+
+monSQLize 支持自动扫描指定目录，加载所有 Model 定义文件，无需手动调用 `Model.define()`。
+
+### 使用方式
+
+#### 简化配置
+
+```javascript
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'mydb',
+    config: { uri: '...' },
+    models: './models'  // ← 自动加载
+});
+
+await msq.connect();  // 自动扫描 models/*.model.{js,ts,mjs,cjs}
+
+// 直接使用（无需 Model.define）
+const User = msq.model('users');
+```
+
+#### 完整配置
+
+```javascript
+const msq = new MonSQLize({
+    models: {
+        path: './models',               // Model 文件目录
+        pattern: '*.model.js',          // 文件名模式
+        recursive: true                 // 递归扫描子目录
+    }
+});
+```
+
+### Model 文件格式
+
+```javascript
+// models/user.model.js
+module.exports = {
+    name: 'users',  // 集合名称（必需）
+    
+    schema: (dsl) => dsl({
+        username: 'string:3-32!',
+        email: 'email!'
+    }),
+    
+    methods: (model) => ({
+        instance: {
+            checkPassword(password) {
+                return this.password === password;
+            }
+        },
+        static: {
+            async findByUsername(username) {
+                return await model.findOne({ username });
+            }
+        }
+    }),
+    
+    hooks: (model) => ({
+        insert: {
+            before: async (ctx, doc) => {
+                doc.createdAt = new Date();
+                return doc;
+            }
+        }
+    }),
+    
+    indexes: [
+        { key: { username: 1 }, unique: true }
+    ]
+};
+```
+
+### 目录结构
+
+```
+models/
+├── user.model.js
+├── post.model.js
+├── comment.model.js
+└── admin/
+    ├── role.model.js
+    └── permission.model.js
+```
+
+### 支持的文件格式
+
+- ✅ `.js` - CommonJS
+- ✅ `.mjs` - ES Module
+- ✅ `.cjs` - CommonJS（显式）
+- ✅ `.ts` - TypeScript（需要 ts-node）
+
+### 配置选项
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `path` | string | - | Model 文件目录（必需） |
+| `pattern` | string | `*.model.{js,ts,mjs,cjs}` | 文件名模式（支持 glob） |
+| `recursive` | boolean | `false` | 是否递归扫描子目录 |
+
+### 错误处理
+
+#### 目录不存在
+```
+[Model] Models directory not found: /path/to/models
+```
+
+#### 文件格式错误
+```
+[Model] ❌ Failed to load models/invalid.model.js: export is null
+[Model] ❌ Failed to load models/no-name.model.js: missing 'name' property
+```
+
+#### 重复注册
+```
+[Model] Model 'users' already registered, skipping models/user2.model.js
+```
+
+### 最佳实践
+
+1. **统一命名规范**: 使用 `{name}.model.js` 格式
+2. **按功能分组**: 使用子目录组织（如 `admin/`、`public/`）
+3. **导出格式**: 始终使用 `module.exports = { name, ... }`
+4. **测试环境**: 可以禁用自动加载，手动注册测试 Model
+
+### 注意事项
+
+- ⚠️ 文件必须包含 `name` 属性
+- ⚠️ 重复的 Model 名称只会注册第一个
+- ⚠️ 文件语法错误会导致加载失败（记录日志，不中断）
+- ⚠️ TypeScript 文件需要运行时支持（ts-node 或编译后）
+
+### 与手动注册对比
+
+| 方式 | 优点 | 缺点 |
+|------|------|------|
+| 手动注册 | 精确控制、显式依赖 | 重复代码、维护成本高 |
+| 自动加载 | 自动发现、代码简洁 | 隐式依赖、加载顺序不确定 |
+
+**推荐**: 生产环境使用自动加载，测试环境可选择手动注册。
+
+---
+
+## Schema 验证（v1.0.7 默认启用）
+
+### 功能说明
+
+monSQLize 集成 `schema-dsl` 提供数据验证功能。**从 v1.0.7 开始，Schema 验证默认启用**。
+
+### 基本使用
+
+```javascript
+const { Model } = require('monsqlize');
+
+Model.define('users', {
+    schema: (dsl) => dsl({
+        username: 'string:3-32!',      // 必需，3-32 字符
+        email: 'email!',               // 必需，邮箱格式
+        password: 'string:6-!',        // 必需，至少 6 字符
+        age: 'number:0-120',           // 可选，0-120 范围
+        role: 'string?'                // 可选字符串
+    })
+});
+
+const User = msq.model('users');
+
+// ✅ v1.0.7: 验证自动生效（无需配置）
+await User.insertOne({
+    username: 'john',
+    email: 'john@example.com',
+    password: 'secret123',
+    age: 25
+});
+
+// ❌ 验证失败
+try {
+    await User.insertOne({
+        username: 'ab',        // 太短
+        email: 'invalid',      // 邮箱格式错误
+        password: '123'        // 太短
+    });
+} catch (err) {
+    console.error(err.code);    // 'VALIDATION_ERROR'
+    console.error(err.message); // 'Schema validation failed: ...'
+    console.error(err.errors);  // 详细错误数组
+}
+```
+
+### Schema 语法
+
+| 类型 | 语法 | 示例 |
+|------|------|------|
+| 字符串 | `string` | `'string!'` 必需字符串 |
+| 字符串范围 | `string:min-max` | `'string:3-32!'` 3-32 字符 |
+| 数字 | `number` | `'number!'` 必需数字 |
+| 数字范围 | `number:min-max` | `'number:0-120'` 0-120 范围 |
+| 邮箱 | `email` | `'email!'` 邮箱格式 |
+| URL | `url` | `'url!'` URL 格式 |
+| 数组 | `array` | `'array!'` 必需数组 |
+| 对象 | `object` | `'object!'` 必需对象 |
+| 布尔 | `boolean` | `'boolean!'` 必需布尔值 |
+| 日期 | `date` | `'date!'` Date 对象 |
+| 可选 | `type?` | `'string?'` 可选字符串 |
+| 必需 | `type!` | `'string!'` 必需字符串 |
+
+更多语法见 [schema-dsl 文档](https://github.com/vextjs/schema-dsl)。
+
+### 验证错误详情
+
+```javascript
+try {
+    await User.insertOne({ username: 'ab', email: 'invalid' });
+} catch (err) {
+    console.log(err.code);     // 'VALIDATION_ERROR'
+    console.log(err.message);  // 'Schema validation failed: ...'
+    console.log(err.errors);   // 详细错误数组
+    /*
+    [
+        {
+            field: 'username',
+            type: 'length',
+            expected: '3-32',
+            actual: 2,
+            message: 'username must be 3-32 characters'
+        },
+        {
+            field: 'email',
+            type: 'format',
+            expected: 'email',
+            message: 'email must be a valid email address'
+        }
+    ]
+    */
+}
+```
+
+### 禁用验证
+
+#### 全局禁用（不推荐）
+
+```javascript
+Model.define('users', {
+    schema: (dsl) => dsl({ ... }),
+    options: { validate: false }  // 全局禁用验证
+});
+```
+
+#### 单次操作跳过
+
+```javascript
+// 跳过验证（特殊场景，如数据迁移）
+await User.insertOne(doc, { skipValidation: true });
+```
+
+### v1.0.6 迁移指南
+
+| 版本 | 验证行为 | 配置方式 |
+|------|---------|---------|
+| v1.0.6 | 需要显式启用 | `options: { validate: true }` |
+| v1.0.7 | 默认启用 | 无需配置（默认生效） |
+| v1.0.7 禁用 | 需要显式禁用 | `options: { validate: false }` |
+
+**升级注意事项**:
+- ✅ 未定义 schema 的 Model 不受影响
+- ✅ 已显式配置 `validate: true` 的代码无需修改
+- ⚠️ 如需禁用，需添加 `validate: false` 配置
+
+### 性能影响
+
+- **验证开销**: 约 5-10% 插入时间增加
+- **缓存优化**: Schema 编译后缓存，重复使用无额外开销
+- **跳过选项**: 可通过 `skipValidation` 跳过（不推荐）
+
+### 最佳实践
+
+1. **始终定义 Schema**: 保证数据质量
+2. **合理使用可选字段**: 避免过度严格
+3. **自定义验证**: 使用 hooks 添加复杂验证逻辑
+4. **错误处理**: 捕获 `VALIDATION_ERROR` 返回友好错误
+
+### 常见问题
+
+**Q: 如何验证嵌套对象？**
+
+A: 使用 schema-dsl 的嵌套语法：
+
+```javascript
+schema: (dsl) => dsl({
+    profile: dsl({
+        name: 'string!',
+        age: 'number!'
+    })
+})
+```
+
+**Q: 如何自定义验证逻辑？**
+
+A: 使用 hooks 添加复杂验证：
+
+```javascript
+hooks: (model) => ({
+    insert: {
+        before: async (ctx, doc) => {
+            if (doc.age < 18) {
+                throw new Error('Must be 18+');
+            }
+            return doc;
+        }
+    }
+})
+```
+
+**Q: 性能敏感场景如何优化？**
+
+A: 批量插入时可选择跳过验证（风险自负）：
+
+```javascript
+await User.insertMany(docs, { skipValidation: true });
+```
+
+---
+
 ## 配置说明
 
 ### 1. schema - 数据验证
