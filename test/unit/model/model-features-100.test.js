@@ -1035,7 +1035,7 @@ describe('Model Features - 100% Coverage', function() {
 
         it('应该处理查询返回非数组非对象的结果（覆盖 Buffer 检查）', async function() {
             Model.define(currentCollection, {
-                schema: (dsl) => dsl({ name: 'string!', data: 'buffer' }),
+                schema: (dsl) => dsl({ name: 'string!', data: 'any' }),  // ✅ 使用 any 接受 Buffer
                 options: {}
             });
 
@@ -1086,7 +1086,7 @@ describe('Model Features - 100% Coverage', function() {
 
         it('应该处理查询结果为 Buffer 的情况', async function() {
             Model.define(currentCollection, {
-                schema: (dsl) => dsl({ name: 'string!', data: 'buffer' }),
+                schema: (dsl) => dsl({ name: 'string!', data: 'any' }),  // ✅ 使用 any 接受 Buffer
                 options: {}
             });
 

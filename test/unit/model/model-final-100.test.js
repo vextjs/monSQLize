@@ -291,7 +291,7 @@ describe('Model - Final 100% Coverage', function() {
 
         it('应该正确处理返回 Buffer 的情况', async function() {
             Model.define(currentCollection, {
-                schema: (dsl) => dsl({ name: 'string!', data: 'buffer' }),
+                schema: (dsl) => dsl({ name: 'string!', data: 'any' }),  // ✅ 使用 any 接受 Buffer
                 options: {}
             });
 

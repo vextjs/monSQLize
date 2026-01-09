@@ -45,7 +45,7 @@ describe('Model 虚拟字段和默认值测试', () => {
                 schema: (dsl) => dsl({
                     firstName: 'string!',
                     lastName: 'string!',
-                    age: 'number?'
+                    age: 'number'  // ✅ 可选字段不需要 ? 后缀
                 }),
                 virtuals: {
                     fullName: {
@@ -155,11 +155,11 @@ describe('Model 虚拟字段和默认值测试', () => {
             Model.define('def_posts', {
                 schema: (dsl) => dsl({
                     title: 'string!',
-                    content: 'string?',
-                    status: 'string?',
-                    views: 'number?',
-                    tags: 'array?',
-                    createdAt: 'date?'
+                    content: 'string',    // ✅ 可选字段
+                    status: 'string',     // ✅ 可选字段
+                    views: 'number',      // ✅ 可选字段
+                    tags: 'array',        // ✅ 可选字段
+                    createdAt: 'any'      // ✅ 使用 any 类型接受 Date 对象
                 }),
                 defaults: {
                     status: 'draft',

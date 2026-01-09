@@ -256,6 +256,14 @@ const users = await collection.find({
 npm install monsqlize
 ```
 
+**自动安装的依赖**：
+- ✅ `mongodb` - MongoDB 官方驱动
+- ✅ `schema-dsl` - Schema 验证库（Model 层必需）
+- ✅ `ssh2` - SSH 隧道支持
+
+**可选依赖**：
+- ⚠️ `ioredis` - Redis 多层缓存（启用 L2 缓存需要）
+
 ### 基础使用
 
 ```javascript
@@ -301,7 +309,9 @@ await msq.close();
 
 ### 使用 Model 层（可选）
 
-如果需要 **Schema验证**、**Populate关联查询**、**Hooks生命周期** 等 ORM 特性，可以使用 Model 层：
+如果需要 **Schema验证**、**Populate关联查询**、**Hooks生命周期** 等 ORM 特性，可以使用 Model 层。
+
+> **📦 依赖说明**: Model 层需要 `schema-dsl` 包支持（已随 monsqlize 自动安装，无需额外操作）
 
 ```javascript
 const MonSQLize = require('monsqlize');
@@ -319,7 +329,7 @@ await msq.connect();  // 自动加载 models/*.model.js
 
 // 1. 定义 Model（带 Schema 验证、Relations 和 Hooks）
 Model.define('users', {
-    // 🔴 Schema 验证（默认启用，v1.0.7+）
+    // 🔴 Schema 验证（默认启用，v1.0.7+，基于 schema-dsl 库）
     schema: (dsl) => dsl({
         username: 'string:3-32!',      // 必需，3-32 字符
         email: 'email!',               // 必需，邮箱格式
@@ -414,7 +424,7 @@ await User.insertOne(doc, { skipValidation: true });
 ```
 
 **Model 层特性**：
-- ✅ **Schema 验证** - 自动验证数据格式（v1.0.7 默认启用）
+- ✅ **Schema 验证** - 自动验证数据格式（基于 `schema-dsl` 库，v1.0.7 默认启用）
 - ✅ **自动加载** - 扫描目录自动加载 Model 文件（v1.0.7+）
 - ✅ **Populate** - 关联查询，支持 6 个方法（业界领先）
 - ✅ **Hooks** - 生命周期钩子（insert/update/delete/find）
@@ -731,6 +741,8 @@ await db.close();    // 自动关闭SSH隧道
 ### 10. 🎯 Model 层 - 像 ORM 一样使用（v1.0.3+）
 
 monSQLize 提供了一个轻量级的 Model 层，让你可以像使用 ORM 一样定义数据模型，同时保持 MongoDB 的灵活性。
+
+> **📦 依赖说明**: Model 层基于 `schema-dsl` 库实现 Schema 验证，已随 monsqlize 自动安装。
 
 ```javascript
 const { Model } = require('monsqlize');

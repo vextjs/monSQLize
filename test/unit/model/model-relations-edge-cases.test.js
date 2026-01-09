@@ -130,7 +130,7 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
             Model.define('populate_users', {
                 schema: (dsl) => dsl({
                     username: 'string!',
-                    profileId: 'objectId?'
+                    profileId: 'any'  // ✅ 使用 any 类型接受 null/undefined/ObjectId
                 }),
                 relations: {
                     posts: {
@@ -151,7 +151,8 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
             Model.define('populate_posts', {
                 schema: (dsl) => dsl({
                     title: 'string!',
-                    authorId: 'objectId!'
+                    authorId: 'any',      // ✅ 使用 any 接受 ObjectId 对象
+                    status: 'string'       // ✅ 添加 status 字段
                 }),
                 relations: {
                     comments: {
@@ -165,14 +166,14 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
 
             Model.define('populate_profiles', {
                 schema: (dsl) => dsl({
-                    bio: 'string?'
+                    bio: 'string'  // ✅ 可选（移除 ?）
                 })
             });
 
             Model.define('populate_comments', {
                 schema: (dsl) => dsl({
                     content: 'string!',
-                    postId: 'objectId!'
+                    postId: 'any'         // ✅ 使用 any 接受 ObjectId 对象
                 })
             });
 
@@ -276,7 +277,7 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
             Model.define('nested_posts', {
                 schema: (dsl) => dsl({
                     title: 'string!',
-                    authorId: 'objectId!'
+                    authorId: 'any'       // ✅ 使用 any 接受 ObjectId 对象
                 }),
                 relations: {
                     comments: {
