@@ -303,12 +303,25 @@ describe('updateOne 方法测试套件', function () {
             }
         });
 
-        it('应该在 update 为数组时抛出错误', async () => {
+        it('应该支持聚合管道格式的 update（v1.0.8+）', async () => {
+            // 聚合管道格式应该被接受
+            const result = await collection('users').updateOne(
+                { userId: 'test' },
+                [{ $set: { name: 'Test' } }]
+            );
+
+            // 验证结果
+            assert.strictEqual(result.matchedCount, 0, '没有匹配的文档');
+            assert.strictEqual(result.modifiedCount, 0);
+        });
+
+        it('应该在 update 为空数组时抛出错误', async () => {
             try {
-                await collection('users').updateOne({ userId: 'test' }, [{ $set: { name: 'Test' } }]);
+                await collection('users').updateOne({ userId: 'test' }, []);
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'INVALID_ARGUMENT');
+                assert.ok(err.message.includes('空数组'));
             }
         });
     });

@@ -1063,7 +1063,7 @@ import type { Collection, MonSQLizeConfig } from 'monsqlize';
 ✅ **CRUD 操作**
 - find / findOne
 - insertOne / insertMany
-- updateOne / updateMany
+- updateOne / updateMany ⭐ (支持聚合管道 v1.0.8+)
 - deleteOne / deleteMany
 - replaceOne
 - findOneAndUpdate

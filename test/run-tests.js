@@ -193,6 +193,9 @@ async function runTests() {
   } else if (testSuite === 'updateBatch') {
     testFiles = ['./unit/features/updateBatch.test.js'];
     title = 'updateBatch 方法测试套件';
+  } else if (testSuite === 'update-aggregation-pipeline' || testSuite === 'updateAggregation') {
+    testFiles = ['./unit/features/update-aggregation-pipeline.test.js'];
+    title = 'Update 聚合管道测试套件 (v1.0.8+)';
   } else if (testSuite === 'findOneAndDelete') {
     testFiles = ['./unit/features/findOneAndDelete.test.js'];
     title = 'findOneAndDelete 方法测试套件';
