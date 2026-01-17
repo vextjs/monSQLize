@@ -11,7 +11,7 @@
 
 [![npm version](https://img.shields.io/npm/v/monsqlize.svg)](https://www.npmjs.com/package/monsqlize)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](./index.d.ts)
-[![Test Coverage](https://img.shields.io/badge/Coverage-99.5%25-brightgreen.svg)](https://codecov.io/gh/vextjs/monSQLize)
+[![Test Coverage](https://img.shields.io/badge/Coverage-90.77%25-brightgreen.svg)](./TEST-COVERAGE-REPORT.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MongoDB](https://img.shields.io/badge/MongoDB-4.4%2B-green.svg)](https://www.mongodb.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-16%2B-brightgreen)](https://nodejs.org/)
@@ -1089,6 +1089,19 @@ import type { Collection, MonSQLizeConfig } from 'monsqlize';
 <td width="33%">
 
 ### 🚀 增强功能
+
+✅ **企业级多连接池** (v1.0.8+)
+- ConnectionPoolManager
+- 5种智能选择策略
+- 实时健康检查
+- 自动故障转移
+- 完整统计收集
+
+✅ **Saga 分布式事务** (v1.1.0 计划)
+- 跨服务事务（设计完成）
+- 自动补偿机制（设计完成）
+- 状态跟踪（设计完成）
+- 超时和重试（设计完成）
 
 ✅ **智能缓存**
 - TTL 过期策略

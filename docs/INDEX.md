@@ -11,6 +11,7 @@
 | [PROJECT-VISION.md](PROJECT-VISION.md) | **🎯 项目愿景 - 统一数据库查询语法框架（v1.0.6+）🆕** |
 | [mongodb-native-vs-extensions.md](mongodb-native-vs-extensions.md) | **MongoDB 原生 vs monSQLize 扩展功能对比** |
 | [connection.md](connection.md) | 连接管理和配置 |
+| [multi-pool.md](multi-pool.md) | **🎉 企业级多连接池管理 - 读写分离、负载均衡、故障转移（v1.0.8+）🆕** |
 | [objectid-auto-convert.md](objectid-auto-convert.md) | **ObjectId 自动转换 - 简化 ObjectId 处理（v1.3.0+）🆕** |
 | [model.md](model.md) | **Model 层 - Schema 验证、自定义方法、生命周期钩子（v1.0.3+）** |
 | [populate.md](populate.md) | **Populate API - 关联查询（6个方法支持，业界领先）（v1.0.6+）🆕** |
@@ -21,6 +22,7 @@
 | [ssh-tunnel.md](ssh-tunnel.md) | **SSH隧道 - 安全连接内网数据库（v1.3+）** |
 | [cache.md](cache.md) | 缓存系统（LRU + TTL） |
 | [transaction.md](transaction.md) | 事务管理（自动重试、缓存锁） |
+| [saga-transaction.md](saga-transaction.md) | **🎉 Saga 分布式事务 - 跨服务事务补偿机制（v1.0.8+）🆕** |
 | [business-lock.md](business-lock.md) | **业务级分布式锁** |
 
 | [transaction-optimizations.md](transaction-optimizations.md) | 事务优化策略 |
@@ -62,6 +64,7 @@
 | [update-operations.md](update-operations.md) | 所有更新方法 | 更新操作完整指南 |
 | [update-one.md](update-one.md) | `updateOne()` | 更新单个文档 |
 | [update-many.md](update-many.md) | `updateMany()` | 批量更新文档 |
+| [update-aggregation.md](update-aggregation.md) | **🎉 Update 聚合管道 - 字段间计算、条件赋值（v1.0.8+）🆕** |
 | [updateBatch.md](updateBatch.md) | `updateBatch()` | 大批量更新（分批+重试）⭐ |
 | [replace-one.md](replace-one.md) | `replaceOne()` | 完整替换文档 |
 | [find-one-and-update.md](find-one-and-update.md) | `findOneAndUpdate()` | 原子更新并返回 |
