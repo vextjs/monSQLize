@@ -562,6 +562,50 @@ const result = await msq.executeSaga('create-order-with-payment', data);
 
 [完整文档](./docs/saga-transaction.md)
 
+---
+
+#### 🆕 Change Stream 数据同步 (v1.0.9)
+
+**实时同步数据到备份库，基于 MongoDB Change Stream**
+
+```javascript
+const msq = new MonSQLize({
+    type: 'mongodb',
+    config: { 
+        uri: 'mongodb://localhost:27017/main',
+        replicaSet: 'rs0'  // 🔴 必须：Change Stream 需要 Replica Set
+    },
+    
+    // 🆕 同步配置
+    sync: {
+        enabled: true,
+        targets: [
+            {
+                name: 'backup-main',
+                uri: 'mongodb://backup:27017/backup',
+                collections: ['users', 'orders']
+            }
+        ]
+    }
+});
+
+await msq.connect();
+
+// 正常使用，自动同步
+await msq.collection('users').insertOne({ name: 'Alice' });
+// ✅ 自动通过 Change Stream 同步到 backup-main
+```
+
+**Change Stream 特性**：
+- ✅ 实时同步（延迟 10-500ms）
+- ✅ 断点续传（Resume Token）
+- ✅ 多目标支持（多地容灾）
+- ✅ 数据过滤和转换
+- ✅ 自动重连和健康检查
+- ✅ 主库影响 <2%（异步处理）
+
+[完整文档](./docs/sync-backup.md)
+
 ### 3. 📦 便利方法 - 减少 60~80% 代码
 
 <table>

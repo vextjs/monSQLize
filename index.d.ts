@@ -427,6 +427,60 @@ declare module 'monsqlize' {
             /** 是否递归扫描子目录（默认 false） */
             recursive?: boolean;
         };
+        /**
+         * Change Stream 数据同步配置（v1.0.8+）
+         * 实时同步数据到备份库
+         * @requires MongoDB Replica Set
+         * @requires MongoDB 4.0+
+         * @since v1.0.8
+         *
+         * @example
+         * sync: {
+         *   enabled: true,
+         *   targets: [
+         *     {
+         *       name: 'backup-main',
+         *       uri: 'mongodb://backup:27017/backup',
+         *       collections: ['users', 'orders']
+         *     }
+         *   ]
+         * }
+         */
+        sync?: {
+            /** 是否启用同步 */
+            enabled: boolean;
+            /** 备份目标数组 */
+            targets: Array<{
+                /** 目标名称 */
+                name: string;
+                /** MongoDB URI */
+                uri: string;
+                /** 要同步的集合（['*'] 表示全部） */
+                collections?: string[];
+                /** 健康检查配置 */
+                healthCheck?: {
+                    enabled?: boolean;
+                    interval?: number;
+                    timeout?: number;
+                    retries?: number;
+                };
+            }>;
+            /** 要监听的集合（可选，默认全部） */
+            collections?: string[];
+            /** Resume Token 配置 */
+            resumeToken?: {
+                /** 存储类型（'file' | 'redis'） */
+                storage?: 'file' | 'redis';
+                /** 文件路径（storage='file' 时使用） */
+                path?: string;
+                /** Redis 实例（storage='redis' 时使用） */
+                redis?: any;
+            };
+            /** 事件过滤函数 */
+            filter?: (event: any) => boolean;
+            /** 数据转换函数 */
+            transform?: (document: any) => any;
+        };
     }
     interface FindOptions {
         projection?: Record<string, any> | string[];
@@ -1332,6 +1386,76 @@ declare module 'monsqlize' {
          * const redisCache = MonSQLize.createRedisCacheAdapter(redis);
          */
         static createRedisCacheAdapter(client: any, options?: any): CacheLike;
+
+        // ============================================================================
+        // Saga 分布式事务 API (v1.0.8+)
+        // ============================================================================
+
+        /**
+         * 定义 Saga（v1.0.8+）
+         * @param definition Saga 定义
+         * @example
+         * msq.defineSaga({
+         *   name: 'create-order',
+         *   steps: [
+         *     {
+         *       name: 'reserve-inventory',
+         *       execute: async (ctx) => { ... },
+         *       compensate: async (ctx) => { ... }
+         *     }
+         *   ]
+         * });
+         */
+        defineSaga(definition: {
+            name: string;
+            steps: Array<{
+                name: string;
+                execute: (context: any) => Promise<any>;
+                compensate: (context: any) => Promise<void>;
+                timeout?: number;
+                retries?: number;
+            }>;
+            timeout?: number;
+            logging?: boolean;
+        }): void;
+
+        /**
+         * 执行 Saga（v1.0.8+）
+         * @param name Saga 名称
+         * @param data 输入数据
+         * @returns Saga 执行结果
+         * @example
+         * const result = await msq.executeSaga('create-order', {
+         *   userId: 'user123',
+         *   productId: 'prod456'
+         * });
+         */
+        executeSaga(name: string, data: any): Promise<{
+            executionId: string;
+            success: boolean;
+            result?: any;
+            error?: Error;
+            completedSteps: string[];
+            compensatedSteps: string[];
+            duration: number;
+        }>;
+
+        /**
+         * 列出所有 Saga（v1.0.8+）
+         * @returns Saga 名称列表
+         */
+        listSagas(): Promise<string[]>;
+
+        /**
+         * 获取 Saga 统计信息（v1.0.8+）
+         * @returns 统计信息
+         */
+        getSagaStats(): {
+            totalExecutions: number;
+            successCount: number;
+            failureCount: number;
+            compensationCount: number;
+        };
     }
 
     // ============================================================================
@@ -2325,6 +2449,395 @@ declare module 'monsqlize' {
      * @since v1.0.4
      */
     export type { Collection, CollectionAccessor };
+
+    // ============================================================================
+    // v1.0.8 新增功能类型定义
+    // ============================================================================
+
+    // ---------- 1. 多连接池管理（Multi-Pool Management） ----------
+
+    /**
+     * 连接池角色
+     * @since v1.0.8
+     */
+    type PoolRole = 'primary' | 'secondary' | 'analytics' | 'custom';
+
+    /**
+     * 连接池选择策略
+     * @since v1.0.8
+     */
+    type PoolStrategy = 'auto' | 'roundRobin' | 'weighted' | 'leastConnections' | 'manual';
+
+    /**
+     * 故障转移策略
+     * @since v1.0.8
+     */
+    type FallbackStrategy = 'error' | 'readonly' | 'primary';
+
+    /**
+     * 连接池配置
+     * @since v1.0.8
+     */
+    interface PoolConfig {
+        /** 连接池名称（唯一标识） */
+        name: string;
+        /** MongoDB URI */
+        uri: string;
+        /** 连接池角色 */
+        role?: PoolRole;
+        /** 权重（用于加权选择策略，默认 1） */
+        weight?: number;
+        /** 标签（用于筛选） */
+        tags?: string[];
+        /** MongoDB 连接选项 */
+        options?: {
+            maxPoolSize?: number;
+            minPoolSize?: number;
+            maxIdleTimeMS?: number;
+            waitQueueTimeoutMS?: number;
+            connectTimeoutMS?: number;
+            serverSelectionTimeoutMS?: number;
+        };
+        /** 健康检查配置 */
+        healthCheck?: {
+            enabled?: boolean;
+            interval?: number;
+            timeout?: number;
+            retries?: number;
+        };
+    }
+
+    /**
+     * 连接池管理器选项
+     * @since v1.0.8
+     */
+    interface ConnectionPoolManagerOptions {
+        /** 连接池配置数组 */
+        pools?: PoolConfig[];
+        /** 最大连接池数量（默认 10） */
+        maxPoolsCount?: number;
+        /** 选择策略（默认 'auto'） */
+        poolStrategy?: PoolStrategy;
+        /** 故障转移配置 */
+        poolFallback?: {
+            enabled?: boolean;
+            fallbackStrategy?: FallbackStrategy;
+            retryDelay?: number;
+            maxRetries?: number;
+        };
+        /** 日志记录器 */
+        logger?: LoggerLike;
+    }
+
+    /**
+     * 连接池健康状态
+     * @since v1.0.8
+     */
+    interface PoolHealthStatus {
+        status: 'up' | 'down' | 'degraded';
+        consecutiveFailures: number;
+        lastCheckTime: Date | null;
+        lastError: Error | null;
+        uptime: number;
+    }
+
+    /**
+     * 连接池统计信息
+     * @since v1.0.8
+     */
+    interface PoolStats {
+        name: string;
+        totalRequests: number;
+        successCount: number;
+        errorCount: number;
+        avgResponseTime: number;
+        minResponseTime: number;
+        maxResponseTime: number;
+        errorRate: number;
+        lastRequestTime: Date | null;
+    }
+
+    /**
+     * 连接池管理器类
+     * @since v1.0.8
+     */
+    class ConnectionPoolManager {
+        constructor(options?: ConnectionPoolManagerOptions);
+
+        /**
+         * 添加连接池
+         * @param config 连接池配置
+         */
+        addPool(config: PoolConfig): Promise<void>;
+
+        /**
+         * 移除连接池
+         * @param name 连接池名称
+         */
+        removePool(name: string): Promise<void>;
+
+        /**
+         * 获取连接池
+         * @param name 连接池名称
+         */
+        getPool(name: string): any;
+
+        /**
+         * 选择连接池
+         * @param operation 操作类型 ('read' | 'write' | 'analytics')
+         * @param options 选择选项
+         */
+        selectPool(operation: string, options?: { tags?: string[] }): any;
+
+        /**
+         * 启动健康检查
+         */
+        startHealthCheck(): void;
+
+        /**
+         * 停止健康检查
+         */
+        stopHealthCheck(): void;
+
+        /**
+         * 获取所有连接池的健康状态
+         */
+        getHealthStatus(): Record<string, PoolHealthStatus>;
+
+        /**
+         * 获取所有连接池的统计信息
+         */
+        getPoolStats(): Record<string, PoolStats>;
+
+        /**
+         * 关闭所有连接池
+         */
+        close(): Promise<void>;
+    }
+
+    // ---------- 2. Saga 分布式事务（Saga Transaction） ----------
+
+    /**
+     * Saga 步骤定义
+     * @since v1.0.8
+     */
+    interface SagaStep {
+        /** 步骤名称 */
+        name: string;
+        /** 执行函数 */
+        execute: (context: SagaContext) => Promise<any>;
+        /** 补偿函数（失败时执行） */
+        compensate: (context: SagaContext) => Promise<void>;
+        /** 步骤超时时间（毫秒） */
+        timeout?: number;
+        /** 重试次数（默认 0） */
+        retries?: number;
+    }
+
+    /**
+     * Saga 定义
+     * @since v1.0.8
+     */
+    interface SagaDefinition {
+        /** Saga 名称 */
+        name: string;
+        /** 步骤数组 */
+        steps: SagaStep[];
+        /** 超时时间（毫秒，默认 60000） */
+        timeout?: number;
+        /** 是否启用日志（默认 true） */
+        logging?: boolean;
+    }
+
+    /**
+     * Saga 上下文
+     * @since v1.0.8
+     */
+    interface SagaContext {
+        /** Saga 执行 ID */
+        readonly executionId: string;
+        /** 输入数据 */
+        readonly data: any;
+
+        /**
+         * 设置上下文变量
+         * @param key 键
+         * @param value 值
+         */
+        set(key: string, value: any): void;
+
+        /**
+         * 获取上下文变量
+         * @param key 键
+         */
+        get(key: string): any;
+
+        /**
+         * 检查变量是否存在
+         * @param key 键
+         */
+        has(key: string): boolean;
+
+        /**
+         * 获取所有上下文变量
+         */
+        getAll(): Record<string, any>;
+    }
+
+    /**
+     * Saga 执行结果
+     * @since v1.0.8
+     */
+    interface SagaResult {
+        /** 执行 ID */
+        executionId: string;
+        /** 是否成功 */
+        success: boolean;
+        /** 执行结果 */
+        result?: any;
+        /** 错误信息 */
+        error?: Error;
+        /** 已完成的步骤 */
+        completedSteps: string[];
+        /** 已补偿的步骤 */
+        compensatedSteps: string[];
+        /** 执行时长（毫秒） */
+        duration: number;
+    }
+
+    /**
+     * Saga 协调器选项
+     * @since v1.0.8
+     */
+    interface SagaOrchestratorOptions {
+        /** 缓存实例（用于分布式状态存储） */
+        cache?: CacheLike;
+        /** 日志记录器 */
+        logger?: LoggerLike;
+    }
+
+    /**
+     * Saga 协调器类
+     * @since v1.0.8
+     */
+    class SagaOrchestrator {
+        constructor(options?: SagaOrchestratorOptions);
+
+        /**
+         * 定义 Saga
+         * @param definition Saga 定义
+         */
+        define(definition: SagaDefinition): void;
+
+        /**
+         * 执行 Saga
+         * @param name Saga 名称
+         * @param data 输入数据
+         */
+        execute(name: string, data: any): Promise<SagaResult>;
+
+        /**
+         * 获取 Saga 定义
+         * @param name Saga 名称
+         */
+        getSaga(name: string): SagaDefinition | undefined;
+
+        /**
+         * 列出所有 Saga
+         */
+        listSagas(): string[];
+
+        /**
+         * 获取统计信息
+         */
+        getStats(): {
+            totalExecutions: number;
+            successCount: number;
+            failureCount: number;
+            compensationCount: number;
+        };
+    }
+
+    // ---------- 3. Change Stream 数据同步（Data Sync） ----------
+
+    /**
+     * 同步目标配置
+     * @since v1.0.8
+     */
+    interface SyncTarget {
+        /** 目标名称 */
+        name: string;
+        /** MongoDB URI */
+        uri: string;
+        /** 要同步的集合（['*'] 表示全部） */
+        collections?: string[];
+        /** 健康检查配置 */
+        healthCheck?: {
+            enabled?: boolean;
+            interval?: number;
+            timeout?: number;
+            retries?: number;
+        };
+    }
+
+    /**
+     * Resume Token 配置
+     * @since v1.0.8
+     */
+    interface ResumeTokenConfig {
+        /** 存储类型（'file' | 'redis'） */
+        storage?: 'file' | 'redis';
+        /** 文件路径（storage='file' 时使用） */
+        path?: string;
+        /** Redis 实例（storage='redis' 时使用） */
+        redis?: any;
+    }
+
+    /**
+     * Change Stream 同步配置
+     * @since v1.0.8
+     */
+    interface SyncConfig {
+        /** 是否启用同步 */
+        enabled: boolean;
+        /** 备份目标数组 */
+        targets: SyncTarget[];
+        /** 要监听的集合（可选，默认全部） */
+        collections?: string[];
+        /** Resume Token 配置 */
+        resumeToken?: ResumeTokenConfig;
+        /** 事件过滤函数 */
+        filter?: (event: any) => boolean;
+        /** 数据转换函数 */
+        transform?: (document: any) => any;
+    }
+
+    /**
+     * Change Stream 同步统计
+     * @since v1.0.8
+     */
+    interface SyncStats {
+        isRunning: boolean;
+        eventCount: number;
+        syncedCount: number;
+        errorCount: number;
+        startTime: Date | null;
+        lastEventTime: Date | null;
+        targets: Array<{
+            name: string;
+            syncCount: number;
+            errorCount: number;
+            lastSyncTime: Date | null;
+            lastError: Error | null;
+            successRate: string;
+        }>;
+    }
+
+
+    /**
+     * 导出 v1.0.8 新增类
+     */
+    export { ConnectionPoolManager, SagaOrchestrator };
 }
 
 

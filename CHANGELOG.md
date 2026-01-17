@@ -9,7 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
-| [v1.0.8](./changelogs/v1.0.8.md) | 2026-01-17 | 🎉 重大功能：多连接池管理 + Update 聚合管道 + Saga 分布式事务 | [查看](./changelogs/v1.0.8.md) |
+| [v1.0.8](./changelogs/v1.0.8.md) | 2026-01-17 | 🎉 重大功能：多连接池 + Update 聚合管道 + Saga 事务 + Change Stream 同步 | [查看](./changelogs/v1.0.8.md) |
 | [v1.0.7](./changelogs/v1.0.7.md) | 2026-01-09 | 🔧 依赖更新：schema-dsl@1.1.3 修复类型错误消息 + 测试用例 Schema 语法修复 | [查看](./changelogs/v1.0.7.md) |
 | [v1.0.6](./changelogs/v1.0.6.md) | 2026-01-08 | 文档完善：新增 ObjectId 自动转换文档 + 验证所有 v1.3.0+ 功能文档 | [查看](./changelogs/v1.0.6.md) |
 | [v1.0.5](./changelogs/v1.0.5.md) | 2026-01-08 | Schema 验证默认启用 + Model 自动加载机制 + 类型定义完善 | [查看](./changelogs/v1.0.5.md) |

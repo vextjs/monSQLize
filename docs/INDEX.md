@@ -23,6 +23,7 @@
 | [cache.md](cache.md) | 缓存系统（LRU + TTL） |
 | [transaction.md](transaction.md) | 事务管理（自动重试、缓存锁） |
 | [saga-transaction.md](saga-transaction.md) | **🎉 Saga 分布式事务 - 跨服务事务补偿机制（v1.0.8+）🆕** |
+| [sync-backup.md](sync-backup.md) | **🎉 Change Stream 数据同步 - 实时备份到多个数据库（v1.0.8+）🆕** |
 | [business-lock.md](business-lock.md) | **业务级分布式锁** |
 
 | [transaction-optimizations.md](transaction-optimizations.md) | 事务优化策略 |
