@@ -1,90 +1,55 @@
 # Saga 分布式事务
 
-> **版本**: v1.1.0 (计划中)  
-> **更新日期**: 2026-01-16  
-> **状态**: 📋 **设计阶段 - 代码未实现**
+monSQLize v1.1.0 引入了 Saga 分布式事务模式，用于协调跨服务的事务操作。
 
----
+## 目录
 
-## ⚠️ 重要说明
-
-**当前状态**：
-- ✅ **需求分析完成** - 详细的需求文档和业务场景
-- ✅ **API 设计完成** - 完整的接口设计和使用方式
-- ✅ **文档编写完成** - 本文档包含完整的使用指南
-- ✅ **示例代码完成** - 6个实用示例代码
-- ❌ **代码未实现** - lib/saga/ 目录和相关代码尚未编写
-- ❌ **测试未实现** - 单元测试和集成测试尚未编写
-
-**使用限制**：
-- ⚠️ 本文档仅用于 **API 设计参考** 和 **功能预览**
-- ⚠️ **无法在 v1.0.8 中使用**，需等待 v1.1.0 实现
-- ⚠️ 示例代码仅供参考，实际 API 可能有调整
-
-**实施计划**：
-- 📅 **v1.1.0** - 计划实现 Saga 分布式事务功能
-- 📅 预计时间：2-3 周
-- 📅 包含完整的代码实现、测试和文档更新
-
-如果您需要类似功能，可以：
-1. 关注 [需求方案](../plans/requirements/req-saga-transaction-v1.0.8.md) 了解设计细节
-2. 等待 v1.1.0 版本发布
-3. 或基于本文档自行实现 Saga 模式
-
----
-
-## 📋 目录
-
-- [简介](#简介)
-- [快速开始](#快速开始)
-- [核心概念](#核心概念)
-- [基础用法](#基础用法)
-- [高级特性](#高级特性)
+- [什么是 Saga](#什么是-saga)
 - [使用场景](#使用场景)
+- [快速开始](#快速开始)
+- [API 文档](#api-文档)
 - [最佳实践](#最佳实践)
-- [错误处理](#错误处理)
-- [性能优化](#性能优化)
-- [故障排查](#故障排查)
-- [API 参考](#api-参考)
+- [常见问题](#常见问题)
 
 ---
 
-## 简介
+## 什么是 Saga
 
-Saga 是一种用于处理分布式事务的设计模式。与传统的两阶段提交（2PC）不同，Saga 将长事务拆分为一系列本地事务，每个本地事务都有对应的补偿操作。
-
-### 为什么需要 Saga？
-
-在微服务架构中，传统的 ACID 事务无法跨越多个服务。Saga 模式通过以下方式解决这个问题：
-
-**问题场景**:
-```javascript
-// 创建订单流程涉及多个服务
-1. 扣减库存 (库存服务)
-2. 创建支付 (支付服务)
-3. 创建订单 (订单服务)
-
-// 如果第3步失败，前两步已经执行，如何回滚？
-```
-
-**Saga 解决方案**:
-```javascript
-// 每个步骤都定义补偿操作
-1. 扣减库存 → 补偿：释放库存
-2. 创建支付 → 补偿：退款
-3. 创建订单 → 补偿：取消订单
-
-// 任何步骤失败，自动执行已完成步骤的补偿操作
-```
+Saga 是一种分布式事务模式，通过将长事务分解为多个本地事务，每个本地事务都有对应的补偿操作。当某个步骤失败时，通过逆序执行补偿操作来撤销已完成的步骤。
 
 ### 核心特性
 
-- ✅ **自动补偿**: 任何步骤失败，自动回滚已执行的步骤
-- ✅ **状态跟踪**: 完整记录每个步骤的执行状态
-- ✅ **超时处理**: 支持全局和单步超时
-- ✅ **重试机制**: 支持失败重试
-- ✅ **并发控制**: 防止重复执行
-- ✅ **日志记录**: 完整的执行日志
+- ✅ **跨服务事务协调**：协调多个服务的操作
+- ✅ **自动补偿机制**：失败时自动逆序执行补偿
+- ✅ **无时间限制**：突破 MongoDB 60秒事务限制
+- ✅ **Redis 分布式支持**：多进程环境下共享 Saga 定义
+- ✅ **详细日志**：完整的执行和补偿日志
+
+---
+
+## 使用场景
+
+### 适用场景
+
+1. **跨服务事务**
+   ```
+   A 服务（订单） → B 服务（库存） → C 服务（支付）
+   ```
+
+2. **第三方 API 集成**
+   ```
+   创建订单 → Stripe 扣款 → 发送邮件
+   ```
+
+3. **长时间流程**
+   ```
+   超过 60 秒的复杂业务流程
+   ```
+
+### 不适用场景
+
+1. **单服务单库操作** → 使用 `withTransaction`
+2. **外部 API 只读取** → 使用 `withTransaction`
 
 ---
 
@@ -92,911 +57,518 @@ Saga 是一种用于处理分布式事务的设计模式。与传统的两阶段
 
 ### 安装
 
+Saga 功能已内置在 monSQLize v1.1.0+，无需额外安装。
+
 ```bash
-npm install monsqlize@1.0.8
+npm install monsqlize@^1.1.0
 ```
 
-### 基础示例
+### 基本使用
 
 ```javascript
-const { SagaOrchestrator } = require('monsqlize');
+const MonSQLize = require('monsqlize');
 
-// 1. 创建 Saga 编排器
-const saga = new SagaOrchestrator({
-    timeout: 30000,  // 30秒超时
-    logger: console
+// 初始化
+const msq = new MonSQLize({
+    type: 'mongodb',
+    config: { uri: 'mongodb://localhost:27017/mydb' }
 });
 
-// 2. 定义 Saga 流程
-const orderSaga = saga.define('createOrder')
-    .step('reserveInventory', {
-        // 正向操作
-        action: async (ctx) => {
-            console.log('扣减库存...');
-            const result = await inventoryService.reserve(ctx.productId, ctx.quantity);
-            ctx.reservationId = result.id;  // 保存到上下文
-            return result;
-        },
-        // 补偿操作
-        compensate: async (ctx) => {
-            console.log('释放库存...');
-            await inventoryService.release(ctx.reservationId);
-        }
-    })
-    .step('createPayment', {
-        action: async (ctx) => {
-            console.log('创建支付...');
-            const payment = await paymentService.charge(ctx.userId, ctx.amount);
-            ctx.paymentId = payment.id;
-            return payment;
-        },
-        compensate: async (ctx) => {
-            console.log('退款...');
-            await paymentService.refund(ctx.paymentId);
-        }
-    })
-    .step('createOrder', {
-        action: async (ctx) => {
-            console.log('创建订单...');
-            return await orderService.create({
-                userId: ctx.userId,
-                productId: ctx.productId,
-                quantity: ctx.quantity,
-                paymentId: ctx.paymentId
-            });
-        },
-        compensate: async (ctx) => {
-            console.log('取消订单...');
-            await orderService.cancel(ctx.orderId);
-        }
-    });
+await msq.connect();
 
-// 3. 执行 Saga
+// 定义 Saga
+msq.defineSaga({
+    name: 'create-order-with-payment',
+    steps: [
+        {
+            name: 'create-order',
+            execute: async (ctx) => {
+                // 创建订单
+                const order = await createOrder(ctx.data);
+                ctx.set('orderId', order.id);
+                return order;
+            },
+            compensate: async (ctx) => {
+                // 取消订单
+                const orderId = ctx.get('orderId');
+                await cancelOrder(orderId);
+            }
+        },
+        {
+            name: 'charge-payment',
+            execute: async (ctx) => {
+                // 扣款
+                const charge = await stripe.charges.create({
+                    amount: ctx.data.amount,
+                    source: ctx.data.paymentToken
+                });
+                ctx.set('chargeId', charge.id);
+                return charge;
+            },
+            compensate: async (ctx) => {
+                // 退款
+                const chargeId = ctx.get('chargeId');
+                await stripe.refunds.create({ charge: chargeId });
+            }
+        }
+    ]
+});
+
+// 执行 Saga
 try {
-    const result = await orderSaga.execute({
+    const result = await msq.executeSaga('create-order-with-payment', {
         userId: 'user123',
-        productId: 'prod456',
-        quantity: 2,
-        amount: 199.99
+        amount: 9900,
+        paymentToken: 'tok_visa'
     });
-    console.log('订单创建成功:', result);
+    
+    console.log('订单创建成功:', result.sagaId);
 } catch (error) {
     console.error('订单创建失败:', error.message);
-    // 失败时，已执行的步骤会自动补偿
 }
 ```
 
 ---
 
-## 核心概念
+## API 文档
 
-### Saga 编排器 (SagaOrchestrator)
+### defineSaga(config)
 
-管理所有 Saga 定义和执行的中心组件。
+定义一个 Saga。
 
-```javascript
-const saga = new SagaOrchestrator({
-    timeout: 30000,        // 全局超时（毫秒）
-    maxRetries: 3,         // 最大重试次数
-    retryDelay: 1000,      // 重试延迟（毫秒）
-    logger: console,       // 日志对象
-    persistence: null      // 持久化存储（可选）
-});
-```
+**参数**：
+- `config.name` (string): Saga 名称，全局唯一
+- `config.steps` (Array): 步骤列表
 
-### Saga 定义 (SagaDefinition)
-
-定义一个具体的 Saga 流程。
-
-```javascript
-const definition = saga.define('sagaName')
-    .step('step1', { action, compensate })
-    .step('step2', { action, compensate })
-    .step('step3', { action, compensate });
-```
-
-### 步骤 (Step)
-
-Saga 中的一个操作单元，包含正向操作和补偿操作。
-
+**步骤配置**：
 ```javascript
 {
-    name: 'stepName',           // 步骤名称
-    action: async (ctx) => {},  // 正向操作
-    compensate: async (ctx) => {}, // 补偿操作（可选）
-    timeout: 5000,              // 单步超时（可选）
-    retries: 3                  // 单步重试（可选）
+    name: 'step-name',              // 步骤名称
+    execute: async (ctx) => { },    // 执行函数
+    compensate: async (ctx, result) => { }  // 补偿函数（可选）
 }
 ```
 
-### 上下文 (Context)
+**返回值**：SagaDefinition 实例
 
-在步骤间共享数据的对象。
+**示例**：
+```javascript
+msq.defineSaga({
+    name: 'my-saga',
+    steps: [
+        {
+            name: 'step1',
+            execute: async (ctx) => {
+                // 正向操作
+                return { success: true };
+            },
+            compensate: async (ctx, result) => {
+                // 补偿操作
+            }
+        }
+    ]
+});
+```
+
+---
+
+### executeSaga(name, data)
+
+执行 Saga。
+
+**参数**：
+- `name` (string): Saga 名称
+- `data` (Object): 执行数据，可通过 `ctx.data` 访问
+
+**返回值**：Promise<Object>
+
+**成功返回**：
+```javascript
+{
+    success: true,
+    sagaId: 'saga_xxx',
+    sagaName: 'my-saga',
+    completedSteps: 3,
+    duration: 123  // 毫秒
+}
+```
+
+**失败返回**：
+```javascript
+{
+    success: false,
+    sagaId: 'saga_xxx',
+    sagaName: 'my-saga',
+    completedSteps: 2,
+    failedStep: 2,
+    error: 'Error message',
+    duration: 123,
+    compensation: {
+        success: true,
+        results: [...]
+    }
+}
+```
+
+---
+
+### listSagas()
+
+列出所有已定义的 Saga。
+
+**返回值**：Promise<string[]>
 
 ```javascript
-const ctx = {
-    // 初始数据
-    userId: 'user123',
-    amount: 100,
+const sagas = await msq.listSagas();
+console.log('已定义的 Saga:', sagas);
+// ['create-order', 'update-inventory', ...]
+```
+
+---
+
+### getSagaStats()
+
+获取 Saga 统计信息。
+
+**返回值**：Object
+
+```javascript
+const stats = msq.getSagaStats();
+console.log(stats);
+// {
+//   totalExecutions: 100,
+//   successfulExecutions: 95,
+//   failedExecutions: 5,
+//   compensatedExecutions: 5,
+//   successRate: '95.00%',
+//   storageMode: 'Redis'  // 或 '内存'
+// }
+```
+
+---
+
+## SagaContext API
+
+在 `execute` 和 `compensate` 函数中可以访问 SagaContext。
+
+### ctx.data
+
+获取执行数据（只读）。
+
+```javascript
+execute: async (ctx) => {
+    const userId = ctx.data.userId;
+    const amount = ctx.data.amount;
+}
+```
+
+### ctx.set(key, value)
+
+保存自定义数据，用于步骤间传递。**支持任何类型的值**（字符串、对象、数组、数字等）。
+
+```javascript
+execute: async (ctx) => {
+    // ✅ 字符串
+    ctx.set('orderId', 'ORDER123');
     
-    // 步骤添加的数据
-    reservationId: 'res456',  // 由 step1 添加
-    paymentId: 'pay789',      // 由 step2 添加
-    orderId: 'order999'       // 由 step3 添加
-};
-```
-
-### 执行状态
-
-| 状态 | 说明 |
-|------|------|
-| `pending` | 等待执行 |
-| `running` | 正在执行 |
-| `completed` | 成功完成 |
-| `failed` | 执行失败 |
-| `compensating` | 正在补偿 |
-| `compensated` | 补偿完成 |
-
----
-
-## 基础用法
-
-### 定义 Saga
-
-```javascript
-const saga = new SagaOrchestrator();
-
-const transferSaga = saga.define('transferMoney')
-    // 步骤1：扣款
-    .step('debit', {
-        action: async (ctx) => {
-            await accountService.debit(ctx.fromAccount, ctx.amount);
-            console.log(`扣款 ${ctx.amount} 成功`);
-        },
-        compensate: async (ctx) => {
-            await accountService.credit(ctx.fromAccount, ctx.amount);
-            console.log(`补偿：返还 ${ctx.amount}`);
-        }
-    })
-    // 步骤2：入账
-    .step('credit', {
-        action: async (ctx) => {
-            await accountService.credit(ctx.toAccount, ctx.amount);
-            console.log(`入账 ${ctx.amount} 成功`);
-        },
-        compensate: async (ctx) => {
-            await accountService.debit(ctx.toAccount, ctx.amount);
-            console.log(`补偿：扣除 ${ctx.amount}`);
-        }
+    // ✅ 对象
+    ctx.set('orderData', {
+        orderId: 'ORDER123',
+        amount: 9900,
+        items: [{ sku: 'SKU001', quantity: 2 }]
     });
-```
-
-### 执行 Saga
-
-```javascript
-try {
-    const result = await transferSaga.execute({
-        fromAccount: 'A001',
-        toAccount: 'B002',
-        amount: 100
-    });
-    console.log('转账成功');
-} catch (error) {
-    console.error('转账失败:', error);
+    
+    // ✅ 数组
+    ctx.set('itemIds', ['id1', 'id2', 'id3']);
+    
+    // ✅ 数字
+    ctx.set('totalAmount', 9900);
 }
 ```
 
-### 步骤间传递数据
+### ctx.get(key)
+
+获取自定义数据。返回值类型与存入时一致。
 
 ```javascript
-saga.define('processOrder')
-    .step('validateOrder', {
-        action: async (ctx) => {
-            const validation = await orderService.validate(ctx.orderId);
-            ctx.validatedAt = new Date();  // 添加到上下文
-            ctx.validationId = validation.id;
-            return validation;
-        }
-    })
-    .step('processPayment', {
-        action: async (ctx) => {
-            // 使用前一步添加的数据
-            if (!ctx.validationId) {
-                throw new Error('订单未验证');
-            }
-            const payment = await paymentService.process(ctx.validationId);
-            ctx.paymentId = payment.id;
-            return payment;
-        },
-        compensate: async (ctx) => {
-            if (ctx.paymentId) {
-                await paymentService.refund(ctx.paymentId);
-            }
-        }
-    });
-```
-
----
-
-## 高级特性
-
-### 1. 条件补偿
-
-只在特定条件下执行补偿：
-
-```javascript
-.step('createOrder', {
-    action: async (ctx) => {
-        const order = await orderService.create(ctx.orderData);
-        ctx.orderId = order.id;
-        ctx.orderCreated = true;  // 标记已创建
-        return order;
-    },
-    compensate: async (ctx) => {
-        // 只有实际创建了订单才需要取消
-        if (ctx.orderCreated && ctx.orderId) {
-            await orderService.cancel(ctx.orderId);
-        }
+compensate: async (ctx) => {
+    // 获取字符串
+    const orderId = ctx.get('orderId');
+    await cancelOrder(orderId);
+    
+    // 获取对象
+    const orderData = ctx.get('orderData');
+    console.log('订单金额:', orderData.amount);
+    
+    // 获取数组
+    const itemIds = ctx.get('itemIds');
+    for (const id of itemIds) {
+        await releaseItem(id);
     }
-})
-```
-
-### 2. 超时配置
-
-```javascript
-const saga = new SagaOrchestrator({
-    timeout: 60000  // 全局60秒超时
-});
-
-saga.define('longRunning')
-    .step('quickStep', {
-        action: async (ctx) => { /* ... */ },
-        timeout: 5000  // 单步5秒超时，覆盖全局配置
-    })
-    .step('slowStep', {
-        action: async (ctx) => { /* ... */ },
-        timeout: 30000  // 单步30秒超时
-    });
-```
-
-### 3. 重试机制
-
-```javascript
-saga.define('retryExample')
-    .step('unreliableOperation', {
-        action: async (ctx) => {
-            // 可能失败的操作
-            const result = await externalService.call();
-            return result;
-        },
-        compensate: async (ctx) => { /* ... */ },
-        retries: 3,        // 失败时重试3次
-        retryDelay: 2000   // 每次重试间隔2秒
-    });
-```
-
-### 4. 并行步骤
-
-```javascript
-saga.define('parallelProcessing')
-    .parallel([
-        {
-            name: 'sendEmail',
-            action: async (ctx) => {
-                await emailService.send(ctx.email, ctx.message);
-            }
-        },
-        {
-            name: 'sendSMS',
-            action: async (ctx) => {
-                await smsService.send(ctx.phone, ctx.message);
-            }
-        },
-        {
-            name: 'sendPush',
-            action: async (ctx) => {
-                await pushService.send(ctx.deviceId, ctx.message);
-            }
-        }
-    ])
-    .step('recordNotification', {
-        action: async (ctx) => {
-            // 所有并行步骤完成后执行
-            await notificationService.record(ctx);
-        }
-    });
-```
-
-### 5. 事务日志
-
-启用持久化事务日志：
-
-```javascript
-const saga = new SagaOrchestrator({
-    persistence: {
-        type: 'mongodb',
-        connection: mongoClient,
-        collection: 'saga_logs'
-    }
-});
-
-// 每个 Saga 执行都会记录到数据库
-const result = await saga.execute('orderSaga', context);
-
-// 查询历史记录
-const logs = await saga.getLogs({ sagaId: result.sagaId });
-console.log(logs);
-```
-
-### 6. 状态监听
-
-```javascript
-saga.on('stepStarted', ({ sagaId, stepName, context }) => {
-    console.log(`步骤开始: ${stepName}`);
-});
-
-saga.on('stepCompleted', ({ sagaId, stepName, result }) => {
-    console.log(`步骤完成: ${stepName}`);
-});
-
-saga.on('stepFailed', ({ sagaId, stepName, error }) => {
-    console.error(`步骤失败: ${stepName}`, error);
-});
-
-saga.on('compensationStarted', ({ sagaId, stepName }) => {
-    console.log(`补偿开始: ${stepName}`);
-});
-
-saga.on('sagaCompleted', ({ sagaId, result }) => {
-    console.log(`Saga 完成`);
-});
-
-saga.on('sagaFailed', ({ sagaId, error }) => {
-    console.error(`Saga 失败`, error);
-});
-```
-
----
-
-## 使用场景
-
-### 场景1：电商订单流程
-
-```javascript
-const orderSaga = saga.define('ecommerceOrder')
-    // 1. 验证库存
-    .step('checkInventory', {
-        action: async (ctx) => {
-            const available = await inventoryService.check(ctx.productId, ctx.quantity);
-            if (!available) {
-                throw new Error('库存不足');
-            }
-            ctx.inventoryChecked = true;
-        }
-    })
-    // 2. 锁定库存
-    .step('lockInventory', {
-        action: async (ctx) => {
-            const lock = await inventoryService.lock(ctx.productId, ctx.quantity);
-            ctx.lockId = lock.id;
-        },
-        compensate: async (ctx) => {
-            if (ctx.lockId) {
-                await inventoryService.unlock(ctx.lockId);
-            }
-        }
-    })
-    // 3. 创建支付
-    .step('createPayment', {
-        action: async (ctx) => {
-            const payment = await paymentService.create({
-                userId: ctx.userId,
-                amount: ctx.amount,
-                method: ctx.paymentMethod
-            });
-            ctx.paymentId = payment.id;
-        },
-        compensate: async (ctx) => {
-            if (ctx.paymentId) {
-                await paymentService.cancel(ctx.paymentId);
-            }
-        }
-    })
-    // 4. 执行支付
-    .step('executePayment', {
-        action: async (ctx) => {
-            await paymentService.execute(ctx.paymentId);
-            ctx.paymentExecuted = true;
-        },
-        compensate: async (ctx) => {
-            if (ctx.paymentExecuted) {
-                await paymentService.refund(ctx.paymentId);
-            }
-        }
-    })
-    // 5. 扣减库存
-    .step('deductInventory', {
-        action: async (ctx) => {
-            await inventoryService.deduct(ctx.lockId);
-        },
-        compensate: async (ctx) => {
-            if (ctx.lockId) {
-                await inventoryService.restore(ctx.lockId);
-            }
-        }
-    })
-    // 6. 创建订单
-    .step('createOrder', {
-        action: async (ctx) => {
-            const order = await orderService.create({
-                userId: ctx.userId,
-                productId: ctx.productId,
-                quantity: ctx.quantity,
-                paymentId: ctx.paymentId,
-                amount: ctx.amount
-            });
-            ctx.orderId = order.id;
-            return order;
-        },
-        compensate: async (ctx) => {
-            if (ctx.orderId) {
-                await orderService.cancel(ctx.orderId);
-            }
-        }
-    })
-    // 7. 发送通知
-    .step('sendNotification', {
-        action: async (ctx) => {
-            await notificationService.send(ctx.userId, {
-                type: 'orderCreated',
-                orderId: ctx.orderId
-            });
-        },
-        // 发送通知失败不需要补偿
-        compensate: null
-    });
-
-// 执行
-try {
-    const result = await orderSaga.execute({
-        userId: 'user123',
-        productId: 'prod456',
-        quantity: 2,
-        amount: 199.99,
-        paymentMethod: 'credit_card'
-    });
-    console.log('订单创建成功:', result.orderId);
-} catch (error) {
-    console.error('订单创建失败，已回滚:', error.message);
+}
+    await cancelOrder(orderId);
 }
 ```
 
-### 场景2：用户注册流程
+### ctx.sagaId
+
+获取 Saga 唯一标识。
 
 ```javascript
-const registerSaga = saga.define('userRegistration')
-    // 1. 创建用户账号
-    .step('createAccount', {
-        action: async (ctx) => {
-            const user = await userService.create({
-                username: ctx.username,
-                email: ctx.email,
-                password: ctx.password
-            });
-            ctx.userId = user.id;
-            return user;
-        },
-        compensate: async (ctx) => {
-            if (ctx.userId) {
-                await userService.delete(ctx.userId);
-            }
-        }
-    })
-    // 2. 创建用户配置
-    .step('createProfile', {
-        action: async (ctx) => {
-            const profile = await profileService.create({
-                userId: ctx.userId,
-                displayName: ctx.displayName,
-                avatar: ctx.avatar
-            });
-            ctx.profileId = profile.id;
-        },
-        compensate: async (ctx) => {
-            if (ctx.profileId) {
-                await profileService.delete(ctx.profileId);
-            }
-        }
-    })
-    // 3. 发送欢迎邮件
-    .step('sendWelcomeEmail', {
-        action: async (ctx) => {
-            await emailService.send({
-                to: ctx.email,
-                template: 'welcome',
-                data: { username: ctx.username }
-            });
-        },
-        compensate: null  // 邮件已发送，无法补偿
-    })
-    // 4. 初始化钱包
-    .step('initializeWallet', {
-        action: async (ctx) => {
-            const wallet = await walletService.create({
-                userId: ctx.userId,
-                balance: 0
-            });
-            ctx.walletId = wallet.id;
-        },
-        compensate: async (ctx) => {
-            if (ctx.walletId) {
-                await walletService.delete(ctx.walletId);
-            }
-        }
-    });
-```
-
-### 场景3：数据同步
-
-```javascript
-const syncSaga = saga.define('dataSync')
-    // 1. 从源系统读取数据
-    .step('fetchData', {
-        action: async (ctx) => {
-            const data = await sourceSystem.fetch(ctx.query);
-            ctx.data = data;
-            ctx.dataCount = data.length;
-        }
-    })
-    // 2. 转换数据格式
-    .step('transformData', {
-        action: async (ctx) => {
-            const transformed = await transformer.transform(ctx.data);
-            ctx.transformedData = transformed;
-        }
-    })
-    // 3. 写入目标系统
-    .step('writeData', {
-        action: async (ctx) => {
-            const result = await targetSystem.write(ctx.transformedData);
-            ctx.syncId = result.id;
-        },
-        compensate: async (ctx) => {
-            if (ctx.syncId) {
-                await targetSystem.rollback(ctx.syncId);
-            }
-        }
-    })
-    // 4. 更新同步记录
-    .step('updateSyncLog', {
-        action: async (ctx) => {
-            await syncLogService.create({
-                syncId: ctx.syncId,
-                recordCount: ctx.dataCount,
-                status: 'completed',
-                completedAt: new Date()
-            });
-        },
-        compensate: async (ctx) => {
-            if (ctx.syncId) {
-                await syncLogService.markAsFailed(ctx.syncId);
-            }
-        }
-    });
+execute: async (ctx) => {
+    console.log('Saga ID:', ctx.sagaId);
+}
 ```
 
 ---
 
 ## 最佳实践
 
-### 1. 幂等性设计
+### 1. 明确定义补偿操作
 
-确保步骤可以安全重试：
-
-```javascript
-.step('createPayment', {
-    action: async (ctx) => {
-        // ✅ 使用幂等键
-        const payment = await paymentService.create({
-            idempotencyKey: `order-${ctx.orderId}`,
-            amount: ctx.amount
-        });
-        ctx.paymentId = payment.id;
-        return payment;
-    }
-})
-```
-
-### 2. 资源清理
-
-确保资源在失败时被正确清理：
+每个有副作用的步骤都应该有补偿操作。
 
 ```javascript
-.step('processFile', {
-    action: async (ctx) => {
-        const tempFile = await fileService.createTemp();
-        ctx.tempFile = tempFile;
-        
-        try {
-            // 处理文件
-            const result = await fileService.process(tempFile);
-            return result;
-        } finally {
-            // 确保临时文件被删除
-            await fileService.deleteTemp(tempFile);
-        }
-    }
-})
-```
-
-### 3. 状态检查
-
-补偿前检查状态，避免重复补偿：
-
-```javascript
-.step('deductBalance', {
-    action: async (ctx) => {
-        await walletService.deduct(ctx.userId, ctx.amount);
-        ctx.balanceDeducted = true;
+// ✅ 推荐
+{
+    name: 'create-order',
+    execute: async (ctx) => {
+        const order = await createOrder(ctx.data);
+        ctx.set('orderId', order.id);
+        return order;
     },
     compensate: async (ctx) => {
-        // ✅ 检查状态
-        if (ctx.balanceDeducted) {
-            await walletService.add(ctx.userId, ctx.amount);
-        }
+        const orderId = ctx.get('orderId');
+        await cancelOrder(orderId);
     }
-})
+}
+
+// ❌ 不推荐：有副作用但没有补偿
+{
+    name: 'create-order',
+    execute: async (ctx) => {
+        return await createOrder(ctx.data);
+    }
+    // 没有 compensate
+}
 ```
 
-### 4. 详细日志
+---
 
-记录关键信息用于调试：
+### 2. 保存关键信息到上下文
+
+补偿操作需要的信息应该在 execute 中保存。**支持保存完整对象，简化代码。**
 
 ```javascript
-.step('criticalOperation', {
-    action: async (ctx) => {
-        console.log('开始执行关键操作', {
-            userId: ctx.userId,
-            timestamp: new Date(),
-            context: ctx
+// ✅ 推荐：保存完整对象
+execute: async (ctx) => {
+    const result = await createOrder(ctx.data);
+    
+    // 保存完整的订单对象，补偿时可以访问所有信息
+    ctx.set('order', result);
+    
+    return result;
+},
+compensate: async (ctx) => {
+    // 使用保存的完整对象
+    const order = ctx.get('order');
+    await cancelOrder(order.id, {
+        reason: 'saga-compensation',
+        amount: order.amount,
+        items: order.items
+    });
+}
+
+// ✅ 也可以：保存单个字段
+execute: async (ctx) => {
+    const result = await doSomething();
+    
+    ctx.set('resourceId', result.id);
+    ctx.set('amount', result.amount);
+    
+    return result;
+},
+compensate: async (ctx) => {
+    const resourceId = ctx.get('resourceId');
+    const amount = ctx.get('amount');
+    
+    await revertOperation(resourceId, amount);
+}
+```
+
+---
+
+### 3. 幂等性设计
+
+补偿操作应该是幂等的（可重复执行）。
+
+```javascript
+compensate: async (ctx) => {
+    const orderId = ctx.get('orderId');
+    
+    // ✅ 推荐：检查状态
+    const order = await getOrder(orderId);
+    if (order.status !== 'cancelled') {
+        await cancelOrder(orderId);
+    }
+    
+    // ❌ 不推荐：直接执行
+    // await cancelOrder(orderId);  // 可能重复取消
+}
+```
+
+---
+
+### 4. 错误处理
+
+补偿失败应该记录详细日志。
+
+```javascript
+compensate: async (ctx) => {
+    try {
+        await doCompensation();
+    } catch (error) {
+        // Saga 会自动记录错误
+        // 但你可以添加额外的日志
+        console.error('[Compensation Error]', {
+            sagaId: ctx.sagaId,
+            error: error.message
         });
-        
-        const result = await service.execute(ctx);
-        
-        console.log('关键操作完成', {
-            result: result,
-            duration: Date.now() - ctx.startTime
-        });
-        
-        return result;
-    }
-})
-```
-
-### 5. 超时保护
-
-为耗时操作设置合理的超时：
-
-```javascript
-saga.define('longProcess')
-    .step('quickStep', {
-        action: async (ctx) => { /* ... */ },
-        timeout: 5000  // 5秒
-    })
-    .step('longStep', {
-        action: async (ctx) => { /* ... */ },
-        timeout: 60000  // 60秒
-    });
-```
-
----
-
-## 错误处理
-
-### 错误类型
-
-```javascript
-try {
-    await saga.execute('orderSaga', context);
-} catch (error) {
-    if (error.type === 'StepFailedError') {
-        // 某个步骤执行失败
-        console.error(`步骤 ${error.stepName} 失败:`, error.message);
-    } else if (error.type === 'CompensationFailedError') {
-        // 补偿操作失败（严重！）
-        console.error(`补偿失败:`, error.message);
-        // 需要人工介入
-        await alertService.send('Compensation failed!', error);
-    } else if (error.type === 'TimeoutError') {
-        // 超时
-        console.error('Saga 超时');
-    } else {
-        // 其他错误
-        console.error('未知错误:', error);
+        throw error;  // 重新抛出
     }
 }
 ```
 
-### 补偿失败处理
+---
 
-补偿失败是严重问题，需要特殊处理：
+### 5. 单进程模式 vs Redis 模式
+
+**单进程模式**（默认）：
 
 ```javascript
-saga.on('compensationFailed', async ({ sagaId, stepName, error, context }) => {
-    // 1. 记录到数据库
-    await errorLogService.create({
-        type: 'compensationFailed',
-        sagaId: sagaId,
-        stepName: stepName,
-        error: error.message,
-        context: context,
-        timestamp: new Date()
-    });
-    
-    // 2. 发送告警
-    await alertService.send({
-        priority: 'critical',
-        message: `Saga ${sagaId} compensation failed at step ${stepName}`,
-        details: error
-    });
-    
-    // 3. 创建工单
-    await ticketService.create({
-        title: `Manual compensation required for Saga ${sagaId}`,
-        description: `Step: ${stepName}\nError: ${error.message}`,
-        priority: 'high'
-    });
+const msq = new MonSQLize({
+    type: 'mongodb',
+    config: { uri: '...' },
+    cache: false  // 或不配置 cache
+});
+```
+
+**Redis 模式**（多进程）：
+
+```javascript
+const { createRedisCacheAdapter } = require('monsqlize/lib/redis-cache-adapter');
+
+const msq = new MonSQLize({
+    type: 'mongodb',
+    config: { uri: '...' },
+    cache: createRedisCacheAdapter('redis://localhost:6379')
+});
+
+// ⚠️ 重要：每个进程启动时都需要调用 defineSaga()
+msq.defineSaga({
+    name: 'my-saga',
+    steps: [...]
 });
 ```
 
 ---
 
-## 性能优化
+## 常见问题
 
-### 1. 并行执行
+### Q1: Saga 和 withTransaction 有什么区别？
 
-对于独立的步骤，使用并行执行：
+| 维度 | withTransaction | Saga |
+|------|----------------|------|
+| **适用场景** | 单库操作 | 跨服务操作 |
+| **回滚方式** | MongoDB 自动回滚 | 手动补偿 |
+| **时间限制** | 60秒 | 无限制 |
+| **外部 API** | 不支持回滚 | 支持补偿 |
+
+---
+
+### Q2: 补偿失败怎么办？
+
+补偿失败会被记录在返回结果中：
 
 ```javascript
-// ❌ 串行（慢）
-.step('notifyEmail', { action: async (ctx) => await emailService.send() })
-.step('notifySMS', { action: async (ctx) => await smsService.send() })
-.step('notifyPush', { action: async (ctx) => await pushService.send() })
+const result = await msq.executeSaga('my-saga', data);
 
-// ✅ 并行（快）
-.parallel([
-    { name: 'email', action: async (ctx) => await emailService.send() },
-    { name: 'sms', action: async (ctx) => await smsService.send() },
-    { name: 'push', action: async (ctx) => await pushService.send() }
-])
+if (!result.success && !result.compensation.success) {
+    console.error('补偿失败，需要人工介入');
+    console.error('失败的步骤:', result.compensation.results);
+}
 ```
 
-### 2. 减少网络调用
+---
 
-批量操作减少网络往返：
+### Q3: 如何调试 Saga？
+
+启用日志：
 
 ```javascript
-.step('batchUpdate', {
-    action: async (ctx) => {
-        // ✅ 一次调用更新多条记录
-        await dbService.updateMany(ctx.ids, ctx.updates);
-    }
-})
+const msq = new MonSQLize({
+    type: 'mongodb',
+    config: { uri: '...' },
+    logger: { level: 'debug' }  // 启用详细日志
+});
 ```
 
-### 3. 使用缓存
+---
 
-缓存频繁访问的数据：
+### Q4: 可以嵌套 Saga 吗？
+
+可以，但不推荐。建议将复杂流程拆分为多个独立的 Saga。
+
+---
+
+### Q5: 如何测试 Saga？
+
+使用模拟服务：
 
 ```javascript
-.step('validateUser', {
-    action: async (ctx) => {
-        // ✅ 先检查缓存
-        let user = await cache.get(`user:${ctx.userId}`);
-        if (!user) {
-            user = await userService.get(ctx.userId);
-            await cache.set(`user:${ctx.userId}`, user, 300);
+// 模拟外部服务
+const mockOrderService = {
+    create: async (data) => ({ orderId: 'TEST_ORDER' }),
+    cancel: async (orderId) => ({ cancelled: true })
+};
+
+// 定义测试 Saga
+msq.defineSaga({
+    name: 'test-saga',
+    steps: [
+        {
+            name: 'create-order',
+            execute: async (ctx) => {
+                return await mockOrderService.create(ctx.data);
+            },
+            compensate: async (ctx) => {
+                const orderId = ctx.get('orderId');
+                await mockOrderService.cancel(orderId);
+            }
         }
-        ctx.user = user;
-    }
-})
-```
-
----
-
-## 故障排查
-
-### 问题1：Saga 一直卡住
-
-**检查**:
-- 是否有步骤没有返回结果
-- 是否有死循环
-- 超时时间是否设置过长
-
-**解决**:
-```javascript
-// 添加调试日志
-saga.on('stepStarted', ({ stepName }) => {
-    console.log(`[${new Date().toISOString()}] Step started: ${stepName}`);
+    ]
 });
 
-saga.on('stepCompleted', ({ stepName, duration }) => {
-    console.log(`[${new Date().toISOString()}] Step completed: ${stepName}, took ${duration}ms`);
-});
-```
-
-### 问题2：补偿操作没有执行
-
-**检查**:
-- 步骤是否定义了 compensate
-- 补偿逻辑是否抛出异常
-
-**解决**:
-```javascript
-.step('myStep', {
-    action: async (ctx) => { /* ... */ },
-    compensate: async (ctx) => {
-        try {
-            // ✅ 包裹 try-catch
-            await service.rollback(ctx.id);
-        } catch (error) {
-            console.error('Compensation error:', error);
-            throw error;  // 重新抛出，让系统记录
-        }
-    }
-})
+// 执行测试
+const result = await msq.executeSaga('test-saga', {});
+assert(result.success === true);
 ```
 
 ---
 
-## API 参考
+## 示例
 
-### SagaOrchestrator
-
-```typescript
-class SagaOrchestrator {
-    constructor(options?: {
-        timeout?: number;
-        maxRetries?: number;
-        retryDelay?: number;
-        logger?: any;
-        persistence?: object;
-    });
-    
-    define(name: string): SagaDefinition;
-    execute(name: string, context: object): Promise<any>;
-    on(event: string, handler: Function): void;
-    getLogs(filter: object): Promise<Array>;
-}
-```
-
-### SagaDefinition
-
-```typescript
-class SagaDefinition {
-    step(name: string, config: {
-        action: (ctx: object) => Promise<any>;
-        compensate?: (ctx: object) => Promise<void>;
-        timeout?: number;
-        retries?: number;
-    }): SagaDefinition;
-    
-    parallel(steps: Array<StepConfig>): SagaDefinition;
-    execute(context: object): Promise<any>;
-}
-```
+完整示例请参考：
+- [examples/saga-transaction.examples.js](../examples/saga-transaction.examples.js)
 
 ---
 
-## 相关文档
+## 版本历史
 
-- [transaction.md](./transaction.md) - 本地事务
-- [transaction-optimizations.md](./transaction-optimizations.md) - 事务优化
-- [multi-pool.md](./multi-pool.md) - 多连接池
-- [distributed-deployment.md](./distributed-deployment.md) - 分布式部署
+- **v1.1.0** (2026-01-17): 首次发布 Saga 功能
 
 ---
 
-_文档版本: v1.0.8_  
-_最后更新: 2026-01-16_
+_文档更新时间: 2026-01-17_  
+_版本: v1.1.0_
 

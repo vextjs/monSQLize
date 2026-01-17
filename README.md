@@ -514,6 +514,54 @@ await db.withTransaction(async (tx) => {
 });
 ```
 
+### 2.5 🔀 Saga 分布式事务 - 跨服务事务协调 🆕
+
+```javascript
+// 定义 Saga（跨服务事务）
+msq.defineSaga({
+    name: 'create-order-with-payment',
+    steps: [
+        {
+            name: 'create-order',
+            execute: async (ctx) => {
+                const order = await createOrder(ctx.data);
+                // ✅ 可以保存字符串、对象、数组等任何类型
+                ctx.set('order', order);  // 保存完整对象
+                return order;
+            },
+            compensate: async (ctx) => {
+                const order = ctx.get('order');
+                await cancelOrder(order.id);
+            }
+        },
+        {
+            name: 'charge-payment',
+            execute: async (ctx) => {
+                const charge = await stripe.charges.create({...});
+                ctx.set('charge', charge);  // 保存完整对象
+                return charge;
+            },
+            compensate: async (ctx) => {
+                const charge = ctx.get('charge');
+                await stripe.refunds.create({ charge: charge.id });
+            }
+        }
+    ]
+});
+
+// 执行 Saga（失败自动补偿）
+const result = await msq.executeSaga('create-order-with-payment', data);
+```
+
+**Saga 特性**：
+- ✅ 跨服务事务协调
+- ✅ 失败自动补偿（逆序执行）
+- ✅ 支持 Redis 分布式（多进程共享）
+- ✅ 无时间限制（突破 60秒限制）
+- ✅ 详细日志（完整执行追踪）
+
+[完整文档](./docs/saga-transaction.md)
+
 ### 3. 📦 便利方法 - 减少 60~80% 代码
 
 <table>
