@@ -44,30 +44,30 @@ describe('Expression Core - Detection', function() {
     }
   });
 
-  describe('$ Factory Function', function() {
+  describe('expr Factory Function', function() {
 
     it('should create expression object', function() {
-      const { $ } = MonSQLize;
-      const expr = $("amount > 100");
+      const { expr } = MonSQLize;
+      const expression = expr("amount > 100");
 
-      assert(expr !== null && typeof expr === 'object', 'Expression should be an object');
-      assert.strictEqual(expr.__expr__, 'amount > 100', 'Expression string should match');
-      assert.strictEqual(expr.__compiled__, false, 'Should not be compiled yet');
+      assert(expression !== null && typeof expression === 'object', 'Expression should be an object');
+      assert.strictEqual(expression.__expr__, 'amount > 100', 'Expression string should match');
+      assert.strictEqual(expression.__compiled__, false, 'Should not be compiled yet');
     });
 
     it('should throw error for non-string input', function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       assert.throws(() => {
-        $(123);
+        expr(123);
       }, TypeError, 'Should throw TypeError for number');
     });
 
     it('should throw error for empty string', function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       assert.throws(() => {
-        $('');
+        expr('');
       }, Error, 'Should throw Error for empty string');
     });
   });
@@ -75,10 +75,10 @@ describe('Expression Core - Detection', function() {
   describe('Expression Detection', function() {
 
     it('should detect expression in $match stage', async function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       const result = await collection('test_orders').aggregate([
-        { $match: $("amount > 100") }
+        { $match: expr("amount > 100") }
       ]);
 
       assert(Array.isArray(result), 'Result should be an array');
@@ -98,10 +98,10 @@ describe('Expression Core - Detection', function() {
     });
 
     it('should allow mixing old and new syntax', async function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       const result = await collection('test_orders').aggregate([
-        { $match: $("amount > 100") },
+        { $match: expr("amount > 100") },
         { $match: { status: 'paid' } }  // 旧语法
       ]);
 
@@ -116,20 +116,20 @@ describe('Expression Core - Detection', function() {
   describe('Basic Comparison Operators', function() {
 
     it('should compile > operator', async function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       const result = await collection('test_orders').aggregate([
-        { $match: $("amount > 100") }
+        { $match: expr("amount > 100") }
       ]);
 
       assert.strictEqual(result.length, 2);
     });
 
     it('should compile >= operator', async function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       const result = await collection('test_orders').aggregate([
-        { $match: $("amount >= 150") }
+        { $match: expr("amount >= 150") }
       ]);
 
       // amount >= 150: 150, 200 共2个
@@ -138,10 +138,10 @@ describe('Expression Core - Detection', function() {
     });
 
     it('should compile <= operator', async function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       const result = await collection('test_orders').aggregate([
-        { $match: $("amount <= 75") }
+        { $match: expr("amount <= 75") }
       ]);
 
       // amount <= 75: 50, 75 共2个
@@ -150,20 +150,20 @@ describe('Expression Core - Detection', function() {
     });
 
     it('should compile < operator', async function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       const result = await collection('test_orders').aggregate([
-        { $match: $("amount < 100") }
+        { $match: expr("amount < 100") }
       ]);
 
       assert.strictEqual(result.length, 2);
     });
 
     it('should compile === operator', async function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       const result = await collection('test_orders').aggregate([
-        { $match: $("status === 'paid'") }
+        { $match: expr("status === 'paid'") }
       ]);
 
       assert.strictEqual(result.length, 2);
@@ -171,10 +171,10 @@ describe('Expression Core - Detection', function() {
     });
 
     it('should compile !== operator', async function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       const result = await collection('test_orders').aggregate([
-        { $match: $("status !== 'paid'") }
+        { $match: expr("status !== 'paid'") }
       ]);
 
       assert.strictEqual(result.length, 2);
@@ -185,10 +185,10 @@ describe('Expression Core - Detection', function() {
   describe('Logical Operators', function() {
 
     it('should compile && (AND) operator', async function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       const result = await collection('test_orders').aggregate([
-        { $match: $("amount > 100 && status === 'paid'") }
+        { $match: expr("amount > 100 && status === 'paid'") }
       ]);
 
       // amount > 100 且 status === 'paid': id=2(150,paid), id=3(200,paid)
@@ -197,10 +197,10 @@ describe('Expression Core - Detection', function() {
     });
 
     it('should compile || (OR) operator', async function() {
-      const { $ } = MonSQLize;
+      const { expr } = MonSQLize;
 
       const result = await collection('test_orders').aggregate([
-        { $match: $("amount > 150 || status === 'pending'") }
+        { $match: expr("amount > 150 || status === 'pending'") }
       ]);
 
       // amount > 150(id=3:200) 或 status === 'pending'(id=1:50, id=4:75)

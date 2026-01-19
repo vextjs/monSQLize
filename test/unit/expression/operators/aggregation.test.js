@@ -12,58 +12,58 @@ describe('Expression - Aggregation Accumulators', function() {
 
     it('should compile PUSH function', function() {
       const { expr } = MonSQLize;
-      const expr = expr("PUSH(tag)");
+      const expression = expr("PUSH(tag)");
 
-      assert(expr.__expr__);
-      assert.strictEqual(expr.__expr__, "PUSH(tag)");
+      assert(expression.__expr__);
+      assert.strictEqual(expression.__expr__, "PUSH(tag)");
     });
 
     it('should compile ADD_TO_SET function', function() {
       const { expr } = MonSQLize;
-      const expr = expr("ADD_TO_SET(category)");
+      const expression = expr("ADD_TO_SET(category)");
 
-      assert(expr.__expr__);
-      assert.strictEqual(expr.__expr__, "ADD_TO_SET(category)");
+      assert(expression.__expr__);
+      assert.strictEqual(expression.__expr__, "ADD_TO_SET(category)");
     });
 
     it('should compile COUNT function', function() {
       const { expr } = MonSQLize;
-      const expr = expr("COUNT()");
+      const expression = expr("COUNT()");
 
-      assert(expr.__expr__);
-      assert.strictEqual(expr.__expr__, "COUNT()");
+      assert(expression.__expr__);
+      assert.strictEqual(expression.__expr__, "COUNT()");
     });
 
     it('should compile SUM function', function() {
       const { expr } = MonSQLize;
-      const expr = expr("SUM(amount)");
+      const expression = expr("SUM(amount)");
 
-      assert(expr.__expr__);
-      assert.strictEqual(expr.__expr__, "SUM(amount)");
+      assert(expression.__expr__);
+      assert.strictEqual(expression.__expr__, "SUM(amount)");
     });
 
     it('should compile AVG function', function() {
       const { expr } = MonSQLize;
-      const expr = expr("AVG(price)");
+      const expression = expr("AVG(price)");
 
-      assert(expr.__expr__);
-      assert.strictEqual(expr.__expr__, "AVG(price)");
+      assert(expression.__expr__);
+      assert.strictEqual(expression.__expr__, "AVG(price)");
     });
 
     it('should compile MAX function', function() {
       const { expr } = MonSQLize;
-      const expr = expr("MAX(score)");
+      const expression = expr("MAX(score)");
 
-      assert(expr.__expr__);
-      assert.strictEqual(expr.__expr__, "MAX(score)");
+      assert(expression.__expr__);
+      assert.strictEqual(expression.__expr__, "MAX(score)");
     });
 
     it('should compile MIN function', function() {
       const { expr } = MonSQLize;
-      const expr = expr("MIN(value)");
+      const expression = expr("MIN(value)");
 
-      assert(expr.__expr__);
-      assert.strictEqual(expr.__expr__, "MIN(value)");
+      assert(expression.__expr__);
+      assert.strictEqual(expression.__expr__, "MIN(value)");
     });
   });
 });

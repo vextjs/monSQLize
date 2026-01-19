@@ -31,6 +31,9 @@ const DistributedCacheInvalidator = require('./lib/distributed-cache-invalidator
 // 默认导出
 export default MonSQLizeClass;
 
+// 🆕 v1.0.9: 导出表达式函数
+const { expr, createExpression } = MonSQLizeClass;
+
 // 命名导出
 export {
   MonSQLizeClass as MonSQLize,
@@ -39,6 +42,8 @@ export {
   createRedisCacheAdapter,
   TransactionManager,
   CacheLockManager,
-  DistributedCacheInvalidator
+  DistributedCacheInvalidator,
+  expr,                    // 🆕 v1.0.9: 统一表达式函数
+  createExpression         // 🆕 v1.0.9: 表达式函数别名
 };
 

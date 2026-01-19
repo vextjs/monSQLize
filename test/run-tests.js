@@ -339,7 +339,47 @@ async function runTests() {
     console.log('║            运行 所有测试套件（顺序模式）                  ║');
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    const suites = ['connection', 'find', 'findPage', 'findOne', 'findOneById', 'findByIds', 'findAndCount', 'upsertOne', 'incrementOne', 'count', 'countQueue', 'aggregate', 'distinct', 'explain', 'chaining', 'bookmarks', 'invalidate', 'insertOne', 'insertMany', 'insertBatch', 'updateOne', 'updateMany', 'updateBatch', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'deleteBatch', 'findOneAndDelete', 'transaction', 'lock', 'objectIdConversion', 'slowQueryLog', 'watch', 'model', 'utils', 'infrastructure'];
+    const suites = [
+      'connection',
+      'find',
+      'findPage',
+      'findOne',
+      'findOneById',
+      'findByIds',
+      'findAndCount',
+      'upsertOne',
+      'incrementOne',
+      'count',
+      'countQueue',
+      'aggregate',
+      'distinct',
+      'explain',
+      'chaining',
+      'bookmarks',
+      'invalidate',
+      'insertOne',
+      'insertMany',
+      'insertBatch',
+      'updateOne',
+      'updateMany',
+      'updateBatch',
+      'replaceOne',
+      'findOneAndUpdate',
+      'findOneAndReplace',
+      'deleteOne',
+      'deleteMany',
+      'deleteBatch',
+      'findOneAndDelete',
+      'transaction',
+      'lock',
+      'objectIdConversion',
+      'slowQueryLog',
+      'watch',
+      'model',
+      'expression-all',  // 🆕 v1.0.9: 统一表达式测试套件
+      'utils',
+      'infrastructure'
+    ];
     let totalPassed = 0;
     let totalFailed = 0;
     const failedSuites = []; // 收集失败的测试套件
