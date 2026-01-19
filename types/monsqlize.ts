@@ -3,10 +3,10 @@
  * @module types/monsqlize
  */
 
-import type { BaseOptions } from './options';
+import type { BaseOptions, TransactionOptions } from './options';
 import type { DbAccessor, HealthView } from './collection';
 import type { CacheLike } from './cache';
-import type { Transaction, TransactionOptions } from './transaction';
+import type { Transaction } from './transaction';
 import type { Lock, LockOptions } from './lock';
 import type { ExpressionFunction } from './base';
 import type { MetaInfo } from './pagination';
@@ -14,8 +14,7 @@ import type { MetaInfo } from './pagination';
 /**
  * MonSQLize 主类
  */
-export default class MonSQLize {
-    constructor(options: BaseOptions);
+export interface MonSQLize {
 
     /**
      * 连接数据库
@@ -47,21 +46,6 @@ export default class MonSQLize {
      */
     health(): Promise<HealthView>;
 
-    // ============================================================================
-    // 静态方法
-    // ============================================================================
-
-    /**
-     * 统一表达式创建函数（静态方法）
-     * @since v1.0.9
-     */
-    static expr: ExpressionFunction;
-
-    /**
-     * 统一表达式创建函数（完整版别名）
-     * @since v1.0.9
-     */
-    static createExpression: ExpressionFunction;
 
     // ============================================================================
     // 事件系统
@@ -153,5 +137,22 @@ export default class MonSQLize {
         firstSeen: Date;
         lastSeen: Date;
     }>>;
+}
+
+/**
+ * MonSQLize 命名空间（静态成员）
+ */
+export namespace MonSQLize {
+    /**
+     * 统一表达式创建函数（静态方法）
+     * @since v1.0.9
+     */
+    export const expr: ExpressionFunction;
+
+    /**
+     * 统一表达式创建函数（完整版别名）
+     * @since v1.0.9
+     */
+    export const createExpression: ExpressionFunction;
 }
 

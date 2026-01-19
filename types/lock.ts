@@ -81,7 +81,7 @@ export interface LockStats {
  * 锁获取失败错误
  * @since v1.4.0
  */
-export class LockAcquireError extends Error {
+export interface LockAcquireError extends Error {
     readonly code: 'LOCK_ACQUIRE_FAILED';
 }
 
@@ -89,7 +89,7 @@ export class LockAcquireError extends Error {
  * 锁超时错误
  * @since v1.4.0
  */
-export class LockTimeoutError extends Error {
+export interface LockTimeoutError extends Error {
     readonly code: 'LOCK_TIMEOUT';
 }
 

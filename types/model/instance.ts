@@ -5,8 +5,7 @@
  */
 
 import type { ModelDefinition, ValidationResult } from './definition';
-import type { RelationConfig, PopulateProxy } from './relations';
-import type { VirtualConfig } from './virtuals';
+import type { PopulateProxy } from './relations';
 
 /**
  * Model 实例接口
@@ -46,9 +45,9 @@ export interface ModelInstance<T = any> {
 }
 
 /**
- * Model 类（静态方法）
+ * Model 命名空间（静态方法）
  */
-export class Model {
+export namespace Model {
     /**
      * 注册一个 Model 定义
      *
@@ -56,7 +55,7 @@ export class Model {
      * @param definition - Model 定义对象
      * @throws {Error} 集合名称无效、schema 未定义、Model 已存在
      */
-    static define<T = any>(collectionName: string, definition: ModelDefinition<T>): void;
+    export function define<T = any>(collectionName: string, definition: ModelDefinition<T>): void;
 
     /**
      * 获取已注册的 Model 定义
@@ -64,7 +63,7 @@ export class Model {
      * @param collectionName - 集合名称
      * @returns Model 定义对象，如果不存在返回 undefined
      */
-    static get<T = any>(collectionName: string): ModelDefinition<T> | undefined;
+    export function get<T = any>(collectionName: string): ModelDefinition<T> | undefined;
 
     /**
      * 检查 Model 是否已注册
@@ -72,14 +71,14 @@ export class Model {
      * @param collectionName - 集合名称
      * @returns boolean
      */
-    static has(collectionName: string): boolean;
+    export function has(collectionName: string): boolean;
 
     /**
      * 列出所有已注册的 Model 名称
      *
      * @returns 集合名称数组
      */
-    static list(): string[];
+    export function list(): string[];
 
     /**
      * 删除已注册的 Model
@@ -87,11 +86,11 @@ export class Model {
      * @param collectionName - 集合名称
      * @returns 是否删除成功
      */
-    static remove(collectionName: string): boolean;
+    export function remove(collectionName: string): boolean;
 
     /**
      * 清空所有已注册的 Model
      */
-    static clear(): void;
+    export function clear(): void;
 }
 

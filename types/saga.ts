@@ -110,9 +110,7 @@ export interface SagaOrchestratorOptions {
  * Saga 协调器类
  * @since v1.0.8
  */
-export class SagaOrchestrator {
-    constructor(options?: SagaOrchestratorOptions);
-
+export interface SagaOrchestrator {
     define(definition: SagaDefinition): void;
     execute(name: string, data: any): Promise<SagaResult>;
     getSaga(name: string): SagaDefinition | undefined;

@@ -5,7 +5,6 @@
 
 import type { FindOptions, CountOptions, AggregateOptions, DistinctOptions } from './query';
 import type {
-    WriteConcern,
     InsertOneSimplifiedOptions,
     InsertOneOptions,
     InsertOneResult,

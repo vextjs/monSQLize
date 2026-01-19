@@ -144,3 +144,6 @@ export interface ResultWithMeta<T = any> {
     meta: MetaInfo;
 }
 
+// 重新导出 MetaOptions，方便其他模块使用
+export { MetaOptions };
+

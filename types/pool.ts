@@ -111,9 +111,7 @@ export interface PoolStats {
  * 连接池管理器类
  * @since v1.0.8
  */
-export class ConnectionPoolManager {
-    constructor(options?: ConnectionPoolManagerOptions);
-
+export interface ConnectionPoolManager {
     addPool(config: PoolConfig): Promise<void>;
     removePool(name: string): Promise<void>;
     getPool(name: string): any;

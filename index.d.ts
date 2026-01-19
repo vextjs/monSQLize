@@ -19,7 +19,7 @@ declare module 'monsqlize' {
     import type * as Sync from './types/sync';
     import type * as Collection from './types/collection';
     import type * as Model from './types/model';
-    import type MonSQLizeClass from './types/monsqlize';
+    import type * as MonSQLizeModule from './types/monsqlize';
 
     // ========================================
     // 基础类型
@@ -188,6 +188,7 @@ declare module 'monsqlize' {
     // ========================================
     // MonSQLize 主类
     // ========================================
-    export default MonSQLizeClass;
+    export import MonSQLize = MonSQLizeModule.MonSQLize;
+    export default MonSQLizeModule.MonSQLize;
 }
 
