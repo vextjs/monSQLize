@@ -3,7 +3,7 @@
  * @module types/monsqlize
  */
 
-import type { BaseOptions, TransactionOptions } from './options';
+import type { TransactionOptions } from './options';
 import type { DbAccessor, HealthView } from './collection';
 import type { CacheLike } from './cache';
 import type { Transaction } from './transaction';
@@ -142,17 +142,17 @@ export interface MonSQLize {
 /**
  * MonSQLize 命名空间（静态成员）
  */
-export namespace MonSQLize {
+export declare namespace MonSQLize {
     /**
      * 统一表达式创建函数（静态方法）
      * @since v1.0.9
      */
-    export const expr: ExpressionFunction;
+    const expr: ExpressionFunction;
 
     /**
      * 统一表达式创建函数（完整版别名）
      * @since v1.0.9
      */
-    export const createExpression: ExpressionFunction;
+    const createExpression: ExpressionFunction;
 }
 

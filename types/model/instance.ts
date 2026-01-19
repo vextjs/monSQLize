@@ -47,7 +47,7 @@ export interface ModelInstance<T = any> {
 /**
  * Model 命名空间（静态方法）
  */
-export namespace Model {
+export declare namespace Model {
     /**
      * 注册一个 Model 定义
      *
@@ -55,7 +55,7 @@ export namespace Model {
      * @param definition - Model 定义对象
      * @throws {Error} 集合名称无效、schema 未定义、Model 已存在
      */
-    export function define<T = any>(collectionName: string, definition: ModelDefinition<T>): void;
+    function define<T = any>(collectionName: string, definition: ModelDefinition<T>): void;
 
     /**
      * 获取已注册的 Model 定义
@@ -63,7 +63,7 @@ export namespace Model {
      * @param collectionName - 集合名称
      * @returns Model 定义对象，如果不存在返回 undefined
      */
-    export function get<T = any>(collectionName: string): ModelDefinition<T> | undefined;
+    function get<T = any>(collectionName: string): ModelDefinition<T> | undefined;
 
     /**
      * 检查 Model 是否已注册
@@ -71,14 +71,14 @@ export namespace Model {
      * @param collectionName - 集合名称
      * @returns boolean
      */
-    export function has(collectionName: string): boolean;
+    function has(collectionName: string): boolean;
 
     /**
      * 列出所有已注册的 Model 名称
      *
      * @returns 集合名称数组
      */
-    export function list(): string[];
+    function list(): string[];
 
     /**
      * 删除已注册的 Model
@@ -86,11 +86,11 @@ export namespace Model {
      * @param collectionName - 集合名称
      * @returns 是否删除成功
      */
-    export function remove(collectionName: string): boolean;
+    function remove(collectionName: string): boolean;
 
     /**
      * 清空所有已注册的 Model
      */
-    export function clear(): void;
+    function clear(): void;
 }
 
