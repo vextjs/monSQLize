@@ -1,0 +1,42 @@
+declare module 'monsqlize' {
+    // ========================================
+    // 导入所有模块（阶段 1）
+    // ========================================
+    import type * as Base from './types/base';
+    import type * as Expression from './types/expression';
+    import type * as Cache from './types/cache';
+
+    // ========================================
+    // 基础类型
+    // ========================================
+    export import DbType = Base.DbType;
+    export import ExpressionObject = Base.ExpressionObject;
+    export import ExpressionContext = Base.ExpressionContext;
+    export import ExpressionFunction = Base.ExpressionFunction;
+    export import LoggerLike = Base.LoggerLike;
+    export import LoggerOptions = Base.LoggerOptions;
+    export import ErrorCodes = Base.ErrorCodes;
+    export import MonSQLizeError = Base.MonSQLizeError;
+
+    // ========================================
+    // 表达式系统
+    // ========================================
+    export import UnifiedExpressionOperators = Expression.UnifiedExpressionOperators;
+
+    // ========================================
+    // 缓存相关
+    // ========================================
+    export import CacheLike = Cache.CacheLike;
+    export import MemoryCacheOptions = Cache.MemoryCacheOptions;
+    export import WritePolicy = Cache.WritePolicy;
+    export import MultiLevelCachePolicy = Cache.MultiLevelCachePolicy;
+    export import MultiLevelCacheOptions = Cache.MultiLevelCacheOptions;
+
+    // ========================================
+    // 临时占位：MonSQLize 主类
+    // ========================================
+    export default class MonSQLize {
+        constructor(options: any);
+    }
+}
+

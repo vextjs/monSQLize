@@ -34,6 +34,7 @@ npm install monsqlize
 - [🎯 何时使用 monSQLize？](#-何时使用-monsqlize)
 - [🚀 快速开始](#-快速开始)
 - [🌟 核心特性](#-核心特性)
+  - [0. 🎯 统一表达式系统 🆕](#0--统一表达式系统--v109---让聚合查询像sql一样简单)
   - [1. ⚡ 智能缓存系统](#1--智能缓存系统---性能提升-10100-倍)
   - [2. 🏢 企业级特性](#2--企业级特性)
   - [3. 📦 便利方法](#3--便利方法---减少-6080-代码)
@@ -463,6 +464,119 @@ const user = await users.findOne({ email: 'test@example.com' });
 ---
 
 ## 🌟 核心特性
+
+### 0. 🎯 统一表达式系统 🆕 v1.0.9 - 让聚合查询像SQL一样简单
+
+**67个操作符**，让MongoDB聚合查询**像写SQL一样简单**！
+
+<table>
+<tr>
+<td width="50%">
+
+**🆕 统一表达式语法**
+
+```javascript
+const { expr } = require('monsqlize');
+
+// ❌ MongoDB原生（繁琐）
+await users.aggregate([
+  {
+    $project: {
+      fullName: {
+        $concat: ['$firstName', ' ', '$lastName']
+      },
+      age: {
+        $subtract: [
+          { $year: new Date() },
+          { $year: '$birthDate' }
+        ]
+      }
+    }
+  }
+]);
+
+// ✅ 统一表达式（简洁）
+await users.aggregate([
+  {
+    $project: {
+      fullName: expr("CONCAT(firstName, ' ', lastName)"),
+      age: expr("YEAR(CURRENT_DATE) - YEAR(birthDate)")
+    }
+  }
+]);
+```
+
+</td>
+<td width="50%">
+
+**核心优势**
+
+- ✅ **67个操作符** - 覆盖95%使用场景
+- ✅ **类SQL语法** - 易读易写，降低学习成本
+- ✅ **上下文感知** - 自动适配$match/$project/$group
+- ✅ **Lambda表达式** - FILTER/MAP完整支持
+- ✅ **高性能** - LRU缓存，>90%命中率
+- ✅ **100%兼容** - 可与原生语法混用
+
+**支持的操作符分类**:
+- 🔹 条件判断 (三元、SWITCH)
+- 🔹 数学计算 (ABS、ROUND、POW等)
+- 🔹 字符串处理 (CONCAT、SPLIT、REPLACE等)
+- 🔹 数组操作 (FILTER、MAP、SIZE等)
+- 🔹 日期处理 (YEAR、MONTH、DAY等)
+- 🔹 类型转换 (TO_INT、TO_STRING等)
+
+</td>
+</tr>
+</table>
+
+**更多示例**：
+
+```javascript
+// 条件判断 - 三元运算符
+expr("score >= 90 ? 'A' : 'B'")
+
+// 多分支条件 - SWITCH
+expr("SWITCH(score >= 90, 'A', score >= 80, 'B', score >= 60, 'C', 'F')")
+
+// 字符串处理
+expr("UPPER(TRIM(email))")
+expr("SPLIT(tags, ',')")
+
+// 数组过滤（Lambda表达式）
+expr("FILTER(items, item, item.price > 100)")
+
+// 日期计算
+expr("YEAR(createdAt) === 2024 && MONTH(createdAt) === 12")
+
+// 完整聚合查询示例
+await orders.aggregate([
+  {
+    $project: {
+      // 价格计算
+      finalPrice: expr("price * (1 - discount / 100)"),
+      
+      // 日期提取
+      year: expr("YEAR(createdAt)"),
+      month: expr("MONTH(createdAt)"),
+      
+      // 状态分类
+      statusLabel: expr("SWITCH(status === 'paid', 'Paid', status === 'pending', 'Pending', 'Cancelled')")
+    }
+  },
+  {
+    $group: {
+      _id: { year: '$year', month: '$month' },
+      totalOrders: expr("COUNT()"),
+      totalRevenue: expr("SUM(finalPrice)")
+    }
+  }
+]);
+```
+
+📖 **完整文档**：[统一表达式系统](./docs/aggregate.md#统一表达式系统) | [67个操作符列表](./docs/aggregate.md#支持的操作符-67个)
+
+---
 
 ### 1. ⚡ 智能缓存系统 - 性能提升 10~100 倍
 

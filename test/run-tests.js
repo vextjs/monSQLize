@@ -199,6 +199,67 @@ async function runTests() {
   } else if (testSuite === 'findOneAndDelete') {
     testFiles = ['./unit/features/findOneAndDelete.test.js'];
     title = 'findOneAndDelete 方法测试套件';
+  } else if (testSuite === 'expression') {
+    testFiles = ['./unit/expression/core/detection.test.js'];
+    title = '表达式核心功能测试套件 🆕';
+  } else if (testSuite === 'expression-arithmetic') {
+    testFiles = ['./unit/expression/operators/arithmetic.test.js'];
+    title = '表达式算术运算符测试套件 🆕';
+  } else if (testSuite === 'expression-string') {
+    testFiles = ['./unit/expression/operators/string.test.js'];
+    title = '表达式字符串操作符测试套件 🆕';
+  } else if (testSuite === 'expression-math') {
+    testFiles = ['./unit/expression/operators/math.test.js'];
+    title = '表达式数学函数测试套件 🆕';
+  } else if (testSuite === 'expression-array') {
+    testFiles = ['./unit/expression/operators/array.test.js'];
+    title = '表达式数组操作符测试套件 🆕';
+  } else if (testSuite === 'expression-array-advanced') {
+    testFiles = ['./unit/expression/operators/array-advanced.test.js'];
+    title = '表达式数组高级函数测试套件 🆕';
+  } else if (testSuite === 'expression-group') {
+    testFiles = ['./unit/expression/operators/group.test.js'];
+    title = '表达式$group聚合累加器测试套件 🆕';
+  } else if (testSuite === 'expression-date') {
+    testFiles = ['./unit/expression/operators/date.test.js'];
+    title = '表达式日期函数测试套件 🆕 Stage2';
+  } else if (testSuite === 'expression-string-advanced') {
+    testFiles = ['./unit/expression/operators/string-advanced.test.js'];
+    title = '表达式字符串高级函数测试套件 🆕 Stage2';
+  } else if (testSuite === 'expression-high-frequency') {
+    testFiles = ['./unit/expression/operators/high-frequency.test.js'];
+    title = '表达式高频操作符测试套件 🆕 Stage2';
+  } else if (testSuite === 'expression-conditional') {
+    testFiles = ['./unit/expression/operators/conditional.test.js'];
+    title = '表达式条件扩展测试套件 🆕 Stage2';
+  } else if (testSuite === 'expression-edge-cases') {
+    testFiles = ['./unit/expression/operators/edge-cases.test.js'];
+    title = '表达式边界情况测试套件 🆕 v1.0.9';
+  } else if (testSuite === 'expression-compatibility') {
+    testFiles = ['./unit/expression/compatibility/backward-compatibility.test.js'];
+    title = '表达式向后兼容性测试套件 🆕 P0';
+  } else if (testSuite === 'expression-errors') {
+    testFiles = ['./unit/expression/errors/error-handling.test.js'];
+    title = '表达式错误处理测试套件 🆕 P0';
+  } else if (testSuite === 'expression-performance') {
+    testFiles = ['./unit/expression/performance/performance.test.js'];
+    title = '表达式性能测试套件 🆕 P0';
+  } else if (testSuite === 'expression-all') {
+    testFiles = [
+      './unit/expression/core/detection.test.js',
+      './unit/expression/operators/arithmetic.test.js',
+      './unit/expression/operators/string.test.js',
+      './unit/expression/operators/math.test.js',
+      './unit/expression/operators/array.test.js',
+      './unit/expression/operators/array-advanced.test.js',
+      './unit/expression/operators/group.test.js',
+      './unit/expression/operators/date.test.js',
+      './unit/expression/operators/string-advanced.test.js',
+      './unit/expression/operators/high-frequency.test.js',
+      './unit/expression/operators/conditional.test.js',
+      './unit/expression/operators/edge-cases.test.js'
+    ];
+    title = '表达式完整测试套件 🆕';
   } else if (testSuite === 'transaction') {
     testFiles = ['./unit/features/transaction-unit.test.js'];
     title = 'MongoDB 事务单元测试套件';
@@ -328,7 +389,7 @@ async function runTests() {
     process.exit(totalFailed > 0 ? 1 : 0);
   } else {
     console.error(`\n❌ 未知的测试套件: ${testSuite}`);
-    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|countQueue|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|updateOne|updateMany|replaceOne|findOneAndUpdate|findOneAndReplace|deleteOne|deleteMany|deleteBatch|updateBatch|findOneAndDelete|transaction|lock|objectIdConversion|watch|utils|infrastructure|logger|all]\n');
+    console.error('使用方法: node run-tests.js [connection|find|findPage|findPage-supplement|findPage-all|findOne|count|countQueue|aggregate|distinct|explain|chaining|bookmarks|insertOne|insertMany|insertBatch|updateOne|updateMany|replaceOne|findOneAndUpdate|findOneAndReplace|deleteOne|deleteMany|deleteBatch|updateBatch|findOneAndDelete|expression|expression-arithmetic|expression-string|expression-math|expression-array|expression-array-advanced|expression-group|expression-date|expression-string-advanced|expression-all|transaction|lock|objectIdConversion|watch|utils|infrastructure|logger|all]\n');
     process.exit(1);
   }
 
