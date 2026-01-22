@@ -107,6 +107,162 @@ await msq.close();
 
 ## 配置说明
 
+### 全局慢查询配置
+
+#### 基础配置（在初始化时设置）
+
+```javascript
+const msq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: 'mongodb://localhost:27017/mydb' },
+  
+  // 全局慢查询阈值（毫秒）
+  slowQueryMs: 1000,  // 默认1000ms
+  
+  // 慢查询日志配置
+  slowQuery: {
+    enabled: true,           // 是否启用慢查询监控（默认true）
+    threshold: 1000,         // 阈值（毫秒），会覆盖 slowQueryMs
+    includeStack: false,     // 是否包含堆栈信息（调试用）
+    logLevel: 'warn',        // 日志级别：debug/info/warn/error
+    outputFormat: 'json',    // 输出格式：json/text
+    excludeOperations: []    // 排除的操作类型：['find', 'aggregate']
+  },
+  
+  // 慢查询持久化存储（可选）
+  slowQueryLog: true  // 或详细配置对象
+});
+```
+
+#### 配置选项详解
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `slowQueryMs` | number | 1000 | 全局慢查询阈值（毫秒） |
+| `slowQuery.enabled` | boolean | true | 是否启用慢查询监控 |
+| `slowQuery.threshold` | number | 1000 | 慢查询阈值，优先级高于 slowQueryMs |
+| `slowQuery.includeStack` | boolean | false | 是否记录调用堆栈（调试用） |
+| `slowQuery.logLevel` | string | 'warn' | 日志级别 |
+| `slowQuery.outputFormat` | string | 'json' | 输出格式 |
+| `slowQuery.excludeOperations` | string[] | [] | 排除的操作类型 |
+
+### 操作级配置
+
+某些操作可以单独配置慢查询阈值：
+
+#### 方式1：通过 options 参数
+
+```javascript
+// 为单个查询设置不同的阈值
+await collection('products').find(
+  { category: 'electronics' },
+  { 
+    slowQueryMs: 500,  // 该查询阈值500ms
+    maxTimeMS: 3000    // MongoDB查询超时
+  }
+);
+
+// 聚合查询也支持
+await collection('orders').aggregate(
+  [
+    { $match: { status: 'completed' } },
+    { $group: { _id: '$userId', total: { $sum: '$amount' } } }
+  ],
+  {
+    slowQueryMs: 2000  // 聚合查询阈值2000ms
+  }
+);
+```
+
+#### 方式2：使用全局配置
+
+```javascript
+// 使用全局阈值（不指定slowQueryMs）
+const products = await collection('products').find(
+  { category: 'electronics' }
+);  // 使用全局配置的 slowQueryMs: 1000
+```
+
+### 日志格式
+
+#### JSON 格式（默认）
+
+```json
+{
+  "level": "warn",
+  "message": "[SLOW QUERY] Operation exceeded threshold",
+  "operation": "find",
+  "collection": "products",
+  "database": "mydb",
+  "duration": 1523,
+  "threshold": 1000,
+  "query": { "category": "electronics" },
+  "options": { "limit": 10 },
+  "docCount": 10,
+  "timestamp": "2026-01-20T08:30:15.123Z",
+  "instanceId": "msq_abc123"
+}
+```
+
+#### 文本格式
+
+```
+[2026-01-20 08:30:15] WARN: [SLOW QUERY] find on mydb.products took 1523ms (threshold: 1000ms)
+Query: {"category":"electronics"}
+Options: {"limit":10}
+Documents returned: 10
+```
+
+### 日志输出配置
+
+#### 使用自定义Logger
+
+```javascript
+const winston = require('winston');
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'slow-query.log' }),
+    new winston.transports.Console()
+  ]
+});
+
+const msq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: '...' },
+  logger: logger,  // 使用Winston日志器
+  slowQueryMs: 1000
+});
+```
+
+#### 监听慢查询事件
+
+```javascript
+// 方式1：监听事件
+msq.on('slow-query', (info) => {
+  console.log('Slow query detected:', {
+    operation: info.op,
+    collection: info.collection,
+    duration: info.durationMs,
+    query: info.query
+  });
+  
+  // 发送告警
+  if (info.durationMs > 5000) {
+    alerting.send({
+      type: 'critical',
+      message: `Extremely slow query: ${info.durationMs}ms`,
+      details: info
+    });
+  }
+});
+
+// 方式2：使用事件监听器
+msq.addEventListener('slow-query', handleSlowQuery);
+```
+
 ### 配置层级
 
 monSQLize 提供三层配置架构，满足不同使用场景：
@@ -418,37 +574,257 @@ const msq = new MonSQLize({
 
 ## 最佳实践
 
-### 1. 选择合适的阈值
+### 阈值设置建议
+
+根据不同场景选择合适的慢查询阈值：
+
+| 场景 | 建议阈值 | 说明 |
+|------|---------|------|
+| **高并发API** | 100-300ms | 快速响应要求，对用户体验敏感 |
+| **后台任务** | 1000-3000ms | 可接受较长时间，关注资源占用 |
+| **分析查询** | 5000-10000ms | 复杂聚合查询，重点优化极慢查询 |
+| **批量操作** | 10000-30000ms | 大批量数据处理，重点关注失败 |
+
+#### 示例：不同场景配置
 
 ```javascript
-// 根据业务场景选择合适的slowQueryMs
-slowQueryMs: 500   // 推荐：大多数场景
-slowQueryMs: 100   // 严格：高性能要求
-slowQueryMs: 1000  // 宽松：低优先级系统
+// 场景1：高并发Web API
+const apiMsq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: '...' },
+  slowQueryMs: 200,  // 200ms阈值
+  slowQuery: {
+    logLevel: 'error',  // 只记录严重慢查询
+    excludeOperations: []
+  }
+});
+
+// 场景2：数据分析服务
+const analyticsMsq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: '...' },
+  slowQueryMs: 5000,  // 5秒阈值
+  slowQuery: {
+    logLevel: 'info',
+    excludeOperations: []  // 记录所有操作
+  }
+});
+
+// 场景3：混合场景（动态阈值）
+await collection('users').find(
+  { status: 'active' },
+  { slowQueryMs: 100 }  // 用户查询100ms
+);
+
+await collection('analytics').aggregate(
+  [...],
+  { slowQueryMs: 5000 }  // 分析查询5秒
+);
 ```
 
-### 2. 合理设置TTL
+### 监控和分析
+
+#### 1. 实时监控
 
 ```javascript
-// 根据分析需求设置TTL
+// 监听慢查询事件
+msq.on('slow-query', (info) => {
+  // 实时记录到监控系统
+  monitoring.record('slow_query', {
+    operation: info.op,
+    collection: info.collection,
+    duration: info.durationMs,
+    timestamp: new Date()
+  });
+  
+  // 发送告警（超过阈值5秒）
+  if (info.durationMs > 5000) {
+    alerting.send({
+      type: 'critical',
+      title: 'Extremely Slow Query Detected',
+      message: `${info.op} on ${info.collection} took ${info.durationMs}ms`,
+      details: info
+    });
+  }
+});
+```
+
+#### 2. 定期分析
+
+```javascript
+// 每小时分析一次慢查询
+setInterval(async () => {
+  // 获取高频慢查询Top 10
+  const topFrequent = await msq.getSlowQueryLogs(
+    {},
+    { sort: { count: -1 }, limit: 10 }
+  );
+  
+  console.log('=== 高频慢查询分析 ===');
+  topFrequent.forEach((log, index) => {
+    console.log(`${index + 1}. ${log.collection}.${log.operation}:`);
+    console.log(`   执行次数: ${log.count}`);
+    console.log(`   平均耗时: ${log.avgTimeMs}ms`);
+    console.log(`   最大耗时: ${log.maxTimeMs}ms`);
+    console.log(`   查询模式:`, JSON.stringify(log.queryShape));
+    console.log('');
+  });
+}, 3600000);  // 每小时
+```
+
+#### 3. 导出慢查询统计
+
+```javascript
+// 导出慢查询统计报告
+async function exportSlowQueryReport(startDate, endDate) {
+  const logs = await msq.getSlowQueryLogs(
+    {
+      lastSeen: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    },
+    { sort: { avgTimeMs: -1 } }
+  );
+  
+  const report = {
+    period: { start: startDate, end: endDate },
+    totalQueries: logs.reduce((sum, log) => sum + log.count, 0),
+    uniquePatterns: logs.length,
+    topSlow: logs.slice(0, 10),
+    byCollection: {}
+  };
+  
+  // 按集合分组统计
+  logs.forEach(log => {
+    if (!report.byCollection[log.collection]) {
+      report.byCollection[log.collection] = {
+        count: 0,
+        totalTimeMs: 0,
+        queries: []
+      };
+    }
+    report.byCollection[log.collection].count += log.count;
+    report.byCollection[log.collection].totalTimeMs += log.totalTimeMs;
+    report.byCollection[log.collection].queries.push(log);
+  });
+  
+  return report;
+}
+
+// 使用示例
+const report = await exportSlowQueryReport(
+  new Date('2026-01-01'),
+  new Date('2026-01-31')
+);
+console.log(JSON.stringify(report, null, 2));
+```
+
+### 优化建议
+
+#### 1. 创建索引
+
+```javascript
+// 分析慢查询后创建索引
+const slowQuery = {
+  collection: 'users',
+  queryShape: { status: 1, createdAt: 1 }
+};
+
+// 根据查询模式创建索引
+await msq.db.collection('users').createIndex(
+  { status: 1, createdAt: -1 },
+  { name: 'idx_status_createdAt' }
+);
+
+// 验证索引效果
+const result = await collection('users')
+  .find({ status: 'active', createdAt: { $gte: someDate } })
+  .explain('executionStats');
+  
+console.log('索引使用情况:', result.executionStats.totalKeysExamined);
+```
+
+#### 2. 优化查询条件
+
+```javascript
+// ❌ 低效查询
+await collection('products').find({
+  $where: 'this.price > 100'  // JavaScript表达式，无法使用索引
+});
+
+// ✅ 优化后
+await collection('products').find({
+  price: { $gt: 100 }  // 标准操作符，可使用索引
+});
+
+// ❌ 低效正则
+await collection('users').find({
+  email: { $regex: '.*@gmail.com' }  // 前缀通配符，无法使用索引
+});
+
+// ✅ 优化后
+await collection('users').find({
+  email: { $regex: '^.*@gmail\\.com$' }  // 使用锚点，可使用部分索引
+});
+```
+
+#### 3. 使用投影减少数据传输
+
+```javascript
+// ❌ 返回所有字段
+const users = await collection('users').find({
+  status: 'active'
+});
+
+// ✅ 只返回需要的字段
+const users = await collection('users').find(
+  { status: 'active' },
+  { 
+    projection: { name: 1, email: 1, _id: 0 }
+  }
+);
+```
+
+#### 4. 启用缓存
+
+```javascript
+// 对高频查询启用缓存
+const activeUsers = await collection('users').find(
+  { status: 'active' },
+  { 
+    cache: 60000,  // 缓存1分钟
+    slowQueryMs: 100
+  }
+);
+
+// 第二次查询从缓存读取，不会触发慢查询日志
+```
+
+### 生产环境最佳实践
+
+#### 1. 合理设置TTL
+
+```javascript
+// 根据存储容量和分析需求设置TTL
 storage: {
   mongodb: {
-    ttl: 7 * 24 * 3600    // 1周（推荐）
-    ttl: 30 * 24 * 3600   // 1月（长期分析）
-    ttl: 1 * 24 * 3600    // 1天（存储敏感）
+    ttl: 7 * 24 * 3600    // 1周（推荐）- 平衡存储和分析需求
+    // ttl: 30 * 24 * 3600   // 1月 - 长期趋势分析
+    // ttl: 1 * 24 * 3600    // 1天 - 存储敏感场景
   }
 }
 ```
 
-### 3. 使用复用连接（默认）
+#### 2. 使用复用连接（默认）
 
 ```javascript
 // ✅ 推荐：复用连接（默认）
 storage: {
-  useBusinessConnection: true  // 默认值
+  useBusinessConnection: true  // 零额外连接开销
 }
 
-// ⚠️  特殊场景：独立连接
+// ⚠️ 特殊场景：独立连接
 storage: {
   useBusinessConnection: false,
   uri: 'mongodb://admin-host:27017/admin'
@@ -456,37 +832,93 @@ storage: {
 ```
 
 **何时使用独立连接**：
-- 业务库性能敏感
-- 慢查询日志量大（>10000条/天）
-- 需要独立的权限控制
+- 业务库性能极度敏感
+- 慢查询日志量很大（>10000条/天）
+- 需要独立的权限控制和资源隔离
 
-### 4. 定期分析慢查询
+#### 3. 配置告警
 
 ```javascript
-// 定期查询高频慢查询
-const topFrequent = await msq.getSlowQueryLogs(
-  {},
-  { sort: { count: -1 }, limit: 10 }
-);
-
-// 优化高频慢查询
-topFrequent.forEach(log => {
-  console.log(`${log.collection}.${log.operation}:`, {
-    count: log.count,
-    avgTimeMs: log.avgTimeMs,
-    queryShape: log.queryShape
-  });
-  // TODO: 添加索引或优化查询
+// 慢查询达到阈值时发送告警
+msq.on('slow-query', (info) => {
+  if (info.durationMs > 5000) {
+    // 关键告警
+    alerting.send({
+      type: 'critical',
+      message: `Extremely slow query: ${info.durationMs}ms`,
+      details: {
+        operation: info.op,
+        collection: info.collection,
+        database: info.db,
+        query: info.query,
+        duration: info.durationMs
+      },
+      tags: ['mongodb', 'performance', 'slow-query']
+    });
+  } else if (info.durationMs > 2000) {
+    // 警告级别
+    alerting.send({
+      type: 'warning',
+      message: `Slow query detected: ${info.durationMs}ms`,
+      details: info
+    });
+  }
 });
 ```
 
-### 5. 监控存储空间
+#### 4. 监控存储空间
 
 ```javascript
-// 检查慢查询日志集合大小
-const stats = await msq.db.collection('slow_query_logs').stats();
-console.log('存储大小:', stats.size / 1024 / 1024, 'MB');
-console.log('文档数量:', stats.count);
+// 定期检查慢查询日志集合大小
+setInterval(async () => {
+  const stats = await msq.db.collection('slow_query_logs').stats();
+  const sizeMB = stats.size / 1024 / 1024;
+  
+  console.log('慢查询日志存储:', {
+    size: `${sizeMB.toFixed(2)} MB`,
+    count: stats.count,
+    avgObjectSize: `${stats.avgObjSize} bytes`
+  });
+  
+  // 告警：存储超过1GB
+  if (sizeMB > 1024) {
+    alerting.send({
+      type: 'warning',
+      message: 'Slow query logs collection exceeds 1GB',
+      details: { sizeMB, count: stats.count }
+    });
+  }
+}, 86400000);  // 每天检查
+```
+
+#### 5. 集成日志系统
+
+```javascript
+// 与Winston集成
+const winston = require('winston');
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({ 
+      filename: 'slow-query.log',
+      maxsize: 10485760,  // 10MB
+      maxFiles: 5
+    }),
+    new winston.transports.Console()
+  ]
+});
+
+const msq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: '...' },
+  logger: logger,  // 使用自定义日志器
+  slowQueryMs: 1000
+});
 ```
 
 ---

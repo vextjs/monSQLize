@@ -20,7 +20,7 @@
 npm install monsqlize
 ```
 
-[快速开始](#-快速开始) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [完整文档](./docs/INDEX.md)
+[快速开始](#-快速开始) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [完整文档](./docs/INDEX.md) · [错误码参考](./docs/error-codes.md)
 
 </div>
 
@@ -465,9 +465,9 @@ const user = await users.findOne({ email: 'test@example.com' });
 
 ## 🌟 核心特性
 
-### 0. 🎯 统一表达式系统 🆕 v1.0.9 - 让聚合查询像SQL一样简单
+### 0. 🎯 统一表达式系统 🆕 v1.1.0 - 让聚合查询像SQL一样简单
 
-**67个操作符**，让MongoDB聚合查询**像写SQL一样简单**！
+**122个操作符（100% MongoDB支持！新增49个函数）**，让MongoDB聚合查询**像写SQL一样简单**！
 
 <table>
 <tr>

@@ -1,7 +1,7 @@
 {
   "name": "monsqlize",
-  "version": "1.0.9",
-  "description": "A lightweight MongoDB ORM with multi-level caching, transaction support, distributed features, Saga distributed transactions, and unified expression system",
+  "version": "1.1.0",
+  "description": "A lightweight MongoDB ORM with multi-level caching, transaction support, distributed features, Saga distributed transactions, and unified expression system with 122 operators (100% MongoDB support)",
   "main": "lib/index.js",
   "module": "index.mjs",
   "type": "commonjs",

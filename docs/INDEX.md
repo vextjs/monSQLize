@@ -20,9 +20,12 @@
 | [model/relations.md](model/relations.md) | **Relations 和 Populate - 关系定义和关联数据填充（v1.2.0+）🆕** |
 | [model/nested-populate.md](model/nested-populate.md) | **嵌套 Populate - 多层关系填充（v1.2.0+）🆕** |
 | [ssh-tunnel.md](ssh-tunnel.md) | **SSH隧道 - 安全连接内网数据库（v1.3+）** |
+| [error-codes.md](error-codes.md) | **错误码参考 - 完整的错误码定义和处理指南** |
 | [cache.md](cache.md) | 缓存系统（LRU + TTL） |
+| [cache-implementation.md](cache-implementation.md) | **缓存机制实现原理 - 深入解析LRU、惰性过期、多层架构** |
 | [transaction.md](transaction.md) | 事务管理（自动重试、缓存锁） |
 | [saga-transaction.md](saga-transaction.md) | **🎉 Saga 分布式事务 - 跨服务事务补偿机制（v1.0.8+）🆕** |
+| [saga-advanced.md](saga-advanced.md) | **Saga 高级特性与实现原理 - 深入解析补偿机制、分布式存储** |
 | [sync-backup.md](sync-backup.md) | **🎉 Change Stream 数据同步 - 实时备份到多个数据库（v1.0.8+）🆕** |
 | [business-lock.md](business-lock.md) | **业务级分布式锁** |
 
@@ -103,6 +106,7 @@
 |------|------|
 | [chaining-api.md](chaining-api.md) | 链式调用 API |
 | [chaining-methods.md](chaining-methods.md) | 链式调用方法详解 |
+| [chain-api-implementation.md](chain-api-implementation.md) | **链式API执行原理 - 深入解析Builder模式、状态管理、缓存集成** |
 | [explain.md](explain.md) | 查询计划分析 |
 | [bookmarks.md](bookmarks.md) | 分页书签管理 |
 
