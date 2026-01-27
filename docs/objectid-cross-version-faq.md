@@ -207,7 +207,64 @@ const bob = await User.findOne({ username: 'bob' });
 
 ---
 
-## Q3: 如何验证我的项目是否存在兼容性问题？
+## Q3: 为什么有这么多转换日志？如何关闭？
+
+### 已解决 ✅
+
+**v1.1.1 默认完全静默** - 不输出任何 ObjectId 转换日志。
+
+```javascript
+// 默认配置（无任何日志）
+const msq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: 'mongodb://localhost:27017' }
+});
+
+await msq.collection('users').insertOne(dataWithObjectIds);
+// ✅ 无任何日志输出
+```
+
+### 为什么默认静默？
+
+根据用户反馈，ObjectId 转换日志：
+- ❌ 没有实际作用（转换是自动的）
+- ❌ 污染日志输出
+- ❌ 增加日志存储开销
+
+所以 v1.1.1 默认完全关闭这些日志。
+
+### 如何启用日志（调试用）
+
+如果需要调试，可以临时启用：
+
+```javascript
+// 启用摘要日志
+const msq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: 'mongodb://localhost:27017' },
+  autoConvertObjectId: {
+    silent: false  // 关闭静默
+  }
+});
+// 输出：[DEBUG] Converted 15 cross-version ObjectIds
+
+// 或启用详细日志
+const msq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: 'mongodb://localhost:27017' },
+  autoConvertObjectId: {
+    silent: false,
+    verbose: true
+  }
+});
+// 输出：每个 ObjectId 都有一条日志
+```
+
+**详细说明**：[ObjectId 日志配置文档](./objectid-logging-optimization.md)
+
+---
+
+## Q4: 如何验证我的项目是否存在兼容性问题？
 
 运行以下测试脚本：
 
@@ -221,7 +278,7 @@ node scripts/test/verify-backward-compatibility.js
 
 ---
 
-## Q4: 如果我不想自动转换，可以禁用吗？
+## Q5: 如果我不想自动转换，可以禁用吗？
 
 目前自动转换是默认启用的，暂无配置项禁用。
 
@@ -234,7 +291,7 @@ node scripts/test/verify-backward-compatibility.js
 
 ---
 
-## Q5: 如果遇到其他 BSON 类型冲突，如何处理？
+## Q6: 如果遇到其他 BSON 类型冲突，如何处理？
 
 目前只处理了 ObjectId 的跨版本兼容。如果遇到其他类型（如 Decimal128, Binary 等）的冲突，请：
 

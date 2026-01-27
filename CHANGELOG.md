@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.1.2](#v112---日志优化) | 2026-01-27 | 🔧 优化：ObjectId 转换日志默认静默 + Saga 日志修复 | [查看](#v112---日志优化) |
 | [v1.1.1](#v111---objectid-跨版本兼容) | 2026-01-27 | 🔧 Bug修复：新增跨版本 ObjectId 兼容性（支持 mongoose bson@4.x/5.x）| [查看](#v111---objectid-跨版本兼容) |
 | [v1.1.0](./changelogs/v1.1.0.md) | 2026-01-21 | 🎉 重大更新：新增49个操作符，实现100% MongoDB操作符支持（122/122）| [查看](./changelogs/v1.1.0.md) |
 | [v1.0.9](./changelogs/v1.0.9.md) | 2026-01-19 | 🎉 重大功能：统一表达式系统 - 67个操作符 + 107个测试 (100%通过) | [查看](./changelogs/v1.0.9.md) |
@@ -33,6 +34,74 @@
 ---
 
 ## 里程碑版本
+
+### v1.1.2 - 日志优化 🔧
+
+**发布日期**: 2026-01-27  
+**重要性**: ⭐⭐⭐
+
+**优化内容**:
+
+1. **ObjectId 转换日志默认静默**
+   - ✅ **默认完全静默**: 不输出任何 ObjectId 转换日志
+   - ✅ **用户反馈驱动**: 根据用户反馈，转换日志无实际作用
+   - ✅ **可选启用**: 支持按需启用摘要或详细日志
+   - ✅ **生产友好**: 减少日志量，避免日志污染
+
+2. **Saga 日志修复**
+   - ✅ **修复误导性日志**: 正确区分内存缓存和 Redis 缓存
+   - ✅ **准确识别**: 通过检测 `cache.keys` 和 `cache.publish` 方法识别 Redis
+   - ✅ **日志准确**: 内存缓存显示"使用内存缓存"，Redis 显示"使用 Redis 存储"
+
+**配置选项**:
+
+```javascript
+// 默认配置（完全静默）
+const msq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: 'mongodb://localhost:27017' }
+});
+// ✅ 无任何 ObjectId 转换日志
+
+// 启用摘要日志（调试用）
+const msq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: 'mongodb://localhost:27017' },
+  autoConvertObjectId: {
+    silent: false  // 关闭静默
+  }
+});
+// 输出：[DEBUG] Converted 15 cross-version ObjectIds
+
+// 启用详细日志（深度调试）
+const msq = new MonSQLize({
+  type: 'mongodb',
+  config: { uri: 'mongodb://localhost:27017' },
+  autoConvertObjectId: {
+    silent: false,
+    verbose: true
+  }
+});
+// 输出：每个 ObjectId 都有一条日志
+```
+
+**效果对比**:
+
+| 模式 | silent | verbose | 日志输出 | 适用场景 |
+|------|--------|---------|---------|---------|
+| **静默模式**（默认）✅ | `true` | - | 无 | 生产环境、日常开发 |
+| **摘要模式** | `false` | `false` | 1条摘要 | 需要了解转换情况时 |
+| **详细模式** | `false` | `true` | N条详情 | 深度调试、排查问题 |
+
+**修改的文件**:
+- `lib/utils/objectid-converter.js`: 添加 `silent` 配置，默认 `true`
+- `lib/saga/SagaOrchestrator.js`: 修复 Redis 识别逻辑
+
+**详细文档**: 
+- [ObjectId 日志配置](./docs/objectid-logging-optimization.md)
+- [FAQ - Q3: 如何关闭日志](./docs/objectid-cross-version-faq.md#q3)
+
+---
 
 ### v1.1.1 - ObjectId 跨版本兼容 🔧
 
