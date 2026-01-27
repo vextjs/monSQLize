@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要，详细变更见 [changelogs/](./changelogs/) 目录  
-> **最后更新**: 2026-01-21
+> **最后更新**: 2026-01-27
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.1.1](#v111---objectid-跨版本兼容) | 2026-01-27 | 🔧 Bug修复：新增跨版本 ObjectId 兼容性（支持 mongoose bson@4.x/5.x）| [查看](#v111---objectid-跨版本兼容) |
 | [v1.1.0](./changelogs/v1.1.0.md) | 2026-01-21 | 🎉 重大更新：新增49个操作符，实现100% MongoDB操作符支持（122/122）| [查看](./changelogs/v1.1.0.md) |
 | [v1.0.9](./changelogs/v1.0.9.md) | 2026-01-19 | 🎉 重大功能：统一表达式系统 - 67个操作符 + 107个测试 (100%通过) | [查看](./changelogs/v1.0.9.md) |
 | [v1.0.8](./changelogs/v1.0.8.md) | 2026-01-17 | 🎉 重大功能：多连接池 + Update 聚合管道 + Saga 事务 + Change Stream 同步 | [查看](./changelogs/v1.0.8.md) |
@@ -32,6 +33,49 @@
 ---
 
 ## 里程碑版本
+
+### v1.1.1 - ObjectId 跨版本兼容 🔧
+
+**发布日期**: 2026-01-27  
+**重要性**: ⭐⭐⭐⭐
+
+**问题背景**:
+- 混用 mongoose (bson@4.x/5.x) 和 monSQLize (bson@6.x) 时出现版本冲突
+- 错误信息：`Unsupported BSON version, bson types must be from bson 6.x.x`
+- 跨服务数据传递时 ObjectId 实例无法被 mongodb@6.x 驱动识别
+
+**解决方案**:
+- ✅ **自动跨版本转换**: 检测并转换来自其他 BSON 版本的 ObjectId
+- ✅ **递归处理**: 自动处理嵌套对象和数组中的 ObjectId
+- ✅ **性能优化**: 无需转换时返回原对象（零拷贝）
+- ✅ **错误降级**: 转换失败时返回原值，不影响其他字段
+- ✅ **调试支持**: 提供详细的转换日志
+
+**兼容性**:
+| BSON 版本 | mongoose 版本 | 支持状态 |
+|-----------|--------------|---------|
+| bson@4.x  | mongoose@5.x | ✅ 完全支持 |
+| bson@5.x  | mongoose@6.x | ✅ 完全支持 |
+| bson@6.x  | mongoose@7.x | ✅ 原生支持 |
+
+**测试覆盖**:
+- 🏆 **测试数量**: 17个测试用例
+- 🏆 **通过率**: 100% (17/17通过)
+- 🏆 **覆盖场景**: 基础转换、嵌套对象、数组、边界情况、错误处理
+
+**使用示例**:
+```javascript
+// 从 mongoose 获取数据（包含 bson@4.x/5.x 的 ObjectId）
+const dataFromMongoose = await MongooseModel.findOne({ ... }).lean();
+
+// 直接插入，monSQLize 自动转换 ObjectId
+const result = await msq.collection('orders').insertOne(dataFromMongoose);
+// ✅ 成功：自动将旧版本 ObjectId 转换为 bson@6.x 版本
+```
+
+**详细文档**: [查看 docs/objectid-cross-version.md](./docs/objectid-cross-version.md)
+
+---
 
 ### v1.0.9 - 统一表达式系统 🎉
 

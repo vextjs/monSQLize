@@ -944,7 +944,42 @@ await db.close();    // 自动关闭SSH隧道
 
 ---
 
-### 10. 🎯 Model 层 - 像 ORM 一样使用（v1.0.3+）
+### 10. 🔄 ObjectId 跨版本兼容（v1.1.1+）🆕
+
+解决混用 mongoose 和 monSQLize 时的 BSON 版本冲突问题。
+
+```javascript
+// ❌ 问题场景：mongoose (bson@4.x/5.x) + monSQLize (bson@6.x)
+const dataFromMongoose = await MongooseModel.findOne({ ... }).lean();
+await msq.collection('orders').insertOne(dataFromMongoose);
+// 错误：Unsupported BSON version, bson types must be from bson 6.x.x
+
+// ✅ monSQLize v1.1.1+ 自动处理
+const dataFromMongoose = await MongooseModel.findOne({ ... }).lean();
+await msq.collection('orders').insertOne(dataFromMongoose);
+// 成功：自动将旧版本 ObjectId 转换为 bson@6.x
+```
+
+**特性**：
+- ✅ 自动检测并转换来自其他 BSON 版本的 ObjectId
+- ✅ 递归处理嵌套对象和数组
+- ✅ 性能优化：无需转换时零拷贝
+- ✅ 错误降级：转换失败不影响其他字段
+- ✅ 完全透明：无需修改业务代码
+
+**兼容性**：
+
+| BSON 版本 | mongoose 版本 | 支持状态 |
+|-----------|--------------|---------|
+| bson@4.x  | mongoose@5.x | ✅ 完全支持 |
+| bson@5.x  | mongoose@6.x | ✅ 完全支持 |
+| bson@6.x  | mongoose@7.x | ✅ 原生支持 |
+
+[📖 完整文档](./docs/objectid-cross-version.md)
+
+---
+
+### 11. 🎯 Model 层 - 像 ORM 一样使用（v1.0.3+）
 
 monSQLize 提供了一个轻量级的 Model 层，让你可以像使用 ORM 一样定义数据模型，同时保持 MongoDB 的灵活性。
 
