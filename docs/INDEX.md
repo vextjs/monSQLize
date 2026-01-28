@@ -66,6 +66,7 @@
 | 文档 | 方法 | 说明 |
 |------|------|------|
 | [update-operations.md](update-operations.md) | 所有更新方法 | 更新操作完整指南 |
+| [upsert-guide.md](upsert-guide.md) | **Upsert 操作指南** | **不存在就插入，存在则更新 - 完整指南 ⭐** |
 | [update-one.md](update-one.md) | `updateOne()` | 更新单个文档 |
 | [update-many.md](update-many.md) | `updateMany()` | 批量更新文档 |
 | [update-aggregation.md](update-aggregation.md) | **🎉 Update 聚合管道 - 字段间计算、条件赋值（v1.0.8+）🆕** |

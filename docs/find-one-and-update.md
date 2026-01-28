@@ -286,9 +286,10 @@ const user = await collection("users").findOneAndUpdate(
 // user 只包含 _id, name, loginCount
 ```
 
-### 使用 upsert
+### 使用 upsert（不存在就插入，存在则更新）⭐
 
 ```javascript
+// 基本用法：计数器示例
 const counter = await collection("counters").findOneAndUpdate(
   { counterName: "pageViews" },
   { $inc: { value: 1 } },
@@ -298,6 +299,119 @@ const counter = await collection("counters").findOneAndUpdate(
   }
 );
 // 如果不存在会创建新文档
+```
+
+#### Upsert 详细说明
+
+**upsert = update + insert** 的组合：
+- ✅ **存在**：执行更新操作
+- ✅ **不存在**：插入新文档
+
+**使用场景**：
+
+```javascript
+// 场景 1：用户配置（不存在则创建默认配置）
+const userConfig = await collection("user_configs").findOneAndUpdate(
+  { userId: "user123" },
+  {
+    $set: {
+      theme: "dark",
+      language: "zh-CN",
+      updatedAt: new Date()
+    },
+    $setOnInsert: {
+      // 仅在插入时设置
+      createdAt: new Date(),
+      defaultSettings: true
+    }
+  },
+  {
+    upsert: true,
+    returnDocument: "after"
+  }
+);
+
+// 场景 2：统计数据（自动初始化）
+const stats = await collection("daily_stats").findOneAndUpdate(
+  {
+    date: "2026-01-28",
+    userId: "user123"
+  },
+  {
+    $inc: { pageViews: 1, loginCount: 1 }
+  },
+  {
+    upsert: true,
+    returnDocument: "after"
+  }
+);
+// 不存在时会创建：{ date: "2026-01-28", userId: "user123", pageViews: 1, loginCount: 1 }
+
+// 场景 3：缓存更新（不存在则缓存新数据）
+const cache = await collection("cache").findOneAndUpdate(
+  { key: "user:profile:123" },
+  {
+    $set: {
+      value: profileData,
+      expireAt: new Date(Date.now() + 3600000) // 1小时后过期
+    }
+  },
+  {
+    upsert: true,
+    returnDocument: "after"
+  }
+);
+
+// 场景 4：商品库存（自动创建库存记录）
+const inventory = await collection("inventory").findOneAndUpdate(
+  { productId: "prod-456" },
+  {
+    $inc: { quantity: -1 },  // 减少库存
+    $set: { lastUpdated: new Date() }
+  },
+  {
+    upsert: true,
+    returnDocument: "after"
+  }
+);
+```
+
+**⚠️ Upsert 注意事项**：
+
+```javascript
+// ❌ 错误：使用 $setOnInsert 但忘记 upsert
+const doc = await collection("users").findOneAndUpdate(
+  { userId: "user123" },
+  { $setOnInsert: { createdAt: new Date() } }
+  // 缺少 upsert: true，$setOnInsert 不会生效
+);
+
+// ✅ 正确：同时使用 $set 和 $setOnInsert
+const doc = await collection("users").findOneAndUpdate(
+  { userId: "user123" },
+  {
+    $set: { lastLogin: new Date() },        // 每次都更新
+    $setOnInsert: { createdAt: new Date() } // 仅插入时设置
+  },
+  { upsert: true }
+);
+
+// ✅ 正确：获取 upsert 的 _id
+const result = await collection("users").findOneAndUpdate(
+  { email: "new@example.com" },
+  { $set: { name: "New User" } },
+  {
+    upsert: true,
+    returnDocument: "after",
+    includeResultMetadata: true
+  }
+);
+
+if (result.lastErrorObject.upserted) {
+  console.log("创建了新文档，_id:", result.lastErrorObject.upserted);
+} else {
+  console.log("更新了现有文档");
+}
 ```
 
 ### 获取完整元数据
