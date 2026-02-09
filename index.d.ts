@@ -20,6 +20,7 @@ declare module 'monsqlize' {
     import type * as Collection from './types/collection';
     import type * as Model from './types/model';
     import type * as MonSQLizeModule from './types/monsqlize';
+    import type * as FunctionCacheTypes from './types/function-cache';
 
     // ========================================
     // 基础类型
@@ -190,5 +191,15 @@ declare module 'monsqlize' {
     // ========================================
     export import MonSQLize = MonSQLizeModule.MonSQLize;
     export default MonSQLizeModule.MonSQLize;
+
+    // ========================================
+    // 函数缓存（v1.1.4+）
+    // ========================================
+    export import WithCacheOptions = FunctionCacheTypes.WithCacheOptions;
+    export import CacheStats = FunctionCacheTypes.CacheStats;
+    export import FunctionCacheOptions = FunctionCacheTypes.FunctionCacheOptions;
+    export import CachedFunction = FunctionCacheTypes.CachedFunction;
+    export import withCache = FunctionCacheTypes.withCache;
+    export import FunctionCache = FunctionCacheTypes.FunctionCache;
 }
 

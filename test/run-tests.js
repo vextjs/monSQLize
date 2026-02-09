@@ -313,6 +313,27 @@ async function runTests() {
     });
 
     process.exit(result.status);
+  } else if (testSuite === 'functionCache' || testSuite === 'function-cache') {
+    // 🆕 v1.1.4: 函数缓存测试
+    console.log('\n╔═══════════════════════════════════════════════════════════╗');
+    console.log('║         运行 函数缓存功能测试套件 🆕 v1.1.4               ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝\n');
+
+    const { spawnSync } = require('child_process');
+    const result = spawnSync('npx', [
+      'mocha',
+      'test/unit/function-cache.test.js',
+      'test/unit/function-cache-redis.test.js',
+      '--timeout', '10000',
+      '--reporter', 'spec',
+      '--exit'
+    ], {
+      cwd: process.cwd(),
+      stdio: 'inherit',
+      shell: true
+    });
+
+    process.exit(result.status);
   } else if (testSuite === 'model') {
     // Model 测试使用 Mocha 运行
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
@@ -372,6 +393,7 @@ async function runTests() {
       'findOneAndDelete',
       'transaction',
       'lock',
+      'functionCache',  // 🆕 v1.1.4: 函数缓存测试
       'objectIdConversion',
       'slowQueryLog',
       'watch',

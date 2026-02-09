@@ -23,6 +23,7 @@
 | [error-codes.md](error-codes.md) | **错误码参考 - 完整的错误码定义和处理指南** |
 | [cache.md](cache.md) | 缓存系统（LRU + TTL） |
 | [cache-implementation.md](cache-implementation.md) | **缓存机制实现原理 - 深入解析LRU、惰性过期、多层架构** |
+| [function-cache.md](function-cache.md) | **🎉 函数缓存 - 为任意异步函数添加缓存能力（v1.1.4+）🆕** |
 | [transaction.md](transaction.md) | 事务管理（自动重试、缓存锁） |
 | [saga-transaction.md](saga-transaction.md) | **🎉 Saga 分布式事务 - 跨服务事务补偿机制（v1.0.8+）🆕** |
 | [saga-advanced.md](saga-advanced.md) | **Saga 高级特性与实现原理 - 深入解析补偿机制、分布式存储** |

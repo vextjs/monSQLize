@@ -27,6 +27,7 @@ const { createRedisCacheAdapter } = require('./lib/redis-cache-adapter.js');
 const TransactionManager = require('./lib/transaction/TransactionManager.js');
 const CacheLockManager = require('./lib/transaction/CacheLockManager.js');
 const DistributedCacheInvalidator = require('./lib/distributed-cache-invalidator.js');
+const { withCache, FunctionCache } = require('./lib/function-cache.js');
 
 // 默认导出
 export default MonSQLizeClass;
@@ -44,6 +45,8 @@ export {
   CacheLockManager,
   DistributedCacheInvalidator,
   expr,                    // 🆕 v1.0.9: 统一表达式函数
-  createExpression         // 🆕 v1.0.9: 表达式函数别名
+  createExpression,        // 🆕 v1.0.9: 表达式函数别名
+  withCache,               // 🆕 v1.1.4: 函数缓存装饰器
+  FunctionCache            // 🆕 v1.1.4: 函数缓存类
 };
 
