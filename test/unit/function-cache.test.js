@@ -497,7 +497,7 @@ describe('函数缓存 (Function Cache)', () => {
                     return x * 2;
                 }
 
-                fnCache.register('test', testFn);
+                await fnCache.register('test', testFn);
 
                 const result1 = await fnCache.execute('test', 5);
                 const result2 = await fnCache.execute('test', 5);
@@ -507,20 +507,20 @@ describe('函数缓存 (Function Cache)', () => {
                 expect(callCount).to.equal(1);
             });
 
-            it('应该列出所有已注册的函数', () => {
+            it('应该列出所有已注册的函数', async () => {
                 async function fn1() {}
                 async function fn2() {}
 
-                fnCache.register('fn1', fn1);
-                fnCache.register('fn2', fn2);
+                await fnCache.register('fn1', fn1);
+                await fnCache.register('fn2', fn2);
 
                 const list = fnCache.list();
                 expect(list).to.deep.equal(['fn1', 'fn2']);
             });
 
-            it('应该清空所有函数', () => {
+            it('应该清空所有函数', async () => {
                 async function fn1() {}
-                fnCache.register('fn1', fn1);
+                await fnCache.register('fn1', fn1);
 
                 fnCache.clear();
 
@@ -537,7 +537,7 @@ describe('函数缓存 (Function Cache)', () => {
                     return x * 2;
                 }
 
-                fnCache.register('test', testFn);
+                await fnCache.register('test', testFn);
 
                 await fnCache.execute('test', 5);
                 await fnCache.invalidate('test', 5);
@@ -559,8 +559,8 @@ describe('函数缓存 (Function Cache)', () => {
                     return x;
                 }
 
-                fnCache.register('fn1', fn1);
-                fnCache.register('fn2', fn2);
+                await fnCache.register('fn1', fn1);
+                await fnCache.register('fn2', fn2);
 
                 await fnCache.execute('fn1', 5);
                 await fnCache.execute('fn2', 5);
@@ -581,7 +581,7 @@ describe('函数缓存 (Function Cache)', () => {
                     return x;
                 }
 
-                fnCache.register('test', testFn);
+                await fnCache.register('test', testFn);
 
                 await fnCache.execute('test', 5);
                 await fnCache.execute('test', 5);
@@ -596,8 +596,8 @@ describe('函数缓存 (Function Cache)', () => {
                 async function fn1() {}
                 async function fn2() {}
 
-                fnCache.register('fn1', fn1);
-                fnCache.register('fn2', fn2);
+                await fnCache.register('fn1', fn1);
+                await fnCache.register('fn2', fn2);
 
                 await fnCache.execute('fn1');
                 await fnCache.execute('fn2');
@@ -611,7 +611,7 @@ describe('函数缓存 (Function Cache)', () => {
                     return 1;
                 }
 
-                fnCache.register('test', testFn);
+                await fnCache.register('test', testFn);
                 await fnCache.execute('test');
 
                 fnCache.resetStats('test');
@@ -624,8 +624,8 @@ describe('函数缓存 (Function Cache)', () => {
                 async function fn1() {}
                 async function fn2() {}
 
-                fnCache.register('fn1', fn1);
-                fnCache.register('fn2', fn2);
+                await fnCache.register('fn1', fn1);
+                await fnCache.register('fn2', fn2);
 
                 await fnCache.execute('fn1');
                 await fnCache.execute('fn2');
@@ -671,10 +671,27 @@ describe('函数缓存 (Function Cache)', () => {
                 expect(() => new FunctionCache(null, 'invalid')).to.throw('options must be an object');
             });
 
-            it('应该验证 register 参数', () => {
-                expect(() => fnCache.register('', async () => {})).to.throw('Function name must be a non-empty string');
-                expect(() => fnCache.register('test', 'not a function')).to.throw('fn must be a function');
-                expect(() => fnCache.register('test', async () => {}, 'invalid')).to.throw('options must be an object');
+            it('应该验证 register 参数', async () => {
+                try {
+                    await fnCache.register('', async () => {});
+                    expect.fail('应该抛出错误');
+                } catch (err) {
+                    expect(err.message).to.include('Function name must be a non-empty string');
+                }
+
+                try {
+                    await fnCache.register('test', 'not a function');
+                    expect.fail('应该抛出错误');
+                } catch (err) {
+                    expect(err.message).to.include('fn must be a function');
+                }
+
+                try {
+                    await fnCache.register('test', async () => {}, 'invalid');
+                    expect.fail('应该抛出错误');
+                } catch (err) {
+                    expect(err.message).to.include('options must be an object');
+                }
             });
 
             it('应该验证 invalidate 参数', async () => {
@@ -727,8 +744,8 @@ describe('函数缓存 (Function Cache)', () => {
                 let count1 = 0;
                 let count2 = 0;
 
-                fc1.register('test', async () => { count1++; return 1; });
-                fc2.register('test', async () => { count2++; return 2; });
+                await fc1.register('test', async () => { count1++; return 1; });
+                await fc2.register('test', async () => { count2++; return 2; });
 
                 await fc1.execute('test');
                 await fc2.execute('test');
@@ -744,7 +761,7 @@ describe('函数缓存 (Function Cache)', () => {
                 });
 
                 let callCount = 0;
-                fc.register('test', async () => {
+                await fc.register('test', async () => {
                     callCount++;
                     return 1;
                 });
@@ -762,11 +779,397 @@ describe('函数缓存 (Function Cache)', () => {
                     enableStats: false
                 });
 
-                fc.register('test', async () => 1);
+                await fc.register('test', async () => 1);
                 await fc.execute('test');
 
                 const stats = fc.getStats('test');
                 expect(stats).to.be.null;
+            });
+        });
+    });
+
+    describe('复杂数据类型测试（v1.1.4-hotfix 新增）', () => {
+        describe('深层嵌套对象', () => {
+            it('应该正确缓存 4 层以上嵌套对象', async () => {
+                let callCount = 0;
+                async function processNested(data) {
+                    callCount++;
+                    return data;
+                }
+
+                const cached = withCache(processNested, { ttl: 60000 });
+
+                const deepData = {
+                    level1: {
+                        level2: {
+                            level3: {
+                                level4: {
+                                    level5: {
+                                        value: 'deep value',
+                                        array: [1, 2, { nested: true }]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    metadata: { created: new Date('2026-02-10'), tags: ['tag1', 'tag2'] }
+                };
+
+                await cached(deepData);
+                await cached(deepData);
+
+                expect(callCount).to.equal(1);
+            });
+
+            it('应该处理包含数组和对象混合的深层结构', async () => {
+                let callCount = 0;
+                async function processComplex(data) {
+                    callCount++;
+                    return data.length;
+                }
+
+                const cached = withCache(processComplex, { ttl: 60000 });
+
+                const complexData = [
+                    { id: 1, items: [{ name: 'a', values: [1, 2, 3] }] },
+                    { id: 2, items: [{ name: 'b', values: [4, 5, 6] }] }
+                ];
+
+                await cached(complexData);
+                await cached(complexData);
+
+                expect(callCount).to.equal(1);
+            });
+        });
+
+        describe('大数组缓存', () => {
+            it('应该正确缓存 1000+ 元素的数组', async () => {
+                let callCount = 0;
+                async function processLargeArray(arr) {
+                    callCount++;
+                    return arr.length;
+                }
+
+                const cached = withCache(processLargeArray, { ttl: 60000 });
+
+                const largeArray = Array(1000).fill(null).map((_, i) => ({
+                    id: i,
+                    name: `Item ${i}`,
+                    value: Math.random()
+                }));
+
+                const result1 = await cached(largeArray);
+                const result2 = await cached(largeArray);
+
+                expect(result1).to.equal(1000);
+                expect(result2).to.equal(1000);
+                expect(callCount).to.equal(1);
+            });
+
+            it('应该正确缓存包含复杂对象的大数组', async () => {
+                let callCount = 0;
+                async function processComplexArray(arr) {
+                    callCount++;
+                    return arr.reduce((sum, item) => sum + item.metadata.index, 0);
+                }
+
+                const cached = withCache(processComplexArray, { ttl: 60000 });
+
+                const complexArray = Array(500).fill(null).map((_, i) => ({
+                    id: i,
+                    name: `Item ${i}`,
+                    metadata: {
+                        index: i,
+                        timestamp: new Date(),
+                        tags: ['tag1', 'tag2']
+                    }
+                }));
+
+                await cached(complexArray);
+                await cached(complexArray);
+
+                expect(callCount).to.equal(1);
+            });
+        });
+
+        describe('循环引用处理', () => {
+            it('应该正确处理循环引用对象', async () => {
+                let callCount = 0;
+                async function processCircular(obj) {
+                    callCount++;
+                    return 'processed';
+                }
+
+                const cached = withCache(processCircular, { ttl: 60000 });
+
+                const circularObj = { name: 'test', value: 42 };
+                circularObj.self = circularObj;
+
+                const result1 = await cached(circularObj);
+                const result2 = await cached(circularObj);
+
+                expect(result1).to.equal('processed');
+                expect(result2).to.equal('processed');
+                expect(callCount).to.equal(1);
+            });
+
+            it('应该处理多个循环引用', async () => {
+                let callCount = 0;
+                async function processMultiCircular(obj) {
+                    callCount++;
+                    return obj.name;
+                }
+
+                const cached = withCache(processMultiCircular, { ttl: 60000 });
+
+                const obj1 = { name: 'obj1' };
+                const obj2 = { name: 'obj2' };
+                obj1.ref = obj2;
+                obj2.ref = obj1;
+
+                await cached(obj1);
+                await cached(obj1);
+
+                expect(callCount).to.equal(1);
+            });
+        });
+
+        describe('超长缓存键处理（v1.1.4-hotfix）', () => {
+            it('应该自动哈希超过 1KB 的缓存键', async () => {
+                let callCount = 0;
+                async function processHuge(data) {
+                    callCount++;
+                    return data.items.length;
+                }
+
+                const cached = withCache(processHuge, { ttl: 60000 });
+
+                // 创建超过 1KB 的参数
+                const hugeData = {
+                    items: Array(100).fill(null).map((_, i) => ({
+                        id: i,
+                        description: 'x'.repeat(50), // 每个 50 字符
+                        metadata: { index: i, timestamp: new Date() }
+                    }))
+                };
+
+                const result1 = await cached(hugeData);
+                const result2 = await cached(hugeData);
+
+                expect(result1).to.equal(100);
+                expect(result2).to.equal(100);
+                expect(callCount).to.equal(1);
+            });
+
+            it('应该为不同的超长参数生成不同的哈希', async () => {
+                let callCount = 0;
+                async function processData(data) {
+                    callCount++;
+                    return data.id;
+                }
+
+                const cached = withCache(processData, { ttl: 60000 });
+
+                const data1 = {
+                    id: 1,
+                    items: Array(100).fill(null).map((_, i) => ({ id: i, data: 'a'.repeat(50) }))
+                };
+
+                const data2 = {
+                    id: 2,
+                    items: Array(100).fill(null).map((_, i) => ({ id: i, data: 'b'.repeat(50) }))
+                };
+
+                await cached(data1);
+                await cached(data2);
+
+                expect(callCount).to.equal(2); // 不同数据应该调用 2 次
+            });
+        });
+
+        describe('混合类型复杂对象', () => {
+            it('应该处理包含 Date + RegExp + Array + Object 的混合对象', async () => {
+                let callCount = 0;
+                async function processMixed(data) {
+                    callCount++;
+                    return data;
+                }
+
+                const cached = withCache(processMixed, { ttl: 60000 });
+
+                const mixedData = {
+                    date: new Date('2026-02-10T10:00:00Z'),
+                    regex: /test-\d+/gi,
+                    array: [1, 2, 3, { nested: true }],
+                    object: { key: 'value', nested: { deep: true } },
+                    special: {
+                        nullValue: null,
+                        undefinedValue: undefined,
+                        zero: 0,
+                        falsy: false,
+                        emptyString: '',
+                        nan: NaN,
+                        infinity: Infinity
+                    }
+                };
+
+                await cached(mixedData);
+                await cached(mixedData);
+
+                expect(callCount).to.equal(1);
+            });
+
+            it('应该处理包含函数和 Symbol 的对象（自动标记为 UNSUPPORTED）', async () => {
+                let callCount = 0;
+                async function processWithFunction(data) {
+                    callCount++;
+                    return 'processed';
+                }
+
+                const cached = withCache(processWithFunction, { ttl: 60000 });
+
+                const dataWithFunction = {
+                    name: 'test',
+                    fn: function() { return 1; },
+                    sym: Symbol('test')
+                };
+
+                await cached(dataWithFunction);
+                await cached(dataWithFunction);
+
+                expect(callCount).to.equal(1);
+            });
+        });
+
+        describe('边界情况测试', () => {
+            it('应该处理空对象和空数组', async () => {
+                let callCount = 0;
+                async function processEmpty(data) {
+                    callCount++;
+                    return data;
+                }
+
+                const cached = withCache(processEmpty, { ttl: 60000 });
+
+                await cached({});
+                await cached({});
+                expect(callCount).to.equal(1);
+
+                callCount = 0;
+                await cached([]);
+                await cached([]);
+                expect(callCount).to.equal(1);
+            });
+
+            it('应该区分 0、false、null、undefined、空字符串', async () => {
+                let callCount = 0;
+                async function processValue(val) {
+                    callCount++;
+                    return val;
+                }
+
+                const cached = withCache(processValue, { ttl: 60000 });
+
+                await cached(0);
+                await cached(false);
+                await cached(null);
+                await cached(undefined);
+                await cached('');
+
+                // 5 个不同的值，应该调用 5 次
+                expect(callCount).to.equal(5);
+
+                // 重复调用相同值应该命中缓存
+                await cached(0);
+                await cached(0);
+                expect(callCount).to.equal(5); // 不增加
+            });
+
+            it('应该处理非常大的数字', async () => {
+                let callCount = 0;
+                async function processBigNumber(num) {
+                    callCount++;
+                    return num;
+                }
+
+                const cached = withCache(processBigNumber, { ttl: 60000 });
+
+                const bigNumber = Number.MAX_SAFE_INTEGER;
+                await cached(bigNumber);
+                await cached(bigNumber);
+
+                expect(callCount).to.equal(1);
+            });
+        });
+
+        describe('并发和内存压力测试', () => {
+            it('应该正确处理大量不同参数的缓存', async () => {
+                let callCount = 0;
+                async function processItem(id) {
+                    callCount++;
+                    return { id, data: `Data ${id}` };
+                }
+
+                const cached = withCache(processItem, { ttl: 60000 });
+
+                // 缓存 100 个不同的项
+                for (let i = 0; i < 100; i++) {
+                    await cached(i);
+                }
+                expect(callCount).to.equal(100);
+
+                // 重复访问应该全部命中缓存
+                callCount = 0;
+                for (let i = 0; i < 100; i++) {
+                    await cached(i);
+                }
+                expect(callCount).to.equal(0);
+            });
+
+            it('应该在高并发场景下正确防止缓存击穿', async () => {
+                let callCount = 0;
+                async function slowQuery(id) {
+                    callCount++;
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                    return { id, timestamp: Date.now() };
+                }
+
+                const cached = withCache(slowQuery, { ttl: 60000 });
+
+                // 20 个并发请求查询相同数据
+                const promises = Array(20).fill(null).map(() => cached(1));
+                const results = await Promise.all(promises);
+
+                // 应该只调用 1 次
+                expect(callCount).to.equal(1);
+                // 所有结果应该相同
+                expect(results.every(r => r.timestamp === results[0].timestamp)).to.be.true;
+            });
+        });
+
+        describe('超时清理机制测试（v1.1.4-hotfix）', () => {
+            it('应该在函数完成后清理并发 Map', async function() {
+                this.timeout(5000);
+
+                let callCount = 0;
+                async function testFn(id) {
+                    callCount++;
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                    return id;
+                }
+
+                const cached = withCache(testFn, { ttl: 60000 });
+
+                // 第一次调用
+                await cached(1);
+                expect(callCount).to.equal(1);
+
+                // 等待确保清理完成
+                await new Promise(resolve => setTimeout(resolve, 50));
+
+                // 第二次调用应该命中缓存
+                await cached(1);
+                expect(callCount).to.equal(1);
             });
         });
     });

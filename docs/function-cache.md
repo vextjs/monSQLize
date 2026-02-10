@@ -91,29 +91,21 @@ const fnCache = new FunctionCache(msq, {
     defaultTTL: 60000
 });
 
-// 注册函数（支持集合依赖声明）
+// 注册函数
 fnCache.register('getUserProfile', getUserProfileFn, { 
-    ttl: 300000,
-    collections: ['users', 'orders']  // 🆕 v1.1.4: 声明依赖的集合
+    ttl: 300000
 });
 fnCache.register('getOrderStats', getOrderStatsFn, { 
-    ttl: 600000,
-    collections: ['orders']  // 当 orders 集合更新时自动失效
+    ttl: 600000
 });
 
 // 执行
 const profile = await fnCache.execute('getUserProfile', 'user123');
 const stats = await fnCache.execute('getOrderStats', 'user123', 2024);
 
-// 失效缓存（手动方式）
-await fnCache.invalidate('getUserProfile', 'user123');
-
-// 当 MongoDB 集合更新时，相关函数缓存自动失效
+// ⚠️ 重要：数据更新后需要手动失效缓存
 await msq.collection('users').updateOne({ _id: 'user123' }, { $set: { name: 'Alice' } });
-// ✅ getUserProfile 的缓存已自动失效
-
-// 查看统计
-await fnCache.invalidate('getUserProfile', 'user123');
+await fnCache.invalidate('getUserProfile', 'user123'); // 手动失效缓存
 
 // 查看统计
 console.log(fnCache.getStats('getUserProfile'));

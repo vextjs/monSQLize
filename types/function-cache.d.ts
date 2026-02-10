@@ -89,12 +89,13 @@ export class FunctionCache {
 
     /**
      * 注册函数
+     * 🔧 v1.1.4-hotfix: 改为异步方法
      */
     register<T extends (...args: any[]) => any>(
         name: string,
         fn: T,
         options?: WithCacheOptions<T>
-    ): void;
+    ): Promise<void>;
 
     /**
      * 执行函数
