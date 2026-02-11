@@ -20,6 +20,8 @@ export interface InsertOneSimplifiedOptions {
     bypassDocumentValidation?: boolean; // 跳过文档验证（可选）
     comment?: string;                // 查询注释（用于生产环境日志跟踪）
     session?: any;                   // 事务会话
+    /** 🆕 v1.1.5: 是否启用精准缓存失效（查询级别，优先于实例配置） */
+    autoInvalidate?: boolean;
 }
 
 /**
@@ -49,6 +51,8 @@ export interface InsertManySimplifiedOptions {
     bypassDocumentValidation?: boolean; // 跳过文档验证（可选）
     comment?: string;                // 查询注释（用于生产环境日志跟踪）
     session?: any;                   // 事务会话
+    /** 🆕 v1.1.5: 是否启用精准缓存失效（查询级别，优先于实例配置） */
+    autoInvalidate?: boolean;
 }
 
 /**

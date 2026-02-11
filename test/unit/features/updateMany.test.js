@@ -286,25 +286,37 @@ describe('updateMany 方法测试套件', function () {
 
     describe('缓存失效测试', () => {
         it('应该在更新后自动失效缓存', async () => {
-            await collection('users').insertMany([
+            const msqWithCache = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_updatemany_cache',
+                config: { useMemoryServer: true },
+                cache: { maxSize: 10000, autoInvalidate: true }
+            });
+            const conn = await msqWithCache.connect();
+            const coll = conn.collection;
+
+            await coll('users').insertMany([
                 { userId: 'user1', status: 'inactive' },
                 { userId: 'user2', status: 'inactive' }
             ]);
 
             // 查询并缓存
-            await collection('users').find({ status: 'inactive' }, { cache: 5000 });
+            await coll('users').find({ status: 'inactive' }, { cache: 5000 });
 
-            const stats1 = msq.cache.getStats();
+            const stats1 = msqWithCache.cache.getStats();
             assert.ok(stats1.size > 0);
 
             // 批量更新
-            await collection('users').updateMany(
+            await coll('users').updateMany(
                 { status: 'inactive' },
                 { $set: { status: 'active' } }
             );
 
             // 验证缓存已清空
-            const stats2 = msq.cache.getStats();
+            const stats2 = msqWithCache.cache.getStats();
+
+            await msqWithCache.close();
+
             assert.strictEqual(stats2.size, 0);
         });
 

@@ -211,27 +211,44 @@ describe('insertMany 方法测试套件', function () {
 
     describe('缓存失效测试', () => {
         it('应该在批量插入后自动失效缓存', async () => {
+            // 创建启用精准失效的实例
+            const msqWithCache = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertmany_cache',
+                config: { useMemoryServer: true },
+                cache: {
+                    maxSize: 10000,
+                    autoInvalidate: true  // 启用精准失效
+                }
+            });
+
+            const conn = await msqWithCache.connect();
+            const coll = conn.collection;
+
             // 1. 先插入一些初始数据
-            await collection('users').insertMany([
+            await coll('users').insertMany([
                 { name: 'Initial1' },
                 { name: 'Initial2' }
             ]);
 
             // 2. 查询并缓存结果
-            await collection('users').find({}, { cache: 5000 });
+            await coll('users').find({}, { cache: 5000 });
 
-            const stats1 = msq.cache.getStats();
+            const stats1 = msqWithCache.cache.getStats();
             const size1 = stats1.size;
             assert.ok(size1 > 0, '应该有缓存');
 
             // 3. 批量插入新文档
-            await collection('users').insertMany([
+            await coll('users').insertMany([
                 { name: 'User1' },
                 { name: 'User2' }
             ]);
 
             // 4. 验证缓存已清空
-            const stats2 = msq.cache.getStats();
+            const stats2 = msqWithCache.cache.getStats();
+
+            await msqWithCache.close();
+
             assert.strictEqual(stats2.size, 0, '插入后缓存应该被清空');
         });
 

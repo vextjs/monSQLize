@@ -602,6 +602,7 @@ const msq = new MonSQLize({
     maxSize: 100000,                  // 最大缓存条目数【默认: 100000】
     maxAge: 3600000,                  // 默认缓存时长（毫秒）【默认: 3600000 (1小时)】
     enableStats: true,                // 启用统计信息【默认: true】
+    autoInvalidate: true,             // 🆕 v1.1.6: 启用精准缓存失效【默认: false】
     
     // Redis 缓存配置（当 type='redis' 时）
     redis: {
@@ -815,6 +816,7 @@ const msq = new MonSQLize({
 | `cache.maxSize` | number | 100000 | 内存缓存最大条目数 |
 | `cache.maxAge` | number | 3600000 | 默认缓存时长（毫秒） |
 | `cache.enableStats` | boolean | true | 启用缓存统计信息 |
+| `cache.autoInvalidate` | boolean | false | 🆕 v1.1.6: 启用精准缓存失效 |
 | `cache.redis` | object | - | Redis 连接配置 |
 | `cache.distributed.enabled` | boolean | false | 启用分布式缓存失效 |
 

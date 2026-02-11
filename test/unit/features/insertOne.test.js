@@ -174,25 +174,43 @@ describe('insertOne 方法测试套件', function () {
 
     describe('缓存失效测试', () => {
         it('应该在插入后自动失效缓存', async () => {
+            // 创建启用精准失效的实例
+            const msqCacheTest = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_insertone_cache',
+                config: { useMemoryServer: true },
+                cache: {
+                    maxSize: 10000,
+                    autoInvalidate: true  // 实例级别启用
+                }
+            });
+
+            const conn = await msqCacheTest.connect();
+            const cacheTestCollection = conn.collection;
+
             // 1. 先插入一些初始数据
-            await collection('users').insertOne(
+            await cacheTestCollection('users').insertOne(
                 { name: 'Initial', age: 20 }
             );
 
             // 2. 查询并缓存结果
-            await collection('users').find({}, { cache: 5000 });
+            await cacheTestCollection('users').find({}, { cache: 5000 });
 
-            const stats1 = msq.cache.getStats();
+            const stats1 = msqCacheTest.cache.getStats();
             const size1 = stats1.size;
             assert.ok(size1 > 0, '应该有缓存');
 
-            // 3. 插入新文档
-            await collection('users').insertOne(
+            // 3. 插入新文档（实例级别已启用 autoInvalidate）
+            await cacheTestCollection('users').insertOne(
                 { name: 'Cache Test', age: 35 }
             );
 
-            // 4. 验证缓存已清空
-            const stats2 = msq.cache.getStats();
+            // 4. 验证缓存已清空（精准失效应该清除空查询 {} 的缓存）
+            const stats2 = msqCacheTest.cache.getStats();
+
+
+            await msqCacheTest.close();
+
             assert.strictEqual(stats2.size, 0, '插入后缓存应该被清空');
         });
 

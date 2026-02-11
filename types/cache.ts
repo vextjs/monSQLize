@@ -25,11 +25,14 @@ export interface CacheLike {
  * - maxSize: 最大键数量（默认 100000）
  * - maxMemory: 最大内存占用（字节；0 表示不限制）
  * - enableStats: 是否启用统计，默认 true
+ * - autoInvalidate: 是否启用精准缓存失效，默认 false（v1.1.5+）
  */
 export interface MemoryCacheOptions {
     maxSize?: number;
     maxMemory?: number;
     enableStats?: boolean;
+    /** 🆕 v1.1.5: 是否启用精准缓存失效（默认 false） */
+    autoInvalidate?: boolean;
     // 允许透传其他实现细节，但不做强约束
     [k: string]: any;
 }

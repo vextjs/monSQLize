@@ -224,17 +224,25 @@ describe('upsertOne 方法测试套件', function () {
 
   describe('5. 缓存失效测试', function () {
     it('5.1 插入时应该触发缓存失效', async function () {
-      const cache = msq.getCache();
-      if (!cache) {
-        this.skip();
-        return;
-      }
+      // 创建启用精准失效的实例
+      const msqWithCache = new MonSQLize({
+        type: 'mongodb',
+        databaseName: 'test_upsertone_cache',
+        config: { useMemoryServer: true },
+        cache: { maxSize: 10000, autoInvalidate: true }
+      });
+      
+      const conn = await msqWithCache.connect();
+      const coll = conn.collection;
 
-      // 设置缓存
-      const namespace = `${msq._adapter.instanceId}:mongodb:test_upsertone:test_users`;
-      await cache.set(`${namespace}:test`, { data: 'cached' }, 10000);
+      // 先查询生成缓存（查询 userId: 'user10'）
+      await coll('test_users').find({ userId: 'user10' }, { cache: 5000 });
+      
+      const stats1 = msqWithCache.cache.getStats();
+      assert.ok(stats1.size > 0, '应该有缓存');
 
-      const result = await collection('test_users').upsertOne(
+      // upsert 插入新文档
+      const result = await coll('test_users').upsertOne(
         { userId: 'user10' },
         { name: 'Iris' }
       );
@@ -242,24 +250,35 @@ describe('upsertOne 方法测试套件', function () {
       assert.strictEqual(result.upsertedCount, 1);
 
       // 验证缓存已失效
-      const cachedData = await cache.get(`${namespace}:test`);
-      assert.strictEqual(cachedData, undefined, '缓存应该已失效');
+      const stats2 = msqWithCache.cache.getStats();
+      await msqWithCache.close();
+      
+      assert.strictEqual(stats2.size, 0, '缓存应该已失效');
     });
 
     it('5.2 更新时应该触发缓存失效', async function () {
-      const cache = msq.getCache();
-      if (!cache) {
-        this.skip();
-        return;
-      }
+      // 创建启用精准失效的实例
+      const msqWithCache = new MonSQLize({
+        type: 'mongodb',
+        databaseName: 'test_upsertone_cache2',
+        config: { useMemoryServer: true },
+        cache: { maxSize: 10000, autoInvalidate: true }
+      });
+      
+      const conn = await msqWithCache.connect();
+      const coll = conn.collection;
 
-      await nativeCollection.insertOne({ userId: 'user11', name: 'Jack' });
+      // 先插入文档
+      await coll('test_users').insertOne({ userId: 'user11', name: 'Jack' });
 
-      // 设置缓存
-      const namespace = `${msq._adapter.instanceId}:mongodb:test_upsertone:test_users`;
-      await cache.set(`${namespace}:test`, { data: 'cached' }, 10000);
+      // 查询生成缓存
+      await coll('test_users').find({ userId: 'user11' }, { cache: 5000 });
+      
+      const stats1 = msqWithCache.cache.getStats();
+      assert.ok(stats1.size > 0, '应该有缓存');
 
-      const result = await collection('test_users').upsertOne(
+      // upsert 更新文档
+      const result = await coll('test_users').upsertOne(
         { userId: 'user11' },
         { name: 'Jack Updated' }
       );
@@ -267,8 +286,10 @@ describe('upsertOne 方法测试套件', function () {
       assert.strictEqual(result.modifiedCount, 1);
 
       // 验证缓存已失效
-      const cachedData = await cache.get(`${namespace}:test`);
-      assert.strictEqual(cachedData, undefined, '缓存应该已失效');
+      const stats2 = msqWithCache.cache.getStats();
+      await msqWithCache.close();
+      
+      assert.strictEqual(stats2.size, 0, '缓存应该已失效');
     });
   });
 

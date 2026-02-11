@@ -939,30 +939,45 @@ describe('自动 ObjectId 转换功能测试', function() {
         });
 
         it('缓存失效后的 ObjectId 转换', async function() {
+
+            // 创建启用缓存和精准失效的实例
+            const msqWithCache = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_objectid_cache',
+                config: { useMemoryServer: true },
+                cache: { maxSize: 10000, autoInvalidate: true }
+            });
+
+            await msqWithCache.connect();
             const userId = new ObjectId();
 
-            await db.collection('users').insertOne({
+            await msqWithCache.collection('users').insertOne({
                 _id: userId,
                 name: 'Cache Invalidation Test'
             });
 
             // 查询并缓存
-            await msq.collection('users').findOne(
+            const cached = await msqWithCache.collection('users').findOne(
                 { _id: userId.toString() },
                 { cache: 5000 }
             );
 
+            assert.ok(cached);
+            assert.strictEqual(cached.name, 'Cache Invalidation Test');
+
             // 更新（应该失效缓存）
-            await msq.collection('users').updateOne(
+            await msqWithCache.collection('users').updateOne(
                 { _id: userId.toString() },
                 { $set: { name: 'Updated Name' } }
             );
 
-            // 再次查询
-            const result = await msq.collection('users').findOne(
+            // 再次查询（使用缓存） - 应该获取更新后的值
+            const result = await msqWithCache.collection('users').findOne(
                 { _id: userId.toString() },
                 { cache: 5000 }
             );
+
+            await msqWithCache.close();
 
             assert.ok(result);
             assert.strictEqual(result.name, 'Updated Name');

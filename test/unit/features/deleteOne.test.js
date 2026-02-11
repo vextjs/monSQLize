@@ -140,21 +140,33 @@ describe('deleteOne 方法测试套件', function () {
 
     describe('缓存失效测试', () => {
         it('应该在删除成功后自动失效缓存', async () => {
-            await collection('users').insertOne({
+            const msqWithCache = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_deleteone_cache',
+                config: { useMemoryServer: true },
+                cache: { maxSize: 10000, autoInvalidate: true }
+            });
+            const conn = await msqWithCache.connect();
+            const coll = conn.collection;
+
+            await coll('users').insertOne({
                 userId: 'user1',
                 name: 'Alice'
             });
 
             // 先查询生成缓存
-            await collection('users').find({ userId: 'user1' }, { cache: 5000 });
-            const stats1 = msq.cache.getStats();
+            await coll('users').find({ userId: 'user1' }, { cache: 5000 });
+            const stats1 = msqWithCache.cache.getStats();
             assert.ok(stats1.size > 0);
 
             // 删除文档
-            await collection('users').deleteOne({ userId: 'user1' });
+            await coll('users').deleteOne({ userId: 'user1' });
 
             // 缓存应该被清除
-            const stats2 = msq.cache.getStats();
+            const stats2 = msqWithCache.cache.getStats();
+
+            await msqWithCache.close();
+
             assert.strictEqual(stats2.size, 0);
         });
 

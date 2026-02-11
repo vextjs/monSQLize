@@ -206,21 +206,33 @@ describe('deleteMany 方法测试套件', function () {
 
     describe('缓存失效测试', () => {
         it('应该在删除成功后自动失效缓存', async () => {
-            await collection('users').insertMany([
+            const msqWithCache = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'test_deletemany_cache',
+                config: { useMemoryServer: true },
+                cache: { maxSize: 10000, autoInvalidate: true }
+            });
+            const conn = await msqWithCache.connect();
+            const coll = conn.collection;
+            
+            await coll('users').insertMany([
                 { type: 'temp', name: 'User1' },
                 { type: 'temp', name: 'User2' }
             ]);
 
             // 先查询生成缓存
-            await collection('users').find({ type: 'temp' }, { cache: 5000 });
-            const stats1 = msq.cache.getStats();
+            await coll('users').find({ type: 'temp' }, { cache: 5000 });
+            const stats1 = msqWithCache.cache.getStats();
             assert.ok(stats1.size > 0);
 
             // 批量删除
-            await collection('users').deleteMany({ type: 'temp' });
+            await coll('users').deleteMany({ type: 'temp' });
 
             // 缓存应该被清除
-            const stats2 = msq.cache.getStats();
+            const stats2 = msqWithCache.cache.getStats();
+            
+            await msqWithCache.close();
+            
             assert.strictEqual(stats2.size, 0);
         });
 

@@ -726,37 +726,153 @@ const page100 = await collection('products').findPage({
 
 ## 缓存失效机制
 
-### 自动失效
+### 🆕 精准失效（v1.1.6+）
 
-写操作（insert/update/delete）会自动清理相关缓存：
+**精准失效**只清除真正受影响的缓存，而不是整个集合的缓存。
+
+#### 配置方式
+
+**方式1: 实例级别全局配置**（推荐）
+
+所有写操作默认启用精准失效：
+
+```javascript
+const MonSQLize = require('monsqlize');
+
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'shop',
+  config: { uri: 'mongodb://localhost:27017' },
+  cache: {
+    maxSize: 100000,
+    autoInvalidate: true  // 🆕 全局启用精准失效（默认 false）
+  }
+});
+
+// 连接后，所有写操作自动启用精准失效
+const { collection } = await msq.connect();
+
+// ✅ 自动精准失效（使用实例配置）
+await collection('products').insertOne({
+  name: 'New Product',
+  category: 'electronics'
+});
+
+// ✅ 自动精准失效（使用实例配置）
+await collection('products').updateOne(
+  { _id: productId },
+  { $set: { price: 99 } }
+);
+```
+
+**方式2: 写操作级别配置**（覆盖实例配置）
+
+单次操作控制是否启用精准失效：
+
+```javascript
+// 实例配置 autoInvalidate = false
+const msq = new MonSQLize({
+  cache: { maxSize: 100000 }  // 默认不自动失效
+});
+
+const { collection } = await msq.connect();
+
+// ✅ 单次操作启用精准失效（覆盖实例配置）
+await collection('products').insertOne(
+  { name: 'New Product', category: 'electronics' },
+  { autoInvalidate: true }  // 单次启用
+);
+
+// ❌ 使用实例配置（不失效）
+await collection('products').updateOne(
+  { _id: productId },
+  { $set: { price: 99 } }
+);
+```
+
+**配置优先级**: 写操作配置 > 实例配置
+
+**⚠️ 重要说明**：
+- `autoInvalidate` 选项**只用于写操作**（insert/update/delete）
+- 查询操作（find/findOne）**不支持** `autoInvalidate` 选项
+- 查询只需要使用 `cache` 选项指定缓存时间
+
+#### 精准失效示例
 
 ```javascript
 const { collection } = await msq.connect();
 
-// 1. 查询并缓存
-const products1 = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 60000,          // 缓存 1 分钟
-  maxTimeMS: 3000
-});
-console.log('第一次查询:', products1.length);
+// 1. 查询并缓存（两个不同的查询）
+await collection('products').find(
+  { category: 'electronics' },
+  { cache: 60000 }
+);
 
-// 2. 插入新商品（自动清理 products 集合的所有缓存）
-await collection('products').insertOne({
-  name: 'New Product',
-  category: 'electronics',
-  price: 999
-});
-console.log('✅ 插入成功，缓存已自动清理');
+await collection('products').find(
+  { category: 'books' },
+  { cache: 60000 }
+);
 
-// 3. 再次查询（缓存 miss，从数据库读取最新数据）
-const products2 = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 60000,
-  maxTimeMS: 3000
-});
-console.log('第二次查询:', products2.length);  // 应该比第一次多 1 条
+// 2. 插入新商品（只影响 electronics 缓存）
+await collection('products').insertOne(
+  { name: 'New Phone', category: 'electronics', price: 999 },
+  { autoInvalidate: true }
+);
+
+// ✅ 精准失效：只清除匹配 { category: 'electronics' } 的缓存
+// ✅ 保留：{ category: 'books' } 的缓存不受影响
 ```
+
+
+#### 支持的查询条件
+
+精准失效支持简单查询条件：
+
+✅ **支持的操作符**：
+- 相等匹配：`{ status: 'active' }`
+- `$eq`：`{ status: { $eq: 'active' } }`
+- `$ne`：`{ status: { $ne: 'deleted' } }`
+- `$gt`, `$gte`, `$lt`, `$lte`：`{ price: { $gte: 100 } }`
+- `$in`：`{ category: { $in: ['a', 'b'] } }`
+- `$nin`：`{ status: { $nin: ['deleted'] } }`
+
+❌ **不支持的操作符**（自动跳过，按 TTL 过期）：
+- `$regex`, `$exists`, `$type`
+- `$elemMatch`, `$size`, `$all`
+- `$where`
+
+#### ObjectId 字段支持
+
+精准失效完全支持 ObjectId 字段（包括 `_id`）：
+
+```javascript
+// ✅ 使用字符串 _id（自动规范化）
+await collection('users').find(
+  { _id: "507f1f77bcf86cd799439011" },
+  { cache: 5000 }
+);
+
+await collection('users').updateOne(
+  { _id: "507f1f77bcf86cd799439011" },
+  { $set: { name: 'Updated' } },
+  { autoInvalidate: true }
+);
+// ✅ 精准失效成功
+
+// ✅ 关联查询
+await collection('orders').find(
+  { userId: userId.toString() },
+  { cache: 5000 }
+);
+
+await collection('orders').updateMany(
+  { userId: userId.toString() },
+  { $set: { status: 'shipped' } },
+  { autoInvalidate: true }
+);
+// ✅ 精准失效成功
+```
+
 
 ### 手动清理
 
