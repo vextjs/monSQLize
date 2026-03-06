@@ -298,7 +298,7 @@ monSQLize 会自动检测调用方式：
 
 ---
 
-**反馈与建议**: 如有问题或建议，请提交 [GitHub Issue](https://github.com/your-org/monsqlize/issues)。
+**反馈与建议**: 如有问题或建议，请提交 [GitHub Issue](https://github.com/vextjs/monSQLize/issues)。
 
   { $match: { status: 'paid', createdAt: { $gte: new Date('2024-01-01') } } },
   { $group: { _id: '$category', total: { $sum: '$amount' } } },
@@ -463,7 +463,7 @@ stream.on('end', () => console.log('完成'));
 
 请通过以下方式反馈：
 
-- GitHub Issues: [monSQLize 项目](https://github.com/your-org/monsqlize)
+- GitHub Issues: [monSQLize 项目](https://github.com/vextjs/monSQLize)
 - 邮件联系: dev@monsqlize.com
 
 ---

@@ -543,5 +543,5 @@ console.log("查询计划:", plan);
 
 ---
 
-**反馈与建议**: 如有问题或建议，请提交 [GitHub Issue](https://github.com/your-org/monsqlize/issues)。
+**反馈与建议**: 如有问题或建议，请提交 [GitHub Issue](https://github.com/vextjs/monSQLize/issues)。
 

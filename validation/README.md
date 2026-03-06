@@ -874,10 +874,10 @@ const analyticsEvents = await db('analytics').collection('events').find({ query:
 
 ## 🔗 相关链接
 
-- **项目主页**: [monSQLize](https://github.com/yourusername/monSQLize)
+- **项目主页**: [monSQLize](https://github.com/vextjs/monSQLize)
 - **文档目录**: [docs/](../docs/)
 - **测试目录**: [test/](../test/)
-- **问题追踪**: [GitHub Issues](https://github.com/yourusername/monSQLize/issues)
+- **问题追踪**: [GitHub Issues](https://github.com/vextjs/monSQLize/issues)
 
 ---
 
