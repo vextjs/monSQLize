@@ -115,7 +115,7 @@
   "dependencies": {
     "async-lock": "^1.4.1",
     "mongodb": "^6.17.0",
-    "schema-dsl": "^1.1.5",
+    "schema-dsl": "^1.2.4",
     "ssh2": "^1.17.0"
   }
 }
