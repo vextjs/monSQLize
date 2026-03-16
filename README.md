@@ -1242,6 +1242,30 @@ const user = await User.findOne({ username: 'john' })
 npm install schema-dsl
 ```
 
+#### 热重载支持（v1.1.7+）🆕
+
+在开发模式下，无需重启进程即可更新 Model 定义。
+
+```javascript
+const { Model } = require('monsqlize');
+
+// 注销 Model 定义（返回 boolean）
+Model.undefine('users');         // true  — 成功注销
+Model.undefine('nonexistent');   // false — 不存在时不抛错
+
+// 替换 Model 定义（undefine + define 的组合）
+Model.redefine('users', {
+    schema: (dsl) => dsl({ username: 'string!', email: 'email!' })
+});
+
+// 批量热重载（重新加载所有 model 文件）
+await msq._loadModels({ reload: true });
+```
+
+**注意事项**：
+- `redefine()` 若新定义校验失败，旧定义**已被移除**（不会回滚），调用方需 try/catch
+- 已实例化的 `ModelInstance` 不受影响，热重载后应通过 `db.model()` 重新获取实例
+
 [📖 Model 层详细文档](./docs/model.md)
 
 ---
