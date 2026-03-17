@@ -111,6 +111,141 @@ Model.define('users', {
 
 ---
 
+### Model.get(collectionName)
+
+获取已注册的 Model 定义。
+
+**参数**：
+- `collectionName` (string) - 集合名称
+
+**返回**：`{ collectionName: string, definition: object } | undefined`
+
+返回包含 `collectionName` 和 `definition` 的包装对象。如果指定的 Model 未注册，则返回 `undefined`。
+
+```javascript
+// 获取已注册的 Model 定义
+const userModel = Model.get('users');
+
+if (userModel) {
+    console.log(userModel.collectionName); // 'users'
+    console.log(userModel.definition);     // { schema: ..., methods: ..., ... }
+}
+
+// 未注册的 Model 返回 undefined
+const notFound = Model.get('nonexistent');
+console.log(notFound); // undefined
+```
+
+---
+
+### Model.has(collectionName)
+
+检查 Model 是否已注册。
+
+**参数**：
+- `collectionName` (string) - 集合名称
+
+**返回**：`boolean`
+
+```javascript
+// 检查 Model 是否已注册
+if (Model.has('users')) {
+    console.log('users Model 已注册');
+}
+
+// 条件注册：避免重复定义
+if (!Model.has('users')) {
+    Model.define('users', {
+        schema: (dsl) => dsl({ username: 'string!' })
+    });
+}
+```
+
+---
+
+### Model.list()
+
+获取所有已注册的 Model 名称。
+
+**无参数**
+
+**返回**：`string[]` - 所有已注册 Model 的集合名称数组
+
+```javascript
+// 获取所有已注册的 Model 名称
+const models = Model.list();
+console.log(models); // ['users', 'posts', 'comments']
+
+// 遍历所有已注册的 Model
+for (const name of Model.list()) {
+    const model = Model.get(name);
+    console.log(`${name}:`, model.definition);
+}
+```
+
+---
+
+### Model.redefine(collectionName, definition)（v1.1.7+）
+
+重新定义已注册的 Model。等效于 `undefine()` + `define()` 的组合操作。
+
+**参数**：
+- `collectionName` (string) - 集合名称
+- `definition` (object) - 新的 Model 定义
+
+**返回**：void
+
+如果 Model 不存在，行为等同于 `define()`。
+
+> ⚠️ **注意**：如果新定义校验失败，旧定义会被移除（不会回滚）。主要用于开发模式下的 Model 热重载。
+
+**可抛出**：`Error`（与 `define()` 相同的校验逻辑）
+
+```javascript
+// 重新定义已注册的 Model
+Model.redefine('users', {
+    schema: (dsl) => dsl({
+        username: 'string:3-32!',
+        email: 'email!',
+        avatar: 'string'   // 新增字段
+    })
+});
+
+// 开发模式下的热重载示例
+if (process.env.NODE_ENV === 'development') {
+    Model.redefine('users', updatedDefinition);
+}
+```
+
+---
+
+### Model.undefine(collectionName)（v1.1.7+）
+
+注销已注册的 Model 定义。幂等操作，对不存在的 Model 不抛错。
+
+**参数**：
+- `collectionName` (string) - 要注销的集合名称
+
+**返回**：`boolean` - 成功移除返回 `true`，不存在返回 `false`
+
+已实例化的 ModelInstance 不受影响。主要用于开发模式下的 Model 热重载。
+
+```javascript
+// 注销已注册的 Model
+const removed = Model.undefine('users');
+console.log(removed); // true
+
+// 对不存在的 Model 不抛错
+const notFound = Model.undefine('nonexistent');
+console.log(notFound); // false
+
+// 注销后可重新定义
+Model.undefine('users');
+Model.define('users', newDefinition);
+```
+
+---
+
 ### msq.model(collectionName)
 
 获取 Model 实例。
