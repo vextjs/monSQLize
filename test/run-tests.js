@@ -139,6 +139,9 @@ async function runTests() {
       './unit/utils/validation.test.js'
     ];
     title = '工具函数测试套件';
+  } else if (testSuite === 'multi-level-cache') {
+    testFiles = ['./unit/infrastructure/multi-level-cache.test.js'];
+    title = 'MultiLevelCache 单元测试套件 (v1.1.9)';
   } else if (testSuite === 'infrastructure') {
     testFiles = [
       './unit/infrastructure/connection.test.js',
@@ -151,7 +154,9 @@ async function runTests() {
       './unit/infrastructure/admin.test.js',
       './unit/infrastructure/database.test.js',
       './unit/infrastructure/validation.test.js',
-      './unit/infrastructure/collection-mgmt.test.js'
+      './unit/infrastructure/collection-mgmt.test.js',
+      // 🔧 v1.1.9: MultiLevelCache 回填 TTL 修复
+      './unit/infrastructure/multi-level-cache.test.js'
     ];
     title = '基础设施测试套件';
   } else if (testSuite === 'logger') {

@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要，详细变更见 [changelogs/](./changelogs/) 目录  
-> **最后更新**: 2026-03-16
+> **最后更新**: 2026-04-02
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.1.9](./changelogs/v1.1.9.md) | 2026-04-02 | 🚨 **P1 Bug 修复**：MultiLevelCache L2→L1 回填 TTL 缺失（null 永久驻留 L1）+ 新增 `backfillLocalTTL` 配置 + Redis `getWithTTL` 方法 + 14 个回归测试 | [查看](./changelogs/v1.1.9.md) |
 | [v1.1.8](./changelogs/v1.1.8.md) | 2026-03-16 | 🆕 **新功能**：Model 热重载支持（`undefine()` + `redefine()` + `_loadModels` reload 模式）+ 22个测试 (100%通过) | [查看](./changelogs/v1.1.8.md) |
 | [v1.1.6](./changelogs/v1.1.6.md) | 2026-02-11 | 🎉 **重大功能**：精准缓存失效机制 + 🚨 upsert 缓存失效 Bug 修复 + 36个测试 (100%通过) | [查看](./changelogs/v1.1.6.md) |
 | [v1.1.4](./changelogs/v1.1.4.md) | 2026-02-09 | 🎉 重大功能：通用函数缓存 - 52个测试 (100%通过) + 多层缓存 delPattern 修复 | [查看](./changelogs/v1.1.4.md) |

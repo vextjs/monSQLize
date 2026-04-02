@@ -377,7 +377,12 @@ const msq = new MonSQLize({
     // 缓存策略
     policy: {
       writePolicy: 'both',                // 'both' | 'local-first-async-remote'
-      backfillLocalOnRemoteHit: true      // 远端命中时回填本地（默认 true）
+      backfillLocalOnRemoteHit: true,     // 远端命中时回填本地（默认 true）
+      // 🔧 v1.1.9: 回填 L1 时的兜底 TTL（毫秒）
+      // - 0（默认）: 不设 TTL，与修复前行为一致（向后兼容）
+      // - 建议生产环境配置合理值（如 60000），防止 null 值永久驻留 L1
+      // - 当 remote 支持 getWithTTL（如内置 Redis 适配器）时，优先使用 L2 剩余 TTL
+      backfillLocalTTL: 60000,            // 示例：L1 回填最多缓存 60 秒
     }
   }
 });
@@ -559,7 +564,10 @@ const msq = new MonSQLize({
     // 缓存策略配置
     policy: {
       writePolicy: 'both',                    // 'both' | 'local-first-async-remote'
-      backfillLocalOnRemoteHit: true          // 远端命中时回填本地（默认 true）
+      backfillLocalOnRemoteHit: true,         // 远端命中时回填本地（默认 true）
+      // 🔧 v1.1.9 新增：回填 L1 时的兜底 TTL（毫秒）
+      // 防止 null 值因无 TTL 永久驻留 L1，建议生产环境配置合理值
+      backfillLocalTTL: 60000,               // 回填 L1 最多缓存 60 秒
     }
   }
 });
@@ -591,7 +599,10 @@ const msq = new MonSQLize({
     // 写策略配置
     policy: {
       writePolicy: 'both',                      // 'both' | 'local-first-async-remote'
-      backfillLocalOnRemoteHit: true            // 远端命中时回填本地（默认 true）
+      backfillLocalOnRemoteHit: true,           // 远端命中时回填本地（默认 true）
+      // 🔧 v1.1.9: 回填 L1 时的兜底 TTL（毫秒），默认 0（不设 TTL，向后兼容）
+      // 当 remote 为内置 Redis 适配器时，优先使用 L2 剩余 TTL；否则使用此值兜底
+      backfillLocalTTL: 60000,                  // 建议生产环境配置此值，防止 null 永久驻留
     },
     
     remoteTimeoutMs: 50                         // 远端操作超时（默认 50ms）
