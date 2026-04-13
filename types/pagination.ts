@@ -61,6 +61,9 @@ export interface TotalsOptions {
  * 深度分页（统一版）选项
  */
 export interface FindPageOptions extends FindOptions {
+    /**
+     * 附加聚合管道（在 projection 之前执行，仅对当页数据生效）
+     */
     pipeline?: object[];
     after?: string;
     before?: string;
@@ -77,6 +80,8 @@ export interface FindPageOptions extends FindOptions {
     offsetJump?: OffsetJumpOptions;  // 小范围 offset 兜底
     totals?: TotalsOptions;          // 总数/总页数配置
     meta?: boolean | MetaOptions;    // 返回耗时元信息
+    // 注：projection 继承自 FindOptions，findPage 自 v1.2.0 起正式支持。
+    // 排序字段会被自动保留以确保游标正确生成。
 }
 
 /**

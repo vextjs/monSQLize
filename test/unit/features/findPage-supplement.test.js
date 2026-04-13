@@ -787,6 +787,186 @@ describe('findPage 补充测试套件', function() {
       console.log(`  ✓ 复杂查询返回 ${result.items.length} 条数据`);
     });
   });
+
+  // ──────────────────────────────────────────────────
+  // 10. projection 支持（v1.2.0 新增）
+  // ──────────────────────────────────────────────────
+  describe('10. projection 投影支持', function() {
+    it('10.1 包含型投影应只返回指定字段（游标仍可用）', async function() {
+      const result = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5,
+        projection: { orderId: 1, status: 1 }
+      });
+
+      assert.ok(result.items, '应该返回 items');
+      assert.equal(result.items.length, 5, '应该返回 5 条');
+      // 检查只包含指定字段（以及 _id、排序字段）
+      for (const item of result.items) {
+        assert.ok('orderId' in item, '应包含 orderId');
+        assert.ok('status' in item, '应包含 status');
+        // 排序字段 createdAt 应被自动保留
+        assert.ok('createdAt' in item, '排序字段 createdAt 应自动保留');
+        assert.ok(!('amount' in item), '不应包含 amount');
+        assert.ok(!('customerId' in item), '不应包含 customerId');
+      }
+      // 游标应正常生成
+      assert.ok(result.pageInfo.endCursor, '应该有 endCursor');
+      assert.ok(result.pageInfo.startCursor, '应该有 startCursor');
+      console.log('  ✓ 包含型投影正确过滤字段，游标正常');
+    });
+
+    it('10.2 数组形式的包含型投影', async function() {
+      const result = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5,
+        projection: ['orderId', 'amount']
+      });
+
+      assert.ok(result.items, '应该返回 items');
+      for (const item of result.items) {
+        assert.ok('orderId' in item, '应包含 orderId');
+        assert.ok('amount' in item, '应包含 amount');
+        assert.ok(!('status' in item), '不应包含 status');
+      }
+      assert.ok(result.pageInfo.endCursor, '游标应正常');
+      console.log('  ✓ 数组形式投影正常');
+    });
+
+    it('10.3 排除型投影应过滤指定字段', async function() {
+      const result = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5,
+        projection: { tags: 0, items: 0 }
+      });
+
+      assert.ok(result.items, '应该返回 items');
+      for (const item of result.items) {
+        assert.ok(!('tags' in item), '不应包含 tags');
+        assert.ok(!('items' in item), '不应包含 items');
+        assert.ok('orderId' in item, '应包含 orderId');
+        // 排序字段不应被排除
+        assert.ok('createdAt' in item, '排序字段不应被排除');
+      }
+      assert.ok(result.pageInfo.endCursor, '游标应正常');
+      console.log('  ✓ 排除型投影正确过滤，排序字段自动保留');
+    });
+
+    it('10.4 排除型投影中显式排除排序字段应被自动取消', async function() {
+      // 用户尝试排除排序字段 createdAt，框架应自动取消该排除以保护游标
+      const result = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5,
+        projection: { tags: 0, createdAt: 0 } // 尝试排除排序字段
+      });
+
+      assert.ok(result.items, '应该返回 items');
+      for (const item of result.items) {
+        // createdAt 作为排序字段，排除操作会被自动取消
+        assert.ok('createdAt' in item, 'createdAt 排除应被自动取消（保护游标）');
+      }
+      assert.ok(result.pageInfo.endCursor, '游标应正常');
+      console.log('  ✓ 排序字段的排除被自动取消，游标保护生效');
+    });
+
+    it('10.5 投影不影响游标分页的连续性', async function() {
+      // 第 1 页
+      const page1 = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5,
+        projection: { orderId: 1, status: 1 }
+      });
+      assert.equal(page1.items.length, 5, '第 1 页应有 5 条');
+      assert.ok(page1.pageInfo.endCursor, '应有 endCursor');
+
+      // 第 2 页（使用游标）
+      const page2 = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5,
+        after: page1.pageInfo.endCursor,
+        projection: { orderId: 1, status: 1 }
+      });
+      assert.equal(page2.items.length, 5, '第 2 页应有 5 条');
+
+      // 两页数据不应重叠
+      const ids1 = new Set(page1.items.map(d => String(d._id)));
+      const ids2 = new Set(page2.items.map(d => String(d._id)));
+      for (const id of ids2) {
+        assert.ok(!ids1.has(id), '两页数据不应有重叠');
+      }
+      console.log('  ✓ 带投影的游标分页连续性正常');
+    });
+
+    it('10.6 投影与 before 游标分页兼容', async function() {
+      const page1 = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5,
+        projection: { orderId: 1, amount: 1 }
+      });
+      const page2 = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5,
+        after: page1.pageInfo.endCursor,
+        projection: { orderId: 1, amount: 1 }
+      });
+      // 从 page2 返回 page1（before 模式）
+      const backPage = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5,
+        before: page2.pageInfo.startCursor,
+        projection: { orderId: 1, amount: 1 }
+      });
+      assert.equal(backPage.items.length, 5, 'before 分页应有 5 条');
+      const backIds = backPage.items.map(d => String(d._id)).sort();
+      const page1Ids = page1.items.map(d => String(d._id)).sort();
+      assert.deepStrictEqual(backIds, page1Ids, 'before 游标应返回与 page1 相同的数据');
+      console.log('  ✓ 带投影的 before 游标分页正常');
+    });
+
+    it('10.7 投影与 offsetJump 跳页兼容', async function() {
+      const result = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5,
+        page: 3,
+        offsetJump: { enable: true, maxSkip: 10000 },
+        projection: { orderId: 1, status: 1 }
+      });
+      assert.ok(result.items, '应返回 items');
+      assert.equal(result.pageInfo.currentPage, 3, '应回显页码 3');
+      for (const item of result.items) {
+        assert.ok('orderId' in item, '应包含 orderId');
+        assert.ok(!('amount' in item), '不应包含 amount');
+      }
+      console.log('  ✓ 投影与 offsetJump 跳页兼容');
+    });
+
+    it('10.8 无 projection 时行为不变', async function() {
+      const result = await collection('test_orders').findPage({
+        query: {},
+        sort: { createdAt: -1 },
+        limit: 5
+      });
+      assert.ok(result.items, '应返回 items');
+      // 不传 projection 时，所有字段应存在
+      for (const item of result.items) {
+        assert.ok('orderId' in item, '应包含 orderId');
+        assert.ok('amount' in item, '应包含 amount');
+        assert.ok('status' in item, '应包含 status');
+        assert.ok('createdAt' in item, '应包含 createdAt');
+      }
+      console.log('  ✓ 不传 projection 时全字段返回，向后兼容');
+    });
+  });
 });
 
 // 如果直接运行此文件

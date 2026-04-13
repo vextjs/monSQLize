@@ -36,7 +36,8 @@ async findPage(options = {})
 | `after` | String | 否 | - | 游标分页：获取指定游标之后的数据 |
 | `before` | String | 否 | - | 游标分页：获取指定游标之前的数据 |
 | `page` | Number | 否 | - | 跳页模式：指定要获取的页码（从 1 开始） |
-| `pipeline` | Array | 否 | `[]` | 附加的 MongoDB 聚合管道阶段（仅对当页数据生效） |
+| `projection` | Object/Array | 否 | - | 字段投影：指定返回的字段。支持包含型 `{ field: 1 }` 和排除型 `{ field: 0 }`，也支持数组形式 `['field1', 'field2']`。**注意**：排序字段会被自动保留以确保游标正确生成，无需手动包含。 |
+| `pipeline` | Array | 否 | `[]` | 附加的 MongoDB 聚合管道阶段（仅对当页数据生效，在 projection 之前执行） |
 | `hint` | Object/String | 否 | - | 指定查询使用的索引 |
 | `collation` | Object | 否 | - | 指定排序规则 |
 | `maxTimeMS` | Number | 否 | 全局配置 | 查询超时时间（毫秒） |
