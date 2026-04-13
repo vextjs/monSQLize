@@ -250,6 +250,10 @@ Model.define('users', newDefinition);
 
 获取 Model 实例。
 
+> **缓存行为**（v1.2.1+）：同一 `collectionName` 多次调用 `msq.model()` 返回**同一 ModelInstance 实例**。索引仅在首次创建实例时触发一次 `createIndexes` 命令。
+> - `Model.redefine()` 或 `Model.undefine()` 后，下次调用 `msq.model()` 自动获取新定义的实例
+> - `msq.close()` 后全部缓存清空
+
 ```javascript
 const User = msq.model('users');
 

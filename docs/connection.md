@@ -235,6 +235,7 @@ async close()
 - ✅ 关闭 MongoDB 客户端连接
 - ✅ 清理实例 ID 缓存（`_iidCache`）
 - ✅ 清理连接锁（`_connecting`）
+- ✅ 清理 ModelInstance 缓存（v1.2.1+）
 - ✅ 释放所有内部引用
 
 #### 使用示例

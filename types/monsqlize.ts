@@ -4,12 +4,13 @@
  */
 
 import type { TransactionOptions } from './options';
-import type { DbAccessor, HealthView } from './collection';
+import type { DbAccessor, HealthView, Collection } from './collection';
 import type { CacheLike } from './cache';
 import type { Transaction } from './transaction';
 import type { Lock, LockOptions } from './lock';
 import type { ExpressionFunction } from './base';
 import type { MetaInfo } from './pagination';
+import type { ModelInstance } from './model';
 
 /**
  * MonSQLize 主类
@@ -45,6 +46,29 @@ export interface MonSQLize {
      * 健康检查
      */
     health(): Promise<HealthView>;
+
+    /**
+     * 获取 Model 实例（缓存复用）
+     *
+     * 同一 collectionName 多次调用返回同一实例。
+     * Model.redefine() / Model.undefine() 后自动失效，close() 后全部清空。
+     *
+     * @param collectionName - 已注册的集合名称
+     * @returns ModelInstance 实例
+     * @throws 数据库未连接（NOT_CONNECTED）
+     * @throws Model 未定义（MODEL_NOT_DEFINED）
+     * @since 1.0.3
+     */
+    model(collectionName: string): ModelInstance;
+
+    /**
+     * 获取原始集合实例
+     *
+     * @param collectionName - 集合名称
+     * @returns Collection 实例
+     * @throws 数据库未连接（NOT_CONNECTED）
+     */
+    collection(collectionName: string): Collection;
 
 
     // ============================================================================

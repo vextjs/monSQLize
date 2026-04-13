@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.2.1](./changelogs/v1.2.1.md) | 2026-04-13 | 🐛 **Bug 修复**：`msq.model()` 实例缓存 + 索引去重 + 死代码清理 + `types/monsqlize.ts` 补全 `model()` / `collection()` 类型 | [查看](./changelogs/v1.2.1.md) |
 | [v1.2.0](./changelogs/v1.2.0.md) | 2026-04-13 | 🐛 **Bug 修复 + 新功能**：`findPage` 正式支持 `projection` 投影参数（修复静默忽略问题）+ 有效投影策略自动保护游标排序字段 + 8 个测试用例 | [查看](./changelogs/v1.2.0.md) |
 | [v1.1.9](./changelogs/v1.1.9.md) | 2026-04-02 | 🚨 **P1 Bug 修复**：MultiLevelCache L2→L1 回填 TTL 缺失（null 永久驻留 L1）+ 新增 `backfillLocalTTL` 配置 + Redis `getWithTTL` 方法 + 14 个回归测试 | [查看](./changelogs/v1.1.9.md) |
 | [v1.1.8](./changelogs/v1.1.8.md) | 2026-03-16 | 🆕 **新功能**：Model 热重载支持（`undefine()` + `redefine()` + `_loadModels` reload 模式）+ 22个测试 (100%通过) | [查看](./changelogs/v1.1.8.md) |
