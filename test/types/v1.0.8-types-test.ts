@@ -8,7 +8,7 @@
 
 // ========== 类型导入 ==========
 import type MonSQLize from 'monsqlize';
-import type { ConnectionPoolManager, SagaOrchestrator } from 'monsqlize';
+import type { ConnectionPoolManager, SagaOrchestrator, SagaContext } from 'monsqlize';
 
 // ========== 1. 验证 Change Stream 同步配置 ==========
 
@@ -41,8 +41,8 @@ function testSyncConfig() {
                 storage: 'file',
                 path: './.sync-resume-token'
             },
-            filter: (event) => event.operationType !== 'delete',
-            transform: (doc) => {
+            filter: (event: any) => event.operationType !== 'delete',
+            transform: (doc: any) => {
                 delete doc.password;
                 return doc;
             }
@@ -106,12 +106,12 @@ function testSaga() {
         steps: [
             {
                 name: 'reserve-inventory',
-                execute: async (ctx) => {
+                execute: async (ctx: SagaContext) => {
                     const result = await Promise.resolve({ inventoryId: '123' });
                     ctx.set('inventoryId', result.inventoryId);
                     return result;
                 },
-                compensate: async (ctx) => {
+                compensate: async (ctx: SagaContext) => {
                     const inventoryId = ctx.get('inventoryId');
                     await Promise.resolve();
                 },
@@ -120,10 +120,10 @@ function testSaga() {
             },
             {
                 name: 'charge-payment',
-                execute: async (ctx) => {
+                execute: async (ctx: SagaContext) => {
                     return await Promise.resolve({ chargeId: '456' });
                 },
-                compensate: async (ctx) => {
+                compensate: async (ctx: SagaContext) => {
                     await Promise.resolve();
                 }
             }
@@ -172,10 +172,10 @@ function testOrchestrator() {
         steps: [
             {
                 name: 'step1',
-                execute: async (ctx) => {
+                execute: async (ctx: SagaContext) => {
                     return await Promise.resolve();
                 },
-                compensate: async (ctx) => {
+                compensate: async (ctx: SagaContext) => {
                     await Promise.resolve();
                 }
             }

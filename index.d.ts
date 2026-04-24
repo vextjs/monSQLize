@@ -178,6 +178,7 @@ declare module 'monsqlize' {
     export import DefaultValue = Model.DefaultValue;
     export import HookContext = Model.HookContext;
     export import ValidationResult = Model.ValidationResult;
+    export import ModelConnection = Model.ModelConnection;
     export import ModelDefinition = Model.ModelDefinition;
     export import RelationConfig = Model.RelationConfig;
     export import PopulateConfig = Model.PopulateConfig;

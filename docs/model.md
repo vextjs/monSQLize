@@ -2,7 +2,7 @@
 
 Model 层提供 Schema 验证、自定义方法和生命周期钩子，让你像使用 ORM 一样使用 monSQLize。
 
-**特性**：Schema 验证 · 自定义方法 · 生命周期钩子 · 自动索引
+**特性**：Schema 验证 · 自定义方法 · 生命周期钩子 · 自动索引 · 数据源绑定（v1.2.2+）
 
 ---
 
@@ -70,6 +70,9 @@ if (user.checkPassword('secret123')) {
   - `methods` - 自定义方法
   - `hooks` - 生命周期钩子
   - `indexes` - 索引定义
+  - `connection` - 数据源绑定（v1.2.2+，可选）
+    - `pool` - 连接池名称，须与构造函数 `pools[].name` 一致
+    - `database` - 数据库名称，不填则使用实例 `databaseName`
 
 ```javascript
 Model.define('users', {
@@ -252,6 +255,7 @@ Model.define('users', newDefinition);
 
 > **缓存行为**（v1.2.1+）：同一 `collectionName` 多次调用 `msq.model()` 返回**同一 ModelInstance 实例**。索引仅在首次创建实例时触发一次 `createIndexes` 命令。
 > - `Model.redefine()` 或 `Model.undefine()` 后，下次调用 `msq.model()` 自动获取新定义的实例
+> - `Model._clear()` 后（v1.2.2 修复），所有已注册 Model 的缓存均自动失效，下次调用 `msq.model()` 重建实例
 > - `msq.close()` 后全部缓存清空
 
 ```javascript
@@ -284,6 +288,82 @@ if (!result.valid) {
 
 ---
 
+## 数据源绑定（v1.2.2+）
+
+通过 `Model.define()` 的 `connection` 字段，将 Model 绑定到指定连接池和/或数据库，实现多数据源路由。
+
+### 四种路由组合
+
+| `pool` | `database` | 路由目标 |
+|:------:|:----------:|---------|
+| —      | —          | 默认连接池 + 实例 `databaseName`（原逻辑，兼容 v1.2.1） |
+| —      | ✅          | 默认连接池 + 指定数据库 |
+| ✅      | —          | 指定连接池 + 实例 `databaseName` |
+| ✅      | ✅          | 指定连接池 + 指定数据库 |
+
+### 使用示例
+
+```javascript
+const MonSQLize = require('monsqlize');
+const { Model } = MonSQLize;
+
+// 1. 先配置 MonSQLize 实例（声明连接池）
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'main_db',
+    config: { uri: 'mongodb://localhost:27017' },
+    pools: [
+        {
+            name: 'analytics',
+            uri: 'mongodb://analytics-host:27017'
+        }
+    ]
+});
+
+// 2. 定义 Model，在 connection 中引用上面声明的池名
+// 场景 1：仅切换数据库（默认连接池）
+Model.define('AuditLog', {
+    schema: (dsl) => dsl({ action: 'string!', userId: 'objectId' }),
+    connection: { database: 'audit_db' }
+});
+
+// 场景 2：仅切换连接池（使用实例默认数据库 main_db）
+Model.define('AnalyticsEvent', {
+    schema: (dsl) => dsl({ event: 'string!', ts: 'date' }),
+    connection: { pool: 'analytics' }
+});
+
+// 场景 3：同时切换连接池 + 数据库
+Model.define('AnalyticsReport', {
+    schema: (dsl) => dsl({ reportId: 'string!', data: 'object' }),
+    connection: { pool: 'analytics', database: 'reports_db' }
+});
+
+// 普通 Model（无 connection，走默认逻辑）
+Model.define('User', {
+    schema: (dsl) => dsl({ name: 'string!', email: 'email!' })
+});
+
+// 3. 连接
+await msq.connect();
+
+// 4. 路由自动处理，调用方式不变
+const AuditLogModel       = msq.model('AuditLog');        // → audit_db（默认池）
+const AnalyticsEventModel = msq.model('AnalyticsEvent');  // → main_db（analytics 池）
+const ReportModel         = msq.model('AnalyticsReport'); // → reports_db（analytics 池）
+const UserModel           = msq.model('User');            // → main_db（默认池，原逻辑）
+```
+
+### 错误码
+
+| 错误码 | 触发条件 |
+|--------|---------|
+| `NO_POOL_MANAGER` | Model 配置了 `pool`，但构造函数未配置 `pools` |
+| `POOL_NOT_FOUND` | `pool` 指定的名称不存在于已注册的连接池 |
+| `INVALID_MODEL_DEFINITION` | `pool` 或 `database` 为空字符串 |
+
+---
+
 ## Model 自动加载（v1.0.7+）
 
 ### 功能说明
@@ -308,14 +388,19 @@ await msq.connect();  // 自动扫描 models/*.model.{js,ts,mjs,cjs}
 const User = msq.model('users');
 ```
 
+> ⚠️ **路径解析规则**：相对路径以 **`process.cwd()`**（Node.js 进程启动目录）为基准，不是以 `new MonSQLize()` 所在文件的目录为基准。通常在项目根目录启动服务时，`'./models'` 等价于 `<项目根>/models/`。如需避免歧义，建议使用绝对路径：
+> ```javascript
+> models: path.join(__dirname, 'models')
+> ```
+
 #### 完整配置
 
 ```javascript
 const msq = new MonSQLize({
     models: {
-        path: './models',               // Model 文件目录
-        pattern: '*.model.js',          // 文件名模式
-        recursive: true                 // 递归扫描子目录
+        path: path.join(__dirname, 'models'), // 推荐：绝对路径，基于当前文件目录
+        pattern: '*.model.js',               // 文件名模式
+        recursive: true                      // 递归扫描子目录
     }
 });
 ```

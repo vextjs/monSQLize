@@ -106,5 +106,47 @@ export interface ModelDefinition<T = any> {
      * }
      */
     statics?: Record<string, (...args: any[]) => any>;
+
+    /**
+     * 数据源绑定配置（v1.2.2+）
+     *
+     * 声明此 Model 使用哪个连接池和/或数据库。
+     * 不配置时行为与 v1.2.1 完全相同（向后兼容）。
+     *
+     * @example
+     * // 绑定到指定连接池 + 数据库
+     * connection: { pool: 'analytics', database: 'reports_db' }
+     *
+     * @example
+     * // 只切换数据库（使用默认连接池）
+     * connection: { database: 'logs_db' }
+     *
+     * @since v1.2.2
+     */
+    connection?: ModelConnection;
+}
+
+/**
+ * Model 数据源绑定配置
+ *
+ * 声明 Model 使用哪个连接池（pool）和/或数据库（database）。
+ * 两个字段均为可选：
+ *   - 只指定 pool   → 使用该池 + 实例初始化时的 databaseName
+ *   - 只指定 database → 使用默认连接池 + 指定数据库
+ *   - 两者都指定    → 使用指定池 + 指定数据库
+ *   - 均不指定      → 与原来完全相同（向后兼容）
+ *
+ * @since v1.2.2
+ */
+export interface ModelConnection {
+    /**
+     * 连接池名称，须与 MonSQLize 构造函数 `pools[].name` 对应
+     */
+    pool?: string;
+
+    /**
+     * 数据库名称，不指定时使用实例初始化时的 `databaseName`
+     */
+    database?: string;
 }
 

@@ -314,78 +314,102 @@ await msq.close();
 
 > **📦 依赖说明**: Model 层需要 `schema-dsl` 包支持（已随 monsqlize 自动安装，无需额外操作）
 
+Model 层有两种使用方式，二者**互斥**，选其一即可：
+
+| 方式 | 适合场景 |
+|------|---------|
+| **手动注册**（`Model.define()`）| 少量 Model、测试环境、需要精确控制加载顺序 |
+| **自动加载**（`models:` 配置项）| 生产环境，Model 文件统一放在一个目录下 |
+
+#### 方式一：手动注册
+
 ```javascript
 const MonSQLize = require('monsqlize');
 const { Model } = MonSQLize;
+
+// 1. 先在 connect() 之前调用 Model.define() 注册所有 Model
+Model.define('users', {
+    schema: (dsl) => dsl({
+        username: 'string:3-32!',
+        email: 'email!',
+        password: 'string:6-!',
+        age: 'number:0-120'
+    }),
+    relations: {
+        posts: { from: 'posts', localField: '_id', foreignField: 'userId', single: false }
+    },
+    hooks: (model) => ({
+        insert: { before: async (ctx, doc) => { doc.createdAt = new Date(); return doc; } }
+    }),
+    methods: (model) => ({
+        instance: { checkPassword(password) { return this.password === password; } },
+        static: { async findByUsername(username) { return await model.findOne({ username }); } }
+    })
+});
+
+Model.define('posts', {
+    schema: (dsl) => dsl({ title: 'string:1-200!', content: 'string!', userId: 'string!' })
+});
+
+// 2. 创建实例并连接
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'mydb',
+    config: { uri: 'mongodb://localhost:27017' },
+    cache: { enabled: true }
+});
+await msq.connect();
+
+// 3. 获取 Model 并使用
+const User = msq.model('users');
+```
+
+#### 方式二：自动加载（推荐用于生产环境）
+
+将每个 Model 单独放在一个文件里，`connect()` 时自动扫描目录加载，无需手动 `Model.define()`：
+
+```javascript
+// app.js
+const path = require('path');
 
 const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'mydb',
     config: { uri: 'mongodb://localhost:27017' },
-    cache: { enabled: true },
-    models: './models'  // 🆕 v1.0.7: 自动加载 Model 文件
+    // 推荐用绝对路径，避免受 process.cwd() 影响
+    models: path.join(__dirname, 'models')
+    // 或完整配置：
+    // models: { path: path.join(__dirname, 'models'), pattern: '*.model.js', recursive: true }
 });
 
-await msq.connect();  // 自动加载 models/*.model.js
+await msq.connect();            // ← 自动扫描 models/*.model.{js,ts,mjs,cjs}
 
-// 1. 定义 Model（带 Schema 验证、Relations 和 Hooks）
-Model.define('users', {
-    // 🔴 Schema 验证（默认启用，v1.0.7+，基于 schema-dsl 库）
+const User = msq.model('users'); // 直接使用，无需 Model.define()
+```
+
+> 相对路径（如 `'./models'`）以 `process.cwd()` 为基准，即 Node.js 进程的启动目录。为避免歧义，推荐始终使用 `path.join(__dirname, 'models')` 这样的绝对路径。
+
+```javascript
+// models/user.model.js  ← 每个 Model 独立一个文件
+module.exports = {
+    name: 'users',              // 集合名称（必需）
     schema: (dsl) => dsl({
-        username: 'string:3-32!',      // 必需，3-32 字符
-        email: 'email!',               // 必需，邮箱格式
-        password: 'string:6-!',        // 必需，至少 6 字符
-        age: 'number:0-120',           // 可选，0-120 范围
-        role: 'string?'                // 可选字符串
+        username: 'string:3-32!',
+        email: 'email!'
     }),
-    
-    // Relations（关联查询）
-    relations: {
-        posts: {  // 用户的文章
-            from: 'posts',
-            localField: '_id',
-            foreignField: 'userId',
-            single: false
-        }
-    },
-    
-    // Hooks（生命周期钩子）
-    hooks: (model) => ({
-        insert: {
-            before: async (ctx, doc) => {
-                doc.createdAt = new Date();  // 自动添加时间戳
-                return doc;
-            }
-        }
-    }),
-    
-    // 自定义方法
     methods: (model) => ({
-        instance: {
-            // 文档方法（注入到查询结果）
-            checkPassword(password) {
-                return this.password === password;
-            }
-        },
         static: {
-            // Model 方法
-            async findByUsername(username) {
-                return await model.findOne({ username });
-            }
+            async findByUsername(username) { return await model.findOne({ username }); }
         }
     })
-});
+};
+```
 
-Model.define('posts', {
-    schema: (dsl) => dsl({
-        title: 'string:1-200!',
-        content: 'string!',
-        userId: 'string!'
-    })
-});
+> 详细说明（完整配置项、文件格式、错误处理）见 [docs/model.md — Model 自动加载](./docs/model.md#model-自动加载v107)
 
-// 2. 使用 Model
-const User = msq.model('users');
+#### 两种方式共同的后续操作
+
+```javascript
 
 // ✅ Schema 验证自动生效
 try {
@@ -432,6 +456,35 @@ await User.insertOne(doc, { skipValidation: true });
 - ✅ **Relations** - 定义表关系（hasOne/hasMany/belongsTo）
 - ✅ **自定义方法** - instance 方法注入到文档，static 方法挂载到 Model
 - ✅ **自动缓存** - Populate 查询结果也会缓存
+- ✅ **数据源绑定** - `connection: { pool?, database? }` 绑定指定连接池和/或数据库（v1.2.2+）
+
+**数据源绑定示例（v1.2.2+）**：
+
+```js
+// 在多连接池场景中，将 Model 绑定到指定的连接池 + 数据库
+const msq = new MonSQLize({
+  uri: 'mongodb://localhost:27017',
+  databaseName: 'main_db',
+  pools: [{ name: 'analytics', uri: 'mongodb://analytics-host:27017' }]
+});
+
+// 绑定到不同数据库（使用默认连接池）
+Model.define('AuditLog', {
+  schema: (dsl) => dsl({ action: 'string!', userId: 'string!' }),
+  connection: { database: 'audit_db' }
+});
+
+// 绑定到不同连接池 + 不同数据库
+Model.define('AnalyticsReport', {
+  schema: (dsl) => dsl({ reportId: 'string!', data: 'object' }),
+  connection: { pool: 'analytics', database: 'reports_db' }
+});
+
+// 调用时自动路由，无需手动切换
+const AuditLogModel  = msq.model('AuditLog');       // → audit_db（默认池）
+const ReportModel    = msq.model('AnalyticsReport'); // → reports_db（analytics 池）
+const UserModel      = msq.model('users');           // → main_db（原逻辑，向后兼容）
+```
 
 📖 **详细文档**：[Model 层完整指南](./docs/model.md) | [Populate API](./docs/populate.md) | [Hooks API](./docs/hooks.md) | [Schema 验证](./docs/model.md#schema-验证)
 

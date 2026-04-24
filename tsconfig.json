@@ -9,7 +9,6 @@
     "strict": true,
     "noEmit": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
       "monsqlize": ["./index.d.ts"]
     }

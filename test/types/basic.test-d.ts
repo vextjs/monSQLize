@@ -106,7 +106,7 @@ const db = new MonSQLize({
     // ============================================================================
     // 测试 8: 事务支持
     // ============================================================================
-    await db.withTransaction(async (tx) => {
+    await db.withTransaction(async (tx: import('monsqlize').Transaction) => {
         await users.insertOne(
             { _id: '456', name: 'Charlie', age: 25, email: 'charlie@example.com' },
             { session: tx.session }
