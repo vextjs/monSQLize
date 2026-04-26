@@ -410,6 +410,97 @@ try {
 
 ---
 
+#### NOT_CONNECTED
+
+**说明**: 数据库未连接（v1.3.0+）
+
+**触发场景**:
+- 在调用 `connect()` 之前使用 `pool()` / `use()` / `scopedCollection()` / `scopedModel()`
+
+**示例**:
+```javascript
+const msq = new MonSQLize({ uri: '...' });
+// 未调用 await msq.connect()
+try {
+  msq.use('billing').collection('invoices'); // 抛出
+} catch (error) {
+  console.log(error.code); // 'NOT_CONNECTED'
+}
+```
+
+**处理建议**:
+- 确保在使用任何数据访问方法前先调用 `await msq.connect()`
+
+---
+
+#### NO_POOL_MANAGER
+
+**说明**: 未配置多连接池管理器（v1.3.0+）
+
+**触发场景**:
+- 调用 `pool()` 时，MonSQLize 构造函数未传入 `pools` 配置
+
+**示例**:
+```javascript
+const msq = new MonSQLize({ uri: 'mongodb://localhost:27017' }); // 无 pools
+await msq.connect();
+try {
+  msq.pool('cn'); // 抛出
+} catch (error) {
+  console.log(error.code); // 'NO_POOL_MANAGER'
+}
+```
+
+**处理建议**:
+- 在构造函数中配置 `pools` 选项，或改用 `use()` 切换数据库（单池多库场景）
+
+---
+
+#### POOL_NOT_FOUND
+
+**说明**: 指定连接池不存在（v1.3.0+）
+
+**触发场景**:
+- `pool(poolName)` 的 `poolName` 未在 `ConnectionPoolManager` 中注册
+
+**示例**:
+```javascript
+try {
+  msq.pool('missing-pool'); // 抛出
+} catch (error) {
+  console.log(error.code);      // 'POOL_NOT_FOUND'
+  console.log(error.available); // ['cn', 'eu'] — 当前可用连接池列表
+}
+```
+
+**处理建议**:
+- 检查 `error.available` 字段确认可用的连接池名称
+- 确认 `poolName` 与初始化时的名称完全一致（区分大小写）
+
+---
+
+#### MODEL_NOT_DEFINED
+
+**说明**: 指定 Model 未注册（v1.3.0+）
+
+**触发场景**:
+- `pool().model(key)` 或 `scopedModel(key)` 的 `key` 未注册到 Model 注册表
+
+**示例**:
+```javascript
+try {
+  msq.pool('cn').model('NonExistentModel'); // 抛出
+} catch (error) {
+  console.log(error.code); // 'MODEL_NOT_DEFINED'
+}
+```
+
+**处理建议**:
+- 确认 Model 文件已被正确加载（检查 `models.path` 配置）
+- 确认 key 字符串与 Model 定义中的 `key`（或 `name`）一致
+
+---
+
 #### CONNECTION_CLOSED
 
 **说明**: 连接已关闭
@@ -919,9 +1010,10 @@ function logError(error, context = {}) {
 - [API 文档索引](./INDEX.md)
 - [事务管理](./transaction.md)
 - [多连接池管理](./multi-pool.md)
+- [链式池/库访问 API](./pool-chain-api.md)
 - [连接配置](./connection.md)
 
 ---
 
-**文档版本**: v1.0.9  
-**最后更新**: 2026-01-20
+**文档版本**: v1.3.0  
+**最后更新**: 2026-04-26

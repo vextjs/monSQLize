@@ -70,6 +70,69 @@ export interface MonSQLize {
      */
     collection(collectionName: string): Collection;
 
+    /**
+     * 获取限定池/库的 collection（公开底层方法）
+     *
+     * opts.pool / opts.database 均为可选；均不填时退化为默认路由。
+     *
+     * @param collectionName - MongoDB 集合名
+     * @param opts.pool      - 连接池名称（可选）
+     * @param opts.database  - 数据库名称（可选）
+     * @throws NOT_CONNECTED / NO_POOL_MANAGER / POOL_NOT_FOUND
+     * @since 1.3.0
+     */
+    scopedCollection(
+      collectionName: string,
+      opts?: { pool?: string; database?: string }
+    ): ReturnType<MonSQLize['collection']>;
+
+    /**
+     * 获取限定池/库的 Model 实例（不走 _modelInstances 缓存）
+     *
+     * connection 合并语义：opts 字段优先，definition.connection 作 fallback。
+     *
+     * @param key  - 已注册的 Model key（或 alias）
+     * @param opts - 路由选项，字段优先于 definition.connection
+     * @throws NOT_CONNECTED / MODEL_NOT_DEFINED / NO_POOL_MANAGER / POOL_NOT_FOUND
+     * @since 1.3.0
+     */
+    scopedModel(
+      key: string,
+      opts?: { pool?: string; database?: string }
+    ): ReturnType<MonSQLize['model']>;
+
+    /**
+     * 获取指定连接池的链式访问器
+     *
+     * 立即校验：NOT_CONNECTED / NO_POOL_MANAGER / POOL_NOT_FOUND。
+     *
+     * @param poolName - 连接池名称
+     * @throws NOT_CONNECTED / NO_POOL_MANAGER / POOL_NOT_FOUND
+     * @since 1.3.0
+     */
+    pool(poolName: string): {
+      collection: (name: string) => ReturnType<MonSQLize['collection']>;
+      model: (key: string) => ReturnType<MonSQLize['model']>;
+      use: (dbName: string) => {
+        collection: (name: string) => ReturnType<MonSQLize['collection']>;
+        model: (key: string) => ReturnType<MonSQLize['model']>;
+      };
+    };
+
+    /**
+     * 获取「默认池 + 指定库」访问器
+     *
+     * 适用于单连接多库场景（无需配置多连接池）。
+     *
+     * @param dbName - 数据库名称
+     * @throws NOT_CONNECTED
+     * @since 1.3.0
+     */
+    use(dbName: string): {
+      collection: (name: string) => ReturnType<MonSQLize['collection']>;
+      model: (key: string) => ReturnType<MonSQLize['model']>;
+    };
+
 
     // ============================================================================
     // 事件系统

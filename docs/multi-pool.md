@@ -1963,5 +1963,13 @@ advancedExample().catch(console.error);
 - 提交 Pull Request
 - 联系维护团队
 
+---
+
+## 🔗 相关文档
+
+- [链式池/库访问 API（v1.3.0+）](./pool-chain-api.md) — 使用 `pool()` / `use()` 进行跨池跨库链式访问
+- [错误码参考](./error-codes.md) — 包含 `NO_POOL_MANAGER` / `POOL_NOT_FOUND` 等新错误码
+- [Model 层文档](./model.md)
+
 **祝您使用愉快！** 🎉
 

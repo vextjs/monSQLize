@@ -12,6 +12,7 @@
 | [mongodb-native-vs-extensions.md](mongodb-native-vs-extensions.md) | **MongoDB 原生 vs monSQLize 扩展功能对比** |
 | [connection.md](connection.md) | 连接管理和配置 |
 | [multi-pool.md](multi-pool.md) | **🎉 企业级多连接池管理 - 读写分离、负载均衡、故障转移（v1.0.8+）🆕** |
+| [pool-chain-api.md](pool-chain-api.md) | **🆕 链式池/库访问 API - pool() / use() / scopedCollection() / scopedModel()（v1.3.0+）** |
 | [objectid-auto-convert.md](objectid-auto-convert.md) | **ObjectId 自动转换 - 简化 ObjectId 处理（v1.3.0+）🆕** |
 | [model.md](model.md) | **Model 层 - Schema 验证、自定义方法、生命周期钩子（v1.0.3+）** |
 | [populate.md](populate.md) | **Populate API - 关联查询（6个方法支持，业界领先）（v1.0.6+）🆕** |
