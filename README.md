@@ -1465,27 +1465,27 @@ import type { Collection, MonSQLizeConfig } from 'monsqlize';
 ### 📦 MongoDB 原生功能
 
 ✅ **CRUD 操作**
-- find / findOne
-- insertOne / insertMany
-- updateOne / updateMany ⭐ (支持聚合管道 v1.0.8+)
-- deleteOne / deleteMany
-- replaceOne
-- findOneAndUpdate
-- findOneAndReplace
-- findOneAndDelete
+- [find](./docs/find.md) / [findOne](./docs/findOne.md)
+- [insertOne](./docs/insert-one.md) / [insertMany](./docs/insert-many.md)
+- [updateOne](./docs/update-one.md) / [updateMany](./docs/update-many.md) ⭐ (支持聚合管道 v1.0.8+)
+- [deleteOne](./docs/delete-one.md) / [deleteMany](./docs/delete-many.md)
+- [replaceOne](./docs/replace-one.md)
+- [findOneAndUpdate](./docs/find-one-and-update.md)
+- [findOneAndReplace](./docs/find-one-and-replace.md)
+- [findOneAndDelete](./docs/find-one-and-delete.md)
 
 ✅ **聚合 & 查询**
-- aggregate
-- count / distinct
-- watch (Change Streams)
-- explain
+- [aggregate](./docs/aggregate.md)
+- [count](./docs/count.md) / [distinct](./docs/distinct.md)
+- [watch (Change Streams)](./docs/watch.md)
+- [explain](./docs/explain.md)
 
 ✅ **索引管理**
 - createIndex / createIndexes
 - listIndexes
 - dropIndex / dropIndexes
 
-✅ **事务支持**
+✅ **[事务支持](./docs/transaction.md)**
 - withTransaction
 - startTransaction
 
@@ -1494,44 +1494,44 @@ import type { Collection, MonSQLizeConfig } from 'monsqlize';
 
 ### 🚀 增强功能
 
-✅ **企业级多连接池** (v1.0.8+)
+✅ **[企业级多连接池](./docs/multi-pool.md)** (v1.0.8+)
 - ConnectionPoolManager
 - 5种智能选择策略
 - 实时健康检查
 - 自动故障转移
 - 完整统计收集
 
-✅ **Saga 分布式事务** (v1.1.0 计划)
+✅ **[Saga 分布式事务](./docs/saga-transaction.md)** (v1.1.0 计划)
 - 跨服务事务（设计完成）
 - 自动补偿机制（设计完成）
 - 状态跟踪（设计完成）
 - 超时和重试（设计完成）
 
-✅ **智能缓存**
+✅ **[智能缓存](./docs/cache.md)**
 - TTL 过期策略
 - LRU 淘汰策略
 - 自动失效机制
 - 并发去重
-- 多层缓存 (内存+Redis)
+- [多层缓存 (内存+Redis)](./docs/cache-implementation.md)
 
 ✅ **便利方法**
-- findOneById
-- findByIds
-- upsertOne
-- incrementOne
-- findAndCount
+- [findOneById](./docs/find-one-by-id.md)
+- [findByIds](./docs/find-by-ids.md)
+- [upsertOne](./docs/upsert-one.md)
+- [incrementOne](./docs/increment-one.md)
+- [findAndCount](./docs/find-and-count.md)
 
 ✅ **性能优化**
-- insertBatch - 批量插入优化
-- deleteBatch - 批量删除（流式+进度监控）
-- updateBatch - 批量更新（流式+进度监控）
+- [insertBatch](./docs/insertBatch.md) - 批量插入优化
+- [deleteBatch](./docs/deleteBatch.md) - 批量删除（流式+进度监控）
+- [updateBatch](./docs/updateBatch.md) - 批量更新（流式+进度监控）
 - 只读事务优化
-- Count 队列控制
+- [Count 队列控制](./docs/count-queue.md)
 - 连接池管理
 
-✅ **分布式支持**
+✅ **[分布式支持](./docs/distributed-deployment.md)**
 - Redis 广播缓存失效
-- 分布式锁
+- [分布式锁](./docs/business-lock.md)
 - 多实例一致性
 
 </td>
@@ -1540,28 +1540,28 @@ import type { Collection, MonSQLizeConfig } from 'monsqlize';
 ### 🛠️ 企业级特性
 
 ✅ **运维监控**
-- 慢查询日志（支持持久化存储）🆕
+- [慢查询日志](./docs/slow-query-log.md)（支持持久化存储）🆕
 - 性能指标统计
 - 健康检查
 - 缓存命中率监控
 
-✅ **深度分页**
+✅ **[深度分页](./docs/findPage.md)**
 - 游标分页
 - 异步总数统计
-- 书签管理
+- [书签管理](./docs/bookmarks.md)
 - 跳页优化
 
 ✅ **数据库管理**
 - 跨库访问
-- Schema 验证
-- 集合管理
+- [Schema 验证](./docs/model.md)
+- [集合管理](./docs/collection-management.md)
 - 数据库命令
 
 ✅ **开发体验**
 - TypeScript 支持
-- 链式调用 API ⭐
+- [链式调用 API](./docs/chaining-api.md) ⭐
 - ESM/CommonJS 双模式
-- ObjectId 自动转换 ⭐
+- [ObjectId 自动转换](./docs/objectid-auto-convert.md) ⭐
 - 77% 测试覆盖率
 
 </td>
