@@ -13,8 +13,8 @@ design/
 reports/
 plans/
 
-# DevCodex AI 工作目录（记忆文件不提交）
-.devcodex/.memory/
+# DevCodex AI 工作目录（整个目录不提交）
+.devcodex/
 
 .nyc_output/
 
