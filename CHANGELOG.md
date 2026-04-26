@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.2.3](./changelogs/v1.2.3.md) | 2026-04-26 | 🐛 **Bug Fix**：`model()` 方法修复注册 key 直接作为 MongoDB 集合名的问题，优先读 `definition.collection > definition.name`，注册 key 仅作 fallback，向后兼容 | [查看](./changelogs/v1.2.3.md) |
 | [v1.2.2](./changelogs/v1.2.2.md) | 2026-04-24 | 🆕 **新功能**：Model 数据源绑定 — `connection: { pool?, database? }` 支持 Model 绑定指定连接池和/或数据库，四种组合路由，向后兼容；🐛 **Bug Fix**：修复 `Model._clear()` 导致 `msq.model()` 实例缓存失效失效，populate 关系丢失问题 | [查看](./changelogs/v1.2.2.md) |
 | [v1.2.1](./changelogs/v1.2.1.md) | 2026-04-13 | 🐛 **Bug 修复**：`msq.model()` 实例缓存 + 索引去重 + 死代码清理 + `types/monsqlize.ts` 补全 `model()` / `collection()` 类型 | [查看](./changelogs/v1.2.1.md) |
 | [v1.2.0](./changelogs/v1.2.0.md) | 2026-04-13 | 🐛 **Bug 修复 + 新功能**：`findPage` 正式支持 `projection` 投影参数（修复静默忽略问题）+ 有效投影策略自动保护游标排序字段 + 8 个测试用例 | [查看](./changelogs/v1.2.0.md) |
