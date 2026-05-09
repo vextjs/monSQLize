@@ -29,6 +29,37 @@ export interface DeleteResult {
     deletedCount: number;
 }
 
+export interface BatchErrorRecord {
+    batchIndex: number;
+    message: string;
+}
+
+export interface InsertBatchResult {
+    acknowledged: boolean;
+    totalCount: number;
+    insertedCount: number;
+    batchCount: number;
+    errors: BatchErrorRecord[];
+    insertedIds: Record<number, unknown>;
+}
+
+export interface UpdateBatchResult {
+    acknowledged: boolean;
+    totalCount: number;
+    matchedCount: number;
+    modifiedCount: number;
+    batchCount: number;
+    errors: BatchErrorRecord[];
+}
+
+export interface DeleteBatchResult {
+    acknowledged: boolean;
+    totalCount: number;
+    deletedCount: number;
+    batchCount: number;
+    errors: BatchErrorRecord[];
+}
+
 export interface IndexCreateResult {
     name: string;
 }
@@ -127,6 +158,10 @@ export interface Collection<TSchema = unknown> {
     upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
     deleteOne(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     deleteMany(filter?: unknown, options?: unknown): Promise<DeleteResult>;
+    insertBatch(documents?: unknown[], options?: unknown): Promise<InsertBatchResult>;
+    updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateBatchResult>;
+    deleteBatch(filter?: unknown, options?: unknown): Promise<DeleteBatchResult>;
+    incrementOne(filter?: unknown, field?: string | Record<string, number>, incrementOrOptions?: unknown, maybeOptions?: unknown): Promise<TSchema | null>;
     createIndex(keys: unknown, options?: unknown): Promise<IndexCreateResult>;
     createIndexes(specs: Array<{ key: unknown; } & Record<string, unknown>>): Promise<string[]>;
     listIndexes(): Promise<Record<string, unknown>[]>;

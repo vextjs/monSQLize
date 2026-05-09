@@ -41,16 +41,26 @@ import {
     watchDocuments,
 } from '../queries';
 import {
+    deleteBatchDocuments,
     deleteManyDocuments,
     deleteOneDocument,
     findOneAndDeleteDocument,
     findOneAndUpdateDocument,
+    incrementOneDocument,
+    insertBatchDocuments,
     insertManyDocuments,
     insertOneDocument,
     replaceOneDocument,
     upsertOneDocument,
+    updateBatchDocuments,
     updateManyDocuments,
     updateOneDocument,
+    type BatchWriteOptions,
+    type DeleteBatchResult,
+    type IncrementOneOptions,
+    type InsertBatchResult,
+    type UpdateBatchOptions,
+    type UpdateBatchResult,
 } from '../writes';
 
 export class MongoCollectionAccessor<TSchema extends Document = Document> {
@@ -237,6 +247,50 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
      */
     async deleteMany(...args: Parameters<Collection<TSchema>['deleteMany']>): ReturnType<Collection<TSchema>['deleteMany']> {
         return deleteManyDocuments(this.collectionRef, ...args);
+    }
+
+    /**
+     * 分批批量插入文档。
+     * @since v1.3.0
+     */
+    async insertBatch(documents: TSchema[], options?: BatchWriteOptions & Parameters<Collection<TSchema>['insertMany']>[1]): Promise<InsertBatchResult> {
+        return insertBatchDocuments(this.collectionRef, documents, options);
+    }
+
+    /**
+     * 分批更新匹配文档。
+     * @since v1.3.0
+     */
+    async updateBatch(
+        filter: Parameters<Collection<TSchema>['find']>[0],
+        update: Parameters<Collection<TSchema>['updateMany']>[1],
+        options?: UpdateBatchOptions & Parameters<Collection<TSchema>['updateMany']>[2],
+    ): Promise<UpdateBatchResult> {
+        return updateBatchDocuments(this.collectionRef, filter, update, options);
+    }
+
+    /**
+     * 分批删除匹配文档。
+     * @since v1.3.0
+     */
+    async deleteBatch(
+        filter: Parameters<Collection<TSchema>['find']>[0],
+        options?: UpdateBatchOptions & Parameters<Collection<TSchema>['deleteMany']>[1],
+    ): Promise<DeleteBatchResult> {
+        return deleteBatchDocuments(this.collectionRef, filter, options);
+    }
+
+    /**
+     * 便利字段递增/递减。
+     * @since v1.3.0
+     */
+    async incrementOne(
+        filter: Parameters<Collection<TSchema>['findOneAndUpdate']>[0],
+        field: string | Record<string, number>,
+        incrementOrOptions?: number | IncrementOneOptions,
+        maybeOptions?: IncrementOneOptions,
+    ): Promise<TSchema | null> {
+        return incrementOneDocument(this.collectionRef, filter, field, incrementOrOptions, maybeOptions);
     }
 
     /**

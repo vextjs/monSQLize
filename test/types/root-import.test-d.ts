@@ -1,6 +1,7 @@
 import { expectAssignable, expectError, expectType } from 'tsd';
 import MonSQLize, {
     type AdminAccessor,
+    type DeleteBatchResult,
     type BookmarkClearResult,
     type BookmarkListResult,
     type BookmarkPrewarmResult,
@@ -12,10 +13,12 @@ import MonSQLize, {
     type DbAccessor,
     type ExpressionObject,
     type IndexCreateResult,
+    type InsertBatchResult,
     type InsertManyResult,
     type InsertOneResult,
     type LoggerLike,
     type MonSQLizeOptions,
+    type UpdateBatchResult,
     type UpdateResult,
 } from 'monsqlize';
 
@@ -60,14 +63,18 @@ const users = db.collection<{ name: string; }>('users');
 expectType<Promise<number>>(users.count({}));
 expectType<Promise<InsertOneResult>>(users.insertOne({ name: 'Ada' }));
 expectType<Promise<InsertManyResult>>(users.insertMany([{ name: 'Ada' }, { name: 'Grace' }]));
+expectType<Promise<InsertBatchResult>>(users.insertBatch([{ name: 'Ada' }, { name: 'Grace' }]));
 expectType<Promise<UpdateResult>>(users.updateOne({}, { $set: { name: 'Ada Lovelace' } }));
 expectType<Promise<UpdateResult>>(users.updateMany({}, { $set: { active: true } }));
+expectType<Promise<UpdateBatchResult>>(users.updateBatch({}, { $set: { active: true } }));
 expectType<Promise<UpdateResult>>(users.replaceOne({}, { name: 'Grace' }));
 expectType<Promise<{ name: string; } | null>>(users.findOneAndUpdate({}, { $set: { name: 'Grace' } }));
 expectType<Promise<{ name: string; } | null>>(users.findOneAndDelete({ name: 'Grace' }));
 expectType<Promise<UpdateResult>>(users.upsertOne({}, { $set: { name: 'Upserted' } }));
+expectType<Promise<{ name: string; } | null>>(users.incrementOne({}, 'visits'));
 expectType<Promise<DeleteResult>>(users.deleteOne({ name: 'Ada Lovelace' }));
 expectType<Promise<DeleteResult>>(users.deleteMany({ active: false }));
+expectType<Promise<DeleteBatchResult>>(users.deleteBatch({ active: false }));
 expectType<Promise<IndexCreateResult>>(users.createIndex({ email: 1 }));
 expectType<Promise<string[]>>(users.createIndexes([{ key: { email: 1 }, unique: true }]));
 expectType<Promise<Record<string, unknown>[]>>(users.listIndexes());

@@ -635,6 +635,45 @@ function normalizePositiveInteger(value, fallback, field) {
 }
 
 // src/adapters/mongodb/writes/index.ts
+function splitIntoBatches(items, batchSize) {
+  if (!Number.isInteger(batchSize) || batchSize <= 0) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "batchSize must be a positive integer.");
+  }
+  const batches = [];
+  for (let index = 0; index < items.length; index += batchSize) {
+    batches.push(items.slice(index, index + batchSize));
+  }
+  return batches;
+}
+function createIncrementUpdate(field, increment = 1, setPatch) {
+  let incPayload;
+  if (typeof field === "string") {
+    if (!field.trim()) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "incrementOne: field must be a non-empty string.");
+    }
+    if (typeof increment !== "number" || Number.isNaN(increment)) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "incrementOne: increment must be a valid number.");
+    }
+    incPayload = { [field]: increment };
+  } else if (field && typeof field === "object" && !Array.isArray(field)) {
+    incPayload = {};
+    for (const [key, value] of Object.entries(field)) {
+      if (typeof value !== "number" || Number.isNaN(value)) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, `incrementOne: field "${key}" must use a numeric increment.`);
+      }
+      incPayload[key] = value;
+    }
+    if (Object.keys(incPayload).length === 0) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "incrementOne: field map must not be empty.");
+    }
+  } else {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "incrementOne: field must be a string or object.");
+  }
+  return {
+    $inc: incPayload,
+    ...setPatch && Object.keys(setPatch).length > 0 ? { $set: setPatch } : {}
+  };
+}
 async function insertOneDocument(collection, ...args) {
   return collection.insertOne(...args);
 }
@@ -667,6 +706,127 @@ async function deleteOneDocument(collection, ...args) {
 }
 async function deleteManyDocuments(collection, ...args) {
   return collection.deleteMany(...args);
+}
+async function insertBatchDocuments(collection, documents, options = {}) {
+  if (!Array.isArray(documents) || documents.length === 0) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "insertBatch: documents must be a non-empty array.");
+  }
+  const { batchSize = 1e3, ordered = false, ...driverOptions } = options;
+  const batches = splitIntoBatches(documents, batchSize);
+  const result = {
+    acknowledged: true,
+    totalCount: documents.length,
+    insertedCount: 0,
+    batchCount: batches.length,
+    errors: [],
+    insertedIds: {}
+  };
+  let offset = 0;
+  for (const [batchIndex, batch] of batches.entries()) {
+    try {
+      const batchResult = await collection.insertMany(batch, {
+        ...driverOptions,
+        ordered
+      });
+      result.insertedCount += batchResult.insertedCount;
+      for (const [key, value] of Object.entries(batchResult.insertedIds)) {
+        result.insertedIds[offset + Number.parseInt(key, 10)] = value;
+      }
+      offset += batch.length;
+    } catch (cause) {
+      result.errors.push({
+        batchIndex,
+        message: cause instanceof Error ? cause.message : String(cause)
+      });
+      throw cause;
+    }
+  }
+  return result;
+}
+async function updateBatchDocuments(collection, filter, update, options = {}) {
+  if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "updateBatch: filter must be a non-empty object.");
+  }
+  if ((!update || typeof update !== "object") && !Array.isArray(update)) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "updateBatch: update must be an object or aggregation pipeline.");
+  }
+  const { batchSize = 1e3, sort = { _id: 1 }, ...driverOptions } = options;
+  const ids = await collection.find(filter, {
+    projection: { _id: 1 },
+    sort
+  }).map((document) => document._id).toArray();
+  const batches = splitIntoBatches(ids, batchSize);
+  const result = {
+    acknowledged: true,
+    totalCount: ids.length,
+    matchedCount: 0,
+    modifiedCount: 0,
+    batchCount: batches.length,
+    errors: []
+  };
+  for (const [batchIndex, batch] of batches.entries()) {
+    try {
+      const batchResult = await collection.updateMany(
+        { _id: { $in: batch } },
+        update,
+        driverOptions
+      );
+      result.matchedCount += batchResult.matchedCount;
+      result.modifiedCount += batchResult.modifiedCount;
+    } catch (cause) {
+      result.errors.push({
+        batchIndex,
+        message: cause instanceof Error ? cause.message : String(cause)
+      });
+      throw cause;
+    }
+  }
+  return result;
+}
+async function deleteBatchDocuments(collection, filter, options = {}) {
+  if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "deleteBatch: filter must be a non-empty object.");
+  }
+  const { batchSize = 1e3, sort = { _id: 1 }, ...driverOptions } = options;
+  const ids = await collection.find(filter, {
+    projection: { _id: 1 },
+    sort
+  }).map((document) => document._id).toArray();
+  const batches = splitIntoBatches(ids, batchSize);
+  const result = {
+    acknowledged: true,
+    totalCount: ids.length,
+    deletedCount: 0,
+    batchCount: batches.length,
+    errors: []
+  };
+  for (const [batchIndex, batch] of batches.entries()) {
+    try {
+      const batchResult = await collection.deleteMany(
+        { _id: { $in: batch } },
+        driverOptions
+      );
+      result.deletedCount += batchResult.deletedCount;
+    } catch (cause) {
+      result.errors.push({
+        batchIndex,
+        message: cause instanceof Error ? cause.message : String(cause)
+      });
+      throw cause;
+    }
+  }
+  return result;
+}
+async function incrementOneDocument(collection, filter, field, incrementOrOptions, maybeOptions) {
+  const options = typeof incrementOrOptions === "number" || incrementOrOptions === void 0 ? maybeOptions ?? {} : incrementOrOptions;
+  const increment = typeof incrementOrOptions === "number" ? incrementOrOptions : 1;
+  const updateDocument = createIncrementUpdate(field, increment, options.$set);
+  const { $set, ...driverOptions } = options;
+  void $set;
+  return collection.findOneAndUpdate(filter, updateDocument, {
+    ...driverOptions,
+    returnDocument: options.returnDocument ?? "after"
+  });
 }
 
 // src/adapters/mongodb/common/accessors.ts
@@ -814,6 +974,34 @@ var MongoCollectionAccessor = class {
    */
   async deleteMany(...args) {
     return deleteManyDocuments(this.collectionRef, ...args);
+  }
+  /**
+   * 分批批量插入文档。
+   * @since v1.3.0
+   */
+  async insertBatch(documents, options) {
+    return insertBatchDocuments(this.collectionRef, documents, options);
+  }
+  /**
+   * 分批更新匹配文档。
+   * @since v1.3.0
+   */
+  async updateBatch(filter, update, options) {
+    return updateBatchDocuments(this.collectionRef, filter, update, options);
+  }
+  /**
+   * 分批删除匹配文档。
+   * @since v1.3.0
+   */
+  async deleteBatch(filter, options) {
+    return deleteBatchDocuments(this.collectionRef, filter, options);
+  }
+  /**
+   * 便利字段递增/递减。
+   * @since v1.3.0
+   */
+  async incrementOne(filter, field, incrementOrOptions, maybeOptions) {
+    return incrementOneDocument(this.collectionRef, filter, field, incrementOrOptions, maybeOptions);
   }
   /**
    * 创建单个索引。

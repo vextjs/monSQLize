@@ -18,7 +18,7 @@
 npm install monsqlize
 ```
 
-> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P2-C management-core**：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`，以及 `namespace` / `index` / `bookmark` / `db.admin()` 管理能力。**下一步** 将进入 `writes-batch extension`；真实 `model/pool/transaction/events` 与更完整缓存能力仍在后续 P2-C~P4 继续回补。
+> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P2-C writes-batch extension**：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`、`namespace` / `index` / `bookmark` / `db.admin()` 管理能力，以及 `insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 批量写入扩展。**下一步** 将进入 `P3-A cache façade`；真实 `model/pool/transaction/events` 与更完整缓存能力仍在后续 P3~P4 继续回补。
 
 [快速开始](#-快速开始) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
 
@@ -1648,7 +1648,7 @@ npm test
 npm run lint
 ```
 
-> 当前仓库已恢复到 **P2-C management-core** 级别的 `build` / `type-check` / `test` / `verify` 入口：默认验证链路已包含根入口 smoke、导出兼容、类型烟测、`test/unit/expression/**`、`test/unit/management/**` 与 `test/integration/mongodb/**` 的基础运行时验证，并已冻结当前 collection write result 契约、management-core 边界与 deferred API 边界；更完整的 batch / performance / compatibility 矩阵仍会在后续 P2-C~P4 继续补齐。若需核对完整历史测试与基准行为，请以 `monSQLize-v1` 的对应资产为参考。
+> 当前仓库已恢复到 **P2-C writes-batch extension** 级别的 `build` / `type-check` / `test` / `verify` 入口：默认验证链路已包含根入口 smoke、导出兼容、类型烟测、`test/unit/expression/**`、`test/unit/management/**`、`test/unit/writes/**` 与 `test/integration/mongodb/**` 的基础运行时验证，并已冻结当前 collection write result 契约、management-core 边界、batch extension 边界与 deferred API 边界；更完整的 cache / performance / compatibility 矩阵仍会在后续 P3~P4 继续补齐。若需核对完整历史测试与基准行为，请以 `monSQLize-v1` 的对应资产为参考。
 
 ---
 
