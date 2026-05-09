@@ -2,18 +2,17 @@
   "name": "monsqlize",
   "version": "1.3.0",
   "description": "A lightweight MongoDB ORM with multi-level caching, transaction support, distributed features, Saga distributed transactions, unified expression system with 122 operators, and universal function caching (100% MongoDB support)",
-  "main": "lib/index.js",
-  "module": "index.mjs",
   "type": "commonjs",
+  "main": "./lib/index.js",
+  "module": "./index.mjs",
+  "types": "./index.d.ts",
   "exports": {
     ".": {
+      "types": "./index.d.ts",
       "require": "./lib/index.js",
-      "import": "./index.mjs",
-      "types": "./index.d.ts"
-    },
-    "./package.json": "./package.json"
+      "import": "./index.mjs"
+    }
   },
-  "types": "./index.d.ts",
   "files": [
     "lib/",
     "types/",
@@ -48,26 +47,18 @@
   },
   "homepage": "https://github.com/vextjs/monSQLize#readme",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
   "scripts": {
-    "test": "node test/run-tests.js",
-    "test:unit": "node test/run-tests.js",
-    "test:performance": "node test/performance/transaction-benchmark.js",
-    "test:coverage": "nyc --reporter=text --reporter=lcov node test/run-tests.js",
-    "coverage": "nyc --reporter=text --reporter=lcov --reporter=html node test/run-tests.js",
-    "benchmark": "node test/benchmark/run-benchmarks.js",
-    "test:compatibility": "node test/compatibility/run-node-test.js",
-    "test:compatibility:node": "node scripts/test-node-versions.js",
-    "test:compatibility:driver": "node scripts/test-driver-versions-simple.js",
-    "test:compatibility:driver:full": "node scripts/test-driver-versions-simple.js --drivers=4.17.2,5.9.2,6.17.0,7.0.0",
-    "test:compatibility:driver:quick": "node test/compatibility/run-driver-test.js",
-    "test:compatibility:server": "node scripts/test-server-versions.js --use-memory-server",
-    "test:compatibility:server:quick": "node test/compatibility/run-server-test.js",
-    "test:compatibility:server:docker": "node scripts/test-server-versions.js",
-    "lint": "eslint lib/ test/ --ext .js",
-    "lint:fix": "eslint lib/ test/ --ext .js --fix",
-    "type-check": "tsc",
+    "build": "node scripts/build-p1.cjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test:runtime": "node --test test/smoke/root-cjs.test.js test/smoke/root-esm.test.js test/smoke/pack-artifacts.test.js test/compatibility/exports/exports.test.js",
+    "test:unit": "npm run build && node --test test/unit/expression/expression.test.js test/unit/management/management.test.js",
+    "test:integration": "npm run build && node --test test/integration/mongodb/connect.test.js test/integration/mongodb/queries.test.js test/integration/mongodb/management.test.js",
+    "test": "npm run build && npm run test:runtime && npm run test:unit && npm run test:integration",
+    "type-check": "npm run build && tsc -p tsconfig.json --noEmit && tsd --files test/types/root-import.test-d.ts",
+    "verify": "npm run lint && npm run type-check && npm run test",
     "postpublish": "echo '✅ 发布成功！请创建 GitHub Release: https://github.com/vextjs/monSQLize/releases/new?tag=v'$npm_package_version"
   },
   "peerDependenciesMeta": {
@@ -81,41 +72,16 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@types/node": "^25.0.1",
-    "benchmark": "^2.1.4",
-    "chai": "^6.2.1",
+    "esbuild": "^0.25.5",
     "eslint": "^9.39.1",
-    "mocha": "^11.7.5",
-    "mongodb-memory-server": "^10.1.2",
-    "nyc": "^15.1.0",
-    "sinon": "^21.0.0",
+    "mongodb-memory-server": "^11.1.0",
     "tsd": "^0.33.0",
     "typescript": "^5.9.3"
-  },
-  "nyc": {
-    "include": [
-      "lib/**/*.js"
-    ],
-    "exclude": [
-      "test/**",
-      "examples/**",
-      "scripts/**",
-      "reports/**"
-    ],
-    "reporter": [
-      "text",
-      "lcov",
-      "html"
-    ],
-    "check-coverage": true,
-    "lines": 70,
-    "statements": 70,
-    "functions": 70,
-    "branches": 65
   },
   "dependencies": {
     "async-lock": "^1.4.1",
     "mongodb": "^6.21.0",
-    "schema-dsl": "^1.2.4",
+    "schema-dsl": "file:../schema-dsl",
     "ssh2": "^1.17.0"
   }
 }

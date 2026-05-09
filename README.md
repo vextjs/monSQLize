@@ -10,17 +10,17 @@
 **mon**SQLize = **Mon**goDB + **SQL** = 一套语法，多种数据库
 
 [![npm version](https://img.shields.io/npm/v/monsqlize.svg)](https://www.npmjs.com/package/monsqlize)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](./index.d.ts)
-[![Test Coverage](https://img.shields.io/badge/Coverage-90.77%25-brightgreen.svg)](./TEST-COVERAGE-REPORT.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MongoDB](https://img.shields.io/badge/MongoDB-4.4%2B-green.svg)](https://www.mongodb.com/)
-[![Node.js](https://img.shields.io/badge/Node.js-16%2B-brightgreen)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-brightgreen)](https://nodejs.org/)
 
 ```bash
 npm install monsqlize
 ```
 
-[快速开始](#-快速开始) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [完整文档](./docs/INDEX.md) · [错误码参考](./docs/error-codes.md)
+> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P2-C management-core**：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`，以及 `namespace` / `index` / `bookmark` / `db.admin()` 管理能力。**下一步** 将进入 `writes-batch extension`；真实 `model/pool/transaction/events` 与更完整缓存能力仍在后续 P2-C~P4 继续回补。
+
+[快速开始](#-快速开始) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
 
 </div>
 
@@ -41,9 +41,9 @@ npm install monsqlize
   - [4. 🎯 可选Model层](#4--可选model层)
   - [5. 🔄 事务管理优化](#5--事务管理优化---减少-30-数据库访问)
 - [📊 性能测试报告](#-性能测试报告)
-- [🎨 完整功能清单](#-完整功能清单)
+- [🎨 能力概览](#-能力概览)
 - [🆚 与 MongoDB 原生驱动对比](#-与-mongodb-原生驱动对比)
-- [📖 完整文档](#-完整文档)
+- [🧭 文档现状](#文档现状)
 - [🌍 兼容性](#-兼容性)
 - [🗺️ 产品路线图](#️-产品路线图)
 - [🤝 贡献指南](#-贡献指南)
@@ -129,7 +129,7 @@ const users = await collection.find({
 - ✅ 一套代码，多种数据库
 - ✅ 零迁移成本
 
-**了解更多**: 📖 [完整项目愿景文档](./docs/PROJECT-VISION.md)
+**了解更多**：当前仓库的旧文档与示例入口已移除；历史功能语义请暂以 `monSQLize-v1` 的对应实现和文档资产为参考。
 
 ---
 
@@ -228,24 +228,12 @@ const users = await collection.find({
 ---
 
 
-## �️ 文档导航
+## 文档现状
 
-### 📚 核心概念（8 篇）
-[连接管理](./docs/connection.md) · [ObjectId 自动转换](./docs/objectid-auto-convert.md) 🆕 · [缓存系统](./docs/cache.md) · [事务管理](./docs/transaction.md) · [Model 层](./docs/model.md) · [业务锁](./docs/business-lock.md) · [SSH 隧道](./docs/ssh-tunnel.md) · [分布式部署](./docs/distributed-deployment.md)
-
-### 🔍 查询操作（8 篇）
-[find](./docs/find.md) · [findOne](./docs/findOne.md) · [findOneById](./docs/find-one-by-id.md) · [findByIds](./docs/find-by-ids.md) · [findPage](./docs/findPage.md) · [count](./docs/count.md) · [distinct](./docs/distinct.md) · [watch](./docs/watch.md) ⭐
-
-### ✏️ 写入操作（15 篇）
-**插入**: [insertOne](./docs/insert-one.md) · [insertMany](./docs/insert-many.md) · [insertBatch](./docs/insertBatch.md)  
-**更新**: [updateOne](./docs/update-one.md) · [updateMany](./docs/update-many.md) · [updateBatch](./docs/updateBatch.md) · [replaceOne](./docs/replace-one.md) · [findOneAndUpdate](./docs/find-one-and-update.md) · [findOneAndReplace](./docs/find-one-and-replace.md)  
-**删除**: [deleteOne](./docs/delete-one.md) · [deleteMany](./docs/delete-many.md) · [deleteBatch](./docs/deleteBatch.md) · [findOneAndDelete](./docs/find-one-and-delete.md)  
-**便利方法**: [upsertOne](./docs/upsert-one.md) · [incrementOne](./docs/increment-one.md) · [findAndCount](./docs/find-and-count.md)
-
-### 📊 聚合与工具（10+ 篇）
-[aggregate](./docs/aggregate.md) · [explain](./docs/explain.md) · [链式调用](./docs/chaining-api.md) ⭐ · [索引管理](./docs/create-index.md) · [Count 队列](./docs/count-queue.md) ⭐ · [慢查询日志](./docs/slow-query-log.md) · [书签管理](./docs/bookmarks.md) · [ESM 支持](./docs/esm-support.md)
-
-**完整文档索引**: [docs/INDEX.md](./docs/INDEX.md) - 60+ 篇详细文档
+- 当前仓库旧的 `docs/`、`examples/`、`test/` 已从现行资产中移除，本 README 不再维护这些本地目录的深链入口。
+- 这里保留产品定位、适用场景、快速开始和核心能力概览，帮助你先判断 monSQLize 是否适合当前业务。
+- 详细 API 语义、历史行为说明和旧示例，当前请以 `monSQLize-v1` 的对应实现资产为参考。
+- 待当前 TypeScript 重写完成后，再在本仓库补回新的文档与示例入口。
 
 ---
 
@@ -405,7 +393,7 @@ module.exports = {
 };
 ```
 
-> 详细说明（完整配置项、文件格式、错误处理）见 [docs/model.md — Model 自动加载](./docs/model.md#model-自动加载v107)
+> 完整配置项、文件格式和错误处理的历史说明，当前请以 `monSQLize-v1` 中的 Model 文档与实现为参考；本仓库不再保留对应本地深链。
 
 #### 两种方式共同的后续操作
 
@@ -486,7 +474,7 @@ const ReportModel    = msq.model('AnalyticsReport'); // → reports_db（analyti
 const UserModel      = msq.model('users');           // → main_db（原逻辑，向后兼容）
 ```
 
-📖 **详细文档**：[Model 层完整指南](./docs/model.md) | [Populate API](./docs/populate.md) | [Hooks API](./docs/hooks.md) | [Schema 验证](./docs/model.md#schema-验证)
+参考说明：Model / Populate / Hooks / Schema 验证的详细语义，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -599,7 +587,7 @@ const stats = fnCache.getStats('getUserProfile');
 console.log('命中率:', stats.hitRate);
 ```
 
-📖 [完整文档](./docs/function-cache.md) · [键生成机制](./docs/function-cache-key-generation.md)
+参考说明：Function Cache 的完整行为与键生成机制，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -712,7 +700,7 @@ await orders.aggregate([
 ]);
 ```
 
-📖 **完整文档**：[统一表达式系统](./docs/aggregate.md#统一表达式系统) | [67个操作符列表](./docs/aggregate.md#支持的操作符-67个)
+参考说明：统一表达式系统和操作符明细，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -813,7 +801,7 @@ const result = await msq.executeSaga('create-order-with-payment', data);
 - ✅ 无时间限制（突破 60秒限制）
 - ✅ 详细日志（完整执行追踪）
 
-[完整文档](./docs/saga-transaction.md)
+参考说明：Saga 分布式事务的详细设计，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -857,7 +845,7 @@ await msq.collection('users').insertOne({ name: 'Alice' });
 - ✅ 自动重连和健康检查
 - ✅ 主库影响 <2%（异步处理）
 
-[完整文档](./docs/sync-backup.md)
+参考说明：Change Stream 数据同步的详细行为，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ### 4. 📦 便利方法 - 减少 60~80% 代码
 
@@ -979,7 +967,7 @@ if (lock) {
 
 **特性**：基于 Redis · 自动重试 · TTL 防死锁 · 支持续期 · 降级策略
 
-[📖 完整文档](./docs/business-lock.md)
+参考说明：业务级分布式锁的详细行为，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ### 6. 🚀 高性能批量插入
 
@@ -1079,7 +1067,7 @@ await db.close();    // 自动关闭SSH隧道
 - ✅ 完美跨平台（基于ssh2库）
 - ✅ 开箱即用，零额外配置
 
-[📖 SSH隧道详细文档](./docs/ssh-tunnel.md)
+参考说明：SSH 隧道的详细配置与错误处理，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -1114,7 +1102,7 @@ await msq.collection('orders').insertOne(dataFromMongoose);
 | bson@5.x  | mongoose@6.x | ✅ 完全支持 |
 | bson@6.x  | mongoose@7.x | ✅ 原生支持 |
 
-[📖 完整文档](./docs/objectid-cross-version.md)
+参考说明：ObjectId 跨版本兼容的详细行为，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -1288,7 +1276,7 @@ const user = await User.findOne({ username: 'john' })
 - ✅ 支持链式调用
 - ✅ 丰富的 populate 选项（select/sort/limit/skip/match）
 
-[📖 Relations 详细文档](./docs/model/relations.md)
+参考说明：Relations / populate 的详细语义，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 **注意**：需要安装 `schema-dsl` 依赖：
 ```bash
@@ -1319,7 +1307,7 @@ await msq._loadModels({ reload: true });
 - `redefine()` 若新定义校验失败，旧定义**已被移除**（不会回滚），调用方需 try/catch
 - 已实例化的 `ModelInstance` 不受影响，热重载后应通过 `db.model()` 重新获取实例
 
-[📖 Model 层详细文档](./docs/model.md)
+参考说明：Model 热重载与完整 API 说明，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -1343,7 +1331,7 @@ watcher.on('change', (change) => {
 
 **特性**: 支持聚合管道过滤 · 断点续传 · 自动失效相关缓存
 
-[📖 完整文档](./docs/watch.md) | [示例代码](./examples/watch.examples.js)
+参考说明：Change Streams 的详细用法与旧示例，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -1367,7 +1355,7 @@ const result = await users.findPage({
 
 **效果**: 数据库 CPU 从 100% → 30% · 其他查询不再超时
 
-[📖 完整文档](./docs/count-queue.md)
+参考说明：Count 队列控制的详细行为，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -1386,7 +1374,7 @@ const result = await users
 // ✅ 代码更清晰、可读性更强
 ```
 
-[📖 完整文档](./docs/chaining-api.md) | [链式方法参考](./docs/chaining-methods.md)
+参考说明：链式调用 API 与方法明细，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -1407,24 +1395,24 @@ await Product.updateOne(
 // ❌ 如果版本不匹配（被其他请求修改），更新失败
 ```
 
-[📖 Model 层文档](./docs/model.md)
+参考说明：Model 层乐观锁的完整行为，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
 ### 5. ES Module 支持 - 现代 JavaScript
 
-```javascript
+```typescript
 // ✅ 支持 import/export
 import MonSQLize from 'monsqlize';
 
 const db = new MonSQLize({ /* ... */ });
 await db.connect();
 
-// 🎯 完美支持 TypeScript
-import type { Collection, MonSQLizeConfig } from 'monsqlize';
+// 🎯 TypeScript 消费以当前正式 `index.d.ts` 导出面为准
+import type { Collection } from 'monsqlize';
 ```
 
-[📖 ESM 文档](./docs/esm-support.md)
+参考说明：ESM 支持的详细兼容语义，当前请以 `monSQLize-v1` 的对应文档和实现为准。
 
 ---
 
@@ -1456,117 +1444,15 @@ import type { Collection, MonSQLizeConfig } from 'monsqlize';
 
 ---
 
-## 🎨 完整功能清单
+## 🎨 能力概览
 
-<table>
-<tr>
-<td width="33%">
+当前 README 不再维护逐文件级的 API 文档导航，避免继续指向已删除的本地 `docs/`、`examples/` 资产。若你只需要快速判断 monSQLize 的能力边界，可以先看这份压缩版概览：
 
-### 📦 MongoDB 原生功能
-
-✅ **CRUD 操作**
-- [find](./docs/find.md) / [findOne](./docs/findOne.md)
-- [insertOne](./docs/insert-one.md) / [insertMany](./docs/insert-many.md)
-- [updateOne](./docs/update-one.md) / [updateMany](./docs/update-many.md) ⭐ (支持聚合管道 v1.0.8+)
-- [deleteOne](./docs/delete-one.md) / [deleteMany](./docs/delete-many.md)
-- [replaceOne](./docs/replace-one.md)
-- [findOneAndUpdate](./docs/find-one-and-update.md)
-- [findOneAndReplace](./docs/find-one-and-replace.md)
-- [findOneAndDelete](./docs/find-one-and-delete.md)
-
-✅ **聚合 & 查询**
-- [aggregate](./docs/aggregate.md)
-- [count](./docs/count.md) / [distinct](./docs/distinct.md)
-- [watch (Change Streams)](./docs/watch.md)
-- [explain](./docs/explain.md)
-
-✅ **索引管理**
-- createIndex / createIndexes
-- listIndexes
-- dropIndex / dropIndexes
-
-✅ **[事务支持](./docs/transaction.md)**
-- withTransaction
-- startTransaction
-
-</td>
-<td width="33%">
-
-### 🚀 增强功能
-
-✅ **[企业级多连接池](./docs/multi-pool.md)** (v1.0.8+)
-- ConnectionPoolManager
-- 5种智能选择策略
-- 实时健康检查
-- 自动故障转移
-- 完整统计收集
-
-✅ **[Saga 分布式事务](./docs/saga-transaction.md)** (v1.1.0 计划)
-- 跨服务事务（设计完成）
-- 自动补偿机制（设计完成）
-- 状态跟踪（设计完成）
-- 超时和重试（设计完成）
-
-✅ **[智能缓存](./docs/cache.md)**
-- TTL 过期策略
-- LRU 淘汰策略
-- 自动失效机制
-- 并发去重
-- [多层缓存 (内存+Redis)](./docs/cache-implementation.md)
-
-✅ **便利方法**
-- [findOneById](./docs/find-one-by-id.md)
-- [findByIds](./docs/find-by-ids.md)
-- [upsertOne](./docs/upsert-one.md)
-- [incrementOne](./docs/increment-one.md)
-- [findAndCount](./docs/find-and-count.md)
-
-✅ **性能优化**
-- [insertBatch](./docs/insertBatch.md) - 批量插入优化
-- [deleteBatch](./docs/deleteBatch.md) - 批量删除（流式+进度监控）
-- [updateBatch](./docs/updateBatch.md) - 批量更新（流式+进度监控）
-- 只读事务优化
-- [Count 队列控制](./docs/count-queue.md)
-- 连接池管理
-
-✅ **[分布式支持](./docs/distributed-deployment.md)**
-- Redis 广播缓存失效
-- [分布式锁](./docs/business-lock.md)
-- 多实例一致性
-
-</td>
-<td width="33%">
-
-### 🛠️ 企业级特性
-
-✅ **运维监控**
-- [慢查询日志](./docs/slow-query-log.md)（支持持久化存储）🆕
-- 性能指标统计
-- 健康检查
-- 缓存命中率监控
-
-✅ **[深度分页](./docs/findPage.md)**
-- 游标分页
-- 异步总数统计
-- [书签管理](./docs/bookmarks.md)
-- 跳页优化
-
-✅ **数据库管理**
-- 跨库访问
-- [Schema 验证](./docs/model.md)
-- [集合管理](./docs/collection-management.md)
-- 数据库命令
-
-✅ **开发体验**
-- TypeScript 支持
-- [链式调用 API](./docs/chaining-api.md) ⭐
-- ESM/CommonJS 双模式
-- [ObjectId 自动转换](./docs/objectid-auto-convert.md) ⭐
-- 77% 测试覆盖率
-
-</td>
-</tr>
-</table>
+- **MongoDB 原生兼容面**：CRUD、聚合、索引、Explain、事务、Change Streams。
+- **性能与缓存**：TTL/LRU、多层缓存、并发去重、批量操作、Count 队列、分页优化、慢查询日志。
+- **企业能力**：多连接池、分布式缓存失效、业务锁、SSH 隧道、Saga、Change Stream 同步。
+- **开发体验**：Model 层、`schema-dsl` 验证、Populate / Relations、ObjectId 自动转换、ESM/CommonJS 双模式。
+- **长期方向**：在保持 MongoDB 兼容语义的前提下，逐步扩展到 MySQL / PostgreSQL 的统一查询接口。
 
 ---
 
@@ -1581,7 +1467,7 @@ import type { Collection, MonSQLizeConfig } from 'monsqlize';
 <tr>
 <td><strong>API 兼容性</strong></td>
 <td>✅ 原生</td>
-<td>✅ 100% 兼容原生，无需学习新 API</td>
+<td>🎯 兼容目标以需求文档与最终公开导出矩阵为准；当前重写阶段尚未完成该目标</td>
 </tr>
 <tr>
 <td><strong>智能缓存</strong></td>
@@ -1681,40 +1567,17 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 
 ---
 
-## 📖 完整文档
+## 📖 文档参考说明
 
-### 核心文档
+当前仓库正在进行 TypeScript 重写，旧 `docs/`、`examples/`、`test/` 已从现行资产中移除，因此这里不再维护本地深链。
 
-- 📖 [完整 API 文档索引](./docs/INDEX.md)
-- 📖 [MongoDB 原生 vs monSQLize 对比](./docs/mongodb-native-vs-extensions.md)
-- 📖 [事务使用指南](./docs/transaction.md)
-- 📖 [业务级分布式锁](./docs/business-lock.md) 🆕 v1.4.0
-- 📖 [SSH隧道使用指南](./docs/ssh-tunnel.md) 🆕 v1.3+
-- 📖 [分布式部署指南](./docs/distributed-deployment.md)
-- 📖 [性能优化指南](./docs/transaction-optimizations.md)
+当前建议的参考顺序：
 
-### 功能文档
+1. 本 README：用于快速理解 monSQLize 的定位、适用场景、核心能力与迁移方式。
+2. `monSQLize-v1`：用于核对历史 API 语义、详细功能说明和旧示例。
+3. 当前源码与需求产物：用于确认正在进行中的重写边界和最新兼容约束。
 
-**CRUD 操作**:
-- [find](./docs/find.md) | [findOne](./docs/findOne.md) | [findPage](./docs/findPage.md)
-- [insertOne](./docs/insert-one.md) | [insertMany](./docs/insert-many.md) | [insertBatch](./docs/insertBatch.md)
-- [updateOne](./docs/update-one.md) | [updateMany](./docs/update-many.md) | [updateBatch](./docs/updateBatch.md) | [replaceOne](./docs/replace-one.md)
-- [deleteOne](./docs/delete-one.md) | [deleteMany](./docs/delete-many.md) | [deleteBatch](./docs/deleteBatch.md)
-
-**Model 层**:
-- [Model API 文档](./docs/model.md) - Schema 验证、自定义方法、生命周期钩子
-
-**便利方法**:
-- [findOneById](./docs/find-one-by-id.md) | [findByIds](./docs/find-by-ids.md)
-- [upsertOne](./docs/upsert-one.md) | [incrementOne](./docs/increment-one.md) | [findAndCount](./docs/find-and-count.md)
-
-**其他功能**:
-- [索引管理](./docs/create-index.md) | [聚合查询](./docs/aggregate.md)
-- [缓存系统](./docs/cache.md) | [链式调用](./docs/chaining-api.md)
-
-### 示例代码
-
-- 📁 [完整示例代码目录](./examples/) - 50+ 可运行示例
+待当前 TS 版本的文档体系重建完成后，再在本仓库补回新的文档与示例入口。
 
 ---
 
@@ -1722,12 +1585,12 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 
 | 环境 | 支持版本 |
 |------|---------|
-| **Node.js** | 16.x, 18.x, 20.x, 21.x |
+| **Node.js** | >=18.0.0 |
 | **MongoDB** | 4.4+, 5.x, 6.x, 7.x |
 | **MongoDB Driver** | 4.x, 5.x, 6.x, 7.x |
 | **模块系统** | CommonJS, ESM |
 
-[查看完整兼容性矩阵](./docs/COMPATIBILITY.md)
+兼容性矩阵的历史细项，当前请以 `monSQLize-v1` 的对应文档和发布说明为参考。
 
 ---
 
@@ -1778,12 +1641,14 @@ cd monSQLize
 # 安装依赖
 npm install
 
-# 运行测试
+# 当前可执行校验
+npm run build
+npm run type-check
 npm test
-
-# 运行基准测试
-npm run benchmark
+npm run lint
 ```
+
+> 当前仓库已恢复到 **P2-C management-core** 级别的 `build` / `type-check` / `test` / `verify` 入口：默认验证链路已包含根入口 smoke、导出兼容、类型烟测、`test/unit/expression/**`、`test/unit/management/**` 与 `test/integration/mongodb/**` 的基础运行时验证，并已冻结当前 collection write result 契约、management-core 边界与 deferred API 边界；更完整的 batch / performance / compatibility 矩阵仍会在后续 P2-C~P4 继续补齐。若需核对完整历史测试与基准行为，请以 `monSQLize-v1` 的对应资产为参考。
 
 ---
 
@@ -1797,7 +1662,6 @@ npm run benchmark
 
 - 📧 **Email**: support@monsqlize.dev
 - 💬 **Issues**: [GitHub Issues](https://github.com/vextjs/monSQLize/issues)
-- 📖 **文档**: [完整文档](./docs/INDEX.md)
 - 🌟 **Star**: 如果觉得有用，请给我们一个 Star ⭐
 
 ---
@@ -1806,9 +1670,8 @@ npm run benchmark
 
 <div align="center">
 
-**[🚀 快速开始](#-5分钟快速开始)** · 
-**[📚 完整文档](./docs/INDEX.md)** · 
-**[💻 示例代码](./examples/)** · 
+**[🚀 快速开始](#-快速开始)** · 
+**[🧭 文档现状](#文档现状)** · 
 **[🐛 报告问题](https://github.com/vextjs/monSQLize/issues)** · 
 **[⭐ Star 项目](https://github.com/vextjs/monSQLize)**
 

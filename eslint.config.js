@@ -67,6 +67,15 @@ module.exports = [
             'no-unreachable': 'error',
         }
     },
+
+    // ESM 入口特殊配置
+    {
+        files: ['**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 2021,
+            sourceType: 'module',
+        }
+    },
     
     // 测试文件特殊配置
     {
@@ -89,8 +98,10 @@ module.exports = [
         ignores: [
             'node_modules/',
             'coverage/',
+            'lib/',
             'old/',
             'reports/',
+            'index.mjs',
             '*.min.js',
             '.nyc_output/',
         ]

@@ -27,21 +27,17 @@ cd monSQLize
 npm ci  # 推荐使用 ci 保证依赖一致性
 ```
 
-### 3. 运行测试
+### 3. 运行当前校验
 
 ```bash
-# 运行所有测试
-npm test
-
-# 运行测试并生成覆盖率报告
-npm run coverage
-
-# 运行 Lint 检查
+# 当前唯一已验证命令
 npm run lint
 
 # 自动修复 Lint 问题
 npm run lint:fix
 ```
+
+> 当前仓库仍处于 TypeScript 全量重写阶段，旧 `test/`、覆盖率与兼容性测试入口已移除；若需核对历史测试与兼容行为，请以 `monSQLize-v1` 的对应资产为参考。
 
 ---
 
@@ -59,20 +55,16 @@ git checkout -b fix/your-bug-fix
 
 - 遵循现有代码风格
 - 添加必要的注释（中文）
-- 确保所有测试通过
+- 确保当前有效校验通过
 
-### 3. 运行测试
+### 3. 运行当前校验
 
 ```bash
-# 运行测试
-npm test
-
-# 检查覆盖率（目标: ≥70%）
-npm run coverage
-
-# 运行 Lint
+# 当前唯一已验证命令
 npm run lint
 ```
+
+> 当前仓库仍处于 TypeScript 全量重写阶段，旧 `npm test` 与 `npm run coverage` 仅代表历史流程，不再作为当前贡献门禁。
 
 ### 4. 提交更改
 
@@ -143,45 +135,11 @@ async findOne(filter, options = {}) {
 
 ## 🧪 测试要求
 
-### 测试覆盖率
+### 当前测试状态
 
-- **最低要求**: 70%
-- **推荐目标**: 80%+
-- **关键模块**: 90%+
-
-### 测试文件位置
-
-```
-test/
-├── unit/                 # 单元测试
-│   ├── features/         # 功能测试
-│   ├── infrastructure/   # 基础设施测试
-│   └── utils/            # 工具函数测试
-├── integration/          # 集成测试
-└── performance/          # 性能测试
-```
-
-### 编写测试
-
-1. 测试文件命名: `*.test.js`
-2. 使用项目内置测试框架
-3. 每个测试必须独立，不依赖执行顺序
-
-示例：
-
-```javascript
-describe('findOne', function() {
-    it('should return document when found', async function() {
-        const result = await msq.collection('users').findOne({ name: 'Alice' });
-        assert.strictEqual(result.name, 'Alice');
-    });
-    
-    it('should return null when not found', async function() {
-        const result = await msq.collection('users').findOne({ name: 'NonExistent' });
-        assert.strictEqual(result, null);
-    });
-});
-```
+- 当前仓库未保留可直接执行的本地测试基线。
+- 覆盖率、兼容性测试与旧 `test/**` 结构需要等新的 TS 运行时与验证资产重建后再恢复。
+- 在该阶段提交变更时，请至少保证 `npm run lint` 通过，并同步受影响的 README / profile / 需求文档口径。
 
 ---
 
@@ -191,18 +149,7 @@ describe('findOne', function() {
 
 项目使用 GitHub Actions 实现 CI/CD：
 
-#### 1. **Test & Coverage**（测试和覆盖率）
-
-**触发条件**:
-- Push 到 `main` 或 `develop` 分支
-- Pull Request 到 `main` 或 `develop` 分支
-
-**执行内容**:
-- 在 Node.js 18.x 和 20.x 上运行测试
-- 生成覆盖率报告
-- 上传覆盖率到 Codecov
-
-#### 2. **Lint**（代码检查）
+#### 1. **Lint**（代码检查）
 
 **触发条件**:
 - 所有 Push 和 Pull Request
@@ -211,33 +158,24 @@ describe('findOne', function() {
 - 运行 ESLint 检查
 - 确保代码符合规范
 
-#### 3. **Compatibility Test**（兼容性测试）
+#### 2. **后续测试恢复**（重写完成后）
 
-**触发条件**:
-- Push 到 `main` 分支
-- Pull Request 到 `main` 分支
-- 每周日凌晨定时运行
-
-**执行内容**:
-- 测试 Node.js 14.x - 20.x 兼容性
-- 测试 MongoDB 驱动 4.x - 7.x 兼容性
+当前仓库的测试、覆盖率和兼容性工作流需要等新的 TS 运行时与验证资产恢复后再重新启用；在此之前，不应把旧 `npm test`、`npm run coverage` 或 Compatibility Test 当作当前有效门禁。
 
 ### Pull Request 检查清单
 
 在合并前，请确保：
 
-- [x] 所有测试通过 ✅
 - [x] Lint 检查通过 ✅
-- [x] 覆盖率 ≥70% ✅
 - [x] 无未解决的 Code Review 意见
 - [x] 提交消息符合规范
-- [x] 文档已更新（如有API变更）
+- [x] 文档已更新，并与当前仓库现状一致（如有 API 或入口面变更）
 
 ### 查看 CI 状态
 
 - 访问 [Actions 页面](https://github.com/vextjs/monSQLize/actions) 查看所有工作流
 - Pull Request 页面会显示所有检查状态
-- README 中的 Badges 显示最新状态
+- README 中的入口说明应与当前仓库现状一致
 
 ---
 
@@ -246,8 +184,8 @@ describe('findOne', function() {
 如果您的更改涉及 API 变更或新功能：
 
 1. **更新 README.md**: 添加功能描述和示例
-2. **更新 docs/**: 添加详细文档
-3. **更新 examples/**: 添加可运行示例
+2. **同步 profile / 需求文档**: 若修改仓库入口、命令或发布契约，需同步更新 `.devcodex/profile/*` 与相关需求产物
+3. **重建新文档/示例资产后再补充**: 当前仓库未保留旧 `docs/**`、`examples/**`；如后续重建，再在此补充对应要求
 4. **更新 CHANGELOG.md**: 记录变更（由维护者负责）
 
 ---
