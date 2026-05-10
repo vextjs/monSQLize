@@ -18,7 +18,7 @@
 npm install monsqlize
 ```
 
-> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P4-C saga/sync/slow-query-log** 的最小闭环：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`、`namespace` / `index` / `bookmark` / `db.admin()` 管理能力、`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 批量写入扩展、`MemoryCache` / `createRedisCacheAdapter` / `DistributedCacheInvalidator`、`withCache()` / `FunctionCache`、`Model.define/get/list/undefine/redefine` 与首批 model registry/features、`startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()`、`ConnectionPoolManager` / `pool()` 路由，以及最小 `defineSaga()` / `executeSaga()` / `getSagaStats()`、`ChangeStreamSyncManager` / `ResumeTokenStore` / `startSync()` / `stopSync()` / `getSyncStats()`、`SlowQueryLogManager` / `recordSlowQuery()` / `getSlowQueryLogs()` 公开面。**下一步** 将进入 `P4-D` 的 compatibility / performance / validation / docs/examples 收口；更完整的高级编排、跨进程共享与性能基线仍在后续阶段继续补齐。
+> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P4-D compatibility / performance / validation / docs 收口**：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`、`namespace` / `index` / `bookmark` / `db.admin()` 管理能力、`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 批量写入扩展、`MemoryCache` / `createRedisCacheAdapter` / `DistributedCacheInvalidator`、`withCache()` / `FunctionCache`、`Model.define/get/list/undefine/redefine` 与首批 model registry/features、`startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()`、`ConnectionPoolManager` / `pool()` 路由，以及最小 `defineSaga()` / `executeSaga()` / `getSagaStats()`、`ChangeStreamSyncManager` / `ResumeTokenStore` / `startSync()` / `stopSync()` / `getSyncStats()`、`SlowQueryLogManager` / `recordSlowQuery()` / `getSlowQueryLogs()` 公开面；同时已补回 `test/compatibility/matrix.json`、`test/compatibility/matrix.test.js`、`test/performance/baselines/function-cache.benchmark.js`、`test/validation/VERIFICATION-PROGRESS.md` 与 `test/validation/DOCS-EXAMPLES-MAPPING.md`。更完整的跨版本 / 实机矩阵与新 TS 文档体系仍在后续阶段继续补齐。
 
 [快速开始](#-快速开始) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
 
@@ -230,9 +230,10 @@ const users = await collection.find({
 
 ## 文档现状
 
-- 当前仓库旧的 `docs/`、`examples/`、`test/` 已从现行资产中移除，本 README 不再维护这些本地目录的深链入口。
+- 当前仓库旧的 `docs/`、`examples/` 与 v1 时代的历史 `test/` 资产已从现行长期资产中移除，本 README 不再维护这些旧目录的深链入口。
 - 这里保留产品定位、适用场景、快速开始和核心能力概览，帮助你先判断 monSQLize 是否适合当前业务。
-- 详细 API 语义、历史行为说明和旧示例，当前请以 `monSQLize-v1` 的对应实现资产为参考。
+- 当前已恢复的验证入口位于：`test/compatibility/**`、`test/performance/baselines/**`、`test/validation/**`。
+- 详细 API 语义、历史行为说明和旧示例，当前请以 `monSQLize-v1` 的对应实现资产为参考；映射关系见 `test/validation/DOCS-EXAMPLES-MAPPING.md`。
 - 待当前 TypeScript 重写完成后，再在本仓库补回新的文档与示例入口。
 
 ---
@@ -1568,13 +1569,14 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 
 ## 📖 文档参考说明
 
-当前仓库正在进行 TypeScript 重写，旧 `docs/`、`examples/`、`test/` 已从现行资产中移除，因此这里不再维护本地深链。
+当前仓库正在进行 TypeScript 重写，旧 `docs/`、`examples/` 与 v1 时代的历史 `test/` 资产已从现行长期资产中移除，因此这里不再维护旧目录的本地深链。
 
 当前建议的参考顺序：
 
 1. 本 README：用于快速理解 monSQLize 的定位、适用场景、核心能力与迁移方式。
-2. `monSQLize-v1`：用于核对历史 API 语义、详细功能说明和旧示例。
-3. 当前源码与需求产物：用于确认正在进行中的重写边界和最新兼容约束。
+2. `test/compatibility/**`、`test/performance/baselines/**`、`test/validation/**`：用于查看当前已恢复的验证资产与 docs/examples 承接映射。
+3. `monSQLize-v1`：用于核对历史 API 语义、详细功能说明和旧示例。
+4. 当前源码与需求产物：用于确认正在进行中的重写边界和最新兼容约束。
 
 待当前 TS 版本的文档体系重建完成后，再在本仓库补回新的文档与示例入口。
 
@@ -1582,14 +1584,14 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 
 ## 🌍 兼容性
 
-| 环境 | 支持版本 |
-|------|---------|
-| **Node.js** | >=18.0.0 |
-| **MongoDB** | 4.4+, 5.x, 6.x, 7.x |
-| **MongoDB Driver** | 4.x, 5.x, 6.x, 7.x |
-| **模块系统** | CommonJS, ESM |
+| 维度 | 当前口径 | 状态 |
+|------|---------|------|
+| **Node.js** | `>=18.0.0` | ✅ 已在当前工作区验证；Node 20.x / 22.x 实机回归待补 |
+| **MongoDB Driver** | 当前依赖为 `mongodb@^6.21.0` | ✅ 6.x 当前基线；4.x / 5.x / 7.x 不在本轮虚标为已验证 |
+| **MongoDB Server** | 当前 integration 以 `mongodb-memory-server` replica set 为主 | ✅ 当前 harness 可用；真实 6.x / 7.x 服务矩阵待补 |
+| **模块系统** | CommonJS、ESM | ✅ 已由根入口与 compatibility tests 验证 |
 
-兼容性矩阵的历史细项，当前请以 `monSQLize-v1` 的对应文档和发布说明为参考。
+当前兼容矩阵清单见 `test/compatibility/matrix.json`，当前验证说明见 `test/compatibility/README.md` 与 `test/validation/VERIFICATION-PROGRESS.md`。
 
 ---
 
@@ -1643,11 +1645,13 @@ npm install
 # 当前可执行校验
 npm run build
 npm run type-check
+npm run test:compatibility
+npm run test:performance
 npm test
 npm run lint
 ```
 
-> 当前仓库已恢复到 **P4-C saga/sync/slow-query-log** 级别的 `build` / `type-check` / `test` / `verify` 入口：默认验证链路已包含根入口 smoke、导出兼容、类型烟测、`test/unit/{expression,management,writes,cache,function-cache,model,lock,transaction,pool,sync,slow-query-log,saga}/**` 与 `test/integration/{cache,mongodb,model,transaction,pool,sync,slow-query-log}/**` 的基础运行时验证，并已冻结当前 query/write/model/cache/function-cache/transaction/lock/pool/sync/slow-query-log/saga 的最小公开契约。若需核对完整历史测试、兼容矩阵与性能基准行为，请以 `monSQLize-v1` 的对应资产为参考，并等待后续 `P4-D` 收口。
+> 当前仓库已恢复到 **P4-D compatibility / performance / validation / docs 收口** 级别的 `build` / `type-check` / `test` / `verify` 入口：默认验证链路已包含根入口 smoke、导出兼容、声明式兼容矩阵、`test/unit/{expression,management,writes,cache,function-cache,model,lock,transaction,pool,sync,slow-query-log,saga}/**` 与 `test/integration/{cache,mongodb,model,transaction,pool,sync,slow-query-log}/**` 的基础运行时验证；同时新增 `npm run test:performance` 作为 `withCache()` 热路径与并发去重的回归守卫。若需核对跨版本 / 实机矩阵，请继续参考 `monSQLize-v1` 的历史资产与 `test/validation/VERIFICATION-PROGRESS.md` 中的待补项。
 
 ---
 

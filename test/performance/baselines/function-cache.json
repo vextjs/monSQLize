@@ -1,0 +1,23 @@
+{
+  "scenario": "function-cache hot path",
+  "updatedAt": "2026-05-10",
+  "node": ">=18.0.0",
+  "targets": {
+    "samples": 20,
+    "simulatedLatencyMs": 5,
+    "ttlMs": 60000,
+    "minSpeedup": 8,
+    "maxCachedAverageMs": 1.5,
+    "concurrency": {
+      "requests": 12,
+      "simulatedLatencyMs": 25,
+      "maxUnderlyingCalls": 1,
+      "maxDurationMs": 120
+    }
+  },
+  "notes": [
+    "该基线用于回归守卫，不用于营销口径。",
+    "指标基于受控人工延迟，重点验证缓存命中路径与并发去重是否回退。"
+  ]
+}
+
