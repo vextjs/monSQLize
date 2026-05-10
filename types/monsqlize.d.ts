@@ -6,7 +6,7 @@ export interface MonSQLizeOptions {
     type?: 'mongodb';
     databaseName?: string;
     config?: Record<string, unknown>;
-    cache?: Record<string, unknown>;
+    cache?: Record<string, unknown> | MemoryCache;
     logger?: LoggerLike | null;
 }
 

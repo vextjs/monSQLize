@@ -1,3 +1,10 @@
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
+
 // src/core/errors/index.ts
 var ErrorCodes = {
   INVALID_ARGUMENT: "INVALID_ARGUMENT",
@@ -1115,6 +1122,733 @@ var MongoDbAccessor = class {
   }
 };
 
+// src/capabilities/cache/index.ts
+var MemoryCache = class _MemoryCache {
+  constructor(options = {}) {
+    this.options = options;
+    this.store = /* @__PURE__ */ new Map();
+    this.lockManager = null;
+    this.stats = {
+      hits: 0,
+      misses: 0,
+      calls: 0,
+      sets: 0,
+      deletes: 0,
+      evictions: 0,
+      memoryUsage: 0
+    };
+  }
+  /**
+   * 设置缓存锁管理器。
+   * @since v1.3.0
+   */
+  setLockManager(lockManager) {
+    this.lockManager = lockManager;
+  }
+  /**
+   * 获取缓存锁管理器。
+   * @since v1.3.0
+   */
+  getLockManager() {
+    return this.lockManager;
+  }
+  /**
+   * 获取缓存值。
+   * @since v1.3.0
+   */
+  get(key) {
+    this.stats.calls += 1;
+    const entry = this.store.get(key);
+    if (!entry) {
+      this.stats.misses += 1;
+      return void 0;
+    }
+    if (entry.expireAt !== null && entry.expireAt <= Date.now()) {
+      this.delete(key);
+      this.stats.misses += 1;
+      return void 0;
+    }
+    this.store.delete(key);
+    this.store.set(key, entry);
+    this.stats.hits += 1;
+    return entry.value;
+  }
+  /**
+   * 写入缓存值。
+   * @since v1.3.0
+   */
+  set(key, value, ttl = 0) {
+    if (this.lockManager?.isLocked(key)) {
+      return false;
+    }
+    const existing = this.store.get(key);
+    if (existing) {
+      this.stats.memoryUsage -= existing.size;
+      this.store.delete(key);
+    }
+    const entry = {
+      value,
+      size: estimateEntrySize(key, value),
+      expireAt: ttl > 0 ? Date.now() + ttl : null
+    };
+    this.store.set(key, entry);
+    this.stats.sets += 1;
+    this.stats.memoryUsage += entry.size;
+    this.enforceLimits();
+    return true;
+  }
+  /**
+   * 删除缓存值。
+   * @since v1.3.0
+   */
+  delete(key) {
+    const entry = this.store.get(key);
+    if (!entry) {
+      return false;
+    }
+    this.store.delete(key);
+    this.stats.deletes += 1;
+    this.stats.memoryUsage -= entry.size;
+    return true;
+  }
+  /**
+   * `del()` 兼容别名。
+   * @since v1.3.0
+   */
+  del(key) {
+    return this.delete(key);
+  }
+  /**
+   * 检查缓存键是否存在。
+   * @since v1.3.0
+   */
+  exists(key) {
+    return this.get(key) !== void 0;
+  }
+  /**
+   * 批量读取缓存。
+   * @since v1.3.0
+   */
+  getMany(keys) {
+    const output = {};
+    for (const key of keys) {
+      const value = this.get(key);
+      if (value !== void 0) {
+        output[key] = value;
+      }
+    }
+    return output;
+  }
+  /**
+   * 批量写入缓存。
+   * @since v1.3.0
+   */
+  setMany(values, ttl = 0) {
+    for (const [key, value] of Object.entries(values)) {
+      this.set(key, value, ttl);
+    }
+    return true;
+  }
+  /**
+   * 批量删除缓存。
+   * @since v1.3.0
+   */
+  delMany(keys) {
+    let deleted = 0;
+    for (const key of keys) {
+      if (this.delete(key)) {
+        deleted += 1;
+      }
+    }
+    return deleted;
+  }
+  /**
+   * 清空缓存。
+   * @since v1.3.0
+   */
+  clear() {
+    this.store.clear();
+    this.stats.memoryUsage = 0;
+  }
+  /**
+   * 按通配符列出缓存键。
+   * @since v1.3.0
+   */
+  keys(pattern = "*") {
+    const matcher = createWildcardMatcher(pattern);
+    return [...this.store.keys()].filter((key) => matcher.test(key));
+  }
+  /**
+   * 按通配符删除缓存键。
+   * @since v1.3.0
+   */
+  delPattern(pattern = "*") {
+    return this.delMany(this.keys(pattern));
+  }
+  /**
+   * 获取缓存统计信息。
+   * @since v1.3.0
+   */
+  getStats() {
+    return {
+      hits: this.stats.hits,
+      misses: this.stats.misses,
+      calls: this.stats.calls,
+      hitRate: this.stats.calls > 0 ? this.stats.hits / this.stats.calls : 0,
+      sets: this.stats.sets,
+      deletes: this.stats.deletes,
+      evictions: this.stats.evictions,
+      size: this.store.size,
+      memoryUsage: this.stats.memoryUsage,
+      memoryUsageMB: this.stats.memoryUsage / (1024 * 1024)
+    };
+  }
+  /**
+   * 重置缓存统计信息。
+   * @since v1.3.0
+   */
+  resetStats() {
+    this.stats.hits = 0;
+    this.stats.misses = 0;
+    this.stats.calls = 0;
+    this.stats.sets = 0;
+    this.stats.deletes = 0;
+    this.stats.evictions = 0;
+  }
+  /**
+   * 获取或创建缓存实例。
+   * @since v1.3.0
+   */
+  static getOrCreateCache(cache) {
+    return cache instanceof _MemoryCache ? cache : new _MemoryCache(cache);
+  }
+  enforceLimits() {
+    const maxSize = this.options.maxSize ?? 1e5;
+    while (this.store.size > maxSize) {
+      const oldestKey = this.store.keys().next().value;
+      if (!oldestKey) {
+        break;
+      }
+      this.delete(oldestKey);
+      this.stats.evictions += 1;
+    }
+    const maxMemory = this.options.maxMemory ?? 0;
+    if (maxMemory > 0) {
+      while (this.stats.memoryUsage > maxMemory) {
+        const oldestKey = this.store.keys().next().value;
+        if (!oldestKey) {
+          break;
+        }
+        this.delete(oldestKey);
+        this.stats.evictions += 1;
+      }
+    }
+  }
+};
+function createRedisCacheAdapter(redisUrlOrInstance, adapterOptions = {}) {
+  const { client, prefix, ownsConnection } = resolveRedisClient(redisUrlOrInstance, adapterOptions);
+  const withPrefix = (key) => `${prefix}${key}`;
+  const stripPrefix = (key) => key.startsWith(prefix) ? key.slice(prefix.length) : key;
+  const getValue = async (key) => {
+    const value = await Promise.resolve(client.get(withPrefix(key)));
+    if (value === null || value === void 0) {
+      return void 0;
+    }
+    try {
+      return JSON.parse(String(value));
+    } catch {
+      return void 0;
+    }
+  };
+  const keysFn = async (pattern = "*") => {
+    const prefixedPattern = withPrefix(pattern);
+    const keys = [];
+    if (client.scan) {
+      let cursor = "0";
+      do {
+        const [nextCursor, foundKeys] = await Promise.resolve(client.scan(cursor, "MATCH", prefixedPattern, "COUNT", 100));
+        cursor = nextCursor;
+        keys.push(...foundKeys.map(stripPrefix));
+      } while (cursor !== "0");
+      return keys;
+    }
+    throw createError(ErrorCodes.INVALID_CONFIG, "Redis cache adapter requires scan() support for keys().");
+  };
+  const delManyFn = async (keys) => {
+    if (keys.length === 0) {
+      return 0;
+    }
+    return Number(await Promise.resolve(client.del(...keys.map(withPrefix))));
+  };
+  return {
+    get: getValue,
+    async set(key, value, ttl = 0) {
+      const payload = JSON.stringify(value);
+      if (ttl > 0 && client.psetex) {
+        await Promise.resolve(client.psetex(withPrefix(key), ttl, payload));
+      } else {
+        await Promise.resolve(client.set(withPrefix(key), payload));
+      }
+      return true;
+    },
+    async del(key) {
+      const deleted = await Promise.resolve(client.del(withPrefix(key)));
+      return Number(deleted) > 0;
+    },
+    async delete(key) {
+      const deleted = await Promise.resolve(client.del(withPrefix(key)));
+      return Number(deleted) > 0;
+    },
+    async exists(key) {
+      const exists = await Promise.resolve(client.exists(withPrefix(key)));
+      return typeof exists === "boolean" ? exists : Number(exists) > 0;
+    },
+    async getMany(keys) {
+      const values = {};
+      if (keys.length === 0) {
+        return values;
+      }
+      if (client.mget) {
+        const response = await Promise.resolve(client.mget(keys.map(withPrefix)));
+        keys.forEach((key, index) => {
+          const raw = response[index];
+          if (raw === null || raw === void 0) {
+            return;
+          }
+          try {
+            values[key] = JSON.parse(String(raw));
+          } catch {
+          }
+        });
+        return values;
+      }
+      for (const key of keys) {
+        const value = await getValue(key);
+        if (value !== void 0) {
+          values[key] = value;
+        }
+      }
+      return values;
+    },
+    async setMany(values, ttl = 0) {
+      for (const [key, value] of Object.entries(values)) {
+        await this.set(key, value, ttl);
+      }
+      return true;
+    },
+    delMany: delManyFn,
+    async delPattern(pattern) {
+      const keys = await keysFn(pattern);
+      return delManyFn(keys);
+    },
+    async clear() {
+      if (client.flushdb) {
+        await Promise.resolve(client.flushdb());
+      } else {
+        const keys = await keysFn("*");
+        await delManyFn(keys);
+      }
+    },
+    keys: keysFn,
+    async close() {
+      if (ownsConnection && client.quit) {
+        await Promise.resolve(client.quit());
+      }
+    },
+    getRedisInstance() {
+      return client;
+    }
+  };
+}
+var DistributedCacheInvalidator = class {
+  constructor(options = {}) {
+    this.stats = {
+      messagesSent: 0,
+      messagesReceived: 0,
+      invalidationsTriggered: 0,
+      errors: 0
+    };
+    if (!options.cache) {
+      throw createError(ErrorCodes.INVALID_CONFIG, "DistributedCacheInvalidator requires a cache instance.");
+    }
+    this.channel = options.channel ?? "monsqlize:cache:invalidate";
+    this.instanceId = options.instanceId ?? `instance-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    this.logger = options.logger;
+    if ("local" in options.cache || "remote" in options.cache) {
+      const scopedCache = options.cache;
+      this.local = scopedCache.local;
+      this.remote = scopedCache.remote;
+    } else {
+      this.local = options.cache;
+    }
+    this.pub = options.pub;
+    this.sub = options.sub;
+  }
+  /**
+   * 执行缓存失效并按需广播。
+   * @since v1.3.0
+   */
+  async invalidate(pattern) {
+    if (!pattern) {
+      return;
+    }
+    await this.invalidateCache(pattern);
+    if (this.pub?.publish) {
+      await Promise.resolve(this.pub.publish(this.channel, JSON.stringify({
+        type: "invalidate",
+        pattern,
+        instanceId: this.instanceId,
+        timestamp: Date.now()
+      })));
+      this.stats.messagesSent += 1;
+    }
+  }
+  /**
+   * 处理外部广播消息。
+   * @since v1.3.0
+   */
+  async handleMessage(channel, message) {
+    if (channel !== this.channel) {
+      return;
+    }
+    this.stats.messagesReceived += 1;
+    try {
+      const data = JSON.parse(message);
+      if (data.instanceId === this.instanceId || data.type !== "invalidate" || !data.pattern) {
+        return;
+      }
+      await this.invalidateCache(data.pattern);
+    } catch (cause) {
+      this.stats.errors += 1;
+      this.logger?.error?.("[DistributedCacheInvalidator] Failed to parse message", cause);
+    }
+  }
+  /**
+   * 获取统计信息。
+   * @since v1.3.0
+   */
+  getStats() {
+    return {
+      ...this.stats,
+      channel: this.channel,
+      instanceId: this.instanceId
+    };
+  }
+  /**
+   * 关闭分布式失效器。
+   * @since v1.3.0
+   */
+  async close() {
+    if (this.sub?.unsubscribe) {
+      await Promise.resolve(this.sub.unsubscribe(this.channel));
+    }
+    if (this.pub?.quit) {
+      await Promise.resolve(this.pub.quit());
+    }
+    if (this.sub && this.sub !== this.pub && this.sub.quit) {
+      await Promise.resolve(this.sub.quit());
+    }
+  }
+  async invalidateCache(pattern) {
+    let deleted = 0;
+    if (this.local?.delPattern) {
+      deleted += Number(await Promise.resolve(this.local.delPattern(pattern)));
+    }
+    if (this.remote?.delPattern) {
+      deleted += Number(await Promise.resolve(this.remote.delPattern(pattern)));
+    }
+    this.stats.invalidationsTriggered += 1;
+    this.logger?.debug?.("[DistributedCacheInvalidator] invalidate", { pattern, deleted });
+  }
+};
+function resolveRedisClient(redisUrlOrInstance, adapterOptions) {
+  if (typeof redisUrlOrInstance === "string") {
+    try {
+      const IORedis = __require("ioredis");
+      return {
+        client: new IORedis(redisUrlOrInstance),
+        prefix: String(adapterOptions.prefix ?? ""),
+        ownsConnection: true
+      };
+    } catch {
+      throw createError(ErrorCodes.INVALID_CONFIG, "ioredis is required to create a Redis cache adapter from URL.");
+    }
+  }
+  if (redisUrlOrInstance && typeof redisUrlOrInstance === "object" && "client" in redisUrlOrInstance && redisUrlOrInstance.client) {
+    const options = redisUrlOrInstance;
+    return {
+      client: options.client,
+      prefix: String(options.prefix ?? ""),
+      ownsConnection: false
+    };
+  }
+  if (redisUrlOrInstance && typeof redisUrlOrInstance === "object") {
+    return {
+      client: redisUrlOrInstance,
+      prefix: String(adapterOptions.prefix ?? ""),
+      ownsConnection: false
+    };
+  }
+  throw createError(ErrorCodes.INVALID_ARGUMENT, "redisUrlOrInstance must be a Redis URL string or Redis client instance.");
+}
+function estimateEntrySize(key, value) {
+  const keySize = key.length * 2;
+  let valueSize = 8;
+  if (typeof value === "string") {
+    valueSize = value.length * 2;
+  } else if (typeof value === "object" && value !== null) {
+    try {
+      valueSize = JSON.stringify(value).length * 2;
+    } catch {
+      valueSize = 100;
+    }
+  }
+  return keySize + valueSize;
+}
+function createWildcardMatcher(pattern) {
+  const escaped = pattern.replace(/[|\\{}()[\]^$+?.]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`);
+}
+
+// src/capabilities/function-cache/index.ts
+var inflightFunctions = /* @__PURE__ */ new Map();
+function withCache(fn, options = {}) {
+  if (typeof fn !== "function") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: fn must be a function.");
+  }
+  const {
+    ttl = 6e4,
+    namespace = "fn",
+    cache = new MemoryCache(),
+    keyBuilder,
+    condition,
+    enableStats = true
+  } = options;
+  if (ttl < 0) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: ttl must be a non-negative number.");
+  }
+  if (keyBuilder && typeof keyBuilder !== "function") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: keyBuilder must be a function.");
+  }
+  if (condition && typeof condition !== "function") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: condition must be a function.");
+  }
+  const stats = {
+    hits: 0,
+    misses: 0,
+    errors: 0,
+    calls: 0,
+    totalTime: 0
+  };
+  const buildKey = (...args) => {
+    const suffix = keyBuilder ? keyBuilder(...args) : `${fn.name || "anonymous"}:${stableStringify2(args)}`;
+    return `${namespace}:${suffix}`;
+  };
+  const wrapped = (async (...args) => {
+    const startedAt = Date.now();
+    const cacheKey = buildKey(...args);
+    try {
+      const cached = await cache.get(cacheKey);
+      const exists = cached !== void 0 || await Promise.resolve(cache.exists?.(cacheKey) ?? false);
+      if (exists) {
+        if (enableStats) {
+          stats.hits += 1;
+          stats.calls += 1;
+          stats.totalTime += Date.now() - startedAt;
+        }
+        return cached;
+      }
+    } catch {
+      if (enableStats) {
+        stats.errors += 1;
+      }
+    }
+    if (inflightFunctions.has(cacheKey)) {
+      const pending = inflightFunctions.get(cacheKey);
+      const result = await pending;
+      if (enableStats) {
+        stats.hits += 1;
+        stats.calls += 1;
+        stats.totalTime += Date.now() - startedAt;
+      }
+      return result;
+    }
+    const runner = (async () => {
+      try {
+        const result = await fn(...args);
+        const shouldCache = condition ? condition(result) : true;
+        if (shouldCache) {
+          await Promise.resolve(cache.set(cacheKey, result, ttl));
+        }
+        return result;
+      } finally {
+        inflightFunctions.delete(cacheKey);
+      }
+    })();
+    inflightFunctions.set(cacheKey, runner);
+    try {
+      const result = await runner;
+      if (enableStats) {
+        stats.misses += 1;
+        stats.calls += 1;
+        stats.totalTime += Date.now() - startedAt;
+      }
+      return result;
+    } catch (cause) {
+      if (enableStats) {
+        stats.errors += 1;
+        stats.calls += 1;
+      }
+      throw cause;
+    }
+  });
+  wrapped.invalidate = async (...args) => {
+    const cacheKey = buildKey(...args);
+    const result = await Promise.resolve(cache.del?.(cacheKey) ?? cache.delete?.(cacheKey) ?? false);
+    return typeof result === "boolean" ? result : Number(result) > 0;
+  };
+  wrapped.getCacheStats = () => ({
+    hits: stats.hits,
+    misses: stats.misses,
+    calls: stats.calls,
+    hitRate: stats.calls > 0 ? stats.hits / stats.calls : 0,
+    errors: stats.errors,
+    avgTime: stats.calls > 0 ? stats.totalTime / stats.calls : 0
+  });
+  return wrapped;
+}
+var FunctionCache = class {
+  constructor(cacheOrDb, options = {}) {
+    this.options = options;
+    this.functions = /* @__PURE__ */ new Map();
+    this.cache = resolveCache(cacheOrDb);
+    if ((this.options.defaultTTL ?? 6e4) < 0) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "FunctionCache: defaultTTL must be a non-negative number.");
+    }
+  }
+  /**
+   * 注册函数。
+   * @since v1.3.0
+   */
+  register(name, fn, options = {}) {
+    if (!name?.trim()) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "FunctionCache.register: name must be a non-empty string.");
+    }
+    const cachedFn = withCache(fn, {
+      ...options,
+      cache: options.cache ?? this.cache,
+      namespace: `${this.options.namespace ?? "action"}:${name}`,
+      ttl: options.ttl ?? this.options.defaultTTL ?? 6e4,
+      enableStats: options.enableStats ?? this.options.enableStats ?? true
+    });
+    this.functions.set(name, cachedFn);
+  }
+  /**
+   * 执行已注册函数。
+   * @since v1.3.0
+   */
+  async execute(name, ...args) {
+    const fn = this.functions.get(name);
+    if (!fn) {
+      throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
+    }
+    return fn(...args);
+  }
+  /**
+   * 失效指定函数缓存。
+   * @since v1.3.0
+   */
+  async invalidate(name, ...args) {
+    const fn = this.functions.get(name);
+    if (!fn) {
+      throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
+    }
+    return fn.invalidate(...args);
+  }
+  /**
+   * 按模式失效缓存。
+   * @since v1.3.0
+   */
+  async invalidatePattern(pattern) {
+    if (!pattern?.trim()) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "FunctionCache.invalidatePattern: pattern must be a non-empty string.");
+    }
+    return Number(await Promise.resolve(this.cache.delPattern?.(`${this.options.namespace ?? "action"}:${pattern}`) ?? 0));
+  }
+  /**
+   * 获取统计信息。
+   * @since v1.3.0
+   */
+  getStats(name) {
+    if (name) {
+      const stats = this.functions.get(name)?.getCacheStats();
+      return stats ? { ...stats } : {};
+    }
+    return Object.fromEntries(
+      [...this.functions.entries()].map(([functionName, fn]) => [functionName, fn.getCacheStats()])
+    );
+  }
+  /**
+   * 列出所有已注册函数。
+   * @since v1.3.0
+   */
+  list() {
+    return [...this.functions.keys()];
+  }
+  /**
+   * 重置统计信息。
+   * @since v1.3.0
+   */
+  resetStats(name) {
+    const names = name ? [name] : [...this.functions.keys()];
+    for (const functionName of names) {
+      const fn = this.functions.get(functionName);
+      if (!fn) {
+        continue;
+      }
+      const replacement = withCache(async (...args) => fn(...args), {
+        cache: this.cache,
+        namespace: `${this.options.namespace ?? "action"}:${functionName}:reset`,
+        ttl: 0
+      });
+      replacement.invalidate = fn.invalidate;
+      this.functions.set(functionName, replacement);
+    }
+  }
+  /**
+   * 清空已注册函数。
+   * @since v1.3.0
+   */
+  clear() {
+    this.functions.clear();
+  }
+};
+function resolveCache(cacheOrDb) {
+  if (cacheOrDb && typeof cacheOrDb === "object" && typeof cacheOrDb.getCache === "function") {
+    return cacheOrDb.getCache();
+  }
+  if (cacheOrDb && typeof cacheOrDb === "object" && typeof cacheOrDb.get === "function" && typeof cacheOrDb.set === "function") {
+    return cacheOrDb;
+  }
+  return new MemoryCache();
+}
+function stableStringify2(value) {
+  if (value === null || value === void 0) {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify2(item)).join(",")}]`;
+  }
+  if (value instanceof Date) {
+    return JSON.stringify(value.toISOString());
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => `${JSON.stringify(key)}:${stableStringify2(item)}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 // src/adapters/mongodb/common/connect.ts
 import { MongoClient } from "mongodb";
 async function connectMongo(params) {
@@ -1204,74 +1938,6 @@ var Logger = class _Logger {
 };
 
 // src/entry/runtime-core.ts
-var MemoryCache = class _MemoryCache {
-  constructor(options = {}) {
-    this.options = options;
-    this.store = /* @__PURE__ */ new Map();
-    void this.options;
-  }
-  /**
-   * 获取缓存值。
-   * @since v1.3.0
-   */
-  get(key) {
-    return this.store.get(key);
-  }
-  /**
-   * 写入缓存值。
-   * @since v1.3.0
-   */
-  set(key, value) {
-    this.store.set(key, value);
-    return true;
-  }
-  /**
-   * 删除缓存值。
-   * @since v1.3.0
-   */
-  delete(key) {
-    return this.store.delete(key);
-  }
-  /**
-   * 清空缓存。
-   * @since v1.3.0
-   */
-  clear() {
-    this.store.clear();
-  }
-  /**
-   * 按通配符列出缓存键。
-   * @since v1.3.0
-   */
-  keys(pattern = "*") {
-    const matcher = createWildcardMatcher(pattern);
-    return [...this.store.keys()].filter((key) => matcher.test(key));
-  }
-  /**
-   * 按通配符删除缓存键。
-   * @since v1.3.0
-   */
-  delPattern(pattern = "*") {
-    const keys = this.keys(pattern);
-    for (const key of keys) {
-      this.store.delete(key);
-    }
-    return keys.length;
-  }
-  /**
-   * 获取或创建缓存实例。
-   * @since v1.3.0
-   */
-  static getOrCreateCache(cache) {
-    return cache instanceof _MemoryCache ? cache : new _MemoryCache(cache);
-  }
-};
-function createRedisCacheAdapter(options = {}) {
-  return {
-    kind: "redis-cache-adapter",
-    options
-  };
-}
 var TransactionManager = class {
   /**
    * 创建事务管理器。
@@ -1290,15 +1956,6 @@ var CacheLockManager = class {
     this.options = options;
   }
 };
-var DistributedCacheInvalidator = class {
-  /**
-   * 创建分布式缓存失效器。
-   * @since v1.3.0
-   */
-  constructor(options = {}) {
-    this.options = options;
-  }
-};
 var ConnectionPoolManager = class {
   /**
    * 创建连接池管理器。
@@ -1306,55 +1963,6 @@ var ConnectionPoolManager = class {
    */
   constructor(options = {}) {
     this.options = options;
-  }
-};
-function withCache(fn, _options = {}) {
-  const wrapped = (async (...args) => fn(...args));
-  wrapped.invalidate = async () => true;
-  return wrapped;
-}
-var FunctionCache = class {
-  constructor(cacheOrDb, options = {}) {
-    this.cacheOrDb = cacheOrDb;
-    this.options = options;
-    this.functions = /* @__PURE__ */ new Map();
-  }
-  /**
-   * 注册函数缓存项。
-   * @since v1.3.0
-   */
-  register(name, fn) {
-    this.functions.set(name, fn);
-  }
-  /**
-   * 执行已注册函数。
-   * @since v1.3.0
-   */
-  async execute(name, ...args) {
-    const fn = this.functions.get(name);
-    if (!fn) {
-      throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
-    }
-    return fn(...args);
-  }
-  /**
-   * 失效指定缓存。
-   * @since v1.3.0
-   */
-  async invalidate(_name, ..._args) {
-    return true;
-  }
-  /**
-   * 获取缓存统计。
-   * @since v1.3.0
-   */
-  getStats(_name) {
-    return {
-      hits: 0,
-      misses: 0,
-      calls: 0,
-      hitRate: 0
-    };
   }
 };
 var Model = class {
@@ -1613,10 +2221,6 @@ var MonSQLizeRuntime = class {
     return this.options.databaseName ?? "default";
   }
 };
-function createWildcardMatcher(pattern) {
-  const escaped = pattern.replace(/[|\\{}()[\]^$+?.]/g, "\\$&").replace(/\*/g, ".*");
-  return new RegExp(`^${escaped}$`);
-}
 
 // src/entry/index.mts
 var MonSQLize = MonSQLizeRuntime;

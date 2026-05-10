@@ -1,6 +1,8 @@
 import { expectAssignable, expectError, expectType } from 'tsd';
 import MonSQLize, {
     type AdminAccessor,
+    type CacheLike,
+    type CacheLockLike,
     type DeleteBatchResult,
     type BookmarkClearResult,
     type BookmarkListResult,
@@ -34,6 +36,10 @@ const logger: LoggerLike = {
     info: (...args: unknown[]) => args,
 };
 
+const lockManager: CacheLockLike = {
+    isLocked: (_key: string) => false,
+};
+
 const db = new MonSQLize({
     type: 'mongodb',
     databaseName: 'p1_types',
@@ -44,6 +50,7 @@ expectAssignable<MonSQLizeOptions>({
     type: 'mongodb',
     databaseName: 'p1_types',
     logger,
+    cache: new MonSQLize.MemoryCache(),
 });
 
 expectType<Promise<{
@@ -58,6 +65,7 @@ expectType<Promise<{
 expectType<Collection>(db.collection('users'));
 expectType<DbAccessor>(db.db());
 expectType<AdminAccessor>(db.db().admin());
+expectAssignable<CacheLike>(MonSQLize.createRedisCacheAdapter({ client: { get() { return null; }, set() {}, del() { return 0; }, exists() { return false; }, scan() { return ['0', []]; } } }));
 
 const users = db.collection<{ name: string; }>('users');
 expectType<Promise<number>>(users.count({}));
@@ -87,6 +95,11 @@ expectType<Promise<unknown[]>>(users.distinct('name'));
 expectType<Promise<unknown[]>>(users.aggregate([]));
 expectType<Promise<{ data: { name: string; }[]; page: { page: number; limit: number; }; totals: { total: number; totalPages: number; }; }>>(users.findPage({ page: 1, limit: 10 }));
 expectType<Promise<boolean>>(db.db().admin().ping());
+
+const memoryCache = new MonSQLize.MemoryCache();
+memoryCache.setLockManager(lockManager);
+expectType<CacheLockLike | null>(memoryCache.getLockManager());
+expectType<Record<string, unknown>>(memoryCache.getMany(['a']));
 
 // 当前仍明确后移的 API。
 expectError(users.findOneAndReplace({}, {}));

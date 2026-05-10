@@ -22,6 +22,8 @@ import type {
 } from './types/collection';
 import type { MonSQLize as MonSQLizeInstance, MonSQLizeOptions } from './types/monsqlize';
 import {
+    CacheLike,
+    CacheLockLike,
     CacheLockManager,
     ConnectionPoolManager,
     DistributedCacheInvalidator,
@@ -36,6 +38,7 @@ import {
     createExpression,
     createRedisCacheAdapter,
     expr,
+    RedisCacheAdapterOptions,
     withCache,
 } from './types/runtime';
 
@@ -65,6 +68,9 @@ export type {
     DbStatsView,
     HealthView,
     MonSQLizeOptions,
+    CacheLike,
+    CacheLockLike,
+    RedisCacheAdapterOptions,
     WithCacheOptions,
     CacheStats,
     CachedFunction,

@@ -10,99 +10,34 @@ import {
     MongoCollectionAccessor as CollectionFacade,
     MongoDbAccessor as DbFacade,
 } from '../adapters/mongodb/common/accessors';
+import {
+    createRedisCacheAdapter,
+    DistributedCacheInvalidator,
+    MemoryCache,
+    type CacheStats,
+} from '../capabilities/cache';
+import {
+    CachedFunction,
+    FunctionCache,
+    withCache,
+    type WithCacheOptions,
+} from '../capabilities/function-cache';
 import { closeMongo, connectMongo, type MongoConnectConfig } from '../adapters/mongodb/common/connect';
 import { createExpression, expr, type ExpressionObject } from '../core/expression';
-import { createError, ErrorCodes } from '../core/errors';
+import { ErrorCodes, createError } from '../core/errors';
 import { Logger, type LoggerLike } from '../core/logger';
 
-export { CollectionFacade, DbFacade, Logger };
+export { CollectionFacade, DbFacade, Logger, MemoryCache, createRedisCacheAdapter, DistributedCacheInvalidator };
+export { FunctionCache, withCache };
 export { createExpression, expr };
-export type { ExpressionObject, LoggerLike };
+export type { CacheStats, CachedFunction, ExpressionObject, LoggerLike, WithCacheOptions };
 
 export interface MonSQLizeOptions {
     type?: 'mongodb';
     databaseName?: string;
     config?: MongoConnectConfig;
-    cache?: Record<string, unknown>;
+    cache?: Record<string, unknown> | MemoryCache;
     logger?: LoggerLike | null;
-}
-
-
-export class MemoryCache {
-    private readonly store = new Map<string, unknown>();
-
-    constructor(private readonly options: Record<string, unknown> = {}) {
-        void this.options;
-    }
-
-    /**
-     * 获取缓存值。
-     * @since v1.3.0
-     */
-    get(key: string): unknown {
-        return this.store.get(key);
-    }
-
-    /**
-     * 写入缓存值。
-     * @since v1.3.0
-     */
-    set(key: string, value: unknown): boolean {
-        this.store.set(key, value);
-        return true;
-    }
-
-    /**
-     * 删除缓存值。
-     * @since v1.3.0
-     */
-    delete(key: string): boolean {
-        return this.store.delete(key);
-    }
-
-    /**
-     * 清空缓存。
-     * @since v1.3.0
-     */
-    clear(): void {
-        this.store.clear();
-    }
-
-    /**
-     * 按通配符列出缓存键。
-     * @since v1.3.0
-     */
-    keys(pattern = '*'): string[] {
-        const matcher = createWildcardMatcher(pattern);
-        return [...this.store.keys()].filter((key) => matcher.test(key));
-    }
-
-    /**
-     * 按通配符删除缓存键。
-     * @since v1.3.0
-     */
-    delPattern(pattern = '*'): number {
-        const keys = this.keys(pattern);
-        for (const key of keys) {
-            this.store.delete(key);
-        }
-        return keys.length;
-    }
-
-    /**
-     * 获取或创建缓存实例。
-     * @since v1.3.0
-     */
-    static getOrCreateCache(cache?: Record<string, unknown> | MemoryCache): MemoryCache {
-        return cache instanceof MemoryCache ? cache : new MemoryCache(cache);
-    }
-}
-
-export function createRedisCacheAdapter(options: Record<string, unknown> = {}): Record<string, unknown> {
-    return {
-        kind: 'redis-cache-adapter',
-        options,
-    };
 }
 
 export class TransactionManager {
@@ -121,14 +56,6 @@ export class CacheLockManager {
     constructor(public readonly options: Record<string, unknown> = {}) {}
 }
 
-export class DistributedCacheInvalidator {
-    /**
-     * 创建分布式缓存失效器。
-     * @since v1.3.0
-     */
-    constructor(public readonly options: Record<string, unknown> = {}) {}
-}
-
 export class ConnectionPoolManager {
     /**
      * 创建连接池管理器。
@@ -137,81 +64,6 @@ export class ConnectionPoolManager {
     constructor(public readonly options: Record<string, unknown> = {}) {}
 }
 
-export interface CacheStats {
-    hits: number;
-    misses: number;
-    calls: number;
-    hitRate: number;
-}
-
-export interface WithCacheOptions {
-    ttl?: number;
-    namespace?: string;
-    cache?: unknown;
-}
-
-export type CachedFunction<TArgs extends unknown[] = unknown[], TResult = unknown> = ((...args: TArgs) => Promise<TResult>) & {
-    invalidate: (...args: TArgs) => Promise<boolean>;
-};
-
-export function withCache<TArgs extends unknown[], TResult>(
-    fn: (...args: TArgs) => Promise<TResult>,
-    _options: WithCacheOptions = {},
-): CachedFunction<TArgs, TResult> {
-    const wrapped = (async (...args: TArgs) => fn(...args)) as CachedFunction<TArgs, TResult>;
-    wrapped.invalidate = async () => true;
-    return wrapped;
-}
-
-export class FunctionCache {
-    private readonly functions = new Map<string, (...args: unknown[]) => Promise<unknown>>();
-
-    constructor(
-        public readonly cacheOrDb: unknown,
-        public readonly options: Record<string, unknown> = {},
-    ) {}
-
-    /**
-     * 注册函数缓存项。
-     * @since v1.3.0
-     */
-    register(name: string, fn: (...args: unknown[]) => Promise<unknown>): void {
-        this.functions.set(name, fn);
-    }
-
-    /**
-     * 执行已注册函数。
-     * @since v1.3.0
-     */
-    async execute(name: string, ...args: unknown[]): Promise<unknown> {
-        const fn = this.functions.get(name);
-        if (!fn) {
-            throw createError('FUNCTION_NOT_REGISTERED', `Function not registered: ${name}`);
-        }
-        return fn(...args);
-    }
-
-    /**
-     * 失效指定缓存。
-     * @since v1.3.0
-     */
-    async invalidate(_name: string, ..._args: unknown[]): Promise<boolean> {
-        return true;
-    }
-
-    /**
-     * 获取缓存统计。
-     * @since v1.3.0
-     */
-    getStats(_name: string): CacheStats {
-        return {
-            hits: 0,
-            misses: 0,
-            calls: 0,
-            hitRate: 0,
-        };
-    }
-}
 
 export class Model {
     private static definitions: Map<string, Record<string, unknown>>;
@@ -528,10 +380,4 @@ export class MonSQLizeRuntime {
     }
 }
 
-function createWildcardMatcher(pattern: string): RegExp {
-    const escaped = pattern
-        .replace(/[|\\{}()[\]^$+?.]/g, '\\$&')
-        .replace(/\*/g, '.*');
-    return new RegExp(`^${escaped}$`);
-}
 
