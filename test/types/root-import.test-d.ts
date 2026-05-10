@@ -3,6 +3,10 @@ import MonSQLize, {
     type AdminAccessor,
     type CacheLike,
     type CacheLockLike,
+    type LockOptions,
+    type LockStats,
+    type TransactionOptions,
+    type TransactionContract,
     type DeleteBatchResult,
     type BookmarkClearResult,
     type BookmarkListResult,
@@ -101,6 +105,15 @@ const memoryCache = new MonSQLize.MemoryCache();
 memoryCache.setLockManager(lockManager);
 expectType<CacheLockLike | null>(memoryCache.getLockManager());
 expectType<Record<string, unknown>>(memoryCache.getMany(['a']));
+
+const txOptions: TransactionOptions = { maxDuration: 1000, maxRetries: 1 };
+const lockOptions: LockOptions = { ttl: 1000, retryTimes: 1 };
+expectType<Promise<TransactionContract>>(db.startSession(txOptions));
+expectType<Promise<string>>(db.withTransaction(async (tx) => tx.id, txOptions));
+expectType<Promise<number>>(db.withLock('cron:job', async () => 1, lockOptions));
+expectType<Promise<import('monsqlize').LockContract>>(db.acquireLock('cron:job', lockOptions));
+expectType<Promise<import('monsqlize').LockContract | null>>(db.tryAcquireLock('cron:job', { ttl: 1000 }));
+expectType<LockStats>(new MonSQLize.LockManager().getStats());
 
 // 当前仍明确后移的 API。
 expectError(users.findOneAndReplace({}, {}));

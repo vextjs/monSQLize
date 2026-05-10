@@ -21,6 +21,17 @@ import type {
     UpdateResult,
 } from './types/collection';
 import type {
+    Lock as LockContract,
+    LockOptions,
+    LockStats,
+} from './types/lock';
+import type {
+    MongoSession,
+    Transaction as TransactionContract,
+    TransactionOptions,
+    TransactionStats,
+} from './types/transaction';
+import type {
     HookContext,
     ModelConnection,
     ModelDefinition,
@@ -51,6 +62,11 @@ import {
     createExpression,
     createRedisCacheAdapter,
     expr,
+    Lock,
+    LockAcquireError,
+    LockManager,
+    LockTimeoutError,
+    Transaction,
     RedisCacheAdapterOptions,
     withCache,
 } from './types/runtime';
@@ -61,6 +77,9 @@ export type {
     ExpressionFunction,
     LoggerLike,
     MonSQLizeError,
+    LockContract,
+    LockOptions,
+    LockStats,
     Collection,
     DbAccessor,
     AdminAccessor,
@@ -88,6 +107,7 @@ export type {
     ModelDefinition,
     ModelDocument,
     ModelAccessor,
+    MongoSession,
     PopulateConfig,
     PopulateProxy,
     RedisCacheAdapterOptions,
@@ -95,6 +115,9 @@ export type {
     RelationConfig,
     ValidationResult,
     VirtualConfig,
+    TransactionContract,
+    TransactionOptions,
+    TransactionStats,
     WithCacheOptions,
     CacheStats,
     CachedFunction,
@@ -105,8 +128,13 @@ export { ErrorCodes };
 export {
     Logger,
     MemoryCache,
+    Transaction,
     TransactionManager,
     CacheLockManager,
+    Lock,
+    LockManager,
+    LockAcquireError,
+    LockTimeoutError,
     DistributedCacheInvalidator,
     ConnectionPoolManager,
     Model,
@@ -149,8 +177,11 @@ export default class MonSQLize implements MonSQLizeInstance {
     scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; }): Collection<TSchema>;
     scopedModel<TDocument = Record<string, unknown>>(name: string, options?: { database?: string; pool?: string; }): ModelAccessor<TDocument>;
     model<TDocument = Record<string, unknown>>(name: string): ModelAccessor<TDocument>;
-    startSession(): Promise<{ session: null; }>;
-    withTransaction<T>(callback: (transaction: { session: null; }) => Promise<T>): Promise<T>;
+    startSession(options?: TransactionOptions): Promise<TransactionContract>;
+    withTransaction<T>(callback: (transaction: TransactionContract) => Promise<T>, options?: TransactionOptions): Promise<T>;
+    withLock<T>(key: string, callback: () => Promise<T>, options?: LockOptions): Promise<T>;
+    acquireLock(key: string, options?: LockOptions): Promise<LockContract>;
+    tryAcquireLock(key: string, options?: Omit<LockOptions, 'retryTimes'>): Promise<LockContract | null>;
     on(event: string, handler: (payload: unknown) => void): void;
     once(event: string, handler: (payload: unknown) => void): void;
     off(event: string, handler: (payload: unknown) => void): void;
@@ -158,8 +189,13 @@ export default class MonSQLize implements MonSQLizeInstance {
 
     static Logger: typeof Logger;
     static MemoryCache: typeof MemoryCache;
+    static Transaction: typeof Transaction;
     static TransactionManager: typeof TransactionManager;
     static CacheLockManager: typeof CacheLockManager;
+    static Lock: typeof Lock;
+    static LockManager: typeof LockManager;
+    static LockAcquireError: typeof LockAcquireError;
+    static LockTimeoutError: typeof LockTimeoutError;
     static DistributedCacheInvalidator: typeof DistributedCacheInvalidator;
     static ConnectionPoolManager: typeof ConnectionPoolManager;
     static Model: typeof Model;

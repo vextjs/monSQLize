@@ -1,7 +1,9 @@
 import type { LoggerLike } from './base';
 import type { Collection, DbAccessor, HealthView } from './collection';
+import type { Lock, LockOptions } from './lock';
 import type { ModelInstance } from './model';
 import type { MemoryCache } from './runtime';
+import type { Transaction, TransactionOptions } from './transaction';
 
 export interface MonSQLizeOptions {
     type?: 'mongodb';
@@ -42,8 +44,11 @@ export interface MonSQLize {
     scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; }): Collection<TSchema>;
     scopedModel<TDocument = Record<string, unknown>>(name: string, options?: { database?: string; pool?: string; }): ModelInstance<TDocument>;
     model<TDocument = Record<string, unknown>>(name: string): ModelInstance<TDocument>;
-    startSession(): Promise<{ session: null; }>;
-    withTransaction<T>(callback: (transaction: { session: null; }) => Promise<T>): Promise<T>;
+    startSession(options?: TransactionOptions): Promise<Transaction>;
+    withTransaction<T>(callback: (transaction: Transaction) => Promise<T>, options?: TransactionOptions): Promise<T>;
+    withLock<T>(key: string, callback: () => Promise<T>, options?: LockOptions): Promise<T>;
+    acquireLock(key: string, options?: LockOptions): Promise<Lock>;
+    tryAcquireLock(key: string, options?: Omit<LockOptions, 'retryTimes'>): Promise<Lock | null>;
     on(event: string, handler: (payload: unknown) => void): void;
     once(event: string, handler: (payload: unknown) => void): void;
     off(event: string, handler: (payload: unknown) => void): void;

@@ -1849,6 +1849,227 @@ function stableStringify2(value) {
   return JSON.stringify(value);
 }
 
+// src/capabilities/lock/index.ts
+import { randomUUID } from "node:crypto";
+var LockTimeoutError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.code = "LOCK_TIMEOUT";
+    this.name = "LockTimeoutError";
+  }
+};
+var NoopLockManager = class {
+  async releaseLock() {
+    return true;
+  }
+  async renewLock() {
+    return true;
+  }
+};
+var globalStore = /* @__PURE__ */ new Map();
+var Lock = class {
+  constructor(key, lockId, manager, ttl) {
+    this.key = key;
+    this.lockId = lockId;
+    this.manager = manager;
+    this.ttl = ttl;
+    this.acquiredAt = Date.now();
+    this.released = false;
+  }
+  /**
+   * 释放锁。
+   * @since v1.4.0
+   */
+  async release() {
+    if (this.released) {
+      return false;
+    }
+    const released = await this.manager.releaseLock(this.key, this.lockId);
+    this.released = released || this.released;
+    return released;
+  }
+  /**
+   * 续期锁。
+   * @since v1.4.0
+   */
+  async renew(ttl = this.ttl) {
+    if (this.released) {
+      return false;
+    }
+    return this.manager.renewLock(this.key, this.lockId, ttl);
+  }
+  /**
+   * 检查锁是否仍持有。
+   * @since v1.4.0
+   */
+  isHeld() {
+    return !this.released;
+  }
+  /**
+   * 获取持锁时长。
+   * @since v1.4.0
+   */
+  getHoldTime() {
+    return Date.now() - this.acquiredAt;
+  }
+};
+var LockManager = class {
+  constructor(options = {}) {
+    this.stats = {
+      locksAcquired: 0,
+      locksReleased: 0,
+      lockChecks: 0,
+      errors: 0
+    };
+    this.logger = options.logger ?? null;
+    this.lockKeyPrefix = options.lockKeyPrefix ?? "monsqlize:lock:";
+    this.maxDuration = options.maxDuration ?? 3e5;
+  }
+  /**
+   * 自动管理业务锁生命周期。
+   * @since v1.4.0
+   */
+  async withLock(key, callback, options = {}) {
+    const lock = await this.acquireLock(key, options);
+    try {
+      return await callback();
+    } finally {
+      await lock.release();
+    }
+  }
+  /**
+   * 获取锁（阻塞重试）。
+   * @since v1.4.0
+   */
+  async acquireLock(key, options = {}) {
+    const retryTimes = options.retryTimes ?? 3;
+    const retryDelay = options.retryDelay ?? 100;
+    const retryBackoff = options.retryBackoff ?? 1;
+    for (let attempt = 0; attempt <= retryTimes; attempt += 1) {
+      const lock = await this.tryAcquireLock(key, options);
+      if (lock) {
+        return lock;
+      }
+      if (attempt === retryTimes) {
+        break;
+      }
+      const delay = retryDelay * Math.pow(retryBackoff, attempt);
+      await sleep(delay);
+    }
+    this.stats.errors += 1;
+    if (options.fallbackToNoLock) {
+      this.logger?.warn?.(`[LockManager] fallback to no-lock execution for ${key}`);
+      return new Lock(this.normalizeKey(key), `noop:${randomUUID()}`, new NoopLockManager(), options.ttl ?? 1e4);
+    }
+    throw new LockTimeoutError(`Failed to acquire lock for key '${key}' within retry budget.`);
+  }
+  /**
+   * 尝试获取锁（不阻塞）。
+   * @since v1.4.0
+   */
+  async tryAcquireLock(key, options = {}) {
+    const normalizedKey = this.normalizeKey(key);
+    const ttl = Math.min(options.ttl ?? 1e4, this.maxDuration);
+    this.cleanupExpiredLocks();
+    this.stats.lockChecks += 1;
+    if (globalStore.has(normalizedKey)) {
+      return null;
+    }
+    const lockId = randomUUID();
+    globalStore.set(normalizedKey, {
+      lockId,
+      expiresAt: Date.now() + ttl
+    });
+    this.stats.locksAcquired += 1;
+    this.logger?.debug?.(`[LockManager] acquired ${normalizedKey}`);
+    return new Lock(normalizedKey, lockId, this, ttl);
+  }
+  /**
+   * 检查锁是否存在。
+   * @since v1.4.0
+   */
+  isLocked(key) {
+    this.cleanupExpiredLocks();
+    this.stats.lockChecks += 1;
+    return globalStore.has(this.normalizeKey(key));
+  }
+  /**
+   * 释放锁。
+   * @since v1.4.0
+   */
+  async releaseLock(key, lockId) {
+    const normalizedKey = this.normalizeKey(key);
+    this.cleanupExpiredLocks();
+    const current = globalStore.get(normalizedKey);
+    if (!current || current.lockId !== lockId) {
+      return false;
+    }
+    globalStore.delete(normalizedKey);
+    this.stats.locksReleased += 1;
+    this.logger?.debug?.(`[LockManager] released ${normalizedKey}`);
+    return true;
+  }
+  /**
+   * 续期锁。
+   * @since v1.4.0
+   */
+  async renewLock(key, lockId, ttl) {
+    const normalizedKey = this.normalizeKey(key);
+    this.cleanupExpiredLocks();
+    const current = globalStore.get(normalizedKey);
+    if (!current || current.lockId !== lockId) {
+      return false;
+    }
+    current.expiresAt = Date.now() + Math.min(ttl, this.maxDuration);
+    return true;
+  }
+  /**
+   * 获取锁统计。
+   * @since v1.4.0
+   */
+  getStats() {
+    this.cleanupExpiredLocks();
+    return {
+      ...this.stats,
+      lockKeyPrefix: this.lockKeyPrefix,
+      maxDuration: this.maxDuration,
+      activeLocks: globalStore.size
+    };
+  }
+  /**
+   * 清空锁（主要用于测试）。
+   * @since v1.4.0
+   */
+  clear() {
+    for (const key of [...globalStore.keys()]) {
+      if (key.startsWith(this.lockKeyPrefix)) {
+        globalStore.delete(key);
+      }
+    }
+  }
+  /**
+   * 关闭锁管理器。
+   * @since v1.4.0
+   */
+  close() {
+    this.cleanupExpiredLocks();
+  }
+  normalizeKey(key) {
+    return key.startsWith(this.lockKeyPrefix) ? key : `${this.lockKeyPrefix}${key}`;
+  }
+  cleanupExpiredLocks() {
+    const now = Date.now();
+    for (const [key, value] of globalStore.entries()) {
+      if (value.expiresAt <= now) {
+        globalStore.delete(key);
+      }
+    }
+  }
+};
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // src/capabilities/model/index.ts
 var PopulatePromise = class _PopulatePromise {
   constructor(executor, paths = []) {
@@ -2339,6 +2560,364 @@ function serializeDocument(document) {
   return plain;
 }
 
+// src/capabilities/transaction/index.ts
+var CacheLockManager = class {
+  constructor(options = {}) {
+    this.locks = /* @__PURE__ */ new Map();
+    this.logger = options.logger ?? null;
+    this.maxDuration = options.maxDuration ?? 3e5;
+    this.cleanupInterval = options.cleanupInterval ?? 1e4;
+    this.cleanupTimer = setInterval(() => {
+      this.cleanupExpiredLocks();
+    }, this.cleanupInterval);
+    this.cleanupTimer.unref?.();
+  }
+  /**
+   * 添加缓存锁。
+   * @since v1.4.0
+   */
+  addLock(key, owner) {
+    const ownerId = typeof owner === "string" ? owner : String(owner.id ?? "unknown");
+    this.locks.set(key, {
+      ownerId,
+      expiresAt: Date.now() + this.maxDuration
+    });
+  }
+  /**
+   * 检查缓存键是否被锁定。
+   * @since v1.4.0
+   */
+  isLocked(key) {
+    this.cleanupExpiredLocks();
+    if (this.locks.has(key)) {
+      return true;
+    }
+    for (const pattern of this.locks.keys()) {
+      if (!pattern.includes("*")) {
+        continue;
+      }
+      const regex = new RegExp(`^${escapeRegExp(pattern).replace(/\\\*/g, ".*")}$`);
+      if (regex.test(key)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  /**
+   * 释放 owner 的所有缓存锁。
+   * @since v1.4.0
+   */
+  releaseLocks(owner) {
+    const ownerId = typeof owner === "string" ? owner : String(owner.id ?? "unknown");
+    for (const [key, record] of this.locks.entries()) {
+      if (record.ownerId === ownerId) {
+        this.locks.delete(key);
+      }
+    }
+  }
+  /**
+   * 获取缓存锁统计。
+   * @since v1.4.0
+   */
+  getStats() {
+    this.cleanupExpiredLocks();
+    return {
+      totalLocks: this.locks.size,
+      activeLocks: this.locks.size,
+      maxDuration: this.maxDuration
+    };
+  }
+  /**
+   * 清空缓存锁。
+   * @since v1.4.0
+   */
+  clear() {
+    this.locks.clear();
+  }
+  /**
+   * 停止缓存锁管理器。
+   * @since v1.4.0
+   */
+  stop() {
+    clearInterval(this.cleanupTimer);
+  }
+  cleanupExpiredLocks() {
+    const now = Date.now();
+    for (const [key, value] of this.locks.entries()) {
+      if (value.expiresAt <= now) {
+        this.locks.delete(key);
+      }
+    }
+  }
+};
+var Transaction = class {
+  constructor(session, options = {}) {
+    this.session = session;
+    this.options = options;
+    this.id = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    this.state = "pending";
+    this.startedAt = null;
+    this.timeoutTimer = null;
+    this.pendingInvalidations = /* @__PURE__ */ new Set();
+  }
+  /**
+   * 启动事务。
+   * @since v1.4.0
+   */
+  async start() {
+    if (this.state !== "pending") {
+      throw new Error(`Cannot start transaction in state: ${this.state}`);
+    }
+    this.session.startTransaction();
+    this.state = "started";
+    this.startedAt = Date.now();
+    const timeout = this.options.timeout ?? 3e4;
+    if (timeout > 0) {
+      this.timeoutTimer = setTimeout(() => {
+        if (this.state === "started") {
+          this.options.logger?.warn?.(`[Transaction] auto-abort on timeout: ${this.id}`);
+          void this.abort();
+        }
+      }, timeout);
+      this.timeoutTimer.unref?.();
+    }
+  }
+  /**
+   * 提交事务。
+   * @since v1.4.0
+   */
+  async commit() {
+    if (this.state !== "started") {
+      throw new Error(`Cannot commit transaction in state: ${this.state}`);
+    }
+    await this.session.commitTransaction();
+    this.state = "committed";
+    this.options.lockManager?.releaseLocks(this.id);
+    this.pendingInvalidations.clear();
+    this.clearTimeout();
+  }
+  /**
+   * 回滚事务。
+   * @since v1.4.0
+   */
+  async abort() {
+    if (this.state !== "pending" && this.state !== "started") {
+      return;
+    }
+    if (this.state === "started") {
+      await this.session.abortTransaction();
+    }
+    this.state = "aborted";
+    this.options.lockManager?.releaseLocks(this.id);
+    this.pendingInvalidations.clear();
+    this.clearTimeout();
+  }
+  /**
+   * 结束事务会话。
+   * @since v1.4.0
+   */
+  async end() {
+    this.clearTimeout();
+    this.options.lockManager?.releaseLocks(this.id);
+    await this.session.endSession();
+  }
+  /**
+   * 记录缓存失效意图。
+   * @since v1.4.0
+   */
+  async recordInvalidation(pattern) {
+    this.pendingInvalidations.add(pattern);
+    this.options.lockManager?.addLock(pattern, this.id);
+    if (this.options.cache?.delPattern) {
+      await this.options.cache.delPattern(pattern);
+    }
+  }
+  /**
+   * 获取事务持续时间。
+   * @since v1.4.0
+   */
+  getDuration() {
+    if (!this.startedAt) {
+      return 0;
+    }
+    return Date.now() - this.startedAt;
+  }
+  /**
+   * 获取事务信息。
+   * @since v1.4.0
+   */
+  getInfo() {
+    return {
+      id: this.id,
+      status: this.state,
+      duration: this.getDuration(),
+      sessionId: stringifySessionId(this.session.id)
+    };
+  }
+  clearTimeout() {
+    if (this.timeoutTimer) {
+      clearTimeout(this.timeoutTimer);
+      this.timeoutTimer = null;
+    }
+  }
+};
+var TransactionManager = class {
+  constructor(options) {
+    this.activeTransactions = /* @__PURE__ */ new Map();
+    this.durations = [];
+    this.stats = {
+      totalTransactions: 0,
+      successfulTransactions: 0,
+      failedTransactions: 0
+    };
+    this.client = options.client;
+    this.cache = options.cache ?? null;
+    this.logger = options.logger ?? null;
+    this.lockManager = options.lockManager ?? null;
+    this.defaultOptions = {
+      maxDuration: options.maxDuration ?? 3e4,
+      enableRetry: options.enableRetry ?? true,
+      maxRetries: options.maxRetries ?? 3,
+      retryDelay: options.retryDelay ?? 100,
+      retryBackoff: options.retryBackoff ?? 2
+    };
+  }
+  /**
+   * 创建手动事务会话。
+   * @since v1.4.0
+   */
+  async startSession(options = {}) {
+    const session = this.client.startSession({
+      causalConsistency: options.causalConsistency !== false
+    });
+    const transaction = new Transaction(session, {
+      cache: this.cache,
+      logger: this.logger,
+      lockManager: options.enableCacheLock === false ? null : this.lockManager,
+      timeout: options.maxDuration ?? this.defaultOptions.maxDuration
+    });
+    const originalEnd = transaction.end.bind(transaction);
+    transaction.end = async () => {
+      await originalEnd();
+      this.activeTransactions.delete(transaction.id);
+    };
+    this.activeTransactions.set(transaction.id, transaction);
+    return transaction;
+  }
+  /**
+   * 自动管理事务生命周期。
+   * @since v1.4.0
+   */
+  async withTransaction(callback, options = {}) {
+    const maxRetries = options.maxRetries ?? this.defaultOptions.maxRetries;
+    const retryDelay = options.retryDelay ?? this.defaultOptions.retryDelay;
+    const retryBackoff = options.retryBackoff ?? this.defaultOptions.retryBackoff;
+    const enableRetry = options.enableRetry ?? this.defaultOptions.enableRetry;
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      const transaction = await this.startSession(options);
+      const startedAt = Date.now();
+      try {
+        await transaction.start();
+        const result = await callback(transaction);
+        await transaction.commit();
+        this.recordStats(Date.now() - startedAt, true);
+        return result;
+      } catch (error) {
+        lastError = error;
+        await transaction.abort();
+        this.recordStats(Date.now() - startedAt, false);
+        if (!enableRetry || attempt === maxRetries || !isTransientTransactionError(error)) {
+          throw error;
+        }
+        await sleep2(retryDelay * Math.pow(retryBackoff, attempt));
+      } finally {
+        await transaction.end();
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("Transaction failed.");
+  }
+  /**
+   * 获取活跃事务。
+   * @since v1.4.0
+   */
+  getActiveTransactions() {
+    return [...this.activeTransactions.values()];
+  }
+  /**
+   * 中止所有活跃事务。
+   * @since v1.4.0
+   */
+  async abortAll() {
+    const transactions = this.getActiveTransactions();
+    for (const transaction of transactions) {
+      await transaction.abort();
+      await transaction.end();
+      this.activeTransactions.delete(transaction.id);
+    }
+  }
+  /**
+   * 获取事务统计。
+   * @since v1.4.0
+   */
+  getStats() {
+    const averageDuration = this.durations.length === 0 ? 0 : this.durations.reduce((sum, item) => sum + item, 0) / this.durations.length;
+    return {
+      totalTransactions: this.stats.totalTransactions,
+      successfulTransactions: this.stats.successfulTransactions,
+      failedTransactions: this.stats.failedTransactions,
+      activeTransactions: this.activeTransactions.size,
+      averageDuration
+    };
+  }
+  recordStats(duration, success) {
+    this.stats.totalTransactions += 1;
+    if (success) {
+      this.stats.successfulTransactions += 1;
+    } else {
+      this.stats.failedTransactions += 1;
+    }
+    this.durations.push(duration);
+    if (this.durations.length > 100) {
+      this.durations.shift();
+    }
+  }
+};
+function stringifySessionId(id) {
+  if (typeof id === "string") {
+    return id;
+  }
+  if (typeof id === "object" && id !== null) {
+    const candidate = id;
+    if (typeof candidate.toHexString === "function") {
+      return candidate.toHexString();
+    }
+    if (candidate.id?.buffer) {
+      return Buffer.from(candidate.id.buffer).toString("hex");
+    }
+    if (typeof candidate.toString === "function") {
+      return candidate.toString();
+    }
+  }
+  return String(id);
+}
+function isTransientTransactionError(error) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const candidate = error;
+  if (typeof candidate.hasErrorLabel === "function" && candidate.hasErrorLabel("TransientTransactionError")) {
+    return true;
+  }
+  return candidate.code === 112 || candidate.code === 117;
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+async function sleep2(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // src/adapters/mongodb/common/connect.ts
 import { MongoClient } from "mongodb";
 async function connectMongo(params) {
@@ -2428,24 +3007,6 @@ var Logger = class _Logger {
 };
 
 // src/entry/runtime-core.ts
-var TransactionManager = class {
-  /**
-   * 创建事务管理器。
-   * @since v1.3.0
-   */
-  constructor(options = {}) {
-    this.options = options;
-  }
-};
-var CacheLockManager = class {
-  /**
-   * 创建缓存锁管理器。
-   * @since v1.3.0
-   */
-  constructor(options = {}) {
-    this.options = options;
-  }
-};
 var ConnectionPoolManager = class {
   /**
    * 创建连接池管理器。
@@ -2461,6 +3022,8 @@ var MonSQLizeRuntime = class {
     this._connected = false;
     this._client = null;
     this._defaultDb = null;
+    this._transactionManager = null;
+    this._lockManager = null;
     this._modelInstances = /* @__PURE__ */ new Map();
     this._connectionPromise = null;
     const type = options.type ?? "mongodb";
@@ -2473,6 +3036,8 @@ var MonSQLizeRuntime = class {
     };
     this._cache = MemoryCache.getOrCreateCache(options.cache);
     this._logger = Logger.create(options.logger ?? null);
+    this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
+    this._cache.setLockManager(this._cacheLockManager);
   }
   /**
    * 连接数据库并建立访问器。
@@ -2528,10 +3093,15 @@ var MonSQLizeRuntime = class {
    * @since v1.3.0
    */
   async close() {
+    await this._transactionManager?.abortAll();
+    this._cacheLockManager.stop();
+    this._lockManager?.close();
     await closeMongo(this._client, this._logger);
     this._client = null;
     this._defaultDb = null;
     this._connected = false;
+    this._transactionManager = null;
+    this._lockManager = null;
     this._modelInstances.clear();
   }
   /**
@@ -2633,17 +3203,41 @@ var MonSQLizeRuntime = class {
    * 手动事务入口（P1 占位实现）。
    * @since v1.3.0
    */
-  async startSession() {
+  async startSession(options = {}) {
     this.ensureConnected();
-    return { session: null };
+    return this.getTransactionManager().startSession(options);
   }
   /**
    * 自动事务入口（P1 占位实现）。
    * @since v1.3.0
    */
-  async withTransaction(callback) {
+  async withTransaction(callback, options = {}) {
     this.ensureConnected();
-    return callback({ session: null });
+    return this.getTransactionManager().withTransaction(callback, options);
+  }
+  /**
+   * 自动管理业务锁生命周期。
+   * @since v1.4.0
+   */
+  async withLock(key, callback, options = {}) {
+    this.ensureConnected();
+    return this.getLockManager().withLock(key, callback, options);
+  }
+  /**
+   * 获取业务锁（阻塞重试）。
+   * @since v1.4.0
+   */
+  async acquireLock(key, options = {}) {
+    this.ensureConnected();
+    return this.getLockManager().acquireLock(key, options);
+  }
+  /**
+   * 尝试获取业务锁（不阻塞）。
+   * @since v1.4.0
+   */
+  async tryAcquireLock(key, options = {}) {
+    this.ensureConnected();
+    return this.getLockManager().tryAcquireLock(key, options);
   }
   /**
    * 事件订阅占位实现。
@@ -2688,6 +3282,28 @@ var MonSQLizeRuntime = class {
   }
   resolveDatabaseName() {
     return this.options.databaseName ?? "default";
+  }
+  getTransactionManager() {
+    if (!this._client) {
+      throw createError(ErrorCodes.NOT_CONNECTED, "MonSQLize is not connected yet.");
+    }
+    if (!this._transactionManager) {
+      this._transactionManager = new TransactionManager({
+        client: this._client,
+        cache: this._cache,
+        logger: this.options.logger ?? null,
+        lockManager: this._cacheLockManager
+      });
+    }
+    return this._transactionManager;
+  }
+  getLockManager() {
+    if (!this._lockManager) {
+      this._lockManager = new LockManager({
+        logger: this.options.logger ?? null
+      });
+    }
+    return this._lockManager;
   }
   createModelInstance(name, scope) {
     const registered = Model.get(name);

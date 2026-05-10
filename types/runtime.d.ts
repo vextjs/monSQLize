@@ -1,6 +1,11 @@
 import type { DeleteResult, IndexCreateResult, UpdateResult } from './collection';
 import type { LoggerLike, ExpressionFunction } from './base';
 import type { ModelDefinition, ModelInstance as ModelInstanceContract, RegisteredModel } from './model';
+import type { LockOptions, LockStats } from './lock';
+import type { MongoSession, TransactionOptions, TransactionStats } from './transaction';
+
+export { Lock, LockAcquireError, LockTimeoutError, LockManager } from './lock';
+export { CacheLockManager, Transaction, TransactionManager } from './transaction';
 
 export declare class Logger {
     constructor(logger?: LoggerLike | null);
@@ -66,13 +71,7 @@ export declare function createRedisCacheAdapter(
     adapterOptions?: Record<string, unknown>,
 ): CacheLike & { getRedisInstance(): unknown; };
 
-export declare class TransactionManager {
-    constructor(options?: Record<string, unknown>);
-}
-
-export declare class CacheLockManager {
-    constructor(options?: Record<string, unknown>);
-}
+export type { LockOptions, LockStats, MongoSession, TransactionOptions, TransactionStats };
 
 export declare class DistributedCacheInvalidator {
     constructor(options?: {

@@ -23,6 +23,14 @@ import {
     type WithCacheOptions,
 } from '../capabilities/function-cache';
 import {
+    Lock,
+    LockManager,
+    LockAcquireError,
+    LockOptions,
+    LockStats,
+    LockTimeoutError,
+} from '../capabilities/lock';
+import {
     Model,
     ModelInstance,
     type ModelConnection,
@@ -33,6 +41,14 @@ import {
     type ValidationResult,
     type VirtualConfig,
 } from '../capabilities/model';
+import {
+    CacheLockManager,
+    Transaction,
+    TransactionManager,
+    type TransactionOptions,
+    type TransactionStats,
+    type MongoSession,
+} from '../capabilities/transaction';
 import { closeMongo, connectMongo, type MongoConnectConfig } from '../adapters/mongodb/common/connect';
 import { createExpression, expr, type ExpressionObject } from '../core/expression';
 import { ErrorCodes, createError } from '../core/errors';
@@ -46,16 +62,23 @@ export type {
     CacheStats,
     CachedFunction,
     ExpressionObject,
+    LockOptions,
+    LockStats,
     LoggerLike,
     ModelConnection,
     ModelDefinition,
+    MongoSession,
     PopulateConfig,
     PopulateProxy,
     RelationConfig,
+    TransactionOptions,
+    TransactionStats,
     ValidationResult,
     VirtualConfig,
     WithCacheOptions,
 };
+
+export { Transaction, TransactionManager, CacheLockManager, Lock, LockAcquireError, LockTimeoutError, LockManager };
 
 export interface MonSQLizeOptions {
     type?: 'mongodb';
@@ -63,22 +86,6 @@ export interface MonSQLizeOptions {
     config?: MongoConnectConfig;
     cache?: Record<string, unknown> | MemoryCache;
     logger?: LoggerLike | null;
-}
-
-export class TransactionManager {
-    /**
-     * 创建事务管理器。
-     * @since v1.3.0
-     */
-    constructor(public readonly options: Record<string, unknown> = {}) {}
-}
-
-export class CacheLockManager {
-    /**
-     * 创建缓存锁管理器。
-     * @since v1.3.0
-     */
-    constructor(public readonly options: Record<string, unknown> = {}) {}
 }
 
 export class ConnectionPoolManager {
@@ -101,8 +108,11 @@ export class MonSQLizeRuntime {
     private _connected = false;
     private readonly _cache: MemoryCache;
     private readonly _logger: Logger;
+    private readonly _cacheLockManager: CacheLockManager;
     private _client: Awaited<ReturnType<typeof connectMongo>>['client'] | null = null;
     private _defaultDb: DbFacade | null = null;
+    private _transactionManager: TransactionManager | null = null;
+    private _lockManager: LockManager | null = null;
     private readonly _modelInstances = new Map<string, {
         revision: number;
         instance: ModelInstance<Record<string, unknown>>;
@@ -125,6 +135,8 @@ export class MonSQLizeRuntime {
         };
         this._cache = MemoryCache.getOrCreateCache(options.cache);
         this._logger = Logger.create(options.logger ?? null);
+        this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
+        this._cache.setLockManager(this._cacheLockManager);
     }
 
     /**
@@ -192,10 +204,15 @@ export class MonSQLizeRuntime {
      * @since v1.3.0
      */
     async close(): Promise<void> {
+        await this._transactionManager?.abortAll();
+        this._cacheLockManager.stop();
+        this._lockManager?.close();
         await closeMongo(this._client, this._logger);
         this._client = null;
         this._defaultDb = null;
         this._connected = false;
+        this._transactionManager = null;
+        this._lockManager = null;
         this._modelInstances.clear();
     }
 
@@ -310,18 +327,45 @@ export class MonSQLizeRuntime {
      * 手动事务入口（P1 占位实现）。
      * @since v1.3.0
      */
-    async startSession(): Promise<{ session: null; }> {
+    async startSession(options: TransactionOptions = {}): Promise<Transaction> {
         this.ensureConnected();
-        return { session: null };
+        return this.getTransactionManager().startSession(options);
     }
 
     /**
      * 自动事务入口（P1 占位实现）。
      * @since v1.3.0
      */
-    async withTransaction<T>(callback: (transaction: { session: null; }) => Promise<T>): Promise<T> {
+    async withTransaction<T>(callback: (transaction: Transaction) => Promise<T>, options: TransactionOptions = {}): Promise<T> {
         this.ensureConnected();
-        return callback({ session: null });
+        return this.getTransactionManager().withTransaction(callback, options);
+    }
+
+    /**
+     * 自动管理业务锁生命周期。
+     * @since v1.4.0
+     */
+    async withLock<T>(key: string, callback: () => Promise<T>, options: LockOptions = {}): Promise<T> {
+        this.ensureConnected();
+        return this.getLockManager().withLock(key, callback, options);
+    }
+
+    /**
+     * 获取业务锁（阻塞重试）。
+     * @since v1.4.0
+     */
+    async acquireLock(key: string, options: LockOptions = {}): Promise<Lock> {
+        this.ensureConnected();
+        return this.getLockManager().acquireLock(key, options);
+    }
+
+    /**
+     * 尝试获取业务锁（不阻塞）。
+     * @since v1.4.0
+     */
+    async tryAcquireLock(key: string, options: Omit<LockOptions, 'retryTimes'> = {}): Promise<Lock | null> {
+        this.ensureConnected();
+        return this.getLockManager().tryAcquireLock(key, options);
     }
 
     /**
@@ -378,6 +422,30 @@ export class MonSQLizeRuntime {
 
     private resolveDatabaseName(): string {
         return this.options.databaseName ?? 'default';
+    }
+
+    private getTransactionManager(): TransactionManager {
+        if (!this._client) {
+            throw createError(ErrorCodes.NOT_CONNECTED, 'MonSQLize is not connected yet.');
+        }
+        if (!this._transactionManager) {
+            this._transactionManager = new TransactionManager({
+                client: this._client,
+                cache: this._cache,
+                logger: this.options.logger ?? null,
+                lockManager: this._cacheLockManager,
+            });
+        }
+        return this._transactionManager;
+    }
+
+    private getLockManager(): LockManager {
+        if (!this._lockManager) {
+            this._lockManager = new LockManager({
+                logger: this.options.logger ?? null,
+            });
+        }
+        return this._lockManager;
     }
 
     private createModelInstance<TDocument = Record<string, unknown>>(

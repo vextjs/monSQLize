@@ -1,5 +1,4 @@
 import {
-    CacheLockManager,
     ConnectionPoolManager,
     DistributedCacheInvalidator,
     expr,
@@ -10,17 +9,23 @@ import {
     MemoryCache,
     Model,
     MonSQLizeRuntime,
-    TransactionManager,
     withCache,
 } from './runtime-core';
+import { Lock, LockAcquireError, LockManager, LockTimeoutError } from '../capabilities/lock';
+import { CacheLockManager, Transaction, TransactionManager } from '../capabilities/transaction';
 
 const MonSQLize = MonSQLizeRuntime as typeof MonSQLizeRuntime & Record<string, unknown>;
 
 MonSQLize.Logger = Logger;
 MonSQLize.MemoryCache = MemoryCache;
+MonSQLize.Transaction = Transaction;
 MonSQLize.createRedisCacheAdapter = createRedisCacheAdapter;
 MonSQLize.TransactionManager = TransactionManager;
 MonSQLize.CacheLockManager = CacheLockManager;
+MonSQLize.Lock = Lock;
+MonSQLize.LockManager = LockManager;
+MonSQLize.LockAcquireError = LockAcquireError;
+MonSQLize.LockTimeoutError = LockTimeoutError;
 MonSQLize.DistributedCacheInvalidator = DistributedCacheInvalidator;
 MonSQLize.ConnectionPoolManager = ConnectionPoolManager;
 MonSQLize.Model = Model;
