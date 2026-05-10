@@ -26,6 +26,15 @@ import type {
     LockStats,
 } from './types/lock';
 import type {
+    ConnectionPoolManagerOptions,
+    FallbackStrategy,
+    PoolConfig,
+    PoolHealthStatus,
+    PoolRole,
+    PoolStats,
+    PoolStrategy,
+} from './types/pool';
+import type {
     MongoSession,
     Transaction as TransactionContract,
     TransactionOptions,
@@ -77,6 +86,8 @@ export type {
     ExpressionFunction,
     LoggerLike,
     MonSQLizeError,
+    ConnectionPoolManagerOptions,
+    FallbackStrategy,
     LockContract,
     LockOptions,
     LockStats,
@@ -108,6 +119,11 @@ export type {
     ModelDocument,
     ModelAccessor,
     MongoSession,
+    PoolConfig,
+    PoolHealthStatus,
+    PoolRole,
+    PoolStats,
+    PoolStrategy,
     PopulateConfig,
     PopulateProxy,
     RedisCacheAdapterOptions,

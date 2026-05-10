@@ -42,6 +42,16 @@ import {
     type VirtualConfig,
 } from '../capabilities/model';
 import {
+    ConnectionPoolManager,
+    type ConnectionPoolManagerOptions,
+    type FallbackStrategy,
+    type PoolConfig,
+    type PoolHealthStatus,
+    type PoolRole,
+    type PoolStats,
+    type PoolStrategy,
+} from '../capabilities/pool';
+import {
     CacheLockManager,
     Transaction,
     TransactionManager,
@@ -58,16 +68,24 @@ export { CollectionFacade, DbFacade, Logger, MemoryCache, createRedisCacheAdapte
 export { FunctionCache, withCache };
 export { Model };
 export { createExpression, expr };
+export { ConnectionPoolManager };
 export type {
     CacheStats,
     CachedFunction,
+    ConnectionPoolManagerOptions,
     ExpressionObject,
+    FallbackStrategy,
     LockOptions,
     LockStats,
     LoggerLike,
     ModelConnection,
     ModelDefinition,
     MongoSession,
+    PoolConfig,
+    PoolHealthStatus,
+    PoolRole,
+    PoolStats,
+    PoolStrategy,
     PopulateConfig,
     PopulateProxy,
     RelationConfig,
@@ -86,14 +104,10 @@ export interface MonSQLizeOptions {
     config?: MongoConnectConfig;
     cache?: Record<string, unknown> | MemoryCache;
     logger?: LoggerLike | null;
-}
-
-export class ConnectionPoolManager {
-    /**
-     * 创建连接池管理器。
-     * @since v1.3.0
-     */
-    constructor(public readonly options: Record<string, unknown> = {}) {}
+    pools?: PoolConfig[];
+    poolStrategy?: PoolStrategy;
+    poolFallback?: ConnectionPoolManagerOptions['poolFallback'];
+    maxPoolsCount?: number;
 }
 
 
@@ -111,6 +125,7 @@ export class MonSQLizeRuntime {
     private readonly _cacheLockManager: CacheLockManager;
     private _client: Awaited<ReturnType<typeof connectMongo>>['client'] | null = null;
     private _defaultDb: DbFacade | null = null;
+    private _poolManager: ConnectionPoolManager | null = null;
     private _transactionManager: TransactionManager | null = null;
     private _lockManager: LockManager | null = null;
     private readonly _modelInstances = new Map<string, {
@@ -169,6 +184,7 @@ export class MonSQLizeRuntime {
                 cache: this._cache,
                 logger: this._logger,
             });
+            await this.ensurePoolManager();
             this._connected = true;
             return this.createRuntimeAccessors();
         })();
@@ -207,10 +223,12 @@ export class MonSQLizeRuntime {
         await this._transactionManager?.abortAll();
         this._cacheLockManager.stop();
         this._lockManager?.close();
+        await this._poolManager?.close();
         await closeMongo(this._client, this._logger);
         this._client = null;
         this._defaultDb = null;
         this._connected = false;
+        this._poolManager = null;
         this._transactionManager = null;
         this._lockManager = null;
         this._modelInstances.clear();
@@ -225,7 +243,10 @@ export class MonSQLizeRuntime {
             status: this._connected ? 'up' : 'down',
             connected: this._connected,
             defaults: this.getDefaults(),
-            cache: { enabled: true },
+            cache: {
+                enabled: true,
+                pools: this._poolManager?.getHealthStatus(),
+            },
         };
     }
 
@@ -271,7 +292,7 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 获取连接池访问器（P1 占位实现）。
+     * 获取连接池访问器。
      * @since v1.3.0
      */
     pool(poolName: string): {
@@ -281,11 +302,12 @@ export class MonSQLizeRuntime {
     } {
         this.ensureConnected();
         const databaseName = this.resolveDatabaseName();
+        this.requirePoolManager().getPool(poolName);
         return {
-            collection: (name: string) => this.db(databaseName).collection(name),
+            collection: (name: string) => this.scopedCollection(name, { database: databaseName, pool: poolName }),
             model: <TDocument = Record<string, unknown>>(name: string) => this.scopedModel<TDocument>(name, { database: databaseName, pool: poolName }),
             use: (dbName: string) => ({
-                collection: (name: string) => this.db(dbName).collection(name),
+                collection: (name: string) => this.scopedCollection(name, { database: dbName, pool: poolName }),
                 model: <TDocument = Record<string, unknown>>(name: string) => this.scopedModel<TDocument>(name, { database: dbName, pool: poolName }),
             }),
         };
@@ -295,8 +317,24 @@ export class MonSQLizeRuntime {
      * 获取限定数据库的 Collection 访问器。
      * @since v1.3.0
      */
-    scopedCollection(name: string, options: { database?: string; } = {}): CollectionFacade {
+    scopedCollection(name: string, options: { database?: string; pool?: string; } = {}): CollectionFacade {
         this.ensureConnected();
+        if (options.pool) {
+            const databaseName = options.database ?? this.resolveDatabaseName();
+            const selected = this.requirePoolManager().selectPool('read', {
+                pool: options.pool,
+                databaseName,
+            });
+            return new CollectionFacade(
+                databaseName,
+                name,
+                selected.collection(databaseName, name),
+                {
+                    cache: this._cache,
+                    logger: this._logger,
+                },
+            );
+        }
         return this.db(options.database ?? this.resolveDatabaseName()).collection(name);
     }
 
@@ -446,6 +484,34 @@ export class MonSQLizeRuntime {
             });
         }
         return this._lockManager;
+    }
+
+    private async ensurePoolManager(): Promise<ConnectionPoolManager | null> {
+        if (!this.options.pools?.length) {
+            return null;
+        }
+        if (this._poolManager) {
+            return this._poolManager;
+        }
+        this._poolManager = new ConnectionPoolManager({
+            pools: this.options.pools,
+            poolStrategy: this.options.poolStrategy,
+            poolFallback: this.options.poolFallback,
+            maxPoolsCount: this.options.maxPoolsCount,
+            logger: this.options.logger ?? null,
+        });
+        for (const pool of this.options.pools) {
+            await this._poolManager.addPool(pool);
+        }
+        this._poolManager.startHealthCheck();
+        return this._poolManager;
+    }
+
+    private requirePoolManager(): ConnectionPoolManager {
+        if (!this._poolManager) {
+            throw createError(ErrorCodes.INVALID_CONFIG, 'MonSQLize pool() requires options.pools configuration.');
+        }
+        return this._poolManager;
     }
 
     private createModelInstance<TDocument = Record<string, unknown>>(

@@ -2,6 +2,7 @@ import type { LoggerLike } from './base';
 import type { Collection, DbAccessor, HealthView } from './collection';
 import type { Lock, LockOptions } from './lock';
 import type { ModelInstance } from './model';
+import type { ConnectionPoolManagerOptions, PoolConfig, PoolStrategy } from './pool';
 import type { MemoryCache } from './runtime';
 import type { Transaction, TransactionOptions } from './transaction';
 
@@ -11,6 +12,10 @@ export interface MonSQLizeOptions {
     config?: Record<string, unknown>;
     cache?: Record<string, unknown> | MemoryCache;
     logger?: LoggerLike | null;
+    pools?: PoolConfig[];
+    poolStrategy?: PoolStrategy;
+    poolFallback?: ConnectionPoolManagerOptions['poolFallback'];
+    maxPoolsCount?: number;
 }
 
 export interface MonSQLize {

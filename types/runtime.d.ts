@@ -2,9 +2,11 @@ import type { DeleteResult, IndexCreateResult, UpdateResult } from './collection
 import type { LoggerLike, ExpressionFunction } from './base';
 import type { ModelDefinition, ModelInstance as ModelInstanceContract, RegisteredModel } from './model';
 import type { LockOptions, LockStats } from './lock';
+import type { ConnectionPoolManagerOptions, FallbackStrategy, PoolConfig, PoolHealthStatus, PoolRole, PoolStats, PoolStrategy } from './pool';
 import type { MongoSession, TransactionOptions, TransactionStats } from './transaction';
 
 export { Lock, LockAcquireError, LockTimeoutError, LockManager } from './lock';
+export { ConnectionPoolManager } from './pool';
 export { CacheLockManager, Transaction, TransactionManager } from './transaction';
 
 export declare class Logger {
@@ -88,9 +90,15 @@ export declare class DistributedCacheInvalidator {
     close(): Promise<void>;
 }
 
-export declare class ConnectionPoolManager {
-    constructor(options?: Record<string, unknown>);
-}
+export type {
+    ConnectionPoolManagerOptions,
+    FallbackStrategy,
+    PoolConfig,
+    PoolHealthStatus,
+    PoolRole,
+    PoolStats,
+    PoolStrategy,
+};
 
 export interface WithCacheOptions {
     ttl?: number;
