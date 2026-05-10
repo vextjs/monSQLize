@@ -18,7 +18,7 @@
 npm install monsqlize
 ```
 
-> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P3-B function-cache**：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`、`namespace` / `index` / `bookmark` / `db.admin()` 管理能力、`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 批量写入扩展、`MemoryCache` / `createRedisCacheAdapter` / `DistributedCacheInvalidator` 的最小 cache façade，以及 `withCache()` / `FunctionCache` 的最小 function-cache 能力。**下一步** 将进入 `P3-C model registry/features`；真实 `pool/transaction/events` 与更完整高级能力仍在后续 P3~P4 继续回补。
+> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P3-C model registry/features**：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`、`namespace` / `index` / `bookmark` / `db.admin()` 管理能力、`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 批量写入扩展、`MemoryCache` / `createRedisCacheAdapter` / `DistributedCacheInvalidator` 的最小 cache façade、`withCache()` / `FunctionCache` 的最小 function-cache 能力，以及 `Model.define/get/list/undefine/redefine`、`msq.model()` 实例缓存、`relations` / `virtuals` / `populate` / `findById(s)` / `findAndCount()` 的首批 model 语义。**下一步** 将进入 `P4-A transaction/lock`；真实 `pool/transaction/events` 与更完整高级能力仍在后续 P4 继续回补。
 
 [快速开始](#-快速开始) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
 

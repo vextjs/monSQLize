@@ -19,6 +19,7 @@ import MonSQLize, {
     type InsertManyResult,
     type InsertOneResult,
     type LoggerLike,
+    type ModelAccessor,
     type MonSQLizeOptions,
     type UpdateBatchResult,
     type UpdateResult,
@@ -58,7 +59,7 @@ expectType<Promise<{
     db: (name?: string) => DbAccessor;
     use: (name: string) => {
         collection: <TSchema = unknown>(collectionName: string) => Collection<TSchema>;
-        model: (modelName: string) => Record<string, unknown>;
+        model: <TDocument = Record<string, unknown>>(modelName: string) => ModelAccessor<TDocument>;
     };
     instance: MonSQLize;
 }>>(db.connect());

@@ -1,5 +1,6 @@
 import type { LoggerLike } from './base';
 import type { Collection, DbAccessor, HealthView } from './collection';
+import type { ModelInstance } from './model';
 import type { MemoryCache } from './runtime';
 
 export interface MonSQLizeOptions {
@@ -16,7 +17,7 @@ export interface MonSQLize {
         db: (name?: string) => DbAccessor;
         use: (name: string) => {
             collection: <TSchema = unknown>(collectionName: string) => Collection<TSchema>;
-            model: (modelName: string) => Record<string, unknown>;
+            model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>;
         };
         instance: MonSQLize;
     }>;
@@ -28,19 +29,19 @@ export interface MonSQLize {
     db(name?: string): DbAccessor;
     use(name: string): {
         collection: <TSchema = unknown>(collectionName: string) => Collection<TSchema>;
-        model: (modelName: string) => Record<string, unknown>;
+        model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>;
     };
     pool(poolName: string): {
         collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
-        model: (name: string) => Record<string, unknown>;
+        model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>;
         use: (dbName: string) => {
             collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
-            model: (name: string) => Record<string, unknown>;
+            model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>;
         };
     };
     scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; }): Collection<TSchema>;
-    scopedModel(name: string): Record<string, unknown>;
-    model(name: string): Record<string, unknown>;
+    scopedModel<TDocument = Record<string, unknown>>(name: string, options?: { database?: string; pool?: string; }): ModelInstance<TDocument>;
+    model<TDocument = Record<string, unknown>>(name: string): ModelInstance<TDocument>;
     startSession(): Promise<{ session: null; }>;
     withTransaction<T>(callback: (transaction: { session: null; }) => Promise<T>): Promise<T>;
     on(event: string, handler: (payload: unknown) => void): void;

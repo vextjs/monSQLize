@@ -1849,6 +1849,496 @@ function stableStringify2(value) {
   return JSON.stringify(value);
 }
 
+// src/capabilities/model/index.ts
+var PopulatePromise = class _PopulatePromise {
+  constructor(executor, paths = []) {
+    this.executor = executor;
+    this.paths = paths;
+  }
+  populate(path) {
+    return new _PopulatePromise(this.executor, [...this.paths, path]);
+  }
+  exec() {
+    return this.executor(this.paths);
+  }
+  then(onfulfilled, onrejected) {
+    return this.exec().then(onfulfilled ?? void 0, onrejected ?? void 0);
+  }
+};
+var Model = class {
+  static {
+    this.registry = /* @__PURE__ */ new Map();
+  }
+  static {
+    this.revisions = /* @__PURE__ */ new Map();
+  }
+  static define(collectionName, definition) {
+    const normalizedName = validateCollectionName(collectionName);
+    if (this.registry.has(normalizedName)) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, `Model '${normalizedName}' is already defined.`);
+    }
+    validateDefinition(definition);
+    this.registry.set(normalizedName, {
+      collectionName: normalizedName,
+      definition
+    });
+    this.bumpRevision(normalizedName);
+  }
+  static get(collectionName) {
+    return this.registry.get(collectionName);
+  }
+  static has(collectionName) {
+    return this.registry.has(collectionName);
+  }
+  static list() {
+    return [...this.registry.keys()];
+  }
+  static undefine(collectionName) {
+    const existed = this.registry.delete(collectionName);
+    this.bumpRevision(collectionName);
+    return existed;
+  }
+  static redefine(collectionName, definition) {
+    validateCollectionName(collectionName);
+    validateDefinition(definition);
+    this.registry.set(collectionName, {
+      collectionName,
+      definition
+    });
+    this.bumpRevision(collectionName);
+  }
+  static _clear() {
+    const names = [...this.registry.keys()];
+    this.registry.clear();
+    for (const name of names) {
+      this.bumpRevision(name);
+    }
+  }
+  static getRevision(collectionName) {
+    return this.revisions.get(collectionName) ?? 0;
+  }
+  static bumpRevision(collectionName) {
+    this.revisions.set(collectionName, (this.revisions.get(collectionName) ?? 0) + 1);
+  }
+};
+var ModelInstance = class {
+  constructor(collection, runtime, options) {
+    this.collection = collection;
+    this.runtime = runtime;
+    this.collectionName = options.collectionName;
+    this.dbName = options.dbName;
+    this.poolName = options.poolName;
+    this.definition = options.definition;
+    this.relations = new Map(Object.entries(options.definition.relations ?? {}));
+    for (const [name, config] of this.relations) {
+      validateRelationConfig(name, config);
+    }
+    for (const [name, handler] of Object.entries(options.definition.statics ?? {})) {
+      if (typeof handler === "function" && !(name in this)) {
+        Object.defineProperty(this, name, {
+          configurable: true,
+          enumerable: false,
+          writable: false,
+          value: (...args) => handler.apply(this, args)
+        });
+      }
+    }
+  }
+  getNamespace() {
+    return this.collection.getNamespace();
+  }
+  raw() {
+    return this.collection.raw();
+  }
+  find(query, options) {
+    return new PopulatePromise(async (paths) => {
+      const docs = await this.collection.find(query, options);
+      return this.populateDocuments(this.hydrateDocuments(docs), paths);
+    });
+  }
+  findOne(query, options) {
+    return new PopulatePromise(async (paths) => {
+      const doc = await this.collection.findOne(query, options);
+      return this.populateSingle(this.hydrateDocument(doc), paths);
+    });
+  }
+  findById(id, options) {
+    return this.findOne({ _id: id }, options);
+  }
+  findByIds(ids, options) {
+    return this.find({ _id: { $in: ids } }, options);
+  }
+  findPage(options) {
+    return new PopulatePromise(async (paths) => {
+      const result = await this.collection.findPage(options);
+      return {
+        ...result,
+        data: await this.populateDocuments(this.hydrateDocuments(result.data), paths)
+      };
+    });
+  }
+  findAndCount(query, options) {
+    return new PopulatePromise(async (paths) => {
+      const [rows, count] = await Promise.all([
+        this.collection.find(query, options),
+        this.collection.count(query, options)
+      ]);
+      return {
+        rows: await this.populateDocuments(this.hydrateDocuments(rows), paths),
+        count
+      };
+    });
+  }
+  count(query, options) {
+    return this.collection.count(query, options);
+  }
+  async insertOne(document, options) {
+    const payload = this.applyDefaults(document);
+    await this.runHook("beforeCreate", { operation: "insertOne", collection: this.collectionName, data: payload });
+    const result = await this.collection.insertOne(payload, options);
+    await this.runHook("afterCreate", { operation: "insertOne", collection: this.collectionName, data: payload, result });
+    return result;
+  }
+  insertMany(documents, options) {
+    return this.collection.insertMany((documents ?? []).map((item) => this.applyDefaults(item)), options);
+  }
+  async updateOne(filter, update, options) {
+    await this.runHook("beforeUpdate", { operation: "updateOne", collection: this.collectionName, filter, update });
+    const result = await this.collection.updateOne(filter, update, options);
+    await this.runHook("afterUpdate", { operation: "updateOne", collection: this.collectionName, filter, update, result });
+    return result;
+  }
+  updateMany(filter, update, options) {
+    return this.collection.updateMany(filter, update, options);
+  }
+  replaceOne(filter, replacement, options) {
+    return this.collection.replaceOne(filter, replacement, options);
+  }
+  findOneAndUpdate(filter, update, options) {
+    return this.collection.findOneAndUpdate(filter, update, options);
+  }
+  findOneAndDelete(filter, options) {
+    return this.collection.findOneAndDelete(filter, options);
+  }
+  upsertOne(filter, update, options) {
+    return this.collection.upsertOne(filter, update, options);
+  }
+  async deleteOne(filter, options) {
+    await this.runHook("beforeDelete", { operation: "deleteOne", collection: this.collectionName, filter });
+    const result = await this.collection.deleteOne(filter, options);
+    await this.runHook("afterDelete", { operation: "deleteOne", collection: this.collectionName, filter, result });
+    return result;
+  }
+  deleteMany(filter, options) {
+    return this.collection.deleteMany(filter, options);
+  }
+  createIndex(keys, options) {
+    return this.collection.createIndex(keys, options);
+  }
+  createIndexes(specs) {
+    return this.collection.createIndexes(specs);
+  }
+  listIndexes() {
+    return this.collection.listIndexes();
+  }
+  dropIndex(name) {
+    return this.collection.dropIndex(name);
+  }
+  dropIndexes() {
+    return this.collection.dropIndexes();
+  }
+  distinct(key, query, options) {
+    return this.collection.distinct(key, query, options);
+  }
+  aggregate(pipeline, options) {
+    return this.collection.aggregate(pipeline, options);
+  }
+  watch(pipeline, options) {
+    return this.collection.watch(pipeline, options);
+  }
+  async validate(_document) {
+    return { valid: true };
+  }
+  async populateSingle(doc, paths) {
+    if (!doc) {
+      return null;
+    }
+    const [result] = await this.populateDocuments([doc], paths);
+    return result ?? null;
+  }
+  async populateDocuments(docs, paths) {
+    let current = docs;
+    for (const path of paths) {
+      current = await this.populatePath(current, path);
+    }
+    return current;
+  }
+  async populatePath(docs, path) {
+    const config = normalizePopulateConfig(path);
+    const relation = this.relations.get(config.path);
+    if (!relation || docs.length === 0) {
+      return docs;
+    }
+    const keys = unique(
+      docs.map((doc) => getByPath(doc, relation.localField)).filter((value) => value !== void 0 && value !== null)
+    );
+    if (keys.length === 0) {
+      for (const doc of docs) {
+        doc[config.path] = relation.single ? null : [];
+      }
+      return docs;
+    }
+    const registered = Model.get(relation.from);
+    const scope = {
+      database: registered?.definition.connection?.database ?? this.dbName,
+      pool: registered?.definition.connection?.pool ?? this.poolName
+    };
+    const relatedCollection = this.runtime.scopedCollection(relation.from, scope);
+    const relatedModel = Model.has(relation.from) ? this.runtime.scopedModel(relation.from, scope) : null;
+    const relatedDocs = await relatedCollection.find({
+      [relation.foreignField]: { $in: keys },
+      ...config.match ?? {}
+    });
+    let hydrated = relatedModel ? relatedModel.hydrateDocuments(relatedDocs) : relatedDocs.map((item) => ({ ...item }));
+    if (config.sort) {
+      hydrated = applySort(hydrated, config.sort);
+    }
+    if (config.skip) {
+      hydrated = hydrated.slice(config.skip);
+    }
+    if (config.limit !== void 0) {
+      hydrated = hydrated.slice(0, config.limit);
+    }
+    if (config.select) {
+      const select = config.select;
+      hydrated = hydrated.map((item) => pickFields(item, select, [relation.foreignField]));
+    }
+    if (config.populate && relatedModel) {
+      const nestedPaths = Array.isArray(config.populate) ? config.populate : [config.populate];
+      hydrated = await relatedModel.populateDocuments(hydrated, nestedPaths);
+    }
+    const grouped = groupBy(hydrated, (item) => getByPath(item, relation.foreignField));
+    for (const doc of docs) {
+      const localValue = getByPath(doc, relation.localField);
+      const matches = grouped.get(toKey(localValue)) ?? [];
+      doc[config.path] = relation.single ? matches[0] ?? null : [...matches];
+    }
+    return docs;
+  }
+  hydrateDocuments(docs) {
+    return docs.filter(Boolean).map((doc) => this.hydrateDocument(doc));
+  }
+  hydrateDocument(doc) {
+    if (!doc || typeof doc !== "object") {
+      return null;
+    }
+    const hydrated = { ...doc };
+    for (const [name, virtual] of Object.entries(this.definition.virtuals ?? {})) {
+      Object.defineProperty(hydrated, name, {
+        configurable: true,
+        enumerable: true,
+        get: () => virtual.get.call(hydrated),
+        set: virtual.set ? (value) => virtual.set?.call(hydrated, value) : void 0
+      });
+    }
+    for (const [name, method] of Object.entries(this.definition.methods ?? {})) {
+      Object.defineProperty(hydrated, name, {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: (...args) => method.apply(hydrated, args)
+      });
+    }
+    Object.defineProperties(hydrated, {
+      save: {
+        configurable: true,
+        enumerable: false,
+        value: async () => this.saveDocument(hydrated)
+      },
+      remove: {
+        configurable: true,
+        enumerable: false,
+        value: async () => this.removeDocument(hydrated)
+      },
+      validate: {
+        configurable: true,
+        enumerable: false,
+        value: async () => this.validate(hydrated)
+      },
+      toObject: {
+        configurable: true,
+        enumerable: false,
+        value: () => serializeDocument(hydrated)
+      },
+      toJSON: {
+        configurable: true,
+        enumerable: false,
+        value: () => serializeDocument(hydrated)
+      }
+    });
+    return hydrated;
+  }
+  async saveDocument(document) {
+    const payload = serializeDocument(document);
+    if (payload._id !== void 0) {
+      await this.collection.replaceOne({ _id: payload._id }, payload, { upsert: true });
+      return document;
+    }
+    const result = await this.collection.insertOne(payload);
+    document._id = result.insertedId;
+    return document;
+  }
+  async removeDocument(document) {
+    if (document._id === void 0) {
+      return false;
+    }
+    const result = await this.collection.deleteOne({ _id: document._id });
+    return Boolean(result.deletedCount ?? result.acknowledged);
+  }
+  applyDefaults(document) {
+    const payload = { ...document ?? {} };
+    for (const [key, value] of Object.entries(this.definition.defaults ?? {})) {
+      if (payload[key] === void 0) {
+        payload[key] = typeof value === "function" ? value(void 0, payload) : value;
+      }
+    }
+    return payload;
+  }
+  async runHook(hookName, context) {
+    const hook = this.definition.hooks?.[hookName];
+    if (typeof hook === "function") {
+      await hook(context);
+    }
+  }
+};
+function validateCollectionName(collectionName) {
+  if (!collectionName || typeof collectionName !== "string" || collectionName.trim() === "") {
+    throw createError(ErrorCodes.INVALID_COLLECTION_NAME, "Collection name must be a non-empty string.");
+  }
+  if (/[$.\s\x00]/.test(collectionName)) {
+    throw createError(ErrorCodes.INVALID_COLLECTION_NAME, "Invalid collection name: contains special characters ($, ., space, or null character).");
+  }
+  return collectionName;
+}
+function validateDefinition(definition) {
+  if (!definition || typeof definition !== "object") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "Model definition must be an object.");
+  }
+  if (definition.connection) {
+    if (definition.connection.pool !== void 0 && (typeof definition.connection.pool !== "string" || definition.connection.pool.trim() === "")) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "connection.pool must be a non-empty string.");
+    }
+    if (definition.connection.database !== void 0 && (typeof definition.connection.database !== "string" || definition.connection.database.trim() === "")) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "connection.database must be a non-empty string.");
+    }
+  }
+  for (const [name, config] of Object.entries(definition.relations ?? {})) {
+    validateRelationConfig(name, config);
+  }
+}
+function validateRelationConfig(name, config) {
+  if (!name || typeof name !== "string") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "Relation name must be a non-empty string.");
+  }
+  if (!config || typeof config !== "object") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `Relation '${name}' must be an object.`);
+  }
+  for (const field of ["from", "localField", "foreignField"]) {
+    if (typeof config[field] !== "string" || config[field].trim() === "") {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, `Relation '${name}' field '${field}' must be a non-empty string.`);
+    }
+  }
+  if (config.single !== void 0 && typeof config.single !== "boolean") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `Relation '${name}' field 'single' must be a boolean.`);
+  }
+}
+function normalizePopulateConfig(path) {
+  return typeof path === "string" ? { path } : path;
+}
+function unique(values) {
+  const map = /* @__PURE__ */ new Map();
+  for (const value of values) {
+    const key = toKey(value);
+    if (!map.has(key)) {
+      map.set(key, value);
+    }
+  }
+  return [...map.values()];
+}
+function groupBy(values, keySelector) {
+  const map = /* @__PURE__ */ new Map();
+  for (const value of values) {
+    const key = toKey(keySelector(value));
+    const group = map.get(key);
+    if (group) {
+      group.push(value);
+    } else {
+      map.set(key, [value]);
+    }
+  }
+  return map;
+}
+function toKey(value) {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (typeof value === "object" && value !== null) {
+    const candidate = value;
+    if (typeof candidate.toHexString === "function") {
+      return candidate.toHexString();
+    }
+    if (typeof candidate.toString === "function") {
+      return candidate.toString();
+    }
+  }
+  return String(value);
+}
+function getByPath(source, path) {
+  return path.split(".").reduce((current, key) => {
+    if (!current || typeof current !== "object") {
+      return void 0;
+    }
+    return current[key];
+  }, source);
+}
+function pickFields(document, select, alwaysInclude = []) {
+  const keys = Array.isArray(select) ? select : select.split(/\s+/).filter(Boolean);
+  const result = {};
+  for (const key of [.../* @__PURE__ */ new Set([...keys, ...alwaysInclude])]) {
+    if (key in document) {
+      result[key] = document[key];
+    }
+  }
+  if ("_id" in document && !("_id" in result)) {
+    result._id = document._id;
+  }
+  return result;
+}
+function applySort(values, sort) {
+  const entries = Object.entries(sort);
+  return [...values].sort((left, right) => {
+    for (const [field, direction] of entries) {
+      const leftValue = getByPath(left, field);
+      const rightValue = getByPath(right, field);
+      if (leftValue === rightValue) {
+        continue;
+      }
+      const result = leftValue > rightValue ? 1 : -1;
+      return result * direction;
+    }
+    return 0;
+  });
+}
+function serializeDocument(document) {
+  const plain = {};
+  for (const [key, value] of Object.entries(document)) {
+    if (typeof value !== "function") {
+      plain[key] = value;
+    }
+  }
+  return plain;
+}
+
 // src/adapters/mongodb/common/connect.ts
 import { MongoClient } from "mongodb";
 async function connectMongo(params) {
@@ -1965,36 +2455,13 @@ var ConnectionPoolManager = class {
     this.options = options;
   }
 };
-var Model = class {
-  /**
-   * 注册模型定义。
-   * @since v1.3.0
-   */
-  static define(name, definition) {
-    this.definitions.set(name, definition);
-  }
-  /**
-   * 注销模型定义。
-   * @since v1.3.0
-   */
-  static undefine(name) {
-    return this.definitions.delete(name);
-  }
-  /**
-   * 重新定义模型。
-   * @since v1.3.0
-   */
-  static redefine(name, definition) {
-    this.definitions.set(name, definition);
-  }
-};
-Model["definitions"] = /* @__PURE__ */ new Map();
 var MonSQLizeRuntime = class {
   constructor(options = {}) {
     this.options = options;
     this._connected = false;
     this._client = null;
     this._defaultDb = null;
+    this._modelInstances = /* @__PURE__ */ new Map();
     this._connectionPromise = null;
     const type = options.type ?? "mongodb";
     if (type !== "mongodb") {
@@ -2065,6 +2532,7 @@ var MonSQLizeRuntime = class {
     this._client = null;
     this._defaultDb = null;
     this._connected = false;
+    this._modelInstances.clear();
   }
   /**
    * 健康检查。
@@ -2113,7 +2581,7 @@ var MonSQLizeRuntime = class {
     const db = this.db(name);
     return {
       collection: (collectionName) => db.collection(collectionName),
-      model: (modelName) => this.model(modelName)
+      model: (modelName) => this.scopedModel(modelName, { database: name })
     };
   }
   /**
@@ -2123,13 +2591,12 @@ var MonSQLizeRuntime = class {
   pool(poolName) {
     this.ensureConnected();
     const databaseName = this.resolveDatabaseName();
-    void poolName;
     return {
       collection: (name) => this.db(databaseName).collection(name),
-      model: (name) => this.model(name),
+      model: (name) => this.scopedModel(name, { database: databaseName, pool: poolName }),
       use: (dbName) => ({
         collection: (name) => this.db(dbName).collection(name),
-        model: (name) => this.model(name)
+        model: (name) => this.scopedModel(name, { database: dbName, pool: poolName })
       })
     };
   }
@@ -2145,9 +2612,12 @@ var MonSQLizeRuntime = class {
    * 获取限定数据库的 Model 访问器（P1 占位实现）。
    * @since v1.3.0
    */
-  scopedModel(name) {
+  scopedModel(name, options = {}) {
     this.ensureConnected();
-    return this.model(name);
+    return this.createModelInstance(name, {
+      database: options.database ?? this.resolveDatabaseName(),
+      pool: options.pool
+    });
   }
   /**
    * 获取 Model 访问器（P1 占位实现）。
@@ -2155,10 +2625,9 @@ var MonSQLizeRuntime = class {
    */
   model(name) {
     this.ensureConnected();
-    return {
-      name,
-      type: "model-skeleton"
-    };
+    return this.createModelInstance(name, {
+      database: this.resolveDatabaseName()
+    });
   }
   /**
    * 手动事务入口（P1 占位实现）。
@@ -2219,6 +2688,35 @@ var MonSQLizeRuntime = class {
   }
   resolveDatabaseName() {
     return this.options.databaseName ?? "default";
+  }
+  createModelInstance(name, scope) {
+    const registered = Model.get(name);
+    if (!registered) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, `Model '${name}' is not defined.`);
+    }
+    const databaseName = registered.definition.connection?.database ?? scope.database ?? this.resolveDatabaseName();
+    const poolName = registered.definition.connection?.pool ?? scope.pool;
+    const cacheKey = `${poolName ?? "default"}:${databaseName}:${registered.collectionName}`;
+    const revision = Model.getRevision(registered.collectionName);
+    const cached = this._modelInstances.get(cacheKey);
+    if (cached && cached.revision === revision) {
+      return cached.instance;
+    }
+    const instance = new ModelInstance(
+      this.scopedCollection(registered.collectionName, { database: databaseName }),
+      this,
+      {
+        collectionName: registered.collectionName,
+        dbName: databaseName,
+        poolName,
+        definition: registered.definition
+      }
+    );
+    this._modelInstances.set(cacheKey, {
+      revision,
+      instance
+    });
+    return instance;
   }
 };
 

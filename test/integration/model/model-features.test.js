@@ -1,0 +1,151 @@
+const { after, before, beforeEach, describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+
+const MonSQLize = require('../../../lib/index.js');
+const { createMemoryServerBootstrap } = require('../../bootstrap/memory-server');
+
+describe('P3-C model features', () => {
+    const bootstrap = createMemoryServerBootstrap();
+    let uri;
+
+    before(async () => {
+        const context = await bootstrap.setup();
+        uri = context.uri;
+    });
+
+    after(async () => {
+        MonSQLize.Model._clear();
+        await bootstrap.teardown();
+    });
+
+    beforeEach(() => {
+        MonSQLize.Model._clear();
+    });
+
+    it('应恢复 model registry、实例缓存、relations/virtuals/populate 与 scoped routing', async () => {
+        MonSQLize.Model.define('comments', {
+            methods: {
+                summary() {
+                    return `${this.body}`;
+                },
+            },
+        });
+        MonSQLize.Model.define('posts', {
+            defaults: { status: 'draft' },
+            virtuals: {
+                titleWithStatus: {
+                    get() {
+                        return `${this.title}:${this.status}`;
+                    },
+                },
+            },
+            relations: {
+                comments: {
+                    from: 'comments',
+                    localField: '_id',
+                    foreignField: 'postId',
+                },
+            },
+        });
+        MonSQLize.Model.define('users', {
+            methods: {
+                greet() {
+                    return `Hello ${this.firstName}`;
+                },
+            },
+            virtuals: {
+                displayName: {
+                    get() {
+                        return `${this.firstName} ${this.lastName}`.trim();
+                    },
+                },
+            },
+            relations: {
+                posts: {
+                    from: 'posts',
+                    localField: '_id',
+                    foreignField: 'authorId',
+                },
+            },
+        });
+
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'p3c_models',
+            config: { uri },
+        });
+        await runtime.connect();
+
+        const users = runtime.model('users');
+        const usersAgain = runtime.model('users');
+        const tenantUsers = runtime.use('tenant_reporting').model('users');
+        assert.strictEqual(users, usersAgain);
+        assert.notStrictEqual(users, tenantUsers);
+        assert.equal(tenantUsers.dbName, 'tenant_reporting');
+        assert.equal(tenantUsers.getNamespace().db, 'tenant_reporting');
+
+        const createdUser = await users.insertOne({ firstName: 'Ada', lastName: 'Lovelace' });
+        const adaId = createdUser.insertedId;
+
+        const posts = runtime.model('posts');
+        const comments = runtime.model('comments');
+        const compiler = await posts.insertOne({ title: 'Compiler', authorId: adaId });
+        const engine = await posts.insertOne({ title: 'Engine', authorId: adaId, status: 'published' });
+        await comments.insertOne({ postId: compiler.insertedId, body: 'First comment' });
+        await comments.insertOne({ postId: engine.insertedId, body: 'Second comment' });
+
+        const populatedUser = await users.findOne({ _id: adaId }).populate({
+            path: 'posts',
+            sort: { title: 1 },
+            populate: 'comments',
+        });
+
+        assert.equal(populatedUser.displayName, 'Ada Lovelace');
+        assert.equal(populatedUser.greet(), 'Hello Ada');
+        assert.equal(populatedUser.posts.length, 2);
+        assert.equal(populatedUser.posts[0].title, 'Compiler');
+        assert.equal(populatedUser.posts[0].titleWithStatus, 'Compiler:draft');
+        assert.equal(populatedUser.posts[0].comments[0].summary(), 'First comment');
+        assert.equal(populatedUser.posts[1].comments[0].body, 'Second comment');
+
+        const byIds = await posts.findByIds([compiler.insertedId, engine.insertedId]).populate({
+            path: 'comments',
+            select: ['body'],
+        });
+        assert.equal(byIds[0].comments[0].body.includes('comment'), true);
+        assert.equal(Object.prototype.hasOwnProperty.call(byIds[0].comments[0], '_id'), true);
+
+        const page = await users.findPage({ page: 1, limit: 10 }).populate('posts');
+        assert.equal(page.data.length, 1);
+        assert.equal(page.data[0].posts.length, 2);
+
+        const counted = await users.findAndCount({ firstName: 'Ada' }).populate('posts');
+        assert.equal(counted.count, 1);
+        assert.equal(counted.rows[0].posts.length, 2);
+
+        const doc = await users.findOne({ _id: adaId });
+        doc.nickname = 'Countess';
+        await doc.save();
+        const reloaded = await users.findById(adaId);
+        assert.equal(reloaded.nickname, 'Countess');
+        assert.deepEqual(await reloaded.validate(), { valid: true });
+
+        MonSQLize.Model.redefine('users', {
+            virtuals: {
+                displayName: {
+                    get() {
+                        return `${this.lastName}, ${this.firstName}`;
+                    },
+                },
+            },
+        });
+        const refreshedUsers = runtime.model('users');
+        assert.notStrictEqual(refreshedUsers, users);
+        const refreshedDoc = await refreshedUsers.findById(adaId);
+        assert.equal(refreshedDoc.displayName, 'Lovelace, Ada');
+
+        await runtime.close();
+    });
+});
+
+

@@ -22,6 +22,17 @@ import {
     withCache,
     type WithCacheOptions,
 } from '../capabilities/function-cache';
+import {
+    Model,
+    ModelInstance,
+    type ModelConnection,
+    type ModelDefinition,
+    type PopulateConfig,
+    type PopulateProxy,
+    type RelationConfig,
+    type ValidationResult,
+    type VirtualConfig,
+} from '../capabilities/model';
 import { closeMongo, connectMongo, type MongoConnectConfig } from '../adapters/mongodb/common/connect';
 import { createExpression, expr, type ExpressionObject } from '../core/expression';
 import { ErrorCodes, createError } from '../core/errors';
@@ -29,8 +40,22 @@ import { Logger, type LoggerLike } from '../core/logger';
 
 export { CollectionFacade, DbFacade, Logger, MemoryCache, createRedisCacheAdapter, DistributedCacheInvalidator };
 export { FunctionCache, withCache };
+export { Model };
 export { createExpression, expr };
-export type { CacheStats, CachedFunction, ExpressionObject, LoggerLike, WithCacheOptions };
+export type {
+    CacheStats,
+    CachedFunction,
+    ExpressionObject,
+    LoggerLike,
+    ModelConnection,
+    ModelDefinition,
+    PopulateConfig,
+    PopulateProxy,
+    RelationConfig,
+    ValidationResult,
+    VirtualConfig,
+    WithCacheOptions,
+};
 
 export interface MonSQLizeOptions {
     type?: 'mongodb';
@@ -65,36 +90,6 @@ export class ConnectionPoolManager {
 }
 
 
-export class Model {
-    private static definitions: Map<string, Record<string, unknown>>;
-
-    /**
-     * 注册模型定义。
-     * @since v1.3.0
-     */
-    static define(name: string, definition: Record<string, unknown>): void {
-        this.definitions.set(name, definition);
-    }
-
-    /**
-     * 注销模型定义。
-     * @since v1.3.0
-     */
-    static undefine(name: string): boolean {
-        return this.definitions.delete(name);
-    }
-
-    /**
-     * 重新定义模型。
-     * @since v1.3.0
-     */
-    static redefine(name: string, definition: Record<string, unknown>): void {
-        this.definitions.set(name, definition);
-    }
-}
-
-Model['definitions'] = new Map<string, Record<string, unknown>>();
-
 export interface HealthView {
     status: 'up' | 'down';
     connected: boolean;
@@ -108,10 +103,14 @@ export class MonSQLizeRuntime {
     private readonly _logger: Logger;
     private _client: Awaited<ReturnType<typeof connectMongo>>['client'] | null = null;
     private _defaultDb: DbFacade | null = null;
+    private readonly _modelInstances = new Map<string, {
+        revision: number;
+        instance: ModelInstance<Record<string, unknown>>;
+    }>();
     private _connectionPromise: Promise<{
         collection: (name: string) => CollectionFacade;
         db: (name?: string) => DbFacade;
-        use: (name: string) => { collection: (collectionName: string) => CollectionFacade; model: (modelName: string) => Record<string, unknown>; };
+        use: (name: string) => { collection: (collectionName: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>; };
         instance: MonSQLizeRuntime;
     }> | null = null;
 
@@ -135,7 +134,7 @@ export class MonSQLizeRuntime {
     async connect(): Promise<{
         collection: (name: string) => CollectionFacade;
         db: (name?: string) => DbFacade;
-        use: (name: string) => { collection: (collectionName: string) => CollectionFacade; model: (modelName: string) => Record<string, unknown>; };
+        use: (name: string) => { collection: (collectionName: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>; };
         instance: MonSQLizeRuntime;
     }> {
         if (this._connected) {
@@ -197,6 +196,7 @@ export class MonSQLizeRuntime {
         this._client = null;
         this._defaultDb = null;
         this._connected = false;
+        this._modelInstances.clear();
     }
 
     /**
@@ -244,12 +244,12 @@ export class MonSQLizeRuntime {
      * 获取指定数据库访问器。
      * @since v1.3.0
      */
-    use(name: string): { collection: (collectionName: string) => CollectionFacade; model: (modelName: string) => Record<string, unknown>; } {
+    use(name: string): { collection: (collectionName: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>; } {
         this.ensureConnected();
         const db = this.db(name);
         return {
             collection: (collectionName: string) => db.collection(collectionName),
-            model: (modelName: string) => this.model(modelName),
+            model: <TDocument = Record<string, unknown>>(modelName: string) => this.scopedModel<TDocument>(modelName, { database: name }),
         };
     }
 
@@ -259,18 +259,17 @@ export class MonSQLizeRuntime {
      */
     pool(poolName: string): {
         collection: (name: string) => CollectionFacade;
-        model: (name: string) => Record<string, unknown>;
-        use: (dbName: string) => { collection: (name: string) => CollectionFacade; model: (name: string) => Record<string, unknown>; };
+        model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>;
+        use: (dbName: string) => { collection: (name: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>; };
     } {
         this.ensureConnected();
         const databaseName = this.resolveDatabaseName();
-        void poolName;
         return {
             collection: (name: string) => this.db(databaseName).collection(name),
-            model: (name: string) => this.model(name),
+            model: <TDocument = Record<string, unknown>>(name: string) => this.scopedModel<TDocument>(name, { database: databaseName, pool: poolName }),
             use: (dbName: string) => ({
                 collection: (name: string) => this.db(dbName).collection(name),
-                model: (name: string) => this.model(name),
+                model: <TDocument = Record<string, unknown>>(name: string) => this.scopedModel<TDocument>(name, { database: dbName, pool: poolName }),
             }),
         };
     }
@@ -288,21 +287,23 @@ export class MonSQLizeRuntime {
      * 获取限定数据库的 Model 访问器（P1 占位实现）。
      * @since v1.3.0
      */
-    scopedModel(name: string): Record<string, unknown> {
+    scopedModel<TDocument = Record<string, unknown>>(name: string, options: { database?: string; pool?: string; } = {}): ModelInstance<TDocument> {
         this.ensureConnected();
-        return this.model(name);
+        return this.createModelInstance<TDocument>(name, {
+            database: options.database ?? this.resolveDatabaseName(),
+            pool: options.pool,
+        });
     }
 
     /**
      * 获取 Model 访问器（P1 占位实现）。
      * @since v1.3.0
      */
-    model(name: string): Record<string, unknown> {
+    model<TDocument = Record<string, unknown>>(name: string): ModelInstance<TDocument> {
         this.ensureConnected();
-        return {
-            name,
-            type: 'model-skeleton',
-        };
+        return this.createModelInstance<TDocument>(name, {
+            database: this.resolveDatabaseName(),
+        });
     }
 
     /**
@@ -364,7 +365,7 @@ export class MonSQLizeRuntime {
     private createRuntimeAccessors(): {
         collection: (name: string) => CollectionFacade;
         db: (name?: string) => DbFacade;
-        use: (name: string) => { collection: (collectionName: string) => CollectionFacade; model: (modelName: string) => Record<string, unknown>; };
+        use: (name: string) => { collection: (collectionName: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>; };
         instance: MonSQLizeRuntime;
     } {
         return {
@@ -377,6 +378,41 @@ export class MonSQLizeRuntime {
 
     private resolveDatabaseName(): string {
         return this.options.databaseName ?? 'default';
+    }
+
+    private createModelInstance<TDocument = Record<string, unknown>>(
+        name: string,
+        scope: { database?: string; pool?: string; },
+    ): ModelInstance<TDocument> {
+        const registered = Model.get<TDocument>(name);
+        if (!registered) {
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `Model '${name}' is not defined.`);
+        }
+
+        const databaseName = registered.definition.connection?.database ?? scope.database ?? this.resolveDatabaseName();
+        const poolName = registered.definition.connection?.pool ?? scope.pool;
+        const cacheKey = `${poolName ?? 'default'}:${databaseName}:${registered.collectionName}`;
+        const revision = Model.getRevision(registered.collectionName);
+        const cached = this._modelInstances.get(cacheKey);
+        if (cached && cached.revision === revision) {
+            return cached.instance as ModelInstance<TDocument>;
+        }
+
+        const instance = new ModelInstance<TDocument>(
+            this.scopedCollection(registered.collectionName, { database: databaseName }) as never,
+            this as never,
+            {
+                collectionName: registered.collectionName,
+                dbName: databaseName,
+                poolName,
+                definition: registered.definition,
+            },
+        );
+        this._modelInstances.set(cacheKey, {
+            revision,
+            instance: instance as ModelInstance<Record<string, unknown>>,
+        });
+        return instance;
     }
 }
 

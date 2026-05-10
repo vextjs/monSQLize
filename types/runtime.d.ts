@@ -1,4 +1,6 @@
+import type { DeleteResult, IndexCreateResult, UpdateResult } from './collection';
 import type { LoggerLike, ExpressionFunction } from './base';
+import type { ModelDefinition, ModelInstance as ModelInstanceContract, RegisteredModel } from './model';
 
 export declare class Logger {
     constructor(logger?: LoggerLike | null);
@@ -140,9 +142,49 @@ export declare class FunctionCache {
 }
 
 export declare class Model {
-    static define(name: string, definition: Record<string, unknown>): void;
+    static define<TDocument = Record<string, unknown>>(name: string, definition: ModelDefinition<TDocument>): void;
+    static get<TDocument = Record<string, unknown>>(name: string): RegisteredModel<TDocument> | undefined;
+    static has(name: string): boolean;
+    static list(): string[];
     static undefine(name: string): boolean;
-    static redefine(name: string, definition: Record<string, unknown>): void;
+    static redefine<TDocument = Record<string, unknown>>(name: string, definition: ModelDefinition<TDocument>): void;
+    static _clear(): void;
+}
+
+export declare class ModelInstance<TDocument = Record<string, unknown>> implements ModelInstanceContract<TDocument> {
+    private constructor(...args: unknown[]);
+    readonly collectionName: string;
+    readonly dbName: string;
+    readonly poolName?: string;
+    readonly definition: ModelDefinition<TDocument>;
+    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
+    raw(): unknown;
+    find(query?: unknown, options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
+    findOne(query?: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
+    findById(id: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
+    findByIds(ids: unknown[], options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
+    findPage(options?: unknown): import('./model').PopulateProxy<{ data: Array<import('./model').ModelDocument<TDocument>>; page: { page: number; limit: number; }; totals: { total: number; totalPages: number; }; }>;
+    findAndCount(query?: unknown, options?: unknown): import('./model').PopulateProxy<{ rows: Array<import('./model').ModelDocument<TDocument>>; count: number; }>;
+    count(query?: unknown, options?: unknown): Promise<number>;
+    insertOne(document?: unknown, options?: unknown): Promise<{ acknowledged: boolean; insertedId: unknown; }>;
+    insertMany(documents?: unknown[], options?: unknown): Promise<unknown>;
+    updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
+    updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
+    replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<unknown>;
+    findOneAndUpdate(filter?: unknown, update?: unknown, options?: unknown): Promise<TDocument | null>;
+    findOneAndDelete(filter?: unknown, options?: unknown): Promise<TDocument | null>;
+    upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    deleteOne(filter?: unknown, options?: unknown): Promise<DeleteResult>;
+    deleteMany(filter?: unknown, options?: unknown): Promise<DeleteResult>;
+    createIndex(keys: unknown, options?: unknown): Promise<IndexCreateResult>;
+    createIndexes(specs: Array<{ key: unknown; } & Record<string, unknown>>): Promise<string[]>;
+    listIndexes(): Promise<Record<string, unknown>[]>;
+    dropIndex(name: string): Promise<unknown>;
+    dropIndexes(): Promise<unknown>;
+    distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
+    aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]>;
+    watch(pipeline?: unknown[], options?: unknown): unknown;
+    validate(document?: unknown): Promise<import('./model').ValidationResult>;
 }
 
 export declare const expr: ExpressionFunction;
