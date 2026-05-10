@@ -3,10 +3,16 @@ import type { LoggerLike, ExpressionFunction } from './base';
 import type { ModelDefinition, ModelInstance as ModelInstanceContract, RegisteredModel } from './model';
 import type { LockOptions, LockStats } from './lock';
 import type { ConnectionPoolManagerOptions, FallbackStrategy, PoolConfig, PoolHealthStatus, PoolRole, PoolStats, PoolStrategy } from './pool';
+import type { SagaDefinition, SagaOrchestratorOptions, SagaResult, SagaStats, SagaStep } from './saga';
+import type { SlowQueryLogConfig, SlowQueryLogConfigInput, SlowQueryLogEntry, SlowQueryLogFilter, SlowQueryLogQueryOptions, SlowQueryLogRecord, SlowQueryLogStorageConfig } from './slow-query-log';
+import type { ResumeTokenConfig, SyncChangeEvent, SyncConfig, SyncStats, SyncTargetConfig } from './sync';
 import type { MongoSession, TransactionOptions, TransactionStats } from './transaction';
 
 export { Lock, LockAcquireError, LockTimeoutError, LockManager } from './lock';
 export { ConnectionPoolManager } from './pool';
+export { SagaOrchestrator } from './saga';
+export { BatchQueue, SlowQueryLogConfigManager, SlowQueryLogManager, SlowQueryLogMemoryStorage, MongoDBSlowQueryLogStorage } from './slow-query-log';
+export { ChangeStreamSyncManager, ResumeTokenStore } from './sync';
 export { CacheLockManager, Transaction, TransactionManager } from './transaction';
 
 export declare class Logger {
@@ -98,7 +104,27 @@ export type {
     PoolRole,
     PoolStats,
     PoolStrategy,
+    ResumeTokenConfig,
+    SagaDefinition,
+    SagaOrchestratorOptions,
+    SagaResult,
+    SagaStats,
+    SagaStep,
+    SlowQueryLogConfig,
+    SlowQueryLogConfigInput,
+    SlowQueryLogEntry,
+    SlowQueryLogFilter,
+    SlowQueryLogQueryOptions,
+    SlowQueryLogRecord,
+    SlowQueryLogStorageConfig,
+    SyncChangeEvent,
+    SyncConfig,
+    SyncStats,
+    SyncTargetConfig,
 };
+
+export declare function validateSyncConfig(config: SyncConfig): void;
+export declare function generateQueryHash(input: unknown): string;
 
 export interface WithCacheOptions {
     ttl?: number;

@@ -4,6 +4,9 @@ import type { Lock, LockOptions } from './lock';
 import type { ModelInstance } from './model';
 import type { ConnectionPoolManagerOptions, PoolConfig, PoolStrategy } from './pool';
 import type { MemoryCache } from './runtime';
+import type { SagaDefinition, SagaOrchestrator, SagaResult, SagaStats } from './saga';
+import type { SlowQueryLogConfigInput, SlowQueryLogEntry, SlowQueryLogFilter, SlowQueryLogManager, SlowQueryLogQueryOptions, SlowQueryLogRecord } from './slow-query-log';
+import type { ChangeStreamSyncManager, SyncConfig, SyncStats } from './sync';
 import type { Transaction, TransactionOptions } from './transaction';
 
 export interface MonSQLizeOptions {
@@ -16,6 +19,8 @@ export interface MonSQLizeOptions {
     poolStrategy?: PoolStrategy;
     poolFallback?: ConnectionPoolManagerOptions['poolFallback'];
     maxPoolsCount?: number;
+    sync?: SyncConfig;
+    slowQueryLog?: SlowQueryLogConfigInput;
 }
 
 export interface MonSQLize {
@@ -54,6 +59,19 @@ export interface MonSQLize {
     withLock<T>(key: string, callback: () => Promise<T>, options?: LockOptions): Promise<T>;
     acquireLock(key: string, options?: LockOptions): Promise<Lock>;
     tryAcquireLock(key: string, options?: Omit<LockOptions, 'retryTimes'>): Promise<Lock | null>;
+    getSyncManager(): ChangeStreamSyncManager | null;
+    getSlowQueryLogManager(): SlowQueryLogManager | null;
+    getSagaOrchestrator(): SagaOrchestrator;
+    saga(): SagaOrchestrator;
+    defineSaga(definition: SagaDefinition): void;
+    executeSaga(name: string, data: unknown): Promise<SagaResult>;
+    listSagas(): string[];
+    getSagaStats(): SagaStats;
+    startSync(): Promise<void>;
+    stopSync(): Promise<void>;
+    getSyncStats(): SyncStats | null;
+    recordSlowQuery(log: SlowQueryLogEntry): Promise<void>;
+    getSlowQueryLogs(filter?: SlowQueryLogFilter, options?: SlowQueryLogQueryOptions): Promise<SlowQueryLogRecord[]>;
     on(event: string, handler: (payload: unknown) => void): void;
     once(event: string, handler: (payload: unknown) => void): void;
     off(event: string, handler: (payload: unknown) => void): void;

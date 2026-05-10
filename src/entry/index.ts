@@ -1,14 +1,22 @@
 import {
+    BatchQueue,
+    ChangeStreamSyncManager,
     ConnectionPoolManager,
     DistributedCacheInvalidator,
     expr,
     createExpression,
     createRedisCacheAdapter,
     FunctionCache,
+    generateQueryHash,
     Logger,
     MemoryCache,
     Model,
     MonSQLizeRuntime,
+    ResumeTokenStore,
+    SagaOrchestrator,
+    SlowQueryLogConfigManager,
+    SlowQueryLogManager,
+    validateSyncConfig,
     withCache,
 } from './runtime-core';
 import { Lock, LockAcquireError, LockManager, LockTimeoutError } from '../capabilities/lock';
@@ -33,6 +41,14 @@ MonSQLize.expr = expr;
 MonSQLize.createExpression = createExpression;
 MonSQLize.withCache = withCache;
 MonSQLize.FunctionCache = FunctionCache;
+MonSQLize.ChangeStreamSyncManager = ChangeStreamSyncManager;
+MonSQLize.ResumeTokenStore = ResumeTokenStore;
+MonSQLize.validateSyncConfig = validateSyncConfig;
+MonSQLize.SlowQueryLogManager = SlowQueryLogManager;
+MonSQLize.SlowQueryLogConfigManager = SlowQueryLogConfigManager;
+MonSQLize.BatchQueue = BatchQueue;
+MonSQLize.generateQueryHash = generateQueryHash;
+MonSQLize.SagaOrchestrator = SagaOrchestrator;
 
 export = MonSQLize;
 

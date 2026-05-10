@@ -1,4 +1,6 @@
 import {
+    BatchQueue,
+    ChangeStreamSyncManager,
     CacheLockManager,
     ConnectionPoolManager,
     DistributedCacheInvalidator,
@@ -6,11 +8,17 @@ import {
     createExpression,
     createRedisCacheAdapter,
     FunctionCache,
+    generateQueryHash,
     Logger,
     MemoryCache,
     Model,
     MonSQLizeRuntime,
+    ResumeTokenStore,
+    SagaOrchestrator,
+    SlowQueryLogConfigManager,
+    SlowQueryLogManager,
     TransactionManager,
+    validateSyncConfig,
     withCache,
 } from './runtime-core.js';
 
@@ -32,5 +40,13 @@ export {
     createExpression,
     withCache,
     FunctionCache,
+    ChangeStreamSyncManager,
+    ResumeTokenStore,
+    validateSyncConfig,
+    SlowQueryLogManager,
+    SlowQueryLogConfigManager,
+    BatchQueue,
+    generateQueryHash,
+    SagaOrchestrator,
 };
 

@@ -18,7 +18,7 @@
 npm install monsqlize
 ```
 
-> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P4-B pool/infrastructure**：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`、`namespace` / `index` / `bookmark` / `db.admin()` 管理能力、`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 批量写入扩展、`MemoryCache` / `createRedisCacheAdapter` / `DistributedCacheInvalidator` 的最小 cache façade、`withCache()` / `FunctionCache` 的最小 function-cache 能力、`Model.define/get/list/undefine/redefine` 与首批 model registry/features、`startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()` 的最小 transaction/lock 能力，以及 `pools/poolStrategy/poolFallback/maxPoolsCount` 配置契约与最小 `ConnectionPoolManager` / `pool()` 路由闭环。**下一步** 将进入 `P4-C saga/sync/slow-query-log`；更完整的 pool 统计/故障转移扩展与高级能力仍在后续 P4 继续回补。
+> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P4-C saga/sync/slow-query-log** 的最小闭环：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`、`namespace` / `index` / `bookmark` / `db.admin()` 管理能力、`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 批量写入扩展、`MemoryCache` / `createRedisCacheAdapter` / `DistributedCacheInvalidator`、`withCache()` / `FunctionCache`、`Model.define/get/list/undefine/redefine` 与首批 model registry/features、`startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()`、`ConnectionPoolManager` / `pool()` 路由，以及最小 `defineSaga()` / `executeSaga()` / `getSagaStats()`、`ChangeStreamSyncManager` / `ResumeTokenStore` / `startSync()` / `stopSync()` / `getSyncStats()`、`SlowQueryLogManager` / `recordSlowQuery()` / `getSlowQueryLogs()` 公开面。**下一步** 将进入 `P4-D` 的 compatibility / performance / validation / docs/examples 收口；更完整的高级编排、跨进程共享与性能基线仍在后续阶段继续补齐。
 
 [快速开始](#-快速开始) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
 
@@ -801,7 +801,7 @@ const result = await msq.executeSaga('create-order-with-payment', data);
 - ✅ 无时间限制（突破 60秒限制）
 - ✅ 详细日志（完整执行追踪）
 
-参考说明：Saga 分布式事务的详细设计，当前请以 `monSQLize-v1` 的对应文档和实现为准。
+说明：当前仓库已恢复最小 Saga orchestrator / runtime façade 闭环；更完整的跨进程共享、长事务恢复与高级编排细节仍以 `monSQLize-v1` 的对应文档和实现为参考。
 
 ---
 
@@ -812,9 +812,8 @@ const result = await msq.executeSaga('create-order-with-payment', data);
 ```javascript
 const msq = new MonSQLize({
     type: 'mongodb',
-    config: { 
-        uri: 'mongodb://localhost:27017/main',
-        replicaSet: 'rs0'  // 🔴 必须：Change Stream 需要 Replica Set
+    config: {
+        uri: 'mongodb://localhost:27017/main?replicaSet=rs0'  // 🔴 必须：Change Stream 需要 Replica Set
     },
     
     // 🆕 同步配置
@@ -845,7 +844,7 @@ await msq.collection('users').insertOne({ name: 'Alice' });
 - ✅ 自动重连和健康检查
 - ✅ 主库影响 <2%（异步处理）
 
-参考说明：Change Stream 数据同步的详细行为，当前请以 `monSQLize-v1` 的对应文档和实现为准。
+说明：当前仓库已恢复最小 sync contract / manager / runtime lifecycle；更完整的多目标容灾策略、自动重连细节与旧示例仍以 `monSQLize-v1` 的对应文档和实现为参考。
 
 ### 4. 📦 便利方法 - 减少 60~80% 代码
 
@@ -1648,7 +1647,7 @@ npm test
 npm run lint
 ```
 
-> 当前仓库已恢复到 **P3-B function-cache** 级别的 `build` / `type-check` / `test` / `verify` 入口：默认验证链路已包含根入口 smoke、导出兼容、类型烟测、`test/unit/expression/**`、`test/unit/management/**`、`test/unit/writes/**`、`test/unit/cache/**`、`test/unit/function-cache/**` 与 `test/integration/{cache,mongodb}/**` 的基础运行时验证，并已冻结当前 collection write result 契约、management-core 边界、batch extension 边界、cache façade 边界、function-cache 边界与 deferred API 边界；更完整的 model / pool / transaction / compatibility 矩阵仍会在后续 P3~P4 继续补齐。若需核对完整历史测试与基准行为，请以 `monSQLize-v1` 的对应资产为参考。
+> 当前仓库已恢复到 **P4-C saga/sync/slow-query-log** 级别的 `build` / `type-check` / `test` / `verify` 入口：默认验证链路已包含根入口 smoke、导出兼容、类型烟测、`test/unit/{expression,management,writes,cache,function-cache,model,lock,transaction,pool,sync,slow-query-log,saga}/**` 与 `test/integration/{cache,mongodb,model,transaction,pool,sync,slow-query-log}/**` 的基础运行时验证，并已冻结当前 query/write/model/cache/function-cache/transaction/lock/pool/sync/slow-query-log/saga 的最小公开契约。若需核对完整历史测试、兼容矩阵与性能基准行为，请以 `monSQLize-v1` 的对应资产为参考，并等待后续 `P4-D` 收口。
 
 ---
 

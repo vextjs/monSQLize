@@ -10,6 +10,7 @@ import {
     MongoCollectionAccessor as CollectionFacade,
     MongoDbAccessor as DbFacade,
 } from '../adapters/mongodb/common/accessors';
+import { EventEmitter } from 'node:events';
 import {
     createRedisCacheAdapter,
     DistributedCacheInvalidator,
@@ -52,6 +53,36 @@ import {
     type PoolStrategy,
 } from '../capabilities/pool';
 import {
+    SagaOrchestrator,
+    type SagaDefinition,
+    type SagaOrchestratorOptions,
+    type SagaResult,
+    type SagaStats,
+    type SagaStep,
+} from '../capabilities/saga';
+import {
+    BatchQueue,
+    SlowQueryLogConfigManager,
+    SlowQueryLogManager,
+    generateQueryHash,
+    type SlowQueryLogConfig,
+    type SlowQueryLogConfigInput,
+    type SlowQueryLogEntry,
+    type SlowQueryLogFilter,
+    type SlowQueryLogQueryOptions,
+    type SlowQueryLogRecord,
+} from '../capabilities/slow-query-log';
+import {
+    ChangeStreamSyncManager,
+    ResumeTokenStore,
+    validateSyncConfig,
+    type ResumeTokenConfig,
+    type SyncChangeEvent,
+    type SyncConfig,
+    type SyncStats,
+    type SyncTargetConfig,
+} from '../capabilities/sync';
+import {
     CacheLockManager,
     Transaction,
     TransactionManager,
@@ -69,6 +100,9 @@ export { FunctionCache, withCache };
 export { Model };
 export { createExpression, expr };
 export { ConnectionPoolManager };
+export { ChangeStreamSyncManager, ResumeTokenStore, validateSyncConfig };
+export { BatchQueue, SlowQueryLogConfigManager, SlowQueryLogManager, generateQueryHash };
+export { SagaOrchestrator };
 export type {
     CacheStats,
     CachedFunction,
@@ -88,7 +122,23 @@ export type {
     PoolStrategy,
     PopulateConfig,
     PopulateProxy,
+    ResumeTokenConfig,
     RelationConfig,
+    SagaDefinition,
+    SagaOrchestratorOptions,
+    SagaResult,
+    SagaStats,
+    SagaStep,
+    SlowQueryLogConfig,
+    SlowQueryLogConfigInput,
+    SlowQueryLogEntry,
+    SlowQueryLogFilter,
+    SlowQueryLogQueryOptions,
+    SlowQueryLogRecord,
+    SyncChangeEvent,
+    SyncConfig,
+    SyncStats,
+    SyncTargetConfig,
     TransactionOptions,
     TransactionStats,
     ValidationResult,
@@ -108,6 +158,8 @@ export interface MonSQLizeOptions {
     poolStrategy?: PoolStrategy;
     poolFallback?: ConnectionPoolManagerOptions['poolFallback'];
     maxPoolsCount?: number;
+    sync?: SyncConfig;
+    slowQueryLog?: SlowQueryLogConfigInput;
 }
 
 
@@ -122,10 +174,14 @@ export class MonSQLizeRuntime {
     private _connected = false;
     private readonly _cache: MemoryCache;
     private readonly _logger: Logger;
+    private readonly _events = new EventEmitter();
     private readonly _cacheLockManager: CacheLockManager;
     private _client: Awaited<ReturnType<typeof connectMongo>>['client'] | null = null;
     private _defaultDb: DbFacade | null = null;
     private _poolManager: ConnectionPoolManager | null = null;
+    private _syncManager: ChangeStreamSyncManager | null = null;
+    private _slowQueryLogManager: SlowQueryLogManager | null = null;
+    private _sagaOrchestrator: SagaOrchestrator | null = null;
     private _transactionManager: TransactionManager | null = null;
     private _lockManager: LockManager | null = null;
     private readonly _modelInstances = new Map<string, {
@@ -185,12 +241,26 @@ export class MonSQLizeRuntime {
                 logger: this._logger,
             });
             await this.ensurePoolManager();
+            this.initializeSagaOrchestrator();
+            this.initializeSlowQueryLogManager();
+            await this.initializeSyncManager();
             this._connected = true;
+            this.emit('connected', {
+                type: this.options.type,
+                db: databaseName,
+            });
             return this.createRuntimeAccessors();
         })();
 
         try {
             return await this._connectionPromise;
+        } catch (error) {
+            this.emit('error', {
+                type: this.options.type,
+                db: this.resolveDatabaseName(),
+                error: error instanceof Error ? error.message : String(error),
+            });
+            throw error;
         } finally {
             this._connectionPromise = null;
         }
@@ -212,6 +282,8 @@ export class MonSQLizeRuntime {
         return {
             type: this.options.type,
             databaseName: this.options.databaseName,
+            sync: this.options.sync,
+            slowQueryLog: this.options.slowQueryLog ?? false,
         };
     }
 
@@ -220,6 +292,8 @@ export class MonSQLizeRuntime {
      * @since v1.3.0
      */
     async close(): Promise<void> {
+        await this._syncManager?.stop();
+        await this._slowQueryLogManager?.close();
         await this._transactionManager?.abortAll();
         this._cacheLockManager.stop();
         this._lockManager?.close();
@@ -229,9 +303,15 @@ export class MonSQLizeRuntime {
         this._defaultDb = null;
         this._connected = false;
         this._poolManager = null;
+        this._syncManager = null;
+        this._slowQueryLogManager = null;
         this._transactionManager = null;
         this._lockManager = null;
         this._modelInstances.clear();
+        this.emit('closed', {
+            type: this.options.type,
+            db: this.resolveDatabaseName(),
+        });
     }
 
     /**
@@ -407,35 +487,154 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 事件订阅占位实现。
-     * @since v1.3.0
+     * 获取 Change Stream 同步管理器。
+     * @since v1.0.9
      */
-    on(_event: string, _handler: (payload: unknown) => void): void {
-        this._logger.debug('[P1 skeleton] on() registered');
+    getSyncManager(): ChangeStreamSyncManager | null {
+        return this._syncManager;
     }
 
     /**
-     * 一次性事件订阅占位实现。
-     * @since v1.3.0
+     * 获取慢查询日志管理器。
+     * @since v1.3.1
      */
-    once(_event: string, _handler: (payload: unknown) => void): void {
-        this._logger.debug('[P1 skeleton] once() registered');
+    getSlowQueryLogManager(): SlowQueryLogManager | null {
+        return this._slowQueryLogManager;
     }
 
     /**
-     * 取消事件订阅占位实现。
-     * @since v1.3.0
+     * 获取 Saga 协调器。
+     * @since v1.1.0
      */
-    off(_event: string, _handler: (payload: unknown) => void): void {
-        this._logger.debug('[P1 skeleton] off() called');
+    getSagaOrchestrator(): SagaOrchestrator {
+        return this.initializeSagaOrchestrator();
     }
 
     /**
-     * 触发事件占位实现。
+     * 获取 Saga façade。
+     * @since v1.1.0
+     */
+    saga(): SagaOrchestrator {
+        return this.getSagaOrchestrator();
+    }
+
+    /**
+     * 记录慢查询日志。
+     * @since v1.3.1
+     */
+    async recordSlowQuery(log: SlowQueryLogEntry): Promise<void> {
+        this.ensureConnected();
+        const manager = this.ensureSlowQueryLogManager();
+        await manager.save(log);
+        this.emit('slow-query', log);
+        this.emit('query', log);
+    }
+
+    /**
+     * 查询慢查询日志。
+     * @since v1.3.1
+     */
+    async getSlowQueryLogs(filter: SlowQueryLogFilter = {}, options: SlowQueryLogQueryOptions = {}): Promise<SlowQueryLogRecord[]> {
+        this.ensureConnected();
+        const manager = this.ensureSlowQueryLogManager();
+        return manager.query(filter, options);
+    }
+
+    /**
+     * 注册 Saga 定义。
+     * @since v1.1.0
+     */
+    defineSaga(definition: SagaDefinition): void {
+        this.initializeSagaOrchestrator().define(definition);
+    }
+
+    /**
+     * 执行已注册的 Saga。
+     * @since v1.1.0
+     */
+    async executeSaga(name: string, data: unknown): Promise<SagaResult> {
+        return this.initializeSagaOrchestrator().execute(name, data);
+    }
+
+    /**
+     * 列出已注册的 Saga。
+     * @since v1.1.0
+     */
+    listSagas(): string[] {
+        return this.initializeSagaOrchestrator().listSagas();
+    }
+
+    /**
+     * 获取 Saga 统计。
+     * @since v1.1.0
+     */
+    getSagaStats(): SagaStats {
+        return this.initializeSagaOrchestrator().getStats();
+    }
+
+    /**
+     * 手动启动同步。
+     * @since v1.0.9
+     */
+    async startSync(): Promise<void> {
+        this.ensureConnected();
+        const manager = await this.initializeSyncManager();
+        if (!manager) {
+            throw createError(ErrorCodes.INVALID_CONFIG, 'MonSQLize sync is not enabled for this runtime.');
+        }
+        await manager.start();
+    }
+
+    /**
+     * 手动停止同步。
+     * @since v1.0.9
+     */
+    async stopSync(): Promise<void> {
+        await this._syncManager?.stop();
+    }
+
+    /**
+     * 获取同步统计。
+     * @since v1.0.9
+     */
+    getSyncStats(): SyncStats | null {
+        return this._syncManager?.getStats() ?? null;
+    }
+
+    /**
+     * 事件订阅。
      * @since v1.3.0
      */
-    emit(_event: string, _payload: unknown): void {
-        this._logger.debug('[P1 skeleton] emit() called');
+    on(event: string, handler: (payload: unknown) => void): void {
+        this._events.on(event, handler);
+    }
+
+    /**
+     * 一次性事件订阅。
+     * @since v1.3.0
+     */
+    once(event: string, handler: (payload: unknown) => void): void {
+        this._events.once(event, handler);
+    }
+
+    /**
+     * 取消事件订阅。
+     * @since v1.3.0
+     */
+    off(event: string, handler: (payload: unknown) => void): void {
+        this._events.off(event, handler);
+    }
+
+    /**
+     * 触发事件。
+     * @since v1.3.0
+     */
+    emit(event: string, payload: unknown): void {
+        if (event === 'error' && this._events.listenerCount('error') === 0) {
+            this._logger.error('[MonSQLizeRuntime] error event', payload);
+            return;
+        }
+        this._events.emit(event, payload);
     }
 
     private ensureConnected(): void {
@@ -505,6 +704,65 @@ export class MonSQLizeRuntime {
         }
         this._poolManager.startHealthCheck();
         return this._poolManager;
+    }
+
+    private async initializeSyncManager(): Promise<ChangeStreamSyncManager | null> {
+        if (!this.options.sync?.enabled || !this._defaultDb) {
+            return null;
+        }
+        if (this._syncManager) {
+            return this._syncManager;
+        }
+        this._syncManager = new ChangeStreamSyncManager({
+            db: this._defaultDb.raw(),
+            poolManager: this._poolManager,
+            config: this.options.sync,
+            logger: this.options.logger ?? null,
+        });
+        try {
+            await this._syncManager.start();
+        } catch (error) {
+            this._logger.warn('[Sync] failed to start automatically', error);
+            this.emit('error', {
+                type: this.options.type,
+                db: this.resolveDatabaseName(),
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+        return this._syncManager;
+    }
+
+    private initializeSlowQueryLogManager(): SlowQueryLogManager | null {
+        if (!this.options.slowQueryLog || !this._client) {
+            return null;
+        }
+        if (this._slowQueryLogManager) {
+            return this._slowQueryLogManager;
+        }
+        this._slowQueryLogManager = new SlowQueryLogManager(
+            this.options.slowQueryLog,
+            this._client,
+            'mongodb',
+            this.options.logger ?? null,
+        );
+        return this._slowQueryLogManager;
+    }
+
+    private ensureSlowQueryLogManager(): SlowQueryLogManager {
+        const manager = this.initializeSlowQueryLogManager();
+        if (!manager) {
+            throw createError(ErrorCodes.INVALID_CONFIG, 'MonSQLize slow query log is not enabled for this runtime.');
+        }
+        return manager;
+    }
+
+    private initializeSagaOrchestrator(): SagaOrchestrator {
+        if (!this._sagaOrchestrator) {
+            this._sagaOrchestrator = new SagaOrchestrator({
+                logger: this.options.logger ?? null,
+            });
+        }
+        return this._sagaOrchestrator;
     }
 
     private requirePoolManager(): ConnectionPoolManager {

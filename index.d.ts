@@ -35,6 +35,29 @@ import type {
     PoolStrategy,
 } from './types/pool';
 import type {
+    SagaDefinition,
+    SagaOrchestratorOptions,
+    SagaResult,
+    SagaStats,
+    SagaStep,
+} from './types/saga';
+import type {
+    SlowQueryLogConfig,
+    SlowQueryLogConfigInput,
+    SlowQueryLogEntry,
+    SlowQueryLogFilter,
+    SlowQueryLogQueryOptions,
+    SlowQueryLogRecord,
+    SlowQueryLogStorageConfig,
+} from './types/slow-query-log';
+import type {
+    ResumeTokenConfig,
+    SyncChangeEvent,
+    SyncConfig,
+    SyncStats,
+    SyncTargetConfig,
+} from './types/sync';
+import type {
     MongoSession,
     Transaction as TransactionContract,
     TransactionOptions,
@@ -71,12 +94,20 @@ import {
     createExpression,
     createRedisCacheAdapter,
     expr,
+    BatchQueue,
+    ChangeStreamSyncManager,
+    generateQueryHash,
     Lock,
     LockAcquireError,
     LockManager,
     LockTimeoutError,
+    ResumeTokenStore,
+    SagaOrchestrator,
+    SlowQueryLogConfigManager,
+    SlowQueryLogManager,
     Transaction,
     RedisCacheAdapterOptions,
+    validateSyncConfig,
     withCache,
 } from './types/runtime';
 
@@ -126,9 +157,26 @@ export type {
     PoolStrategy,
     PopulateConfig,
     PopulateProxy,
+    ResumeTokenConfig,
     RedisCacheAdapterOptions,
     RegisteredModel,
     RelationConfig,
+    SagaDefinition,
+    SagaOrchestratorOptions,
+    SagaResult,
+    SagaStats,
+    SagaStep,
+    SlowQueryLogConfig,
+    SlowQueryLogConfigInput,
+    SlowQueryLogEntry,
+    SlowQueryLogFilter,
+    SlowQueryLogQueryOptions,
+    SlowQueryLogRecord,
+    SlowQueryLogStorageConfig,
+    SyncChangeEvent,
+    SyncConfig,
+    SyncStats,
+    SyncTargetConfig,
     ValidationResult,
     VirtualConfig,
     TransactionContract,
@@ -159,6 +207,14 @@ export {
     createRedisCacheAdapter,
     withCache,
     FunctionCache,
+    ChangeStreamSyncManager,
+    ResumeTokenStore,
+    validateSyncConfig,
+    SlowQueryLogManager,
+    SlowQueryLogConfigManager,
+    BatchQueue,
+    generateQueryHash,
+    SagaOrchestrator,
 };
 
 export default class MonSQLize implements MonSQLizeInstance {
@@ -198,6 +254,19 @@ export default class MonSQLize implements MonSQLizeInstance {
     withLock<T>(key: string, callback: () => Promise<T>, options?: LockOptions): Promise<T>;
     acquireLock(key: string, options?: LockOptions): Promise<LockContract>;
     tryAcquireLock(key: string, options?: Omit<LockOptions, 'retryTimes'>): Promise<LockContract | null>;
+    getSyncManager(): ChangeStreamSyncManager | null;
+    getSlowQueryLogManager(): SlowQueryLogManager | null;
+    getSagaOrchestrator(): SagaOrchestrator;
+    saga(): SagaOrchestrator;
+    defineSaga(definition: SagaDefinition): void;
+    executeSaga(name: string, data: unknown): Promise<SagaResult>;
+    listSagas(): string[];
+    getSagaStats(): SagaStats;
+    startSync(): Promise<void>;
+    stopSync(): Promise<void>;
+    getSyncStats(): SyncStats | null;
+    recordSlowQuery(log: SlowQueryLogEntry): Promise<void>;
+    getSlowQueryLogs(filter?: SlowQueryLogFilter, options?: SlowQueryLogQueryOptions): Promise<SlowQueryLogRecord[]>;
     on(event: string, handler: (payload: unknown) => void): void;
     once(event: string, handler: (payload: unknown) => void): void;
     off(event: string, handler: (payload: unknown) => void): void;
@@ -220,6 +289,14 @@ export default class MonSQLize implements MonSQLizeInstance {
     static createRedisCacheAdapter: typeof createRedisCacheAdapter;
     static withCache: typeof withCache;
     static FunctionCache: typeof FunctionCache;
+    static ChangeStreamSyncManager: typeof ChangeStreamSyncManager;
+    static ResumeTokenStore: typeof ResumeTokenStore;
+    static validateSyncConfig: typeof validateSyncConfig;
+    static SlowQueryLogManager: typeof SlowQueryLogManager;
+    static SlowQueryLogConfigManager: typeof SlowQueryLogConfigManager;
+    static BatchQueue: typeof BatchQueue;
+    static generateQueryHash: typeof generateQueryHash;
+    static SagaOrchestrator: typeof SagaOrchestrator;
 }
 
 export { MonSQLize };
