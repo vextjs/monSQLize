@@ -28,10 +28,19 @@ test/compatibility/
 - MongoDB 6.x / 7.x 的真实服务端矩阵
 - 历史 4.x / 5.x 兼容差异的再验证（当前只保留 v1 参考资料，不在本轮直接宣称已验证）
 
+### 当前主机探测结论
+- `npm run probe:server-matrix` 已建立并可执行
+- 本机当前未探测到 `docker` / `docker compose` / `podman` / `mongod` / `mongosh`
+- 当前也未注入 `MONSQLIZE_MEMORY_MONGO_URI` / `MONSQLIZE_REPLSET_URI`
+- 因此真实 MongoDB 6.x / 7.x 服务端矩阵仍保持待补，但已经升级为“可执行探测 + 正式执行入口已落盘”的状态
+
 ## 运行命令
 
 ```bash
 npm run test:compatibility
+npm run probe:server-matrix
+# 准备好真实 Mongo URI 后再执行
+npm run test:server-matrix
 ```
 
 ## 设计原则

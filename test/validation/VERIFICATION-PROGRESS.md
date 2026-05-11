@@ -36,6 +36,7 @@
 | V-10 | Node 20.x 当前环境实机回归 | `node -p "process.version"` + `npm run verify` | ✅ | 2026-05-11 |
 | V-11 | Node 22.x（Volta）实机回归 | `volta run --node 22 node -p "process.version"` + `volta run --node 22 npm run verify` | ✅ | 2026-05-11 |
 | V-12 | MongoDB Driver 7.x 扩展验证 | `npm install mongodb@7 --no-save --package-lock=false` + `node -p "require('mongodb/package.json').version"` + `volta run --node 22 npm run verify` + `npm install mongodb@6.21.0 --no-save --package-lock=false` | ✅ | 2026-05-11 |
+| V-13 | 真实服务端矩阵探测与执行入口 | `npm run probe:server-matrix` + `npm run test:server-matrix`（执行入口已落盘） | ✅ | 2026-05-11 |
 
 ---
 
@@ -43,7 +44,7 @@
 
 | 编号 | 待补项 | 原因 | 当前状态 |
 |------|--------|------|---------|
-| P-01 | MongoDB 6.x / 7.x 真实服务端矩阵 | 当前 integration 主要基于 `mongodb-memory-server` replica set | ⚠️ 待验证 |
+| P-01 | MongoDB 6.x / 7.x 真实服务端矩阵 | 当前 integration 主要基于 `mongodb-memory-server` replica set；本机未探测到 `docker` / `mongod` / `mongosh`，且未注入外部 URI，因此当前仅完成“可执行探测 + 正式执行入口”落盘 | ⚠️ 待验证 |
 | P-02 | 其余 TS 文档主题扩展 | 当前仅完成首批入口、快速开始、缓存专题与高级能力索引 | ⚠️ 待后续阶段 |
 | P-03 | 其余示例目录扩展 | 当前仅完成 `basic-connect.ts` 与 `with-cache.ts` 两个最小正式示例 | ⚠️ 待后续阶段 |
 
@@ -54,5 +55,5 @@
 - `P4-D` 的最小验证闭环已建立，并已进入 post-P4-D 收尾阶段：**compatibility manifest + compatibility test + performance baseline + verification ledger + docs/examples mapping**。
 - 当前仓库已不再只有“README + mapping + v1 参考”三层承接；首批 TS 文档入口与最小示例入口已经正式落盘并完成本地验证。
 - 当前仓库已经不再需要依赖“口头说明 P4-D 还没做”；相应资产已正式落盘。
-- 当前 Node 20.x、Node 22.x 与 MongoDB Driver 7.x 三条扩展验证基线都已入账；仍未完成的内容主要收敛为 **MongoDB 6.x / 7.x 真实服务端矩阵** 与 **更完整的 TS 文档/示例扩展**；这些项在未执行对应命令或未正式落盘前保持 `⚠️ 待验证` / `⚠️ 待后续阶段`，不在 README 中夸大为“已完全兼容”。
+- 当前 Node 20.x、Node 22.x 与 MongoDB Driver 7.x 三条扩展验证基线都已入账；真实服务端矩阵部分已进一步升级为 **可执行探测 + 正式执行入口已落盘**，但由于当前主机缺少 Docker / mongod / 外部 URI，MongoDB 6.x / 7.x 真实服务端矩阵本身仍保持 `⚠️ 待验证`；除此之外，剩余内容主要是更完整的 TS 文档/示例扩展。
 

@@ -53,6 +53,29 @@
     },
     "mongodbServer": {
       "currentHarness": "mongodb-memory-server replica set",
+      "probe": {
+        "command": "npm run probe:server-matrix",
+        "lastCheckedAt": "2026-05-11",
+        "hostCapabilities": {
+          "docker": false,
+          "dockerCompose": false,
+          "podman": false,
+          "mongod": false,
+          "mongosh": false
+        },
+        "env": {
+          "MONSQLIZE_MEMORY_MONGO_URI": false,
+          "MONSQLIZE_REPLSET_URI": false
+        },
+        "ready": false
+      },
+      "execution": {
+        "command": "npm run test:server-matrix",
+        "requirements": [
+          "MONSQLIZE_MEMORY_MONGO_URI",
+          "MONSQLIZE_REPLSET_URI"
+        ]
+      },
       "pending": [
         "MongoDB 6.x 实机矩阵",
         "MongoDB 7.x 实机矩阵"
