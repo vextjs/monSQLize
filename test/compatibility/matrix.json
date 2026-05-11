@@ -1,21 +1,28 @@
 {
-  "generatedAt": "2026-05-10",
+  "generatedAt": "2026-05-11",
   "packageVersion": "1.3.0",
   "support": {
     "node": {
       "declared": ">=18.0.0",
+      "currentRuntime": {
+        "verifiedMajor": 20,
+        "sampleVersion": "20.20.2",
+        "evidence": [
+          "node -p \"process.version\"",
+          "npm run verify"
+        ]
+      },
       "verified": [
-        "当前工作区 Node 环境 + build/type-check/test:compatibility"
+        "Node 20.x 当前环境 + build/type-check/test:compatibility/test:examples"
       ],
       "pending": [
-        "Node 20.x 实机回归",
         "Node 22.x 实机回归"
       ]
     },
     "mongodbDriver": {
       "declaredDependency": "^6.21.0",
       "verified": [
-        "当前依赖树的 6.x 基线"
+        "当前依赖树的 6.x 基线（Node 20.x 当前环境）"
       ],
       "pending": [
         "Driver 7.x 扩展验证",

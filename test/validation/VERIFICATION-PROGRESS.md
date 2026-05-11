@@ -26,13 +26,14 @@
 |------|------|-------------|------|---------|
 | V-01 | 根导出基础矩阵 | `npm run test:compatibility`（含 `exports.test.js`） | ✅ | 2026-05-10 |
 | V-02 | P4-A ~ P4-C 高级能力导出矩阵 | `npm run test:compatibility`（含 `matrix.test.js`） | ✅ | 2026-05-10 |
-| V-03 | Node / Driver 当前声明式矩阵 | `test/compatibility/matrix.json` + `package.json` 对齐 | ✅ | 2026-05-10 |
+| V-03 | Node / Driver 当前声明式矩阵 | `test/compatibility/matrix.json` + `package.json` 对齐 | ✅ | 2026-05-11 |
 | V-04 | `withCache()` 热路径性能基线 | `npm run test:performance` | ✅ | 2026-05-10 |
 | V-05 | `withCache()` 并发去重回归守卫 | `npm run test:performance` | ✅ | 2026-05-10 |
 | V-06 | docs/examples 承接映射 | `test/validation/DOCS-EXAMPLES-MAPPING.md` | ✅ | 2026-05-10 |
 | V-07 | README 当前事实与验证资产入口 | `README.md` | ✅ | 2026-05-10 |
 | V-08 | 首批 TS 文档入口 | `docs/README.md`、`docs/getting-started.md`、`docs/cache-and-function-cache.md`、`docs/capability-index.md` | ✅ | 2026-05-10 |
 | V-09 | 首批最小示例入口（TypeScript） | `npm run test:examples`（编译并执行 `examples/quick-start/basic-connect.ts`、`examples/cache/with-cache.ts`） | ✅ | 2026-05-10 |
+| V-10 | Node 20.x 当前环境实机回归 | `node -p "process.version"` + `npm run verify` | ✅ | 2026-05-11 |
 
 ---
 
@@ -40,7 +41,7 @@
 
 | 编号 | 待补项 | 原因 | 当前状态 |
 |------|--------|------|---------|
-| P-01 | Node 20.x / 22.x 实机回归 | 当前工作区只执行了单一 Node 环境 | ⚠️ 待验证 |
+| P-01 | Node 22.x 实机回归 | 当前已在 Node `20.20.2` 环境完成一轮完整验证，22.x 尚未补齐 | ⚠️ 待验证 |
 | P-02 | MongoDB Driver 7.x 扩展验证 | 当前依赖树固定在 `mongodb@^6.21.0` | ⚠️ 待验证 |
 | P-03 | MongoDB 6.x / 7.x 真实服务端矩阵 | 当前 integration 主要基于 `mongodb-memory-server` replica set | ⚠️ 待验证 |
 | P-04 | 其余 TS 文档主题扩展 | 当前仅完成首批入口、快速开始、缓存专题与高级能力索引 | ⚠️ 待后续阶段 |
