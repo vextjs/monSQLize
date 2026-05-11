@@ -1,6 +1,8 @@
+import type { ChangeStreamDocument, Document, MongoClientOptions } from 'mongodb';
+
 import type { LoggerLike } from './base';
 
-export interface SyncChangeEvent {
+export type SyncChangeEvent<TDocument extends Document = Document> = ChangeStreamDocument<TDocument> & {
     _id?: unknown;
     operationType: 'insert' | 'update' | 'replace' | 'delete';
     ns: {
@@ -8,12 +10,8 @@ export interface SyncChangeEvent {
         coll: string;
     };
     documentKey?: Record<string, unknown>;
-    fullDocument?: Record<string, unknown>;
-    updateDescription?: {
-        updatedFields?: Record<string, unknown>;
-        removedFields?: string[];
-    };
-}
+    fullDocument?: TDocument;
+};
 
 export interface SyncTargetConfig {
     name: string;
@@ -21,7 +19,7 @@ export interface SyncTargetConfig {
     pool?: string;
     databaseName?: string;
     collections?: string[];
-    options?: Record<string, unknown>;
+    options?: MongoClientOptions;
     apply?: (event: SyncChangeEvent, document: Record<string, unknown> | undefined) => Promise<void>;
 }
 

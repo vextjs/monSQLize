@@ -8,49 +8,21 @@
 
 import { createError, ErrorCodes } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
+import type {
+    CacheLike,
+    CacheLockLike,
+    CacheStats,
+    MemoryCacheOptions,
+    RedisCacheAdapterOptions,
+} from '../../../types/runtime';
 
-export interface CacheLockLike {
-    isLocked(key: string): boolean;
-}
-
-export interface CacheStats {
-    hits: number;
-    misses: number;
-    calls: number;
-    hitRate: number;
-    sets?: number;
-    deletes?: number;
-    evictions?: number;
-    size?: number;
-    memoryUsage?: number;
-    memoryUsageMB?: number;
-}
-
-export interface CacheLike {
-    get(key: string): unknown | Promise<unknown>;
-    set(key: string, value: unknown, ttl?: number): unknown | Promise<unknown>;
-    del?(key: string): unknown | Promise<unknown>;
-    delete?(key: string): unknown | Promise<unknown>;
-    exists?(key: string): boolean | Promise<boolean>;
-    getMany?(keys: string[]): Record<string, unknown> | Promise<Record<string, unknown>>;
-    setMany?(values: Record<string, unknown>, ttl?: number): unknown | Promise<unknown>;
-    delMany?(keys: string[]): number | Promise<number>;
-    delPattern?(pattern: string): number | Promise<number>;
-    clear?(): unknown | Promise<unknown>;
-    keys?(pattern?: string): string[] | Promise<string[]>;
-    close?(): unknown | Promise<unknown>;
-}
-
-export interface MemoryCacheOptions {
-    maxSize?: number;
-    maxMemory?: number;
-    enableStats?: boolean;
-}
-
-export interface RedisCacheAdapterOptions {
-    client?: RedisLike;
-    prefix?: string;
-}
+export type {
+    CacheLike,
+    CacheLockLike,
+    CacheStats,
+    MemoryCacheOptions,
+    RedisCacheAdapterOptions,
+} from '../../../types/runtime';
 
 interface RedisLike {
     get(key: string): Promise<string | null> | string | null;
@@ -76,6 +48,17 @@ interface RedisLike {
     };
 }
 
+/**
+ * 基于内存的 L1 缓存实现。
+ *
+ * 适用场景：
+ * - 本地热点查询缓存
+ * - `withCache()` / `FunctionCache` 的默认缓存后端
+ * - 需要按 TTL、LRU 或通配符批量失效的轻量场景
+ *
+ * @implements {CacheLike}
+ * @since v1.3.0
+ */
 export class MemoryCache implements CacheLike {
     private readonly store = new Map<string, { value: unknown; size: number; expireAt: number | null; }>();
     private lockManager: CacheLockLike | null = null;
@@ -320,6 +303,20 @@ export class MemoryCache implements CacheLike {
     }
 }
 
+/**
+ * 创建一个符合 `CacheLike` 契约的 Redis 适配器。
+ *
+ * 该适配器主要用于：
+ * - 为 `MemoryCache` 提供 L2 远端缓存能力
+ * - 给 `withCache()` / `FunctionCache` 提供可共享的缓存后端
+ * - 与 `DistributedCacheInvalidator` 组合实现跨实例缓存失效
+ *
+ * @param {string | RedisLike | RedisCacheAdapterOptions} redisUrlOrInstance - Redis URL、现有客户端实例，或包含 `client/prefix` 的适配器配置。
+ * @param {Record<string, unknown>} [adapterOptions={}] - 附加适配器选项；当首参是 URL 或配置对象时，可用于补充 `prefix` 等信息。
+ * @returns {CacheLike & { getRedisInstance(): RedisLike; }} 返回实现了 `CacheLike` 的 Redis 适配器，并暴露底层 Redis 实例。
+ * @throws {Error} 当底层客户端不支持 `scan()` 且调用 `keys()` / `delPattern()` 时抛出配置错误。
+ * @since v1.3.0
+ */
 export function createRedisCacheAdapter(
     redisUrlOrInstance: string | RedisLike | RedisCacheAdapterOptions,
     adapterOptions: Record<string, unknown> = {},
@@ -456,6 +453,14 @@ export interface DistributedCacheInvalidatorOptions {
     sub?: RedisLike;
 }
 
+/**
+ * 分布式缓存失效协调器。
+ *
+ * 负责将本地缓存失效动作扩展为“本地清理 + 广播通知 + 远端实例消费消息”，
+ * 适用于多实例部署下的缓存一致性控制。
+ *
+ * @since v1.3.0
+ */
 export class DistributedCacheInvalidator {
     private readonly channel: string;
     private readonly instanceId: string;
@@ -491,7 +496,10 @@ export class DistributedCacheInvalidator {
     }
 
     /**
-     * 执行缓存失效并按需广播。
+     * 按模式触发缓存失效，并在配置了 `pub.publish()` 时向其他实例广播消息。
+     *
+     * @param {string} pattern - 通配符模式；为空时直接忽略。
+     * @returns {Promise<void>}
      * @since v1.3.0
      */
     async invalidate(pattern: string): Promise<void> {
@@ -513,7 +521,17 @@ export class DistributedCacheInvalidator {
     }
 
     /**
-     * 处理外部广播消息。
+     * 处理来自订阅通道的广播消息。
+     *
+     * 仅当消息：
+     * - 来自当前通道
+     * - 类型为 `invalidate`
+     * - 且不是本实例自己发送
+     * 时才会触发本地失效。
+     *
+     * @param {string} channel - 收到消息的通道名。
+     * @param {string} message - JSON 字符串消息体。
+     * @returns {Promise<void>}
      * @since v1.3.0
      */
     async handleMessage(channel: string, message: string): Promise<void> {
@@ -534,7 +552,9 @@ export class DistributedCacheInvalidator {
     }
 
     /**
-     * 获取统计信息。
+     * 返回当前失效协调器的运行统计。
+     *
+     * @returns {Record<string, unknown>} 包含消息收发次数、触发次数、错误数、通道与实例标识。
      * @since v1.3.0
      */
     getStats(): Record<string, unknown> {

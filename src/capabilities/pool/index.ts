@@ -1,58 +1,33 @@
-import type { MongoClient, MongoClientOptions } from 'mongodb';
+/**
+ * P4-B connection pool 能力。
+ *
+ * 说明：
+ * - 当前模块负责 pools 配置契约、连接池管理、选择策略与健康检查最小闭环。
+ * - 公开与共享类型统一由 `types/pool.d.ts` 承接；此处只保留运行时实现与内部辅助类型。
+ */
+
+import type { MongoClient } from 'mongodb';
 import { MongoClient as MongoDriverClient } from 'mongodb';
 import type { LoggerLike } from '../../core/logger';
+import type {
+    ConnectionPoolManagerOptions,
+    FallbackStrategy,
+    PoolConfig,
+    PoolHealthStatus,
+    PoolRole,
+    PoolStats,
+    PoolStrategy,
+} from '../../../types/pool';
 
-export type PoolRole = 'primary' | 'secondary' | 'analytics' | 'custom';
-export type PoolStrategy = 'auto' | 'roundRobin' | 'weighted' | 'leastConnections' | 'manual';
-export type FallbackStrategy = 'error' | 'readonly' | 'primary';
-
-export interface PoolConfig {
-    name: string;
-    uri: string;
-    role?: PoolRole;
-    weight?: number;
-    tags?: string[];
-    options?: MongoClientOptions;
-    healthCheck?: {
-        enabled?: boolean;
-        interval?: number;
-        timeout?: number;
-        retries?: number;
-    };
-}
-
-export interface ConnectionPoolManagerOptions {
-    pools?: PoolConfig[];
-    maxPoolsCount?: number;
-    poolStrategy?: PoolStrategy;
-    poolFallback?: boolean | {
-        enabled?: boolean;
-        fallbackStrategy?: FallbackStrategy;
-        retryDelay?: number;
-        maxRetries?: number;
-    };
-    logger?: LoggerLike | null;
-}
-
-export interface PoolHealthStatus {
-    status: 'up' | 'down' | 'degraded';
-    consecutiveFailures: number;
-    lastCheckTime: Date | null;
-    lastError: Error | null;
-    uptime: number;
-}
-
-export interface PoolStats {
-    name: string;
-    totalRequests: number;
-    successCount: number;
-    errorCount: number;
-    avgResponseTime: number;
-    minResponseTime: number;
-    maxResponseTime: number;
-    errorRate: number;
-    lastRequestTime: Date | null;
-}
+export type {
+    ConnectionPoolManagerOptions,
+    FallbackStrategy,
+    PoolConfig,
+    PoolHealthStatus,
+    PoolRole,
+    PoolStats,
+    PoolStrategy,
+} from '../../../types/pool';
 
 interface ManagedPool {
     client: MongoClient;

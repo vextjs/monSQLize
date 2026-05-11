@@ -6,6 +6,10 @@
  * - 更细的写操作、分页、锁等错误码在后续阶段继续补齐。
  */
 
+import type { MonSQLizeError } from '../../../types/base';
+
+export type { MonSQLizeError } from '../../../types/base';
+
 export const ErrorCodes = {
     INVALID_ARGUMENT: 'INVALID_ARGUMENT',
     INVALID_COLLECTION_NAME: 'INVALID_COLLECTION_NAME',
@@ -23,11 +27,6 @@ export const ErrorCodes = {
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
 
-export interface MonSQLizeError extends Error {
-    code: ErrorCode | string;
-    details?: unknown[];
-    cause?: Error;
-}
 
 /**
  * 创建标准错误对象。

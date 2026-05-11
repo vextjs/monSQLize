@@ -73,6 +73,11 @@ export interface RegisteredModel<TDocument = Record<string, unknown>> {
     definition: ModelDefinition<TDocument>;
 }
 
+export interface ModelScopeOptions {
+    database?: string;
+    pool?: string;
+}
+
 export interface PopulateProxy<T = unknown> extends Promise<T> {
     populate(path: string | PopulateConfig): PopulateProxy<T>;
     exec(): Promise<T>;

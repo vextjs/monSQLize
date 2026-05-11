@@ -7,21 +7,18 @@
  */
 
 import { createError, ErrorCodes } from '../../core/errors';
-import { MemoryCache, type CacheLike, type CacheStats } from '../cache';
+import { MemoryCache, type CacheLike } from '../cache';
+import type {
+    CachedFunction,
+    FunctionCacheOptions,
+    WithCacheOptions,
+} from '../../../types/runtime';
 
-export interface WithCacheOptions {
-    ttl?: number;
-    namespace?: string;
-    cache?: CacheLike;
-    keyBuilder?: (...args: unknown[]) => string;
-    condition?: (result: unknown) => boolean;
-    enableStats?: boolean;
-}
-
-export type CachedFunction<TArgs extends unknown[] = unknown[], TResult = unknown> = ((...args: TArgs) => Promise<TResult>) & {
-    invalidate: (...args: TArgs) => Promise<boolean>;
-    getCacheStats: () => CacheStats & { errors: number; avgTime: number; };
-};
+export type {
+    CachedFunction,
+    FunctionCacheOptions,
+    WithCacheOptions,
+} from '../../../types/runtime';
 
 interface FunctionCacheEntryStats {
     hits: number;
@@ -34,8 +31,27 @@ interface FunctionCacheEntryStats {
 const inflightFunctions = new Map<string, Promise<unknown>>();
 
 /**
- * 为异步函数增加缓存能力。
+ * 为异步函数创建一个带缓存能力的包装器。
+ *
+ * 典型用途：
+ * - 为热点查询函数追加 TTL 缓存
+ * - 为外部 API 请求增加并发去重
+ * - 在不改动原函数签名的前提下复用 `CacheLike` 能力
+ *
+ * @template {unknown[]} TArgs
+ * @template TResult
+ * @param {(...args: TArgs) => Promise<TResult>} fn - 原始异步函数。
+ * @param {WithCacheOptions} [options={}] - 缓存选项，包括 TTL、命名空间、缓存实例、keyBuilder 与条件缓存策略。
+ * @returns {CachedFunction<TArgs, TResult>} 返回保持原始调用签名的缓存包装函数，并附带 `invalidate()` 与 `getCacheStats()`。
+ * @throws {Error} 当 `fn` 不是函数、`ttl` 为负数，或 `keyBuilder` / `condition` 类型非法时抛出参数错误。
  * @since v1.3.0
+ * @example
+ * const cachedGetUser = withCache(getUser, {
+ *     namespace: 'user',
+ *     ttl: 60_000,
+ * });
+ *
+ * const user = await cachedGetUser('u1');
  */
 export function withCache<TArgs extends unknown[], TResult>(
     fn: (...args: TArgs) => Promise<TResult>,
@@ -161,14 +177,13 @@ export function withCache<TArgs extends unknown[], TResult>(
     return wrapped;
 }
 
-export interface FunctionCacheOptions {
-    namespace?: string;
-    defaultTTL?: number;
-    enableStats?: boolean;
-}
 
 /**
- * 函数缓存管理器。
+ * 多函数缓存管理器。
+ *
+ * 适用于需要为一组命名业务函数统一注册、执行、统计与失效缓存的场景。
+ * `cacheOrDb` 既可以是直接的 `CacheLike`，也可以是带 `getCache()` 的 runtime 实例。
+ *
  * @since v1.3.0
  */
 export class FunctionCache {
@@ -186,7 +201,15 @@ export class FunctionCache {
     }
 
     /**
-     * 注册函数。
+     * 注册一个可缓存的异步函数。
+     *
+     * @template {unknown[]} TArgs
+     * @template TResult
+     * @param {string} name - 注册名；后续通过 `execute()` / `invalidate()` 按该名称访问。
+     * @param {(...args: TArgs) => Promise<TResult>} fn - 原始异步函数。
+     * @param {WithCacheOptions} [options={}] - 针对该函数的局部缓存配置。
+     * @returns {void}
+     * @throws {Error} 当名称为空时抛出参数错误。
      * @since v1.3.0
      */
     register<TArgs extends unknown[], TResult>(
@@ -209,6 +232,11 @@ export class FunctionCache {
 
     /**
      * 执行已注册函数。
+     *
+     * @param {string} name - 已注册函数名。
+     * @param {...unknown[]} args - 原函数参数。
+     * @returns {Promise<unknown>} 返回原函数或缓存命中的结果。
+     * @throws {Error} 当函数未注册时抛出 `FUNCTION_NOT_REGISTERED`。
      * @since v1.3.0
      */
     async execute(name: string, ...args: unknown[]): Promise<unknown> {
@@ -220,7 +248,12 @@ export class FunctionCache {
     }
 
     /**
-     * 失效指定函数缓存。
+     * 失效某个已注册函数在指定参数下的缓存结果。
+     *
+     * @param {string} name - 已注册函数名。
+     * @param {...unknown[]} args - 用于重建缓存键的原函数参数。
+     * @returns {Promise<boolean>} 成功删除缓存时返回 `true`。
+     * @throws {Error} 当函数未注册时抛出 `FUNCTION_NOT_REGISTERED`。
      * @since v1.3.0
      */
     async invalidate(name: string, ...args: unknown[]): Promise<boolean> {
@@ -232,7 +265,11 @@ export class FunctionCache {
     }
 
     /**
-     * 按模式失效缓存。
+     * 按模式批量失效当前命名空间下的缓存键。
+     *
+     * @param {string} pattern - 通配符模式，不包含命名空间前缀时会自动补齐。
+     * @returns {Promise<number>} 实际删除的缓存键数量。
+     * @throws {Error} 当模式为空时抛出参数错误。
      * @since v1.3.0
      */
     async invalidatePattern(pattern: string): Promise<number> {
@@ -244,6 +281,9 @@ export class FunctionCache {
 
     /**
      * 获取统计信息。
+     *
+     * @param {string} [name] - 传入时只返回某个已注册函数的统计信息；不传则返回全部。
+     * @returns {Record<string, unknown>} 统计对象。
      * @since v1.3.0
      */
     getStats(name?: string): Record<string, unknown> {
@@ -257,7 +297,9 @@ export class FunctionCache {
     }
 
     /**
-     * 列出所有已注册函数。
+     * 列出所有已注册函数名。
+     *
+     * @returns {string[]}
      * @since v1.3.0
      */
     list(): string[] {
@@ -265,7 +307,10 @@ export class FunctionCache {
     }
 
     /**
-     * 重置统计信息。
+     * 重置一个或全部已注册函数的统计信息。
+     *
+     * @param {string} [name] - 传入时仅重置指定函数；否则重置全部。
+     * @returns {void}
      * @since v1.3.0
      */
     resetStats(name?: string): void {
@@ -286,7 +331,9 @@ export class FunctionCache {
     }
 
     /**
-     * 清空已注册函数。
+     * 清空所有已注册函数定义。
+     *
+     * @returns {void}
      * @since v1.3.0
      */
     clear(): void {

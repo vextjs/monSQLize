@@ -1,46 +1,27 @@
-import type { MongoClient, ClientSession, TransactionOptions as MongoDriverTransactionOptions } from 'mongodb';
+/**
+ * P4-A transaction / cache-lock 能力。
+ *
+ * 说明：
+ * - 当前模块负责事务生命周期、重试策略与最小缓存锁联动。
+ * - 公开与共享类型统一由 `types/transaction.d.ts` 承接；此处只保留运行时实现与内部状态类型。
+ */
+
+import type { MongoClient, ClientSession } from 'mongodb';
 import type { CacheLike } from '../cache';
 import type { LoggerLike } from '../../core/logger';
+import type {
+    MongoSession,
+    TransactionInfo,
+    TransactionOptions,
+    TransactionStats,
+} from '../../../types/transaction';
 
-export interface MongoSession {
-    id: unknown;
-    inTransaction(): boolean;
-    startTransaction(options?: MongoDriverTransactionOptions): void;
-    commitTransaction(): Promise<void>;
-    abortTransaction(): Promise<void>;
-    endSession(): Promise<void>;
-}
-
-export interface TransactionOptions {
-    readConcern?: {
-        level: 'local' | 'majority' | 'snapshot' | 'linearizable' | 'available';
-    };
-    readPreference?: 'primary' | 'primaryPreferred' | 'secondary' | 'secondaryPreferred' | 'nearest';
-    causalConsistency?: boolean;
-    maxDuration?: number;
-    enableRetry?: boolean;
-    maxRetries?: number;
-    retryDelay?: number;
-    retryBackoff?: number;
-    enableCacheLock?: boolean;
-    lockCleanupInterval?: number;
-    writeConcern?: Record<string, unknown>;
-}
-
-export interface TransactionInfo {
-    id: string;
-    status: 'pending' | 'started' | 'committed' | 'aborted';
-    duration: number;
-    sessionId: string;
-}
-
-export interface TransactionStats {
-    totalTransactions: number;
-    successfulTransactions: number;
-    failedTransactions: number;
-    activeTransactions: number;
-    averageDuration: number;
-}
+export type {
+    MongoSession,
+    TransactionInfo,
+    TransactionOptions,
+    TransactionStats,
+} from '../../../types/transaction';
 
 interface CacheLockRecord {
     ownerId: string;

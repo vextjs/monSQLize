@@ -10,52 +10,25 @@
 import { Collection, Document, FindOptions } from 'mongodb';
 
 import { createError, ErrorCodes } from '../../../core/errors';
+import type {
+    BatchErrorRecord,
+    BatchWriteOptions,
+    DeleteBatchResult,
+    IncrementOneOptions,
+    InsertBatchResult,
+    UpdateBatchOptions,
+    UpdateBatchResult,
+} from '../../../../types/collection';
 
-export interface BatchErrorRecord {
-    batchIndex: number;
-    message: string;
-}
-
-export interface InsertBatchResult {
-    acknowledged: boolean;
-    totalCount: number;
-    insertedCount: number;
-    batchCount: number;
-    errors: BatchErrorRecord[];
-    insertedIds: Record<number, unknown>;
-}
-
-export interface UpdateBatchResult {
-    acknowledged: boolean;
-    totalCount: number;
-    matchedCount: number;
-    modifiedCount: number;
-    batchCount: number;
-    errors: BatchErrorRecord[];
-}
-
-export interface DeleteBatchResult {
-    acknowledged: boolean;
-    totalCount: number;
-    deletedCount: number;
-    batchCount: number;
-    errors: BatchErrorRecord[];
-}
-
-export interface BatchWriteOptions {
-    batchSize?: number;
-    ordered?: boolean;
-}
-
-export interface UpdateBatchOptions extends BatchWriteOptions {
-    sort?: Record<string, 1 | -1>;
-}
-
-export interface IncrementOneOptions extends Record<string, unknown> {
-    returnDocument?: 'before' | 'after';
-    projection?: Record<string, unknown>;
-    $set?: Record<string, unknown>;
-}
+export type {
+    BatchErrorRecord,
+    BatchWriteOptions,
+    DeleteBatchResult,
+    IncrementOneOptions,
+    InsertBatchResult,
+    UpdateBatchOptions,
+    UpdateBatchResult,
+} from '../../../../types/collection';
 
 /**
  * 将数组按固定大小拆分为批次。

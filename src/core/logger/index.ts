@@ -6,12 +6,9 @@
  * - traceId / structured log 等增强能力留待后续阶段按需补齐。
  */
 
-export interface LoggerLike {
-    debug?: (...args: unknown[]) => void;
-    info?: (...args: unknown[]) => void;
-    warn?: (...args: unknown[]) => void;
-    error?: (...args: unknown[]) => void;
-}
+import type { LoggerLike } from '../../../types/base';
+
+export type { LoggerLike } from '../../../types/base';
 
 export class Logger {
     constructor(private readonly logger: LoggerLike | null = null) {}

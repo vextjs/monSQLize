@@ -153,17 +153,19 @@ export type CachedFunction<TArgs extends unknown[] = unknown[], TResult = unknow
     getCacheStats: () => CacheStats & { errors: number; avgTime: number; };
 };
 
+export interface FunctionCacheOptions {
+    namespace?: string;
+    defaultTTL?: number;
+    enableStats?: boolean;
+}
+
 export declare function withCache<TArgs extends unknown[], TResult>(
     fn: (...args: TArgs) => Promise<TResult>,
     options?: WithCacheOptions,
 ): CachedFunction<TArgs, TResult>;
 
 export declare class FunctionCache {
-    constructor(cacheOrDb: unknown, options?: {
-        namespace?: string;
-        defaultTTL?: number;
-        enableStats?: boolean;
-    });
+    constructor(cacheOrDb: unknown, options?: FunctionCacheOptions);
     register(name: string, fn: (...args: unknown[]) => Promise<unknown>, options?: WithCacheOptions): void;
     execute(name: string, ...args: unknown[]): Promise<unknown>;
     invalidate(name: string, ...args: unknown[]): Promise<boolean>;

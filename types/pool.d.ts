@@ -1,3 +1,5 @@
+import type { MongoClientOptions } from 'mongodb';
+
 import type { LoggerLike } from './base';
 
 export type PoolRole = 'primary' | 'secondary' | 'analytics' | 'custom';
@@ -10,7 +12,7 @@ export interface PoolConfig {
     role?: PoolRole;
     weight?: number;
     tags?: string[];
-    options?: Record<string, unknown>;
+    options?: MongoClientOptions;
     healthCheck?: {
         enabled?: boolean;
         interval?: number;

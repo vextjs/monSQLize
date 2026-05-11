@@ -1,70 +1,35 @@
+/**
+ * P4-C Change Stream sync 能力。
+ *
+ * 说明：
+ * - 当前模块负责 sync 配置校验、resume token 持久化与最小 manager lifecycle。
+ * - 公开与共享类型统一由 `types/sync.d.ts` 承接；此处只保留运行时实现与内部辅助类型。
+ */
+
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { ChangeStream, ChangeStreamDocument, Db, Document, MongoClient, MongoClientOptions } from 'mongodb';
+import type { ChangeStream, Db, Document, MongoClient, MongoClientOptions } from 'mongodb';
 import { MongoClient as MongoDriverClient } from 'mongodb';
 import { ErrorCodes, createError } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
 import type { ConnectionPoolManager } from '../pool';
+import type {
+    ResumeTokenConfig,
+    ResumeTokenRedisLike,
+    SyncChangeEvent,
+    SyncConfig,
+    SyncStats,
+    SyncTargetConfig,
+} from '../../../types/sync';
 
-export type SyncChangeEvent<TDocument extends Document = Document> = ChangeStreamDocument<TDocument> & {
-    _id?: unknown;
-    operationType: 'insert' | 'update' | 'replace' | 'delete';
-    ns: {
-        db: string;
-        coll: string;
-    };
-    documentKey?: Record<string, unknown>;
-    fullDocument?: TDocument;
-};
-
-export interface SyncTargetConfig {
-    name: string;
-    uri?: string;
-    pool?: string;
-    databaseName?: string;
-    collections?: string[];
-    options?: MongoClientOptions;
-    apply?: (event: SyncChangeEvent, document: Document | undefined) => Promise<void>;
-}
-
-export interface ResumeTokenRedisLike {
-    get(key: string): Promise<string | null> | string | null;
-    set(key: string, value: string): Promise<unknown> | unknown;
-    del?(key: string): Promise<unknown> | unknown;
-}
-
-export interface ResumeTokenConfig {
-    storage?: 'file' | 'redis';
-    path?: string;
-    redis?: ResumeTokenRedisLike;
-    key?: string;
-}
-
-export interface SyncConfig {
-    enabled: boolean;
-    targets: SyncTargetConfig[];
-    collections?: string[];
-    resumeToken?: ResumeTokenConfig;
-    filter?: (event: SyncChangeEvent) => boolean;
-    transform?: (document: Document | undefined, event: SyncChangeEvent) => Document | undefined;
-}
-
-export interface SyncStats {
-    isRunning: boolean;
-    eventCount: number;
-    syncedCount: number;
-    errorCount: number;
-    startTime: Date | null;
-    lastEventTime: Date | null;
-    targets: Array<{
-        name: string;
-        syncCount: number;
-        errorCount: number;
-        lastSyncTime: Date | null;
-        lastError: Error | null;
-        successRate: string;
-    }>;
-}
+export type {
+    ResumeTokenConfig,
+    ResumeTokenRedisLike,
+    SyncChangeEvent,
+    SyncConfig,
+    SyncStats,
+    SyncTargetConfig,
+} from '../../../types/sync';
 
 interface ResolvedTarget {
     name: string;

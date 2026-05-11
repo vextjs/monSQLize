@@ -1,3 +1,5 @@
+import type { Document, FindOptions, Sort } from 'mongodb';
+
 export interface HealthView {
     status: 'up' | 'down';
     connected: boolean;
@@ -27,6 +29,27 @@ export interface UpdateResult {
 export interface DeleteResult {
     acknowledged: boolean;
     deletedCount: number;
+}
+
+export interface FindPageOptions<TSchema = unknown> {
+    query?: Document;
+    page?: number;
+    limit?: number;
+    sort?: Sort;
+    projection?: Document;
+    options?: FindOptions<Document>;
+}
+
+export interface FindPageResult<TSchema = unknown> {
+    data: TSchema[];
+    page: {
+        page: number;
+        limit: number;
+    };
+    totals: {
+        total: number;
+        totalPages: number;
+    };
 }
 
 export interface BatchErrorRecord {
@@ -60,6 +83,21 @@ export interface DeleteBatchResult {
     errors: BatchErrorRecord[];
 }
 
+export interface BatchWriteOptions {
+    batchSize?: number;
+    ordered?: boolean;
+}
+
+export interface UpdateBatchOptions extends BatchWriteOptions {
+    sort?: Record<string, 1 | -1>;
+}
+
+export interface IncrementOneOptions extends Record<string, unknown> {
+    returnDocument?: 'before' | 'after';
+    projection?: Record<string, unknown>;
+    $set?: Record<string, unknown>;
+}
+
 export interface IndexCreateResult {
     name: string;
 }
@@ -80,6 +118,16 @@ export interface BookmarkClearResult {
     cleared: number;
     pattern: string;
     keysBefore: number;
+}
+
+export interface BookmarkKeyDims<TSchema = unknown> extends Omit<FindPageOptions<TSchema>, 'page'> {}
+
+export interface BookmarkCacheLike {
+    set(key: string, value: unknown): boolean | Promise<boolean>;
+    get(key: string): unknown | Promise<unknown>;
+    delete?(key: string): boolean | Promise<boolean>;
+    keys?(pattern: string): string[] | Promise<string[]>;
+    delPattern?(pattern: string): number | Promise<number>;
 }
 
 export interface AdminBuildInfoView {
@@ -172,11 +220,7 @@ export interface Collection<TSchema = unknown> {
     clearBookmarks(keyDims?: unknown): Promise<BookmarkClearResult>;
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]>;
-    findPage(options?: unknown): Promise<{
-        data: TSchema[];
-        page: { page: number; limit: number; };
-        totals: { total: number; totalPages: number; };
-    }>;
+    findPage(options?: FindPageOptions<TSchema>): Promise<FindPageResult<TSchema>>;
     watch(pipeline?: unknown[], options?: unknown): unknown;
 }
 

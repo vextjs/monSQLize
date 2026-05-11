@@ -1,78 +1,37 @@
+/**
+ * P3-C Model registry 与 features 能力。
+ *
+ * 说明：
+ * - 当前模块负责 Model 注册表、实例包装、relations / virtuals / populate 的最小闭环。
+ * - 公开与共享类型统一由 `types/model.d.ts` 承接；此处只保留运行时实现与内部辅助类型。
+ */
+
 import { ErrorCodes, createError } from '../../core/errors';
+import type {
+    HookContext,
+    ModelConnection,
+    ModelDefinition,
+    ModelScopeOptions,
+    PopulateConfig,
+    PopulateProxy,
+    RegisteredModel,
+    RelationConfig,
+    ValidationResult,
+    VirtualConfig,
+} from '../../../types/model';
 
-export interface ValidationResult {
-    valid: boolean;
-    errors?: Array<{ field: string; message: string; value?: unknown; }>;
-}
-
-export interface ModelConnection {
-    pool?: string;
-    database?: string;
-}
-
-export interface RelationConfig {
-    from: string;
-    localField: string;
-    foreignField: string;
-    single?: boolean;
-}
-
-export interface PopulateConfig {
-    path: string;
-    select?: string | string[];
-    match?: Record<string, unknown>;
-    sort?: Record<string, 1 | -1>;
-    limit?: number;
-    skip?: number;
-    populate?: string | PopulateConfig | Array<string | PopulateConfig>;
-}
-
-export interface VirtualConfig {
-    get: (this: Record<string, unknown>) => unknown;
-    set?: (this: Record<string, unknown>, value: unknown) => void;
-}
-
-export interface HookContext {
-    operation: string;
-    collection: string;
-    data?: unknown;
-    filter?: unknown;
-    update?: unknown;
-    result?: unknown;
-    error?: Error;
-    [key: string]: unknown;
-}
-
-export interface ModelDefinition<TDocument = Record<string, unknown>> {
-    enums?: Record<string, string>;
-    schema?: unknown;
-    defaults?: Record<string, unknown | ((context?: unknown, doc?: TDocument) => unknown)>;
-    hooks?: {
-        beforeCreate?: (context: HookContext) => Promise<void> | void;
-        afterCreate?: (context: HookContext) => Promise<void> | void;
-        beforeUpdate?: (context: HookContext) => Promise<void> | void;
-        afterUpdate?: (context: HookContext) => Promise<void> | void;
-        beforeDelete?: (context: HookContext) => Promise<void> | void;
-        afterDelete?: (context: HookContext) => Promise<void> | void;
-        beforeFind?: (context: HookContext) => Promise<void> | void;
-        afterFind?: (context: HookContext) => Promise<void> | void;
-    };
-    methods?: Record<string, (this: TDocument & Record<string, unknown>, ...args: unknown[]) => unknown>;
-    statics?: Record<string, (...args: unknown[]) => unknown>;
-    relations?: Record<string, RelationConfig>;
-    virtuals?: Record<string, VirtualConfig>;
-    connection?: ModelConnection;
-}
-
-export interface RegisteredModel<TDocument = Record<string, unknown>> {
-    collectionName: string;
-    definition: ModelDefinition<TDocument>;
-}
-
-export interface ModelScopeOptions {
-    database?: string;
-    pool?: string;
-}
+export type {
+    HookContext,
+    ModelConnection,
+    ModelDefinition,
+    ModelScopeOptions,
+    PopulateConfig,
+    PopulateProxy,
+    RegisteredModel,
+    RelationConfig,
+    ValidationResult,
+    VirtualConfig,
+} from '../../../types/model';
 
 type PopulatePath = string | PopulateConfig;
 
@@ -108,12 +67,10 @@ interface ModelCollectionLike<TDocument = Record<string, unknown>> {
     watch(pipeline?: unknown[], options?: unknown): unknown;
 }
 
-export interface PopulateProxy<T = unknown> extends PromiseLike<T> {
-    populate(path: string | PopulateConfig): PopulateProxy<T>;
-    exec(): Promise<T>;
-}
 
 class PopulatePromise<T> implements PopulateProxy<T> {
+    readonly [Symbol.toStringTag] = 'Promise';
+
     constructor(
         private readonly executor: (paths: PopulatePath[]) => Promise<T>,
         private readonly paths: PopulatePath[] = [],
@@ -130,8 +87,18 @@ class PopulatePromise<T> implements PopulateProxy<T> {
     then<TResult1 = T, TResult2 = never>(
         onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
         onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
-    ): PromiseLike<TResult1 | TResult2> {
+    ): Promise<TResult1 | TResult2> {
         return this.exec().then(onfulfilled ?? undefined, onrejected ?? undefined);
+    }
+
+    catch<TResult = never>(
+        onrejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null,
+    ): Promise<T | TResult> {
+        return this.exec().catch(onrejected ?? undefined);
+    }
+
+    finally(onfinally?: (() => void) | null): Promise<T> {
+        return this.exec().finally(onfinally ?? undefined);
     }
 }
 

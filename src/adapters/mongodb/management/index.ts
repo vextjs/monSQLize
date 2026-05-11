@@ -11,91 +11,29 @@ import { Collection, Db, Document } from 'mongodb';
 import { createError, ErrorCodes } from '../../../core/errors';
 import type { Logger } from '../../../core/logger';
 import type { FindPageOptions, FindPageResult } from '../queries';
+import type {
+    AdminBuildInfoView,
+    BookmarkCacheLike,
+    BookmarkClearResult,
+    BookmarkKeyDims,
+    BookmarkListResult,
+    BookmarkPrewarmResult,
+    DbStatsView,
+    IndexCreateResult,
+    ServerStatusView,
+} from '../../../../types/collection';
 
-export interface IndexCreateResult {
-    name: string;
-}
-
-export interface BookmarkListResult {
-    count: number;
-    pages: number[];
-    keys: string[];
-}
-
-export interface BookmarkPrewarmResult {
-    warmed: number;
-    failed: number;
-    keys: string[];
-}
-
-export interface BookmarkClearResult {
-    cleared: number;
-    pattern: string;
-    keysBefore: number;
-}
-
-export interface BookmarkKeyDims<TSchema extends Document = Document> extends Omit<FindPageOptions<TSchema>, 'page'> {}
-
-export interface BookmarkCacheLike {
-    set(key: string, value: unknown): boolean | Promise<boolean>;
-    get(key: string): unknown | Promise<unknown>;
-    delete?(key: string): boolean | Promise<boolean>;
-    keys?(pattern: string): string[] | Promise<string[]>;
-    delPattern?(pattern: string): number | Promise<number>;
-}
-
-export interface AdminBuildInfoView {
-    version?: string;
-    versionArray?: number[];
-    gitVersion?: string;
-    bits?: number;
-    debug?: boolean;
-    maxBsonObjectSize?: number;
-}
-
-export interface ServerStatusView {
-    connections: {
-        current?: number;
-        available?: number;
-        totalCreated?: number;
-    };
-    mem: {
-        resident?: number;
-        virtual?: number;
-        mapped?: number;
-    };
-    opcounters: {
-        insert?: number;
-        query?: number;
-        update?: number;
-        delete?: number;
-        getmore?: number;
-        command?: number;
-    };
-    network: {
-        bytesIn?: number;
-        bytesOut?: number;
-        numRequests?: number;
-    };
-    uptime?: number;
-    localTime?: Date;
-    version?: string;
-    process?: string;
-}
-
-export interface DbStatsView {
-    db?: string;
-    collections?: number;
-    views?: number;
-    objects?: number;
-    avgObjSize?: number;
-    dataSize?: number;
-    storageSize?: number;
-    indexes?: number;
-    indexSize?: number;
-    totalSize?: number;
-    scaleFactor?: number;
-}
+export type {
+    AdminBuildInfoView,
+    BookmarkCacheLike,
+    BookmarkClearResult,
+    BookmarkKeyDims,
+    BookmarkListResult,
+    BookmarkPrewarmResult,
+    DbStatsView,
+    IndexCreateResult,
+    ServerStatusView,
+} from '../../../../types/collection';
 
 /**
  * 数据库级 admin façade。

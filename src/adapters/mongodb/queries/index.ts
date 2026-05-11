@@ -10,27 +10,9 @@ import { ChangeStream, Collection, Document } from 'mongodb';
 
 import { compilePipelineExpressions, hasExpressionInPipeline } from '../../../core/expression';
 import { createError, ErrorCodes } from '../../../core/errors';
+import type { FindPageOptions, FindPageResult } from '../../../../types/collection';
 
-export interface FindPageOptions<TSchema extends Document = Document> {
-    query?: Document;
-    page?: number;
-    limit?: number;
-    sort?: Document;
-    projection?: Document;
-    options?: Parameters<Collection<TSchema>['find']>[1];
-}
-
-export interface FindPageResult<TSchema extends Document = Document> {
-    data: TSchema[];
-    page: {
-        page: number;
-        limit: number;
-    };
-    totals: {
-        total: number;
-        totalPages: number;
-    };
-}
+export type { FindPageOptions, FindPageResult } from '../../../../types/collection';
 
 /**
  * 查询多个文档并返回数组结果。
@@ -133,7 +115,7 @@ export async function findPageDocuments<TSchema extends Document = Document>(
         ...(options.projection ? { projection: options.projection } : {}),
         skip,
         limit,
-    };
+    } as Parameters<Collection<TSchema>['find']>[1];
     const queryFilter = query as Parameters<Collection<TSchema>['find']>[0];
 
     const [data, total] = await Promise.all([

@@ -1,89 +1,37 @@
+/**
+ * P4-C slow-query-log 能力。
+ *
+ * 说明：
+ * - 当前模块负责慢查询配置合并、队列聚合、存储抽象与运行时 façade。
+ * - 公开与共享类型统一由 `types/slow-query-log.d.ts` 承接；此处只保留运行时实现与内部归一化状态。
+ */
+
 import { createHash } from 'node:crypto';
 import type { Collection, MongoClient, MongoClientOptions } from 'mongodb';
 import { MongoClient as MongoDriverClient } from 'mongodb';
 import { ErrorCodes, createError } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
+import type {
+    SlowQueryLogConfig,
+    SlowQueryLogConfigInput,
+    SlowQueryLogEntry,
+    SlowQueryLogFilter,
+    SlowQueryLogQueryOptions,
+    SlowQueryLogRecord,
+    SlowQueryLogStorage,
+    SlowQueryLogStorageConfig,
+} from '../../../types/slow-query-log';
 
-export interface SlowQueryLogEntry {
-    database: string;
-    collection: string;
-    operation: string;
-    durationMs: number;
-    query?: unknown;
-    timestamp?: Date;
-    queryHash?: string;
-    metadata?: Record<string, unknown>;
-}
-
-export interface SlowQueryLogRecord {
-    queryHash: string;
-    database: string;
-    collection: string;
-    operation: string;
-    count: number;
-    totalTimeMs: number;
-    avgTimeMs: number;
-    maxTimeMs: number;
-    minTimeMs: number;
-    firstSeen: Date;
-    lastSeen: Date;
-    sampleQuery?: unknown;
-    metadata?: Record<string, unknown>;
-}
-
-export interface SlowQueryLogFilter {
-    database?: string;
-    collection?: string;
-    operation?: string;
-    queryHash?: string;
-}
-
-export interface SlowQueryLogQueryOptions {
-    sort?: Record<string, 1 | -1>;
-    limit?: number;
-    skip?: number;
-}
-
-export interface SlowQueryLogStorageConfig {
-    type?: 'memory' | 'mongodb';
-    useBusinessConnection?: boolean;
-    uri?: string | null;
-    database?: string;
-    collection?: string;
-    ttl?: number;
-    options?: MongoClientOptions;
-}
-
-export interface SlowQueryLogConfig {
-    enabled: boolean;
-    storage: SlowQueryLogStorageConfig;
-    batch: {
-        enabled: boolean;
-        size: number;
-        interval: number;
-        maxBufferSize: number;
-    };
-    filter: {
-        excludeDatabases: string[];
-        excludeCollections: string[];
-        excludeOperations: string[];
-        minExecutionTimeMs: number;
-    };
-    advanced: {
-        errorHandling: 'log' | 'throw' | 'silent';
-        autoCreateIndexes: boolean;
-    };
-}
-
-export type SlowQueryLogConfigInput = boolean | Partial<SlowQueryLogConfig>;
-
-export interface SlowQueryLogStorage {
-    initialize(): Promise<void>;
-    save(log: SlowQueryLogEntry): Promise<void>;
-    saveBatch(logs: SlowQueryLogEntry[]): Promise<void>;
-    query(filter?: SlowQueryLogFilter, options?: SlowQueryLogQueryOptions): Promise<SlowQueryLogRecord[]>;
-    close(): Promise<void>;
-}
+export type {
+    SlowQueryLogConfig,
+    SlowQueryLogConfigInput,
+    SlowQueryLogEntry,
+    SlowQueryLogFilter,
+    SlowQueryLogQueryOptions,
+    SlowQueryLogRecord,
+    SlowQueryLogStorage,
+    SlowQueryLogStorageConfig,
+} from '../../../types/slow-query-log';
 
 type NormalizedSlowQueryLogStorageConfig = SlowQueryLogStorageConfig & {
     database: string;

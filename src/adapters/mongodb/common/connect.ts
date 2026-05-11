@@ -6,20 +6,13 @@
  * - Memory Server 由测试 bootstrap 管理；运行时仅接收外部提供的 URI。
  */
 
-import { Db, MongoClient, MongoClientOptions } from 'mongodb';
+import { MongoClient } from 'mongodb';
 
 import { createConnectionError, createError, ErrorCodes, type MonSQLizeError } from '../../../core/errors';
 import type { Logger } from '../../../core/logger';
+import type { MongoConnectConfig, MongoConnectionState } from '../../../../types/mongodb';
 
-export interface MongoConnectConfig {
-    uri?: string;
-    options?: MongoClientOptions;
-}
-
-export interface MongoConnectionState {
-    client: MongoClient;
-    db: Db;
-}
+export type { MongoConnectConfig, MongoConnectionState } from '../../../../types/mongodb';
 
 /**
  * 建立 MongoDB 连接。

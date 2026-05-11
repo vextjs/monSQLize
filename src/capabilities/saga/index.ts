@@ -1,50 +1,30 @@
+/**
+ * P4-C Saga orchestrator 能力。
+ *
+ * 说明：
+ * - 当前模块负责 Saga 定义、执行、补偿与统计的最小闭环。
+ * - 公开与共享类型统一由 `types/saga.d.ts` 承接；此处只保留运行时实现。
+ */
+
 import { ErrorCodes, createError } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
+import type {
+    SagaContext,
+    SagaDefinition,
+    SagaOrchestratorOptions,
+    SagaResult,
+    SagaStats,
+    SagaStep,
+} from '../../../types/saga';
 
-export interface SagaContext {
-    readonly executionId: string;
-    readonly data: unknown;
-    set(key: string, value: unknown): void;
-    get<T = unknown>(key: string): T | undefined;
-    has(key: string): boolean;
-    getAll(): Record<string, unknown>;
-}
-
-export interface SagaStep {
-    name: string;
-    execute: (context: SagaContext) => Promise<unknown>;
-    compensate?: (context: SagaContext) => Promise<void>;
-    timeout?: number;
-    retries?: number;
-}
-
-export interface SagaDefinition {
-    name: string;
-    steps: SagaStep[];
-    timeout?: number;
-    logging?: boolean;
-}
-
-export interface SagaResult {
-    executionId: string;
-    success: boolean;
-    result?: unknown;
-    error?: Error;
-    completedSteps: string[];
-    compensatedSteps: string[];
-    duration: number;
-}
-
-export interface SagaOrchestratorOptions {
-    logger?: LoggerLike | null;
-}
-
-export interface SagaStats {
-    totalExecutions: number;
-    successCount: number;
-    failureCount: number;
-    compensationCount: number;
-}
+export type {
+    SagaContext,
+    SagaDefinition,
+    SagaOrchestratorOptions,
+    SagaResult,
+    SagaStats,
+    SagaStep,
+} from '../../../types/saga';
 
 class SagaExecutionContext implements SagaContext {
     private readonly values = new Map<string, unknown>();

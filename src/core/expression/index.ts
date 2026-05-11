@@ -7,11 +7,9 @@
  */
 
 import { createError, ErrorCodes } from '../errors';
+import type { ExpressionObject } from '../../../types/base';
 
-export interface ExpressionObject {
-    __expr__: string;
-    __compiled__: boolean;
-}
+export type { ExpressionObject } from '../../../types/base';
 
 const SIMPLE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const FUNCTION_CALL = /^([A-Z_][A-Z0-9_]*)\((.*)\)$/;

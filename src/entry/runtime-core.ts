@@ -90,10 +90,12 @@ import {
     type TransactionStats,
     type MongoSession,
 } from '../capabilities/transaction';
-import { closeMongo, connectMongo, type MongoConnectConfig } from '../adapters/mongodb/common/connect';
+import { closeMongo, connectMongo } from '../adapters/mongodb/common/connect';
 import { createExpression, expr, type ExpressionObject } from '../core/expression';
 import { ErrorCodes, createError } from '../core/errors';
 import { Logger, type LoggerLike } from '../core/logger';
+import type { HealthView } from '../../types/collection';
+import type { MonSQLizeOptions } from '../../types/monsqlize';
 
 export { CollectionFacade, DbFacade, Logger, MemoryCache, createRedisCacheAdapter, DistributedCacheInvalidator };
 export { FunctionCache, withCache };
@@ -147,29 +149,20 @@ export type {
 };
 
 export { Transaction, TransactionManager, CacheLockManager, Lock, LockAcquireError, LockTimeoutError, LockManager };
+export type { HealthView } from '../../types/collection';
+export type { MonSQLizeOptions } from '../../types/monsqlize';
 
-export interface MonSQLizeOptions {
-    type?: 'mongodb';
-    databaseName?: string;
-    config?: MongoConnectConfig;
-    cache?: Record<string, unknown> | MemoryCache;
-    logger?: LoggerLike | null;
-    pools?: PoolConfig[];
-    poolStrategy?: PoolStrategy;
-    poolFallback?: ConnectionPoolManagerOptions['poolFallback'];
-    maxPoolsCount?: number;
-    sync?: SyncConfig;
-    slowQueryLog?: SlowQueryLogConfigInput;
-}
-
-
-export interface HealthView {
-    status: 'up' | 'down';
-    connected: boolean;
-    defaults?: Record<string, unknown>;
-    cache?: Record<string, unknown>;
-}
-
+/**
+ * monSQLize 当前 TypeScript runtime 的核心运行时入口。
+ *
+ * 职责边界：
+ * - 管理 MongoDB 连接生命周期
+ * - 暴露 `collection()` / `db()` / `use()` / `pool()` 等访问器
+ * - 统一接线 cache、function-cache、model、transaction、lock、pool、sync、slow-query-log 与 saga 能力
+ * - 作为包根导出与 `connect()` 返回值的运行时宿主
+ *
+ * @since v1.3.0
+ */
 export class MonSQLizeRuntime {
     private _connected = false;
     private readonly _cache: MemoryCache;
@@ -204,14 +197,22 @@ export class MonSQLizeRuntime {
             ...options,
             type,
         };
-        this._cache = MemoryCache.getOrCreateCache(options.cache);
+        this._cache = MemoryCache.getOrCreateCache(options.cache as Record<string, unknown> | MemoryCache | undefined);
         this._logger = Logger.create(options.logger ?? null);
         this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
         this._cache.setLockManager(this._cacheLockManager);
     }
 
     /**
-     * 连接数据库并建立访问器。
+     * 建立数据库连接并返回当前 runtime 的标准访问器集合。
+     *
+     * 行为说明：
+     * - 首次调用会真正连接 MongoDB 并初始化已启用的高级能力
+     * - 重复调用会复用已有连接
+     * - 并发调用会复用同一个连接中的 promise，避免重复建连
+     *
+     * @returns {Promise<{ collection: (name: string) => CollectionFacade; db: (name?: string) => DbFacade; use: (name: string) => { collection: (collectionName: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>; }; instance: MonSQLizeRuntime; }>} 返回包含 `collection`、`db`、`use` 与 `instance` 的访问器对象。
+     * @throws {Error} 当连接配置非法、MongoDB 建连失败或初始化依赖能力失败时抛出错误。
      * @since v1.3.0
      */
     async connect(): Promise<{
@@ -267,7 +268,9 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 获取缓存实例。
+     * 返回当前 runtime 绑定的本地缓存实例。
+     *
+     * @returns {MemoryCache}
      * @since v1.3.0
      */
     getCache(): MemoryCache {
@@ -275,7 +278,11 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 获取默认配置。
+     * 返回当前 runtime 的默认公开配置快照。
+     *
+     * 该方法用于对外暴露当前实例的轻量默认状态，而不是完整内部配置对象。
+     *
+     * @returns {Record<string, unknown>}
      * @since v1.3.0
      */
     getDefaults(): Record<string, unknown> {
@@ -331,7 +338,11 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 获取 Collection 访问器。
+     * 获取默认数据库下的 Collection 访问器。
+     *
+     * @param {string} name - 集合名。
+     * @returns {CollectionFacade}
+     * @throws {Error} 当 runtime 尚未连接时抛出 `NOT_CONNECTED`。
      * @since v1.3.0
      */
     collection(name: string): CollectionFacade {
@@ -340,7 +351,11 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 获取 Db 访问器。
+     * 获取数据库访问器。
+     *
+     * @param {string} [name] - 可选数据库名；不传时使用默认数据库。
+     * @returns {DbFacade}
+     * @throws {Error} 当 runtime 尚未连接时抛出 `NOT_CONNECTED`。
      * @since v1.3.0
      */
     db(name?: string): DbFacade {
@@ -359,7 +374,11 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 获取指定数据库访问器。
+     * 获取限定到指定数据库的访问器集合。
+     *
+     * @param {string} name - 目标数据库名。
+     * @returns {{ collection: (collectionName: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>; }} 返回绑定到该数据库的 `collection()` 与 `model()` 访问器。
+     * @throws {Error} 当 runtime 尚未连接时抛出 `NOT_CONNECTED`。
      * @since v1.3.0
      */
     use(name: string): { collection: (collectionName: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>; } {
@@ -372,7 +391,11 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 获取连接池访问器。
+     * 获取限定到某个连接池的访问器集合。
+     *
+     * @param {string} poolName - 连接池名称。
+     * @returns {{ collection: (name: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>; use: (dbName: string) => { collection: (name: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>; }; }} 返回绑定到连接池的 collection/model/use 访问器。
+     * @throws {Error} 当 runtime 尚未连接，或未配置 `options.pools` / 指定连接池不存在时抛出错误。
      * @since v1.3.0
      */
     pool(poolName: string): {
@@ -394,7 +417,12 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 获取限定数据库的 Collection 访问器。
+     * 获取可选数据库 / 连接池作用域下的 Collection 访问器。
+     *
+     * @param {string} name - 集合名。
+     * @param {{ database?: string; pool?: string; }} [options={}] - 可选数据库名或连接池名。
+     * @returns {CollectionFacade}
+     * @throws {Error} 当 runtime 尚未连接，或指定连接池不存在时抛出错误。
      * @since v1.3.0
      */
     scopedCollection(name: string, options: { database?: string; pool?: string; } = {}): CollectionFacade {
@@ -431,7 +459,12 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 获取 Model 访问器（P1 占位实现）。
+     * 获取默认数据库下的 Model 访问器。
+     *
+     * @template TDocument
+     * @param {string} name - 已注册的模型名。
+     * @returns {ModelInstance<TDocument>}
+     * @throws {Error} 当 runtime 尚未连接或模型未注册时抛出错误。
      * @since v1.3.0
      */
     model<TDocument = Record<string, unknown>>(name: string): ModelInstance<TDocument> {
@@ -442,7 +475,11 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 手动事务入口（P1 占位实现）。
+     * 手动开启一个事务会话。
+     *
+     * @param {TransactionOptions} [options={}] - 事务选项。
+     * @returns {Promise<Transaction>}
+     * @throws {Error} 当 runtime 尚未连接时抛出 `NOT_CONNECTED`。
      * @since v1.3.0
      */
     async startSession(options: TransactionOptions = {}): Promise<Transaction> {
@@ -451,7 +488,13 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 自动事务入口（P1 占位实现）。
+     * 在一个自动管理生命周期的事务中执行回调。
+     *
+     * @template T
+     * @param {(transaction: Transaction) => Promise<T>} callback - 事务体。
+     * @param {TransactionOptions} [options={}] - 事务配置。
+     * @returns {Promise<T>} 返回回调结果。
+     * @throws {Error} 当 runtime 尚未连接，或事务执行失败时抛出错误。
      * @since v1.3.0
      */
     async withTransaction<T>(callback: (transaction: Transaction) => Promise<T>, options: TransactionOptions = {}): Promise<T> {
@@ -460,7 +503,14 @@ export class MonSQLizeRuntime {
     }
 
     /**
-     * 自动管理业务锁生命周期。
+     * 在业务锁保护下执行异步回调，并自动管理加锁与释放。
+     *
+     * @template T
+     * @param {string} key - 业务锁键。
+     * @param {() => Promise<T>} callback - 受保护的异步逻辑。
+     * @param {LockOptions} [options={}] - 锁配置。
+     * @returns {Promise<T>} 返回回调结果。
+     * @throws {Error} 当 runtime 尚未连接或加锁失败时抛出错误。
      * @since v1.4.0
      */
     async withLock<T>(key: string, callback: () => Promise<T>, options: LockOptions = {}): Promise<T> {

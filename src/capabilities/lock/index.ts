@@ -1,23 +1,16 @@
+/**
+ * P4-A 业务锁能力。
+ *
+ * 说明：
+ * - 当前模块负责 lock manager、lock handle 与 fallbackToNoLock 最小闭环。
+ * - 公开与共享类型统一由 `types/lock.d.ts` 承接；此处只保留运行时实现与内部状态类型。
+ */
+
 import { randomUUID } from 'node:crypto';
 import type { LoggerLike } from '../../core/logger';
+import type { LockOptions, LockStats } from '../../../types/lock';
 
-export interface LockOptions {
-    ttl?: number;
-    retryTimes?: number;
-    retryDelay?: number;
-    retryBackoff?: number;
-    fallbackToNoLock?: boolean;
-}
-
-export interface LockStats {
-    locksAcquired: number;
-    locksReleased: number;
-    lockChecks: number;
-    errors: number;
-    lockKeyPrefix: string;
-    maxDuration: number;
-    activeLocks: number;
-}
+export type { LockOptions, LockStats } from '../../../types/lock';
 
 interface LockRecord {
     lockId: string;

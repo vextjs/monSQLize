@@ -2,6 +2,7 @@ import type { LoggerLike } from './base';
 import type { Collection, DbAccessor, HealthView } from './collection';
 import type { Lock, LockOptions } from './lock';
 import type { ModelInstance } from './model';
+import type { MongoConnectConfig } from './mongodb';
 import type { ConnectionPoolManagerOptions, PoolConfig, PoolStrategy } from './pool';
 import type { MemoryCache } from './runtime';
 import type { SagaDefinition, SagaOrchestrator, SagaResult, SagaStats } from './saga';
@@ -12,7 +13,7 @@ import type { Transaction, TransactionOptions } from './transaction';
 export interface MonSQLizeOptions {
     type?: 'mongodb';
     databaseName?: string;
-    config?: Record<string, unknown>;
+    config?: MongoConnectConfig;
     cache?: Record<string, unknown> | MemoryCache;
     logger?: LoggerLike | null;
     pools?: PoolConfig[];
