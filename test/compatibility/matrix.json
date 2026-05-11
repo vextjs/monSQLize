@@ -12,12 +12,22 @@
           "npm run verify"
         ]
       },
-      "verified": [
-        "Node 20.x 当前环境 + build/type-check/test:compatibility/test:examples"
+      "additionalVerifiedRuntimes": [
+        {
+          "verifiedMajor": 22,
+          "sampleVersion": "22.22.2",
+          "runner": "volta run --node 22",
+          "evidence": [
+            "volta run --node 22 node -p \"process.version\"",
+            "volta run --node 22 npm run verify"
+          ]
+        }
       ],
-      "pending": [
-        "Node 22.x 实机回归"
-      ]
+      "verified": [
+        "Node 20.x 当前环境 + npm run verify",
+        "Node 22.x（Volta） + npm run verify"
+      ],
+      "pending": []
     },
     "mongodbDriver": {
       "declaredDependency": "^6.21.0",
