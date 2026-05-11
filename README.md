@@ -1,5 +1,3 @@
-<div align="center">
-
 # 🚀 monSQLize
 
 ### 🎯 统一数据库查询语法框架
@@ -18,11 +16,9 @@
 npm install monsqlize
 ```
 
-> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P4-D compatibility / performance / validation / docs 收口**：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`、`namespace` / `index` / `bookmark` / `db.admin()` 管理能力、`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 批量写入扩展、`MemoryCache` / `createRedisCacheAdapter` / `DistributedCacheInvalidator`、`withCache()` / `FunctionCache`、`Model.define/get/list/undefine/redefine` 与首批 model registry/features、`startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()`、`ConnectionPoolManager` / `pool()` 路由，以及最小 `defineSaga()` / `executeSaga()` / `getSagaStats()`、`ChangeStreamSyncManager` / `ResumeTokenStore` / `startSync()` / `stopSync()` / `getSyncStats()`、`SlowQueryLogManager` / `recordSlowQuery()` / `getSlowQueryLogs()` 公开面；同时已补回 `test/compatibility/matrix.json`、`test/compatibility/matrix.test.js`、`test/performance/baselines/function-cache.benchmark.js`、`test/validation/VERIFICATION-PROGRESS.md` 与 `test/validation/DOCS-EXAMPLES-MAPPING.md`。更完整的跨版本 / 实机矩阵与新 TS 文档体系仍在后续阶段继续补齐。
+> 当前仓库仍处于 TypeScript 全量重写阶段；当前工作区已完成 **P4-D compatibility / performance / validation / docs 收口**：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、最小 `expr()` 校验、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`、`namespace` / `index` / `bookmark` / `db.admin()` 管理能力、`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 批量写入扩展、`MemoryCache` / `createRedisCacheAdapter` / `DistributedCacheInvalidator`、`withCache()` / `FunctionCache`、`Model.define/get/list/undefine/redefine` 与首批 model registry/features、`startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()`、`ConnectionPoolManager` / `pool()` 路由，以及最小 `defineSaga()` / `executeSaga()` / `getSagaStats()`、`ChangeStreamSyncManager` / `ResumeTokenStore` / `startSync()` / `stopSync()` / `getSyncStats()`、`SlowQueryLogManager` / `recordSlowQuery()` / `getSlowQueryLogs()` 公开面；同时已补回 `test/compatibility/matrix.json`、`test/compatibility/matrix.test.js`、`test/performance/baselines/function-cache.benchmark.js`、`test/validation/VERIFICATION-PROGRESS.md`、`test/validation/DOCS-EXAMPLES-MAPPING.md`，并建立首批 TS 文档/示例入口 `docs/README.md`、`docs/getting-started.md`、`docs/cache-and-function-cache.md`、`docs/capability-index.md`、`examples/quick-start/basic-connect.ts` 与 `examples/cache/with-cache.ts`。当前官方示例已统一采用 TypeScript，并纳入类型检查与运行验证链路。更完整的跨版本 / 实机矩阵与更细粒度的 TS 文档体系仍在后续阶段继续补齐。
 
-[快速开始](#-快速开始) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
-
-</div>
+[快速开始](#-快速开始) · [TS 文档入口](./docs/README.md) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
 
 ---
 
@@ -34,18 +30,13 @@ npm install monsqlize
 - [🎯 何时使用 monSQLize？](#-何时使用-monsqlize)
 - [🚀 快速开始](#-快速开始)
 - [🌟 核心特性](#-核心特性)
-  - [0. 🎯 统一表达式系统 🆕](#0--统一表达式系统--v109---让聚合查询像sql一样简单)
-  - [1. ⚡ 智能缓存系统](#1--智能缓存系统---性能提升-10100-倍)
-  - [2. 🏢 企业级特性](#2--企业级特性)
-  - [3. 📦 便利方法](#3--便利方法---减少-6080-代码)
-  - [4. 🎯 可选Model层](#4--可选model层)
-  - [5. 🔄 事务管理优化](#5--事务管理优化---减少-30-数据库访问)
 - [📊 性能测试报告](#-性能测试报告)
 - [🎨 能力概览](#-能力概览)
 - [🆚 与 MongoDB 原生驱动对比](#-与-mongodb-原生驱动对比)
+- [📚 TS 文档入口](./docs/README.md)
 - [🧭 文档现状](#文档现状)
 - [🌍 兼容性](#-兼容性)
-- [🗺️ 产品路线图](#️-产品路线图)
+- [🗺️ 产品路线图](#产品路线图)
 - [🤝 贡献指南](#-贡献指南)
 - [📄 许可证](#-许可证)
 - [💬 社区与支持](#-社区与支持)
@@ -84,22 +75,27 @@ const product = await products.findOne({ _id: productId }, { cache: 60000 }); //
 - 🎯 **可选Model层** - Schema验证、Hooks、Populate（6个方法支持）
 - ✅ **100% API兼容** - 零学习成本，渐进式采用
 
-<table>
-<tr>
-<td width="33%" align="center">
-<h3>⚡ 智能缓存</h3>
-<p>L1: 内存缓存 (LRU)<br>L2: Redis缓存<br>自动失效<br>10~100倍性能提升</p>
-</td>
-<td width="33%" align="center">
-<h3>🏢 企业特性</h3>
-<p>分布式锁<br>SSH隧道<br>慢查询监控<br>事务优化<br>批量操作</p>
-</td>
-<td width="33%" align="center">
-<h3>🛠️ 增强方法</h3>
-<p>56+个方法<br>代码减少60~80%<br>ObjectId自动转换<br>语义化API</p>
-</td>
-</tr>
-</table>
+#### ⚡ 智能缓存
+
+- L1：内存缓存（LRU）
+- L2：Redis 缓存
+- 自动失效
+- 10~100 倍性能提升
+
+#### 🏢 企业特性
+
+- 分布式锁
+- SSH 隧道
+- 慢查询监控
+- 事务优化
+- 批量操作
+
+#### 🛠️ 增强方法
+
+- 56+ 个方法
+- 代码减少 60~80%
+- ObjectId 自动转换
+- 语义化 API
 
 ### 未来愿景（v2.0+）：统一查询语法
 
@@ -129,7 +125,7 @@ const users = await collection.find({
 - ✅ 一套代码，多种数据库
 - ✅ 零迁移成本
 
-**了解更多**：当前仓库的旧文档与示例入口已移除；历史功能语义请暂以 `monSQLize-v1` 的对应实现和文档资产为参考。
+**了解更多**：当前仓库已开始在 `docs/**` 与 `examples/**` 建立新的 TS 文档/示例入口；尚未迁移的历史功能语义，当前仍以 `monSQLize-v1` 的对应实现和文档资产为参考。
 
 ---
 
@@ -137,52 +133,51 @@ const users = await collection.find({
 
 ### 你遇到的问题
 
-<table>
-<tr>
-<td width="50%">
+#### 😫 你现在可能会遇到的问题
 
-**😫 数据库性能瓶颈**
+**数据库性能瓶颈**
+
 - 高并发时查询变慢
 - 热点数据重复查询数据库
 - 聚合统计拖慢响应速度
 - 用户抱怨页面加载慢
 
-**😫 代码重复繁琐**
+**代码重复繁琐**
+
 - ObjectId 转换到处都是
 - 批量查询要写很多代码
 - Upsert 操作不够直观
 - 事务代码复杂易错
 
-**😫 多实例部署问题**
+**多实例部署问题**
+
 - 缓存不一致导致脏读
 - 定时任务重复执行
 - 库存扣减并发冲突
 - 需要额外的锁机制
 
-</td>
-<td width="50%">
+#### ✅ monSQLize 对应的解决方案
 
-**✅ monSQLize 的解决方案**
-- **智能缓存系统** - 热点数据走缓存，10~100倍性能提升
-- **自动失效机制** - 写操作自动清理，保证数据一致性
-- **缓存命中率 70~90%** - 真实业务场景验证
-- **响应时间 < 1ms** - 从 10~50ms 降至毫秒级
+**针对性能瓶颈**
 
-**✅ monSQLize 的解决方案**
-- **便利方法** - findOneById、findByIds、upsertOne
-- **自动转换 ObjectId** - 无需手动处理
-- **语义化 API** - 代码更清晰易读
-- **事务自动管理** - withTransaction 简化事务代码
+- **智能缓存系统**：热点数据走缓存，10~100 倍性能提升
+- **自动失效机制**：写操作自动清理，保证数据一致性
+- **缓存命中率 70~90%**：真实业务场景验证
+- **响应时间 < 1ms**：从 10~50ms 降至毫秒级
 
-**✅ monSQLize 的解决方案**
-- **Redis 广播** - 多实例缓存自动同步
-- **分布式锁** - 解决并发控制问题
-- **定时任务防重** - tryAcquireLock 机制
-- **开箱即用** - 配置简单，无需额外组件
+**针对代码重复**
 
-</td>
-</tr>
-</table>
+- **便利方法**：`findOneById`、`findByIds`、`upsertOne`
+- **自动转换 ObjectId**：无需手动处理
+- **语义化 API**：代码更清晰易读
+- **事务自动管理**：`withTransaction` 简化事务代码
+
+**针对多实例部署**
+
+- **Redis 广播**：多实例缓存自动同步
+- **分布式锁**：解决并发控制问题
+- **定时任务防重**：`tryAcquireLock` 机制
+- **开箱即用**：配置简单，无需额外组件
 
 ### 真实效果
 
@@ -230,15 +225,16 @@ const users = await collection.find({
 
 ## 文档现状
 
-- 当前仓库旧的 `docs/`、`examples/` 与 v1 时代的历史 `test/` 资产已从现行长期资产中移除，本 README 不再维护这些旧目录的深链入口。
+- 当前仓库旧的 `docs/`、`examples/` 与 v1 时代的历史 `test/` 资产已从现行长期资产中移除；当前新增的 `docs/**`、`examples/**` 是面向 TS 版本的**新入口**，不是旧目录的原样回滚。
 - 这里保留产品定位、适用场景、快速开始和核心能力概览，帮助你先判断 monSQLize 是否适合当前业务。
+- 当前正式文档入口位于：`docs/README.md`、`docs/getting-started.md`、`docs/cache-and-function-cache.md`、`docs/capability-index.md`。
+- 当前最小可执行示例入口位于：`examples/quick-start/basic-connect.ts`、`examples/cache/with-cache.ts`。
 - 当前已恢复的验证入口位于：`test/compatibility/**`、`test/performance/baselines/**`、`test/validation/**`。
-- 详细 API 语义、历史行为说明和旧示例，当前请以 `monSQLize-v1` 的对应实现资产为参考；映射关系见 `test/validation/DOCS-EXAMPLES-MAPPING.md`。
-- 待当前 TypeScript 重写完成后，再在本仓库补回新的文档与示例入口。
+- 尚未迁移到当前 `docs/**` 的详细 API 语义、历史行为说明和旧示例，当前继续以 `monSQLize-v1` 的对应实现资产为参考；映射关系见 `test/validation/DOCS-EXAMPLES-MAPPING.md`。
 
 ---
 
-## �🚀 快速开始
+## 🚀 快速开始
 
 ### 安装
 
@@ -511,11 +507,7 @@ const user = await users.findOne({ email: 'test@example.com' });
 
 **52个测试（100% 通过）**，为任意异步函数添加缓存能力，性能提升**50000x**！
 
-<table>
-<tr>
-<td width="50%">
-
-**🆕 装饰器模式**
+#### 🆕 装饰器模式
 
 ```javascript
 const { withCache } = require('monsqlize');
@@ -540,13 +532,10 @@ await cached('user123');  // 首次：查询数据库
 await cached('user123');  // 再次：从缓存读取 ⚡
 ```
 
-</td>
-<td width="50%">
-
-**核心优势**
+#### 核心优势
 
 - ✅ **零侵入** - 装饰器模式，不修改原函数
-- ✅ **自动序列化** - 支持复杂参数（对象、Date等）
+- ✅ **自动序列化** - 支持复杂参数（对象、Date 等）
 - ✅ **并发控制** - 防止缓存击穿
 - ✅ **双层缓存** - 本地 + Redis，最佳性能
 - ✅ **条件缓存** - 基于返回值决定是否缓存
@@ -554,14 +543,11 @@ await cached('user123');  // 再次：从缓存读取 ⚡
 - ✅ **命名空间** - 多模块缓存隔离
 - ✅ **TypeScript** - 完整类型支持
 
-**性能提升**:
+**性能提升**：
+
 - 🚀 复杂业务函数：50000x
 - 🚀 外部 API 调用：200000x
 - 🚀 复杂计算：100000x
-
-</td>
-</tr>
-</table>
 
 **FunctionCache 类管理**:
 
@@ -596,11 +582,7 @@ console.log('命中率:', stats.hitRate);
 
 **122个操作符（100% MongoDB支持！新增49个函数）**，让MongoDB聚合查询**像写SQL一样简单**！
 
-<table>
-<tr>
-<td width="50%">
-
-**🆕 统一表达式语法**
+#### 🆕 统一表达式语法
 
 ```javascript
 const { expr } = require('monsqlize');
@@ -633,29 +615,23 @@ await users.aggregate([
 ]);
 ```
 
-</td>
-<td width="50%">
+#### 核心优势
 
-**核心优势**
+- ✅ **67 个操作符** - 覆盖 95% 使用场景
+- ✅ **类 SQL 语法** - 易读易写，降低学习成本
+- ✅ **上下文感知** - 自动适配 `$match` / `$project` / `$group`
+- ✅ **Lambda 表达式** - `FILTER` / `MAP` 完整支持
+- ✅ **高性能** - LRU 缓存，>90% 命中率
+- ✅ **100% 兼容** - 可与原生语法混用
 
-- ✅ **67个操作符** - 覆盖95%使用场景
-- ✅ **类SQL语法** - 易读易写，降低学习成本
-- ✅ **上下文感知** - 自动适配$match/$project/$group
-- ✅ **Lambda表达式** - FILTER/MAP完整支持
-- ✅ **高性能** - LRU缓存，>90%命中率
-- ✅ **100%兼容** - 可与原生语法混用
+**支持的操作符分类**：
 
-**支持的操作符分类**:
-- 🔹 条件判断 (三元、SWITCH)
-- 🔹 数学计算 (ABS、ROUND、POW等)
-- 🔹 字符串处理 (CONCAT、SPLIT、REPLACE等)
-- 🔹 数组操作 (FILTER、MAP、SIZE等)
-- 🔹 日期处理 (YEAR、MONTH、DAY等)
-- 🔹 类型转换 (TO_INT、TO_STRING等)
-
-</td>
-</tr>
-</table>
+- 🔹 条件判断（三元、`SWITCH`）
+- 🔹 数学计算（`ABS`、`ROUND`、`POW` 等）
+- 🔹 字符串处理（`CONCAT`、`SPLIT`、`REPLACE` 等）
+- 🔹 数组操作（`FILTER`、`MAP`、`SIZE` 等）
+- 🔹 日期处理（`YEAR`、`MONTH`、`DAY` 等）
+- 🔹 类型转换（`TO_INT`、`TO_STRING` 等）
 
 **更多示例**：
 
@@ -707,11 +683,7 @@ await orders.aggregate([
 
 ### 2. ⚡ 智能缓存系统 - 性能提升 10~100 倍
 
-<table>
-<tr>
-<td width="50%">
-
-**特性**
+#### 特性
 
 - ✅ **TTL 过期策略** - 指定缓存时间
 - ✅ **LRU 淘汰策略** - 自动淘汰旧数据
@@ -721,20 +693,13 @@ await orders.aggregate([
 - ✅ **多层缓存** - 内存 + Redis
 - ✅ **命名空间隔离** - 按集合独立管理
 
-</td>
-<td width="50%">
-
-**性能提升**
+#### 性能提升
 
 | 操作 | 原生驱动 | monSQLize | 提升 |
 |------|---------|-----------|------|
 | 热点查询 | 50ms | 0.5ms | **100x** ⚡ |
 | 复杂聚合 | 200ms | 2ms | **100x** ⚡ |
 | 列表查询 | 30ms | 0.3ms | **100x** ⚡ |
-
-</td>
-</tr>
-</table>
 
 ```javascript
 // 一行代码启用缓存
@@ -849,11 +814,7 @@ await msq.collection('users').insertOne({ name: 'Alice' });
 
 ### 4. 📦 便利方法 - 减少 60~80% 代码
 
-<table>
-<tr>
-<td width="50%">
-
-**❌ 原生驱动**
+#### ❌ 原生驱动
 
 ```javascript
 // 查询单个文档（需要手动转换 ObjectId）
@@ -875,23 +836,14 @@ await users.updateOne(
 );
 ```
 
-</td>
-<td width="50%">
-
-**✅ monSQLize**
+#### ✅ monSQLize
 
 ```javascript
 // 查询单个文档（自动转换）
 const user = await users.findOneById(userId);
 
-
-
-
 // 批量查询（一行搞定）
 const userList = await users.findByIds(ids);
-
-
-
 
 // Upsert（语义化）
 await users.upsertOne(
@@ -901,10 +853,6 @@ await users.upsertOne(
 ```
 
 **代码减少 60~80%！**
-
-</td>
-</tr>
-</table>
 
 **🔥 ObjectId 自动转换** - 告别手动转换
 
@@ -1243,23 +1191,15 @@ const user = await User.findOne({ username: 'john' })
         sort: { createdAt: -1 },            // 排序
         limit: 10                           // 限制数量
     });
-
-// 3. 结果
-{
-    _id: '...',
-    username: 'john',
-    profileId: '...',
-    profile: {              // ← 自动填充
-        _id: '...',
-        bio: 'Software Engineer',
-        avatar: 'https://...'
-    },
-    posts: [                // ← 自动填充
-        { _id: '...', title: 'Post 1', content: '...' },
-        { _id: '...', title: 'Post 2', content: '...' }
-    ]
-}
 ```
+
+**返回结果示意**：
+
+- `_id`: `...`
+- `username`: `john`
+- `profileId`: `...`
+- `profile`：自动填充后的对象，例如包含 `_id`、`bio`、`avatar`
+- `posts`：自动填充后的数组，例如包含 `title`、`content` 等字段
 
 **支持的查询方法**（全部 6 个）:
 - ✅ `find().populate()` - 批量查询
@@ -1458,58 +1398,17 @@ import type { Collection } from 'monsqlize';
 
 ## 🆚 与 MongoDB 原生驱动对比
 
-<table>
-<tr>
-<th width="25%">特性</th>
-<th width="25%">MongoDB 原生</th>
-<th width="50%"><strong>monSQLize</strong></th>
-</tr>
-<tr>
-<td><strong>API 兼容性</strong></td>
-<td>✅ 原生</td>
-<td>🎯 兼容目标以需求文档与最终公开导出矩阵为准；当前重写阶段尚未完成该目标</td>
-</tr>
-<tr>
-<td><strong>智能缓存</strong></td>
-<td>❌ 需要自己实现</td>
-<td>✅ 内置 TTL/LRU，开箱即用，10~100倍提升</td>
-</tr>
-<tr>
-<td><strong>性能</strong></td>
-<td>⭐⭐⭐ 基准性能</td>
-<td>⭐⭐⭐⭐⭐ 缓存命中时性能提升 10~100 倍</td>
-</tr>
-<tr>
-<td><strong>事务支持</strong></td>
-<td>⭐⭐ 需要手动管理</td>
-<td>⭐⭐⭐⭐⭐ 自动管理生命周期，优化只读操作</td>
-</tr>
-<tr>
-<td><strong>分布式部署</strong></td>
-<td>❌ 缓存不一致</td>
-<td>✅ Redis 广播自动同步，保证一致性</td>
-</tr>
-<tr>
-<td><strong>便利方法</strong></td>
-<td>❌ 需要自己封装</td>
-<td>✅ findOneById、findByIds、upsertOne 等</td>
-</tr>
-<tr>
-<td><strong>运维监控</strong></td>
-<td>⚠️ 需要额外配置</td>
-<td>✅ 慢查询日志、性能统计，开箱即用</td>
-</tr>
-<tr>
-<td><strong>学习成本</strong></td>
-<td>⭐⭐⭐ MongoDB 语法</td>
-<td>⭐ 零学习成本，API 完全一致</td>
-</tr>
-<tr>
-<td><strong>迁移成本</strong></td>
-<td>-</td>
-<td>⭐ 只需修改初始化代码，业务代码不变</td>
-</tr>
-</table>
+| 特性 | MongoDB 原生 | monSQLize |
+|------|---------------|------------|
+| **API 兼容性** | ✅ 原生 | 🎯 兼容目标以需求文档与最终公开导出矩阵为准；当前重写阶段尚未完成该目标 |
+| **智能缓存** | ❌ 需要自己实现 | ✅ 内置 TTL/LRU，开箱即用，10~100 倍提升 |
+| **性能** | ⭐⭐⭐ 基准性能 | ⭐⭐⭐⭐⭐ 缓存命中时性能提升 10~100 倍 |
+| **事务支持** | ⭐⭐ 需要手动管理 | ⭐⭐⭐⭐⭐ 自动管理生命周期，优化只读操作 |
+| **分布式部署** | ❌ 缓存不一致 | ✅ Redis 广播自动同步，保证一致性 |
+| **便利方法** | ❌ 需要自己封装 | ✅ `findOneById`、`findByIds`、`upsertOne` 等 |
+| **运维监控** | ⚠️ 需要额外配置 | ✅ 慢查询日志、性能统计，开箱即用 |
+| **学习成本** | ⭐⭐⭐ MongoDB 语法 | ⭐ 零学习成本，API 完全一致 |
+| **迁移成本** | - | ⭐ 只需修改初始化代码，业务代码不变 |
 
 ### 📌 何时选择 monSQLize
 
@@ -1569,16 +1468,15 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 
 ## 📖 文档参考说明
 
-当前仓库正在进行 TypeScript 重写，旧 `docs/`、`examples/` 与 v1 时代的历史 `test/` 资产已从现行长期资产中移除，因此这里不再维护旧目录的本地深链。
+当前仓库正在进行 TypeScript 重写。旧 `docs/`、`examples/` 与 v1 时代的历史 `test/` 资产已从现行长期资产中移除；当前 `docs/**` 与 `examples/**` 是新的 TS 版正式入口，而不是旧目录的原样回滚。
 
 当前建议的参考顺序：
 
 1. 本 README：用于快速理解 monSQLize 的定位、适用场景、核心能力与迁移方式。
-2. `test/compatibility/**`、`test/performance/baselines/**`、`test/validation/**`：用于查看当前已恢复的验证资产与 docs/examples 承接映射。
-3. `monSQLize-v1`：用于核对历史 API 语义、详细功能说明和旧示例。
-4. 当前源码与需求产物：用于确认正在进行中的重写边界和最新兼容约束。
-
-待当前 TS 版本的文档体系重建完成后，再在本仓库补回新的文档与示例入口。
+2. `docs/**`、`examples/**`：用于查看当前 TS 版已正式承接的文档主题与最小示例入口。
+3. `test/compatibility/**`、`test/performance/baselines/**`、`test/validation/**`：用于查看当前已恢复的验证资产与 docs/examples 承接映射。
+4. `monSQLize-v1`：用于核对当前 `docs/**` 尚未展开的历史 API 语义、详细功能说明和旧示例。
+5. 当前源码与需求产物：用于确认正在进行中的重写边界和最新兼容约束。
 
 ---
 
@@ -1595,7 +1493,7 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 
 ---
 
-## 🗺️ 产品路线图
+## 产品路线图
 
 ### ✅ v1.4 (当前版本)
 
@@ -1645,6 +1543,7 @@ npm install
 # 当前可执行校验
 npm run build
 npm run type-check
+npm run test:examples
 npm run test:compatibility
 npm run test:performance
 npm test
@@ -1671,11 +1570,9 @@ npm run lint
 
 ## 🎉 快速链接
 
-<div align="center">
-
-**[🚀 快速开始](#-快速开始)** · 
-**[🧭 文档现状](#文档现状)** · 
-**[🐛 报告问题](https://github.com/vextjs/monSQLize/issues)** · 
+**[🚀 快速开始](#-快速开始)** ·
+**[🧭 文档现状](#文档现状)** ·
+**[🐛 报告问题](https://github.com/vextjs/monSQLize/issues)** ·
 **[⭐ Star 项目](https://github.com/vextjs/monSQLize)**
 
 ---
@@ -1690,5 +1587,4 @@ npm install monsqlize
 
 Made with ❤️ by monSQLize Team
 
-</div>
 

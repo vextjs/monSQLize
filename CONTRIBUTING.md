@@ -4,15 +4,15 @@
 
 ## 📋 目录
 
-- [开发环境设置](#开发环境设置)
-- [提交流程](#提交流程)
-- [代码规范](#代码规范)
-- [测试要求](#测试要求)
-- [CI/CD 流程](#cicd-流程)
+- 开发环境设置
+- 提交流程
+- 代码规范
+- 测试要求
+- CI/CD 流程
 
 ---
 
-## 🛠️ 开发环境设置
+## 开发环境设置
 
 ### 1. Fork 并克隆项目
 
@@ -30,18 +30,22 @@ npm ci  # 推荐使用 ci 保证依赖一致性
 ### 3. 运行当前校验
 
 ```bash
-# 当前唯一已验证命令
-npm run lint
+# 推荐：运行完整验证链
+npm run verify
+
+# 若只想先做文档/类型/示例回归，可按需拆开执行
+npm run test:examples
+npm run test:compatibility
 
 # 自动修复 Lint 问题
 npm run lint:fix
 ```
 
-> 当前仓库仍处于 TypeScript 全量重写阶段，旧 `test/`、覆盖率与兼容性测试入口已移除；若需核对历史测试与兼容行为，请以 `monSQLize-v1` 的对应资产为参考。
+> 当前仓库仍处于 TypeScript 全量重写后的收尾阶段，但新的验证链已经恢复：`verify` 会串联 `lint`、`type-check`、`test` 与 `test:examples`。若需核对尚未在当前 `docs/**` 展开的历史 API 语义，请继续参考 `monSQLize-v1`。
 
 ---
 
-## 📝 提交流程
+## 提交流程
 
 ### 1. 创建分支
 
@@ -60,11 +64,17 @@ git checkout -b fix/your-bug-fix
 ### 3. 运行当前校验
 
 ```bash
-# 当前唯一已验证命令
-npm run lint
+# 推荐：运行完整验证链
+npm run verify
+
+# 如果只需检查示例入口
+npm run test:examples
+
+# 如果只需检查兼容矩阵
+npm run test:compatibility
 ```
 
-> 当前仓库仍处于 TypeScript 全量重写阶段，旧 `npm test` 与 `npm run coverage` 仅代表历史流程，不再作为当前贡献门禁。
+> 当前仓库已经恢复 `npm test`、`npm run test:compatibility`、`npm run test:examples` 与 `npm run verify`；历史覆盖率链路若需补强，将另行在验证资产中推进。
 
 ### 4. 提交更改
 
@@ -90,7 +100,7 @@ git push origin feature/your-feature-name
 
 ---
 
-## 📐 代码规范
+## 代码规范
 
 ### ESLint
 
@@ -126,24 +136,32 @@ npm run lint:fix
  * @param {number} [options.maxTimeMS] - 查询超时时间（毫秒）
  * @returns {Promise<Object|null>} 文档对象或 null
  */
-async findOne(filter, options = {}) {
+async function findOne(filter, options = {}) {
     // 实现代码...
 }
 ```
 
 ---
 
-## 🧪 测试要求
+## 测试要求
 
 ### 当前测试状态
 
-- 当前仓库未保留可直接执行的本地测试基线。
-- 覆盖率、兼容性测试与旧 `test/**` 结构需要等新的 TS 运行时与验证资产重建后再恢复。
-- 在该阶段提交变更时，请至少保证 `npm run lint` 通过，并同步受影响的 README / profile / 需求文档口径。
+- 当前仓库已经恢复以下本地验证入口：
+  - `npm test`
+  - `npm run test:compatibility`
+  - `npm run test:examples`
+  - `npm run verify`
+- 若改动影响公开类型、README 入口、示例或能力映射，请同步检查：
+  - `docs/**`
+  - `examples/**`
+  - `test/validation/DOCS-EXAMPLES-MAPPING.md`
+  - `test/validation/VERIFICATION-PROGRESS.md`
+- 提交前至少应保证受影响范围对应的验证命令通过；若无法跑完整链路，需在说明中明确列出未验证项。
 
 ---
 
-## 🚀 CI/CD 流程
+## CI/CD 流程
 
 ### 自动化工作流
 
@@ -158,9 +176,16 @@ async findOne(filter, options = {}) {
 - 运行 ESLint 检查
 - 确保代码符合规范
 
-#### 2. **后续测试恢复**（重写完成后）
+#### 2. **类型 / 运行时 / 示例验证**
 
-当前仓库的测试、覆盖率和兼容性工作流需要等新的 TS 运行时与验证资产恢复后再重新启用；在此之前，不应把旧 `npm test`、`npm run coverage` 或 Compatibility Test 当作当前有效门禁。
+当前仓库已经恢复 TS 重写后的验证链，提交前建议至少关注：
+
+- `npm test`
+- `npm run test:compatibility`
+- `npm run test:examples`
+- `npm run verify`
+
+旧时代的覆盖率统计和更细粒度 CI 维度仍可继续增强，但不应再把已经移除的旧命令说明写回贡献流程。
 
 ### Pull Request 检查清单
 
@@ -185,7 +210,7 @@ async findOne(filter, options = {}) {
 
 1. **更新 README.md**: 添加功能描述和示例
 2. **同步 profile / 需求文档**: 若修改仓库入口、命令或发布契约，需同步更新 `.devcodex/profile/*` 与相关需求产物
-3. **重建新文档/示例资产后再补充**: 当前仓库未保留旧 `docs/**`、`examples/**`；如后续重建，再在此补充对应要求
+3. **维护当前 TS 文档/示例入口**: 当前仓库的 `docs/**`、`examples/**` 已作为新的 TS 版正式入口建立；其中官方示例统一使用 TypeScript。更新相关能力时，需同步维护这些入口，而不是回滚复制 `monSQLize-v1` 的旧目录内容
 4. **更新 CHANGELOG.md**: 记录变更（由维护者负责）
 
 ---
