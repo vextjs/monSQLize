@@ -1484,8 +1484,8 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 
 | 维度 | 当前口径 | 状态 |
 |------|---------|------|
-| **Node.js** | `>=18.0.0` | ✅ 已在当前工作区验证；Node 20.x / 22.x 实机回归待补 |
-| **MongoDB Driver** | 当前依赖为 `mongodb@^6.21.0` | ✅ 6.x 当前基线；4.x / 5.x / 7.x 不在本轮虚标为已验证 |
+| **Node.js** | `>=18.0.0` | ✅ 已在当前工作区验证；Node 20.x / 22.x 实机回归已完成 |
+| **MongoDB Driver** | 当前依赖为 `mongodb@^6.21.0` | ✅ 6.x 当前基线 + 7.x 扩展验证已完成；4.x / 5.x 仍未在本轮虚标为已验证 |
 | **MongoDB Server** | 当前 integration 以 `mongodb-memory-server` replica set 为主 | ✅ 当前 harness 可用；真实 6.x / 7.x 服务矩阵待补 |
 | **模块系统** | CommonJS、ESM | ✅ 已由根入口与 compatibility tests 验证 |
 

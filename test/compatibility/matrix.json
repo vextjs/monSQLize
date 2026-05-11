@@ -31,11 +31,23 @@
     },
     "mongodbDriver": {
       "declaredDependency": "^6.21.0",
+      "additionalVerifiedDrivers": [
+        {
+          "sampleVersion": "7.2.0",
+          "runner": "npm install mongodb@7 --no-save --package-lock=false",
+          "runtime": "volta run --node 22",
+          "evidence": [
+            "node -p \"require('mongodb/package.json').version\"",
+            "volta run --node 22 npm run verify",
+            "npm install mongodb@6.21.0 --no-save --package-lock=false"
+          ]
+        }
+      ],
       "verified": [
-        "当前依赖树的 6.x 基线（Node 20.x 当前环境）"
+        "当前依赖树的 6.x 基线（Node 20.x 当前环境）",
+        "Driver 7.x（临时安装 7.2.0 + Node 22）"
       ],
       "pending": [
-        "Driver 7.x 扩展验证",
         "历史 4.x/5.x 差异回归（以 monSQLize-v1 为参考）"
       ]
     },

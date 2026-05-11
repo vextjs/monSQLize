@@ -270,7 +270,7 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
     const ids = await collection.find(filter, {
         projection: { _id: 1 },
         sort,
-    } as FindOptions<TSchema>).map((document) => document._id).toArray();
+    } as FindOptions).map((document) => document._id).toArray();
     const batches = splitIntoBatches(ids, batchSize);
     const result: UpdateBatchResult = {
         acknowledged: true,
@@ -319,7 +319,7 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
     const ids = await collection.find(filter, {
         projection: { _id: 1 },
         sort,
-    } as FindOptions<TSchema>).map((document) => document._id).toArray();
+    } as FindOptions).map((document) => document._id).toArray();
     const batches = splitIntoBatches(ids, batchSize);
     const result: DeleteBatchResult = {
         acknowledged: true,

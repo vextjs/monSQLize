@@ -37,7 +37,7 @@ export interface FindPageOptions<TSchema = unknown> {
     limit?: number;
     sort?: Sort;
     projection?: Document;
-    options?: FindOptions<Document>;
+    options?: FindOptions;
 }
 
 export interface FindPageResult<TSchema = unknown> {

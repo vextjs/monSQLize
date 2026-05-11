@@ -20,11 +20,11 @@ test/compatibility/
 - Node `20.x` 当前环境（本轮为 `v20.20.2`）已完成 `npm run verify` 与 `npm run test:compatibility`
 - Node `22.x` 已可通过 `volta run --node 22` 直接执行；本轮已在 `v22.22.2` 下跑通 `npm run verify`
 - `mongodb@^6.21.0` 作为当前依赖基线存在且与矩阵声明一致
+- MongoDB Driver `7.x` 已通过临时安装 `mongodb@7.2.0` + `volta run --node 22 npm run verify` 完成扩展验证，验证后已恢复 `6.21.0` 基线
 - CommonJS / ESM 根入口均暴露 `P4-A ~ P4-C` 已恢复的高级能力导出面
 - `npm run test:compatibility` 可在当前工作区直接执行
 
 ### 当前仍待补
-- MongoDB Driver 7.x 的扩展验证
 - MongoDB 6.x / 7.x 的真实服务端矩阵
 - 历史 4.x / 5.x 兼容差异的再验证（当前只保留 v1 参考资料，不在本轮直接宣称已验证）
 
