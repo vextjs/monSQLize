@@ -100,6 +100,35 @@ function runSuite(label, files) {
     return { ...stats, exitCode: result.status ?? 1 };
 }
 
+// ─── v1 Compat Runner (separate process, custom output format) ────────────────
+
+function runV1Compat() {
+    banner('v1 Compatibility Tests (2500+ cases)');
+    const result = spawnSync(process.execPath, [
+        path.join(__dirname, 'v1-compat-runner.cjs'),
+        'all-v2',
+    ], {
+        cwd: ROOT,
+        stdio: ['inherit', 'pipe', 'pipe'],
+        encoding: 'utf8',
+    });
+
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+
+    const out = result.stdout || '';
+    let pass = 0, fail = 0, skip = 0;
+
+    // Use last match (per-file lines also have same pattern; summary is last)
+    const passMatches = [...out.matchAll(/通过[:：]\s*(\d+)/g)];
+    const failMatches = [...out.matchAll(/失败[:：]\s*(\d+)/g)];
+    const skipMatches = [...out.matchAll(/跳过[:：]\s*(\d+)/g)];
+    if (passMatches.length) pass = parseInt(passMatches[passMatches.length - 1][1], 10);
+    if (failMatches.length) fail = parseInt(failMatches[failMatches.length - 1][1], 10);
+    if (skipMatches.length) skip = parseInt(skipMatches[skipMatches.length - 1][1], 10);
+    return { pass, fail, skip, exitCode: result.status ?? 1 };
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 const suites = [
@@ -122,6 +151,15 @@ for (const { label, files } of suites) {
     if (stats.exitCode !== 0 || stats.fail > 0) {
         anyFailed = true;
     }
+}
+
+// Run v1 compat tests last (long-running)
+const v1Stats = runV1Compat();
+totalPass += v1Stats.pass;
+totalFail += v1Stats.fail;
+totalSkip += v1Stats.skip;
+if (v1Stats.fail > 0) {
+    anyFailed = true;
 }
 
 const total = totalPass + totalFail + totalSkip;
