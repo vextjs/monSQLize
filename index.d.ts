@@ -142,6 +142,7 @@ import {
     CacheStats,
     CachedFunction,
     createExpression,
+    compilePipelineExpressions,
     createRedisCacheAdapter,
     expr,
     BatchQueue,
@@ -309,6 +310,7 @@ export {
     Model,
     expr,
     createExpression,
+    compilePipelineExpressions,
     createRedisCacheAdapter,
     withCache,
     FunctionCache,
@@ -405,6 +407,7 @@ export default class MonSQLize implements MonSQLizeInstance {
     static Model: typeof Model;
     static expr: typeof expr;
     static createExpression: typeof createExpression;
+    static compilePipelineExpressions: typeof compilePipelineExpressions;
     static createRedisCacheAdapter: typeof createRedisCacheAdapter;
     static withCache: typeof withCache;
     static FunctionCache: typeof FunctionCache;

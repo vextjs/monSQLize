@@ -284,4 +284,6 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
 
 export declare const expr: ExpressionFunction;
 export declare const createExpression: ExpressionFunction;
+/** Compile expression objects in a MongoDB pipeline into real operators. */
+export declare function compilePipelineExpressions<TPipeline>(pipeline: TPipeline): TPipeline;
 
