@@ -1,9 +1,9 @@
 /**
- * P4-A transaction / cache-lock 能力。
+ * Transaction / cache-lock capability.
  *
- * 说明：
- * - 当前模块负责事务生命周期、重试策略与最小缓存锁联动。
- * - 公开与共享类型统一由 `types/transaction.d.ts` 承接；此处只保留运行时实现与内部状态类型。
+ * Description:
+ * - Responsible for transaction lifecycle, retry strategy, and cache-lock coordination.
+ * - Public and shared types are managed by `types/transaction.d.ts`; only runtime implementation and internal state types are kept here.
  */
 
 import type { MongoClient, ClientSession } from 'mongodb';
@@ -28,6 +28,10 @@ interface CacheLockRecord {
     expiresAt: number;
 }
 
+/**
+ * Manages distributed cache-based locks to guard critical sections.
+ * @since v1.3.0
+ */
 export class CacheLockManager {
     private readonly locks = new Map<string, CacheLockRecord>();
     private readonly logger: LoggerLike | null;
@@ -46,7 +50,7 @@ export class CacheLockManager {
     }
 
     /**
-     * 添加缓存锁。
+     * Add a cache lock.
      * @since v1.4.0
      */
     addLock(key: string, owner: { id?: unknown; } | string): void {
@@ -58,7 +62,7 @@ export class CacheLockManager {
     }
 
     /**
-     * 检查缓存键是否被锁定。
+     * Check whether a cache key is locked.
      * @since v1.4.0
      */
     isLocked(key: string): boolean {
@@ -79,7 +83,7 @@ export class CacheLockManager {
     }
 
     /**
-     * 释放 owner 的所有缓存锁。
+     * Release all cache locks held by the given owner.
      * @since v1.4.0
      */
     releaseLocks(owner: { id?: unknown; } | string): void {
@@ -92,7 +96,7 @@ export class CacheLockManager {
     }
 
     /**
-     * 获取缓存锁统计。
+     * Get cache lock statistics.
      * @since v1.4.0
      */
     getStats(): { totalLocks: number; activeLocks: number; maxDuration: number; } {
@@ -105,7 +109,7 @@ export class CacheLockManager {
     }
 
     /**
-     * 清空缓存锁。
+     * Clear all cache locks.
      * @since v1.4.0
      */
     clear(): void {
@@ -113,7 +117,7 @@ export class CacheLockManager {
     }
 
     /**
-     * 停止缓存锁管理器。
+     * Stop the cache lock manager.
      * @since v1.4.0
      */
     stop(): void {
@@ -130,12 +134,16 @@ export class CacheLockManager {
     }
 }
 
+/**
+ * Represents a single database transaction lifecycle (pending → active → committed/aborted).
+ * @since v1.3.0
+ */
 export class Transaction {
     readonly id = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    state: 'pending' | 'started' | 'committed' | 'aborted' = 'pending';
+    state: 'pending' | 'active' | 'committed' | 'aborted' = 'pending';
     private startedAt: number | null = null;
     private timeoutTimer: NodeJS.Timeout | null = null;
-    private readonly pendingInvalidations = new Set<string>();
+    readonly pendingInvalidations = new Set<string>();
 
     constructor(
         readonly session: MongoSession,
@@ -145,10 +153,12 @@ export class Transaction {
             lockManager?: CacheLockManager | null;
             timeout?: number;
         } = {},
-    ) {}
+    ) {
+        (this.session as MongoSession & { __monSQLizeTransaction?: Transaction; }).__monSQLizeTransaction = this;
+    }
 
     /**
-     * 启动事务。
+     * Start the transaction.
      * @since v1.4.0
      */
     async start(): Promise<void> {
@@ -156,12 +166,11 @@ export class Transaction {
             throw new Error(`Cannot start transaction in state: ${this.state}`);
         }
         this.session.startTransaction();
-        this.state = 'started';
-        this.startedAt = Date.now();
+        this.state = 'active';
         const timeout = this.options.timeout ?? 30000;
         if (timeout > 0) {
             this.timeoutTimer = setTimeout(() => {
-                if (this.state === 'started') {
+                if (this.state === 'active') {
                     this.options.logger?.warn?.(`[Transaction] auto-abort on timeout: ${this.id}`);
                     void this.abort();
                 }
@@ -171,14 +180,16 @@ export class Transaction {
     }
 
     /**
-     * 提交事务。
+     * Commit the transaction.
      * @since v1.4.0
      */
     async commit(): Promise<void> {
-        if (this.state !== 'started') {
+        if (this.state !== 'active') {
             throw new Error(`Cannot commit transaction in state: ${this.state}`);
         }
-        await this.session.commitTransaction();
+        if (typeof (this.session as unknown as Record<string, unknown>).commitTransaction === 'function') {
+            await this.session.commitTransaction();
+        }
         this.state = 'committed';
         this.options.lockManager?.releaseLocks(this.id);
         this.pendingInvalidations.clear();
@@ -186,15 +197,17 @@ export class Transaction {
     }
 
     /**
-     * 回滚事务。
+     * Roll back the transaction.
      * @since v1.4.0
      */
     async abort(): Promise<void> {
-        if (this.state !== 'pending' && this.state !== 'started') {
+        if (this.state !== 'pending' && this.state !== 'active') {
             return;
         }
-        if (this.state === 'started') {
-            await this.session.abortTransaction();
+        if (this.state === 'active') {
+            if (typeof (this.session as unknown as Record<string, unknown>).abortTransaction === 'function') {
+                await this.session.abortTransaction();
+            }
         }
         this.state = 'aborted';
         this.options.lockManager?.releaseLocks(this.id);
@@ -203,7 +216,7 @@ export class Transaction {
     }
 
     /**
-     * 结束事务会话。
+     * End the transaction session.
      * @since v1.4.0
      */
     async end(): Promise<void> {
@@ -213,7 +226,7 @@ export class Transaction {
     }
 
     /**
-     * 记录缓存失效意图。
+     * Record a cache invalidation intent.
      * @since v1.4.0
      */
     async recordInvalidation(pattern: string): Promise<void> {
@@ -225,7 +238,7 @@ export class Transaction {
     }
 
     /**
-     * 获取事务持续时间。
+     * Get the transaction duration.
      * @since v1.4.0
      */
     getDuration(): number {
@@ -236,7 +249,7 @@ export class Transaction {
     }
 
     /**
-     * 获取事务信息。
+     * Get transaction info.
      * @since v1.4.0
      */
     getInfo(): TransactionInfo {
@@ -256,12 +269,16 @@ export class Transaction {
     }
 }
 
+/**
+ * Coordinates transaction creation, commit, abort, and retry logic.
+ * @since v1.3.0
+ */
 export class TransactionManager {
     private readonly logger: LoggerLike | null;
     private readonly cache: CacheLike | null;
     private readonly lockManager: CacheLockManager | null;
     private readonly defaultOptions: Required<Pick<TransactionOptions, 'maxDuration' | 'enableRetry' | 'maxRetries' | 'retryDelay' | 'retryBackoff'>>;
-    private readonly activeTransactions = new Map<string, Transaction>();
+    readonly activeTransactions = new Map<string, Transaction>();
     private readonly durations: number[] = [];
     private readonly stats = {
         totalTransactions: 0,
@@ -279,11 +296,54 @@ export class TransactionManager {
         maxRetries?: number;
         retryDelay?: number;
         retryBackoff?: number;
-    }) {
+    });
+    constructor(
+        client: MongoClient,
+        cache?: CacheLike | null,
+        options?: {
+            logger?: LoggerLike | null;
+            lockManager?: CacheLockManager | null;
+            maxDuration?: number;
+            enableRetry?: boolean;
+            maxRetries?: number;
+            retryDelay?: number;
+            retryBackoff?: number;
+        },
+    );
+    constructor(
+        input: {
+            client: MongoClient;
+            cache?: CacheLike | null;
+            logger?: LoggerLike | null;
+            lockManager?: CacheLockManager | null;
+            maxDuration?: number;
+            enableRetry?: boolean;
+            maxRetries?: number;
+            retryDelay?: number;
+            retryBackoff?: number;
+        } | MongoClient,
+        legacyCache?: CacheLike | null,
+        legacyOptions: {
+            logger?: LoggerLike | null;
+            lockManager?: CacheLockManager | null;
+            maxDuration?: number;
+            enableRetry?: boolean;
+            maxRetries?: number;
+            retryDelay?: number;
+            retryBackoff?: number;
+        } = {},
+    ) {
+        const options = ('client' in (input as object))
+            ? input as unknown as { client: MongoClient; cache?: unknown; logger?: unknown; lockManager?: unknown; maxDuration?: number; enableRetry?: boolean; maxRetries?: number; retryDelay?: number; retryBackoff?: number }
+            : {
+                client: input as MongoClient,
+                cache: legacyCache,
+                ...legacyOptions,
+            } as { client: MongoClient; cache?: unknown; logger?: unknown; lockManager?: unknown; maxDuration?: number; enableRetry?: boolean; maxRetries?: number; retryDelay?: number; retryBackoff?: number };
         this.client = options.client;
-        this.cache = options.cache ?? null;
+        this.cache = (options.cache ?? null) as CacheLike | null;
         this.logger = options.logger ?? null;
-        this.lockManager = options.lockManager ?? null;
+        this.lockManager = (options.lockManager ?? null) as CacheLockManager | null;
         this.defaultOptions = {
             maxDuration: options.maxDuration ?? 30000,
             enableRetry: options.enableRetry ?? true,
@@ -296,7 +356,7 @@ export class TransactionManager {
     private readonly client: MongoClient;
 
     /**
-     * 创建手动事务会话。
+     * Create a manual transaction session.
      * @since v1.4.0
      */
     async startSession(options: TransactionOptions = {}): Promise<Transaction> {
@@ -307,7 +367,7 @@ export class TransactionManager {
             cache: this.cache,
             logger: this.logger,
             lockManager: options.enableCacheLock === false ? null : this.lockManager,
-            timeout: options.maxDuration ?? this.defaultOptions.maxDuration,
+            timeout: options.timeout ?? options.maxDuration ?? this.defaultOptions.maxDuration,
         });
         const originalEnd = transaction.end.bind(transaction);
         transaction.end = async () => {
@@ -319,7 +379,7 @@ export class TransactionManager {
     }
 
     /**
-     * 自动管理事务生命周期。
+     * Automatically manage the transaction lifecycle.
      * @since v1.4.0
      */
     async withTransaction<T>(callback: (transaction: Transaction) => Promise<T>, options: TransactionOptions = {}): Promise<T> {
@@ -354,7 +414,7 @@ export class TransactionManager {
     }
 
     /**
-     * 获取活跃事务。
+     * Get all active transactions.
      * @since v1.4.0
      */
     getActiveTransactions(): Transaction[] {
@@ -362,7 +422,7 @@ export class TransactionManager {
     }
 
     /**
-     * 中止所有活跃事务。
+     * Abort all active transactions.
      * @since v1.4.0
      */
     async abortAll(): Promise<void> {
@@ -375,7 +435,7 @@ export class TransactionManager {
     }
 
     /**
-     * 获取事务统计。
+     * Get transaction statistics.
      * @since v1.4.0
      */
     getStats(): TransactionStats {

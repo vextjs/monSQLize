@@ -85,6 +85,7 @@
   },
   "dependencies": {
     "async-lock": "^1.4.1",
+    "cache-hub": "file:../cacheHub",
     "mongodb": "^6.21.0",
     "schema-dsl": "file:../schema-dsl",
     "ssh2": "^1.17.0"

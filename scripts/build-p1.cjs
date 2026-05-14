@@ -30,6 +30,27 @@ async function main() {
         sourcemap: false,
         logLevel: 'info',
     });
+
+    const cjsCompatEntries = [
+        ['src/entry/compat/transaction/Transaction.ts', 'lib/transaction/Transaction.js'],
+        ['src/entry/compat/transaction/TransactionManager.ts', 'lib/transaction/TransactionManager.js'],
+        ['src/entry/compat/transaction/CacheLockManager.ts', 'lib/transaction/CacheLockManager.js'],
+        ['src/entry/compat/mongodb/common/transaction-aware.ts', 'lib/mongodb/common/transaction-aware.js'],
+    ];
+
+    for (const [entryPoint, outfile] of cjsCompatEntries) {
+        await build({
+            entryPoints: [entryPoint],
+            outfile,
+            bundle: true,
+            packages: 'external',
+            platform: 'node',
+            format: 'cjs',
+            target: 'node18',
+            sourcemap: false,
+            logLevel: 'info',
+        });
+    }
 }
 
 main().catch((error) => {

@@ -44,10 +44,20 @@ const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'types_model' });
 const users = runtime.model<UserDoc>('users');
 expectType<ModelAccessor<UserDoc>>(users);
 expectType<PopulateProxy<ModelDocument<UserDoc> | null>>(users.findOne({ firstName: 'Ada' }));
-expectType<PopulateProxy<ModelDocument<UserDoc> | null>>(users.findById('id').populate('posts'));
+expectType<PopulateProxy<ModelDocument<UserDoc> | null>>(users.findOneById('id').populate('posts'));
 expectType<PopulateProxy<Array<ModelDocument<UserDoc>>>>(users.find({}).populate({ path: 'posts' }));
-expectType<PopulateProxy<{ rows: Array<ModelDocument<UserDoc>>; count: number }>>(users.findAndCount({}));
-expectType<PopulateProxy<{ data: Array<ModelDocument<UserDoc>>; page: { page: number; limit: number }; totals: { total: number; totalPages: number } }>>(users.findPage({ page: 1, limit: 10 }));
+expectType<PopulateProxy<{ data: Array<ModelDocument<UserDoc>>; total: number }>>(users.findAndCount({}));
+expectType<PopulateProxy<{
+    items: Array<ModelDocument<UserDoc>>;
+    pageInfo: {
+        hasNext: boolean;
+        hasPrev: boolean;
+        startCursor: string | null;
+        endCursor: string | null;
+        currentPage?: number;
+    };
+    totals?: Record<string, unknown>;
+}>>(users.findPage({ page: 1, limit: 10 }));
 expectType<Promise<{ valid: boolean; errors?: Array<{ field: string; message: string; value?: unknown }> }>>(users.validate({ firstName: 'Ada', lastName: 'Lovelace' }));
 
 const scoped = runtime.use('tenant_a').model<UserDoc>('users');

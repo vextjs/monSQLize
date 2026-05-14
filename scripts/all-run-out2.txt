@@ -1,0 +1,573 @@
+
+馃攳 v1 鍏煎鎬ф祴璇曡繍琛屽櫒
+馃摝 娴嬭瘯濂椾欢: all
+馃幆 TS lib: E:\Worker\monSQLize\lib\index.js
+馃搨 v1 娴嬭瘯鏍? E:\Worker\monSQLize-v1
+
+鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+
+鈻?test\unit\features\find.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚锛?00 鏉″晢鍝?馃敡 鍒涘缓娴嬭瘯绱㈠紩...
+鉁?鍒涘缓绱㈠紩: test_category_price_idx - 鍒嗙被鍜屼环鏍肩储寮?鉁?鍒涘缓绱㈠紩: test_inStock_sales_idx - 搴撳瓨鍜岄攢閲忕储寮?鉁?鍒涘缓绱㈠紩: test_createdAt_idx - 鍒涘缓鏃堕棿绱㈠紩
+鉁?鍒涘缓绱㈠紩: test_price_idx - 浠锋牸绱㈠紩
+鉁?绱㈠紩鍒涘缓瀹屾垚
+
+
+     馃搳 缂撳瓨娴嬭瘯寮€濮?..
+     鈫?鎵ц棣栨鏌ヨ锛堝簲璇ユ湭鍛戒腑缂撳瓨锛?     鈫?棣栨鏌ヨ鍚? hits=0, misses=1, sets=1
+     鈫?鎵ц绗簩娆℃煡璇紙搴旇鍛戒腑缂撳瓨锛?     鈫?绗簩娆℃煡璇㈠悗: hits=1, misses=1, hitRate=50.0%
+     鉁?缂撳瓨鍛戒腑楠岃瘉閫氳繃: 鍛戒腑娆℃暟浠?0 澧炲姞鍒?1
+     鉁?缁撴灉涓€鑷存€ч獙璇侀€氳繃: 涓ゆ鏌ヨ杩斿洖 10 鏉＄浉鍚屾暟鎹?
+     馃搳 娴嬭瘯缂撳瓨闅旂鎬?..
+     鈫?鏌ヨ1: category=electronics
+     鈫?鏌ヨ1鍚? hits=0, misses=1, sets=1
+     鈫?鏌ヨ2: category=books
+     鈫?鏌ヨ2鍚? hits=0, misses=2, sets=2
+     鉁?缂撳瓨闅旂楠岃瘉閫氳繃: 涓や釜涓嶅悓鏌ヨ鍚勮嚜鍒涘缓浜嗙嫭绔嬬紦瀛橈紙鍏?2 涓紦瀛樻潯鐩級
+馃Ч 娓呯悊娴嬭瘯鐜...
+馃Ч 鍒犻櫎娴嬭瘯绱㈠紩...
+鉁?鍒犻櫎绱㈠紩: test_category_price_idx
+鉁?鍒犻櫎绱㈠紩: test_inStock_sales_idx
+鉁?鍒犻櫎绱㈠紩: test_createdAt_idx
+鉁?鍒犻櫎绱㈠紩: test_price_idx
+鉁?娓呯悊瀹屾垚
+  鉁?閫氳繃: 37, 澶辫触: 0
+
+鈻?test\unit\features\findOne.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚锛?0 鏉＄敤鎴?馃敡 鍒涘缓娴嬭瘯绱㈠紩...
+鉁?鍒涘缓绱㈠紩: test_userId_idx - 鐢ㄦ埛ID绱㈠紩
+鉁?鍒涘缓绱㈠紩: test_email_idx - 閭绱㈠紩
+鉁?鍒涘缓绱㈠紩: test_status_createdAt_idx - 鐘舵€佸拰鍒涘缓鏃堕棿绱㈠紩
+鉁?鍒涘缓绱㈠紩: test_totalSpent_idx - 娑堣垂閲戦绱㈠紩
+鉁?绱㈠紩鍒涘缓瀹屾垚
+
+馃Ч 娓呯悊娴嬭瘯鐜...
+馃Ч 鍒犻櫎娴嬭瘯绱㈠紩...
+鉁?鍒犻櫎绱㈠紩: test_userId_idx
+鉁?鍒犻櫎绱㈠紩: test_email_idx
+鉁?鍒犻櫎绱㈠紩: test_status_createdAt_idx
+鉁?鍒犻櫎绱㈠紩: test_totalSpent_idx
+鉁?娓呯悊瀹屾垚
+  鉁?閫氳繃: 29, 澶辫触: 0
+
+鈻?test\unit\features\findPage.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚锛?00 鏉¤鍗?馃敡 鍒涘缓娴嬭瘯绱㈠紩...
+鉁?鍒涘缓绱㈠紩: status_createdAt
+鉁?鍒涘缓绱㈠紩: status_amount
+鉁?鍒涘缓绱㈠紩: amount
+  鉁?娴佸紡璇诲彇浜?31 鏉℃暟鎹?  鉁?浣跨敤娓告爣娴佸紡璇诲彇浜?21 鏉℃暟鎹?  鉁?鍚屾缁熻锛氭€绘暟 34锛屽叡 4 椤?  鉁?寮傛缁熻棣栨鏌ヨ杩斿洖 token锛岀瓑寰呭悗鍙拌绠?  鉁?寮傛缁熻瀹屾垚锛氭€绘暟 33
+  鉁?棣栨璺抽〉: 9ms, 缂撳瓨璺抽〉: 10ms
+  鉁?棣栨缁熻: 2ms, 缂撳瓨缁熻: 3ms
+  鈿狅笍  meta 淇℃伅鏈繑鍥烇紙鍙兘闇€瑕佺壒瀹氶厤缃級
+  鉁?鏌ヨ璁″垝: test_findpage.test_orders
+  鉁?鎵ц鏃堕棿: 0ms
+  鉁?鎵弿鏂囨。: 33
+  鉁?杩斿洖鏂囨。: 20
+  鉁?澶囬€夎鍒掓暟: 3
+  鉁?娓告爣鍒嗛〉鎵ц鏃堕棿: 1ms
+  鉁?璺抽〉妯″紡鎵ц鏃堕棿: 0ms
+  鉁?璺抽〉鎵弿鏂囨。: 10
+  鉁?hint + explain 缁勫悎姝ｅ父宸ヤ綔
+  鉁?鏌ヨ鏁堢巼: 55.6% (20/36)
+  鉁?姝ｇ‘鎷掔粷浜?explain + stream 缁勫悎
+  鉁?explain 姝ｇ‘鍦板拷鐣ヤ簡缂撳瓨璁剧疆
+馃Ч 娓呯悊娴嬭瘯鐜...
+鉁?鍒犻櫎绱㈠紩: status_createdAt
+鉁?鍒犻櫎绱㈠紩: status_amount
+鉁?鍒犻櫎绱㈠紩: amount
+鉁?娓呯悊瀹屾垚
+  鉁?閫氳繃: 42, 澶辫触: 0
+
+鈻?test\unit\features\findOneById.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚锛?0 涓敤鎴?  馃搳 鎬ц兘瀵规瘮: findOne(1ms) vs findOneById(0ms)
+馃Ч 娓呯悊娴嬭瘯鐜...
+鉁?娴嬭瘯鐜娓呯悊瀹屾垚
+  鉁?閫氳繃: 21, 澶辫触: 0
+
+鈻?test\unit\features\findByIds.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鐜鍑嗗瀹屾垚锛屾彃鍏ヤ簡 5 涓祴璇曟枃妗?  findByIds: 1ms, findOneById x5: 3ms
+馃Ч 娓呯悊娴嬭瘯鐜...
+鉁?娴嬭瘯鐜娓呯悊瀹屾垚
+  鉁?閫氳繃: 26, 澶辫触: 0
+
+鈻?test\unit\features\findAndCount.test.js
+collection.findAndCount绫诲瀷: function
+result1: {
+  data: [
+    { _id: 2, name: 'User 2', age: 22, status: 'active', role: 'user' },
+    { _id: 4, name: 'User 4', age: 24, status: 'active', role: 'user' },
+    { _id: 6, name: 'User 6', age: 26, status: 'active', role: 'user' },
+    { _id: 8, name: 'User 8', age: 28, status: 'active', role: 'user' },
+    {
+      _id: 10,
+      name: 'User 10',
+      age: 30,
+      status: 'active',
+      role: 'user'
+    },
+    {
+      _id: 12,
+      name: 'User 12',
+      age: 32,
+      status: 'active',
+      role: 'user'
+    },
+    {
+      _id: 14,
+      name: 'User 14',
+      age: 34,
+      status: 'active',
+      role: 'user'
+    },
+    {
+      _id: 16,
+      name: 'User 16',
+      age: 36,
+      status: 'active',
+      role: 'user'
+    },
+    {
+      _id: 18,
+      name: 'User 18',
+      age: 38,
+      status: 'active',
+      role: 'user'
+    },
+    {
+      _id: 20,
+      name: 'User 20',
+      age: 40,
+      status: 'active',
+      role: 'user'
+    }
+  ],
+  total: 25
+}
+  鉁?閫氳繃: 18, 澶辫触: 0
+
+鈻?test\unit\features\count.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚锛?00 鏉¤鍗?馃敡 鍒涘缓娴嬭瘯绱㈠紩...
+鉁?鍒涘缓绱㈠紩: test_status_idx - 鐘舵€佺储寮?鉁?鍒涘缓绱㈠紩: test_customerId_idx - 瀹㈡埛ID绱㈠紩
+鉁?鍒涘缓绱㈠紩: test_amount_idx - 閲戦绱㈠紩
+鉁?鍒涘缓绱㈠紩: test_createdAt_idx - 鍒涘缓鏃堕棿绱㈠紩
+鉁?鍒涘缓绱㈠紩: test_status_createdAt_idx - 鐘舵€佸拰鍒涘缓鏃堕棿澶嶅悎绱㈠紩
+鉁?绱㈠紩鍒涘缓瀹屾垚
+
+      绌烘煡璇㈣€楁椂: 1ms, 鏉′欢鏌ヨ鑰楁椂: 1ms
+      绱㈠紩鏌ヨ鑰楁椂: 1ms, 缁撴灉: 25
+馃Ч 娓呯悊娴嬭瘯鐜...
+馃Ч 鍒犻櫎娴嬭瘯绱㈠紩...
+鉁?鍒犻櫎绱㈠紩: test_status_idx
+鉁?鍒犻櫎绱㈠紩: test_customerId_idx
+鉁?鍒犻櫎绱㈠紩: test_amount_idx
+鉁?鍒犻櫎绱㈠紩: test_createdAt_idx
+鉁?鍒犻櫎绱㈠紩: test_status_createdAt_idx
+鉁?娓呯悊瀹屾垚
+  鉁?閫氳繃: 35, 澶辫触: 0
+
+鈻?test\unit\features\distinct.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚锛?00 鏉″晢鍝?馃敡 鍒涘缓娴嬭瘯绱㈠紩...
+鉁?鍒涘缓绱㈠紩: test_category_idx - 鍒嗙被绱㈠紩
+鉁?鍒涘缓绱㈠紩: test_brand_idx - 鍝佺墝绱㈠紩
+鉁?鍒涘缓绱㈠紩: test_inStock_category_idx - 搴撳瓨鍒嗙被绱㈠紩
+鉁?绱㈠紩鍒涘缓瀹屾垚
+
+  绗竴娆℃煡璇? 1ms, 绗簩娆℃煡璇? 1ms
+  鏈夌储寮曠殑 distinct 鑰楁椂: 1ms
+  甯︽潯浠剁殑 distinct 鑰楁椂: 1ms
+  缁熻缁村害: 5 涓勾浠? 3 涓垎绫?  books: 2 绉嶅昂瀵?  clothing: 2 绉嶅昂瀵?  electronics: 1 绉嶅昂瀵?馃Ч 娓呯悊娴嬭瘯鐜...
+馃Ч 鍒犻櫎娴嬭瘯绱㈠紩...
+鉁?鍒犻櫎绱㈠紩: test_category_idx
+鉁?鍒犻櫎绱㈠紩: test_brand_idx
+鉁?鍒犻櫎绱㈠紩: test_inStock_category_idx
+鉁?娓呯悊瀹屾垚
+  鉁?閫氳繃: 40, 澶辫触: 0
+
+鈻?test\unit\features\explain.test.js
+  鉁?杩斿洖鍩烘湰鏌ヨ璁″垝锛屽寘鍚?queryPlanner 瀛楁
+  鉁?鎵ц缁熻 - 鑰楁椂: 0ms, 鎵弿鏂囨。: 76
+  鉁?杩斿洖 0 涓€欓€夋墽琛岃鍒?  鉁?浣跨敤 hint 寮哄埗绱㈠紩鏌ヨ璁″垝
+  鉁?甯︽帓搴忕殑鏌ヨ璁″垝
+  鉁?甯﹀瓧娈垫姇褰辩殑鏌ヨ璁″垝
+  鉁?甯﹀垎椤靛弬鏁扮殑鏌ヨ璁″垝
+  鉁?甯︽帓搴忚鍒欑殑鏌ヨ璁″垝
+  鉁?甯﹁秴鏃惰缃殑鏌ヨ璁″垝
+  鉁?澶嶆潅鏌ヨ鎵ц璁″垝:
+    - 浣跨敤绱㈠紩: 鏃?    - 鎵弿鏂囨。: 34
+    - 杩斿洖鏂囨。: 23
+    - 鎵ц鑰楁椂: 0ms
+  鉁?绱㈠紩鏌ヨ vs 鍏ㄨ〃鎵弿:
+    - 绱㈠紩鏌ヨ鎵弿: 1 涓枃妗?    - 鍏ㄨ〃鎵弿: 100 涓枃妗?    - 鎬ц兘宸紓: 100x
+  鉁?鏌ヨ鑰楁椂: 0ms (鎱㈡煡璇㈤槇鍊? 500ms)
+  鉁?绌烘煡璇㈣繑鍥炴墽琛岃鍒?  鉁?涓嶅瓨鍦ㄧ殑闆嗗悎杩斿洖鎵ц璁″垝锛圡ongoDB 琛屼负锛?  鉁?閾惧紡璋冪敤杩斿洖鍩烘湰鏌ヨ璁″垝
+  鉁?閾惧紡璋冪敤 executionStats - 鑰楁椂: 0ms
+  鉁?閾惧紡璋冪敤 allPlansExecution - 0 涓€欓€夎鍒?  鉁?閾惧紡璋冪敤鏀寔鏌ヨ閫夐」
+  鉁?涓ょ鏂瑰紡杩斿洖鐩稿悓鐨勬墽琛岃鍒掔粨鏋?  鉁?閫氳繃: 19, 澶辫触: 0
+
+鈻?test\unit\features\aggregate.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+馃摑 鍑嗗娴嬭瘯鏁版嵁...
+鉁?鎻掑叆 50 鏉＄敤鎴锋暟鎹?鉁?鎻掑叆 100 鏉″晢鍝佹暟鎹?鉁?鎻掑叆 150 鏉¤鍗曟暟鎹?馃敡 鍒涘缓娴嬭瘯绱㈠紩...
+鉁?绱㈠紩鍒涘缓瀹屾垚
+
+馃Ч 娓呯悊娴嬭瘯鐜...
+鉁?娓呯悊瀹屾垚
+  鉁?閫氳繃: 41, 澶辫触: 0
+
+鈻?test\unit\features\chaining.test.js
+  鉁?閫氳繃: 31, 澶辫触: 0
+
+鈻?test\unit\features\bookmarks.test.js
+  鉁?閫氳繃: 16, 澶辫触: 0
+
+鈻?test\unit\features\invalidate.test.js
+馃敡 鍒濆鍖?invalidate 娴嬭瘯鐜...
+鉁?娴嬭瘯鐜鍒濆鍖栧畬鎴?鉁?娴嬭瘯鐜娓呯悊瀹屾垚
+  鉁?閫氳繃: 9, 澶辫触: 0
+
+鈻?test\unit\features\insertOne.test.js
+  鉁?閫氳繃: 22, 澶辫触: 0
+
+鈻?test\unit\features\insertMany.test.js
+      鎵归噺鎻掑叆 500 涓枃妗ｈ€楁椂: 11ms
+      鍗曚釜鎻掑叆 500 娆¤€楁椂: 187ms
+      鎬ц兘鎻愬崌: 17.00x
+  鉁?閫氳繃: 25, 澶辫触: 0
+
+鈻?test\unit\features\insertBatch.test.js
+  鉁?閫氳繃: 24, 澶辫触: 0
+
+鈻?test\unit\features\updateOne.test.js
+  鉁?閫氳繃: 25, 澶辫触: 0
+
+鈻?test\unit\features\updateMany.test.js
+      鎵归噺鏇存柊 1000 涓枃妗ｈ€楁椂: 22ms
+  鉁?閫氳繃: 22, 澶辫触: 0
+
+鈻?test\unit\features\updateBatch.test.js
+      鏇存柊 10000 鏉¤€楁椂: 348ms
+  鉁?閫氳繃: 17, 澶辫触: 0
+
+鈻?test\unit\features\replaceOne.test.js
+  鉁?閫氳繃: 24, 澶辫触: 0
+
+鈻?test\unit\features\deleteOne.test.js
+  鉁?閫氳繃: 16, 澶辫触: 0
+
+鈻?test\unit\features\deleteMany.test.js
+  鉁?閫氳繃: 21, 澶辫触: 0
+
+鈻?test\unit\features\deleteBatch.test.js
+      鍒犻櫎 10000 鏉¤€楁椂: 325ms
+  鉁?閫氳繃: 14, 澶辫触: 0
+
+鈻?test\unit\features\findOneAndUpdate.test.js
+  鉁?閫氳繃: 22, 澶辫触: 0
+
+鈻?test\unit\features\findOneAndReplace.test.js
+  鉁?閫氳繃: 20, 澶辫触: 0
+
+鈻?test\unit\features\findOneAndDelete.test.js
+  鉁?閫氳繃: 18, 澶辫触: 0
+
+鈻?test\unit\features\upsertOne.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鐜鍑嗗瀹屾垚
+馃Ч 娓呯悊娴嬭瘯鐜...
+鉁?娴嬭瘯鐜娓呯悊瀹屾垚
+  鉁?閫氳繃: 23, 澶辫触: 0
+
+鈻?test\unit\features\incrementOne.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鐜鍑嗗瀹屾垚
+馃Ч 娓呯悊娴嬭瘯鐜...
+鉁?娴嬭瘯鐜娓呯悊瀹屾垚
+  鉁?閫氳繃: 30, 澶辫触: 0
+
+鈻?test\unit\features\transaction-unit.test.js
+  鉁?閫氳繃: 9, 澶辫触: 0
+
+鈻?test\unit\features\expression-date-advanced.test.js
+  鈴?搴旇姝ｇ‘缂栬瘧 DATE_ADD(date, amount, unit)  [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鏀寔涓嶅悓鐨勬椂闂村崟浣? [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鎷掔粷鏃犳晥鐨勬椂闂村崟浣? [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鏀寔瀛楁寮曠敤鍜屾暟瀛? [before澶辫触锛岃烦杩嘳
+  鈴?搴旇姝ｇ‘缂栬瘧 DATE_SUBTRACT(date, amount, unit)  [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鏀寔璁＄畻杩囨湡鍓嶆彁閱掓椂闂? [before澶辫触锛岃烦杩嘳
+  鈴?搴旇姝ｇ‘缂栬瘧 DATE_DIFF(endDate, startDate, unit)  [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鏀寔璁＄畻澶勭悊鏃堕暱锛堝皬鏃讹級  [before澶辫触锛岃烦杩嘳
+  鈿狅笍 before() 閽╁瓙澶辫触: ExpressionCompiler is not a constructor
+  鈴?搴旇鏀寔璁＄畻娲昏穬澶╂暟  [before澶辫触锛岃烦杩嘳
+  鈴?搴旇姝ｇ‘缂栬瘧 DATE_TO_STRING(date, format)  [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鏀寔涓枃鏃ユ湡鏍煎紡  [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鏀寔绠€鍗曟棩鏈熸牸寮? [before澶辫触锛岃烦杩嘳
+  鈴?搴旇姝ｇ‘缂栬瘧 DATE_FROM_STRING(dateString)  [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鏀寔甯︽牸寮忕殑瑙ｆ瀽  [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鏀寔瀛楃涓插瓧闈㈤噺  [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鏀寔璁＄畻骞舵牸寮忓寲鏃ユ湡  [before澶辫触锛岃烦杩嘳
+  鈴?搴旇鏀寔澶嶆潅鐨勬棩鏈熻绠楀満鏅? [before澶辫触锛岃烦杩嘳
+  鈴?DATE_ADD 缂哄皯鍙傛暟搴旀姏鍑洪敊璇? [before澶辫触锛岃烦杩嘳
+  鈴?DATE_DIFF 缂哄皯鍙傛暟搴旀姏鍑洪敊璇? [before澶辫触锛岃烦杩嘳
+  鈴?DATE_TO_STRING 缂哄皯鍙傛暟搴旀姏鍑洪敊璇? [before澶辫触锛岃烦杩嘳
+  鈴?鐩稿悓琛ㄨ揪寮忓簲浣跨敤缂撳瓨  [before澶辫触锛岃烦杩嘳
+  鉁?閫氳繃: 0, 澶辫触: 0, 璺宠繃: 21
+
+鈻?test\unit\features\findPage-supplement.test.js
+馃敡 鍒濆鍖栬ˉ鍏呮祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚锛?00 鏉¤鍗?  鉁?none 妯″紡姝ｇ‘锛氫笉杩斿洖 totals
+  鈿狅笍  approx 妯″紡鏈疄鐜帮紝璺宠繃姝ゆ祴璇?  鈴?搴旇鏀寔 totals.mode = "approx" (杩戜技缁熻)  [skip]
+  鈿狅笍  鏌ヨ鏈秴鏃讹紝鏃犳硶娴嬭瘯澶辫触闄嶇骇
+  鉁?缂撳瓨澶辨晥鍚庢€绘暟鏇存柊: 34 -> 35
+  鈿狅笍  meta 鍔熻兘鏈疄鐜帮紝璺宠繃姝ゆ祴璇?  鈴?搴旇杩斿洖鍩虹 meta 淇℃伅  [skip]
+  鈿狅笍  meta 鍔熻兘鏈疄鐜帮紝璺宠繃姝ゆ祴璇?  鈴?搴旇杩斿洖瀛愭楠よ€楁椂 (meta.level="sub")  [skip]
+  鈿狅笍  meta 鍔熻兘鏈疄鐜帮紝璺宠繃姝ゆ祴璇?  鈴?meta 搴旇鍖呭惈鏌ヨ涓婁笅鏂囦俊鎭? [skip]
+  鉁?涓嶅悓鏌ヨ鏉′欢浣跨敤涓嶅悓缂撳瓨閿?  鉁?涓嶅悓鎺掑簭杩斿洖涓嶅悓缁撴灉
+  鉁?棣栨鏌ヨ: 1ms
+  鉁?缂撳瓨鏌ヨ: 1ms
+  鉁?涓嶅悓 limit 浣跨敤涓嶅悓缂撳瓨
+  鉁?骞跺彂鏌ヨ 10 椤碉紝杩斿洖 100 鏉′笉閲嶅鏁版嵁
+  鉁?骞跺彂鏌ヨ杩斿洖涓€鑷寸殑 total: 0
+  鉁?骞跺彂鏌ヨ鏁版嵁涓€鑷存€ч獙璇侀€氳繃
+  鉁?娴?0 璇诲彇浜?31 鏉℃暟鎹?  鉁?娴?1 璇诲彇浜?31 鏉℃暟鎹?  鉁?娴?2 璇诲彇浜?31 鏉℃暟鎹?  鉁?骞跺彂娴佸紡鏌ヨ鏁版嵁涓€鑷?  鉁?娓告爣鏌ヨ杩斿洖 10 鏉℃暟鎹?  鉁?姝ｇ‘鎷掔粷浜嗘棤鏁堟父鏍?  鉁?姝ｇ‘鎷掔粷浜嗚绡℃敼鐨勬父鏍?  鈿狅笍  娓告爣鏈獙璇佹帓搴忎竴鑷存€?  鉁?绌洪泦鍚堝鐞嗘纭?  鉁?鏃犲尮閰嶆暟鎹鐞嗘纭?  鉁?杩斿洖浜嗘墍鏈?100 鏉℃暟鎹?  鉁?鍗曟潯鏁版嵁澶勭悊姝ｇ‘
+  鉁?澶嶆潅鏌ヨ杩斿洖 10 鏉℃暟鎹?  鉁?鍖呭惈鍨嬫姇褰辨纭繃婊ゅ瓧娈碉紝娓告爣姝ｅ父
+  鉁?鏁扮粍褰㈠紡鎶曞奖姝ｅ父
+  鉁?鎺掗櫎鍨嬫姇褰辨纭繃婊わ紝鎺掑簭瀛楁鑷姩淇濈暀
+  鉁?鎺掑簭瀛楁鐨勬帓闄よ鑷姩鍙栨秷锛屾父鏍囦繚鎶ょ敓鏁?  鉁?甯︽姇褰辩殑娓告爣鍒嗛〉杩炵画鎬ф甯?  鉁?甯︽姇褰辩殑 before 娓告爣鍒嗛〉姝ｅ父
+  鉁?鎶曞奖涓?offsetJump 璺抽〉鍏煎
+  鉁?涓嶄紶 projection 鏃跺叏瀛楁杩斿洖锛屽悜鍚庡吋瀹?馃Ч 娓呯悊琛ュ厖娴嬭瘯鐜...
+鉁?娓呯悊瀹屾垚
+  鉁?閫氳繃: 27, 澶辫触: 0, 璺宠繃: 4
+
+鈻?test\unit\features\indexes.test.js
+  鉁?搴旇鍒涘缓鍞竴绱㈠紩
+    鈫?The expression evaluated to a falsy value:
+
+  assert.ok(err.message.includes('duplicate key') || err.code === 11000)
+
+  鉁?搴旇鍦ㄧ储寮曢敭涓虹┖鏃舵姏鍑洪敊璇?    鈫?The expression evaluated to a falsy value:
+
+  assert.ok(err.message.includes('绱㈠紩閿笉鑳戒负绌?))
+
+  鉁?搴旇鍦ㄧ储寮曢敭鏃犳晥鏃舵姏鍑洪敊璇?    鈫?Expected values to be strictly equal:
++ actual - expected
+
++ 'ERR_ASSERTION'
+- 'INVALID_ARGUMENT'
+  鉁?搴旇鍦ㄩ泦鍚堜笉瀛樺湪鏃惰繑鍥炵┖鏁扮粍
+    鈫?ns does not exist: test_indexes.nonexistent_collection
+  鉁?搴旇鍦ㄧ储寮曚笉瀛樺湪鏃舵姏鍑洪敊璇?    鈫?Expected values to be strictly equal:
++ actual - expected
+
++ 27
+- 'MONGODB_ERROR'
+  鉁?搴旇绂佹鍒犻櫎 _id 绱㈠紩
+    鈫?The expression evaluated to a falsy value:
+
+  assert.ok(err.message.includes('涓嶅厑璁稿垹闄?_id 绱㈠紩'))
+
+  鉁?搴旇鍦ㄩ泦鍚堜笉瀛樺湪鏃舵甯歌繑鍥?    鈫?The expression evaluated to a falsy value:
+
+  assert.ok(result)
+
+  鉁?鍦烘櫙 1: 鍒涘缓鍞竴閭绱㈠紩骞堕獙璇?    鈫?The expression evaluated to a falsy value:
+
+  assert.ok(err.code === 11000 || err.message.includes('duplicate key'))
+
+  鈿狅笍 閫氳繃: 19, 澶辫触: 8
+
+鈻?test\unit\features\update-aggregation-pipeline.test.js
+  鉁?鑱氬悎绠￠亾鏇存柊鍚庡簲璇ュけ鏁堢紦瀛?    鈫?鑱氬悎绠￠亾鏇存柊鍚庣紦瀛樺簲璇ヨ娓呯┖
+
+1 !== 0
+
+  鈿狅笍 閫氳繃: 25, 澶辫触: 1
+
+鈻?test\unit\features\transaction-basic.test.js
+  鉁?搴旇鎴愬姛鍒涘缓浜嬪姟骞舵彁浜?    鈫?鐘舵€佸簲璇ユ槸 active
++ actual - expected
+
++ 'started'
+- 'active'
+  鉁?搴旇鑳藉涓浜嬪姟骞跺洖婊氭洿鏀?    鈫?Expected values to be strictly equal:
++ actual - expected
+
++ 'insertOne 鎿嶄綔澶辫触: Transaction numbers are only allowed on a replica set member or mongos'
+- '鏁呮剰澶辫触'
+  鉁?搴旇鍦ㄤ簨鍔′腑姝ｇ‘鏇存柊鏁版嵁
+    鈫?Transaction numbers are only allowed on a replica set member or mongos
+  鉁?搴旇鑳藉鎵嬪姩鍒涘缓鍜岀鐞嗕簨鍔?    鈫?Expected values to be strictly equal:
++ actual - expected
+
++ 'started'
+- 'active'
+  鉁?搴旇鑳藉鎵嬪姩鍥炴粴浜嬪姟
+    鈫?insertOne 鎿嶄綔澶辫触: Transaction numbers are only allowed on a replica set member or mongos
+  鉁?搴旇鏀寔鑷畾涔?readConcern
+    鈫?insertOne 鎿嶄綔澶辫触: Transaction numbers are only allowed on a replica set member or mongos
+  鉁?搴旇鏀寔鑷畾涔夎秴鏃舵椂闂?    鈫?Expected values to be strictly equal:
++ actual - expected
+
++ 'started'
+- 'aborted'
+  鉁?浜嬪姟涓殑鏇存柊搴旇绔嬪嵆澶辨晥缂撳瓨
+    鈫?Transaction numbers are only allowed on a replica set member or mongos
+  鈿狅笍 閫氳繃: 1, 澶辫触: 8
+
+鈻?test\unit\expression\core\detection.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 14, 澶辫触: 0
+
+鈻?test\unit\expression\operators\arithmetic.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 9, 澶辫触: 0
+
+鈻?test\unit\expression\operators\string.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 9, 澶辫触: 0
+
+鈻?test\unit\expression\operators\math.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 9, 澶辫触: 0
+
+鈻?test\unit\expression\operators\array.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 8, 澶辫触: 0
+
+鈻?test\unit\expression\operators\array-advanced.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 7, 澶辫触: 0
+
+鈻?test\unit\expression\operators\group.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 3, 澶辫触: 0
+
+鈻?test\unit\expression\operators\date.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 9, 澶辫触: 0
+
+鈻?test\unit\expression\operators\string-advanced.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 8, 澶辫触: 0
+
+鈻?test\unit\expression\operators\high-frequency.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 8, 澶辫触: 0
+
+鈻?test\unit\expression\operators\conditional.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 4, 澶辫触: 0
+
+鈻?test\unit\expression\operators\edge-cases.test.js
+馃敡 鍒濆鍖栨祴璇曠幆澧?..
+鉁?娴嬭瘯鏁版嵁鍑嗗瀹屾垚
+  鉁?閫氳繃: 19, 澶辫触: 0
+
+鈻?test\unit\utils\cursor.test.js
+  鉁?閫氳繃: 18, 澶辫触: 0
+
+鈻?test\unit\utils\normalize.test.js
+  鉁?閫氳繃: 21, 澶辫触: 0
+
+鈻?test\unit\utils\page-result.test.js
+  鉁?閫氳繃: 13, 澶辫触: 0
+
+鈻?test\unit\utils\shape-builders.test.js
+  鉁?閫氳繃: 4, 澶辫触: 0
+
+鈻?test\unit\utils\validation.test.js
+  鉁?閫氳繃: 16, 澶辫触: 0
+
+鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+v1 鍏煎鎬ф祴璇曠粨鏋?鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+鉁?閫氳繃: 947
+鉂?澶辫触: 17
+鈴?璺宠繃: 25
+馃搳 鍏煎鐜? 98.2%
+
+鈹€ 澶辫触鍒楄〃 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+  鉁?[test\unit\features\indexes.test.js] 馃攽 绱㈠紩绠＄悊娴嬭瘯濂椾欢 > 馃摑 createIndex - 鍒涘缓鍗曚釜绱㈠紩 / 搴旇鍒涘缓鍞竴绱㈠紩
+    鈫?The expression evaluated to a falsy value:
+
+  assert.ok(err.message.includes('duplicate key') || err.code === 11000)
+
+  鉁?[test\unit\features\indexes.test.js] 馃攽 绱㈠紩绠＄悊娴嬭瘯濂椾欢 > 馃摑 createIndex - 鍒涘缓鍗曚釜绱㈠紩 / 搴旇鍦ㄧ储寮曢敭涓虹┖鏃舵姏鍑洪敊璇?    鈫?The expression evaluated to a falsy value:
+
+  assert.ok(err.message.includes('绱㈠紩閿笉鑳戒负绌?))
+
+  鉁?[test\unit\features\indexes.test.js] 馃攽 绱㈠紩绠＄悊娴嬭瘯濂椾欢 > 馃摑 createIndex - 鍒涘缓鍗曚釜绱㈠紩 / 搴旇鍦ㄧ储寮曢敭鏃犳晥鏃舵姏鍑洪敊璇?    鈫?Expected values to be strictly equal:
++ actual - expected
+
++ 'ERR_ASSERTION'
+- 'INVALID_ARGUMENT'
+  鉁?[test\unit\features\indexes.test.js] 馃攽 绱㈠紩绠＄悊娴嬭瘯濂椾欢 > 馃搵 listIndexes - 鍒楀嚭鎵€鏈夌储寮?/ 搴旇鍦ㄩ泦鍚堜笉瀛樺湪鏃惰繑鍥炵┖鏁扮粍
+    鈫?ns does not exist: test_indexes.nonexistent_collection
+  鉁?[test\unit\features\indexes.test.js] 馃攽 绱㈠紩绠＄悊娴嬭瘯濂椾欢 > 馃棏锔?dropIndex - 鍒犻櫎鎸囧畾绱㈠紩 / 搴旇鍦ㄧ储寮曚笉瀛樺湪鏃舵姏鍑洪敊璇?    鈫?Expected values to be strictly equal:
++ actual - expected
+
++ 27
+- 'MONGODB_ERROR'
+  鉁?[test\unit\features\indexes.test.js] 馃攽 绱㈠紩绠＄悊娴嬭瘯濂椾欢 > 馃棏锔?dropIndex - 鍒犻櫎鎸囧畾绱㈠紩 / 搴旇绂佹鍒犻櫎 _id 绱㈠紩
+    鈫?The expression evaluated to a falsy value:
+
+  assert.ok(err.message.includes('涓嶅厑璁稿垹闄?_id 绱㈠紩'))
+
+  鉁?[test\unit\features\indexes.test.js] 馃攽 绱㈠紩绠＄悊娴嬭瘯濂椾欢 > 馃棏锔忦煑戯笍 dropIndexes - 鍒犻櫎鎵€鏈夌储寮?/ 搴旇鍦ㄩ泦鍚堜笉瀛樺湪鏃舵甯歌繑鍥?    鈫?The expression evaluated to a falsy value:
+
+  assert.ok(result)
+
+  鉁?[test\unit\features\indexes.test.js] 馃攽 绱㈠紩绠＄悊娴嬭瘯濂椾欢 > 馃敡 瀹為檯浣跨敤鍦烘櫙 / 鍦烘櫙 1: 鍒涘缓鍞竴閭绱㈠紩骞堕獙璇?    鈫?The expression evaluated to a falsy value:
+
+  assert.ok(err.code === 11000 || err.message.includes('duplicate key'))
+
+  鉁?[test\unit\features\update-aggregation-pipeline.test.js] Update 鑱氬悎绠￠亾娴嬭瘯濂椾欢 (v1.0.8+) > 缂撳瓨澶辨晥娴嬭瘯锛堣仛鍚堢閬擄級 / 鑱氬悎绠￠亾鏇存柊鍚庡簲璇ュけ鏁堢紦瀛?    鈫?鑱氬悎绠￠亾鏇存柊鍚庣紦瀛樺簲璇ヨ娓呯┖
+
+1 !== 0
+
+  鉁?[test\unit\features\transaction-basic.test.js] MongoDB 浜嬪姟 - 鍩虹鍔熻兘 > withTransaction锛堣嚜鍔ㄧ鐞嗭級 / 搴旇鎴愬姛鍒涘缓浜嬪姟骞舵彁浜?    鈫?鐘舵€佸簲璇ユ槸 active
++ actual - expected
+
++ 'started'
+- 'active'
+  鉁?[test\unit\features\transaction-basic.test.js] MongoDB 浜嬪姟 - 鍩虹鍔熻兘 > withTransaction锛堣嚜鍔ㄧ鐞嗭級 / 搴旇鑳藉涓浜嬪姟骞跺洖婊氭洿鏀?    鈫?Expected values to be strictly equal:
++ actual - expected
+
++ 'insertOne 鎿嶄綔澶辫触: Transaction numbers are only allowed on a replica set member or mongos'
+- '鏁呮剰澶辫触'
+  鉁?[test\unit\features\transaction-basic.test.js] MongoDB 浜嬪姟 - 鍩虹鍔熻兘 > withTransaction锛堣嚜鍔ㄧ鐞嗭級 / 搴旇鍦ㄤ簨鍔′腑姝ｇ‘鏇存柊鏁版嵁
+    鈫?Transaction numbers are only allowed on a replica set member or mongos
+  鉁?[test\unit\features\transaction-basic.test.js] MongoDB 浜嬪姟 - 鍩虹鍔熻兘 > startSession锛堟墜鍔ㄧ鐞嗭級 / 搴旇鑳藉鎵嬪姩鍒涘缓鍜岀鐞嗕簨鍔?    鈫?Expected values to be strictly equal:
++ actual - expected
+
++ 'started'
+- 'active'
+  鉁?[test\unit\features\transaction-basic.test.js] MongoDB 浜嬪姟 - 鍩虹鍔熻兘 > startSession锛堟墜鍔ㄧ鐞嗭級 / 搴旇鑳藉鎵嬪姩鍥炴粴浜嬪姟
+    鈫?insertOne 鎿嶄綔澶辫触: Transaction numbers are only allowed on a replica set member or mongos
+  鉁?[test\unit\features\transaction-basic.test.js] MongoDB 浜嬪姟 - 鍩虹鍔熻兘 > 浜嬪姟閰嶇疆 / 搴旇鏀寔鑷畾涔?readConcern
+    鈫?insertOne 鎿嶄綔澶辫触: Transaction numbers are only allowed on a replica set member or mongos
+  鉁?[test\unit\features\transaction-basic.test.js] MongoDB 浜嬪姟 - 鍩虹鍔熻兘 > 浜嬪姟閰嶇疆 / 搴旇鏀寔鑷畾涔夎秴鏃舵椂闂?    鈫?Expected values to be strictly equal:
++ actual - expected
+
++ 'started'
+- 'aborted'
+  鉁?[test\unit\features\transaction-basic.test.js] MongoDB 浜嬪姟 - 鍩虹鍔熻兘 > 缂撳瓨澶辨晥 / 浜嬪姟涓殑鏇存柊搴旇绔嬪嵆澶辨晥缂撳瓨
+    鈫?Transaction numbers are only allowed on a replica set member or mongos
+鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+

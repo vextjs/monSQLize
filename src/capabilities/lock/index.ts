@@ -1,9 +1,9 @@
 /**
- * P4-A 业务锁能力。
+ * Business lock capability.
  *
- * 说明：
- * - 当前模块负责 lock manager、lock handle 与 fallbackToNoLock 最小闭环。
- * - 公开与共享类型统一由 `types/lock.d.ts` 承接；此处只保留运行时实现与内部状态类型。
+ * Description:
+ * - Responsible for lock manager, lock handle, and fallbackToNoLock.
+ * - Public and shared types are managed by `types/lock.d.ts`; only runtime implementation and internal state types are kept here.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -23,6 +23,10 @@ interface LockManagerOptions {
     maxDuration?: number;
 }
 
+/**
+ * Error thrown when a distributed lock cannot be acquired.
+ * @since v1.4.0
+ */
 export class LockAcquireError extends Error {
     readonly code = 'LOCK_ACQUIRE_FAILED';
 
@@ -32,6 +36,10 @@ export class LockAcquireError extends Error {
     }
 }
 
+/**
+ * Error thrown when a distributed lock acquisition times out.
+ * @since v1.4.0
+ */
 export class LockTimeoutError extends Error {
     readonly code = 'LOCK_TIMEOUT';
 
@@ -53,6 +61,11 @@ class NoopLockManager {
 
 const globalStore = new Map<string, LockRecord>();
 
+/**
+ * Represents an acquired distributed lock.
+ * Call {@link Lock#release} when the critical section is complete.
+ * @since v1.4.0
+ */
 export class Lock {
     readonly acquiredAt = Date.now();
     released = false;
@@ -60,7 +73,7 @@ export class Lock {
     constructor(
         readonly key: string,
         readonly lockId: string,
-        private readonly manager: {
+        readonly manager: {
             releaseLock: (key: string, lockId: string) => Promise<boolean>;
             renewLock: (key: string, lockId: string, ttl: number) => Promise<boolean>;
         },
@@ -68,7 +81,7 @@ export class Lock {
     ) {}
 
     /**
-     * 释放锁。
+     * Release the lock.
      * @since v1.4.0
      */
     async release(): Promise<boolean> {
@@ -81,18 +94,18 @@ export class Lock {
     }
 
     /**
-     * 续期锁。
+     * Renew the lock.
      * @since v1.4.0
      */
-    async renew(ttl = this.ttl): Promise<boolean> {
+    async renew(ttl?: number): Promise<boolean> {
         if (this.released) {
             return false;
         }
-        return this.manager.renewLock(this.key, this.lockId, ttl);
+        return this.manager.renewLock(this.key, this.lockId, ttl ?? this.ttl);
     }
 
     /**
-     * 检查锁是否仍持有。
+     * Check whether the lock is still held.
      * @since v1.4.0
      */
     isHeld(): boolean {
@@ -100,7 +113,7 @@ export class Lock {
     }
 
     /**
-     * 获取持锁时长。
+     * Get the duration the lock has been held.
      * @since v1.4.0
      */
     getHoldTime(): number {
@@ -108,6 +121,11 @@ export class Lock {
     }
 }
 
+/**
+ * Manages distributed locks backed by an optional Redis store.
+ * Falls back to an in-process memory store when Redis is unavailable.
+ * @since v1.4.0
+ */
 export class LockManager {
     private readonly logger: LoggerLike | null;
     private readonly lockKeyPrefix: string;
@@ -126,7 +144,7 @@ export class LockManager {
     }
 
     /**
-     * 自动管理业务锁生命周期。
+     * Automatically manage the business lock lifecycle.
      * @since v1.4.0
      */
     async withLock<T>(key: string, callback: () => Promise<T>, options: LockOptions = {}): Promise<T> {
@@ -139,7 +157,7 @@ export class LockManager {
     }
 
     /**
-     * 获取锁（阻塞重试）。
+     * Acquire a lock (blocking with retries).
      * @since v1.4.0
      */
     async acquireLock(key: string, options: LockOptions = {}): Promise<Lock> {
@@ -169,7 +187,7 @@ export class LockManager {
     }
 
     /**
-     * 尝试获取锁（不阻塞）。
+     * Try to acquire a lock (non-blocking).
      * @since v1.4.0
      */
     async tryAcquireLock(key: string, options: Omit<LockOptions, 'retryTimes'> = {}): Promise<Lock | null> {
@@ -194,7 +212,7 @@ export class LockManager {
     }
 
     /**
-     * 检查锁是否存在。
+     * Check whether a lock exists.
      * @since v1.4.0
      */
     isLocked(key: string): boolean {
@@ -204,7 +222,7 @@ export class LockManager {
     }
 
     /**
-     * 释放锁。
+     * Release a lock.
      * @since v1.4.0
      */
     async releaseLock(key: string, lockId: string): Promise<boolean> {
@@ -221,7 +239,7 @@ export class LockManager {
     }
 
     /**
-     * 续期锁。
+     * Renew a lock.
      * @since v1.4.0
      */
     async renewLock(key: string, lockId: string, ttl: number): Promise<boolean> {
@@ -236,7 +254,7 @@ export class LockManager {
     }
 
     /**
-     * 获取锁统计。
+     * Get lock statistics.
      * @since v1.4.0
      */
     getStats(): LockStats {
@@ -250,7 +268,7 @@ export class LockManager {
     }
 
     /**
-     * 清空锁（主要用于测试）。
+     * Clear all locks (primarily for testing).
      * @since v1.4.0
      */
     clear(): void {
@@ -262,7 +280,7 @@ export class LockManager {
     }
 
     /**
-     * 关闭锁管理器。
+     * Close the lock manager.
      * @since v1.4.0
      */
     close(): void {
@@ -287,3 +305,241 @@ async function sleep(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Redis-based distributed business lock manager (v1 compat).
+ * Implements cross-instance distributed locks via Redis to ensure transaction isolation.
+ * @since v1.4.0
+ */
+export class DistributedCacheLockManager {
+    private readonly redis: {
+        on: (event: string, handler: (...args: unknown[]) => void) => void;
+        set: (key: string, value: string, ...args: unknown[]) => Promise<string | null>;
+        eval: (script: string, numkeys: number, ...args: unknown[]) => Promise<unknown>;
+        keys: (pattern: string) => Promise<string[]>;
+        exists: (key: string) => Promise<number>;
+    };
+    private readonly lockKeyPrefix: string;
+    private readonly maxDuration: number;
+    private readonly logger: LoggerLike | null;
+    private readonly stats = {
+        locksAcquired: 0,
+        locksReleased: 0,
+        lockChecks: 0,
+        errors: 0,
+    };
+
+    constructor(options: {
+        redis: unknown;
+        lockKeyPrefix?: string;
+        maxDuration?: number;
+        logger?: LoggerLike | null;
+    }) {
+        if (!options.redis) {
+            throw new Error('DistributedCacheLockManager requires a Redis instance');
+        }
+        this.redis = options.redis as typeof this.redis;
+        this.lockKeyPrefix = options.lockKeyPrefix ?? 'monsqlize:cache:lock:';
+        this.maxDuration = options.maxDuration ?? 300000;
+        this.logger = options.logger ?? null;
+        this.redis.on('error', (err: unknown) => {
+            this.stats.errors++;
+            if (this.logger) {
+                const msg = err instanceof Error ? err.message : String(err);
+                this.logger?.error?.('[DistributedCacheLockManager] Redis error:', msg);
+            }
+        });
+    }
+
+    async addLock(key: string, session: { id: unknown }): Promise<boolean> {
+        if (!session || !session.id) return false;
+        const lockKey = this.lockKeyPrefix + key;
+        const sessionId = String(session.id);
+        const ttlSeconds = Math.ceil(this.maxDuration / 1000);
+        try {
+            const result = await this.redis.set(lockKey, sessionId, 'EX', ttlSeconds, 'NX');
+            if (result === 'OK') {
+                this.stats.locksAcquired++;
+                return true;
+            }
+            return false;
+        } catch (error) {
+            this.stats.errors++;
+            return false;
+        }
+    }
+
+    async isLocked(key: string): Promise<boolean> {
+        this.stats.lockChecks++;
+        try {
+            const lockKey = this.lockKeyPrefix + key;
+            const exists = await this.redis.exists(lockKey);
+            if (exists) return true;
+            const pattern = this.lockKeyPrefix + '*';
+            const keys = await this.redis.keys(pattern);
+            for (const foundKey of keys) {
+                const lockPattern = foundKey.replace(this.lockKeyPrefix, '');
+                if (lockPattern.includes('*')) {
+                    const regex = this._patternToRegex(lockPattern);
+                    if (regex.test(key)) return true;
+                }
+            }
+            return false;
+        } catch {
+            return false;
+        }
+    }
+
+    async releaseLocks(session: { id: unknown }): Promise<number> {
+        if (!session || !session.id) return 0;
+        const sessionId = String(session.id);
+        const pattern = this.lockKeyPrefix + '*';
+        try {
+            const keys = await this.redis.keys(pattern);
+            if (keys.length === 0) return 0;
+            const luaScript = `
+                local deletedCount = 0
+                for i, key in ipairs(KEYS) do
+                    local value = redis.call('GET', key)
+                    if value == ARGV[1] then
+                        redis.call('DEL', key)
+                        deletedCount = deletedCount + 1
+                    end
+                end
+                return deletedCount
+            `;
+            const deleted = await this.redis.eval(luaScript, keys.length, ...keys, sessionId) as number;
+            this.stats.locksReleased += deleted;
+            return deleted;
+        } catch {
+            return 0;
+        }
+    }
+
+    async withLock<T>(key: string, callback: () => Promise<T>, options: {
+        ttl?: number;
+        retryTimes?: number;
+        retryDelay?: number;
+        fallbackToNoLock?: boolean;
+    } = {}): Promise<T> {
+        try {
+            const lock = await this.acquireLock(key, options);
+            try {
+                return await callback();
+            } finally {
+                await lock.release().catch(() => {});
+            }
+        } catch (error) {
+            if (this._isRedisConnectionError(error as Error) && options.fallbackToNoLock) {
+                return callback();
+            }
+            throw error;
+        }
+    }
+
+    async acquireLock(key: string, options: {
+        ttl?: number;
+        retryTimes?: number;
+        retryDelay?: number;
+    } = {}): Promise<Lock> {
+        const ttl = options.ttl ?? 10000;
+        const retryTimes = options.retryTimes ?? 3;
+        const retryDelay = options.retryDelay ?? 100;
+        const lockId = this._generateLockId();
+        const fullKey = this.lockKeyPrefix + key;
+        for (let attempt = 0; attempt <= retryTimes; attempt++) {
+            try {
+                const result = await this.redis.set(fullKey, lockId, 'PX', ttl, 'NX');
+                if (result === 'OK') {
+                    this.stats.locksAcquired++;
+                    return new Lock(key, lockId, this, ttl);
+                }
+                if (attempt === retryTimes) break;
+                await sleep(retryDelay);
+            } catch (error) {
+                if (attempt === retryTimes) throw error;
+                await sleep(retryDelay);
+            }
+        }
+        this.stats.errors++;
+        throw new LockAcquireError(`Failed to acquire lock: ${key}`);
+    }
+
+    async tryAcquireLock(key: string, options: { ttl?: number } = {}): Promise<Lock | null> {
+        const ttl = options.ttl ?? 10000;
+        const lockId = this._generateLockId();
+        const fullKey = this.lockKeyPrefix + key;
+        try {
+            const result = await this.redis.set(fullKey, lockId, 'PX', ttl, 'NX');
+            if (result === 'OK') {
+                this.stats.locksAcquired++;
+                return new Lock(key, lockId, this, ttl);
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    }
+
+    async releaseLock(key: string, lockId: string): Promise<boolean> {
+        const fullKey = this.lockKeyPrefix + key;
+        try {
+            const luaScript = `
+                if redis.call("get", KEYS[1]) == ARGV[1] then
+                    return redis.call("del", KEYS[1])
+                else
+                    return 0
+                end
+            `;
+            const result = await this.redis.eval(luaScript, 1, fullKey, lockId) as number;
+            if (result === 1) {
+                this.stats.locksReleased++;
+                return true;
+            }
+            return false;
+        } catch {
+            this.stats.errors++;
+            return false;
+        }
+    }
+
+    async renewLock(key: string, lockId: string, ttl: number): Promise<boolean> {
+        const fullKey = this.lockKeyPrefix + key;
+        try {
+            const luaScript = `
+                if redis.call("get", KEYS[1]) == ARGV[1] then
+                    return redis.call("pexpire", KEYS[1], ARGV[2])
+                else
+                    return 0
+                end
+            `;
+            const result = await this.redis.eval(luaScript, 1, fullKey, lockId, ttl) as number;
+            return result === 1;
+        } catch {
+            return false;
+        }
+    }
+
+    getStats() {
+        return { ...this.stats, lockKeyPrefix: this.lockKeyPrefix, maxDuration: this.maxDuration };
+    }
+
+    stop(): void {}
+
+    async cleanup(): Promise<void> {}
+
+    _generateLockId(): string {
+        return `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    private _patternToRegex(pattern: string): RegExp {
+        const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const wildcarded = escaped.replace(/\\\*/g, '.*');
+        return new RegExp(`^${wildcarded}$`);
+    }
+
+    private _isRedisConnectionError(error: Error): boolean {
+        const msg = error.message || '';
+        return msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT') ||
+               msg.includes('ENOTFOUND') || msg.includes('Connection is closed');
+    }
+}

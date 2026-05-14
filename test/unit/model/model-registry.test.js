@@ -10,6 +10,7 @@ describe('P3-C model registry', () => {
 
     it('应支持 define/get/list/redefine/undefine', () => {
         MonSQLize.Model.define('users', {
+            schema: (dsl) => dsl({}),
             defaults: { status: 'active' },
             relations: {
                 posts: {
@@ -25,6 +26,7 @@ describe('P3-C model registry', () => {
         assert.deepEqual(MonSQLize.Model.get('users').definition.defaults, { status: 'active' });
 
         MonSQLize.Model.redefine('users', {
+            schema: (dsl) => dsl({}),
             virtuals: {
                 displayName: {
                     get() {
@@ -47,6 +49,7 @@ describe('P3-C model registry', () => {
 
         assert.throws(
             () => MonSQLize.Model.define('users', {
+                schema: (dsl) => dsl({}),
                 relations: {
                     posts: {
                         from: 'posts',

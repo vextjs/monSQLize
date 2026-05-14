@@ -90,7 +90,7 @@ describe('P2-C MongoDB management-core', () => {
 
         await assert.rejects(
             () => posts.prewarmBookmarks(keyDims, []),
-            (error) => error && error.code === 'INVALID_ARGUMENT',
+            (error) => error && error.code === 'INVALID_PAGES',
         );
 
         await runtime.close();

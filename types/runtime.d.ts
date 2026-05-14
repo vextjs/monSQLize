@@ -5,7 +5,7 @@ import type { LockOptions, LockStats } from './lock';
 import type { ConnectionPoolManagerOptions, FallbackStrategy, PoolConfig, PoolHealthStatus, PoolRole, PoolStats, PoolStrategy } from './pool';
 import type { SagaDefinition, SagaOrchestratorOptions, SagaResult, SagaStats, SagaStep } from './saga';
 import type { SlowQueryLogConfig, SlowQueryLogConfigInput, SlowQueryLogEntry, SlowQueryLogFilter, SlowQueryLogQueryOptions, SlowQueryLogRecord, SlowQueryLogStorageConfig } from './slow-query-log';
-import type { ResumeTokenConfig, SyncChangeEvent, SyncConfig, SyncStats, SyncTargetConfig } from './sync';
+import type { ResumeTokenConfig, SyncChangeEvent, SyncConfig, SyncStats, SyncTargetConfig, SyncTargetHealthCheckConfig } from './sync';
 import type { MongoSession, TransactionOptions, TransactionStats } from './transaction';
 
 export { Lock, LockAcquireError, LockTimeoutError, LockManager } from './lock';
@@ -47,6 +47,45 @@ export interface MemoryCacheOptions {
     maxSize?: number;
     maxMemory?: number;
     enableStats?: boolean;
+    /** 是否启用精准缓存失效（默认 false）@since v1.1.5 */
+    autoInvalidate?: boolean;
+    [k: string]: unknown;
+}
+
+/**
+ * 多层缓存写策略
+ * - `both`：本地 + 远端双写（等待远端完成）
+ * - `local-first-async-remote`：本地先返回，远端异步写（降低尾延迟）
+ * @since v1.1.0
+ */
+export type WritePolicy = 'both' | 'local-first-async-remote';
+
+/**
+ * 多层缓存策略配置
+ * @since v1.1.0
+ */
+export interface MultiLevelCachePolicy {
+    /** 写策略，默认 `both` */
+    writePolicy?: WritePolicy;
+    /** 远端命中后是否回填本地，默认 true */
+    backfillLocalOnRemoteHit?: boolean;
+}
+
+/**
+ * 多层缓存配置对象（配置式启用双层缓存）。
+ *
+ * 传给 `MonSQLizeOptions.cache` 时，框架会自动创建 MultiLevelCache：
+ * - `local`：始终使用内置内存缓存（仅接受 MemoryCacheOptions）
+ * - `remote`：可传 CacheLike 实例（推荐生产），或配置对象以退化为内存占位
+ * - `policy`：写策略与回填策略配置
+ * @since v1.1.0
+ */
+export interface MultiLevelCacheOptions {
+    multiLevel: true;
+    local?: MemoryCacheOptions;
+    remote?: CacheLike | (MemoryCacheOptions & { timeoutMs?: number });
+    policy?: MultiLevelCachePolicy;
+    publish?: (msg: unknown) => void;
 }
 
 export declare class MemoryCache {
@@ -121,6 +160,7 @@ export type {
     SyncConfig,
     SyncStats,
     SyncTargetConfig,
+    SyncTargetHealthCheckConfig,
 };
 
 export declare function validateSyncConfig(config: SyncConfig): void;
@@ -196,10 +236,21 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
     raw(): unknown;
     find(query?: unknown, options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
     findOne(query?: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
+    findOneById(id: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
     findById(id: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
     findByIds(ids: unknown[], options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
-    findPage(options?: unknown): import('./model').PopulateProxy<{ data: Array<import('./model').ModelDocument<TDocument>>; page: { page: number; limit: number; }; totals: { total: number; totalPages: number; }; }>;
-    findAndCount(query?: unknown, options?: unknown): import('./model').PopulateProxy<{ rows: Array<import('./model').ModelDocument<TDocument>>; count: number; }>;
+    findPage(options?: unknown): import('./model').PopulateProxy<{
+        items: Array<import('./model').ModelDocument<TDocument>>;
+        pageInfo: {
+            hasNext: boolean;
+            hasPrev: boolean;
+            startCursor: string | null;
+            endCursor: string | null;
+            currentPage?: number;
+        };
+        totals?: Record<string, unknown>;
+    }>;
+    findAndCount(query?: unknown, options?: unknown): import('./model').PopulateProxy<{ data: Array<import('./model').ModelDocument<TDocument>>; total: number; }>;
     count(query?: unknown, options?: unknown): Promise<number>;
     insertOne(document?: unknown, options?: unknown): Promise<{ acknowledged: boolean; insertedId: unknown; }>;
     insertMany(documents?: unknown[], options?: unknown): Promise<unknown>;
@@ -219,7 +270,16 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]>;
     watch(pipeline?: unknown[], options?: unknown): unknown;
-    validate(document?: unknown): Promise<import('./model').ValidationResult>;
+    validate(document?: unknown): import('./model').ValidationResult;
+    findOneAndReplace(filter?: unknown, replacement?: unknown, options?: unknown): Promise<TDocument | null>;
+    incrementOne(filter?: unknown, field?: string, increment?: number, options?: unknown): Promise<unknown>;
+    findWithDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
+    findOnlyDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
+    findOneWithDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
+    restore(filter?: unknown, options?: unknown): Promise<unknown>;
+    restoreMany(filter?: unknown, options?: unknown): Promise<unknown>;
+    forceDelete(filter?: unknown, options?: unknown): Promise<DeleteResult>;
+    forceDeleteMany(filter?: unknown, options?: unknown): Promise<DeleteResult>;
 }
 
 export declare const expr: ExpressionFunction;

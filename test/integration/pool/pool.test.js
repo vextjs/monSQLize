@@ -24,6 +24,7 @@ describe('P4-B pool integration', () => {
 
     it('应支持 pool() collection/use/model 路由到指定连接池语义', async () => {
         MonSQLize.Model.define('events', {
+            schema: {},
             connection: {
                 pool: 'analytics',
                 database: 'reporting',

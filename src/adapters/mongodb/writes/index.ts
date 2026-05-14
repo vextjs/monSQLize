@@ -1,15 +1,16 @@
 /**
- * P2-C 写入模块。
+ * MongoDB write adapter layer.
  *
- * 说明：
- * - 已恢复 `insertOne` / `insertMany` / `updateOne` / `updateMany` / `deleteOne` / `deleteMany` / `replaceOne` / `findOneAnd*` / `upsertOne`，保持 MongoDB 原生返回结构不变。
- * - 本轮继续补齐 `insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 的最小 batch extension。
- * - 更完整的 retry / stream / cache invalidation 深层语义仍在后续阶段继续回补。
+ * Description:
+ * - Implements insertOne / insertMany / insertBatch / updateOne / updateMany / updateBatch /
+ *   deleteOne / deleteMany / deleteBatch / replaceOne / findOneAnd* / upsertOne / incrementOne.
+ * - Preserves the native MongoDB return structure; batch operations support batchSize / ordered options.
  */
 
-import { Collection, Document, FindOptions } from 'mongodb';
+import { Collection, Document, FindOneAndUpdateOptions, FindOptions } from 'mongodb';
 
 import { createError, ErrorCodes } from '../../../core/errors';
+import { normalizeProjection } from '../../../utils/normalize';
 import type {
     BatchErrorRecord,
     BatchWriteOptions,
@@ -30,8 +31,15 @@ export type {
     UpdateBatchResult,
 } from '../../../../types/collection';
 
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * 将数组按固定大小拆分为批次。
+ * Splits an array into fixed-size batches.
+ * @param items - The source array to split.
+ * @param batchSize - Number of items per batch; must be a positive integer.
+ * @returns Array of batches, each containing at most `batchSize` items.
  * @since v1.3.0
  */
 export function splitIntoBatches<TItem>(items: TItem[], batchSize: number): TItem[][] {
@@ -47,7 +55,7 @@ export function splitIntoBatches<TItem>(items: TItem[], batchSize: number): TIte
 }
 
 /**
- * 构建 incrementOne 的最小 `$inc` 更新文档。
+ * Builds the minimal `$inc` update document for incrementOne.
  * @since v1.3.0
  */
 export function createIncrementUpdate(
@@ -59,25 +67,25 @@ export function createIncrementUpdate(
 
     if (typeof field === 'string') {
         if (!field.trim()) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, 'incrementOne: field must be a non-empty string.');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'field 必须是字符串或对象');
         }
         if (typeof increment !== 'number' || Number.isNaN(increment)) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, 'incrementOne: increment must be a valid number.');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'increment 必须是数字');
         }
         incPayload = { [field]: increment };
     } else if (field && typeof field === 'object' && !Array.isArray(field)) {
         incPayload = {};
         for (const [key, value] of Object.entries(field)) {
             if (typeof value !== 'number' || Number.isNaN(value)) {
-                throw createError(ErrorCodes.INVALID_ARGUMENT, `incrementOne: field "${key}" must use a numeric increment.`);
+                throw createError(ErrorCodes.INVALID_ARGUMENT, '增量必须是数字');
             }
             incPayload[key] = value;
         }
         if (Object.keys(incPayload).length === 0) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, 'incrementOne: field map must not be empty.');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'field 必须是字符串或对象');
         }
     } else {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'incrementOne: field must be a string or object.');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'field 必须是字符串或对象');
     }
 
     return {
@@ -87,7 +95,7 @@ export function createIncrementUpdate(
 }
 
 /**
- * 原生单条插入透传。
+ * Passthrough for native single-document insert.
  * @since v1.3.0
  */
 export async function insertOneDocument<TSchema extends Document = Document>(
@@ -98,7 +106,7 @@ export async function insertOneDocument<TSchema extends Document = Document>(
 }
 
 /**
- * 原生批量插入透传。
+ * Passthrough for native bulk insert.
  * @since v1.3.0
  */
 export async function insertManyDocuments<TSchema extends Document = Document>(
@@ -109,7 +117,7 @@ export async function insertManyDocuments<TSchema extends Document = Document>(
 }
 
 /**
- * 原生单条更新透传。
+ * Passthrough for native single-document update.
  * @since v1.3.0
  */
 export async function updateOneDocument<TSchema extends Document = Document>(
@@ -120,7 +128,7 @@ export async function updateOneDocument<TSchema extends Document = Document>(
 }
 
 /**
- * 原生批量更新透传。
+ * Passthrough for native bulk update.
  * @since v1.3.0
  */
 export async function updateManyDocuments<TSchema extends Document = Document>(
@@ -131,7 +139,7 @@ export async function updateManyDocuments<TSchema extends Document = Document>(
 }
 
 /**
- * 原生替换单个文档透传。
+ * Passthrough for native single-document replace.
  * @since v1.3.0
  */
 export async function replaceOneDocument<TSchema extends Document = Document>(
@@ -142,29 +150,45 @@ export async function replaceOneDocument<TSchema extends Document = Document>(
 }
 
 /**
- * 原子查找并更新单个文档。
+ * Atomically finds and updates a single document.
  * @since v1.3.0
  */
 export async function findOneAndUpdateDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
-    ...args: Parameters<Collection<TSchema>['findOneAndUpdate']>
+    filter: Parameters<Collection<TSchema>['findOneAndUpdate']>[0],
+    update: Parameters<Collection<TSchema>['findOneAndUpdate']>[1],
+    options?: unknown,
 ): ReturnType<Collection<TSchema>['findOneAndUpdate']> {
-    return collection.findOneAndUpdate(...args);
+    return (collection as any).findOneAndUpdate(filter, update, ...(options !== undefined ? [options] : []));
 }
 
 /**
- * 原子查找并删除单个文档。
+ * Atomically finds and replaces a single document.
+ * @since v1.3.0
+ */
+export async function findOneAndReplaceDocument<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    filter: Parameters<Collection<TSchema>['findOneAndReplace']>[0],
+    replacement: Parameters<Collection<TSchema>['findOneAndReplace']>[1],
+    options?: unknown,
+): ReturnType<Collection<TSchema>['findOneAndReplace']> {
+    return (collection as any).findOneAndReplace(filter, replacement, ...(options !== undefined ? [options] : []));
+}
+
+/**
+ * Atomically finds and deletes a single document.
  * @since v1.3.0
  */
 export async function findOneAndDeleteDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
-    ...args: Parameters<Collection<TSchema>['findOneAndDelete']>
+    filter: Parameters<Collection<TSchema>['findOneAndDelete']>[0],
+    options?: unknown,
 ): ReturnType<Collection<TSchema>['findOneAndDelete']> {
-    return collection.findOneAndDelete(...args);
+    return (collection as any).findOneAndDelete(filter, ...(options !== undefined ? [options] : []));
 }
 
 /**
- * 便利 upsert 包装：强制 `upsert = true`。
+ * Convenience upsert wrapper: forces `upsert = true`.
  * @since v1.3.0
  */
 export async function upsertOneDocument<TSchema extends Document = Document>(
@@ -180,7 +204,7 @@ export async function upsertOneDocument<TSchema extends Document = Document>(
 }
 
 /**
- * 原生单条删除透传。
+ * Passthrough for native single-document delete.
  * @since v1.3.0
  */
 export async function deleteOneDocument<TSchema extends Document = Document>(
@@ -191,7 +215,7 @@ export async function deleteOneDocument<TSchema extends Document = Document>(
 }
 
 /**
- * 原生批量删除透传。
+ * Passthrough for native bulk delete.
  * @since v1.3.0
  */
 export async function deleteManyDocuments<TSchema extends Document = Document>(
@@ -202,7 +226,7 @@ export async function deleteManyDocuments<TSchema extends Document = Document>(
 }
 
 /**
- * 分批批量插入文档。
+ * Bulk-inserts documents in batches.
  * @since v1.3.0
  */
 export async function insertBatchDocuments<TSchema extends Document = Document>(
@@ -210,39 +234,120 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
     documents: TSchema[],
     options: BatchWriteOptions & Parameters<Collection<TSchema>['insertMany']>[1] = {},
 ): Promise<InsertBatchResult> {
-    if (!Array.isArray(documents) || documents.length === 0) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'insertBatch: documents must be a non-empty array.');
+    if (!Array.isArray(documents)) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents 必须是数组类型');
+    }
+    if (documents.length === 0) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents 数组不能为空');
     }
 
-    const { batchSize = 1000, ordered = false, ...driverOptions } = options;
+    const rawOptions = options as BatchWriteOptions & Parameters<Collection<TSchema>['insertMany']>[1] & {
+        concurrency?: number;
+        onError?: 'stop' | 'skip' | 'collect' | 'retry';
+        retryAttempts?: number;
+        retryDelay?: number;
+        onProgress?: (progress: Record<string, unknown>) => void;
+        onRetry?: (retryInfo: Record<string, unknown>) => void;
+    };
+    const {
+        batchSize = 1000,
+        ordered = false,
+        concurrency,
+        onError = 'stop',
+        retryAttempts = 0,
+        retryDelay = 0,
+        onProgress,
+        onRetry,
+        ...driverOptions
+    } = rawOptions;
+
+    if (concurrency !== undefined && (!Number.isInteger(concurrency) || concurrency < 0)) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'concurrency must be a non-negative integer');
+    }
+    if (!['stop', 'skip', 'collect', 'retry'].includes(onError)) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'onError must be one of: stop/skip/collect/retry');
+    }
+    if (!Number.isInteger(retryAttempts) || retryAttempts < 0) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'retryAttempts must be a non-negative integer');
+    }
+
     const batches = splitIntoBatches(documents, batchSize);
-    const result: InsertBatchResult = {
+    const result: InsertBatchResult & {
+        retries: Array<Record<string, unknown>>;
+        errors: Array<Record<string, unknown>>;
+    } = {
         acknowledged: true,
         totalCount: documents.length,
         insertedCount: 0,
         batchCount: batches.length,
         errors: [],
         insertedIds: {},
+        retries: [],
     };
 
     let offset = 0;
     for (const [batchIndex, batch] of batches.entries()) {
-        try {
-            const batchResult = await collection.insertMany(batch as unknown as Parameters<Collection<TSchema>['insertMany']>[0], {
-                ...driverOptions,
-                ordered,
-            });
-            result.insertedCount += batchResult.insertedCount;
-            for (const [key, value] of Object.entries(batchResult.insertedIds)) {
-                result.insertedIds[offset + Number.parseInt(key, 10)] = value;
+        let attempts = 0;
+
+        while (true) {
+            try {
+                const batchResult = await collection.insertMany(batch as unknown as Parameters<Collection<TSchema>['insertMany']>[0], {
+                    ...driverOptions,
+                    ordered,
+                });
+                result.insertedCount += batchResult.insertedCount;
+                for (const [key, value] of Object.entries(batchResult.insertedIds)) {
+                    result.insertedIds[offset + Number.parseInt(key, 10)] = value;
+                }
+                offset += batch.length;
+                onProgress?.({
+                    currentBatch: batchIndex + 1,
+                    totalBatches: batches.length,
+                    inserted: result.insertedCount,
+                    total: documents.length,
+                    percentage: Math.round((result.insertedCount / documents.length) * 100),
+                    retries: result.retries.length,
+                });
+                break;
+            } catch (cause) {
+                const errorRecord = {
+                    batchIndex,
+                    message: cause instanceof Error ? cause.message : String(cause),
+                    error: cause,
+                    attempts: attempts + 1,
+                };
+
+                if (onError === 'retry' && attempts < retryAttempts) {
+                    attempts += 1;
+                    const retryInfo = {
+                        batchIndex,
+                        attempt: attempts,
+                        maxAttempts: retryAttempts,
+                        delay: retryDelay,
+                    };
+                    result.retries.push(retryInfo);
+                    onRetry?.(retryInfo);
+                    if (retryDelay > 0) {
+                        await sleep(retryDelay);
+                    }
+                    continue;
+                }
+
+                result.errors.push(errorRecord);
+                onProgress?.({
+                    currentBatch: batchIndex + 1,
+                    totalBatches: batches.length,
+                    inserted: result.insertedCount,
+                    total: documents.length,
+                    percentage: Math.round((result.insertedCount / documents.length) * 100),
+                    retries: result.retries.length,
+                });
+
+                if (onError === 'stop') {
+                    throw createError(ErrorCodes.WRITE_ERROR, errorRecord.message, undefined, cause as Error);
+                }
+                break;
             }
-            offset += batch.length;
-        } catch (cause) {
-            result.errors.push({
-                batchIndex,
-                message: cause instanceof Error ? cause.message : String(cause),
-            });
-            throw cause;
         }
     }
 
@@ -250,7 +355,7 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
 }
 
 /**
- * 分批更新匹配文档。
+ * Updates matching documents in batches.
  * @since v1.3.0
  */
 export async function updateBatchDocuments<TSchema extends Document = Document>(
@@ -260,13 +365,21 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
     options: UpdateBatchOptions & Parameters<Collection<TSchema>['updateMany']>[2] = {},
 ): Promise<UpdateBatchResult> {
     if (!filter || typeof filter !== 'object' || Array.isArray(filter)) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'updateBatch: filter must be a non-empty object.');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter 必须是对象类型');
     }
-    if ((!update || typeof update !== 'object') && !Array.isArray(update)) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'updateBatch: update must be an object or aggregation pipeline.');
+    if (!update || typeof update !== 'object') {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'update 必须是对象（更新操作符）或数组（聚合管道）');
+    }
+    if (!Array.isArray(update)) {
+        const keys = Object.keys(update as Record<string, unknown>);
+        if (keys.length === 0 || !keys.some((key) => key.startsWith('$'))) {
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'update 必须使用更新操作符（如 $set, $inc 等）');
+        }
     }
 
-    const { batchSize = 1000, sort = { _id: 1 }, ...driverOptions } = options;
+    const { batchSize = 1000, sort = { _id: 1 }, onProgress, ...driverOptions } = options as UpdateBatchOptions & Parameters<Collection<TSchema>['updateMany']>[2] & {
+        onProgress?: (progress: Record<string, unknown>) => void;
+    };
     const ids = await collection.find(filter, {
         projection: { _id: 1 },
         sort,
@@ -277,8 +390,10 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
         totalCount: ids.length,
         matchedCount: 0,
         modifiedCount: 0,
+        upsertedCount: 0,
         batchCount: batches.length,
         errors: [],
+        retries: [],
     };
 
     for (const [batchIndex, batch] of batches.entries()) {
@@ -290,6 +405,14 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
             );
             result.matchedCount += batchResult.matchedCount;
             result.modifiedCount += batchResult.modifiedCount;
+            result.upsertedCount += (batchResult.upsertedCount ?? 0);
+            onProgress?.({
+                currentBatch: batchIndex + 1,
+                totalBatches: batches.length,
+                modified: result.modifiedCount,
+                matched: result.matchedCount,
+                percentage: ids.length === 0 ? 100 : Math.round((result.modifiedCount / ids.length) * 100),
+            });
         } catch (cause) {
             result.errors.push({
                 batchIndex,
@@ -303,7 +426,7 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
 }
 
 /**
- * 分批删除匹配文档。
+ * Deletes matching documents in batches.
  * @since v1.3.0
  */
 export async function deleteBatchDocuments<TSchema extends Document = Document>(
@@ -312,36 +435,96 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
     options: UpdateBatchOptions & Parameters<Collection<TSchema>['deleteMany']>[1] = {},
 ): Promise<DeleteBatchResult> {
     if (!filter || typeof filter !== 'object' || Array.isArray(filter)) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'deleteBatch: filter must be a non-empty object.');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter 必须是对象类型');
     }
 
-    const { batchSize = 1000, sort = { _id: 1 }, ...driverOptions } = options;
+    const rawOptions = options as UpdateBatchOptions& Parameters<Collection<TSchema>['deleteMany']>[1] & {
+        estimateProgress?: boolean;
+        onProgress?: (progress: Record<string, unknown>) => void;
+        onError?: 'stop' | 'skip' | 'collect' | 'retry';
+        retryAttempts?: number;
+        retryDelay?: number;
+        onRetry?: (retryInfo: Record<string, unknown>) => void;
+    };
+    const {
+        batchSize = 1000,
+        sort = { _id: 1 },
+        estimateProgress = true,
+        onProgress,
+        onError = 'stop',
+        retryAttempts = 0,
+        retryDelay = 0,
+        onRetry,
+        ...driverOptions
+    } = rawOptions;
+    if (!['stop', 'skip', 'collect', 'retry'].includes(onError)) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'onError must be one of: stop/skip/collect/retry');
+    }
+    if (!Number.isInteger(retryAttempts) || retryAttempts < 0) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'retryAttempts must be a non-negative integer');
+    }
+
     const ids = await collection.find(filter, {
         projection: { _id: 1 },
         sort,
     } as FindOptions).map((document) => document._id).toArray();
     const batches = splitIntoBatches(ids, batchSize);
-    const result: DeleteBatchResult = {
+    const result: DeleteBatchResult & {
+        retries: Array<Record<string, unknown>>;
+        errors: Array<Record<string, unknown>>;
+    } = {
         acknowledged: true,
-        totalCount: ids.length,
+        totalCount: estimateProgress ? ids.length : null,
         deletedCount: 0,
         batchCount: batches.length,
         errors: [],
+        retries: [],
     };
 
     for (const [batchIndex, batch] of batches.entries()) {
-        try {
-            const batchResult = await collection.deleteMany(
-                { _id: { $in: batch } } as Parameters<Collection<TSchema>['deleteMany']>[0],
-                driverOptions,
-            );
-            result.deletedCount += batchResult.deletedCount;
-        } catch (cause) {
-            result.errors.push({
-                batchIndex,
-                message: cause instanceof Error ? cause.message : String(cause),
-            });
-            throw cause;
+        let attempts = 0;
+        while (true) {
+            try {
+                const batchResult = await collection.deleteMany(
+                    { _id: { $in: batch } } as Parameters<Collection<TSchema>['deleteMany']>[0],
+                    driverOptions,
+                );
+                result.deletedCount += batchResult.deletedCount;
+                onProgress?.({
+                    currentBatch: batchIndex + 1,
+                    totalBatches: batches.length,
+                    deleted: result.deletedCount,
+                    percentage: estimateProgress && ids.length > 0 ? Math.round((result.deletedCount / ids.length) * 100) : null,
+                });
+                break;
+            } catch (cause) {
+                const errorRecord = {
+                    batchIndex,
+                    message: cause instanceof Error ? cause.message : String(cause),
+                    error: cause,
+                    attempts: attempts + 1,
+                };
+                if (onError === 'retry' && attempts < retryAttempts) {
+                    attempts += 1;
+                    const retryInfo = {
+                        batchIndex,
+                        attempt: attempts,
+                        maxAttempts: retryAttempts,
+                        delay: retryDelay,
+                    };
+                    result.retries.push(retryInfo);
+                    onRetry?.(retryInfo);
+                    if (retryDelay > 0) {
+                        await sleep(retryDelay);
+                    }
+                    continue;
+                }
+                result.errors.push(errorRecord);
+                if (onError === 'stop') {
+                    throw createError(ErrorCodes.WRITE_ERROR, errorRecord.message, undefined, cause as Error);
+                }
+                break;
+            }
         }
     }
 
@@ -349,7 +532,17 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
 }
 
 /**
- * 便利字段递增/递减。
+ * Result returned by incrementOneDocument — matches v1 return contract.
+ */
+export interface IncrementOneResult<TSchema extends Document = Document> {
+    acknowledged: boolean;
+    matchedCount: number;
+    modifiedCount: number;
+    value: TSchema | null;
+}
+
+/**
+ * Convenience function for field increment/decrement.
  * @since v1.3.0
  */
 export async function incrementOneDocument<TSchema extends Document = Document>(
@@ -358,18 +551,58 @@ export async function incrementOneDocument<TSchema extends Document = Document>(
     field: string | Record<string, number>,
     incrementOrOptions?: number | IncrementOneOptions,
     maybeOptions?: IncrementOneOptions,
-): Promise<TSchema | null> {
-    const options = typeof incrementOrOptions === 'number' || incrementOrOptions === undefined
-        ? (maybeOptions ?? {})
-        : incrementOrOptions;
-    const increment = typeof incrementOrOptions === 'number' ? incrementOrOptions : 1;
-    const updateDocument = createIncrementUpdate(field, increment, options.$set);
-    const { $set, ...driverOptions } = options;
-    void $set;
+): Promise<IncrementOneResult<TSchema>> {
+    if (!filter || typeof filter !== 'object' || Array.isArray(filter)) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter 必须是非空对象');
+    }
 
-    return collection.findOneAndUpdate(filter, updateDocument as Parameters<Collection<TSchema>['findOneAndUpdate']>[1], {
-        ...driverOptions,
-        returnDocument: (options.returnDocument ?? 'after') as 'before' | 'after',
-    }) as Promise<TSchema | null>;
+    let options: IncrementOneOptions = {};
+    let increment = 1;
+    if (typeof incrementOrOptions === 'number' || incrementOrOptions === undefined) {
+        increment = typeof incrementOrOptions === 'number' ? incrementOrOptions : 1;
+        options = maybeOptions ?? {};
+    } else if (incrementOrOptions && typeof incrementOrOptions === 'object' && !Array.isArray(incrementOrOptions)) {
+        options = incrementOrOptions;
+    } else {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'increment 必须是数字');
+    }
+
+    const updateDocument = createIncrementUpdate(field, increment, options.$set);
+    const { $set, projection, ...driverOptions } = options;
+    void $set;
+    const normalizedProjection = normalizeProjection(projection as string[] | Record<string, unknown> | null | undefined);
+    // Use includeResultMetadata: true to get { value, lastErrorObject, ok } — matches v1 behaviour.
+    const findOptions: Record<string, unknown> = {
+        returnDocument: options.returnDocument ?? 'after',
+        includeResultMetadata: true,
+    };
+    if (normalizedProjection) findOptions.projection = normalizedProjection;
+    if (driverOptions.maxTimeMS !== undefined) findOptions.maxTimeMS = driverOptions.maxTimeMS;
+    if (driverOptions.comment !== undefined) findOptions.comment = driverOptions.comment;
+
+    const rawResult = await (collection as unknown as Collection<TSchema>).findOneAndUpdate(
+        filter as Parameters<Collection<TSchema>['findOneAndUpdate']>[0],
+        updateDocument as Parameters<Collection<TSchema>['findOneAndUpdate']>[1],
+        findOptions as unknown as FindOneAndUpdateOptions & { includeResultMetadata: true },
+    ) as unknown;
+
+    // Handle both formats: legacy { value, lastErrorObject, ok } and modern (direct document).
+    let value: TSchema | null;
+    let matchedCount: number;
+    let modifiedCount: number;
+
+    if (rawResult && typeof rawResult === 'object' && 'lastErrorObject' in (rawResult as object)) {
+        const r = rawResult as { value: TSchema | null; lastErrorObject?: { n?: number; updatedExisting?: boolean }; ok: number };
+        value = r.value ?? null;
+        matchedCount = r.lastErrorObject?.n ?? 0;
+        modifiedCount = (r.lastErrorObject?.updatedExisting === true && value != null) ? 1 : 0;
+    } else {
+        // Modern driver stub: document returned directly
+        value = (rawResult as TSchema) ?? null;
+        matchedCount = value != null ? 1 : 0;
+        modifiedCount = value != null ? 1 : 0;
+    }
+
+    return { acknowledged: true, matchedCount, modifiedCount, value };
 }
 

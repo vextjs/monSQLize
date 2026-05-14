@@ -1,11 +1,12 @@
-/**
- * P3-A cache façade。
+﻿/**
+ * Cache façade.
  *
- * 说明：
- * - 本阶段恢复 MemoryCache、Redis cache adapter 与最小 distributed invalidator。
- * - function-cache、transaction/lock 主体与更完整多级缓存策略在后续阶段继续回补。
+ * Description:
+ * - MemoryCache wraps cache-hub's HubMemoryCache using composition, preserving the v1 public contract.
+ * - Exposes the CacheLike interface, createRedisCacheAdapter, and DistributedCacheInvalidator.
  */
 
+import { MemoryCache as HubMemoryCache } from 'cache-hub';
 import { createError, ErrorCodes } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
 import type {
@@ -49,115 +50,81 @@ interface RedisLike {
 }
 
 /**
- * 基于内存的 L1 缓存实现。
+ * In-memory L1 cache implementation.
  *
- * 适用场景：
- * - 本地热点查询缓存
- * - `withCache()` / `FunctionCache` 的默认缓存后端
- * - 需要按 TTL、LRU 或通配符批量失效的轻量场景
+ * Use cases:
+ * - Local hot-path query caching
+ * - Default cache backend for `withCache()` / `FunctionCache`
+ * - Lightweight scenarios requiring TTL, LRU, or wildcard bulk invalidation
+ *
+ * Implementation: wraps cache-hub's MemoryCache engine using composition,
+ * maintaining the full v1 public contract (setLockManager/getLockManager/
+ * getStats.calls/set returns boolean, etc.).
  *
  * @implements {CacheLike}
  * @since v1.3.0
  */
 export class MemoryCache implements CacheLike {
-    private readonly store = new Map<string, { value: unknown; size: number; expireAt: number | null; }>();
-    private lockManager: CacheLockLike | null = null;
-    private readonly stats = {
-        hits: 0,
-        misses: 0,
-        calls: 0,
-        sets: 0,
-        deletes: 0,
-        evictions: 0,
-        memoryUsage: 0,
-    };
+    private readonly _hub: HubMemoryCache;
+    private _lockManager: CacheLockLike | null = null;
+    private _calls = 0;
 
-    constructor(private readonly options: MemoryCacheOptions = {}) {}
+    constructor(options: MemoryCacheOptions = {}) {
+        const { maxSize, ...rest } = options as MemoryCacheOptions & { maxSize?: number };
+        this._hub = new HubMemoryCache({
+            ...rest,
+            // v1 uses maxSize, cache-hub uses maxEntries — map for compat
+            maxEntries: (rest as Record<string, unknown>).maxEntries as number | undefined ?? maxSize,
+        });
+    }
 
     /**
-     * 设置缓存锁管理器。
+     * Set the cache lock manager.
      * @since v1.3.0
      */
     setLockManager(lockManager: CacheLockLike | null): void {
-        this.lockManager = lockManager;
+        this._lockManager = lockManager;
     }
 
     /**
-     * 获取缓存锁管理器。
+     * Get the cache lock manager.
      * @since v1.3.0
      */
     getLockManager(): CacheLockLike | null {
-        return this.lockManager;
+        return this._lockManager;
     }
 
     /**
-     * 获取缓存值。
+     * Get a cached value. Every call is counted in `calls` stats.
      * @since v1.3.0
      */
     get(key: string): unknown {
-        this.stats.calls += 1;
-        const entry = this.store.get(key);
-        if (!entry) {
-            this.stats.misses += 1;
-            return undefined;
-        }
-
-        if (entry.expireAt !== null && entry.expireAt <= Date.now()) {
-            this.delete(key);
-            this.stats.misses += 1;
-            return undefined;
-        }
-
-        this.store.delete(key);
-        this.store.set(key, entry);
-        this.stats.hits += 1;
-        return entry.value;
+        this._calls += 1;
+        return this._hub.get(key);
     }
 
     /**
-     * 写入缓存值。
+     * Write a cached value. Returns false if the key is locked by the lock manager.
      * @since v1.3.0
      */
     set(key: string, value: unknown, ttl = 0): boolean {
-        if (this.lockManager?.isLocked(key)) {
+        if (this._lockManager?.isLocked(key)) {
             return false;
         }
-
-        const existing = this.store.get(key);
-        if (existing) {
-            this.stats.memoryUsage -= existing.size;
-            this.store.delete(key);
-        }
-
-        const entry = {
-            value,
-            size: estimateEntrySize(key, value),
-            expireAt: ttl > 0 ? Date.now() + ttl : null,
-        };
-        this.store.set(key, entry);
-        this.stats.sets += 1;
-        this.stats.memoryUsage += entry.size;
-        this.enforceLimits();
+        this._hub.set(key, value, ttl);
         return true;
     }
 
     /**
-     * 删除缓存值。
+     * Delete a cached value.
      * @since v1.3.0
      */
     delete(key: string): boolean {
-        const entry = this.store.get(key);
-        if (!entry) {
-            return false;
-        }
-        this.store.delete(key);
-        this.stats.deletes += 1;
-        this.stats.memoryUsage -= entry.size;
-        return true;
+        return this._hub.del(key);
     }
 
     /**
-     * `del()` 兼容别名。
+     * Alias for `delete()`.
      * @since v1.3.0
      */
     del(key: string): boolean {
@@ -165,15 +132,15 @@ export class MemoryCache implements CacheLike {
     }
 
     /**
-     * 检查缓存键是否存在。
+     * Check whether a cache key exists (also counted in calls stats).
      * @since v1.3.0
      */
     exists(key: string): boolean {
-        return this.get(key) !== undefined;
+        return this._hub.exists(key);
     }
 
     /**
-     * 批量读取缓存。
+     * Read multiple cache entries (each key is counted in calls stats).
      * @since v1.3.0
      */
     getMany(keys: string[]): Record<string, unknown> {
@@ -188,7 +155,7 @@ export class MemoryCache implements CacheLike {
     }
 
     /**
-     * 批量写入缓存。
+     * Write multiple cache entries (each key is checked against the lock manager).
      * @since v1.3.0
      */
     setMany(values: Record<string, unknown>, ttl = 0): boolean {
@@ -199,7 +166,7 @@ export class MemoryCache implements CacheLike {
     }
 
     /**
-     * 批量删除缓存。
+     * Delete multiple cache entries.
      * @since v1.3.0
      */
     delMany(keys: string[]): number {
@@ -213,108 +180,80 @@ export class MemoryCache implements CacheLike {
     }
 
     /**
-     * 清空缓存。
+     * Clear the cache.
      * @since v1.3.0
      */
     clear(): void {
-        this.store.clear();
-        this.stats.memoryUsage = 0;
+        this._hub.clear();
     }
 
     /**
-     * 按通配符列出缓存键。
+     * List cache keys matching a wildcard pattern.
      * @since v1.3.0
      */
     keys(pattern = '*'): string[] {
-        const matcher = createWildcardMatcher(pattern);
-        return [...this.store.keys()].filter((key) => matcher.test(key));
+        return this._hub.keys(pattern);
     }
 
     /**
-     * 按通配符删除缓存键。
+     * Delete cache keys matching a wildcard pattern.
      * @since v1.3.0
      */
     delPattern(pattern = '*'): number {
-        return this.delMany(this.keys(pattern));
+        return this._hub.delPattern(pattern);
     }
 
     /**
-     * 获取缓存统计信息。
+     * Get cache statistics (including the `calls` field required by v1).
      * @since v1.3.0
      */
     getStats(): CacheStats {
+        const s = this._hub.getStats();
+        const calls = this._calls;
         return {
-            hits: this.stats.hits,
-            misses: this.stats.misses,
-            calls: this.stats.calls,
-            hitRate: this.stats.calls > 0 ? this.stats.hits / this.stats.calls : 0,
-            sets: this.stats.sets,
-            deletes: this.stats.deletes,
-            evictions: this.stats.evictions,
-            size: this.store.size,
-            memoryUsage: this.stats.memoryUsage,
-            memoryUsageMB: this.stats.memoryUsage / (1024 * 1024),
+            hits: s.hits,
+            misses: s.misses,
+            calls,
+            hitRate: calls > 0 ? s.hits / calls : 0,
+            sets: s.sets,
+            deletes: s.deletes,
+            evictions: s.evictions,
+            size: s.entries,
+            memoryUsage: s.memoryUsage,
+            memoryUsageMB: s.memoryUsageMB,
         };
     }
 
     /**
-     * 重置缓存统计信息。
+     * Reset cache statistics (including calls).
      * @since v1.3.0
      */
     resetStats(): void {
-        this.stats.hits = 0;
-        this.stats.misses = 0;
-        this.stats.calls = 0;
-        this.stats.sets = 0;
-        this.stats.deletes = 0;
-        this.stats.evictions = 0;
+        this._hub.resetStats();
+        this._calls = 0;
     }
 
     /**
-     * 获取或创建缓存实例。
+     * Get or create a cache instance.
      * @since v1.3.0
      */
     static getOrCreateCache(cache?: Record<string, unknown> | MemoryCache): MemoryCache {
         return cache instanceof MemoryCache ? cache : new MemoryCache(cache as MemoryCacheOptions);
     }
-
-    private enforceLimits(): void {
-        const maxSize = this.options.maxSize ?? 100000;
-        while (this.store.size > maxSize) {
-            const oldestKey = this.store.keys().next().value;
-            if (!oldestKey) {
-                break;
-            }
-            this.delete(oldestKey);
-            this.stats.evictions += 1;
-        }
-
-        const maxMemory = this.options.maxMemory ?? 0;
-        if (maxMemory > 0) {
-            while (this.stats.memoryUsage > maxMemory) {
-                const oldestKey = this.store.keys().next().value;
-                if (!oldestKey) {
-                    break;
-                }
-                this.delete(oldestKey);
-                this.stats.evictions += 1;
-            }
-        }
-    }
 }
 
 /**
- * 创建一个符合 `CacheLike` 契约的 Redis 适配器。
+ * Create a Redis adapter that conforms to the `CacheLike` contract.
  *
- * 该适配器主要用于：
- * - 为 `MemoryCache` 提供 L2 远端缓存能力
- * - 给 `withCache()` / `FunctionCache` 提供可共享的缓存后端
- * - 与 `DistributedCacheInvalidator` 组合实现跨实例缓存失效
+ * Primary use cases:
+ * - Provide L2 remote cache capability to `MemoryCache`
+ * - Supply a shareable cache backend for `withCache()` / `FunctionCache`
+ * - Combine with `DistributedCacheInvalidator` to achieve cross-instance cache invalidation
  *
- * @param {string | RedisLike | RedisCacheAdapterOptions} redisUrlOrInstance - Redis URL、现有客户端实例，或包含 `client/prefix` 的适配器配置。
- * @param {Record<string, unknown>} [adapterOptions={}] - 附加适配器选项；当首参是 URL 或配置对象时，可用于补充 `prefix` 等信息。
- * @returns {CacheLike & { getRedisInstance(): RedisLike; }} 返回实现了 `CacheLike` 的 Redis 适配器，并暴露底层 Redis 实例。
- * @throws {Error} 当底层客户端不支持 `scan()` 且调用 `keys()` / `delPattern()` 时抛出配置错误。
+ * @param {string | RedisLike | RedisCacheAdapterOptions} redisUrlOrInstance - A Redis URL, an existing client instance, or an adapter config object containing `client` / `prefix`.
+ * @param {Record<string, unknown>} [adapterOptions={}] - Additional adapter options; can supply `prefix` and similar fields when the first argument is a URL or config object.
+ * @returns {CacheLike & { getRedisInstance(): RedisLike; }} A Redis adapter implementing `CacheLike`, with the underlying Redis instance exposed.
+ * @throws {Error} When the underlying client does not support `scan()` and `keys()` / `delPattern()` is called.
  * @since v1.3.0
  */
 export function createRedisCacheAdapter(
@@ -328,12 +267,12 @@ export function createRedisCacheAdapter(
     const getValue = async (key: string) => {
         const value = await Promise.resolve(client.get(withPrefix(key)));
         if (value === null || value === undefined) {
-            return undefined;
+            return null;
         }
         try {
             return JSON.parse(String(value));
         } catch {
-            return undefined;
+            return null;
         }
     };
 
@@ -444,32 +383,43 @@ export function createRedisCacheAdapter(
     };
 }
 
+/**
+ * Options for {@link DistributedCacheInvalidator}.
+ * Supports both a shared Redis connection and separate pub/sub connections.
+ */
 export interface DistributedCacheInvalidatorOptions {
     cache?: CacheLike | { local?: CacheLike; remote?: CacheLike; };
     channel?: string;
     instanceId?: string;
     logger?: LoggerLike | null;
+    /** v1 compat: pass an existing Redis instance (pub/sub share the same connection) */
+    redis?: RedisLike;
+    /** v1 compat: create a dedicated pub/sub connection from a URL (requires ioredis) */
+    redisUrl?: string;
+    /** Legacy API: explicitly specify the pub connection */
     pub?: RedisLike;
+    /** Legacy API: explicitly specify the sub connection */
     sub?: RedisLike;
 }
 
 /**
- * 分布式缓存失效协调器。
+ * Distributed cache invalidation coordinator.
  *
- * 负责将本地缓存失效动作扩展为“本地清理 + 广播通知 + 远端实例消费消息”，
- * 适用于多实例部署下的缓存一致性控制。
+ * Implements cross-instance cache invalidation notifications via Redis Pub/Sub,
+ * suitable for cache consistency control in multi-instance deployments.
  *
  * @since v1.3.0
  */
 export class DistributedCacheInvalidator {
-    private readonly channel: string;
-    private readonly instanceId: string;
-    private readonly logger?: LoggerLike | null;
-    private readonly local?: CacheLike;
-    private readonly remote?: CacheLike;
-    private readonly pub?: RedisLike;
-    private readonly sub?: RedisLike;
-    private readonly stats = {
+    channel: string;
+    instanceId: string;
+    private logger?: LoggerLike | null;
+    private local?: CacheLike;
+    private remote?: CacheLike;
+    pub?: RedisLike;
+    sub?: RedisLike;
+    private _ownsConnections: boolean = false;
+    private stats = {
         messagesSent: 0,
         messagesReceived: 0,
         invalidationsTriggered: 0,
@@ -478,85 +428,149 @@ export class DistributedCacheInvalidator {
 
     constructor(options: DistributedCacheInvalidatorOptions = {}) {
         if (!options.cache) {
-            throw createError(ErrorCodes.INVALID_CONFIG, 'DistributedCacheInvalidator requires a cache instance.');
+            throw createError(ErrorCodes.INVALID_CONFIG, 'DistributedCacheInvalidator requires a cache instance');
         }
 
         this.channel = options.channel ?? 'monsqlize:cache:invalidate';
         this.instanceId = options.instanceId ?? `instance-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         this.logger = options.logger;
-        if ('local' in (options.cache as object) || 'remote' in (options.cache as object)) {
+
+        const cache = options.cache as Record<string, unknown>;
+        if ('local' in cache || 'remote' in cache) {
             const scopedCache = options.cache as { local?: CacheLike; remote?: CacheLike; };
             this.local = scopedCache.local;
             this.remote = scopedCache.remote;
         } else {
             this.local = options.cache as CacheLike;
         }
-        this.pub = options.pub;
-        this.sub = options.sub;
+
+        if (options.redis) {
+            // v1 API: use same instance for pub/sub (test-friendly: mockRedis === both)
+            this.pub = options.redis;
+            this.sub = options.redis;
+            this._ownsConnections = false;
+        } else if (options.redisUrl) {
+            // v1 API: create independent connections via URL
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const IoRedis = require('ioredis');
+            this.pub = new IoRedis(options.redisUrl) as RedisLike;
+            this.sub = new IoRedis(options.redisUrl) as RedisLike;
+            this._ownsConnections = true;
+        } else {
+            // legacy API: explicit pub/sub
+            this.pub = options.pub;
+            this.sub = options.sub;
+        }
+
+        if (this.pub && this.pub.on) {
+            this.pub.on('error', (err: unknown) => {
+                this.stats.errors++;
+                this.logger?.error?.('[DistributedCacheInvalidator] Redis pub error:', (err as Error).message);
+            });
+        }
+        if (this.sub && this.sub !== this.pub && this.sub.on) {
+            this.sub.on('error', (err: unknown) => {
+                this.stats.errors++;
+                this.logger?.error?.('[DistributedCacheInvalidator] Redis sub error:', (err as Error).message);
+            });
+        }
+
+        if (this.sub) {
+            this._setupSubscription();
+        }
+    }
+
+    private _setupSubscription(): void {
+        this.sub!.subscribe!(this.channel, (err?: Error | null) => {
+            if (err) {
+                this.stats.errors++;
+                this.logger?.error?.('[DistributedCacheInvalidator] Subscribe error:', err.message);
+            } else {
+                this.logger?.info?.(`[DistributedCacheInvalidator] Subscribed to channel: ${this.channel}`);
+            }
+        });
+
+        this.sub!.on!('message', async (channel: unknown, message: unknown) => {
+            if (channel !== this.channel) return;
+            this.stats.messagesReceived++;
+            try {
+                const data = JSON.parse(message as string) as { type?: string; pattern?: string; instanceId?: string; };
+                if (data.instanceId === this.instanceId) return;
+                if (data.type === 'invalidate' && data.pattern) {
+                    await this._handleInvalidation(data.pattern);
+                }
+            } catch (error) {
+                this.stats.errors++;
+                this.logger?.error?.('[DistributedCacheInvalidator] Message parse error:', (error as Error).message);
+            }
+        });
+    }
+
+    private async _handleInvalidation(pattern: string): Promise<void> {
+        try {
+            if (this.local?.delPattern) {
+                const localDeleted = Number(await Promise.resolve(this.local.delPattern(pattern)));
+                this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated local cache: ${pattern}, deleted: ${localDeleted} keys`);
+            }
+            if (this.remote?.delPattern) {
+                const remoteDeleted = Number(await Promise.resolve(this.remote.delPattern(pattern)));
+                this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated remote cache: ${pattern}, deleted: ${remoteDeleted} keys`);
+            }
+            this.stats.invalidationsTriggered++;
+        } catch (error) {
+            this.stats.errors++;
+            this.logger?.error?.('[DistributedCacheInvalidator] Invalidation error:', (error as Error).message);
+        }
     }
 
     /**
-     * 按模式触发缓存失效，并在配置了 `pub.publish()` 时向其他实例广播消息。
-     *
-     * @param {string} pattern - 通配符模式；为空时直接忽略。
-     * @returns {Promise<void>}
-     * @since v1.3.0
+     * Broadcast a cache invalidation message to other instances.
+     * Only publishes — local cache of the sending instance is NOT cleared here.
+     * (Cache clearing happens in _handleInvalidation when OTHER instances receive the message.)
      */
     async invalidate(pattern: string): Promise<void> {
-        if (!pattern) {
-            return;
-        }
+        if (!pattern) return;
 
-        await this.invalidateCache(pattern);
+        // Clear local and remote caches immediately on the sending instance
+        await this._handleInvalidation(pattern);
 
-        if (this.pub?.publish) {
-            await Promise.resolve(this.pub.publish(this.channel, JSON.stringify({
-                type: 'invalidate',
-                pattern,
-                instanceId: this.instanceId,
-                timestamp: Date.now(),
-            })));
-            this.stats.messagesSent += 1;
+        // Only broadcast via Redis if a pub connection is configured
+        if (!this.pub) return;
+
+        const message = JSON.stringify({
+            type: 'invalidate',
+            pattern,
+            instanceId: this.instanceId,
+            timestamp: Date.now(),
+        });
+
+        try {
+            await Promise.resolve(this.pub.publish!(this.channel, message));
+            this.stats.messagesSent++;
+            this.logger?.debug?.(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
+        } catch (error) {
+            this.stats.errors++;
+            this.logger?.error?.('[DistributedCacheInvalidator] Publish error:', (error as Error).message);
+            throw error;
         }
     }
 
     /**
-     * 处理来自订阅通道的广播消息。
-     *
-     * 仅当消息：
-     * - 来自当前通道
-     * - 类型为 `invalidate`
-     * - 且不是本实例自己发送
-     * 时才会触发本地失效。
-     *
-     * @param {string} channel - 收到消息的通道名。
-     * @param {string} message - JSON 字符串消息体。
-     * @returns {Promise<void>}
-     * @since v1.3.0
+     * Manually handle a message from the subscription channel (for external message routing).
      */
     async handleMessage(channel: string, message: string): Promise<void> {
-        if (channel !== this.channel) {
-            return;
-        }
-        this.stats.messagesReceived += 1;
+        if (channel !== this.channel) return;
+        this.stats.messagesReceived++;
         try {
             const data = JSON.parse(message) as { type?: string; pattern?: string; instanceId?: string; };
-            if (data.instanceId === this.instanceId || data.type !== 'invalidate' || !data.pattern) {
-                return;
-            }
-            await this.invalidateCache(data.pattern);
+            if (data.instanceId === this.instanceId || data.type !== 'invalidate' || !data.pattern) return;
+            await this._handleInvalidation(data.pattern);
         } catch (cause) {
-            this.stats.errors += 1;
+            this.stats.errors++;
             this.logger?.error?.('[DistributedCacheInvalidator] Failed to parse message', cause);
         }
     }
 
-    /**
-     * 返回当前失效协调器的运行统计。
-     *
-     * @returns {Record<string, unknown>} 包含消息收发次数、触发次数、错误数、通道与实例标识。
-     * @since v1.3.0
-     */
     getStats(): Record<string, unknown> {
         return {
             ...this.stats,
@@ -565,35 +579,23 @@ export class DistributedCacheInvalidator {
         };
     }
 
-    /**
-     * 关闭分布式失效器。
-     * @since v1.3.0
-     */
     async close(): Promise<void> {
-        if (this.sub?.unsubscribe) {
-            await Promise.resolve(this.sub.unsubscribe(this.channel));
+        try {
+            if (this.sub?.unsubscribe) {
+                await Promise.resolve(this.sub.unsubscribe(this.channel));
+            }
+            if (this.pub?.quit) {
+                await Promise.resolve(this.pub.quit());
+            }
+            if (this.sub?.quit) {
+                await Promise.resolve(this.sub.quit());
+            }
+            this.logger?.info?.('[DistributedCacheInvalidator] Closed');
+        } catch (error) {
+            this.logger?.error?.('[DistributedCacheInvalidator] Close error:', (error as Error).message);
         }
-        if (this.pub?.quit) {
-            await Promise.resolve(this.pub.quit());
-        }
-        if (this.sub && this.sub !== this.pub && this.sub.quit) {
-            await Promise.resolve(this.sub.quit());
-        }
-    }
-
-    private async invalidateCache(pattern: string): Promise<void> {
-        let deleted = 0;
-        if (this.local?.delPattern) {
-            deleted += Number(await Promise.resolve(this.local.delPattern(pattern)));
-        }
-        if (this.remote?.delPattern) {
-            deleted += Number(await Promise.resolve(this.remote.delPattern(pattern)));
-        }
-        this.stats.invalidationsTriggered += 1;
-        this.logger?.debug?.('[DistributedCacheInvalidator] invalidate', { pattern, deleted });
     }
 }
-
 function resolveRedisClient(
     redisUrlOrInstance: string | RedisLike | RedisCacheAdapterOptions,
     adapterOptions: Record<string, unknown>,
@@ -632,25 +634,4 @@ function resolveRedisClient(
     throw createError(ErrorCodes.INVALID_ARGUMENT, 'redisUrlOrInstance must be a Redis URL string or Redis client instance.');
 }
 
-function estimateEntrySize(key: string, value: unknown): number {
-    const keySize = key.length * 2;
-    let valueSize = 8;
-    if (typeof value === 'string') {
-        valueSize = value.length * 2;
-    } else if (typeof value === 'object' && value !== null) {
-        try {
-            valueSize = JSON.stringify(value).length * 2;
-        } catch {
-            valueSize = 100;
-        }
-    }
-    return keySize + valueSize;
-}
-
-function createWildcardMatcher(pattern: string): RegExp {
-    const escaped = pattern
-        .replace(/[|\\{}()[\]^$+?.]/g, '\\$&')
-        .replace(/\*/g, '.*');
-    return new RegExp(`^${escaped}$`);
-}
 

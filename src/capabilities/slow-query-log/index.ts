@@ -1,9 +1,9 @@
 /**
- * P4-C slow-query-log 能力。
+ * Slow query log capability.
  *
- * 说明：
- * - 当前模块负责慢查询配置合并、队列聚合、存储抽象与运行时 façade。
- * - 公开与共享类型统一由 `types/slow-query-log.d.ts` 承接；此处只保留运行时实现与内部归一化状态。
+ * Description:
+ * - Responsible for slow query config merging, queue aggregation, storage abstraction, and runtime façade.
+ * - Public and shared types are managed by `types/slow-query-log.d.ts`; only runtime implementation and internal normalised state are kept here.
  */
 
 import { createHash } from 'node:crypto';
@@ -38,7 +38,8 @@ type NormalizedSlowQueryLogStorageConfig = SlowQueryLogStorageConfig & {
     collection: string;
     ttl: number;
 };
-
+
+/** Default {@link SlowQueryLogConfig} used when the feature is not explicitly configured. Slow query logging is disabled by default. */
 export const DEFAULT_SLOW_QUERY_LOG_CONFIG: SlowQueryLogConfig = {
     enabled: false,
     storage: {
@@ -67,10 +68,22 @@ export const DEFAULT_SLOW_QUERY_LOG_CONFIG: SlowQueryLogConfig = {
     },
 };
 
+/**
+ * Generates a deterministic SHA-1 hash from a query object.
+ * Used as a cache key for slow-query log deduplication.
+ * @param input - Query descriptor (filter, pipeline, etc.)
+ * @returns Hex-encoded SHA-1 string.
+ * @since v1.6.0
+ */
 export function generateQueryHash(input: unknown): string {
     return createHash('sha1').update(stableStringify(input)).digest('hex');
 }
 
+/**
+ * Accumulates slow-query log entries in memory and flushes them in batches
+ * to the configured storage backend.
+ * @since v1.6.0
+ */
 export class BatchQueue {
     private readonly buffer: SlowQueryLogEntry[] = [];
     private readonly batchSize: number;
@@ -92,7 +105,7 @@ export class BatchQueue {
     }
 
     /**
-     * 添加日志到队列。
+     * Add a log entry to the queue.
      * @since v1.3.1
      */
     async add(log: SlowQueryLogEntry): Promise<void> {
@@ -110,7 +123,7 @@ export class BatchQueue {
     }
 
     /**
-     * 刷新缓冲区。
+     * Flush the buffer.
      * @since v1.3.1
      */
     async flush(): Promise<void> {
@@ -136,7 +149,7 @@ export class BatchQueue {
     }
 
     /**
-     * 关闭队列并刷新残留日志。
+     * Close the queue and flush any remaining log entries.
      * @since v1.3.1
      */
     async close(): Promise<void> {
@@ -148,6 +161,11 @@ export class BatchQueue {
     }
 }
 
+/**
+ * In-memory implementation of {@link SlowQueryLogStorage}.
+ * Useful for testing and single-process deployments.
+ * @since v1.6.0
+ */
 export class SlowQueryLogMemoryStorage implements SlowQueryLogStorage {
     private readonly records = new Map<string, SlowQueryLogRecord>();
 
@@ -189,6 +207,11 @@ export class SlowQueryLogMemoryStorage implements SlowQueryLogStorage {
     }
 }
 
+/**
+ * MongoDB-backed implementation of {@link SlowQueryLogStorage}.
+ * Persists slow-query records to a dedicated MongoDB collection.
+ * @since v1.6.0
+ */
 export class MongoDBSlowQueryLogStorage implements SlowQueryLogStorage {
     private readonly logger: LoggerLike | null;
     private readonly businessClient: MongoClient | null;
@@ -247,10 +270,6 @@ export class MongoDBSlowQueryLogStorage implements SlowQueryLogStorage {
                     collection: record.collection,
                     operation: record.operation,
                     firstSeen: record.firstSeen,
-                    minTimeMs: record.minTimeMs,
-                    maxTimeMs: record.maxTimeMs,
-                    count: 0,
-                    totalTimeMs: 0,
                 },
                 $set: {
                     lastSeen: record.lastSeen,
@@ -331,6 +350,10 @@ export class MongoDBSlowQueryLogStorage implements SlowQueryLogStorage {
     }
 }
 
+/**
+ * Merges and validates slow-query log configuration objects.
+ * @since v1.6.0
+ */
 export class SlowQueryLogConfigManager {
     static mergeConfig(userConfig?: SlowQueryLogConfigInput, businessType = 'mongodb'): SlowQueryLogConfig {
         if (userConfig === undefined || userConfig === null) {
@@ -384,6 +407,11 @@ export class SlowQueryLogConfigManager {
     }
 }
 
+/**
+ * Orchestrates the full slow-query logging pipeline:
+ * storage initialization, batching, filtering, and shutdown.
+ * @since v1.6.0
+ */
 export class SlowQueryLogManager {
     readonly config: SlowQueryLogConfig;
     readonly storage: SlowQueryLogStorage;
@@ -409,7 +437,7 @@ export class SlowQueryLogManager {
     }
 
     /**
-     * 初始化管理器。
+     * Initialize the manager.
      * @since v1.3.1
      */
     async initialize(): Promise<void> {
@@ -421,7 +449,7 @@ export class SlowQueryLogManager {
     }
 
     /**
-     * 保存单条慢查询日志。
+     * Save a single slow-query log entry.
      * @since v1.3.1
      */
     async save(log: SlowQueryLogEntry): Promise<void> {
@@ -441,7 +469,7 @@ export class SlowQueryLogManager {
     }
 
     /**
-     * 查询已聚合的慢查询日志。
+     * Query aggregated slow-query log records.
      * @since v1.3.1
      */
     async query(filter: SlowQueryLogFilter = {}, options: SlowQueryLogQueryOptions = {}): Promise<SlowQueryLogRecord[]> {
@@ -450,7 +478,7 @@ export class SlowQueryLogManager {
     }
 
     /**
-     * 关闭管理器。
+     * Close the manager.
      * @since v1.3.1
      */
     async close(): Promise<void> {
@@ -641,5 +669,68 @@ async function defaultClientFactory(uri: string, options?: MongoClientOptions): 
     const client = new MongoDriverClient(uri, options);
     await client.connect();
     return client;
+}
+
+/**
+ * Reads the slow query threshold (in ms) from defaults; falls back to 500ms if absent.
+ * v1 compat: utility function paired with `withSlowQueryLog`.
+ * @since v1.3.0
+ */
+export function getSlowQueryThreshold(defaults: Record<string, unknown> | null | undefined): number {
+    const d = defaults || {};
+    const v = d.slowQueryMs;
+    return typeof v === 'number' ? v : 500;
+}
+
+/**
+ * Slow query log wrapper function.
+ * v1 compat: logs slow queries; calls logger.warn when the threshold is exceeded.
+ * @since v1.3.0
+ */
+export async function withSlowQueryLog<T>(
+    logger: LoggerLike | null | undefined,
+    defaults: Record<string, unknown> | null | undefined,
+    op: string,
+    ns: { iid?: string; type?: string; db: string; coll: string } | null | undefined,
+    options: Record<string, unknown> | null | undefined,
+    exec: () => Promise<T>,
+    slowLogShaper?: ((options: unknown) => Record<string, unknown>) | null,
+    onEmit?: ((info: unknown) => void) | null,
+): Promise<T> {
+    const t0 = Date.now();
+    const res = await exec();
+    const ms = Date.now() - t0;
+    const threshold = getSlowQueryThreshold(defaults);
+    if (ms >= threshold && logger) {
+        const d = defaults || {};
+        const scope = (d as Record<string, unknown> & { namespace?: { scope?: unknown } }).namespace?.scope;
+        const logTag = (d as Record<string, unknown> & { log?: { slowQueryTag?: { event?: string; code?: string }; formatSlowQuery?: (base: unknown) => unknown } }).log;
+        const base: Record<string, unknown> = {
+            event: logTag?.slowQueryTag?.event || 'slow_query',
+            code: logTag?.slowQueryTag?.code || 'SLOW_QUERY',
+            category: 'performance',
+            type: ns?.type || 'mongodb',
+            iid: ns?.iid,
+            scope,
+            db: ns?.db,
+            coll: ns?.coll,
+            op,
+            ms,
+            threshold,
+            ts: new Date().toISOString(),
+            ...(typeof slowLogShaper === 'function' ? slowLogShaper(options) : {}),
+        };
+        try {
+            if (typeof logTag?.formatSlowQuery === 'function') {
+                const formatted = (logTag.formatSlowQuery(base) || base) as Record<string, unknown>;
+                logger?.warn?.('\u23f1\ufe0f Slow query', formatted as unknown as string);
+                if (typeof onEmit === 'function') { try { onEmit(formatted); } catch (_) { /* noop */ } }
+            } else {
+                logger?.warn?.('\u23f1\ufe0f Slow query', base as unknown as string);
+                if (typeof onEmit === 'function') { try { onEmit(base); } catch (_) { /* noop */ } }
+            }
+        } catch (_) { /* ignore logging errors */ }
+    }
+    return res;
 }
 

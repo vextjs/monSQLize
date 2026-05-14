@@ -18,8 +18,8 @@
 - 本地函数缓存
 - 无 Redis 依赖的快速接入
 
-```javascript
-const MonSQLize = require('monsqlize');
+```typescript
+import MonSQLize from 'monsqlize';
 
 const cache = new MonSQLize.MemoryCache();
 await cache.set('user:1', { id: 1, name: 'Ada' }, 1000);
@@ -31,8 +31,8 @@ console.log(value);
 
 `withCache()` 用于把任意异步函数包装成带缓存与并发去重能力的版本。
 
-```javascript
-const MonSQLize = require('monsqlize');
+```typescript
+import MonSQLize from 'monsqlize';
 
 const cached = MonSQLize.withCache(async (userId) => {
     return { userId, from: 'origin' };
@@ -59,8 +59,8 @@ console.log(first, second);
 
 `FunctionCache` 适合把一组具名函数集中注册、执行与清理。
 
-```javascript
-const MonSQLize = require('monsqlize');
+```typescript
+import MonSQLize from 'monsqlize';
 
 const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'function_cache_docs' });
 const functionCache = new MonSQLize.FunctionCache(runtime, {

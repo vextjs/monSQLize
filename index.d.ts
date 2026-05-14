@@ -1,25 +1,62 @@
-import type { DbType, ErrorCodes, ExpressionFunction, ExpressionObject, LoggerLike, MonSQLizeError } from './types/base';
+import type { DbType, ErrorCodes, ExpressionContext, ExpressionFunction, ExpressionObject, LoggerLike, LoggerOptions, MonSQLizeError } from './types/base';
 import type {
     AdminAccessor,
     AdminBuildInfoView,
+    AggregateChain,
     BatchErrorRecord,
+    BatchProgress,
+    BatchRetryRecord,
+    BatchWriteOptions,
     BookmarkClearResult,
+    BookmarkKeyDims,
     BookmarkListResult,
     BookmarkPrewarmResult,
+    ClearBookmarksResult,
+    CollationOptions,
     Collection,
+    CollectionAccessor,
     DbAccessor,
     DbStatsView,
+    DeleteBatchOptions,
     DeleteBatchResult,
     DeleteResult,
+    ExplainOptions,
+    ExplainResult,
+    FindAndCountResult,
+    FindChain,
+    FindPageOptions,
+    FindPageResult,
     HealthView,
+    IncrementOneOptions,
     IndexCreateResult,
+    InsertBatchOptions,
     InsertBatchResult,
+    InsertManyOptions,
     InsertManyResult,
+    InsertManySimplifiedOptions,
+    InsertOneOptions,
     InsertOneResult,
+    InsertOneSimplifiedOptions,
+    JumpOptions,
+    ListBookmarksResult,
+    MetaInfo,
+    MetaOptions,
+    OffsetJumpOptions,
+    PageInfo,
+    PageResult,
+    PrewarmBookmarksResult,
+    ResultWithMeta,
+    RetryInfo,
     ServerStatusView,
+    StreamOptions,
+    TotalsInfo,
+    TotalsOptions,
+    UpdateBatchOptions,
     UpdateBatchResult,
     UpdateResult,
+    WriteConcern,
 } from './types/collection';
+import type { UnifiedExpressionOperators } from './types/expression';
 import type {
     Lock as LockContract,
     LockOptions,
@@ -35,6 +72,7 @@ import type {
     PoolStrategy,
 } from './types/pool';
 import type {
+    SagaContext,
     SagaDefinition,
     SagaOrchestratorOptions,
     SagaResult,
@@ -56,6 +94,7 @@ import type {
     SyncConfig,
     SyncStats,
     SyncTargetConfig,
+    SyncTargetHealthCheckConfig,
 } from './types/sync';
 import type {
     MongoSession,
@@ -64,6 +103,7 @@ import type {
     TransactionStats,
 } from './types/transaction';
 import type {
+    DefaultValue,
     HookContext,
     ModelConnection,
     ModelDefinition,
@@ -73,10 +113,18 @@ import type {
     PopulateProxy,
     RegisteredModel,
     RelationConfig,
+    SchemaDSL,
     ValidationResult,
     VirtualConfig,
 } from './types/model';
-import type { MonSQLize as MonSQLizeInstance, MonSQLizeOptions } from './types/monsqlize';
+import type { MonSQLize as MonSQLizeInstance, MonSQLizeOptions, SSHConfig } from './types/monsqlize';
+import type {
+    FunctionCacheOptions,
+    MemoryCacheOptions,
+    MultiLevelCacheOptions,
+    MultiLevelCachePolicy,
+    WritePolicy,
+} from './types/runtime';
 import {
     CacheLike,
     CacheLockLike,
@@ -87,6 +135,8 @@ import {
     Logger,
     MemoryCache,
     Model,
+    MongoDBSlowQueryLogStorage,
+    SlowQueryLogMemoryStorage,
     TransactionManager,
     WithCacheOptions,
     CacheStats,
@@ -115,7 +165,9 @@ export type {
     DbType,
     ExpressionObject,
     ExpressionFunction,
+    ExpressionContext,
     LoggerLike,
+    LoggerOptions,
     MonSQLizeError,
     ConnectionPoolManagerOptions,
     FallbackStrategy,
@@ -123,9 +175,12 @@ export type {
     LockOptions,
     LockStats,
     Collection,
+    CollectionAccessor,
     DbAccessor,
     AdminAccessor,
     BatchErrorRecord,
+    BatchProgress,
+    BatchRetryRecord,
     InsertOneResult,
     InsertManyResult,
     InsertBatchResult,
@@ -135,20 +190,46 @@ export type {
     DeleteBatchResult,
     IndexCreateResult,
     BookmarkPrewarmResult,
+    BookmarkKeyDims,
     BookmarkListResult,
     BookmarkClearResult,
+    FindChain,
+    AggregateChain,
+    FindPageOptions,
+    FindPageResult,
+    FindAndCountResult,
+    BatchWriteOptions,
+    InsertBatchOptions,
+    UpdateBatchOptions,
+    DeleteBatchOptions,
+    RetryInfo,
+    WriteConcern,
+    InsertOneOptions,
+    InsertOneSimplifiedOptions,
+    InsertManyOptions,
+    InsertManySimplifiedOptions,
+    CollationOptions,
+    ResultWithMeta,
+    IncrementOneOptions,
     AdminBuildInfoView,
     ServerStatusView,
     DbStatsView,
     HealthView,
     HookContext,
     MonSQLizeOptions,
+    SSHConfig,
     CacheLike,
     CacheLockLike,
+    MemoryCacheOptions,
+    WritePolicy,
+    MultiLevelCachePolicy,
+    MultiLevelCacheOptions,
     ModelConnection,
     ModelDefinition,
     ModelDocument,
     ModelAccessor,
+    SchemaDSL,
+    DefaultValue,
     MongoSession,
     PoolConfig,
     PoolHealthStatus,
@@ -161,6 +242,7 @@ export type {
     RedisCacheAdapterOptions,
     RegisteredModel,
     RelationConfig,
+    SagaContext,
     SagaDefinition,
     SagaOrchestratorOptions,
     SagaResult,
@@ -185,6 +267,29 @@ export type {
     WithCacheOptions,
     CacheStats,
     CachedFunction,
+    UnifiedExpressionOperators,
+    // New types from R1 audit
+    ExplainOptions,
+    ExplainResult,
+    FunctionCacheOptions,
+    JumpOptions,
+    MetaInfo,
+    MetaOptions,
+    OffsetJumpOptions,
+    PageInfo,
+    StreamOptions,
+    SyncTargetHealthCheckConfig,
+    TotalsInfo,
+    TotalsOptions,
+    // v1 backward-compat aliases
+    PageResult,
+    PrewarmBookmarksResult,
+    ListBookmarksResult,
+    ClearBookmarksResult,
+    SyncTargetConfig as SyncTarget,
+    ModelAccessor as ModelInstance,
+    // v1 name alias: BaseOptions → MonSQLizeOptions
+    MonSQLizeOptions as BaseOptions,
 };
 
 export { ErrorCodes };
@@ -212,6 +317,8 @@ export {
     validateSyncConfig,
     SlowQueryLogManager,
     SlowQueryLogConfigManager,
+    SlowQueryLogMemoryStorage,
+    MongoDBSlowQueryLogStorage,
     BatchQueue,
     generateQueryHash,
     SagaOrchestrator,
@@ -260,7 +367,7 @@ export default class MonSQLize implements MonSQLizeInstance {
     saga(): SagaOrchestrator;
     defineSaga(definition: SagaDefinition): void;
     executeSaga(name: string, data: unknown): Promise<SagaResult>;
-    listSagas(): string[];
+    listSagas(): Promise<string[]>;
     getSagaStats(): SagaStats;
     startSync(): Promise<void>;
     stopSync(): Promise<void>;
@@ -271,6 +378,18 @@ export default class MonSQLize implements MonSQLizeInstance {
     once(event: string, handler: (payload: unknown) => void): void;
     off(event: string, handler: (payload: unknown) => void): void;
     emit(event: string, payload: unknown): void;
+    /** @since v1.3.0 — v1 pool management parity */
+    addPool(config: PoolConfig): Promise<void>;
+    removePool(name: string): Promise<void>;
+    getPoolNames(): string[];
+    getPoolStats(): PoolStats[];
+    getPoolHealth(): PoolHealthStatus[];
+    getLockStats(): LockStats | null;
+    /** @since v1.3.0 — v1 database management parity */
+    listDatabases(options?: { nameOnly?: boolean }): Promise<Array<{ name: string; sizeOnDisk: number; empty: boolean }> | string[]>;
+    dropDatabase(options?: { confirm: boolean; allowProduction?: boolean; user?: string }): Promise<{ dropped: boolean; database: string; timestamp: Date }>;
+    listCollections(filter?: Record<string, unknown>, options?: Record<string, unknown>): Promise<Array<{ name: string; type: string }>>;
+    runCommand(command: Record<string, unknown>, options?: Record<string, unknown>): Promise<Record<string, unknown>>;
 
     static Logger: typeof Logger;
     static MemoryCache: typeof MemoryCache;

@@ -1,11 +1,13 @@
 /**
- * P2-C management-core 最小 MongoDB 管理能力。
+ * MongoDB management capability adapter layer.
  *
- * 说明：
- * - 本阶段仅承接 `namespace`、`index`、`admin`、`bookmark` 四组能力。
- * - `collection/database` 级管理能力继续后移，禁止在本阶段静默扩范围。
+ * Description:
+ * - Handles namespace, index, admin, bookmark, and collection/database-level management operations.
+ * - Provides createIndex / dropIndex / listIndexes / createCollection / dropCollection / createView
+ *   and other management APIs.
  */
 
+import { createHash } from 'node:crypto';
 import { Collection, Db, Document } from 'mongodb';
 
 import { createError, ErrorCodes } from '../../../core/errors';
@@ -36,7 +38,7 @@ export type {
 } from '../../../../types/collection';
 
 /**
- * 数据库级 admin façade。
+ * Database-level admin façade.
  * @since v1.3.0
  */
 export class MongoAdminAccessor {
@@ -46,7 +48,7 @@ export class MongoAdminAccessor {
     ) {}
 
     /**
-     * 检测数据库连接是否可用。
+     * Checks whether the database connection is available.
      * @since v1.3.0
      */
     async ping(): Promise<boolean> {
@@ -60,7 +62,7 @@ export class MongoAdminAccessor {
     }
 
     /**
-     * 获取 MongoDB 版本信息。
+     * Returns MongoDB version and build information.
      * @since v1.3.0
      */
     async buildInfo(): Promise<AdminBuildInfoView> {
@@ -85,7 +87,7 @@ export class MongoAdminAccessor {
     }
 
     /**
-     * 获取服务器状态快照。
+     * Returns a server status snapshot.
      * @since v1.3.0
      */
     async serverStatus(options: { scale?: number; } = {}): Promise<ServerStatusView> {
@@ -134,7 +136,7 @@ export class MongoAdminAccessor {
     }
 
     /**
-     * 获取当前数据库统计信息。
+     * Returns statistics for the current database.
      * @since v1.3.0
      */
     async stats(options: { scale?: number; } = {}): Promise<DbStatsView> {
@@ -165,7 +167,7 @@ export class MongoAdminAccessor {
 }
 
 /**
- * 创建单个索引。
+ * Creates a single index.
  * @since v1.3.0
  */
 export async function createIndexDefinition<TSchema extends Document = Document>(
@@ -179,7 +181,7 @@ export async function createIndexDefinition<TSchema extends Document = Document>
 }
 
 /**
- * 批量创建索引。
+ * Creates multiple indexes in bulk.
  * @since v1.3.0
  */
 export async function createIndexDefinitions<TSchema extends Document = Document>(
@@ -198,17 +200,26 @@ export async function createIndexDefinitions<TSchema extends Document = Document
 }
 
 /**
- * 列出索引。
+ * Lists indexes.
  * @since v1.3.0
  */
 export async function listIndexDefinitions<TSchema extends Document = Document>(
     collectionRef: Collection<TSchema>,
 ): Promise<Record<string, unknown>[]> {
-    return collectionRef.listIndexes().toArray() as Promise<Record<string, unknown>[]>;
+    try {
+        return await collectionRef.listIndexes().toArray() as Record<string, unknown>[];
+    } catch (err: unknown) {
+        const mongoErr = err as { code?: number };
+        // v1 compat: code=26 means the collection (namespace) does not exist → return []
+        if (mongoErr?.code === 26) {
+            return [];
+        }
+        throw err;
+    }
 }
 
 /**
- * 删除指定索引。
+ * Drops a specific index.
  * @since v1.3.0
  */
 export async function dropIndexDefinition<TSchema extends Document = Document>(
@@ -219,23 +230,43 @@ export async function dropIndexDefinition<TSchema extends Document = Document>(
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'dropIndex: name must be a non-empty string.');
     }
     if (name === '_id_') {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'dropIndex: dropping the _id_ index is not allowed.');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'dropIndex: 不允许删除 _id 索引');
     }
-    return collectionRef.dropIndex(name);
+    try {
+        return await collectionRef.dropIndex(name);
+    } catch (err: unknown) {
+        const mongoErr = err as { code?: number; codeName?: string };
+        // v1 compat: code=27 / 'IndexNotFound' → MONGODB_ERROR with Chinese message
+        if (mongoErr?.code === 27 || mongoErr?.codeName === 'IndexNotFound') {
+            throw createError(ErrorCodes.MONGODB_ERROR, `索引不存在: ${name}`);
+        }
+        throw err;
+    }
 }
 
 /**
- * 删除所有非 `_id_` 索引。
+ * Drops all non-`_id_` indexes.
  * @since v1.3.0
  */
 export async function dropIndexDefinitions<TSchema extends Document = Document>(
     collectionRef: Collection<TSchema>,
 ): ReturnType<Collection<TSchema>['dropIndexes']> {
-    return collectionRef.dropIndexes();
+    try {
+        const result = await collectionRef.dropIndexes();
+        // v1 compat: normalize falsy result (e.g. false from driver when collection doesn't exist)
+        return (result || { ok: 1, nIndexesWas: 0 }) as unknown as ReturnType<Collection<TSchema>['dropIndexes']>;
+    } catch (err: unknown) {
+        const mongoErr = err as { code?: number };
+        // v1 compat: code=26 = namespace not found → treat as success
+        if (mongoErr?.code === 26) {
+            return { ok: 1, msg: 'collection does not exist, no indexes to drop', nIndexesWas: 0 } as unknown as ReturnType<Collection<TSchema>['dropIndexes']>;
+        }
+        throw err;
+    }
 }
 
 /**
- * 预热 bookmark 页面缓存。
+ * Pre-warms the bookmark page cache.
  * @since v1.3.0
  */
 export async function prewarmBookmarks<TSchema extends Document = Document>(params: {
@@ -249,7 +280,7 @@ export async function prewarmBookmarks<TSchema extends Document = Document>(para
     const cache = ensureBookmarkCache(params.cache);
     const pages = params.pages ?? [];
     if (!Array.isArray(pages) || pages.length === 0) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'prewarmBookmarks: pages must be a non-empty array.');
+        throw createError('INVALID_PAGES', 'INVALID_PAGES: pages must be a non-empty array');
     }
 
     const keyDims = normalizeBookmarkKeyDims(params.keyDims);
@@ -267,16 +298,18 @@ export async function prewarmBookmarks<TSchema extends Document = Document>(para
         }
 
         try {
-            const payload = await params.findPage({ ...keyDims, page });
-            const key = buildBookmarkKey(params.namespace, keyDims, page);
-            await Promise.resolve(cache.set(key, {
-                page,
-                pageInfo: payload.page,
-                totals: payload.totals,
-                size: payload.data.length,
-                warmedAt: new Date().toISOString(),
-            }));
-            if (payload.data.length > 0) {
+            const payload = await params.findPage({ ...keyDims, page, totals: false, jump: { step: 1, maxHops: 1000 } } as unknown as FindPageOptions<TSchema>);
+            const items = (payload as unknown as { items?: unknown[]; data?: unknown[] }).items
+                ?? (payload as unknown as { data?: unknown[] }).data
+                ?? [];
+            if (items.length > 0) {
+                const key = buildBookmarkKey(params.namespace, keyDims, page);
+                await Promise.resolve(cache.set(key, {
+                    page,
+                    pageInfo: payload.pageInfo,
+                    size: items.length,
+                    warmedAt: new Date().toISOString(),
+                }));
                 result.warmed += 1;
             } else {
                 result.failed += 1;
@@ -287,12 +320,12 @@ export async function prewarmBookmarks<TSchema extends Document = Document>(para
         }
     }
 
-    result.keys = await resolveKeys(cache, buildBookmarkPattern(params.namespace, keyDims));
+    result.keys = await resolveKeys(cache, buildBookmarkPattern(params.namespace));
     return result;
 }
 
 /**
- * 列出 bookmark 页面缓存。
+ * Lists the bookmark page cache entries.
  * @since v1.3.0
  */
 export async function listBookmarks(params: {
@@ -301,7 +334,8 @@ export async function listBookmarks(params: {
     keyDims?: BookmarkKeyDims;
 }): Promise<BookmarkListResult> {
     const cache = ensureBookmarkCache(params.cache);
-    const keys = await resolveKeys(cache, buildBookmarkPattern(params.namespace, normalizeBookmarkKeyDims(params.keyDims)));
+    const normalizedKeyDims = params.keyDims === undefined ? undefined : normalizeBookmarkKeyDims(params.keyDims);
+    const keys = await resolveKeys(cache, buildBookmarkPattern(params.namespace, normalizedKeyDims));
     const pages = keys
         .map(extractBookmarkPage)
         .filter((page): page is number => page !== null)
@@ -315,7 +349,7 @@ export async function listBookmarks(params: {
 }
 
 /**
- * 清理 bookmark 页面缓存。
+ * Clears the bookmark page cache.
  * @since v1.3.0
  */
 export async function clearBookmarks(params: {
@@ -324,7 +358,8 @@ export async function clearBookmarks(params: {
     keyDims?: BookmarkKeyDims;
 }): Promise<BookmarkClearResult> {
     const cache = ensureBookmarkCache(params.cache);
-    const pattern = buildBookmarkPattern(params.namespace, normalizeBookmarkKeyDims(params.keyDims));
+    const normalizedKeyDims = params.keyDims === undefined ? undefined : normalizeBookmarkKeyDims(params.keyDims);
+    const pattern = buildBookmarkPattern(params.namespace, normalizedKeyDims);
     const keysBefore = await resolveKeys(cache, pattern);
     const cleared = await resolveDeletePattern(cache, pattern);
 
@@ -335,15 +370,26 @@ export async function clearBookmarks(params: {
     };
 }
 
+// v1 compat: valid index direction/type values
+const VALID_INDEX_VALUES = new Set([1, -1, '1', '-1', 'text', '2d', '2dsphere', 'geoHaystack', 'hashed', 'columnstore']);
+
 function validateIndexKeys(keys: Document | undefined, operation: string): void {
     if (!keys || typeof keys !== 'object' || Array.isArray(keys) || Object.keys(keys).length === 0) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, `${operation}: keys must be a non-empty object.`);
+        throw createError(ErrorCodes.INVALID_ARGUMENT, `${operation}: 索引键不能为空`);
+    }
+    for (const [field, value] of Object.entries(keys)) {
+        if (!VALID_INDEX_VALUES.has(value as number | string)) {
+            throw createError(
+                ErrorCodes.INVALID_ARGUMENT,
+                `${operation}: invalid value "${value}" for index key "${field}", must be 1, -1, "text", "2d", "2dsphere", "hashed", or "columnstore"`,
+            );
+        }
     }
 }
 
 function ensureBookmarkCache(cache?: BookmarkCacheLike | null): BookmarkCacheLike {
     if (!cache || typeof cache.set !== 'function' || typeof cache.get !== 'function' || typeof cache.keys !== 'function' || typeof cache.delPattern !== 'function') {
-        throw createError(ErrorCodes.CACHE_UNAVAILABLE, 'Bookmark operations require a cache implementation with set/get/keys/delPattern.');
+        throw createError(ErrorCodes.CACHE_UNAVAILABLE, 'CACHE_UNAVAILABLE: Cache is required for bookmark operations');
     }
     return cache;
 }
@@ -351,21 +397,34 @@ function ensureBookmarkCache(cache?: BookmarkCacheLike | null): BookmarkCacheLik
 function normalizeBookmarkKeyDims<TSchema extends Document = Document>(
     keyDims: BookmarkKeyDims<TSchema> | undefined,
 ): BookmarkKeyDims<TSchema> {
-    return {
+    const normalized = {
         ...(keyDims ?? {}),
     };
+    const sort: Record<string, 1 | -1> = normalized.sort && typeof normalized.sort === 'object' && !Array.isArray(normalized.sort)
+        ? { ...(normalized.sort as Record<string, 1 | -1>) }
+        : { _id: 1 as const };
+    if (!('_id' in sort)) {
+        sort._id = 1;
+    }
+    normalized.sort = Object.fromEntries(Object.entries(sort).sort(([left], [right]) => left.localeCompare(right))) as typeof normalized.sort;
+    return normalized;
 }
 
 function buildBookmarkKey(namespace: string, keyDims: BookmarkKeyDims, page: number): string {
-    return `${buildBookmarkBaseKey(namespace, keyDims)}:page:${page}`;
+    return `${buildBookmarkBaseKey(namespace, keyDims)}:${page}`;
 }
 
-function buildBookmarkPattern(namespace: string, keyDims: BookmarkKeyDims): string {
-    return `${buildBookmarkBaseKey(namespace, keyDims)}:page:*`;
+function buildBookmarkPattern(namespace: string, keyDims?: BookmarkKeyDims): string {
+    return keyDims ? `${buildBookmarkBaseKey(namespace, keyDims)}:*` : `${namespace}:bm:*`;
 }
 
 function buildBookmarkBaseKey(namespace: string, keyDims: BookmarkKeyDims): string {
-    return `bookmark:${namespace}:${stableStringify(keyDims)}`;
+    return `${namespace}:bm:${hash(stableStringify({
+        sort: keyDims.sort,
+        limit: keyDims.limit,
+        query: keyDims.query,
+        pipeline: keyDims.pipeline,
+    }))}`;
 }
 
 function stableStringify(value: unknown): string {
@@ -398,11 +457,15 @@ async function resolveDeletePattern(cache: BookmarkCacheLike, pattern: string): 
 }
 
 function extractBookmarkPage(key: string): number | null {
-    const match = key.match(/:page:(\d+)$/);
+    const match = key.match(/:(\d+)$/);
     if (!match) {
         return null;
     }
     return Number.parseInt(match[1], 10);
+}
+
+function hash(value: string): string {
+    return createHash('sha256').update(value).digest('hex');
 }
 
 function extractErrorMessage(cause: unknown): string {

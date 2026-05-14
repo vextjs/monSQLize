@@ -17,6 +17,8 @@ export interface TransactionOptions {
     readPreference?: 'primary' | 'primaryPreferred' | 'secondary' | 'secondaryPreferred' | 'nearest';
     causalConsistency?: boolean;
     maxDuration?: number;
+    /** @alias maxDuration — v1 兼容字段 */
+    timeout?: number;
     enableRetry?: boolean;
     maxRetries?: number;
     retryDelay?: number;
@@ -28,7 +30,7 @@ export interface TransactionOptions {
 
 export interface TransactionInfo {
     id: string;
-    status: 'pending' | 'started' | 'committed' | 'aborted';
+    status: 'pending' | 'started' | 'active' | 'committed' | 'aborted';
     duration: number;
     sessionId: string;
 }
@@ -54,7 +56,7 @@ export declare class CacheLockManager {
 export declare class Transaction {
     readonly id: string;
     readonly session: MongoSession;
-    readonly state: 'pending' | 'started' | 'committed' | 'aborted';
+    readonly state: 'pending' | 'active' | 'committed' | 'aborted';
     constructor(session: MongoSession, options?: {
         cache?: CacheLike | null;
         logger?: LoggerLike | null;

@@ -4,7 +4,7 @@ import type { LoggerLike } from './base';
 
 export type PoolRole = 'primary' | 'secondary' | 'analytics' | 'custom';
 export type PoolStrategy = 'auto' | 'roundRobin' | 'weighted' | 'leastConnections' | 'manual';
-export type FallbackStrategy = 'error' | 'readonly' | 'primary';
+export type FallbackStrategy = 'error' | 'readonly' | 'primary' | 'secondary';
 
 export interface PoolConfig {
     name: string;

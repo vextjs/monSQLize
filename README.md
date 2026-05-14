@@ -125,8 +125,6 @@ const users = await collection.find({
 - ✅ 一套代码，多种数据库
 - ✅ 零迁移成本
 
-**了解更多**：当前仓库已开始在 `docs/**` 与 `examples/**` 建立新的 TS 文档/示例入口；尚未迁移的历史功能语义，当前仍以 `monSQLize-v1` 的对应实现和文档资产为参考。
-
 ---
 
 ## 💡 为什么选择 monSQLize？

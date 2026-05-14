@@ -25,8 +25,8 @@ npm install monsqlize
 
 ## 最小连接示例
 
-```javascript
-const MonSQLize = require('monsqlize');
+```typescript
+import MonSQLize from 'monsqlize';
 
 const msq = new MonSQLize({
     type: 'mongodb',

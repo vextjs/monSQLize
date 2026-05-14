@@ -1,11 +1,12 @@
 /**
- * P3-B function-cache。
+ * Function cache decorator.
  *
- * 说明：
- * - 本阶段恢复 `withCache()` 与 `FunctionCache` 的最小闭环。
- * - 更完整的多级缓存回填、分布式协同与高级监控在后续阶段继续补齐。
+ * Description:
+ * - Provides the withCache() decorator and FunctionCache class to add a cache layer to async functions.
+ * - Supports custom TTL, namespace, keyBuilder, conditional hits, and call statistics.
  */
 
+import { createHash } from 'node:crypto';
 import { createError, ErrorCodes } from '../../core/errors';
 import { MemoryCache, type CacheLike } from '../cache';
 import type {
@@ -31,19 +32,19 @@ interface FunctionCacheEntryStats {
 const inflightFunctions = new Map<string, Promise<unknown>>();
 
 /**
- * 为异步函数创建一个带缓存能力的包装器。
+ * Create a cache-enabled wrapper for an async function.
  *
- * 典型用途：
- * - 为热点查询函数追加 TTL 缓存
- * - 为外部 API 请求增加并发去重
- * - 在不改动原函数签名的前提下复用 `CacheLike` 能力
+ * Typical use cases:
+ * - Attach TTL caching to hot-path query functions
+ * - Add in-flight deduplication for external API requests
+ * - Reuse `CacheLike` without modifying the original function signature
  *
  * @template {unknown[]} TArgs
  * @template TResult
- * @param {(...args: TArgs) => Promise<TResult>} fn - 原始异步函数。
- * @param {WithCacheOptions} [options={}] - 缓存选项，包括 TTL、命名空间、缓存实例、keyBuilder 与条件缓存策略。
- * @returns {CachedFunction<TArgs, TResult>} 返回保持原始调用签名的缓存包装函数，并附带 `invalidate()` 与 `getCacheStats()`。
- * @throws {Error} 当 `fn` 不是函数、`ttl` 为负数，或 `keyBuilder` / `condition` 类型非法时抛出参数错误。
+ * @param {(...args: TArgs) => Promise<TResult>} fn - The original async function.
+ * @param {WithCacheOptions} [options={}] - Cache options including TTL, namespace, cache instance, keyBuilder, and conditional caching strategy.
+ * @returns {CachedFunction<TArgs, TResult>} Returns a cache-wrapped function with the same signature, plus `invalidate()` and `getCacheStats()`.
+ * @throws {Error} When `fn` is not a function, `ttl` is negative, or `keyBuilder` / `condition` has an invalid type.
  * @since v1.3.0
  * @example
  * const cachedGetUser = withCache(getUser, {
@@ -70,7 +71,7 @@ export function withCache<TArgs extends unknown[], TResult>(
         enableStats = true,
     } = options;
 
-    if (ttl < 0) {
+    if (typeof ttl !== 'number' || ttl < 0) {
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'withCache: ttl must be a non-negative number.');
     }
     if (keyBuilder && typeof keyBuilder !== 'function') {
@@ -78,6 +79,9 @@ export function withCache<TArgs extends unknown[], TResult>(
     }
     if (condition && typeof condition !== 'function') {
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'withCache: condition must be a function.');
+    }
+    if (typeof (cache as CacheLike).get !== 'function' || typeof (cache as CacheLike).set !== 'function') {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'withCache: Invalid cache instance: must implement CacheLike interface');
     }
 
     const stats: FunctionCacheEntryStats = {
@@ -88,16 +92,26 @@ export function withCache<TArgs extends unknown[], TResult>(
         totalTime: 0,
     };
 
-    const buildKey = (...args: TArgs): string => {
-        const suffix = keyBuilder
-            ? keyBuilder(...args)
-            : `${fn.name || 'anonymous'}:${stableStringify(args)}`;
-        return `${namespace}:${suffix}`;
-    };
 
     const wrapped = (async (...args: TArgs) => {
         const startedAt = Date.now();
-        const cacheKey = buildKey(...args);
+
+        // 1. Build cache key — failures fall back to direct execution (no caching)
+        let cacheKey: string;
+        try {
+            const baseKey = keyBuilder
+                ? `${namespace}:${keyBuilder(...args)}`
+                : `${namespace}:${fn.name || 'anonymous'}:${stableStringify(args)}`;
+            if (baseKey.length > 1024) {
+                const hash = createHash('sha256').update(baseKey).digest('hex');
+                cacheKey = `${namespace}:${fn.name || 'anonymous'}:hash:${hash}`;
+            } else {
+                cacheKey = baseKey;
+            }
+        } catch {
+            if (enableStats) stats.errors += 1;
+            return fn(...args);
+        }
 
         try {
             const cached = await cache.get(cacheKey);
@@ -130,9 +144,21 @@ export function withCache<TArgs extends unknown[], TResult>(
         const runner = (async () => {
             try {
                 const result = await fn(...args);
-                const shouldCache = condition ? condition(result) : true;
+                let shouldCache = true;
+                if (condition) {
+                    try {
+                        shouldCache = condition(result);
+                    } catch {
+                        if (enableStats) stats.errors += 1;
+                        shouldCache = true;
+                    }
+                }
                 if (shouldCache) {
-                    await Promise.resolve(cache.set(cacheKey, result, ttl));
+                    try {
+                        await Promise.resolve(cache.set(cacheKey, result, ttl));
+                    } catch {
+                        if (enableStats) stats.errors += 1;
+                    }
                 }
                 return result;
             } finally {
@@ -160,7 +186,20 @@ export function withCache<TArgs extends unknown[], TResult>(
     }) as CachedFunction<TArgs, TResult>;
 
     wrapped.invalidate = async (...args: TArgs) => {
-        const cacheKey = buildKey(...args);
+        let cacheKey: string;
+        try {
+            const baseKey = keyBuilder
+                ? `${namespace}:${keyBuilder(...args)}`
+                : `${namespace}:${fn.name || 'anonymous'}:${stableStringify(args)}`;
+            if (baseKey.length > 1024) {
+                const hash = createHash('sha256').update(baseKey).digest('hex');
+                cacheKey = `${namespace}:${fn.name || 'anonymous'}:hash:${hash}`;
+            } else {
+                cacheKey = baseKey;
+            }
+        } catch {
+            return false;
+        }
         const result = await Promise.resolve(cache.del?.(cacheKey) ?? cache.delete?.(cacheKey) ?? false);
         return typeof result === 'boolean' ? result : Number(result) > 0;
     };
@@ -179,21 +218,30 @@ export function withCache<TArgs extends unknown[], TResult>(
 
 
 /**
- * 多函数缓存管理器。
+ * Multi-function cache manager.
  *
- * 适用于需要为一组命名业务函数统一注册、执行、统计与失效缓存的场景。
- * `cacheOrDb` 既可以是直接的 `CacheLike`，也可以是带 `getCache()` 的 runtime 实例。
+ * Suitable for scenarios that need unified registration, execution, statistics, and cache invalidation for a set of named business functions.
+ * `cacheOrDb` can be either a direct `CacheLike` or a runtime instance with `getCache()`.
  *
  * @since v1.3.0
  */
 export class FunctionCache {
     private readonly cache: CacheLike;
+    private readonly options: FunctionCacheOptions;
     private readonly functions = new Map<string, CachedFunction<unknown[], unknown>>();
 
     constructor(
         cacheOrDb: unknown,
-        private readonly options: FunctionCacheOptions = {},
+        options: FunctionCacheOptions = {},
     ) {
+        if (options !== null && typeof options !== 'object') {
+            throw new Error('options must be an object');
+        }
+        const namespace = (options as Record<string, unknown>).namespace;
+        if (namespace !== undefined && typeof namespace !== 'string') {
+            throw new Error('namespace must be a string');
+        }
+        this.options = options as FunctionCacheOptions;
         this.cache = resolveCache(cacheOrDb);
         if ((this.options.defaultTTL ?? 60_000) < 0) {
             throw createError(ErrorCodes.INVALID_ARGUMENT, 'FunctionCache: defaultTTL must be a non-negative number.');
@@ -201,15 +249,15 @@ export class FunctionCache {
     }
 
     /**
-     * 注册一个可缓存的异步函数。
+     * Register a cacheable async function.
      *
      * @template {unknown[]} TArgs
      * @template TResult
-     * @param {string} name - 注册名；后续通过 `execute()` / `invalidate()` 按该名称访问。
-     * @param {(...args: TArgs) => Promise<TResult>} fn - 原始异步函数。
-     * @param {WithCacheOptions} [options={}] - 针对该函数的局部缓存配置。
+     * @param {string} name - Registration name; accessed later via `execute()` / `invalidate()`.
+     * @param {(...args: TArgs) => Promise<TResult>} fn - The original async function.
+     * @param {WithCacheOptions} [options={}] - Per-function local cache configuration.
      * @returns {void}
-     * @throws {Error} 当名称为空时抛出参数错误。
+     * @throws {Error} Throws an argument error when the name is empty.
      * @since v1.3.0
      */
     register<TArgs extends unknown[], TResult>(
@@ -218,7 +266,13 @@ export class FunctionCache {
         options: WithCacheOptions = {},
     ): void {
         if (!name?.trim()) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, 'FunctionCache.register: name must be a non-empty string.');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'Function name must be a non-empty string');
+        }
+        if (typeof fn !== 'function') {
+            throw new Error('fn must be a function');
+        }
+        if (options && typeof options !== 'object') {
+            throw new Error('options must be an object');
         }
         const cachedFn = withCache(fn, {
             ...options,
@@ -231,12 +285,12 @@ export class FunctionCache {
     }
 
     /**
-     * 执行已注册函数。
+     * Execute a registered function.
      *
-     * @param {string} name - 已注册函数名。
-     * @param {...unknown[]} args - 原函数参数。
-     * @returns {Promise<unknown>} 返回原函数或缓存命中的结果。
-     * @throws {Error} 当函数未注册时抛出 `FUNCTION_NOT_REGISTERED`。
+     * @param {string} name - Name of the registered function.
+     * @param {...unknown[]} args - Arguments to pass to the original function.
+     * @returns {Promise<unknown>} Returns the result from the original function or a cache hit.
+     * @throws {Error} Throws `FUNCTION_NOT_REGISTERED` when the function is not registered.
      * @since v1.3.0
      */
     async execute(name: string, ...args: unknown[]): Promise<unknown> {
@@ -248,15 +302,18 @@ export class FunctionCache {
     }
 
     /**
-     * 失效某个已注册函数在指定参数下的缓存结果。
+     * Invalidate the cached result for a registered function under the given arguments.
      *
-     * @param {string} name - 已注册函数名。
-     * @param {...unknown[]} args - 用于重建缓存键的原函数参数。
-     * @returns {Promise<boolean>} 成功删除缓存时返回 `true`。
-     * @throws {Error} 当函数未注册时抛出 `FUNCTION_NOT_REGISTERED`。
+     * @param {string} name - Name of the registered function.
+     * @param {...unknown[]} args - Original function arguments used to reconstruct the cache key.
+     * @returns {Promise<boolean>} Returns `true` when the cache entry was successfully deleted.
+     * @throws {Error} Throws `FUNCTION_NOT_REGISTERED` when the function is not registered.
      * @since v1.3.0
      */
     async invalidate(name: string, ...args: unknown[]): Promise<boolean> {
+        if (!name || typeof name !== 'string') {
+            throw new Error('Function name must be a non-empty string');
+        }
         const fn = this.functions.get(name);
         if (!fn) {
             throw createError('FUNCTION_NOT_REGISTERED', `Function not registered: ${name}`);
@@ -265,31 +322,32 @@ export class FunctionCache {
     }
 
     /**
-     * 按模式批量失效当前命名空间下的缓存键。
+     * Bulk-invalidate cache keys under the current namespace matching a pattern.
      *
-     * @param {string} pattern - 通配符模式，不包含命名空间前缀时会自动补齐。
-     * @returns {Promise<number>} 实际删除的缓存键数量。
-     * @throws {Error} 当模式为空时抛出参数错误。
+     * @param {string} pattern - Wildcard pattern; the namespace prefix is prepended automatically when absent.
+     * @returns {Promise<number>} Number of cache keys actually deleted.
+     * @throws {Error} Throws an argument error when the pattern is empty.
      * @since v1.3.0
      */
     async invalidatePattern(pattern: string): Promise<number> {
         if (!pattern?.trim()) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, 'FunctionCache.invalidatePattern: pattern must be a non-empty string.');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'Pattern must be a non-empty string');
         }
         return Number(await Promise.resolve(this.cache.delPattern?.(`${this.options.namespace ?? 'action'}:${pattern}`) ?? 0));
     }
 
     /**
-     * 获取统计信息。
+     * Get statistics.
      *
-     * @param {string} [name] - 传入时只返回某个已注册函数的统计信息；不传则返回全部。
-     * @returns {Record<string, unknown>} 统计对象。
+     * @param {string} [name] - When provided, returns stats for that specific registered function only; otherwise returns all.
+     * @returns {Record<string, unknown>} Statistics object.
      * @since v1.3.0
      */
-    getStats(name?: string): Record<string, unknown> {
+    getStats(name?: string): Record<string, unknown> | null {
         if (name) {
+            if (this.options.enableStats === false) return null;
             const stats = this.functions.get(name)?.getCacheStats();
-            return stats ? { ...stats } : {};
+            return stats ? { ...stats } : null;
         }
         return Object.fromEntries(
             [...this.functions.entries()].map(([functionName, fn]) => [functionName, fn.getCacheStats()]),
@@ -297,7 +355,7 @@ export class FunctionCache {
     }
 
     /**
-     * 列出所有已注册函数名。
+     * List all registered function names.
      *
      * @returns {string[]}
      * @since v1.3.0
@@ -307,9 +365,9 @@ export class FunctionCache {
     }
 
     /**
-     * 重置一个或全部已注册函数的统计信息。
+     * Reset statistics for one or all registered functions.
      *
-     * @param {string} [name] - 传入时仅重置指定函数；否则重置全部。
+     * @param {string} [name] - When provided, resets only the specified function; otherwise resets all.
      * @returns {void}
      * @since v1.3.0
      */
@@ -331,7 +389,7 @@ export class FunctionCache {
     }
 
     /**
-     * 清空所有已注册函数定义。
+     * Clear all registered function definitions.
      *
      * @returns {void}
      * @since v1.3.0
@@ -351,22 +409,32 @@ function resolveCache(cacheOrDb: unknown): CacheLike {
     return new MemoryCache();
 }
 
-function stableStringify(value: unknown): string {
-    if (value === null || value === undefined) {
-        return JSON.stringify(value);
+function stableStringify(value: unknown, _seen = new WeakSet<object>()): string {
+    if (typeof value === 'function' || typeof value === 'symbol') {
+        return JSON.stringify('[UNSUPPORTED]');
     }
-    if (Array.isArray(value)) {
-        return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+    if (typeof value === 'number' && Number.isNaN(value)) {
+        return JSON.stringify('NaN');
+    }
+    if (value instanceof RegExp) {
+        return JSON.stringify(value.toString());
     }
     if (value instanceof Date) {
         return JSON.stringify(value.toISOString());
     }
-    if (typeof value === 'object') {
-        const entries = Object.entries(value as Record<string, unknown>)
-            .sort(([left], [right]) => left.localeCompare(right))
-            .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`);
-        return `{${entries.join(',')}}`;
+    if (value === null || typeof value !== 'object') {
+        return JSON.stringify(value);
     }
-    return JSON.stringify(value);
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringify(item, _seen)).join(',')}]`;
+    }
+    if (_seen.has(value)) {
+        return JSON.stringify('[CIRCULAR]');
+    }
+    _seen.add(value);
+    const keys = Object.keys(value as Record<string, unknown>).sort();
+    const result = `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify((value as Record<string, unknown>)[k], _seen)}`).join(',')}}`;
+    _seen.delete(value);
+    return result;
 }
 

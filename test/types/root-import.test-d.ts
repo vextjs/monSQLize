@@ -97,8 +97,35 @@ expectType<Promise<BookmarkPrewarmResult>>(users.prewarmBookmarks({ query: { nam
 expectType<Promise<BookmarkListResult>>(users.listBookmarks({ query: { name: 'Ada' }, limit: 1 }));
 expectType<Promise<BookmarkClearResult>>(users.clearBookmarks({ query: { name: 'Ada' }, limit: 1 }));
 expectType<Promise<unknown[]>>(users.distinct('name'));
-expectType<Promise<unknown[]>>(users.aggregate([]));
-expectType<Promise<{ data: { name: string; }[]; page: { page: number; limit: number; }; totals: { total: number; totalPages: number; }; }>>(users.findPage({ page: 1, limit: 10 }));
+const findChain = users.find({ name: 'Ada' });
+expectAssignable<Promise<{ name: string; }[]>>(findChain);
+findChain.limit(1);
+findChain.skip(0);
+findChain.sort({ name: 1 });
+findChain.project({ name: 1 });
+expectType<Promise<unknown>>(findChain.explain());
+
+const aggregateChain = users.aggregate([]);
+expectAssignable<Promise<unknown[]>>(aggregateChain);
+aggregateChain.allowDiskUse(true);
+aggregateChain.batchSize(100);
+expectType<Promise<unknown>>(aggregateChain.explain());
+
+expectType<Promise<{ name: string; } | null>>(users.findOneById('507f1f77bcf86cd799439011'));
+expectType<Promise<{ name: string; }[]>>(users.findByIds(['507f1f77bcf86cd799439011']));
+expectType<Promise<{ data: { name: string; }[]; total: number }>>(users.findAndCount({ name: 'Ada' }));
+expectType<Promise<{
+    items: { name: string; }[];
+    pageInfo: {
+        hasNext: boolean;
+        hasPrev: boolean;
+        startCursor: string | null;
+        endCursor: string | null;
+        currentPage?: number;
+    };
+    totals?: Record<string, unknown>;
+}>>(users.findPage({ page: 1, limit: 10 }));
+expectType<Promise<{ name: string; } | null>>(users.findOneAndReplace({}, { name: 'Grace' }));
 expectType<Promise<boolean>>(db.db().admin().ping());
 
 const memoryCache = new MonSQLize.MemoryCache();
@@ -116,6 +143,5 @@ expectType<Promise<import('monsqlize').LockContract | null>>(db.tryAcquireLock('
 expectType<LockStats>(new MonSQLize.LockManager().getStats());
 
 // 当前仍明确后移的 API。
-expectError(users.findOneAndReplace({}, {}));
 expectError(db.db().listDatabases());
 

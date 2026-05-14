@@ -13,6 +13,17 @@ export type SyncChangeEvent<TDocument extends Document = Document> = ChangeStrea
     fullDocument?: TDocument;
 };
 
+export interface SyncTargetHealthCheckConfig {
+    /** 是否启用健康检查，默认 true */
+    enabled?: boolean;
+    /** 健康检查间隔（毫秒），默认 30000 */
+    interval?: number;
+    /** 单次健康检查超时（毫秒），默认 5000 */
+    timeout?: number;
+    /** 失败后重试次数，默认 3 */
+    retries?: number;
+}
+
 export interface SyncTargetConfig {
     name: string;
     uri?: string;
@@ -21,6 +32,8 @@ export interface SyncTargetConfig {
     collections?: string[];
     options?: MongoClientOptions;
     apply?: (event: SyncChangeEvent, document: Record<string, unknown> | undefined) => Promise<void>;
+    /** 目标节点健康检查配置 @since v1.0.8 */
+    healthCheck?: SyncTargetHealthCheckConfig;
 }
 
 export interface ResumeTokenRedisLike {

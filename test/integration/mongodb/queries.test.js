@@ -38,7 +38,6 @@ describe('P2-B MongoDB expression/queries', () => {
         const categories = await users.distinct('category');
         const page = await users.findPage({
             query: {},
-            page: 2,
             limit: 2,
             sort: { score: -1 },
         });
@@ -56,9 +55,9 @@ describe('P2-B MongoDB expression/queries', () => {
         assert.equal(one.score, 100);
         assert.equal(count, 2);
         assert.deepEqual(categories.sort(), ['engineer', 'research']);
-        assert.equal(page.data.length, 1);
-        assert.deepEqual(page.page, { page: 2, limit: 2 });
-        assert.deepEqual(page.totals, { total: 3, totalPages: 2 });
+        assert.equal(page.items.length, 2);
+        assert.equal(page.pageInfo.hasNext, true);
+        assert.equal(typeof page.pageInfo.endCursor, 'string');
         assert.equal(deleteAlan.acknowledged, true);
         assert.equal(deleteAlan.deletedCount, 1);
         assert.equal(typeof users.raw, 'function');
@@ -104,6 +103,106 @@ describe('P2-B MongoDB expression/queries', () => {
         await runtime.close();
     });
 
+    it('应恢复 v1 query 契约：链式 find/aggregate、cursor findPage 与 collection 便捷查询', async () => {
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'compat_query_contract',
+            config: { uri },
+        });
+
+        await runtime.connect();
+        const users = runtime.collection('users');
+
+        const ada = await users.insertOne({ firstName: 'Ada', category: 'engineer', score: 100 });
+        const grace = await users.insertOne({ firstName: 'Grace', category: 'engineer', score: 90 });
+        const alan = await users.insertOne({ firstName: 'Alan', category: 'research', score: 80 });
+
+        assert.equal(typeof users.findOneById, 'function');
+        assert.equal(typeof users.findByIds, 'function');
+        assert.equal(typeof users.findAndCount, 'function');
+        assert.equal(typeof users.stream, 'function');
+        assert.equal(typeof users.explain, 'function');
+
+        const findChain = users.find({ category: 'engineer' });
+        assert.equal(typeof findChain.limit, 'function');
+        assert.equal(typeof findChain.sort, 'function');
+        assert.equal(typeof findChain.project, 'function');
+        assert.equal(typeof findChain.explain, 'function');
+        assert.equal(typeof findChain.stream, 'function');
+
+        const topEngineer = await findChain
+            .sort({ score: -1 })
+            .limit(1)
+            .project({ _id: 0, firstName: 1, score: 1 });
+
+        assert.deepEqual(topEngineer, [{ firstName: 'Ada', score: 100 }]);
+
+        const queryPlan = await users.find({ category: 'engineer' }).limit(1).explain('queryPlanner');
+        assert.equal(typeof queryPlan, 'object');
+        assert.equal(queryPlan !== null, true);
+
+        const streamRows = [];
+        await new Promise((resolve, reject) => {
+            users.find({ category: 'engineer' })
+                .sort({ score: -1 })
+                .stream()
+                .on('data', (doc) => streamRows.push(doc.firstName))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+        assert.deepEqual(streamRows, ['Ada', 'Grace']);
+
+        const aggregateChain = users.aggregate([
+            { $match: { category: 'engineer' } },
+            { $project: { _id: 0, firstName: 1, score: 1 } },
+        ]);
+        assert.equal(typeof aggregateChain.allowDiskUse, 'function');
+        assert.equal(typeof aggregateChain.batchSize, 'function');
+        assert.equal(typeof aggregateChain.explain, 'function');
+        assert.equal(typeof aggregateChain.stream, 'function');
+
+        const aggregateRows = await aggregateChain.allowDiskUse(true).comment('compat-query-contract');
+        assert.deepEqual(aggregateRows, [
+            { firstName: 'Ada', score: 100 },
+            { firstName: 'Grace', score: 90 },
+        ]);
+
+        const foundAda = await users.findOneById(ada.insertedId);
+        const foundByIds = await users.findByIds([grace.insertedId, alan.insertedId]);
+        const counted = await users.findAndCount({ category: 'engineer' }, { sort: { score: -1 }, limit: 1 });
+
+        assert.equal(foundAda.firstName, 'Ada');
+        assert.deepEqual(foundByIds.map((doc) => doc.firstName).sort(), ['Alan', 'Grace']);
+        assert.deepEqual(Object.keys(counted).sort(), ['data', 'total']);
+        assert.equal(counted.total, 2);
+        assert.equal(counted.data.length, 1);
+        assert.equal(counted.data[0].firstName, 'Ada');
+
+        const firstPage = await users.findPage({
+            query: { category: 'engineer' },
+            sort: { score: -1 },
+            limit: 1,
+            page: 1,
+        });
+        assert.deepEqual(Object.keys(firstPage).sort(), ['items', 'pageInfo']);
+        assert.equal(firstPage.items.length, 1);
+        assert.equal(firstPage.items[0].firstName, 'Ada');
+        assert.equal(typeof firstPage.pageInfo.endCursor, 'string');
+        assert.equal(firstPage.pageInfo.hasNext, true);
+
+        const secondPage = await users.findPage({
+            query: { category: 'engineer' },
+            sort: { score: -1 },
+            limit: 1,
+            after: firstPage.pageInfo.endCursor,
+        });
+        assert.equal(secondPage.items.length, 1);
+        assert.equal(secondPage.items[0].firstName, 'Grace');
+        assert.equal(secondPage.pageInfo.hasPrev, true);
+
+        await runtime.close();
+    });
+
     it('无效分页参数与不支持的表达式应被阻止', async () => {
         const runtime = new MonSQLize({
             type: 'mongodb',
@@ -120,7 +219,7 @@ describe('P2-B MongoDB expression/queries', () => {
         );
 
         await assert.rejects(
-            () => logs.aggregate([{ $project: { unsupported: MonSQLize.expr('UNSUPPORTED(metric)') } }]),
+            async () => logs.aggregate([{ $project: { unsupported: MonSQLize.expr('UNSUPPORTED(metric)') } }]),
             (error) => error && error.code === 'INVALID_EXPRESSION',
         );
 

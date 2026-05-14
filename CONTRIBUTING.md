@@ -41,8 +41,6 @@ npm run test:compatibility
 npm run lint:fix
 ```
 
-> 当前仓库仍处于 TypeScript 全量重写后的收尾阶段，但新的验证链已经恢复：`verify` 会串联 `lint`、`type-check`、`test` 与 `test:examples`。若需核对尚未在当前 `docs/**` 展开的历史 API 语义，请继续参考 `monSQLize-v1`。
-
 ---
 
 ## 提交流程

@@ -81,7 +81,8 @@ describe('P2-C writes-batch extension', () => {
         assert.equal(deleted.deletedCount, 3);
         assert.equal(deleted.batchCount, 2);
         assert.equal(calls.deleteMany.length, 2);
-        assert.deepEqual(incremented, { _id: 1, count: 5 });
+        assert.equal(incremented.modifiedCount, 1);
+        assert.deepEqual(incremented.value, { _id: 1, count: 5 });
         assert.deepEqual(calls.findOneAndUpdate[0].update, {
             $inc: { count: 2 },
             $set: { touched: true },

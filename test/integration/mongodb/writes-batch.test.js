@@ -58,10 +58,10 @@ describe('P2-C MongoDB writes-batch extension', () => {
         assert.equal(updated.modifiedCount, 4);
         assert.equal(updated.batchCount, 2);
 
-        assert.equal(incremented.name, 'Ada');
-        assert.equal(incremented.visits, 3);
-        assert.equal(incremented.score, 10);
-        assert.equal(incremented.label, 'boosted');
+        assert.equal(incremented.value.name, 'Ada');
+        assert.equal(incremented.value.visits, 3);
+        assert.equal(incremented.value.score, 10);
+        assert.equal(incremented.value.label, 'boosted');
 
         assert.equal(deleted.acknowledged, true);
         assert.equal(deleted.totalCount, 2);

@@ -24,6 +24,7 @@ describe('P3-C model features', () => {
 
     it('应恢复 model registry、实例缓存、relations/virtuals/populate 与 scoped routing', async () => {
         MonSQLize.Model.define('comments', {
+            schema: {},
             methods: {
                 summary() {
                     return `${this.body}`;
@@ -31,6 +32,7 @@ describe('P3-C model features', () => {
             },
         });
         MonSQLize.Model.define('posts', {
+            schema: {},
             defaults: { status: 'draft' },
             virtuals: {
                 titleWithStatus: {
@@ -48,6 +50,7 @@ describe('P3-C model features', () => {
             },
         });
         MonSQLize.Model.define('users', {
+            schema: {},
             methods: {
                 greet() {
                     return `Hello ${this.firstName}`;
@@ -115,22 +118,30 @@ describe('P3-C model features', () => {
         assert.equal(byIds[0].comments[0].body.includes('comment'), true);
         assert.equal(Object.prototype.hasOwnProperty.call(byIds[0].comments[0], '_id'), true);
 
-        const page = await users.findPage({ page: 1, limit: 10 }).populate('posts');
-        assert.equal(page.data.length, 1);
-        assert.equal(page.data[0].posts.length, 2);
+        assert.equal(typeof users.findOneById, 'function');
+        const byId = await users.findOneById(adaId).populate('posts');
+        assert.equal(byId.posts.length, 2);
 
         const counted = await users.findAndCount({ firstName: 'Ada' }).populate('posts');
-        assert.equal(counted.count, 1);
-        assert.equal(counted.rows[0].posts.length, 2);
+        assert.equal(counted.total, 1);
+        assert.equal(counted.data[0].posts.length, 2);
+
+        const page = await users.findPage({ page: 1, limit: 10 }).populate('posts');
+        assert.equal(page.items.length, 1);
+        assert.equal(page.items[0].posts.length, 2);
+        assert.equal(typeof page.pageInfo.endCursor, 'string');
 
         const doc = await users.findOne({ _id: adaId });
         doc.nickname = 'Countess';
         await doc.save();
-        const reloaded = await users.findById(adaId);
+        const reloaded = await users.findOneById(adaId);
         assert.equal(reloaded.nickname, 'Countess');
-        assert.deepEqual(await reloaded.validate(), { valid: true });
+        const validateResult = await reloaded.validate();
+        assert.equal(validateResult.valid, true);
+        assert.deepEqual(validateResult.errors, []);
 
         MonSQLize.Model.redefine('users', {
+            schema: {},
             virtuals: {
                 displayName: {
                     get() {
@@ -141,7 +152,7 @@ describe('P3-C model features', () => {
         });
         const refreshedUsers = runtime.model('users');
         assert.notStrictEqual(refreshedUsers, users);
-        const refreshedDoc = await refreshedUsers.findById(adaId);
+        const refreshedDoc = await refreshedUsers.findOneById(adaId);
         assert.equal(refreshedDoc.displayName, 'Lovelace, Ada');
 
         await runtime.close();

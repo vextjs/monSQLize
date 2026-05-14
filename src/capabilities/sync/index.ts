@@ -1,9 +1,9 @@
 /**
- * P4-C Change Stream sync 能力。
+ * Change Stream sync capability.
  *
- * 说明：
- * - 当前模块负责 sync 配置校验、resume token 持久化与最小 manager lifecycle。
- * - 公开与共享类型统一由 `types/sync.d.ts` 承接；此处只保留运行时实现与内部辅助类型。
+ * Description:
+ * - Responsible for sync config validation, resume token persistence, and manager lifecycle.
+ * - Public and shared types are managed by `types/sync.d.ts`; only runtime implementation and internal helper types are kept here.
  */
 
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
@@ -59,6 +59,12 @@ interface ChangeStreamSyncManagerOptions {
     clientFactory?: (uri: string, options?: MongoClientOptions) => Promise<MongoClient>;
 }
 
+/**
+ * Validates a {@link SyncConfig} object and throws a descriptive error on failure.
+ * @param config - Sync configuration to validate.
+ * @throws {MonSQLizeError} When the configuration is invalid.
+ * @since v1.7.0
+ */
 export function validateSyncConfig(config: SyncConfig): void {
     if (!config || typeof config !== 'object') {
         throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] config must be an object.');
@@ -114,16 +120,21 @@ export function validateSyncConfig(config: SyncConfig): void {
     }
 }
 
+/**
+ * Persists and retrieves change-stream resume tokens using either the file system
+ * or a Redis key-value store.
+ * @since v1.7.0
+ */
 export class ResumeTokenStore implements ResumeTokenStoreLike {
     private readonly storage: 'file' | 'redis';
-    private readonly tokenPath: string;
+    public readonly path: string;
     private readonly redis?: ResumeTokenRedisLike;
     private readonly redisKey: string;
     private readonly logger: LoggerLike | null;
 
     constructor(options: ResumeTokenConfig & { logger?: LoggerLike | null; } = {}) {
         this.storage = options.storage ?? 'file';
-        this.tokenPath = options.path ?? './.sync-resume-token.json';
+        this.path = options.path ?? './.sync-resume-token';
         this.redis = options.redis;
         this.redisKey = options.key ?? 'monsqlize:sync:resume-token';
         this.logger = options.logger ?? null;
@@ -136,7 +147,7 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
                 const payload = await Promise.resolve(this.redis.get(this.redisKey));
                 return payload ? JSON.parse(String(payload)) : null;
             }
-            const payload = await readFile(this.tokenPath, 'utf8');
+            const payload = await readFile(this.path, 'utf8');
             return JSON.parse(payload);
         } catch (error) {
             const code = (error as NodeJS.ErrnoException)?.code;
@@ -154,8 +165,8 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
                 await Promise.resolve(this.redis.set(this.redisKey, payload));
                 return;
             }
-            await mkdir(path.dirname(this.tokenPath), { recursive: true });
-            await writeFile(this.tokenPath, payload, 'utf8');
+            await mkdir(path.dirname(this.path), { recursive: true });
+            await writeFile(this.path, payload, 'utf8');
         } catch (error) {
             this.logger?.error?.('[Sync] failed to save resume token', error);
         }
@@ -167,7 +178,7 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
                 await Promise.resolve(this.redis.del?.(this.redisKey));
                 return;
             }
-            await unlink(this.tokenPath);
+            await unlink(this.path);
         } catch (error) {
             const code = (error as NodeJS.ErrnoException)?.code;
             if (code !== 'ENOENT') {
@@ -177,6 +188,11 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
     }
 }
 
+/**
+ * Watches a MongoDB change stream and fans out change events to configured
+ * sync targets (remote MongoDB, Redis pub/sub, or custom callbacks).
+ * @since v1.7.0
+ */
 export class ChangeStreamSyncManager {
     private readonly db: Db;
     private readonly poolManager: ConnectionPoolManager | null;
@@ -209,7 +225,7 @@ export class ChangeStreamSyncManager {
     }
 
     /**
-     * 启动 Change Stream 同步。
+     * Start Change Stream synchronization.
      * @since v1.0.9
      */
     async start(): Promise<void> {
@@ -246,7 +262,7 @@ export class ChangeStreamSyncManager {
     }
 
     /**
-     * 停止 Change Stream 同步。
+     * Stop Change Stream synchronization.
      * @since v1.0.9
      */
     async stop(): Promise<void> {
@@ -262,7 +278,7 @@ export class ChangeStreamSyncManager {
     }
 
     /**
-     * 获取当前统计。
+     * Get current statistics.
      * @since v1.0.9
      */
     getStats(): SyncStats {

@@ -29,7 +29,7 @@ export interface SagaResult {
     success: boolean;
     result?: unknown;
     error?: Error;
-    completedSteps: string[];
+    completedSteps: number;
     compensatedSteps: string[];
     duration: number;
 }
@@ -40,8 +40,19 @@ export interface SagaOrchestratorOptions {
 
 export interface SagaStats {
     totalExecutions: number;
+    /** @since v1.0.8 — primary v1 field name */
+    successfulExecutions: number;
+    /** @since v1.0.8 — primary v1 field name */
+    failedExecutions: number;
+    /** @since v1.0.8 — primary v1 field name */
+    compensatedExecutions: number;
+    successRate?: string;
+    storageMode?: string;
+    /** @alias successfulExecutions */
     successCount: number;
+    /** @alias failedExecutions */
     failureCount: number;
+    /** @alias compensatedExecutions */
     compensationCount: number;
 }
 
@@ -51,7 +62,7 @@ export declare class SagaOrchestrator {
     defineSaga(definition: SagaDefinition): void;
     execute(name: string, data: unknown): Promise<SagaResult>;
     getSaga(name: string): SagaDefinition | undefined;
-    listSagas(): string[];
+    listSagas(): Promise<string[]>;
     getStats(): SagaStats;
 }
 

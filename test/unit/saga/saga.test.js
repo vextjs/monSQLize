@@ -35,10 +35,10 @@ describe('P4-C saga', () => {
 
         const result = await saga.execute('create-order', { orderId: 'o_1' });
         assert.equal(result.success, false);
-        assert.deepEqual(result.completedSteps, ['reserve-inventory']);
+        assert.equal(result.completedSteps, 1);
         assert.deepEqual(result.compensatedSteps, ['reserve-inventory']);
         assert.deepEqual(calls, ['reserve', 'charge', 'compensate:true']);
-        assert.deepEqual(saga.listSagas(), ['create-order']);
+        assert.deepEqual(await saga.listSagas(), ['create-order']);
 
         const stats = saga.getStats();
         assert.equal(stats.totalExecutions, 1);
@@ -64,7 +64,7 @@ describe('P4-C saga', () => {
         const result = await runtime.executeSaga('simple', { id: 1 });
         assert.equal(result.success, true);
         assert.equal(result.result, 'ok');
-        assert.deepEqual(runtime.listSagas(), ['simple']);
+        assert.deepEqual(await runtime.listSagas(), ['simple']);
         assert.equal(runtime.getSagaStats().successCount, 1);
     });
 });

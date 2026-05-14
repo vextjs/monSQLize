@@ -1,9 +1,9 @@
 /**
- * P4-C Saga orchestrator 能力。
+ * Saga orchestrator capability.
  *
- * 说明：
- * - 当前模块负责 Saga 定义、执行、补偿与统计的最小闭环。
- * - 公开与共享类型统一由 `types/saga.d.ts` 承接；此处只保留运行时实现。
+ * Description:
+ * - Responsible for Saga definition, execution, compensation, and statistics.
+ * - Public and shared types are managed by `types/saga.d.ts`; only runtime implementation is kept here.
  */
 
 import { ErrorCodes, createError } from '../../core/errors';
@@ -51,14 +51,22 @@ class SagaExecutionContext implements SagaContext {
     }
 }
 
+/**
+ * Orchestrates multi-step Saga workflows with compensation support.
+ * Each step can define a rollback action that runs when a later step fails.
+ * @since v1.8.0
+ */
 export class SagaOrchestrator {
-    private readonly sagas = new Map<string, SagaDefinition>();
+    /** Whether Redis storage is used (always false in memory mode). */
+    public readonly useRedis = false;
+    /** Map of registered Saga definitions. */
+    public readonly sagas = new Map<string, SagaDefinition>();
     private readonly logger: LoggerLike | null;
-    private readonly stats: SagaStats = {
+    private readonly _stats = {
         totalExecutions: 0,
-        successCount: 0,
-        failureCount: 0,
-        compensationCount: 0,
+        successfulExecutions: 0,
+        failedExecutions: 0,
+        compensatedExecutions: 0,
     };
 
     constructor(options: SagaOrchestratorOptions = {}) {
@@ -66,7 +74,7 @@ export class SagaOrchestrator {
     }
 
     /**
-     * 注册 Saga 定义。
+     * Register a Saga definition.
      * @since v1.1.0
      */
     define(definition: SagaDefinition): void {
@@ -75,65 +83,74 @@ export class SagaOrchestrator {
     }
 
     /**
-     * `define()` 兼容别名。
+     * Compatibility alias for `define()` — async and returns the registered Saga definition object.
      * @since v1.1.0
      */
-    defineSaga(definition: SagaDefinition): void {
+    async defineSaga(definition: SagaDefinition): Promise<{ name: string }> {
         this.define(definition);
+        return { name: definition.name };
     }
 
     /**
-     * 执行指定 Saga。
+     * Execute the specified Saga.
      * @since v1.1.0
      */
     async execute(name: string, data: unknown): Promise<SagaResult> {
         const definition = this.sagas.get(name);
         if (!definition) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, `Saga '${name}' is not defined.`);
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `Saga '${name}' 未定义`);
         }
 
-        const executionId = `${name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const sagaId = `saga_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const startedAt = Date.now();
-        const context = new SagaExecutionContext(executionId, data);
-        const completedSteps: SagaStep[] = [];
-        const completedStepNames: string[] = [];
-        const compensatedSteps: string[] = [];
-        let lastResult: unknown;
+        const context = new SagaExecutionContext(sagaId, data);
+        const completedSteps: Array<{ step: SagaStep; result: unknown }> = [];
 
-        this.stats.totalExecutions += 1;
+        this._stats.totalExecutions += 1;
 
         try {
             for (const step of definition.steps) {
-                lastResult = await executeStepWithRetry(step, context, definition.timeout, this.logger);
-                completedSteps.push(step);
-                completedStepNames.push(step.name);
-                if (lastResult !== undefined) {
-                    context.set(step.name, lastResult);
+                const result = await executeStepWithRetry(step, context, definition.timeout, this.logger);
+                completedSteps.push({ step, result });
+                if (result !== undefined) {
+                    context.set(step.name, result);
                 }
             }
 
-            this.stats.successCount += 1;
+            this._stats.successfulExecutions += 1;
             return {
-                executionId,
                 success: true,
-                result: lastResult,
-                completedSteps: completedStepNames,
-                compensatedSteps,
+                sagaId,
+                sagaName: name,
+                completedSteps: completedSteps.length,
+                result: completedSteps[completedSteps.length - 1]?.result,
                 duration: Date.now() - startedAt,
-            };
+            } as unknown as SagaResult;
         } catch (cause) {
-            const error = cause instanceof Error ? cause : new Error(String(cause));
-            this.stats.failureCount += 1;
+            const errorMessage = cause instanceof Error ? cause.message : String(cause);
+            this._stats.failedExecutions += 1;
 
-            for (const step of [...completedSteps].reverse()) {
+            const compensationResults: Array<{
+                stepName: string;
+                success: boolean;
+                reason?: string;
+                error?: string;
+                duration?: number;
+            }> = [];
+
+            for (const { step, result: stepResult } of [...completedSteps].reverse()) {
                 if (typeof step.compensate !== 'function') {
+                    compensationResults.push({ stepName: step.name, success: false, reason: 'no-compensate-defined' });
                     continue;
                 }
+                const compStart = Date.now();
                 try {
-                    await step.compensate(context);
-                    compensatedSteps.push(step.name);
-                    this.stats.compensationCount += 1;
+                    await (step.compensate as (ctx: SagaContext, result: unknown) => Promise<void>)(context, stepResult);
+                    compensationResults.push({ stepName: step.name, success: true, duration: Date.now() - compStart });
+                    this._stats.compensatedExecutions += 1;
                 } catch (compensationError) {
+                    const compMsg = compensationError instanceof Error ? compensationError.message : String(compensationError);
+                    compensationResults.push({ stepName: step.name, success: false, error: compMsg });
                     this.logger?.error?.('[Saga] compensation failed', {
                         saga: name,
                         step: step.name,
@@ -142,19 +159,30 @@ export class SagaOrchestrator {
                 }
             }
 
+            const compensationSuccess = compensationResults.every(
+                (r) => r.success || r.reason === 'no-compensate-defined',
+            );
+
             return {
-                executionId,
                 success: false,
-                error,
-                completedSteps: completedStepNames,
-                compensatedSteps,
+                sagaId,
+                sagaName: name,
+                completedSteps: completedSteps.length,
+                compensatedSteps: compensationResults
+                    .filter(r => r.reason !== 'no-compensate-defined')
+                    .map(r => r.stepName),
                 duration: Date.now() - startedAt,
-            };
+                error: errorMessage,
+                compensation: {
+                    success: compensationSuccess,
+                    results: compensationResults,
+                },
+            } as unknown as SagaResult;
         }
     }
 
     /**
-     * 获取 Saga 定义。
+     * Get a Saga definition.
      * @since v1.1.0
      */
     getSaga(name: string): SagaDefinition | undefined {
@@ -162,21 +190,33 @@ export class SagaOrchestrator {
     }
 
     /**
-     * 获取已注册的 Saga 名称。
+     * Get all registered Saga names.
      * @since v1.1.0
      */
-    listSagas(): string[] {
+    async listSagas(): Promise<string[]> {
         return [...this.sagas.keys()];
     }
 
     /**
-     * 获取执行统计。
+     * Get execution statistics.
      * @since v1.1.0
      */
     getStats(): SagaStats {
+        const { totalExecutions, successfulExecutions, failedExecutions, compensatedExecutions } = this._stats;
+        const successRate =
+            totalExecutions > 0 ? `${Math.round((successfulExecutions / totalExecutions) * 100)}%` : '0%';
         return {
-            ...this.stats,
-        };
+            totalExecutions,
+            successfulExecutions,
+            failedExecutions,
+            compensatedExecutions,
+            successRate,
+            storageMode: '内存',
+            // v1 aliases
+            successCount: successfulExecutions,
+            failureCount: failedExecutions,
+            compensationCount: compensatedExecutions,
+        } as unknown as SagaStats;
     }
 }
 
@@ -197,10 +237,10 @@ function validateSagaDefinition(definition: SagaDefinition): void {
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'Saga definition must be an object.');
     }
     if (typeof definition.name !== 'string' || definition.name.trim() === '') {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Saga definition requires a non-empty name.');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Saga name is required');
     }
     if (!Array.isArray(definition.steps) || definition.steps.length === 0) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Saga definition requires a non-empty steps array.');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Saga steps must be a non-empty array');
     }
 
     for (const step of definition.steps) {
@@ -211,7 +251,7 @@ function validateSagaDefinition(definition: SagaDefinition): void {
             throw createError(ErrorCodes.INVALID_ARGUMENT, 'Saga step requires a non-empty name.');
         }
         if (typeof step.execute !== 'function') {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, `Saga step '${step.name}' requires an execute function.`);
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `Each step must have name and execute function`);
         }
         if (step.compensate !== undefined && typeof step.compensate !== 'function') {
             throw createError(ErrorCodes.INVALID_ARGUMENT, `Saga step '${step.name}' compensate must be a function.`);
