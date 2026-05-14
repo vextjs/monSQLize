@@ -3,30 +3,48 @@ pageType: home
 
 hero:
   name: monSQLize
-  text: 统一数据库查询语法框架
-  tagline: MongoDB 增强层 · 10~100x 性能 · 企业级特性 · 零学习成本
+  text: The MongoDB Powerhouse for Node.js
+  tagline: Full TypeScript · 56+ Enhanced Methods · Multi-Pool · Saga · Caching · 100% v1 Compatible
+  image:
+    src: /favicon.svg
+    alt: monSQLize logo
   actions:
     - theme: brand
-      text: 快速开始
+      text: 🚀 Quick Start
       link: /getting-started
     - theme: alt
-      text: API 参考
+      text: 📖 API Reference
       link: /api-index
     - theme: alt
-      text: GitHub
-      link: https://github.com/vextjs/monsqlize
+      text: ⭐ GitHub
+      link: https://github.com/vextjs/monSQLize
 
 features:
-  - title: 智能缓存
-    details: L1 内存（LRU）+ L2 Redis 两级缓存，业务代码零改动，查询性能提升 10~100 倍。
-  - title: 56+ 增强方法
-    details: findPage、findOneById、findByIds、findAndCount、stream、explain 等业界最完整的查询扩展集。
-  - title: 企业级分布式
-    details: 内置分布式锁、SSH 隧道、Saga 事务、Change Stream 同步、慢查询日志，零配置开箱即用。
-  - title: 多连接池
-    details: 读写分离、负载均衡、故障自动转移，支持 pool().use().scopedCollection() 链式访问。
-  - title: 可选 Model 层
-    details: Schema 验证、Hooks、Populate 关联查询（6 个方法支持），渐进式接入，不影响已有代码。
-  - title: TypeScript 友好
-    details: 完整类型声明，100% v1 API 兼容，可与现有 mongoose / 原生驱动项目平滑共存。
+  - title: ⚡ Smart Two-Level Cache
+    details: L1 in-memory (LRU) + L2 Redis with zero code changes. Query performance boost 10~100×. Pattern-based invalidation, distributed cache sync built-in.
+    link: /cache-and-function-cache
+  - title: 🔎 56+ Enhanced Query Methods
+    details: findPage (cursor/offset pagination), findOneById, findByIds, findAndCount, stream, explain and more — the most complete MongoDB query extension set.
+    link: /api-index
+  - title: 🏢 Enterprise-Grade Distributed
+    details: Distributed locks, SSH tunnels, Saga distributed transactions, Change Stream sync, slow-query logging — all zero-config out of the box.
+    link: /capability-index
+  - title: 🌐 Multi-Pool & Read/Write Split
+    details: Load balancing, automatic failover, and pool().use().scopedCollection() chain access for advanced multi-database architectures.
+    link: /multi-pool
+  - title: 🧩 Optional Model Layer
+    details: Schema validation, lifecycle hooks, and Populate associations (6 methods). Progressive adoption — drop in without touching existing code.
+    link: /model
+  - title: 🔷 Full TypeScript
+    details: Complete type declarations, 100% v1 API compatible, 2538/2538 assertions pass. Works side-by-side with Mongoose or native driver projects.
+    link: /getting-started
+  - title: 🔄 Saga Transactions
+    details: Distributed saga orchestration with automatic compensation. Define multi-step workflows with rollback semantics across services.
+    link: /saga-transaction
+  - title: 📊 Slow-Query Logging
+    details: Automatic slow-query detection and logging with configurable thresholds. MongoDB and in-memory storage adapters included.
+    link: /slow-query-log
+  - title: 🔗 Chain Query API
+    details: Fluent builder API — find().where().select().sort().skip().limit().lean() — composes complex queries with full TypeScript inference.
+    link: /chaining-api
 ---

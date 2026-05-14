@@ -50,6 +50,10 @@ export default defineConfig({
           {
             text: '贡献指南',
             link: 'https://github.com/vextjs/monsqlize/blob/main/CONTRIBUTING.md'
+          },
+          {
+            text: 'v1.x (Legacy)',
+            link: 'https://github.com/vextjs/monSQLize/tree/v1'
           }
         ]
       }

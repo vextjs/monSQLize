@@ -104,7 +104,15 @@ import {
     type MongoSession,
 } from '../capabilities/transaction';
 import { closeMongo, connectMongo } from '../adapters/mongodb/common/connect';
-import { createExpression, expr, type ExpressionObject } from '../core/expression';
+import {
+    createExpression,
+    compilePipelineExpressions,
+    expr,
+    hasExpressionInObject,
+    hasExpressionInPipeline,
+    isExpressionObject,
+    type ExpressionObject,
+} from '../core/expression';
 import { ErrorCodes, createError, createConnectionError, createValidationError, createCursorError, createQueryTimeoutError } from '../core/errors';
 import { validateRange } from '../utils/validation';
 import { Logger, type LoggerLike } from '../core/logger';
@@ -117,7 +125,7 @@ import type { SyncTargetHealthCheckConfig } from '../../types/sync';
 export { CollectionFacade, DbFacade, Logger, MemoryCache, createRedisCacheAdapter, DistributedCacheInvalidator };
 export { FunctionCache, withCache };
 export { Model };
-export { createExpression, expr };
+export { createExpression, compilePipelineExpressions, expr, hasExpressionInObject, hasExpressionInPipeline, isExpressionObject };
 export { ConnectionPoolManager };
 export { ChangeStreamSyncManager, ResumeTokenStore, validateSyncConfig };
 export { BatchQueue, SlowQueryLogConfigManager, SlowQueryLogManager, generateQueryHash };

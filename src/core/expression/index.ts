@@ -359,7 +359,7 @@ function dispatchFunction(name: string, argsStr: string): unknown {
 
         // ── Type ──────────────────────────────────────────────────────────────
         case 'TYPE': return { $type: parseValue(args[0]) };
-        case 'NOT': return { $not: [parseValue(args[0])] };
+        case 'NOT': return { $not: [compileInnerExpression(args[0])] };
         case 'EXISTS': return { $ne: [parseValue(args[0]), null] };
         case 'IS_NUMBER': return { $isNumber: parseValue(args[0]) };
         case 'IS_ARRAY': return { $isArray: parseValue(args[0]) };
@@ -399,16 +399,16 @@ function dispatchFunction(name: string, argsStr: string): unknown {
         case 'MINUTE': return { $minute: parseValue(args[0]) };
         case 'SECOND': return { $second: parseValue(args[0]) };
         case 'DATE_ADD': {
-            return { $dateAdd: { startDate: parseValue(args[0]), unit: args[1].replace(/['"]/g, ''), amount: parseValue(args[2]) } };
+            return { $dateAdd: { startDate: parseValue(args[0]), amount: parseValue(args[1]), unit: args[2].replace(/['"]/g, '') } };
         }
         case 'DATE_SUBTRACT': {
-            return { $dateSubtract: { startDate: parseValue(args[0]), unit: args[1].replace(/['"]/g, ''), amount: parseValue(args[2]) } };
+            return { $dateSubtract: { startDate: parseValue(args[0]), amount: parseValue(args[1]), unit: args[2].replace(/['"]/g, '') } };
         }
         case 'DATE_DIFF': {
             return { $dateDiff: { startDate: parseValue(args[0]), endDate: parseValue(args[1]), unit: args[2].replace(/['"]/g, '') } };
         }
         case 'DATE_TO_STRING': {
-            const dtsResult: Record<string, unknown> = { $dateToString: { format: args[0].replace(/['"]/g, ''), date: parseValue(args[1]) } };
+            const dtsResult: Record<string, unknown> = { $dateToString: { format: args[1].replace(/['"]/g, ''), date: parseValue(args[0]) } };
             if (args[2]) (dtsResult.$dateToString as Record<string, unknown>).timezone = args[2].replace(/['"]/g, '');
             return dtsResult;
         }

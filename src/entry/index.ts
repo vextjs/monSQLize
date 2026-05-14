@@ -3,6 +3,7 @@ import {
     CountQueue,
     DEFAULT_SLOW_QUERY_LOG_CONFIG,
     ChangeStreamSyncManager,
+    compilePipelineExpressions,
     ConnectionPoolManager,
     DistributedCacheInvalidator,
     DistributedCacheLockManager,
@@ -20,6 +21,9 @@ import {
     FunctionCache,
     generateQueryHash,
     getSlowQueryThreshold,
+    hasExpressionInObject,
+    hasExpressionInPipeline,
+    isExpressionObject,
     Logger,
     makePageResult,
     MemoryCache,
@@ -69,6 +73,10 @@ MonSQLize.validatePoolConfigSafe = validatePoolConfigSafe;
 MonSQLize.Model = Model;
 MonSQLize.expr = expr;
 MonSQLize.createExpression = createExpression;
+MonSQLize.compilePipelineExpressions = compilePipelineExpressions;
+MonSQLize.isExpressionObject = isExpressionObject;
+MonSQLize.hasExpressionInObject = hasExpressionInObject;
+MonSQLize.hasExpressionInPipeline = hasExpressionInPipeline;
 MonSQLize.withCache = withCache;
 MonSQLize.FunctionCache = FunctionCache;
 MonSQLize.ChangeStreamSyncManager = ChangeStreamSyncManager;
