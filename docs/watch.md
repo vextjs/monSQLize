@@ -11,7 +11,7 @@
 - [基本用法](#基本用法)
 - [API 参考](#api-参考)
 - [配置选项](#配置选项)
-- [ChangeStreamWrapper 方法](#changestreamwrapper-方法)
+- [ChangeStream 原生方法](#changestream-原生方法)
 - [使用示例](#使用示例)
 - [自动缓存失效](#自动缓存失效)
 - [注意事项](#注意事项)
@@ -24,7 +24,7 @@
 
 ## 概述
 
-`watch()` 方法提供 MongoDB Change Streams 的封装，支持实时监听集合的数据变更，并自动处理重连、缓存失效等复杂场景。
+`watch()` 方法直接返回 MongoDB Change Streams 的原生 `ChangeStream<T>` 对象，支持实时监听集合的数据变更。如需自动断点续传、多目标同步或缓存失效，请结合 [`ChangeStreamSyncManager`](./sync-backup.md) 使用。
 
 ---
 
@@ -202,21 +202,46 @@ process.on('SIGTERM', async () => {
 
 ---
 
-## 自动缓存失效
+## 缓存失效集成
 
-当 `autoInvalidateCache: true` (默认) 时，watch 会自动失效相关缓存：
+> ⚠️ `collection.watch()` 本身**不提供**内置的缓存失效功能。如需将 watch 与缓存集成，有两种方案：
 
-| 操作类型 | 失效的缓存 |
-|---------|----------|
-| `insert` | `find`, `findPage`, `count`, `findAndCount` |
-| `update` | `findOne`, `findOneById` (匹配 _id), `find`, `findPage`, `findAndCount` |
-| `replace` | `findOne`, `findOneById` (匹配 _id), `find`, `findPage`, `findAndCount` |
-| `delete` | `findOne`, `findOneById` (匹配 _id), `find`, `findPage`, `count`, `findAndCount` |
+### 方案一：手动处理（推荐轻量场景）
 
-**跨实例同步**: 
-- 如果配置了 `distributed.enabled: true`，缓存失效会自动广播到其他实例
-- 其他实例收到通知后自动失效本地缓存
-- 无需手动实现跨实例同步
+```javascript
+const cs = collection.watch();
+
+cs.on('change', async (change) => {
+  // 根据操作类型手动失效相应缓存键
+  if (['insert', 'update', 'replace', 'delete'].includes(change.operationType)) {
+    myCache.delete('user-list');
+    myCache.delete(`user:${change.documentKey?._id}`);
+  }
+});
+```
+
+### 方案二：ChangeStreamSyncManager（推荐生产场景）
+
+[`ChangeStreamSyncManager`](./sync-backup.md) 内置了断点续传、多目标同步和统计能力，可在 `apply` 回调中处理缓存：
+
+```javascript
+const syncManager = new MonSQLize.ChangeStreamSyncManager({
+  db,
+  config: {
+    enabled: true,
+    targets: [{
+      name: 'cache-invalidation',
+      apply: async (event) => {
+        // 在 apply 中处理缓存失效
+        myCache.delete('user-list');
+      }
+    }]
+  }
+});
+await syncManager.start();
+```
+
+**跨实例同步**: 如需分布式缓存同步，请使用 [`DistributedCacheInvalidator`](./cache-and-function-cache.md)，它支持通过 Pub/Sub 广播失效信号到其他实例。
 
 ---
 
@@ -269,18 +294,16 @@ const msq = new MonSQLize({
 ### 2. 性能影响
 
 - watch 本身对性能影响很小（MongoDB 原生支持）
-- 缓存失效是异步的，不阻塞主流程
-- 跨实例广播延迟 < 10ms
+- ChangeStream 监听是异步的，不阻塞主流程
 
 ### 3. resumeToken 过期
 
 MongoDB oplog 有大小限制，resumeToken 可能过期（默认几小时）。
 
-**monSQLize 自动处理**:
-- 检测到过期错误
-- 自动清除过期 token
-- 从当前时间重新开始
-- 触发 `error` 事件通知用户
+**处理建议**:
+- 监听 `error` 事件，检测 `ChangeStreamHistoryLost` 错误
+- 关闭当前 ChangeStream 并重新调用 `collection.watch()`（不带 `resumeAfter`）
+- 如需自动处理断点续传，请使用 [`ChangeStreamSyncManager`](./sync-backup.md)
 
 ### 4. 内存管理
 
@@ -317,21 +340,9 @@ cs.on('error', (err) => {
 });
 ```
 
-### 问题 3: 缓存集成调试
+### 问题 3: 缓存集成
 
-> ⚠️ `collection.watch()` 本身不提供 `autoInvalidateCache` 选项或 `cache.getStats()` 接口，缓存集成由应用层处理。
-
-**推荐做法**:
-```javascript
-// 手动在 change 事件中处理缓存失效
-const cs = collection.watch();
-
-cs.on('change', async (change) => {
-  console.log('变更:', change.operationType);
-  // 由业务代码决定如何失效缓存
-  myCache.delete('user-list');
-});
-```
+参见 [缓存失效集成](#缓存失效集成) 章节。
 
 ---
 
