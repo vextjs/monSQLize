@@ -76,11 +76,13 @@ npm run test:examples
 - 基础与便利写入：`insertOne`、`updateOne`、`deleteOne`、`insertMany`、`updateMany`、`deleteMany`、`replaceOne`、`findOneAnd*`、`upsertOne`
 - 批量写入扩展：`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne`
 
-### 仍建议参考 `monSQLize-v1`
+### 配套示例
 
-- 尚未在当前 `docs/**` 中展开的历史专题说明
-- 更细粒度的场景化迁移示例
-- 旧版完整章节化说明
+- `examples/quick-start/basic-connect.ts`
+- `examples/docs/find.ts`
+- `examples/docs/find-one.ts`
+- `examples/docs/find-page.ts`
+- [`examples.md`](./examples.md)
 
 ## 常见注意事项
 

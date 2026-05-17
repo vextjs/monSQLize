@@ -6,7 +6,7 @@
  *   npm run build && tsc -p tsconfig.examples.json
  *   node .generated/examples-dist/examples/docs/expression-functions.js
  */
-import { MonSQLize } from 'monsqlize';
+import MonSQLize from 'monsqlize';
 import { setupExample, teardownExample } from '../helpers/bootstrap.js';
 
 async function main() {

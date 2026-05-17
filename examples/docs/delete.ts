@@ -33,11 +33,12 @@ async function main() {
     const after = await sessions.count({});
     console.log('After deleteMany:', after, 'sessions remaining');
 
-    // ── deleteBatch — individual filters per item ─────────────────────────
-    const d3 = await sessions.deleteBatch([
-        { filter: { token: 'tok-d' } },
-    ]);
-    console.log('deleteBatch — deleted:', d3.deletedCount, '/', d3.totalCount);
+    // ── deleteBatch — batch delete by filter ───────────────────────────────
+    const d3 = await sessions.deleteBatch(
+        { userId: 'u1' },
+        { batchSize: 2 },
+    );
+    console.log('deleteBatch — deleted:', d3.deletedCount, '| batches:', d3.batchCount);
 
     const final = await sessions.count({});
     console.log('Final count:', final);

@@ -10,7 +10,7 @@
  *   node .generated/examples-dist/examples/docs/slow-query-log.js
  */
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { MonSQLize } from 'monsqlize';
+import MonSQLize from 'monsqlize';
 
 async function main() {
     const server = await MongoMemoryServer.create({ instance: { dbName: 'example-slow-query' } });

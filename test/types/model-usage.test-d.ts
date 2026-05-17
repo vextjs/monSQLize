@@ -57,8 +57,9 @@ expectType<PopulateProxy<{
         currentPage?: number;
     };
     totals?: Record<string, unknown>;
+    meta?: import('monsqlize').MetaInfo;
 }>>(users.findPage({ page: 1, limit: 10 }));
-expectType<Promise<{ valid: boolean; errors?: Array<{ field: string; message: string; value?: unknown }> }>>(users.validate({ firstName: 'Ada', lastName: 'Lovelace' }));
+expectType<{ valid: boolean; errors?: Array<{ field: string; message: string; value?: unknown }> }>(users.validate({ firstName: 'Ada', lastName: 'Lovelace' }));
 
 const scoped = runtime.use('tenant_a').model<UserDoc>('users');
 expectType<ModelAccessor<UserDoc>>(scoped);

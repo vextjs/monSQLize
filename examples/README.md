@@ -45,9 +45,13 @@ npm run test:examples
 | File | Description |
 |------|-------------|
 | [`docs/insert.ts`](docs/insert.ts) | `insertOne`, `insertMany`, `insertBatch` |
+| [`docs/insert-many.ts`](docs/insert-many.ts) | Focused `insertMany()` example |
 | [`docs/update.ts`](docs/update.ts) | `updateOne`, `updateMany`, `updateBatch`, `incrementOne` |
+| [`docs/update-one.ts`](docs/update-one.ts) | Focused `updateOne()` example |
 | [`docs/delete.ts`](docs/delete.ts) | `deleteOne`, `deleteMany`, `deleteBatch` |
+| [`docs/delete-many.ts`](docs/delete-many.ts) | Focused `deleteMany()` example |
 | [`docs/upsert.ts`](docs/upsert.ts) | `upsertOne`, `findOneAndUpdate`, `findOneAndReplace`, `replaceOne` |
+| [`docs/upsert-one.ts`](docs/upsert-one.ts) | Focused `upsertOne()` example |
 
 ### Docs — Query
 
@@ -55,8 +59,13 @@ npm run test:examples
 |------|-------------|
 | [`docs/find.ts`](docs/find.ts) | `find` with sort, limit, skip, project |
 | [`docs/find-one.ts`](docs/find-one.ts) | `findOne`, `findOneById`, `findByIds` |
+| [`docs/find-one-by-id.ts`](docs/find-one-by-id.ts) | Focused `findOneById()` example |
+| [`docs/find-by-ids.ts`](docs/find-by-ids.ts) | Focused `findByIds()` example |
 | [`docs/find-page.ts`](docs/find-page.ts) | `findPage` — cursor and offset pagination |
 | [`docs/find-and-count.ts`](docs/find-and-count.ts) | `findAndCount` — returns `{ data, total }` |
+| [`docs/count.ts`](docs/count.ts) | Focused `count()` example |
+| [`docs/distinct.ts`](docs/distinct.ts) | Focused `distinct()` example |
+| [`docs/explain.ts`](docs/explain.ts) | Focused `explain()` example |
 | [`docs/aggregate.ts`](docs/aggregate.ts) | Aggregation pipeline stages |
 | [`docs/chaining-api.ts`](docs/chaining-api.ts) | `FindChain` and `AggregateChain` fluent builders |
 
@@ -66,8 +75,25 @@ npm run test:examples
 |------|-------------|
 | [`docs/expression-functions.ts`](docs/expression-functions.ts) | `MonSQLize.expr()` for reusable pipeline expressions |
 | [`docs/model.ts`](docs/model.ts) | Model schema + lifecycle hooks (pre/post) |
-| [`docs/transaction.ts`](docs/transaction.ts) | `withTransaction()` — requires replica-set, see file for setup |
+| [`docs/collection-management.ts`](docs/collection-management.ts) | `createCollection`, `createView`, index management, `db().admin()` |
+| [`docs/bookmarks.ts`](docs/bookmarks.ts) | `prewarmBookmarks`, `listBookmarks`, `clearBookmarks` |
+| [`docs/transaction.ts`](docs/transaction.ts) | `withTransaction()` with an in-memory replica-set |
 | [`docs/slow-query-log.ts`](docs/slow-query-log.ts) | Slow query log configuration |
+| [`docs/watch.ts`](docs/watch.ts) | Change streams — native ChangeStream events |
+| [`docs/lock.ts`](docs/lock.ts) | Distributed lock — acquire/release/try-lock |
+| [`docs/saga.ts`](docs/saga.ts) | Saga / multi-step transactional workflow with rollback |
+| [`docs/populate-relations.ts`](docs/populate-relations.ts) | Cross-collection populate relations |
+| [`docs/increment-one.ts`](docs/increment-one.ts) | `incrementOne` — atomic counter field increments |
+| [`docs/find-page.ts`](docs/find-page.ts) | `findPage` — cursor/offset pagination with stream mode |
+
+### Docs — High-Level Capabilities
+
+| File | Description |
+|------|-------------|
+| [`docs/cache-multilevel.ts`](docs/cache-multilevel.ts) | Multi-level cache: L1 MemoryCache + L2 Redis stub + DistributedCacheInvalidator + FunctionCache |
+| [`docs/objectid.ts`](docs/objectid.ts) | ObjectId auto-conversion: insert/find/findByIds/update/delete with plain string IDs |
+| [`docs/pool.ts`](docs/pool.ts) | ConnectionPoolManager — multi-pool routing with auto/round-robin/weighted strategies |
+| [`docs/sync.ts`](docs/sync.ts) | ChangeStreamSyncManager + ResumeTokenStore — resume-token-based change stream sync |
 
 ## Running Individual Examples
 
@@ -76,26 +102,37 @@ npm run test:examples
 tsc -p tsconfig.examples.json
 
 node .generated/examples-dist/examples/docs/insert.js
+node .generated/examples-dist/examples/docs/insert-many.js
 node .generated/examples-dist/examples/docs/update.js
+node .generated/examples-dist/examples/docs/update-one.js
 node .generated/examples-dist/examples/docs/delete.js
+node .generated/examples-dist/examples/docs/delete-many.js
 node .generated/examples-dist/examples/docs/upsert.js
+node .generated/examples-dist/examples/docs/upsert-one.js
 node .generated/examples-dist/examples/docs/find.js
 node .generated/examples-dist/examples/docs/find-one.js
+node .generated/examples-dist/examples/docs/find-one-by-id.js
+node .generated/examples-dist/examples/docs/find-by-ids.js
 node .generated/examples-dist/examples/docs/find-page.js
 node .generated/examples-dist/examples/docs/find-and-count.js
+node .generated/examples-dist/examples/docs/count.js
+node .generated/examples-dist/examples/docs/distinct.js
+node .generated/examples-dist/examples/docs/explain.js
 node .generated/examples-dist/examples/docs/aggregate.js
 node .generated/examples-dist/examples/docs/chaining-api.js
 node .generated/examples-dist/examples/docs/expression-functions.js
 node .generated/examples-dist/examples/docs/model.js
+node .generated/examples-dist/examples/docs/collection-management.js
+node .generated/examples-dist/examples/docs/bookmarks.js
+node .generated/examples-dist/examples/docs/transaction.js
 node .generated/examples-dist/examples/docs/slow-query-log.js
-```
-
-## Transaction Example
-
-Requires a local MongoDB replica-set:
-
-```bash
-# Start a local replica-set, then:
-MONGO_RS_URI=mongodb://127.0.0.1:27017/?replicaSet=rs0 \
-  node .generated/examples-dist/examples/docs/transaction.js
+node .generated/examples-dist/examples/docs/watch.js
+node .generated/examples-dist/examples/docs/lock.js
+node .generated/examples-dist/examples/docs/saga.js
+node .generated/examples-dist/examples/docs/populate-relations.js
+node .generated/examples-dist/examples/docs/increment-one.js
+node .generated/examples-dist/examples/docs/cache-multilevel.js
+node .generated/examples-dist/examples/docs/objectid.js
+node .generated/examples-dist/examples/docs/pool.js
+node .generated/examples-dist/examples/docs/sync.js
 ```

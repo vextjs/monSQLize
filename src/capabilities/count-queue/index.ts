@@ -51,7 +51,7 @@ export interface CountQueueStats {
 }
 
 interface QueueEntry {
-    resolve: () => void;
+    resolve: (reason: 'run' | 'cleared') => void;
     reject: (err: Error) => void;
     timer: ReturnType<typeof setTimeout>;
     startTime: number;
@@ -103,8 +103,12 @@ export class CountQueue {
             if (this.queue.length >= this.maxQueueSize) {
                 this.stats.rejected++;
                 throw createError(ErrorCodes.INVALID_OPERATION, `Count queue is full (${this.maxQueueSize})`);
-            }            this.stats.queued++;
-            await this._waitInQueue(startTime);
+            }
+            this.stats.queued++;
+            const waitResult = await this._waitInQueue(startTime);
+            if (waitResult === 'cleared') {
+                return undefined as T;
+            }
         }
 
         this.running++;
@@ -146,20 +150,20 @@ export class CountQueue {
     }
 
     /**
-     * Reject and clear all queued pending requests (use with caution).
+     * Clear all queued pending requests without executing them.
      */
     clear(): void {
         while (this.queue.length > 0) {
             const entry = this.queue.shift();
             if (entry) {
                 clearTimeout(entry.timer);
-        entry.reject(createError(ErrorCodes.INVALID_OPERATION, 'Count queue cleared'));
+                entry.resolve('cleared');
             }
         }
     }
 
-    private _waitInQueue(startTime: number): Promise<void> {
-        return new Promise<void>((resolve, reject) => {
+    private _waitInQueue(startTime: number): Promise<'run' | 'cleared'> {
+        return new Promise<'run' | 'cleared'>((resolve, reject) => {
             const timer = setTimeout(() => {
                 const index = this.queue.findIndex(item => item.resolve === resolve);
                 if (index !== -1) {
@@ -170,10 +174,10 @@ export class CountQueue {
             }, this.timeout);
 
             this.queue.push({
-                resolve: () => {
+                resolve: (reason) => {
                     const waitTime = Date.now() - startTime;
                     this._updateWaitTimeStats(waitTime);
-                    resolve();
+                    resolve(reason);
                 },
                 reject,
                 timer,
@@ -187,7 +191,7 @@ export class CountQueue {
             const entry = this.queue.shift();
             if (entry) {
                 clearTimeout(entry.timer);
-                entry.resolve();
+                entry.resolve('run');
             }
         }
     }

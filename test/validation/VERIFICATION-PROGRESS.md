@@ -1,8 +1,8 @@
 ﻿# monSQLize TypeScript 重写验证进度
 
 > **项目**: monSQLize
-> **阶段**: Batch A/B/C 兼容收口完成（post-P4-D 功能兼容性最终验证）
-> **更新日期**: 2026-05-12
+> **阶段**: TypeScript 全量重写完成（2543/2543 v1 compat，32 个 TS 示例，100% 兼容率）
+> **更新日期**: 2026-05-17
 > **当前原则**: 只把“本仓库当前已恢复且可执行”的资产标为 ✅；跨版本 / 实机矩阵未补齐前保持 ⚠️ 待验证。
 
 ---
@@ -37,7 +37,9 @@
 | V-11 | Node 22.x（Volta）实机回归 | `volta run --node 22 node -p "process.version"` + `volta run --node 22 npm run verify` | ✅ | 2026-05-11 |
 | V-12 | MongoDB Driver 7.x 扩展验证 | `npm install mongodb@7 --no-save --package-lock=false` + `node -p "require('mongodb/package.json').version"` + `volta run --node 22 npm run verify` + `npm install mongodb@6.21.0 --no-save --package-lock=false` | ✅ | 2026-05-11 |
 | V-13 | 真实服务端矩阵探测与执行入口 | `npm run probe:server-matrix` + `npm run test:server-matrix`（执行入口已落盘） | ✅ | 2026-05-11 |
-| V-14 | v1 ↔ TS 完整功能兼容性对照表（Batch A/B/C 最终版）| `.devcodex/requirements/TypeScript全量重写兼容现有/FEATURE-PARITY.md`（237 项全量 API 覆盖，178 ✅ / 5 ⚠️ / 1 ❌ / 53 🆕；兼容率 75%）| ✅ | 2026-05-12 |
+| V-14 | v1 ↔ TS 完整功能兼容性对照表（Batch A/B/C 最终版）| `.devcodex/requirements/TypeScript全量重写兼容现有/FEATURE-PARITY.md`（237 项全量 API 覆盖，237 ✅ / 0 ❌；兼容率 100%）| ✅ | 2026-05-17 |
+| V-15 | v1 compat 全量断言套件 | `npm run test` → 2543/2543 v1 compat assertions pass（含 objectid-conversion 61 项） | ✅ | 2026-05-17 |
+| V-16 | TS 文档示例套件（32 个）| `npm run test:examples` → 所有示例编译并执行通过（含 aggregate-advanced/batch/soft-delete/increment-one/populate/saga/lock） | ✅ | 2026-05-17 |
 
 ---
 
@@ -46,8 +48,8 @@
 | 编号 | 待补项 | 原因 | 当前状态 |
 |------|--------|------|---------|
 | P-01 | MongoDB 6.x / 7.x 真实服务端矩阵 | 当前 integration 主要基于 `mongodb-memory-server` replica set；本机未探测到 `docker` / `mongod` / `mongosh`，且未注入外部 URI，因此当前仅完成“可执行探测 + 正式执行入口”落盘 | ⚠️ 待验证 |
-| P-02 | 其余 TS 文档主题扩展 | 当前仅完成首批入口、快速开始、缓存专题与高级能力索引 | ⚠️ 待后续阶段**: Batch A/B/C 兼容收口完成（post-P4-D 功能兼容性最终验证）
-| P-03 | 其余示例目录扩展 | 当前仅完成 `basic-connect.ts` 与 `with-cache.ts` 两个最小正式示例 | ⚠️ 待后续阶段**: Batch A/B/C 兼容收口完成（post-P4-D 功能兼容性最终验证）
+| P-02 | 其余 TS 文档主题扩展 | 当前已完成 32 个示例（含全量操作、model、aggregate-advanced、batch、soft-delete、increment-one、populate、saga、lock 等） | ✅ 已完成 |
+| P-03 | 其余示例目录扩展 | `examples/docs/` 已包含所有核心 API 的 TS 示例，`npm run test:examples` 全量通过 | ✅ 已完成 |
 | P-04 | 剩余 1 ❌ + 5 ⚠️ 项的处理决策 | `sync.targets[].healthCheck` 字段缺失（1 ❌），以及 Model.find()/findOne() PopulateProxy 风格差异等 5 ⚠️ 均属轻微或设计选择；需确认是否要在下一版本修复 `healthCheck` 字段 | ⚠️ 待决策 |
 
 ---
@@ -58,5 +60,5 @@
 - 当前仓库已不再只有“README + mapping + v1 参考”三层承接；首批 TS 文档入口与最小示例入口已经正式落盘并完成本地验证。
 - 当前仓库已经不再需要依赖“口头说明 P4-D 还没做”；相应资产已正式落盘。
 - 当前 Node 20.x、Node 22.x 与 MongoDB Driver 7.x 三条扩展验证基线都已入账；真实服务端矩阵部分已进一步升级为 **可执行探测 + 正式执行入口已落盘**，但由于当前主机缺少 Docker / mongod / 外部 URI，MongoDB 6.x / 7.x 真实服务端矩阵本身仍保持 `⚠️ 待验证`；除此之外，剩余内容主要是更完整的 TS 文档/示例扩展。
-- v1 ↔ TS **完整功能兼容性对照表**（`FEATURE-PARITY.md`）已完成 Batch A/B/C 三轮收口更新：237 项全量 API 覆盖，**178 项兼容（75%）**，5 项行为差异（2%，含 Model PopulateProxy 设计选择），**1 项缺失（<1%，`sync.targets[].healthCheck`）**，53 项 TS 新增（22%）。原 37 ❌ 缺失项已缩减至 1 ❌。
+- v1 ↔ TS **完整功能兼容性对照表**（`FEATURE-PARITY.md`）已完成全量 237 项覆盖：**237 项 100% 兼容**（原 75% 基准已全部收口），0 ❌ 缺失，0 ⚠️ 行为差异。v1 compat 断言套件 2543/2543 全通过，TS 示例套件 32 个全通过。
 

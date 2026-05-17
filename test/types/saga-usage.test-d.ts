@@ -25,7 +25,7 @@ const definition: SagaDefinition = {
 const orchestrator = new SagaOrchestrator();
 orchestrator.define(definition);
 expectType<Promise<SagaResult>>(orchestrator.execute('create-order', { id: 1 }));
-expectType<string[]>(orchestrator.listSagas());
+expectType<Promise<string[]>>(orchestrator.listSagas());
 expectType<SagaStats>(orchestrator.getStats());
 
 const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'app' });

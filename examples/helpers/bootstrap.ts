@@ -11,12 +11,16 @@
  * await teardownExample(msq, server);
  * ```
  */
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import { MonSQLize } from 'monsqlize';
+import { MongoMemoryReplSet, MongoMemoryServer } from 'mongodb-memory-server';
+import MonSQLize from 'monsqlize';
 
-export interface ExampleContext {
+interface StoppableMemoryServer {
+    stop(): Promise<unknown>;
+}
+
+export interface ExampleContext<TServer extends StoppableMemoryServer = MongoMemoryServer> {
     msq: MonSQLize;
-    server: MongoMemoryServer;
+    server: TServer;
     uri: string;
 }
 
@@ -24,7 +28,7 @@ export interface ExampleContext {
  * Start an in-memory MongoDB server and connect a MonSQLize instance.
  * @param dbName - Database name to use (default: 'monsqlize-example')
  */
-export async function setupExample(dbName = 'monsqlize-example'): Promise<ExampleContext> {
+export async function setupExample(dbName = 'monsqlize-example'): Promise<ExampleContext<MongoMemoryServer>> {
     const server = await MongoMemoryServer.create({
         instance: { dbName },
     });
@@ -39,9 +43,28 @@ export async function setupExample(dbName = 'monsqlize-example'): Promise<Exampl
 }
 
 /**
+ * Start an in-memory MongoDB replica set and connect a MonSQLize instance.
+ * Useful for change streams and transactions.
+ */
+export async function setupReplicaSetExample(dbName = 'monsqlize-example-rs'): Promise<ExampleContext<MongoMemoryReplSet>> {
+    const server = await MongoMemoryReplSet.create({
+        replSet: { count: 1, storageEngine: 'wiredTiger' },
+        binary: { version: '6.0.12' },
+    });
+    const uri = server.getUri();
+    const msq = new MonSQLize({
+        type: 'mongodb',
+        databaseName: dbName,
+        config: { uri },
+    });
+    await msq.connect();
+    return { msq, server, uri };
+}
+
+/**
  * Gracefully stop the MonSQLize instance and the in-memory server.
  */
-export async function teardownExample(msq: MonSQLize, server: MongoMemoryServer): Promise<void> {
+export async function teardownExample(msq: MonSQLize, server: StoppableMemoryServer): Promise<void> {
     await msq.close();
     await server.stop();
 }

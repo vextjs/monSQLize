@@ -4,7 +4,7 @@
 
 > 原则：
 > - 先说明“当前仓库已正式承接什么”
-> - 再说明“哪些细节仍参考 `monSQLize-v1`”
+> - 再给出“当前仓库内对应的文档与示例入口”
 
 ## 当前能力总览
 
@@ -26,10 +26,10 @@
 - relations / virtuals / populate
 - `findById()` / `findByIds()` / `findAndCount()`
 
-当前 `docs/**` 仍未单独展开完整 Model 专题，因此：
+当前 Model 相关入口：
 
-- **当前正式入口**：以本页索引 + `README.md` 中现有示例为准
-- **更细节说明**：继续参考 `monSQLize-v1`
+- 文档：`docs/model.md`、`docs/populate.md`、`docs/relations.md`
+- 示例：`examples/docs/model.ts`
 
 ## 2. transaction / lock
 
@@ -46,7 +46,7 @@
 - 事务封装入口识别
 - 业务锁基本接入
 
-更复杂的分布式锁策略和历史细节，当前仍建议参考 `monSQLize-v1`。
+更复杂的分布式锁策略会继续在当前文档站补充；现阶段以当前 API 与测试通过行为为准。
 
 ## 3. pool
 
@@ -71,13 +71,12 @@
 
 当前 `docs/**` 先只提供能力索引，不在本轮把这三类能力全部展开成独立专题。
 
-## 5. 何时继续参考 `monSQLize-v1`
+## 5. 当前仓库内的推荐入口
 
-若你需要以下内容，当前仍优先参考 `monSQLize-v1`：
-
-1. 历史完整章节化说明
-2. 尚未迁移到当前 `docs/**` 的旧示例
-3. 当前仓库尚未独立成文的高级能力细节
+1. 文档站首页：`docs/index.md`
+2. API 索引：`docs/api-index.md`
+3. 示例索引：`docs/examples.md`
+4. 可执行示例目录：`examples/docs/*.ts`
 
 ## 6. 后续扩展顺序建议
 

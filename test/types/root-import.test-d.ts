@@ -11,6 +11,7 @@ import MonSQLize, {
     type BookmarkClearResult,
     type BookmarkListResult,
     type BookmarkPrewarmResult,
+    type IncrementOneResult,
     expr,
     createExpression,
     withCache,
@@ -84,7 +85,7 @@ expectType<Promise<UpdateResult>>(users.replaceOne({}, { name: 'Grace' }));
 expectType<Promise<{ name: string; } | null>>(users.findOneAndUpdate({}, { $set: { name: 'Grace' } }));
 expectType<Promise<{ name: string; } | null>>(users.findOneAndDelete({ name: 'Grace' }));
 expectType<Promise<UpdateResult>>(users.upsertOne({}, { $set: { name: 'Upserted' } }));
-expectType<Promise<{ name: string; } | null>>(users.incrementOne({}, 'visits'));
+expectType<Promise<IncrementOneResult<{ name: string; }>>>(users.incrementOne({}, 'visits'));
 expectType<Promise<DeleteResult>>(users.deleteOne({ name: 'Ada Lovelace' }));
 expectType<Promise<DeleteResult>>(users.deleteMany({ active: false }));
 expectType<Promise<DeleteBatchResult>>(users.deleteBatch({ active: false }));
@@ -114,17 +115,7 @@ expectType<Promise<unknown>>(aggregateChain.explain());
 expectType<Promise<{ name: string; } | null>>(users.findOneById('507f1f77bcf86cd799439011'));
 expectType<Promise<{ name: string; }[]>>(users.findByIds(['507f1f77bcf86cd799439011']));
 expectType<Promise<{ data: { name: string; }[]; total: number }>>(users.findAndCount({ name: 'Ada' }));
-expectType<Promise<{
-    items: { name: string; }[];
-    pageInfo: {
-        hasNext: boolean;
-        hasPrev: boolean;
-        startCursor: string | null;
-        endCursor: string | null;
-        currentPage?: number;
-    };
-    totals?: Record<string, unknown>;
-}>>(users.findPage({ page: 1, limit: 10 }));
+expectType<Promise<import('monsqlize').FindPageResult<{ name: string; }>>>(users.findPage({ page: 1, limit: 10 }));
 expectType<Promise<{ name: string; } | null>>(users.findOneAndReplace({}, { name: 'Grace' }));
 expectType<Promise<boolean>>(db.db().admin().ping());
 
@@ -142,6 +133,5 @@ expectType<Promise<import('monsqlize').LockContract>>(db.acquireLock('cron:job',
 expectType<Promise<import('monsqlize').LockContract | null>>(db.tryAcquireLock('cron:job', { ttl: 1000 }));
 expectType<LockStats>(new MonSQLize.LockManager().getStats());
 
-// 当前仍明确后移的 API。
-expectError(db.db().listDatabases());
+expectType<Promise<Array<{ name: string; sizeOnDisk: number; empty: boolean }> | string[]>>(db.db().listDatabases());
 

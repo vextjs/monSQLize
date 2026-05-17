@@ -100,7 +100,10 @@ npm run test:examples
 2. Redis 依赖属于 optional dependency
 3. 不应把“当前正式文档入口建立”与“分布式缓存环境搭建”强耦合
 
-更完整的 Redis / 多级缓存部署细节，在当前 `docs/**` 尚未展开前，继续参考 `monSQLize-v1` 的历史说明。
+Redis / 多级缓存的进阶部署建议会继续在当前文档站内补齐；当前仓库已提供可执行起点：
+
+- `examples/cache/with-cache.ts`
+- `examples/docs/slow-query-log.ts`
 
 ## 6. 性能说明边界
 

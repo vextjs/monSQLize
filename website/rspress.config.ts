@@ -4,14 +4,14 @@ import { pluginSitemap } from '@rspress/plugin-sitemap';
 
 export default defineConfig({
   root: path.join(import.meta.dirname, '..', 'docs'),
-  base: '/monsqlize/',
+  base: '/monSQLize/',
   title: 'monSQLize',
   icon: '/favicon.svg',
   description: 'A powerful TypeScript MongoDB ODM with full v1 API compatibility — featuring chain queries, multi-pool, transactions, caching, Saga, and slow-query logging.',
   outDir: 'dist',
   plugins: [
     pluginSitemap({
-      siteUrl: 'https://vextjs.github.io/monsqlize'
+      siteUrl: 'https://vextjs.github.io/monSQLize'
     })
   ],
   markdown: {
@@ -41,18 +41,22 @@ export default defineConfig({
         link: '/capability-index'
       },
       {
-        text: 'v2.0.0',
+        text: 'Versions',
         items: [
+          {
+            text: 'v1.3.x (Current TS)',
+            link: '/getting-started'
+          },
           {
             text: '更新日志',
             link: 'https://github.com/vextjs/monsqlize/blob/main/CHANGELOG.md'
           },
           {
-            text: '贡献指南',
-            link: 'https://github.com/vextjs/monsqlize/blob/main/CONTRIBUTING.md'
+            text: 'GitHub Pages',
+            link: 'https://vextjs.github.io/monSQLize/'
           },
           {
-            text: 'v1.x (Legacy)',
+            text: 'v1.x (Legacy JS)',
             link: 'https://github.com/vextjs/monSQLize/tree/v1'
           }
         ]
@@ -63,7 +67,9 @@ export default defineConfig({
         {
           text: '快速入门',
           items: [
+            { text: '首页', link: '/' },
             { text: '快速开始', link: '/getting-started' },
+            { text: '示例总览', link: '/examples' },
             { text: '连接管理', link: '/connection' },
             { text: 'ObjectId 自动转换', link: '/objectid-auto-convert' },
             { text: 'ESM 支持', link: '/esm-support' },

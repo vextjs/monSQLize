@@ -6,11 +6,16 @@
  *   npm run build && tsc -p tsconfig.examples.json
  *   node .generated/examples-dist/examples/docs/model.js
  */
-import { MonSQLize } from 'monsqlize';
+import MonSQLize from 'monsqlize';
 import { setupExample, teardownExample } from '../helpers/bootstrap.js';
 
 // ── 1. Define models (static, before connecting) ──────────────────────────
 MonSQLize.Model.define('posts', {
+    schema: (dsl: unknown) => (dsl as (shape: Record<string, string>) => Record<string, unknown>)({
+        title: 'string',
+        authorId: 'string',
+        status: 'string',
+    }),
     defaults: { status: 'draft' },
     virtuals: {
         titleWithStatus: {
@@ -22,6 +27,11 @@ MonSQLize.Model.define('posts', {
 });
 
 MonSQLize.Model.define('users', {
+    schema: (dsl: unknown) => (dsl as (shape: Record<string, string>) => Record<string, unknown>)({
+        firstName: 'string',
+        lastName: 'string',
+        nickname: 'string',
+    }),
     methods: {
         greet(this: Record<string, unknown>) {
             return `Hello, ${this.firstName}!`;
@@ -54,8 +64,8 @@ async function main() {
     const adaId = alice.insertedId;
     console.log('Created user id:', adaId ? 'ok' : 'missing');
 
-    await posts.insertOne({ title: 'Hello World', authorId: adaId, status: 'published' });
-    await posts.insertOne({ title: 'Draft Post', authorId: adaId });
+    await posts.insertOne({ title: 'Hello World', authorId: String(adaId), status: 'published' });
+    await posts.insertOne({ title: 'Draft Post', authorId: String(adaId) });
 
     // ── findOne + virtuals + methods ──────────────────────────────────────
     const found = await users.findOne({ _id: adaId });

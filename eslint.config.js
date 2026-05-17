@@ -104,6 +104,10 @@ module.exports = [
             'index.mjs',
             '*.min.js',
             '.nyc_output/',
+            'website/dist/',
+            'website/.vitepress/dist/',
+            '.generated/',
+            'test/v1-source/**',  // vendored v1 test files (not owned by this project)
         ]
     }
 ];

@@ -38,6 +38,63 @@ try {
     // schema-dsl not available – schema validation will be skipped
 }
 
+// Known base types accepted by schema-dsl. Any other base type is invalid.
+const KNOWN_SCHEMA_BASE_TYPES = new Set([
+    'string', 'number', 'boolean', 'integer', 'float', 'int', 'double', 'decimal',
+    'date', 'objectid', 'uuid', 'email', 'url', 'buffer', 'binary',
+    'object', 'array', 'any', 'mixed', 'null',
+]);
+
+/**
+ * Parse a schema-dsl type string and extract the base type name, ignoring any
+ * modifiers (`!` required, `?` optional, `[]` array, `:min-max` constraints).
+ *
+ * Examples:
+ *   "string!"    → "string"
+ *   "string?"    → "string"
+ *   "string[]"   → "string"
+ *   "string:3-32" → "string"
+ *   "objectid!"  → "objectid"
+ *   "invalid!"   → "invalid"
+ */
+function _extractBaseType(typeStr: string): string {
+    // Match only leading alpha + underscore characters (the base type name).
+    const m = typeStr.match(/^[a-zA-Z_]+/);
+    return m ? m[0].toLowerCase() : '';
+}
+
+/**
+ * Wrap the schema-dsl `dsl()` builder so that unknown field type strings throw
+ * immediately at Model.define() time, rather than silently falling back to string.
+ *
+ * Usage: schema-dsl's dsl is called as `dsl({ fieldName: 'type!', ... })`.
+ * This wrapper intercepts that call, validates each type string, and then
+ * delegates to the real dsl function.
+ */
+function _makeValidatingDslFn(realDsl: SchemaDslFn): SchemaDslFn {
+    const validating = function validatingDsl(fields: unknown): unknown {
+        if (fields && typeof fields === 'object') {
+            for (const [field, spec] of Object.entries(fields as Record<string, unknown>)) {
+                if (typeof spec === 'string') {
+                    // v1 compat: enum DSL like "admin|user" is a literal-union, not a base type.
+                    if (spec.includes('|')) {
+                        continue;
+                    }
+                    const base = _extractBaseType(spec);
+                    if (base && !KNOWN_SCHEMA_BASE_TYPES.has(base)) {
+                        throw new TypeError(
+                            `[schema] Invalid type "${base}" in field "${field}". ` +
+                            `Known types: ${[...KNOWN_SCHEMA_BASE_TYPES].join(', ')}.`
+                        );
+                    }
+                }
+            }
+        }
+        return (realDsl as unknown as (f: unknown) => unknown)(fields);
+    };
+    return validating as unknown as SchemaDslFn;
+}
+
 export type {
     HookContext,
     ModelConnection,
@@ -157,6 +214,19 @@ export class Model {
         }
         validateDefinition<TDocument>(definition);
         processTimestamps(definition);
+
+        // Pre-validate schema types at define time so invalid types surface immediately.
+        if (_schemaDslFn !== null && typeof (definition as any).schema === 'function') {
+            const validatingDsl = _makeValidatingDslFn(_schemaDslFn);
+            try {
+                (definition as any).schema(validatingDsl);
+            } catch (err) {
+                if (err instanceof TypeError && (err as TypeError).message.includes('[schema] Invalid type')) {
+                    throw err;
+                }
+            }
+        }
+
         this.registry.set(normalizedName, {
             collectionName: normalizedName,
             definition,
@@ -287,14 +357,21 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
 
         // ── schema-dsl compile ────────────────────────────────────────────────────
         if (_schemaDslFn !== null && typeof (options.definition as any).schema === 'function') {
+            // Use a validating wrapper so that unknown type strings throw immediately
+            // rather than silently falling back (see _makeValidatingDslFn above).
+            const validatingDsl = _makeValidatingDslFn(_schemaDslFn);
             try {
                 this._schemaCache = ((options.definition as any).schema as (dslFn: unknown) => unknown).call(
                     options.definition,
-                    _schemaDslFn,
+                    validatingDsl,
                 );
             } catch (err) {
                 this._schemaCache = null;
                 this._schemaError = err instanceof Error ? err : new Error(String(err));
+                // Re-throw type errors so that Model.define() fails fast on invalid types
+                if (err instanceof TypeError && (err as TypeError).message.includes('[schema] Invalid type')) {
+                    throw err;
+                }
             }
         }
 

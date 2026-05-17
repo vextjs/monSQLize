@@ -158,7 +158,7 @@ const v1Stats = runV1Compat();
 totalPass += v1Stats.pass;
 totalFail += v1Stats.fail;
 totalSkip += v1Stats.skip;
-if (v1Stats.fail > 0) {
+if (v1Stats.exitCode !== 0 || v1Stats.fail > 0) {
     anyFailed = true;
 }
 

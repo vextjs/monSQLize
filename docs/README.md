@@ -19,11 +19,13 @@
 5. 可执行示例：
    - `examples/quick-start/basic-connect.ts`
    - `examples/cache/with-cache.ts`
+   - `examples/docs/*.ts`
+   - [`examples.md`](./examples.md)
 
 ## 当前文档边界
 
-- 这里记录的是 **当前仓库已恢复并可说明的正式入口**。
-- v2 已与 v1 公开 API 100% 兼容，文档以 v2 TypeScript 版本为准。
+- 这里记录的是 **当前仓库内已经完整承接并持续验证的正式入口**。
+- 文档、示例、类型与测试口径统一以当前 TypeScript 版本为准，不依赖外部旧仓库。
 
 ## 示例运行方式
 

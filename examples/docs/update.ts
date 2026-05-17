@@ -32,14 +32,15 @@ async function main() {
 
     // ── incrementOne — atomic field increment ─────────────────────────────
     const u3 = await products.incrementOne({ sku: 'P002' }, 'stock', 10);
-    console.log('incrementOne — new stock:', u3?.stock);
+    console.log('incrementOne — acknowledged:', u3.acknowledged, '| new stock:', u3.value?.stock);
 
     // ── updateBatch — bulk updates with individual conditions ─────────────
-    const r = await products.updateBatch([
-        { filter: { sku: 'P001' }, update: { $set: { name: 'Super Widget' } } },
-        { filter: { sku: 'P003' }, update: { $set: { price: 5.99 } } },
-    ]);
-    console.log('updateBatch — modified:', r.modifiedCount, '/', r.totalCount);
+    const r = await products.updateBatch(
+        { sku: { $in: ['P001', 'P003'] } },
+        { $set: { category: 'featured' } },
+        { batchSize: 2 },
+    );
+    console.log('updateBatch — modified:', r.modifiedCount, '| batches:', r.batchCount);
 
     const final = await products.find({}).project({ sku: 1, name: 1, price: 1, stock: 1, _id: 0 });
     console.log('Final products:', JSON.stringify(final, null, 2));

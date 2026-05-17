@@ -11,7 +11,7 @@
  *   npm run build && tsc -p tsconfig.examples.json
  *   node .generated/examples-dist/examples/cache/with-cache.js
  */
-import { MonSQLize } from 'monsqlize';
+import MonSQLize from 'monsqlize';
 import { setupExample, teardownExample } from '../helpers/bootstrap.js';
 
 interface ProductDoc { sku: string; name: string; price: number; inStock: boolean; }

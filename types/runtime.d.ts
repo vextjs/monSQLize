@@ -249,6 +249,7 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
             currentPage?: number;
         };
         totals?: Record<string, unknown>;
+        meta?: import('./collection').MetaInfo;
     }>;
     findAndCount(query?: unknown, options?: unknown): import('./model').PopulateProxy<{ data: Array<import('./model').ModelDocument<TDocument>>; total: number; }>;
     count(query?: unknown, options?: unknown): Promise<number>;
@@ -269,10 +270,10 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
     dropIndexes(): Promise<unknown>;
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]>;
-    watch(pipeline?: unknown[], options?: unknown): unknown;
+    watch(pipeline?: unknown[], options?: unknown): import('mongodb').ChangeStream;
     validate(document?: unknown): import('./model').ValidationResult;
     findOneAndReplace(filter?: unknown, replacement?: unknown, options?: unknown): Promise<TDocument | null>;
-    incrementOne(filter?: unknown, field?: string, increment?: number, options?: unknown): Promise<unknown>;
+    incrementOne(filter?: unknown, field?: string | Record<string, number>, increment?: number, options?: unknown): Promise<import('./collection').IncrementOneResult<TDocument>>;
     findWithDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
     findOnlyDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
     findOneWithDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;

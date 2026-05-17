@@ -18,6 +18,8 @@ import type {
     AggregateChain as AggregateChainContract,
     FindAndCountResult,
     FindChain as FindChainContract,
+    MetaInfo,
+    MetaOptions,
     FindPageOptions,
     FindPageResult,
     TotalsInfo,
@@ -459,6 +461,11 @@ async function executeFindPage<TSchema extends Document = Document>(
     options: FindPageOptions<TSchema> = {},
     defaults: RuntimeDefaults = {},
 ): Promise<FindPageResult<TSchema>> {
+    const metaEnabled = options.meta === true || (typeof options.meta === 'object' && options.meta !== null);
+    const metaOptions = (options.meta && typeof options.meta === 'object' ? options.meta : {}) as MetaOptions;
+    const metaLevel = options.meta === true ? 'op' : (metaOptions.level ?? 'op');
+    const metaStartTs = Date.now();
+    const metaSteps: NonNullable<MetaInfo['steps']> = [];
     const ext = options as Record<string, unknown>;
     const page = normalizePositiveInteger(options.page, 1, 'page');
     const rawLimit = normalizePositiveInteger(options.limit, 20, 'limit');
@@ -468,6 +475,63 @@ async function executeFindPage<TSchema extends Document = Document>(
     const sort = normalizeSortShape(options.sort);
     const baseQuery = (options.query ?? {}) as Document;
     const cursorSecret = defaults.cursorSecret;
+    const dbName = (collection as Collection<TSchema> & { dbName?: string; namespace?: { db?: string; }; }).dbName
+        ?? (collection as Collection<TSchema> & { namespace?: { db?: string; }; }).namespace?.db
+        ?? '';
+    const collectionName = collection.collectionName ?? '';
+
+    const pushMetaStep = (
+        name: string,
+        durationMs: number,
+        phase: NonNullable<MetaInfo['steps']>[number]['phase'],
+        index?: number,
+    ): void => {
+        if (metaEnabled && metaLevel === 'sub') {
+            metaSteps.push({ name, phase, durationMs, ...(index !== undefined ? { index } : {}) });
+        }
+    };
+
+    const finishResult = (result: FindPageResult<TSchema>): FindPageResult<TSchema> => {
+        if (!metaEnabled) {
+            return result;
+        }
+
+        const metaEndTs = Date.now();
+        if (metaLevel === 'sub' && metaSteps.length > 0) {
+            const stepTotal = metaSteps.reduce((sum, step) => sum + step.durationMs, 0);
+            const delta = (metaEndTs - metaStartTs) - stepTotal;
+            if (delta > 0) {
+                metaSteps.push({ name: 'finalizeResult', phase: 'fetch', durationMs: delta });
+            } else if (delta < 0) {
+                const lastStep = metaSteps[metaSteps.length - 1];
+                lastStep.durationMs = Math.max(0, lastStep.durationMs + delta);
+            }
+        }
+        result.meta = {
+            op: 'findPage',
+            ns: {
+                iid: defaults.namespace?.instanceId ?? 'default',
+                type: 'mongodb',
+                db: dbName,
+                coll: collectionName,
+            },
+            db: dbName,
+            collection: collectionName,
+            timestamp: metaStartTs,
+            startTs: metaStartTs,
+            endTs: metaEndTs,
+            durationMs: metaEndTs - metaStartTs,
+            ...(typeof effectiveMaxTimeMS === 'number' ? { maxTimeMS: effectiveMaxTimeMS } : {}),
+            page,
+            after: Boolean(options.after),
+            before: Boolean(options.before),
+            hops: options.after || options.before ? 1 : Math.max(0, page - 1),
+            ...(jumpOpts ? { step: jumpOpts.step } : {}),
+            ...(metaLevel === 'sub' ? { steps: metaSteps } : {}),
+        };
+
+        return result;
+    };
 
     // ── Validation ─────────────────────────────────────────────────────────────
     if ((options.after || options.before) && Number.isInteger(options.page)) {
@@ -556,6 +620,27 @@ async function executeFindPage<TSchema extends Document = Document>(
         return { items: hasMore ? rows.slice(0, limit) : rows, hasMore };
     };
 
+    const timedFetchItems = async (
+        name: string,
+        phase: NonNullable<MetaInfo['steps']>[number]['phase'],
+        queryFilter: Document,
+        effectiveSort: SortShape,
+        extra: { skip?: number } = {},
+        index?: number,
+    ): Promise<{ items: TSchema[]; hasMore: boolean }> => {
+        const stepStartTs = Date.now();
+        const result = await fetchItems(queryFilter, effectiveSort, extra);
+        pushMetaStep(name, Date.now() - stepStartTs, phase, index);
+        return result;
+    };
+
+    const timedComputeTotals = async (): Promise<TotalsInfo> => {
+        const stepStartTs = Date.now();
+        const result = await computeTotals(collection, baseQuery, limit, options.totals as TotalsOptions);
+        pushMetaStep('computeTotals', Date.now() - stepStartTs, 'totals');
+        return result;
+    };
+
     /** Build the pageInfo block from a fetched result set. */
     const buildPageInfo = (
         items: TSchema[],
@@ -627,28 +712,28 @@ async function executeFindPage<TSchema extends Document = Document>(
     if (offsetJumpOpts?.enable) {
         const skipCount = page > 1 ? (page - 1) * limit : 0;
         const { queryFilter, effectiveSort } = buildPageQuery();
-        const { items, hasMore } = await fetchItems(queryFilter as Document, effectiveSort, { skip: skipCount });
+        const { items, hasMore } = await timedFetchItems('offsetFetch', 'offset', queryFilter as Document, effectiveSort, { skip: skipCount });
         const result: FindPageResult<TSchema> = {
             items,
             pageInfo: buildPageInfo(items, hasMore, { hasPrev: page > 1, currentPage: page }),
         };
         if (options.totals && (options.totals as TotalsOptions).mode !== 'none') {
-            result.totals = await computeTotals(collection, baseQuery, limit, options.totals as TotalsOptions);
+            result.totals = await timedComputeTotals();
         }
-        return result;
+        return finishResult(result);
     }
 
     // ── After/Before cursor mode──────────────────────────────────────────────────
     if (options.after || options.before) {
         const direction = options.after ? 'after' : 'before';
         const { queryFilter, effectiveSort } = buildPageQuery(options.after ?? options.before, direction);
-        const { items: rawItems, hasMore } = await fetchItems(queryFilter as Document, effectiveSort);
+        const { items: rawItems, hasMore } = await timedFetchItems('cursorFetch', 'fetch', queryFilter as Document, effectiveSort);
         const items = direction === 'before' ? [...rawItems].reverse() : rawItems;
         const first = items[0] ?? null;
         const last = items[items.length - 1] ?? null;
         const enc = (item: TSchema | null) =>
             item ? encodeCursor(Object.keys(sort).map((f) => (item as Record<string, unknown>)[f]), cursorSecret) : null;
-        return {
+        return finishResult({
             items,
             pageInfo: {
                 hasNext: direction === 'before' ? Boolean(options.before) : hasMore,
@@ -656,12 +741,12 @@ async function executeFindPage<TSchema extends Document = Document>(
                 startCursor: enc(first),
                 endCursor: enc(last),
             },
-        };
+        });
     }
 
     // ── Page navigation: cursor-walking ──────────────────────────────────────────
     const { queryFilter: q0, effectiveSort: es0 } = buildPageQuery();
-    let { items, hasMore } = await fetchItems(q0 as Document, es0);
+    let { items, hasMore } = await timedFetchItems('initialFetch', page > 1 ? 'hop' : 'fetch', q0 as Document, es0, {}, 1);
 
     if (page === 1) {
         const result: FindPageResult<TSchema> = {
@@ -669,25 +754,25 @@ async function executeFindPage<TSchema extends Document = Document>(
             pageInfo: buildPageInfo(items, hasMore, { currentPage: 1 }),
         };
         if (options.totals && (options.totals as TotalsOptions).mode !== 'none') {
-            result.totals = await computeTotals(collection, baseQuery, limit, options.totals as TotalsOptions);
+            result.totals = await timedComputeTotals();
         }
-        return result;
+        return finishResult(result);
     }
 
     for (let cp = 2; cp <= page; cp++) {
         const lastItem = items[items.length - 1];
         if (!lastItem) {
-            return {
+            return finishResult({
                 items,
                 pageInfo: buildPageInfo(items, false, { hasPrev: cp > 2, currentPage: cp - 1 }),
-            };
+            });
         }
         const endCursor = encodeCursor(
             Object.keys(sort).map((f) => (lastItem as Record<string, unknown>)[f]),
             cursorSecret,
         );
         const { queryFilter: qN, effectiveSort: esN } = buildPageQuery(endCursor, 'after');
-        const next = await fetchItems(qN as Document, esN);
+        const next = await timedFetchItems(`hop-${cp}`, 'hop', qN as Document, esN, {}, cp);
         items = next.items;
         hasMore = next.hasMore;
     }
@@ -697,9 +782,9 @@ async function executeFindPage<TSchema extends Document = Document>(
         pageInfo: buildPageInfo(items, hasMore, { hasPrev: page > 1, currentPage: page }),
     };
     if (options.totals && (options.totals as TotalsOptions).mode !== 'none') {
-        result.totals = await computeTotals(collection, baseQuery, limit, options.totals as TotalsOptions);
+        result.totals = await timedComputeTotals();
     }
-    return result;
+    return finishResult(result);
 }
 
 /**

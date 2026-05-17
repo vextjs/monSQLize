@@ -176,6 +176,7 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
             currentPage?: number;
         };
         totals?: Record<string, unknown>;
+        meta?: import('./collection').MetaInfo;
     }>;
     findAndCount(query?: unknown, options?: unknown): PopulateProxy<{
         data: Array<ModelDocument<TDocument>>;

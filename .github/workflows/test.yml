@@ -10,6 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         node-version: ['18.x', '20.x', '22.x']
 
@@ -31,6 +32,3 @@ jobs:
 
       - name: Run full test suite
         run: npm test
-
-      - name: Run v1 compatibility suite
-        run: node scripts/v1-compat-runner.cjs

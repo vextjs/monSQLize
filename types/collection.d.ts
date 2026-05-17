@@ -1,4 +1,4 @@
-import type { Document, FindOptions, Sort } from 'mongodb';
+import type { ChangeStream, Document, FindOptions, Sort } from 'mongodb';
 
 /** Meta options for controlling timing/cache info in query results. */
 export interface MetaOptions {
@@ -36,6 +36,9 @@ export interface TotalsInfo {
 export interface MetaInfo {
     op: string;
     ns: { iid: string; type: string; db: string; coll: string };
+    db?: string;
+    collection?: string;
+    timestamp?: number;
     startTs: number;
     endTs: number;
     durationMs: number;
@@ -50,7 +53,7 @@ export interface MetaInfo {
     hops?: number;
     step?: number;
     /** Sub-step timings (level='sub' only) */
-    steps?: Array<{ phase: 'hop' | 'offset'; index?: number; durationMs: number }>;
+    steps?: Array<{ phase: 'hop' | 'offset' | 'fetch' | 'totals'; name: string; index?: number; durationMs: number }>;
     error?: { code?: string; message: string };
 }
 
@@ -413,6 +416,18 @@ export interface IncrementOneOptions extends Record<string, unknown> {
     $set?: Record<string, unknown>;
 }
 
+/**
+ * Result returned by {@link Collection.incrementOne}.
+ * The updated document is available via `.value` (or `null` if not found).
+ */
+export interface IncrementOneResult<TSchema = unknown> {
+    acknowledged: boolean;
+    matchedCount: number;
+    modifiedCount: number;
+    /** The document after the increment (or null when no match). */
+    value: TSchema | null;
+}
+
 export interface IndexCreateResult {
     name: string;
 }
@@ -530,7 +545,7 @@ export interface Collection<TSchema = unknown> {
     insertBatch(documents?: unknown[], options?: unknown): Promise<InsertBatchResult>;
     updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateBatchResult>;
     deleteBatch(filter?: unknown, options?: unknown): Promise<DeleteBatchResult>;
-    incrementOne(filter?: unknown, field?: string | Record<string, number>, incrementOrOptions?: unknown, maybeOptions?: unknown): Promise<TSchema | null>;
+    incrementOne(filter?: unknown, field?: string | Record<string, number>, incrementOrOptions?: unknown, maybeOptions?: unknown): Promise<IncrementOneResult<TSchema>>;
     createIndex(keys: unknown, options?: unknown): Promise<IndexCreateResult>;
     createIndexes(specs: Array<{ key: unknown; } & Record<string, unknown>>): Promise<string[]>;
     listIndexes(): Promise<Record<string, unknown>[]>;
@@ -541,8 +556,10 @@ export interface Collection<TSchema = unknown> {
     clearBookmarks(keyDims?: unknown): Promise<BookmarkClearResult>;
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
     aggregate<TResult = unknown>(pipeline?: unknown[], options?: unknown): AggregateChain<TResult>;
+    /** Stream mode: returns a readable stream of page documents when `stream: true`. */
+    findPage(options: FindPageOptions<TSchema> & { stream: true }): NodeJS.ReadableStream;
     findPage(options?: FindPageOptions<TSchema>): Promise<FindPageResult<TSchema>>;
-    watch(pipeline?: unknown[], options?: unknown): unknown;
+    watch(pipeline?: unknown[], options?: unknown): ChangeStream;
     /** @since v1.3.0 */
     invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage'): Promise<number>;
     /** @since v1.3.0 */

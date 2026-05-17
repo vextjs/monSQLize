@@ -1,23 +1,110 @@
-﻿/**
+/**
  * v1 兼容性测试运行器
- * 使用 monSQLize-v1 的测试文件验证 TS 实现的行为兼容性
- * 
- * 原理：拦截 require，将 v1 lib 路径重定向到 TS lib，然后运行 v1 测试
+ * 使用仓库内置的 v1 测试源码验证 TS 实现的行为兼容性。
+ *
+ * 原理：拦截 vendored v1 tests 对 `lib/**` 的 require，并重定向到当前仓库
+ * 的 TS 构建产物；这样保留 v1 公开契约测试，同时彻底去掉对外部
+ * `..\\monSQLize-v1` sibling 工作区的运行时依赖。
  */
 
 const Module = require('module');
 const path = require('path');
 const fs = require('fs');
 
-const V1_ROOT = path.resolve(__dirname, '../../monSQLize-v1');
+const DEFAULT_V1_ROOT = path.resolve(__dirname, '../test/v1-source');
+const V1_ROOT = path.resolve(process.env.MONSQLIZE_V1_ROOT ?? DEFAULT_V1_ROOT);
 const TS_LIB = path.resolve(__dirname, '../lib/index.js');
 const TS_LIB_ROOT = path.resolve(__dirname, '../lib');
+const SHIM_ROOT = path.resolve(__dirname, 'v1-compat-shims');
+const V1_SHIM_PATHS = {
+  'cache': path.join(SHIM_ROOT, 'cache.cjs'),
+  'cache-invalidation': path.join(SHIM_ROOT, 'cache-invalidation.cjs'),
+  'common/shape-builders': path.join(SHIM_ROOT, 'common-shape-builders.cjs'),
+  'expression': path.join(SHIM_ROOT, 'expression.cjs'),
+  'expression/factory': path.join(SHIM_ROOT, 'expression-factory.cjs'),
+  'infrastructure/uri-parser': path.join(SHIM_ROOT, 'uri-parser.cjs'),
+  'model/features/populate': path.join(SHIM_ROOT, 'model-populate.cjs'),
+  'model/features/relations': path.join(SHIM_ROOT, 'model-relations.cjs'),
+  'model/features/version': path.join(SHIM_ROOT, 'model-version.cjs'),
+  'mongodb/connect': path.join(SHIM_ROOT, 'mongodb-connect.cjs'),
+  'mongodb/queries/watch': path.join(SHIM_ROOT, 'mongodb-watch.cjs'),
+  'mongodb/writes/result-handler': path.join(SHIM_ROOT, 'result-handler.cjs'),
+  'multi-level-cache': path.join(SHIM_ROOT, 'multi-level-cache.cjs'),
+  'saga/SagaContext': path.join(SHIM_ROOT, 'saga-context.cjs'),
+  'sync/SyncConfig': path.join(SHIM_ROOT, 'sync-config.cjs'),
+  'utils/objectid-converter': path.join(SHIM_ROOT, 'objectid-converter.cjs'),
+};
 
 // 预计算 TS 工程中的 mongodb 路径，用于 ObjectId instanceof 跨包修复
 const TS_MONGODB_PATH = require.resolve('mongodb', { paths: [path.resolve(__dirname, '..')] });
 
 // ── 子路径注册表（v1 子路径 → require.cache 合成模块）──────────────────────────
 const REGISTRY_PATHS = new Set();
+
+function isVendoredV1Path(filePath) {
+  return typeof filePath === 'string' && filePath.startsWith(V1_ROOT);
+}
+
+function resolveVendoredV1LibRequest(request, parentFilename) {
+  if (!isVendoredV1Path(parentFilename) || !request.startsWith('.')) {
+    return null;
+  }
+
+  const v1LibDir = path.join(V1_ROOT, 'lib');
+  const requestPath = path.resolve(path.dirname(parentFilename), request);
+  const requestCandidates = [requestPath];
+
+  if (!requestPath.endsWith('.js')) {
+    requestCandidates.push(`${requestPath}.js`);
+    requestCandidates.push(path.join(requestPath, 'index.js'));
+  }
+
+  for (const candidate of requestCandidates) {
+    if (
+      candidate === V1_ROOT ||
+      candidate === `${V1_ROOT}.js` ||
+      candidate === path.join(V1_ROOT, 'index.js')
+    ) {
+      return TS_LIB;
+    }
+
+    if (
+      candidate === v1LibDir ||
+      candidate === `${v1LibDir}.js` ||
+      candidate === path.join(v1LibDir, 'index.js')
+    ) {
+      return TS_LIB;
+    }
+
+    if (REGISTRY_PATHS.has(candidate)) {
+      return candidate;
+    }
+
+    if (candidate.startsWith(v1LibDir + path.sep)) {
+      const relative = path.relative(v1LibDir, candidate).replace(/\\/g, '/');
+      const normalized = relative.replace(/\.js$/i, '').replace(/\/index$/i, '');
+      const shimPath = V1_SHIM_PATHS[normalized];
+      if (shimPath) {
+        return shimPath;
+      }
+      const tsBase = path.join(TS_LIB_ROOT, relative);
+      const tsCandidates = [tsBase];
+
+      if (!tsBase.endsWith('.js')) {
+        tsCandidates.push(`${tsBase}.js`);
+        tsCandidates.push(path.join(tsBase, 'index.js'));
+      }
+
+      for (const tsCandidate of tsCandidates) {
+        if (fs.existsSync(tsCandidate)) {
+          return tsCandidate;
+        }
+      }
+    }
+  }
+
+  return null;
+}
 
 // v1 subpath → TS 具名导出的映射（惰性初始化，build 后才能加载）
 const V1_SUBPATH_EXPORTS = {
@@ -46,9 +133,9 @@ const V1_SUBPATH_EXPORTS = {
   'lib/transaction/TransactionManager.js': m => m.TransactionManager,
   'lib/transaction/CacheLockManager.js': m => m.CacheLockManager,
   'lib/model/index.js':        m => m.Model,
-  'lib/slow-query-log/batch-queue': m => ({ BatchQueue: m.BatchQueue }),
-  'lib/slow-query-log/config-manager': m => ({ SlowQueryLogConfigManager: m.SlowQueryLogConfigManager, DEFAULT_CONFIG: m.DEFAULT_SLOW_QUERY_LOG_CONFIG }),
-  'lib/slow-query-log/query-hash': m => ({ generateQueryHash: m.generateQueryHash }),
+  'lib/slow-query-log/batch-queue': () => require(path.join(SHIM_ROOT, 'slow-query-batch-queue.cjs')),
+  'lib/slow-query-log/config-manager': () => require(path.join(SHIM_ROOT, 'slow-query-config-manager.cjs')),
+  'lib/slow-query-log/query-hash': () => require(path.join(SHIM_ROOT, 'slow-query-query-hash.cjs')),
   'lib/count-queue': m => m.CountQueue,
 };
 
@@ -89,7 +176,7 @@ function initV1SubPathRegistry () {
 const originalResolveFilename = Module._resolveFilename;
 Module._resolveFilename = function (request, parent, isMain, options) {
   // mocha: v1 测试文件中的 require('mocha') 重定向到全局 fake mocha
-  if (request === 'mocha' && parent?.filename && parent.filename.includes('monSQLize-v1')) {
+  if (request === 'mocha' && isVendoredV1Path(parent?.filename)) {
     const FAKE_MOCHA_ID = path.join(__dirname, '__fake_mocha__.cjs');
     if (!require.cache[FAKE_MOCHA_ID]) {
       require.cache[FAKE_MOCHA_ID] = {
@@ -111,43 +198,43 @@ Module._resolveFilename = function (request, parent, isMain, options) {
     }
     return FAKE_MOCHA_ID;
   }
+
+  const redirectedLibTarget = resolveVendoredV1LibRequest(request, parent?.filename);
+  if (redirectedLibTarget) {
+    return redirectedLibTarget;
+  }
+
   // ObjectId instanceof 跨包修复：v1 测试中 require('mongodb') 统一重定向到 TS 的 mongodb
   if (
     request === 'mongodb' &&
-    parent?.filename &&
-    parent.filename.startsWith(V1_ROOT) &&
+    isVendoredV1Path(parent?.filename) &&
     !parent.filename.startsWith(path.join(V1_ROOT, 'node_modules'))
   ) {
     return TS_MONGODB_PATH;
   }
-  try {
-    const resolved = originalResolveFilename.call(this, request, parent, isMain, options);
-    // 如果解析到 v1 lib 目录，重定向到 TS lib
-    const v1LibDir = path.join(V1_ROOT, 'lib');
-    if (resolved === v1LibDir || resolved.startsWith(v1LibDir + path.sep) || resolved === v1LibDir + '.js') {
-      // 层 1：已预注册的子路径 → 直接从 require.cache 加载（返回原路径让 require 从 cache 里读）
-      if (REGISTRY_PATHS.has(resolved)) {
-        return resolved;
-      }
-      // 层 2：TS lib 目录下存在对应文件 → 直接重定向到 TS 文件
-      const relative = path.relative(v1LibDir, resolved);
-      if (relative) {
-        const candidate = path.join(TS_LIB_ROOT, relative);
-        if (fs.existsSync(candidate)) {
-          return candidate;
-        }
-      }
-      // 层 3：v1 根 index → fallback 整个 TS_LIB
-      if (resolved === v1LibDir || resolved === v1LibDir + '.js' || resolved === path.join(v1LibDir, 'index.js')) {
-        return TS_LIB;
-      }
-      // 层 4：其他 v1 子路径 → 让 v1 自己加载（不 fallback 到 TS_LIB，否则会得到全量 module）
+  const resolved = originalResolveFilename.call(this, request, parent, isMain, options);
+  // 如果解析到 v1 lib 目录，重定向到 TS lib
+  const v1LibDir = path.join(V1_ROOT, 'lib');
+  if (resolved === v1LibDir || resolved.startsWith(v1LibDir + path.sep) || resolved === v1LibDir + '.js') {
+    // 层 1：已预注册的子路径 → 直接从 require.cache 加载（返回原路径让 require 从 cache 里读）
+    if (REGISTRY_PATHS.has(resolved)) {
       return resolved;
     }
-    return resolved;
-  } catch (e) {
-    throw e;
+    // 层 2：TS lib 目录下存在对应文件 → 直接重定向到 TS 文件
+    const relative = path.relative(v1LibDir, resolved);
+    if (relative) {
+      const candidate = path.join(TS_LIB_ROOT, relative);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    // 层 3：v1 根 index → fallback 整个 TS_LIB
+    if (resolved === v1LibDir || resolved === v1LibDir + '.js' || resolved === path.join(v1LibDir, 'index.js')) {
+      return TS_LIB;
+    }
+    throw new Error(`未映射的 vendored v1 lib 子路径: ${request}`);
   }
+  return resolved;
 };
 
 // ── 全局测试框架（模拟 mocha/custom runner 的 describe/it/before/after）──────────
@@ -641,6 +728,12 @@ async function main () {
     process.env.MONSQLIZE_SYSTEM_MONGO_URI = 'mongodb://127.0.0.1:27017';
   }
 
+  if (!fs.existsSync(path.join(V1_ROOT, 'test'))) {
+    console.error(`未找到 vendored v1 测试目录: ${V1_ROOT}`);
+    console.error('期望路径示例: <repo>\\test\\v1-source\\test\\...');
+    process.exit(1);
+  }
+
   // 预注册 v1 子路径映射（必须在任何 require 之前完成）
   initV1SubPathRegistry();
 
@@ -932,8 +1025,12 @@ async function main () {
     );
     cacheKeys.forEach(k => delete require.cache[k]);
 
+    let loadedModule;
     try {
-      require(filePath);
+      loadedModule = require(filePath);
+      if (loadedModule && typeof loadedModule.then === 'function') {
+        await loadedModule;
+      }
     } catch (e) {
       console.error(`  ❌ 加载失败: ${e.message}`);
       totalFailed++;

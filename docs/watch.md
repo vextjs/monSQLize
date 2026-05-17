@@ -62,7 +62,10 @@ watcher.on('change', (change) => {
 - `pipeline` (Array, 可选): 聚合管道，用于过滤事件
 - `options` (Object, 可选): 配置选项
 
-**返回值**: `ChangeStreamWrapper` 实例
+**返回值**: `ChangeStream<TSchema>` — MongoDB 驱动原生 ChangeStream 对象
+
+> ⚠️ `collection.watch()` 直接返回 MongoDB 驱动的 `ChangeStream`，没有额外封装。
+> 请参考 [MongoDB ChangeStream 官方文档](https://www.mongodb.com/docs/manual/changeStreams/)。
 
 ---
 
@@ -80,73 +83,51 @@ watcher.on('change', (change) => {
 | `maxAwaitTimeMS` | number | - | 最大等待时间（毫秒） |
 | `batchSize` | number | - | 批处理大小 |
 
-### monSQLize 扩展选项
-
-| 选项 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `autoReconnect` | boolean | `true` | 自动重连 |
-| `reconnectInterval` | number | `1000` | 初始重连间隔（毫秒） |
-| `maxReconnectDelay` | number | `60000` | 最大重连延迟（毫秒） |
-| `autoInvalidateCache` | boolean | `true` | 自动失效缓存 |
-
 ---
 
-## ChangeStreamWrapper 方法
+## ChangeStream 原生方法
 
-### watcher.on(event, handler)
+`watch()` 返回的是 MongoDB 驱动的 `ChangeStream<T>` 对象，支持以下原生 API：
 
-监听事件。
+### cs.on(event, handler)
+
+监听事件（EventEmitter 接口）。
 
 **事件列表**:
 - `'change'`: 数据变更
-- `'error'`: 持久性错误（瞬态错误已自动重试）
-- `'reconnect'`: 重连通知
-- `'resume'`: 恢复成功
+- `'error'`: 错误
 - `'close'`: 关闭
-- `'fatal'`: 致命错误（无法恢复）
+- `'end'`: 流结束
 
-### watcher.once(event, handler)
+### cs.once(event, handler)
 
 监听事件（一次性）。
 
-### watcher.off(event, handler)
+### cs.close()
 
-移除事件监听。
-
-### watcher.close()
-
-关闭监听。
+关闭 ChangeStream。
 
 **返回值**: `Promise<void>`
 
-### watcher.isClosed()
+### cs.closed
 
-检查是否已关闭。
+只读属性，检查 ChangeStream 是否已关闭。
 
-**返回值**: `boolean`
+**类型**: `boolean`
 
-### watcher.getResumeToken()
+### cs.resumeToken
 
-获取当前 resumeToken。
+只读属性，获取最新 resumeToken（用于断点续传）。
 
-**返回值**: `Object|null`
+**类型**: `unknown`
 
-### watcher.getStats()
+### cs.next()
 
-获取统计信息。
+显式获取下一个变更事件（迭代器模式）。
 
-**返回值**: `Object`
-```javascript
-{
-  totalChanges: number,        // 总变更数
-  reconnectAttempts: number,   // 重连次数
-  lastReconnectTime: string,   // 最后重连时间
-  uptime: number,              // 运行时长（毫秒）
-  isActive: boolean,           // 是否活跃
-  cacheInvalidations: number,  // 缓存失效次数
-  errors: number               // 错误次数
-}
-```
+**返回值**: `Promise<ChangeStreamDocument<T>>`
+
+> 💡 如需断点续传、多目标同步或自动重连，请使用 [`ChangeStreamSyncManager`](./sync-backup.md)。
 
 ---
 
@@ -179,45 +160,42 @@ watcher.on('change', (change) => {
 ### 示例 3: 错误处理
 
 ```javascript
-const watcher = collection.watch();
+const cs = collection.watch();
 
-watcher.on('error', (error) => {
-  // 持久性错误（已自动清除 token，重新开始）
-  console.error('需要注意:', error);
+cs.on('error', (error) => {
+  console.error('Change Stream 错误:', error);
 });
 
-watcher.on('fatal', (error) => {
-  // 致命错误（无法恢复，需要人工介入）
-  console.error('致命错误:', error);
-  // 需要通知运维
+cs.on('close', () => {
+  console.log('Change Stream 已关闭');
 });
 ```
 
-### 示例 4: 统计监控
+### 示例 4: 统计监控（通过 ChangeStreamSyncManager）
+
+> 如需内置统计（eventCount / syncedCount / errorCount），请使用 `ChangeStreamSyncManager`：
 
 ```javascript
-const watcher = collection.watch();
+import MonSQLize from 'monsqlize';
+
+const syncManager = new MonSQLize.ChangeStreamSyncManager({ db, config: { ... } });
+await syncManager.start();
 
 setInterval(() => {
-  const stats = watcher.getStats();
-  console.log('统计信息:', stats);
-  
-  if (stats.reconnectAttempts > 10) {
-    console.warn('重连次数过多，可能网络有问题');
-  }
+  const stats = syncManager.getStats();
+  console.log('已同步事件:', stats.syncedCount, '错误:', stats.errorCount);
 }, 60000);
 ```
 
 ### 示例 5: 优雅关闭
 
 ```javascript
-const watcher = collection.watch();
+const cs = collection.watch();
 
-// 监听 SIGTERM
 process.on('SIGTERM', async () => {
-  console.log('正在关闭 watcher...');
-  await watcher.close();
-  console.log('watcher 已关闭');
+  console.log('正在关闭 watch...');
+  await cs.close();
+  console.log('watch 已关闭');
   process.exit(0);
 });
 ```
@@ -321,34 +299,37 @@ MongoDB oplog 有大小限制，resumeToken 可能过期（默认几小时）。
 
 **解决**: 使用副本集或 `mongodb-memory-server`
 
-### 问题 2: 频繁重连
+### 问题 2: ChangeStream 意外关闭
 
-**原因**: 网络不稳定或 MongoDB 负载过高
+**原因**: 网络不稳定或 MongoDB 负载过高，`ChangeStream` 会自动关闭并触发 `close` 事件。
 
 **排查**:
 ```javascript
-watcher.on('reconnect', (info) => {
-  console.log('重连:', info);
-  // 检查网络和 MongoDB 状态
+const cs = collection.watch();
+
+cs.on('close', () => {
+  console.warn('ChangeStream 已关闭，请检查网络和 MongoDB 状态');
+  // 如需自动重连，可在此重新调用 collection.watch()
+});
+
+cs.on('error', (err) => {
+  console.error('ChangeStream 错误:', err.message);
 });
 ```
 
-### 问题 3: 缓存未失效
+### 问题 3: 缓存集成调试
 
-**检查**:
+> ⚠️ `collection.watch()` 本身不提供 `autoInvalidateCache` 选项或 `cache.getStats()` 接口，缓存集成由应用层处理。
+
+**推荐做法**:
 ```javascript
-// 确认配置
-const watcher = collection.watch([], {
-  autoInvalidateCache: true  // 确保是 true
-});
+// 手动在 change 事件中处理缓存失效
+const cs = collection.watch();
 
-// 监听失效事件（调试用）
-watcher.on('change', async (change) => {
+cs.on('change', async (change) => {
   console.log('变更:', change.operationType);
-  // 检查缓存是否失效
-  const cache = collection.cache;
-  const stats = cache.getStats();
-  console.log('缓存统计:', stats);
+  // 由业务代码决定如何失效缓存
+  myCache.delete('user-list');
 });
 ```
 
@@ -366,9 +347,9 @@ monSQLize 有两套事件系统：
 - 适用场景：性能监控、运维告警
 - 文档：[事件系统](./events.md)
 
-**2. watch 事件（watcher 对象）**:
+**2. watch 事件（ChangeStream 对象）**:
 - 监听对象：MongoDB 数据变更
-- 事件类型：`change`, `error`, `reconnect`, `resume`, `close`, `fatal`
+- 事件类型：`change`, `error`, `close`, `end`（MongoDB 原生事件）
 - 适用场景：实时数据同步、缓存失效
 - 文档：本文档
 
@@ -378,9 +359,9 @@ monSQLize 有两套事件系统：
 |------|------|
 | 监控应用查询性能 | `msq.on('slow-query', ...)` |
 | 调试所有查询操作 | `msq.on('query', ...)` |
-| 监听数据变更 | `watcher.on('change', ...)` |
-| 自动失效缓存 | `watcher.on('change', ...)` + autoInvalidateCache |
-| 跨系统数据同步 | `watcher.on('change', ...)` |
+| 监听数据变更 | `cs.on('change', ...)` |
+| 应用层缓存失效 | `cs.on('change', ...)` + 手动 cache.delete |
+| 跨系统数据同步 | `cs.on('change', ...)` 或 `ChangeStreamSyncManager` |
 
 ### 示例：同时使用
 
@@ -402,9 +383,9 @@ msq.on('slow-query', (meta) => {
 
 // ✅ 监听数据变更（业务）
 const collection = msq.dbInstance.collection('products');
-const watcher = collection.watch();
+const cs = collection.watch();
 
-watcher.on('change', (change) => {
+cs.on('change', (change) => {
   console.log('数据变更:', change.operationType);
   // 缓存失效、业务通知
 });
