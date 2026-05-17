@@ -59,6 +59,7 @@ export declare class ConnectionPoolManager {
     addPool(config: PoolConfig): Promise<void>;
     removePool(name: string): Promise<void>;
     getPool(name: string): unknown | null;
+    getPoolNames(): string[];
     selectPool(operation: 'read' | 'write', options?: { pool?: string; tags?: string[]; databaseName?: string; }): {
         name: string;
         client: unknown;
@@ -67,6 +68,7 @@ export declare class ConnectionPoolManager {
     };
     startHealthCheck(name?: string): void;
     stopHealthCheck(name?: string): void;
+    getPoolHealth(): Map<string, PoolHealthStatus>;
     getHealthStatus(): Record<string, PoolHealthStatus>;
     getPoolStats(): Record<string, PoolStats>;
     close(): Promise<void>;
