@@ -1,3 +1,9 @@
+/**
+ * 表达式编译器（expression-compiler）。
+ *
+ * 将自定义字符串 DSL 表达式编译为 MongoDB Aggregation Pipeline 格式的
+ * 嵌套对象，支持函数调用、逻辑运算符、比较运算符及字段引用。
+ */
 import { createError, ErrorCodes } from '../errors/index';
 
 const FUNC_REGEX =

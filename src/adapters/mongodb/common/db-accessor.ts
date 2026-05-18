@@ -1,3 +1,9 @@
+/**
+ * MongoDB 数据库访问器（MongoDbAccessor）。
+ *
+ * 基于 Db 实例封装数据库级别操作：Collection 工厂、Admin 访问、
+ * 数据库统计与 Schema 验证等。
+ */
 import { Db, Document } from 'mongodb';
 import type { Logger } from '../../../core/logger';
 import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/query';

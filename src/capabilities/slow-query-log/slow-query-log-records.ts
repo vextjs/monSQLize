@@ -1,3 +1,9 @@
+/**
+ * 慢查询日志记录辅助函数。
+ *
+ * 提供查询哈希生成（generateQueryHash）、阈值计算（getSlowQueryThreshold）
+ * 与操作包装器（withSlowQueryLog）。
+ */
 import { createHash } from 'node:crypto';
 import { ErrorCodes, createError } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';

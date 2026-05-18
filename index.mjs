@@ -9254,7 +9254,7 @@ var MonSQLizeRuntime = class {
   get _connecting() {
     return this._connectionPromise;
   }
-  // Root accessors ----------------------------------------------------------
+  // 根访问器 ----------------------------------------------------------
   collection(name) {
     if (!name || typeof name !== "string" || !name.trim()) {
       const err = new Error("Collection name must be a non-empty string");
@@ -9327,7 +9327,7 @@ var MonSQLizeRuntime = class {
       db: (name) => this.db(name)
     });
   }
-  // Model accessors ---------------------------------------------------------
+  // Model 访问器 ---------------------------------------------------------
   scopedModel(name, options = {}) {
     const dbInstance = requireCompatDbInstance(this);
     if (this._client) {
@@ -9382,7 +9382,7 @@ var MonSQLizeRuntime = class {
     cache.set(name, instance);
     return instance;
   }
-  // Capability delegates ----------------------------------------------------
+  // 能力委托 ----------------------------------------------------
   async startSession(options = {}) {
     this.ensureConnected();
     return this.getTransactionManager().startSession(options);

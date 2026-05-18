@@ -1,3 +1,9 @@
+/**
+ * 集合访问器管理操作辅助函数。
+ *
+ * 为 MongoCollectionAccessor 提供书签（Bookmark）、索引、
+ * 集合信息查询等管理类操作的底层实现。
+ */
 import { Collection, Db, Document } from 'mongodb';
 import type { Logger } from '../../../core/logger';
 import type { FindPageOptions, FindPageResult } from '../queries';

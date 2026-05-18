@@ -1,3 +1,9 @@
+/**
+ * 慢查询日志管理器（SlowQueryLogManager）。
+ *
+ * 负责慢查询日志的生命周期管理：初始化存储后端、委托记录写入、
+ * 提供查询与清理接口。
+ */
 import type { MongoClient } from 'mongodb';
 import type { LoggerLike } from '../../core/logger';
 import type {

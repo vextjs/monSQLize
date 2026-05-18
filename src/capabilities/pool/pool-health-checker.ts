@@ -1,3 +1,9 @@
+/**
+ * 连接池健康检查器（HealthChecker）。
+ *
+ * 定时 ping 各连接池并维护 status / latency / lastCheck 状态，
+ * 为 auto 选择策略提供降权与剔除依据。
+ */
 export interface HealthStatus {
     status: 'up' | 'down' | 'checking' | 'unknown';
     lastCheck: Date;

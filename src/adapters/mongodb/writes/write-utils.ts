@@ -1,3 +1,8 @@
+/**
+ * 写操作通用工具函数。
+ *
+ * 提供写入前置校验、批次切割、错误聚合等与具体操作类型无关的辅助函数。
+ */
 import { createError, ErrorCodes } from '../../../core/errors';
 
 export function sleep(ms: number): Promise<void> {

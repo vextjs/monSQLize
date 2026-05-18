@@ -1,3 +1,8 @@
+/**
+ * 批量写操作底层实现（insertBatch、updateBatch、deleteBatch）。
+ *
+ * 实现分批写入与进度上报逻辑，供集合访问器批量路径调用。
+ */
 import { Collection, Document, FindOptions } from 'mongodb';
 import { createError, ErrorCodes } from '../../../core/errors';
 import type {

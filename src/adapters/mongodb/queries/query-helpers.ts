@@ -1,3 +1,9 @@
+/**
+ * 查询操作辅助函数（游标构建、过滤条件、分页、流式读取等）。
+ *
+ * 提取自 MongoCollectionAccessor 查询路径的底层实现，
+ * 降低主文件复杂度并便于独立测试。
+ */
 import { createHmac } from 'node:crypto';
 
 import { Collection, Document, ObjectId, Sort } from 'mongodb';

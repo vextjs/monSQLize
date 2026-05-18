@@ -1,3 +1,8 @@
+/**
+ * 基础写操作底层实现（insertOne、insertMany、updateOne、deleteOne 等）。
+ *
+ * 对应 MongoDB 驱动单条/多条写操作，供集合访问器调用。
+ */
 import { Collection, Document, FindOneAndUpdateOptions } from 'mongodb';
 import { normalizeProjection } from '../../../utils/normalize';
 import { createError, ErrorCodes } from '../../../core/errors';

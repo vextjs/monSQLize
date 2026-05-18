@@ -1,3 +1,9 @@
+/**
+ * ModelInstance 配置解析辅助函数。
+ *
+ * 负责从注册模型定义与运行时选项中解析集合名称、
+ * 数据库名称、连接池配置等 ModelInstance 初始化参数。
+ */
 import type { ModelDefinition } from '../../../types/model';
 import type { ModelCollectionLike } from './populate-promise';
 import { _makeValidatingDslFn, _schemaDslFn } from './schema-dsl';

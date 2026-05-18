@@ -1,3 +1,9 @@
+/**
+ * Model 写操作辅助函数。
+ *
+ * 封装 insertOne、updateOne、replaceOne、deleteOne 等写路径中
+ * 与 Model 语义相关的前置/后置处理逻辑。
+ */
 import { ErrorCodes, createError } from '../../core/errors';
 
 export type ModelTimestampConfig = {

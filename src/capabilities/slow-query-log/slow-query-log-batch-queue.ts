@@ -1,3 +1,9 @@
+/**
+ * 慢查询日志批量刷写队列（BatchQueue）。
+ *
+ * 采用缓冲策略暂存日志条目，按批次大小或定时间隔自动 flush
+ * 到后端存储，降低高频查询场景的存储压力。
+ */
 import type { LoggerLike } from '../../core/logger';
 import type { SlowQueryLogConfig, SlowQueryLogEntry, SlowQueryLogStorage } from '../../../types/slow-query-log';
 import { DEFAULT_SLOW_QUERY_LOG_CONFIG } from './slow-query-log-config';

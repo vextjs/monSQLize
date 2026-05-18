@@ -1,4 +1,9 @@
-﻿
+/**
+ * Model 能力模块主入口（barrel）。
+ *
+ * 导出 ModelInstance、ModelMutationOrchestrator 及相关辅助函数和类型。
+ */
+
 import { ErrorCodes, createError } from '../../core/errors';
 import type {
     HookContext,

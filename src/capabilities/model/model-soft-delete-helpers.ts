@@ -1,3 +1,9 @@
+/**
+ * Model 软删除辅助函数。
+ *
+ * 提供软删除过滤条件注入（添加 deletedAt: null 约束）、
+ * 软删除标记写入与恢复操作的底层实现。
+ */
 import { PopulatePromise } from './populate-promise';
 import type { PopulatePath, ModelCollectionLike } from './populate-promise';
 

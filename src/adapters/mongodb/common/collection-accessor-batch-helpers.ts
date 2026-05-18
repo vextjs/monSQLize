@@ -1,3 +1,9 @@
+/**
+ * 集合访问器批量写操作辅助函数。
+ *
+ * 为 MongoCollectionAccessor 提供批量插入、批量更新、批量删除及
+ * incrementOne 等操作的底层实现，通过函数拆分降低主文件行数。
+ */
 import type { Collection, Document } from 'mongodb';
 import { createError, ErrorCodes } from '../../../core/errors';
 import {

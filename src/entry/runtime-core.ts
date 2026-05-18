@@ -372,7 +372,7 @@ export class MonSQLizeRuntime {
 
     get _connecting(): Promise<unknown> | null { return this._connectionPromise; }
 
-    // Root accessors ----------------------------------------------------------
+    // 根访问器 ----------------------------------------------------------
     collection(name: string): CollectionFacade {
         if (!name || typeof name !== 'string' || !name.trim()) {
             const err = new Error('Collection name must be a non-empty string') as Error & { code: string };
@@ -380,12 +380,12 @@ export class MonSQLizeRuntime {
             throw err;
         }
         const dbInstance = requireCompatDbInstance(this);
-        // Real v2 path: use the proper _client-backed implementation
+        // v2 路径：使用 _client 支持的标准实现
         if (this._client) {
             if (!this._iidCache) this._iidCache = new Map();
             return this.db().collection(name);
         }
-        // Mock/v1-compat path: delegate to dbInstance.collection
+        // v1 兼容路径：委托给 dbInstance.collection
         return dbInstance.collection(name) as CollectionFacade;
     }
 
@@ -459,20 +459,20 @@ export class MonSQLizeRuntime {
         });
     }
 
-    // Model accessors ---------------------------------------------------------
+    // Model 访问器 ---------------------------------------------------------
     scopedModel<TDocument = Record<string, unknown>>(name: string, options: { database?: string; pool?: string; } = {}): ModelInstance<TDocument> {
         const dbInstance = requireCompatDbInstance(this);
-        // Real v2 path: use createModelInstance (handles connection + caching)
+        // v2 路径：使用 createModelInstance（处理连接与缓存）
         if (this._client) {
             return this.createModelInstance<TDocument>(name, options);
         }
-        // Mock/v1-compat path: v1-style implementation with connection merge
+        // v1 兼容路径：v1 风格的实现（带连接合并）
         const registered = Model.get<TDocument>(name);
         if (!registered) {
             throw createError(ErrorCodes.MODEL_NOT_DEFINED, `Model '${name}' is not defined. Call Model.define() first.`);
         }
         const { actualCollectionName, connection } = getRegisteredModelMetadata(registered);
-        // v1 connection merge: definition.connection as fallback, opts take priority
+        // v1 连接合并：definition.connection 作为兜底，opts 优先级更高
         const merged: Record<string, unknown> = { ...(connection ?? {}), ...options };
         const { pool, database } = merged as { pool?: string; database?: string };
         const collection = (pool || database)
@@ -489,17 +489,17 @@ export class MonSQLizeRuntime {
     }
 
     model<TDocument = Record<string, unknown>>(name: string): ModelInstance<TDocument> {
-        // Real v2 path
+        // v2 路径
         if (this._client) {
             this.ensureConnected();
             return this.createModelInstance<TDocument>(name, {
                 database: resolveDatabaseName(this.options),
             });
         }
-        // v1-compat mock path: mirrors v1 model() — check dbInstance, lazy-init _modelInstances cache
+        // v1 兼容路径：镜像 v1 model() — 检查 dbInstance，延迟初始化 _modelInstances 缓存
         const dbInstance = requireCompatDbInstance(this);
 
-        // Cache hit + _redefinedNames invalidation check
+        // 缓存命中 + _redefinedNames 失效检查
         const cache = getCompatModelInstanceCache(this);
         if (cache.has(name)) {
             if (!Model._redefinedNames.has(name)) {
@@ -528,7 +528,7 @@ export class MonSQLizeRuntime {
         return instance;
     }
 
-    // Capability delegates ----------------------------------------------------
+    // 能力委托 ----------------------------------------------------
     async startSession(options: TransactionOptions = {}): Promise<Transaction> {
         this.ensureConnected();
         return this.getTransactionManager().startSession(options);

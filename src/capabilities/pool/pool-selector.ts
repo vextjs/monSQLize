@@ -1,3 +1,9 @@
+/**
+ * 连接池选择策略（PoolSelector）。
+ *
+ * 实现 auto / roundRobin / leastConnections / weighted / manual
+ * 五种路由策略，基于 role + tags + 权重动态选择目标连接池。
+ */
 import type { LoggerLike } from '../../core/logger';
 
 type PoolSelectorPoolConfig = {

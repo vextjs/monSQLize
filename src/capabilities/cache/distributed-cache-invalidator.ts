@@ -1,3 +1,9 @@
+/**
+ * 基于 cache-hub 的分布式缓存失效器兼容包装（DistributedCacheInvalidator）。
+ *
+ * 通过 Redis Pub/Sub 广播失效信号，驱动多实例间的本地缓存同步清理。
+ * 兼容 v1 API 约定，底层委托给 cache-hub HubDistributedCacheInvalidator。
+ */
 import { DistributedCacheInvalidator as HubDistributedCacheInvalidator } from 'cache-hub';
 import { createError, ErrorCodes } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';

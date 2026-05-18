@@ -1,3 +1,9 @@
+/**
+ * monSQLize 主入口（barrel）。
+ *
+ * 统一导出 MonSQLize 主类及所有能力子模块的公开 API，
+ * 是消费者的唯一推荐导入入口。
+ */
 import {
     BatchQueue,
     CountQueue,

@@ -1,3 +1,9 @@
+/**
+ * 基于 cache-hub 的内存缓存兼容包装（MemoryCache）。
+ *
+ * 在 HubMemoryCache 之上补充 v1 兼容方法：setLockManager、keys、
+ * delPattern、getStats（含 hitRate / calls 字段）。
+ */
 import { MemoryCache as HubMemoryCache } from 'cache-hub';
 import type {
     CacheLike,

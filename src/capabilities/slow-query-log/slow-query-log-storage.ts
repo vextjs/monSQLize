@@ -1,3 +1,9 @@
+/**
+ * 慢查询日志存储后端实现。
+ *
+ * 提供两种存储实现：内存存储（SlowQueryLogMemoryStorage）
+ * 与 MongoDB 持久化存储（MongoDBSlowQueryLogStorage）。
+ */
 import type { Collection, MongoClient, MongoClientOptions } from 'mongodb';
 import { MongoClient as MongoDriverClient } from 'mongodb';
 import { ErrorCodes, createError } from '../../core/errors';

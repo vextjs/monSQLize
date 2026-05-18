@@ -1,3 +1,9 @@
+/**
+ * 基于 cache-hub 的 Redis 缓存适配器兼容包装（createRedisCacheAdapter）。
+ *
+ * 包装 createHubRedisCacheAdapter，添加键前缀支持与 fake-redis 兼容层，
+ * 对外保持与 v1 RedisCache 相同的接口契约。
+ */
 import { createRedisCacheAdapter as createHubRedisCacheAdapter } from 'cache-hub';
 import { createError, ErrorCodes } from '../../core/errors';
 import type {
