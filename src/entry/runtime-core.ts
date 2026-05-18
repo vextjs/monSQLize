@@ -240,7 +240,7 @@ export class MonSQLizeRuntime {
         if (options.findPageMaxLimit !== undefined && options.findPageMaxLimit !== null) {
             validateRange(options.findPageMaxLimit, 1, 10000, 'findPageMaxLimit');
         }
-        this._cache = MemoryCache.getOrCreateCache(options.cache as Record<string, unknown> | MemoryCache | undefined);
+        this._cache = normalizeRuntimeCache(options.cache as Record<string, unknown> | MemoryCache | undefined);
         this._logger = Logger.create(options.logger ?? null);
         this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
         this._cache.setLockManager(this._cacheLockManager);
@@ -512,7 +512,7 @@ export class MonSQLizeRuntime {
             if (!Model._redefinedNames.has(name)) {
                 return cache.get(name) as ModelInstance<TDocument>;
             }
-            cache.delete(name);
+            cache.del(name);
             Model._redefinedNames.delete(name);
         }
 
@@ -750,6 +750,34 @@ export class MonSQLizeRuntime {
                 this.scopedCollection(name, options),
         });
     }
+}
+
+function normalizeRuntimeCache(
+    cache?: Record<string, unknown> | MemoryCache,
+): MemoryCache {
+    if (cache instanceof MemoryCache) {
+        return cache;
+    }
+
+    const input = (cache ?? {}) as Record<string, unknown>;
+
+    return new MemoryCache({
+        maxEntries: toOptionalNumber(input.maxEntries ?? input.maxSize),
+        maxMemory: toOptionalNumber(input.maxMemory),
+        defaultTtl: toOptionalNumber(input.defaultTtl ?? input.ttl),
+        enableStats: toOptionalBoolean(input.enableStats),
+        enableTags: toOptionalBoolean(input.enableTags),
+        cleanupInterval: toOptionalNumber(input.cleanupInterval),
+        enabled: toOptionalBoolean(input.enabled),
+    });
+}
+
+function toOptionalNumber(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function toOptionalBoolean(value: unknown): boolean | undefined {
+    return typeof value === 'boolean' ? value : undefined;
 }
 
 

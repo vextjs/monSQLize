@@ -10,6 +10,8 @@
 - `withCache()`
 - `FunctionCache`
 
+> 若你正在从旧的 monSQLize 缓存包装 API 迁移，请先阅读 [`cache-hub 直调迁移说明`](./cache-hub-migration.md)。
+
 ## 1. `MemoryCache`
 
 `MemoryCache` 是当前最小可直接使用的本地缓存入口，适合：
@@ -53,7 +55,7 @@ console.log(first, second);
 - 支持 `keyBuilder`
 - 支持 `condition`
 - 支持并发请求去重
-- 支持 `invalidate()` 与统计信息读取
+- 支持 `invalidate()` / `invalidateAll()` 与 `stats()`
 
 ## 3. `FunctionCache`
 
@@ -65,7 +67,7 @@ import MonSQLize from 'monsqlize';
 const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'function_cache_docs' });
 const functionCache = new MonSQLize.FunctionCache(runtime, {
     namespace: 'svc',
-    defaultTTL: 1000,
+    ttl: 1000,
 });
 
 functionCache.register('getUser', async (userId) => ({ userId }));

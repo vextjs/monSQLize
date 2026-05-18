@@ -1,4 +1,4 @@
-import { expectAssignable, expectError, expectType } from 'tsd';
+import { expectAssignable, expectType } from 'tsd';
 import MonSQLize, {
     type AdminAccessor,
     type CacheLike,
@@ -28,7 +28,7 @@ import MonSQLize, {
     type MonSQLizeOptions,
     type UpdateBatchResult,
     type UpdateResult,
-} from 'monsqlize';
+} from '../..';
 
 
 const expression = expr('COUNT(*)');
@@ -71,7 +71,22 @@ expectType<Promise<{
 expectType<Collection>(db.collection('users'));
 expectType<DbAccessor>(db.db());
 expectType<AdminAccessor>(db.db().admin());
-expectAssignable<CacheLike>(MonSQLize.createRedisCacheAdapter({ client: { get() { return null; }, set() {}, del() { return 0; }, exists() { return false; }, scan() { return ['0', []]; } } }));
+expectAssignable<CacheLike>(MonSQLize.createRedisCacheAdapter({
+    get() { return null; },
+    set() {},
+    del() { return 0; },
+    exists() { return false; },
+    mget() { return []; },
+    scan() { return ['0', []]; },
+    flushdb() {},
+    pipeline() {
+        return {
+            set() { return this; },
+            del() { return this; },
+            exec() { return Promise.resolve([]); },
+        };
+    },
+}));
 
 const users = db.collection<{ name: string; }>('users');
 expectType<Promise<number>>(users.count({}));
@@ -115,13 +130,12 @@ expectType<Promise<unknown>>(aggregateChain.explain());
 expectType<Promise<{ name: string; } | null>>(users.findOneById('507f1f77bcf86cd799439011'));
 expectType<Promise<{ name: string; }[]>>(users.findByIds(['507f1f77bcf86cd799439011']));
 expectType<Promise<{ data: { name: string; }[]; total: number }>>(users.findAndCount({ name: 'Ada' }));
-expectType<Promise<import('monsqlize').FindPageResult<{ name: string; }>>>(users.findPage({ page: 1, limit: 10 }));
+expectType<Promise<import('../..').FindPageResult<{ name: string; }>>>(users.findPage({ page: 1, limit: 10 }));
 expectType<Promise<{ name: string; } | null>>(users.findOneAndReplace({}, { name: 'Grace' }));
 expectType<Promise<boolean>>(db.db().admin().ping());
 
 const memoryCache = new MonSQLize.MemoryCache();
 memoryCache.setLockManager(lockManager);
-expectType<CacheLockLike | null>(memoryCache.getLockManager());
 expectType<Record<string, unknown>>(memoryCache.getMany(['a']));
 
 const txOptions: TransactionOptions = { maxDuration: 1000, maxRetries: 1 };
@@ -129,8 +143,8 @@ const lockOptions: LockOptions = { ttl: 1000, retryTimes: 1 };
 expectType<Promise<TransactionContract>>(db.startSession(txOptions));
 expectType<Promise<string>>(db.withTransaction(async (tx) => tx.id, txOptions));
 expectType<Promise<number>>(db.withLock('cron:job', async () => 1, lockOptions));
-expectType<Promise<import('monsqlize').LockContract>>(db.acquireLock('cron:job', lockOptions));
-expectType<Promise<import('monsqlize').LockContract | null>>(db.tryAcquireLock('cron:job', { ttl: 1000 }));
+expectType<Promise<import('../..').LockContract>>(db.acquireLock('cron:job', lockOptions));
+expectType<Promise<import('../..').LockContract | null>>(db.tryAcquireLock('cron:job', { ttl: 1000 }));
 expectType<LockStats>(new MonSQLize.LockManager().getStats());
 
 expectType<Promise<Array<{ name: string; sizeOnDisk: number; empty: boolean }> | string[]>>(db.db().listDatabases());

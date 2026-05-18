@@ -16,7 +16,6 @@
  *   node .generated/examples-dist/examples/docs/cache-multilevel.js
  */
 import MonSQLize from 'monsqlize';
-import type { RedisLike } from 'monsqlize';
 import { setupExample, teardownExample } from '../helpers/bootstrap.js';
 
 interface UserDoc { username: string; email: string; role: string; score: number; }
@@ -24,6 +23,7 @@ interface UserDoc { username: string; email: string; role: string; score: number
 // ── Minimal Redis-compatible stub (no real Redis required) ────────────────────
 // 完整模拟 Redis 客户端接口，支持 pub/sub on('message') 事件监听
 class InMemoryRedisStub {
+    constructor(private readonly peers: InMemoryRedisStub[] = []) {}
     private store = new Map<string, { value: string; exp?: number }>();
     // 事件处理器 Map：event → handlers[]
     private _handlers = new Map<string, Array<(...args: unknown[]) => void>>();
@@ -49,7 +49,15 @@ class InMemoryRedisStub {
         const keys = [...this.store.keys()].filter((key) => regex.test(key));
         return [cursor === '0' ? '0' : '0', keys];
     }
-    async publish(_channel: string, _message: string): Promise<number> { return 0; }
+    async publish(channel: string, message: string): Promise<number> {
+        for (const peer of this.peers) {
+            const listeners = peer._handlers.get('message') ?? [];
+            for (const listener of listeners) {
+                listener(channel, message);
+            }
+        }
+        return 1;
+    }
     // subscribe: 立即回调 null（表示成功订阅）
     subscribe(_channel: string, cb?: (err?: Error | null) => void): void {
         if (cb) cb(null);
@@ -68,24 +76,32 @@ async function main() {
     const { msq, server } = await setupExample('example-cache-multilevel');
 
     // ── L1 cache — in-process MemoryCache ────────────────────────────────────
-    const l1 = new MonSQLize.MemoryCache({ maxItems: 500, defaultTTL: 60_000 });
+    const l1 = new MonSQLize.MemoryCache({ maxEntries: 500, defaultTtl: 60_000 });
 
     // ── L2 cache — Redis adapter (stubbed) ───────────────────────────────────
-    const redisStub = new InMemoryRedisStub();
+    const redisPeers = [] as InMemoryRedisStub[];
+    const redisStub = new InMemoryRedisStub(redisPeers);
+    const remoteRedisStub = new InMemoryRedisStub(redisPeers);
+    redisPeers.push(redisStub, remoteRedisStub);
     const l2 = MonSQLize.createRedisCacheAdapter(
         redisStub as unknown as Parameters<typeof MonSQLize.createRedisCacheAdapter>[0],
     );
 
     // ── Distributed invalidator — broadcasts to all nodes ────────────────────
     // Constructor: new DistributedCacheInvalidator(options?)
-    //   options.cache — the local cache to invalidate (or { local, remote })
-    //   options.pub / options.sub — Redis clients for pub/sub
+    //   options.cache — 当前节点自己的本地缓存
+    //   options._connections — 示例里注入的 pub/sub 连接（避免真实 Redis 依赖）
     //   options.channel — pub/sub channel name
+    const remoteL1 = new MonSQLize.MemoryCache({ maxEntries: 500, defaultTtl: 60_000 });
     const invalidator = new MonSQLize.DistributedCacheInvalidator({
-        cache: { local: l1, remote: l2 },
-        pub: redisStub as RedisLike,
-        sub: redisStub as RedisLike,
+        cache: l1,
         channel: 'cache-invalidation',
+        _connections: { pub: redisStub, sub: redisStub },
+    });
+    const remoteInvalidator = new MonSQLize.DistributedCacheInvalidator({
+        cache: remoteL1,
+        channel: 'cache-invalidation',
+        _connections: { pub: remoteRedisStub, sub: remoteRedisStub },
     });
 
     const users = msq.collection<UserDoc>('users');
@@ -116,7 +132,7 @@ async function main() {
     console.log('\n=== FunctionCache: named functions ===');
     const fnCache = new MonSQLize.FunctionCache(l1, {
         namespace: 'user-service',
-        defaultTTL: 60_000,
+        ttl: 60_000,
     });
 
     // register(name, fn, options?) — fn must be (...args: unknown[]) => Promise<unknown>
@@ -139,22 +155,27 @@ async function main() {
 
     // ── Distributed invalidation ──────────────────────────────────────────────
     console.log('\n=== DistributedCacheInvalidator ===');
-    // Populate L1 and L2
+    // Populate two node-local caches
     await l1.set('shared:config', { theme: 'dark' }, 60_000);
-    await l2.set('shared:config', { theme: 'dark' }, 60_000);
-    console.log(`  Before invalidate — L1 has key: ${l1.get('shared:config') !== null}`);
+    await remoteL1.set('shared:config', { theme: 'dark' }, 60_000);
+    console.log(`  Before invalidate — local node has key: ${l1.get('shared:config') !== undefined}`);
+    console.log(`  Before invalidate — remote node has key: ${remoteL1.get('shared:config') !== undefined}`);
 
     await invalidator.invalidate('shared:config');
-    console.log(`  After invalidate  — L1 has key: ${l1.get('shared:config') !== null}`);
+    await new Promise((resolve) => setImmediate(resolve));
+    console.log(`  After invalidate  — local node has key: ${l1.get('shared:config') !== undefined}`);
+    console.log(`  After invalidate  — remote node has key: ${remoteL1.get('shared:config') !== undefined}`);
 
     // ── Cache stats ───────────────────────────────────────────────────────────
     console.log('\n=== MemoryCache stats ===');
     const stats = l1.getStats?.();
     if (stats) {
-        // CacheStats: { hits, misses, calls, hitRate, sets?, deletes?, evictions?, size? }
-        console.log(`  Hits: ${stats.hits} | Misses: ${stats.misses} | Size: ${stats.size ?? '?'}`);
+        // CacheStats: { hits, misses, hitRate, entries, sets, deletes, evictions, ... }
+        console.log(`  Hits: ${stats.hits} | Misses: ${stats.misses} | Entries: ${stats.entries}`);
     }
 
+    await invalidator.close();
+    await remoteInvalidator.close();
     await teardownExample(msq, server);
     console.log('\n=== Multi-level cache example complete ===');
 }

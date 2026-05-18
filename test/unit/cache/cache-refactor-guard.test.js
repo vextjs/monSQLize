@@ -52,15 +52,15 @@ test('cache refactor-guard: index.ts barrel re-exports all three modules', () =>
 // C. Duck-type 合约检查
 test('cache refactor-guard: MemoryCache satisfies CacheLike contract', () => {
     const { MemoryCache } = require(LIB);
-    const inst = new MemoryCache({ ttl: 60000 });
-    for (const m of ['get', 'set', 'delete', 'has', 'clear', 'getStats']) {
+    const inst = new MemoryCache({ defaultTtl: 60000 });
+    for (const m of ['get', 'set', 'del', 'has', 'clear', 'getStats']) {
         assert.strictEqual(typeof inst[m], 'function', 'missing: ' + m);
     }
 });
 
-test('cache refactor-guard: function-cache inflight dedupe uses MemoryCache instead of module Map', () => {
+test('cache refactor-guard: function-cache directly re-exports cache-hub implementation', () => {
     const src = readProjectSrc('src/capabilities/function-cache/index.ts');
-    assert.ok(src.includes('const inflightCache = new MemoryCache('));
+    assert.ok(src.includes("export { withCache, FunctionCache } from 'cache-hub/function-cache';"));
     assert.ok(!src.includes('const inflightFunctions = new Map'));
 });
 

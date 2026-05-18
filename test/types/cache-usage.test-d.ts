@@ -1,11 +1,10 @@
 import { expectAssignable, expectType } from 'tsd';
 import MonSQLize, {
     type CachedFunction,
-    type CacheStats,
     type WithCacheOptions,
-} from 'monsqlize';
+} from '../..';
 
-const options: WithCacheOptions = {
+const options: WithCacheOptions<(userId: string) => Promise<{ userId: string }>> = {
     ttl: 5_000,
     namespace: 'typed-cache',
     cache: new MonSQLize.MemoryCache(),
@@ -17,8 +16,9 @@ const options: WithCacheOptions = {
 const cachedUser = MonSQLize.withCache(async (userId: string) => ({ userId }), options);
 expectType<CachedFunction<[string], { userId: string }>>(cachedUser);
 expectType<Promise<{ userId: string }>>(cachedUser('u1'));
-expectType<Promise<boolean>>(cachedUser.invalidate('u1'));
-expectAssignable<CacheStats & { errors: number; avgTime: number }>(cachedUser.getCacheStats());
+expectType<Promise<void>>(cachedUser.invalidate('u1'));
+expectType<Promise<void>>(cachedUser.invalidateAll());
+expectAssignable<{ hits: number; misses: number; errors: number; hitRate: number }>(cachedUser.stats());
 
 const runtime = new MonSQLize({
     type: 'mongodb',
@@ -27,8 +27,7 @@ const runtime = new MonSQLize({
 
 const functionCache = new MonSQLize.FunctionCache(runtime, {
     namespace: 'svc',
-    defaultTTL: 10_000,
-    enableStats: true,
+    ttl: 10_000,
 });
 
 functionCache.register('double', async (...args: unknown[]) => Number(args[0]) * 2, {
@@ -37,9 +36,9 @@ functionCache.register('double', async (...args: unknown[]) => Number(args[0]) *
 });
 
 expectType<Promise<unknown>>(functionCache.execute('double', 2));
-expectType<Promise<boolean>>(functionCache.invalidate('double', 2));
+expectType<Promise<void>>(functionCache.invalidate('double', 2));
 expectType<Promise<number>>(functionCache.invalidatePattern('double:*'));
-expectType<Record<string, unknown>>(functionCache.getStats());
+expectAssignable<{ hits: number; misses: number; errors: number; hitRate: number } | Record<string, { hits: number; misses: number; errors: number; hitRate: number }>>(functionCache.getStats());
 expectType<string[]>(functionCache.list());
 functionCache.resetStats();
 functionCache.clear();

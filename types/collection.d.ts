@@ -453,7 +453,7 @@ export interface BookmarkClearResult {
 export interface BookmarkKeyDims<TSchema = unknown> extends Omit<FindPageOptions<TSchema>, 'page'> {}
 
 export interface BookmarkCacheLike {
-    set(key: string, value: unknown): boolean | Promise<boolean>;
+    set(key: string, value: unknown): void | boolean | Promise<void> | Promise<boolean>;
     get(key: string): unknown | Promise<unknown>;
     delete?(key: string): boolean | Promise<boolean>;
     keys?(pattern: string): string[] | Promise<string[]>;

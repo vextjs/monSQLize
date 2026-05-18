@@ -18,16 +18,15 @@ describe('P3-B function-cache', () => {
 
         const first = await cached('u1');
         const second = await cached('u1');
-        const invalidated = await cached.invalidate('u1');
+        await cached.invalidate('u1');
         const third = await cached('u1');
-        const stats = cached.getCacheStats();
+        const stats = cached.stats();
 
         assert.deepEqual(first, { userId: 'u1', calls: 1 });
         assert.deepEqual(second, { userId: 'u1', calls: 1 });
-        assert.equal(invalidated, true);
         assert.deepEqual(third, { userId: 'u1', calls: 2 });
         assert.equal(calls, 2);
-        assert.equal(stats.calls >= 3, true);
+        assert.equal(stats.hits >= 1, true);
         assert.equal(typeof stats.hitRate, 'number');
     });
 
@@ -61,7 +60,7 @@ describe('P3-B function-cache', () => {
         const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'function_cache_unit' });
         const functionCache = new MonSQLize.FunctionCache(runtime, {
             namespace: 'svc',
-            defaultTTL: 1_000,
+            ttl: 1_000,
         });
 
         let calls = 0;
@@ -72,13 +71,12 @@ describe('P3-B function-cache', () => {
 
         const first = await functionCache.execute('getUser', 'u1');
         const second = await functionCache.execute('getUser', 'u1');
-        const invalidated = await functionCache.invalidate('getUser', 'u1');
+        await functionCache.invalidate('getUser', 'u1');
         const third = await functionCache.execute('getUser', 'u1');
         const stats = functionCache.getStats('getUser');
 
         assert.deepEqual(first, { userId: 'u1', calls: 1 });
         assert.deepEqual(second, { userId: 'u1', calls: 1 });
-        assert.equal(invalidated, true);
         assert.deepEqual(third, { userId: 'u1', calls: 2 });
         assert.deepEqual(functionCache.list(), ['getUser']);
         assert.equal(typeof stats.hitRate, 'number');

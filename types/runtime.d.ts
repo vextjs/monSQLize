@@ -7,6 +7,24 @@ import type { SagaDefinition, SagaOrchestratorOptions, SagaResult, SagaStats, Sa
 import type { SlowQueryLogConfig, SlowQueryLogConfigInput, SlowQueryLogEntry, SlowQueryLogFilter, SlowQueryLogQueryOptions, SlowQueryLogRecord, SlowQueryLogStorageConfig } from './slow-query-log';
 import type { ResumeTokenConfig, SyncChangeEvent, SyncConfig, SyncStats, SyncTargetConfig, SyncTargetHealthCheckConfig } from './sync';
 import type { MongoSession, TransactionOptions, TransactionStats } from './transaction';
+import type {
+    CacheLike as HubCacheLike,
+    CacheStats as HubCacheStats,
+    LockManager as HubCacheLockLike,
+    MemoryCacheOptions as HubMemoryCacheOptions,
+} from 'cache-hub';
+import type { RedisCacheAdapter as HubRedisCacheAdapter } from 'cache-hub/redis';
+import type {
+    DistributedInvalidatorOptions as HubDistributedInvalidatorOptions,
+    InvalidatorStats as HubInvalidatorStats,
+} from 'cache-hub/distributed';
+import type {
+    FunctionCacheOptions as HubFunctionCacheOptions,
+    FunctionCacheStats as HubFunctionCacheStats,
+    WithCacheOptions as HubWithCacheOptions,
+    WithCacheStats as HubWithCacheStats,
+    WrappedFunction as HubWrappedFunction,
+} from 'cache-hub/function-cache';
 
 export { Lock, LockAcquireError, LockTimeoutError, LockManager } from './lock';
 export { ConnectionPoolManager } from './pool';
@@ -24,33 +42,9 @@ export declare class Logger {
     static create(logger?: LoggerLike | null): Logger;
 }
 
-export interface CacheLockLike {
-    isLocked(key: string): boolean;
-}
-
-export interface CacheLike {
-    get(key: string): unknown | Promise<unknown>;
-    set(key: string, value: unknown, ttl?: number): unknown | Promise<unknown>;
-    del?(key: string): unknown | Promise<unknown>;
-    delete?(key: string): unknown | Promise<unknown>;
-    exists?(key: string): boolean | Promise<boolean>;
-    getMany?(keys: string[]): Record<string, unknown> | Promise<Record<string, unknown>>;
-    setMany?(values: Record<string, unknown>, ttl?: number): unknown | Promise<unknown>;
-    delMany?(keys: string[]): number | Promise<number>;
-    delPattern?(pattern: string): number | Promise<number>;
-    clear?(): unknown | Promise<unknown>;
-    keys?(pattern?: string): string[] | Promise<string[]>;
-    close?(): unknown | Promise<unknown>;
-}
-
-export interface MemoryCacheOptions {
-    maxSize?: number;
-    maxMemory?: number;
-    enableStats?: boolean;
-    /** 是否启用精准缓存失效（默认 false）@since v1.1.5 */
-    autoInvalidate?: boolean;
-    [k: string]: unknown;
-}
+export type CacheLockLike = HubCacheLockLike;
+export type CacheLike = HubCacheLike;
+export type MemoryCacheOptions = HubMemoryCacheOptions;
 
 /**
  * 多层缓存写策略
@@ -90,74 +84,39 @@ export interface MultiLevelCacheOptions {
 
 export declare class MemoryCache {
     constructor(options?: MemoryCacheOptions);
-    setLockManager(lockManager: CacheLockLike | null): void;
-    getLockManager(): CacheLockLike | null;
-    get(key: string): unknown;
-    set(key: string, value: unknown, ttl?: number): boolean;
-    delete(key: string): boolean;
+    setLockManager(lockManager: CacheLockLike): void;
+    get<T = unknown>(key: string): T | undefined;
+    set(key: string, value: unknown, ttl?: number): void;
     del(key: string): boolean;
     exists(key: string): boolean;
+    has(key: string): boolean;
     getMany(keys: string[]): Record<string, unknown>;
     setMany(values: Record<string, unknown>, ttl?: number): boolean;
     delMany(keys: string[]): number;
     clear(): void;
     keys(pattern?: string): string[];
-    delPattern(pattern?: string): number;
+    delPattern(pattern: string): number;
     getStats(): CacheStats;
     resetStats(): void;
-    static getOrCreateCache(cache?: Record<string, unknown> | MemoryCache): MemoryCache;
+    invalidateByTag(tag: string): void;
+    destroy(): void;
 }
 
-export interface RedisCacheAdapterOptions {
-    client?: RedisLike;
-    prefix?: string;
-}
-
-export interface RedisLike {
-    get(key: string): Promise<string | null> | string | null;
-    pttl?(key: string): Promise<number> | number;
-    set(key: string, value: string): Promise<unknown> | unknown;
-    psetex?(key: string, ttl: number, value: string): Promise<unknown> | unknown;
-    del(...keys: string[]): Promise<number> | number;
-    exists(key: string): Promise<number | boolean> | number | boolean;
-    mget?(...keys: string[]): Promise<Array<string | null>> | Array<string | null>;
-    scan?(cursor: string, ...args: Array<string | number>): Promise<[string, string[]]> | [string, string[]];
-    flushdb?(): Promise<unknown> | unknown;
-    quit?(): Promise<unknown> | unknown;
-    on?(event: string, handler: (...args: unknown[]) => void): void;
-    publish?(channel: string, message: string): Promise<unknown> | unknown;
-    subscribe?(channel: string, handler?: (error?: Error | null) => void): Promise<unknown> | unknown;
-    unsubscribe?(channel: string): Promise<unknown> | unknown;
-    pipeline?(): {
-        set(key: string, value: string, ...args: Array<string | number>): unknown;
-        del(...keys: string[]): unknown;
-        exec(): Promise<Array<unknown>> | Array<unknown>;
-    };
-}
+export type RedisCacheAdapterOptions = never;
+export type RedisLike = object;
 
 export declare function createRedisCacheAdapter(
-    redisUrlOrInstance: string | RedisLike | RedisCacheAdapterOptions,
-    adapterOptions?: Record<string, unknown>,
-): CacheLike & { getRedisInstance(): RedisLike; };
+    redisUrlOrInstance: string | object,
+): HubRedisCacheAdapter;
 
 export type { LockOptions, LockStats, MongoSession, TransactionOptions, TransactionStats };
 
-export interface DistributedCacheInvalidatorOptions {
-    cache?: CacheLike | { local?: CacheLike; remote?: CacheLike; };
-    channel?: string;
-    instanceId?: string;
-    logger?: LoggerLike | null;
-    redis?: RedisLike;
-    redisUrl?: string;
-    pub?: RedisLike;
-    sub?: RedisLike;
-}
+export type DistributedCacheInvalidatorOptions = HubDistributedInvalidatorOptions;
 
 export declare class DistributedCacheInvalidator {
-    constructor(options?: DistributedCacheInvalidatorOptions);
+    constructor(options: DistributedCacheInvalidatorOptions);
     invalidate(pattern: string): Promise<void>;
-    handleMessage(channel: string, message: string): Promise<void>;
-    getStats(): Record<string, unknown>;
+    getStats(): HubInvalidatorStats;
     close(): Promise<void>;
 }
 
@@ -192,51 +151,33 @@ export type {
 export declare function validateSyncConfig(config: SyncConfig): void;
 export declare function generateQueryHash(input: unknown): string;
 
-export interface WithCacheOptions {
-    ttl?: number;
-    namespace?: string;
-    cache?: CacheLike;
-    keyBuilder?: (...args: unknown[]) => string;
-    condition?: (result: unknown) => boolean;
-    enableStats?: boolean;
-}
+export type WithCacheOptions<
+    T extends (...args: any[]) => Promise<any> = (...args: unknown[]) => Promise<unknown>,
+> = HubWithCacheOptions<T>;
 
-export interface CacheStats {
-    hits: number;
-    misses: number;
-    calls: number;
-    hitRate: number;
-    sets?: number;
-    deletes?: number;
-    evictions?: number;
-    size?: number;
-    memoryUsage?: number;
-    memoryUsageMB?: number;
-}
+export type CacheStats = HubCacheStats;
 
-export type CachedFunction<TArgs extends unknown[] = unknown[], TResult = unknown> = ((...args: TArgs) => Promise<TResult>) & {
-    invalidate: (...args: TArgs) => Promise<boolean>;
-    getCacheStats: () => CacheStats & { errors: number; avgTime: number; };
-};
+export type CachedFunction<TArgs extends unknown[] = unknown[], TResult = unknown> = HubWrappedFunction<(...args: TArgs) => Promise<TResult>>;
 
-export interface FunctionCacheOptions {
-    namespace?: string;
-    defaultTTL?: number;
-    enableStats?: boolean;
-}
+export type FunctionCacheOptions = HubFunctionCacheOptions;
 
 export declare function withCache<TArgs extends unknown[], TResult>(
     fn: (...args: TArgs) => Promise<TResult>,
-    options?: WithCacheOptions,
+    options?: WithCacheOptions<(...args: TArgs) => Promise<TResult>>,
 ): CachedFunction<TArgs, TResult>;
 
 export declare class FunctionCache {
-    constructor(cacheOrDb: unknown, options?: FunctionCacheOptions);
-    register(name: string, fn: (...args: unknown[]) => Promise<unknown>, options?: WithCacheOptions): void;
+    constructor(cacheOrDb: CacheLike | { getCache(): CacheLike; }, options?: FunctionCacheOptions);
+    register(name: string, fn: (...args: unknown[]) => Promise<unknown>, options?: {
+        ttl?: number;
+        keyBuilder?: (...args: unknown[]) => string;
+        namespace?: string;
+        condition?: (result: unknown) => boolean;
+    }): void;
     execute(name: string, ...args: unknown[]): Promise<unknown>;
-    invalidate(name: string, ...args: unknown[]): Promise<boolean>;
+    invalidate(name: string, ...args: unknown[]): Promise<void>;
     invalidatePattern(pattern: string): Promise<number>;
-    getStats(name?: string): Record<string, unknown>;
+    getStats(name?: string): HubFunctionCacheStats | Record<string, HubFunctionCacheStats>;
     list(): string[];
     resetStats(name?: string): void;
     clear(): void;

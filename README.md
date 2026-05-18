@@ -505,6 +505,8 @@ const user = await users.findOne({ email: 'test@example.com' });
 
 **52个测试（100% 通过）**，为任意异步函数添加缓存能力，性能提升**50000x**！
 
+> 若你正在从旧的 monSQLize 缓存包装接口迁移到当前版本，请参考 [`docs/cache-hub-migration.md`](./docs/cache-hub-migration.md)。
+
 #### 🆕 装饰器模式
 
 ```javascript
@@ -554,7 +556,7 @@ const { FunctionCache } = require('monsqlize');
 
 const fnCache = new FunctionCache(msq, {
     namespace: 'myApp',
-    defaultTTL: 60000
+    ttl: 60000
 });
 
 // 注册多个函数

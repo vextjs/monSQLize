@@ -54,7 +54,7 @@ const msq = new MonSQLize({
     config: { uri: 'mongodb://localhost:27017' },
     cache: {
         multiLevel: true,
-        local: { maxSize: 10000 },
+        local: { maxEntries: 10000 },
         remote: MonSQLize.createRedisCacheAdapter('redis://localhost:6379/0')
     }
 });
@@ -88,7 +88,7 @@ import { FunctionCache } from 'monsqlize';
 
 const fnCache = new FunctionCache(msq, {
     namespace: 'myApp',
-    defaultTTL: 60000
+    ttl: 60000
 });
 
 // 注册函数
@@ -135,7 +135,7 @@ console.log(fnCache.getStats('getUserProfile'));
 
 #### 返回值
 
-返回包装后的函数，附带 `getCacheStats()` 方法。
+返回包装后的函数，附带 `invalidate()` / `invalidateAll()` / `stats()` 方法。
 
 #### 示例
 
@@ -171,8 +171,7 @@ new FunctionCache(msq, options)
 | `msq` | `MonSQLize` | ❌ | MonSQLize 实例（可选） |
 | `options` | `Object` | ❌ | 配置选项 |
 | `options.namespace` | `string` | ❌ | 命名空间（默认 `'action'`） |
-| `options.defaultTTL` | `number` | ❌ | 默认 TTL（默认 `60000`） |
-| `options.enableStats` | `boolean` | ❌ | 启用统计（默认 `true`） |
+| `options.ttl` | `number` | ❌ | 默认 TTL（默认 `60000`） |
 
 #### 方法
 
@@ -218,7 +217,7 @@ await fnCache.invalidatePattern('getUserProfile:*');
 ```javascript
 // 单个函数
 const stats = fnCache.getStats('getUserProfile');
-// { hits: 10, misses: 2, hitRate: 0.833, avgTime: 5.2 }
+// { hits: 10, misses: 2, errors: 0, hitRate: 0.833 }
 
 // 所有函数
 const allStats = fnCache.getStats();

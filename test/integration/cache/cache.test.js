@@ -24,20 +24,67 @@ describe('P3-A cache facade integration', () => {
         cache.set('session:2', { id: 2 }, 1000);
         assert.deepEqual(cache.keys('session:*').sort(), ['session:1', 'session:2']);
 
-        const remote = new MonSQLize.MemoryCache();
-        remote.set('session:1', { id: 1 }, 1000);
-        remote.set('session:2', { id: 2 }, 1000);
+        const remoteNodeCache = new MonSQLize.MemoryCache();
+        remoteNodeCache.set('session:1', { id: 1 }, 1000);
+        remoteNodeCache.set('session:2', { id: 2 }, 1000);
+
+        const peers = [];
+        const createConnection = () => {
+            const handlers = new Map();
+            const subscriptions = new Set();
+            return {
+                on(event, handler) {
+                    if (!handlers.has(event)) handlers.set(event, []);
+                    handlers.get(event).push(handler);
+                },
+                subscribe(channel, callback) {
+                    subscriptions.add(channel);
+                    callback?.(null);
+                },
+                unsubscribe(channel) {
+                    subscriptions.delete(channel);
+                },
+                async quit() {},
+                publish(channel, message) {
+                    for (const peer of peers) {
+                        if (!peer.subscriptions.has(channel)) continue;
+                        const listeners = peer.handlers.get('message') ?? [];
+                        for (const listener of listeners) {
+                            listener(channel, message);
+                        }
+                    }
+                    return Promise.resolve(1);
+                },
+                handlers,
+                subscriptions,
+            };
+        };
+
+        const connA = createConnection();
+        const connB = createConnection();
+        peers.push(connA, connB);
 
         const invalidator = new MonSQLize.DistributedCacheInvalidator({
-            cache: { local: cache, remote },
+            cache,
+            channel: 'cache-integration',
+            instanceId: 'runtime-node',
+            _connections: { pub: connA, sub: connA },
+        });
+        const remoteInvalidator = new MonSQLize.DistributedCacheInvalidator({
+            cache: remoteNodeCache,
+            channel: 'cache-integration',
+            instanceId: 'remote-node',
+            _connections: { pub: connB, sub: connB },
         });
         invalidators.push(invalidator);
+        invalidators.push(remoteInvalidator);
 
         await invalidator.invalidate('session:*');
+        await new Promise((resolve) => setImmediate(resolve));
 
-        assert.deepEqual(cache.keys('session:*'), []);
-        assert.deepEqual(remote.keys('session:*'), []);
-        assert.equal(invalidator.getStats().invalidationsTriggered, 1);
+        assert.deepEqual(cache.keys('session:*').sort(), ['session:1', 'session:2']);
+        assert.deepEqual(remoteNodeCache.keys('session:*'), []);
+        assert.equal(remoteInvalidator.getStats().invalidationsTriggered, 1);
     });
 
     it('Redis cache adapter 应可与 fake redis client 形成完整 cache-like 契约', async () => {
@@ -64,8 +111,9 @@ describe('P3-A cache facade integration', () => {
             exists(key) {
                 return state.has(key) ? 1 : 0;
             },
-            mget(keys) {
-                return keys.map((key) => state.get(key) ?? null);
+            mget(...keys) {
+                const resolvedKeys = Array.isArray(keys[0]) ? keys[0] : keys;
+                return resolvedKeys.map((key) => state.get(key) ?? null);
             },
             scan(cursor, _matchLabel, pattern) {
                 const regex = new RegExp(`^${pattern.replace(/[|\\{}()[\]^$+?.]/g, '\\$&').replace(/\*/g, '.*')}$`);
@@ -74,9 +122,36 @@ describe('P3-A cache facade integration', () => {
             flushdb() {
                 state.clear();
             },
+            pipeline() {
+                const tasks = [];
+                return {
+                    set(key, value, mode, ttl) {
+                        tasks.push(() => {
+                            if (mode === 'PX') {
+                                fakeRedis.psetex(key, ttl, value);
+                            } else {
+                                fakeRedis.set(key, value);
+                            }
+                        });
+                        return this;
+                    },
+                    del(...keys) {
+                        tasks.push(() => {
+                            fakeRedis.del(...keys);
+                        });
+                        return this;
+                    },
+                    async exec() {
+                        for (const task of tasks) {
+                            await task();
+                        }
+                        return [];
+                    },
+                };
+            },
         };
 
-        const cache = MonSQLize.createRedisCacheAdapter({ client: fakeRedis, prefix: 'integration:' });
+        const cache = MonSQLize.createRedisCacheAdapter(fakeRedis);
         await cache.set('alpha', { ok: true });
         await cache.set('beta', { ok: false });
         assert.deepEqual(await cache.get('alpha'), { ok: true });

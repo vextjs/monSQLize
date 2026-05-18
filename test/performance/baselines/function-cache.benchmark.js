@@ -51,7 +51,7 @@ async function main() {
 
     const cached = await measure('cached', targets.samples, () => cachedFn(2, 3));
     const speedup = uncached.totalMs / cached.totalMs;
-    const cacheStats = cachedFn.getCacheStats();
+    const cacheStats = cachedFn.stats();
 
     let concurrentCalls = 0;
     const concurrentCached = MonSQLize.withCache(async (id) => {

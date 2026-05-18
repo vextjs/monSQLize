@@ -25,6 +25,8 @@
 
 monSQLize 提供了强大的内置缓存系统，支持 TTL（生存时间）、LRU（最近最少使用）淘汰策略、多层缓存、缓存失效机制和统计监控。本文档详细说明缓存的配置和使用。
 
+> ⚠️ 若你关心的是公开缓存类/函数（`MemoryCache`、`createRedisCacheAdapter()`、`DistributedCacheInvalidator`、`withCache()`、`FunctionCache`）的升级迁移，请优先阅读 [`cache-hub 直调迁移说明`](./cache-hub-migration.md)。本页主要覆盖 monSQLize 的查询缓存与多层缓存接入方式。
+
 ## 核心特性
 
 - ✅ **TTL 过期**：自动淘汰过期数据
@@ -52,7 +54,7 @@ const msq = new MonSQLize({
   
   // 全局缓存配置
   cache: {
-    maxSize: 100000,              // 最大缓存条目数（默认 100000）
+    maxEntries: 100000,           // 最大缓存条目数（默认 100000）
     enableStats: true             // 启用统计（默认 true）
   }
 });
@@ -201,7 +203,7 @@ console.log('4秒后查询：缓存过期，重新从数据库读取');
 
 ### 淘汰机制
 
-当缓存条目数达到 `maxSize` 时，自动淘汰最久未访问的条目。
+当缓存条目数达到 `maxEntries` 时，自动淘汰最久未访问的条目。
 
 ```javascript
 import MonSQLize from 'monsqlize';
@@ -212,7 +214,7 @@ const msq = new MonSQLize({
   config: { uri: 'mongodb://localhost:27017' },
   
   cache: {
-    maxSize: 1000,          // 最多缓存 1000 条
+    maxEntries: 1000,       // 最多缓存 1000 条
     enableStats: true
   }
 });
@@ -229,15 +231,15 @@ for (let i = 0; i < 1001; i++) {
 }
 
 // 查看淘汰统计
-const stats = msq.getCacheStats();
+const stats = msq.getCache().getStats();
 console.log('淘汰次数:', stats.evictions);
-console.log('当前缓存条目数:', stats.size);  // 应该是 1000（最大值）
+console.log('当前缓存条目数:', stats.entries);  // 应该是 1000（最大值）
 ```
 
 ### LRU 访问顺序
 
 ```javascript
-// 场景：maxSize = 3
+// 场景：maxEntries = 3
 
 // 1. 添加 3 条缓存
 await collection('test').find({ query: { a: 1 }, cache: 60000 });  // 缓存 [a:1]
@@ -278,17 +280,11 @@ monSQLize 提供两种多层缓存机制：
 | **clear** | `async clear(): void` | 清空所有缓存 | ✅ |
 | **keys** | `async keys(pattern?: string): string[]` | 获取所有键（可选模式匹配） | ✅ |
 
-**验证工具**：
-```javascript
-const MemoryCache = require('monsqlize/lib/cache');
+**验证建议**：
 
-// 验证缓存实例是否符合 CacheLike 接口
-if (MemoryCache.isValidCache(yourCache)) {
-  console.log('✅ 符合 CacheLike 接口');
-} else {
-  console.error('❌ 不符合 CacheLike 接口，缺少必需方法');
-}
-```
+- 优先直接使用 `MonSQLize.createRedisCacheAdapter()`，避免手写 `CacheLike` 适配器
+- 若必须自定义 remote cache，请逐项确保实现了上表列出的 10 个方法
+- 当前不再提供旧包装层里的 `MemoryCache.isValidCache()` 校验工具
 
 #### 缓存策略
 
@@ -367,7 +363,7 @@ const msq = new MonSQLize({
     
     // 本地缓存配置
     local: {
-      maxSize: 10000,                     // 本地缓存 1 万条
+      maxEntries: 10000,                  // 本地缓存 1 万条
       enableStats: true
     },
     
@@ -377,12 +373,7 @@ const msq = new MonSQLize({
     // 缓存策略
     policy: {
       writePolicy: 'both',                // 'both' | 'local-first-async-remote'
-      backfillLocalOnRemoteHit: true,     // 远端命中时回填本地（默认 true）
-      // 🔧 v1.1.9: 回填 L1 时的兜底 TTL（毫秒）
-      // - 0（默认）: 不设 TTL，与修复前行为一致（向后兼容）
-      // - 建议生产环境配置合理值（如 60000），防止 null 值永久驻留 L1
-      // - 当 remote 支持 getWithTTL（如内置 Redis 适配器）时，优先使用 L2 剩余 TTL
-      backfillLocalTTL: 60000,            // 示例：L1 回填最多缓存 60 秒
+      backfillLocalOnRemoteHit: true      // 远端命中时回填本地（默认 true）
     }
   }
 });
@@ -443,7 +434,7 @@ const msq2 = new MonSQLize({
   
   cache: {
     multiLevel: true,
-    local: { maxSize: 10000 },
+    local: { maxEntries: 10000 },
     remote: MonSQLize.createRedisCacheAdapter(redis),  // 传入实例
     policy: { writePolicy: 'both' }
   }
@@ -526,12 +517,11 @@ const remoteCache = {
   }
 };
 
-// ✅ 验证 remote 是否符合 CacheLike 接口
-if (MemoryCache.isValidCache(remoteCache)) {
-  console.log('✅ remoteCache 符合 CacheLike 接口');
-} else {
-  console.error('❌ remoteCache 不符合 CacheLike 接口，缺少必需方法');
-}
+// ✅ 建议先自行做最小契约检查
+const hasRequiredMethods = ['get', 'set', 'del', 'exists', 'getMany', 'setMany', 'delMany', 'delPattern', 'clear', 'keys']
+  .every((name) => typeof remoteCache[name] === 'function');
+
+console.log('remoteCache 是否符合 CacheLike 接口:', hasRequiredMethods);
 
 // 配置本地 + 远端缓存（monSQLize 内置了 MultiLevelCache）
 const msq = new MonSQLize({
@@ -544,7 +534,7 @@ const msq = new MonSQLize({
     
     // 本地缓存配置
     local: {
-      maxSize: 10000,     // 本地缓存 1 万条
+      maxEntries: 10000,  // 本地缓存 1 万条
       enableStats: true
     },
     
@@ -555,7 +545,7 @@ const msq = new MonSQLize({
     
     // 方式 2：传入配置对象（❌ 不推荐：会创建内存缓存占位，失去分布式缓存意义）
     // remote: {
-    //   maxSize: 50000,   // 创建的是内存缓存，不是真正的 Redis
+    //   maxEntries: 50000, // 创建的是内存缓存，不是真正的 Redis
     //   timeoutMs: 50     // 远端操作超时时间（默认 50ms）
     // },
     
@@ -564,10 +554,7 @@ const msq = new MonSQLize({
     // 缓存策略配置
     policy: {
       writePolicy: 'both',                    // 'both' | 'local-first-async-remote'
-      backfillLocalOnRemoteHit: true,         // 远端命中时回填本地（默认 true）
-      // 🔧 v1.1.9 新增：回填 L1 时的兜底 TTL（毫秒）
-      // 防止 null 值因无 TTL 永久驻留 L1，建议生产环境配置合理值
-      backfillLocalTTL: 60000,               // 回填 L1 最多缓存 60 秒
+      backfillLocalOnRemoteHit: true          // 远端命中时回填本地（默认 true）
     }
   }
 });
@@ -593,19 +580,14 @@ const products = await collection('products').find({
 const msq = new MonSQLize({
   // ...
   cache: {
-    maxSize: 10000,
+    maxEntries: 10000,
     remote: remoteCache,
     
     // 写策略配置
     policy: {
       writePolicy: 'both',                      // 'both' | 'local-first-async-remote'
-      backfillLocalOnRemoteHit: true,           // 远端命中时回填本地（默认 true）
-      // 🔧 v1.1.9: 回填 L1 时的兜底 TTL（毫秒），默认 0（不设 TTL，向后兼容）
-      // 当 remote 为内置 Redis 适配器时，优先使用 L2 剩余 TTL；否则使用此值兜底
-      backfillLocalTTL: 60000,                  // 建议生产环境配置此值，防止 null 永久驻留
-    },
-    
-    remoteTimeoutMs: 50                         // 远端操作超时（默认 50ms）
+      backfillLocalOnRemoteHit: true            // 远端命中时回填本地（默认 true）
+    }
   }
 });
 ```
@@ -646,7 +628,7 @@ const msq = new MonSQLize({
 #### 最佳实践
 
 1. **本地缓存配置**
-   - 设置合理的 `maxSize`（推荐 1-10 万条）
+   - 设置合理的 `maxEntries`（推荐 1-10 万条）
    - 热点数据优先存入本地
 
 2. **远端缓存配置**
@@ -755,7 +737,7 @@ const msq = new MonSQLize({
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
   cache: {
-    maxSize: 100000,
+    maxEntries: 100000,
     autoInvalidate: true  // 🆕 全局启用精准失效（默认 false）
   }
 });
@@ -783,7 +765,7 @@ await collection('products').updateOne(
 ```javascript
 // 实例配置 autoInvalidate = false
 const msq = new MonSQLize({
-  cache: { maxSize: 100000 }  // 默认不自动失效
+  cache: { maxEntries: 100000 }  // 默认不自动失效
 });
 
 const { collection } = await msq.connect();
@@ -919,27 +901,27 @@ await collection('products').find({ query: {}, cache: 5000, maxTimeMS: 3000 }); 
 await collection('users').find({ query: {}, cache: 5000, maxTimeMS: 3000 });
 
 // 获取统计
-const stats = msq.getCacheStats();
+const stats = msq.getCache().getStats();
 
 console.log('缓存统计:', {
-  size: stats.size,           // 当前缓存条目数
+  entries: stats.entries,     // 当前缓存条目数
   hits: stats.hits,           // 缓存命中次数
   misses: stats.misses,       // 缓存未命中次数
   sets: stats.sets,           // 缓存设置次数
   deletes: stats.deletes,     // 缓存删除次数
   evictions: stats.evictions, // LRU 淘汰次数
-  hitRate: stats.hitRate      // 命中率（百分比）
+  hitRate: stats.hitRate      // 命中率（0~1）
 });
 
 // 输出示例:
 // {
-//   size: 2,
+//   entries: 2,
 //   hits: 1,
 //   misses: 2,
 //   sets: 2,
 //   deletes: 0,
 //   evictions: 0,
-//   hitRate: '33.33%'
+//   hitRate: 0.3333
 // }
 ```
 
@@ -947,37 +929,40 @@ console.log('缓存统计:', {
 
 | 指标 | 说明 | 优化目标 |
 |------|------|---------|
-| **size** | 当前缓存条目数 | 接近 maxSize 表示利用率高 |
+| **entries** | 当前缓存条目数 | 接近 maxEntries 表示利用率高 |
 | **hits** | 缓存命中次数 | 越高越好 |
 | **misses** | 缓存未命中次数 | 越低越好 |
 | **sets** | 缓存设置次数 | 正常波动 |
 | **deletes** | 缓存删除次数（写操作触发） | 正常波动 |
-| **evictions** | LRU 淘汰次数 | 频繁淘汰说明 maxSize 太小 |
-| **hitRate** | 命中率（hits / (hits + misses)） | 目标 > 80% |
+| **evictions** | LRU 淘汰次数 | 频繁淘汰说明 maxEntries 太小 |
+| **hitRate** | 命中率（hits / (hits + misses)，0~1） | 目标 > 0.8 |
 
 ### 监控与告警
 
 ```javascript
+const cache = msq.getCache();
+const CACHE_MAX_ENTRIES = 100000;
+
 // 定期监控缓存性能
 setInterval(() => {
-  const stats = msq.getCacheStats();
+  const stats = cache.getStats();
   
   // 命中率过低告警
-  if (parseFloat(stats.hitRate) < 50) {
+  if (stats.hitRate < 0.5) {
     console.warn('⚠️ 缓存命中率过低:', stats.hitRate);
-    console.warn('建议：增加 TTL 或 maxSize');
+    console.warn('建议：增加 TTL 或 maxEntries');
   }
   
   // 频繁淘汰告警
   if (stats.evictions > 1000) {
     console.warn('⚠️ 缓存频繁淘汰:', stats.evictions);
-    console.warn('建议：增加 maxSize');
+    console.warn('建议：增加 maxEntries');
   }
   
   // 缓存利用率低告警
-  if (stats.size < msq.cache.maxSize * 0.1) {
-    console.warn('⚠️ 缓存利用率过低:', `${stats.size}/${msq.cache.maxSize}`);
-    console.warn('建议：减少 maxSize 或增加缓存使用');
+  if (stats.entries < CACHE_MAX_ENTRIES * 0.1) {
+    console.warn('⚠️ 缓存利用率过低:', `${stats.entries}/${CACHE_MAX_ENTRIES}`);
+    console.warn('建议：减少 maxEntries 或增加缓存使用');
   }
 }, 60000);  // 每分钟检查一次
 ```
@@ -1081,31 +1066,31 @@ const orders = await collection('orders').find({
 });
 ```
 
-### 2. 合理设置 maxSize
+### 2. 合理设置 maxEntries
 
 ```javascript
-// 低流量场景：较小的 maxSize
+// 低流量场景：较小的 maxEntries
 const msqLow = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
-  cache: { maxSize: 1000 }    // 1000 条足够
+  cache: { maxEntries: 1000 }    // 1000 条足够
 });
 
-// 中等流量场景：标准 maxSize
+// 中等流量场景：标准 maxEntries
 const msqMedium = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
-  cache: { maxSize: 100000 }  // 默认 10 万条
+  cache: { maxEntries: 100000 }  // 默认 10 万条
 });
 
-// 高流量场景：较大的 maxSize
+// 高流量场景：较大的 maxEntries
 const msqHigh = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
-  cache: { maxSize: 500000 }  // 50 万条
+  cache: { maxEntries: 500000 }  // 50 万条
 });
 ```
 
@@ -1114,18 +1099,18 @@ const msqHigh = new MonSQLize({
 ```javascript
 // 健康检查函数
 function checkCacheHealth(msq) {
-  const stats = msq.getCacheStats();
-  const hitRate = parseFloat(stats.hitRate);
+  const stats = msq.getCache().getStats();
+  const hitRate = stats.hitRate;
   const evictionRate = stats.evictions / (stats.sets || 1);
   
   return {
-    healthy: hitRate > 70 && evictionRate < 0.1,
+    healthy: hitRate > 0.7 && evictionRate < 0.1,
     hitRate,
     evictionRate,
     recommendations: [
-      hitRate < 70 && '命中率过低，建议增加 TTL',
-      evictionRate > 0.1 && '淘汰频繁，建议增加 maxSize',
-      stats.size < msq.cache.maxSize * 0.1 && '利用率低，建议减少 maxSize'
+      hitRate < 0.7 && '命中率过低，建议增加 TTL',
+      evictionRate > 0.1 && '淘汰频繁，建议增加 maxEntries',
+      stats.entries < 100000 * 0.1 && '利用率低，建议减少 maxEntries'
     ].filter(Boolean)
   };
 }
@@ -1156,8 +1141,8 @@ async function prewarmCache(collection, queries) {
     }
   }
   
-  const stats = msq.getCacheStats();
-  console.log(`✅ 预热完成，已缓存 ${stats.size} 条查询`);
+  const stats = msq.getCache().getStats();
+  console.log(`✅ 预热完成，已缓存 ${stats.entries} 条查询`);
 }
 
 // 使用
@@ -1207,29 +1192,29 @@ const product2 = await collection('products').findOne({
 - 总内存占用 ≈ 10000 × 1KB = 10MB
 ```
 
-### Q: 如何选择合适的 maxSize？
+### Q: 如何选择合适的 maxEntries？
 
 **A**: 根据服务器内存和查询热点数据量选择：
 
 ```javascript
 // 公式
-maxSize = 可用内存 / 平均结果大小
+// maxEntries = 可用内存 / 平均结果大小
 
 // 示例 1：服务器有 1GB 可用内存，平均结果 1KB
-maxSize = 1GB / 1KB = 1000000 条
+// maxEntries ≈ 1GB / 1KB = 1000000 条
 
 // 示例 2：服务器有 100MB 可用内存，平均结果 500 字节
-maxSize = 100MB / 500B = 200000 条
+// maxEntries ≈ 100MB / 500B = 200000 条
 ```
 
 **建议**：
 - 从默认值 100000 开始
 - 监控淘汰率（evictionRate）
-- 如果 evictionRate > 10%，增加 maxSize
+- 如果 evictionRate > 10%，增加 maxEntries
 
 ### Q: 如何手动清理缓存？
 
-**A**: monSQLize 目前**不支持写操作**（insert/update/delete），因此需要手动清理缓存：
+**A**: monSQLize 已支持写操作；但在以下场景里仍然建议手动清理缓存：
 
 ```javascript
 const { collection } = await msq.connect();
@@ -1254,9 +1239,9 @@ for (const name of collections) {
 ```
 
 **注意**：
-- monSQLize 是**只读 API**，不提供 insert/update/delete 方法
-- 当使用外部工具修改数据后，必须手动调用 `invalidate()` 清理缓存
-- 未来版本可能会添加写操作的自动失效功能
+- 当使用外部工具修改数据后，仍需手动调用 `invalidate()` 清理缓存
+- 对于通过 monSQLize 发起的写操作，可结合 `autoInvalidate` 使用自动失效
+- 若你的缓存策略跨进程/跨节点，建议同时结合分布式失效广播
 
 ### Q: 如何禁用缓存？
 
@@ -1329,9 +1314,7 @@ await collection('collectionName').invalidate()
 
 #### 返回值
 
-```javascript
-Promise<void>
-```
+返回 `Promise<void>`。
 
 ---
 

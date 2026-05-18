@@ -9,658 +9,13 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
 import { EventEmitter } from "node:events";
 
 // src/capabilities/cache/memory-cache.ts
-import { MemoryCache as HubMemoryCache } from "cache-hub";
-var MemoryCache = class _MemoryCache {
-  constructor(options = {}) {
-    this._lockManager = null;
-    this._calls = 0;
-    const { maxSize, ...rest } = options;
-    this._hub = new HubMemoryCache({
-      ...rest,
-      maxEntries: rest.maxEntries ?? maxSize
-    });
-  }
-  /** 注入锁管理器，避免被锁键在写入时被覆盖。 */
-  setLockManager(lockManager) {
-    this._lockManager = lockManager;
-  }
-  /** 获取当前锁管理器，兼容 v1 调试与测试访问。 */
-  getLockManager() {
-    return this._lockManager;
-  }
-  get(key) {
-    this._calls += 1;
-    return this._hub.get(key);
-  }
-  set(key, value, ttl = 0) {
-    if (this._lockManager?.isLocked(key)) {
-      return false;
-    }
-    this._hub.set(key, value, ttl);
-    return true;
-  }
-  delete(key) {
-    return this._hub.del(key);
-  }
-  del(key) {
-    return this.delete(key);
-  }
-  exists(key) {
-    return this._hub.exists(key);
-  }
-  has(key) {
-    return this.exists(key);
-  }
-  getMany(keys) {
-    const output = {};
-    for (const key of keys) {
-      const value = this.get(key);
-      if (value !== void 0) {
-        output[key] = value;
-      }
-    }
-    return output;
-  }
-  setMany(values, ttl = 0) {
-    for (const [key, value] of Object.entries(values)) {
-      this.set(key, value, ttl);
-    }
-    return true;
-  }
-  delMany(keys) {
-    let deleted = 0;
-    for (const key of keys) {
-      if (this.delete(key)) {
-        deleted += 1;
-      }
-    }
-    return deleted;
-  }
-  clear() {
-    this._hub.clear();
-  }
-  keys(pattern = "*") {
-    return this._hub.keys(pattern);
-  }
-  delPattern(pattern = "*") {
-    return this._hub.delPattern(pattern);
-  }
-  /** 读取 cache-hub 统计并补充 monSQLize 兼容的 `calls` / `hitRate` 字段。 */
-  getStats() {
-    const s = this._hub.getStats();
-    const calls = this._calls;
-    return {
-      hits: s.hits,
-      misses: s.misses,
-      calls,
-      hitRate: calls > 0 ? s.hits / calls : 0,
-      sets: s.sets,
-      deletes: s.deletes,
-      evictions: s.evictions,
-      size: s.entries,
-      memoryUsage: s.memoryUsage,
-      memoryUsageMB: s.memoryUsageMB
-    };
-  }
-  resetStats() {
-    this._hub.resetStats();
-    this._calls = 0;
-  }
-  /** 兼容 v1：允许从现有实例或普通配置对象获取统一的 MemoryCache。 */
-  static getOrCreateCache(cache) {
-    return cache instanceof _MemoryCache ? cache : new _MemoryCache(cache);
-  }
-};
+import { MemoryCache } from "cache-hub";
 
 // src/capabilities/cache/redis-cache-adapter.ts
-import { createRedisCacheAdapter as createHubRedisCacheAdapter } from "cache-hub";
-
-// src/core/errors/index.ts
-var ErrorCodes = {
-  INVALID_ARGUMENT: "INVALID_ARGUMENT",
-  INVALID_COLLECTION_NAME: "INVALID_COLLECTION_NAME",
-  INVALID_DATABASE_NAME: "INVALID_DATABASE_NAME",
-  INVALID_EXPRESSION: "INVALID_EXPRESSION",
-  INVALID_PAGINATION: "INVALID_PAGINATION",
-  INVALID_OPERATION: "INVALID_OPERATION",
-  CACHE_UNAVAILABLE: "CACHE_UNAVAILABLE",
-  MANAGEMENT_OPERATION_FAILED: "MANAGEMENT_OPERATION_FAILED",
-  NOT_CONNECTED: "NOT_CONNECTED",
-  CONNECTION_FAILED: "CONNECTION_FAILED",
-  CONNECTION_CLOSED: "CONNECTION_CLOSED",
-  INVALID_CONFIG: "INVALID_CONFIG",
-  OPERATION_TIMEOUT: "OPERATION_TIMEOUT",
-  UNSUPPORTED_DATABASE: "UNSUPPORTED_DATABASE",
-  /** v1 compat: insertOne requires a non-null, non-array object document */
-  DOCUMENT_REQUIRED: "DOCUMENT_REQUIRED",
-  /** v1 compat: MongoDB duplicate key (error code 11000) */
-  DUPLICATE_KEY: "DUPLICATE_KEY",
-  /** v1 compat: general write failure (maps from MongoError in insert/update/delete) */
-  WRITE_ERROR: "WRITE_ERROR",
-  /** v1 compat: model-layer schema validation failure */
-  VALIDATION_ERROR: "VALIDATION_ERROR",
-  /** v1 compat: stream mode cannot use page jump (page > 1 with stream: true) */
-  STREAM_NO_JUMP: "STREAM_NO_JUMP",
-  /** v1 compat: stream mode cannot compute totals */
-  STREAM_NO_TOTALS: "STREAM_NO_TOTALS",
-  /** v1 compat: stream mode cannot use explain */
-  STREAM_NO_EXPLAIN: "STREAM_NO_EXPLAIN",
-  /** v1 compat: page jump exceeds the maxHops limit */
-  JUMP_TOO_FAR: "JUMP_TOO_FAR",
-  /** v1 compat: generic MongoDB driver error (maps numeric MongoDB error codes) */
-  MONGODB_ERROR: "MONGODB_ERROR",
-  /** v1 compat: cursor sort options mismatch between pages */
-  CURSOR_SORT_MISMATCH: "CURSOR_SORT_MISMATCH",
-  /** v1 compat: invalid or expired cursor token */
-  INVALID_CURSOR: "INVALID_CURSOR",
-  /** v1 compat: connection timeout */
-  CONNECTION_TIMEOUT: "CONNECTION_TIMEOUT",
-  /** v1 compat: generic database error */
-  DATABASE_ERROR: "DATABASE_ERROR",
-  /** v1 compat: query execution timeout */
-  QUERY_TIMEOUT: "QUERY_TIMEOUT",
-  /** v1 compat: cache backend error */
-  CACHE_ERROR: "CACHE_ERROR",
-  /** v1 compat: cache operation timeout */
-  CACHE_TIMEOUT: "CACHE_TIMEOUT",
-  /** v1 compat: model.define() called without schema */
-  MISSING_SCHEMA: "MISSING_SCHEMA",
-  /** v1 compat: model already registered under same name */
-  MODEL_ALREADY_EXISTS: "MODEL_ALREADY_EXISTS",
-  /** v1 compat: write requires at least one document */
-  DOCUMENTS_REQUIRED: "DOCUMENTS_REQUIRED",
-  /** v1 compat: concurrent write conflict in transaction */
-  WRITE_CONFLICT: "WRITE_CONFLICT",
-  /** v1 compat: business lock acquire failed */
-  LOCK_ACQUIRE_FAILED: "LOCK_ACQUIRE_FAILED",
-  /** v1 compat: business lock wait timeout */
-  LOCK_TIMEOUT: "LOCK_TIMEOUT",
-  /** v1 compat: model.model() called when not connected */
-  MODEL_NOT_DEFINED: "MODEL_NOT_DEFINED",
-  /** v1 compat: pool() called without pools configured */
-  NO_POOL_MANAGER: "NO_POOL_MANAGER",
-  /** v1 compat: pool() called with a pool name that does not exist */
-  POOL_NOT_FOUND: "POOL_NOT_FOUND",
-  /** v1 compat: model definition is not a valid object */
-  INVALID_MODEL_DEFINITION: "INVALID_MODEL_DEFINITION",
-  /** v1 compat: schema property is not a function or object */
-  INVALID_SCHEMA_TYPE: "INVALID_SCHEMA_TYPE"
-};
-function createError(code, message, details, cause) {
-  const error = new Error(message);
-  error.code = code;
-  if (details !== void 0) {
-    error.details = details;
-  }
-  if (cause !== void 0) {
-    error.cause = cause;
-  }
-  return error;
-}
-function createConnectionError(message, cause) {
-  return createError(ErrorCodes.CONNECTION_FAILED, message, void 0, cause);
-}
-
-// src/capabilities/cache/redis-cache-adapter.ts
-function createRedisCacheAdapter(redisUrlOrInstance, adapterOptions = {}) {
-  const { hubInput, prefixState } = resolveRedisClientInput(redisUrlOrInstance, adapterOptions);
-  const hubAdapter = createHubRedisCacheAdapter(hubInput);
-  if (!prefixState.prefix) {
-    return Object.assign(hubAdapter, {
-      delete(key) {
-        return Promise.resolve(hubAdapter.del?.(key)).then(Boolean);
-      },
-      getRedisInstance() {
-        return prefixState.rawClient ?? hubAdapter.getRedisInstance();
-      }
-    });
-  }
-  return createPrefixedAdapter(hubAdapter, prefixState);
-}
-function resolveRedisClientInput(redisUrlOrInstance, adapterOptions) {
-  if (typeof redisUrlOrInstance === "string") {
-    return {
-      hubInput: redisUrlOrInstance,
-      prefixState: {
-        prefix: String(adapterOptions.prefix ?? ""),
-        rawClient: null
-      }
-    };
-  }
-  if (redisUrlOrInstance && typeof redisUrlOrInstance === "object" && "client" in redisUrlOrInstance && redisUrlOrInstance.client) {
-    const options = redisUrlOrInstance;
-    const client = options.client;
-    return {
-      hubInput: normalizeRedisClient(client),
-      prefixState: {
-        prefix: String(options.prefix ?? ""),
-        rawClient: client
-      }
-    };
-  }
-  if (redisUrlOrInstance && typeof redisUrlOrInstance === "object") {
-    return {
-      hubInput: normalizeRedisClient(redisUrlOrInstance),
-      prefixState: {
-        prefix: String(adapterOptions.prefix ?? ""),
-        rawClient: redisUrlOrInstance
-      }
-    };
-  }
-  throw createError(ErrorCodes.INVALID_ARGUMENT, "redisUrlOrInstance must be a Redis URL string or Redis client instance.");
-}
-function createPrefixedAdapter(hubAdapter, prefixState) {
-  const withPrefix = (key) => `${prefixState.prefix}${key}`;
-  const stripPrefix = (key) => key.startsWith(prefixState.prefix) ? key.slice(prefixState.prefix.length) : key;
-  return {
-    async get(key) {
-      return hubAdapter.get(withPrefix(key));
-    },
-    async set(key, value, ttl = 0) {
-      return hubAdapter.set(withPrefix(key), value, ttl);
-    },
-    async del(key) {
-      return Promise.resolve(hubAdapter.del?.(withPrefix(key))).then(Boolean);
-    },
-    async delete(key) {
-      return Promise.resolve(hubAdapter.del?.(withPrefix(key))).then(Boolean);
-    },
-    async exists(key) {
-      return Promise.resolve(hubAdapter.exists?.(withPrefix(key))).then(Boolean);
-    },
-    async getMany(keys) {
-      const prefixedKeys = keys.map(withPrefix);
-      const values = await Promise.resolve(hubAdapter.getMany?.(prefixedKeys) ?? {});
-      const output = {};
-      for (const [key, value] of Object.entries(values)) {
-        output[stripPrefix(key)] = value;
-      }
-      return output;
-    },
-    async setMany(values, ttl = 0) {
-      const prefixedValues = {};
-      for (const [key, value] of Object.entries(values)) {
-        prefixedValues[withPrefix(key)] = value;
-      }
-      return Promise.resolve(hubAdapter.setMany?.(prefixedValues, ttl) ?? true).then(() => true);
-    },
-    async delMany(keys) {
-      return Number(await Promise.resolve(hubAdapter.delMany?.(keys.map(withPrefix)) ?? 0));
-    },
-    async delPattern(pattern = "*") {
-      return Number(await Promise.resolve(hubAdapter.delPattern?.(withPrefix(pattern)) ?? 0));
-    },
-    async clear() {
-      await Promise.resolve(hubAdapter.clear?.());
-    },
-    async keys(pattern = "*") {
-      const keys = await Promise.resolve(hubAdapter.keys?.(withPrefix(pattern)) ?? []);
-      return keys.map(stripPrefix);
-    },
-    async close() {
-      await Promise.resolve(hubAdapter.close?.());
-    },
-    getRedisInstance() {
-      return prefixState.rawClient ?? hubAdapter.getRedisInstance();
-    }
-  };
-}
-function normalizeRedisClient(client) {
-  const get = bindMethod(client, "get");
-  const del = bindMethod(client, "del");
-  const exists = bindMethod(client, "exists");
-  const scan = bindMethod(client, "scan");
-  const flushdb = optionalMethod(client, "flushdb");
-  const quit = optionalMethod(client, "quit");
-  const on = optionalMethod(client, "on");
-  const publish = optionalMethod(client, "publish");
-  const subscribe = optionalMethod(client, "subscribe");
-  const unsubscribe = optionalMethod(client, "unsubscribe");
-  const set = (key, value, ...args) => {
-    if (args[0] === "PX" && typeof args[1] === "number" && client.psetex) {
-      return client.psetex(key, args[1], value);
-    }
-    return client.set(key, value);
-  };
-  const mget = (...keys) => {
-    if (client.mget) {
-      const invokeMget = client.mget;
-      return client.mget.length <= 1 ? invokeMget(keys) : invokeMget(...keys);
-    }
-    return Promise.all(keys.map(async (key) => {
-      const value = await Promise.resolve(client.get(key));
-      return value ?? null;
-    }));
-  };
-  const pipeline = () => client.pipeline ? client.pipeline() : createPipelineShim(client, set);
-  return {
-    get,
-    set,
-    del,
-    exists,
-    mget,
-    scan,
-    flushdb,
-    quit,
-    on,
-    publish,
-    subscribe,
-    unsubscribe,
-    pipeline
-  };
-}
-function createPipelineShim(client, setImpl) {
-  const tasks = [];
-  return {
-    set(key, value, ...args) {
-      tasks.push({
-        run: async () => Promise.resolve(setImpl(key, value, ...args))
-      });
-      return this;
-    },
-    del(...keys) {
-      tasks.push({
-        run: async () => Promise.resolve(client.del(...keys))
-      });
-      return this;
-    },
-    async exec() {
-      const results = [];
-      for (const task of tasks) {
-        results.push(await task.run());
-      }
-      return results;
-    }
-  };
-}
-function bindMethod(client, key) {
-  const method = client[key];
-  if (typeof method !== "function") {
-    throw createError(ErrorCodes.INVALID_CONFIG, `Redis client must implement ${String(key)}().`);
-  }
-  return (...args) => method.apply(client, args);
-}
-function optionalMethod(client, key) {
-  const method = client[key];
-  if (typeof method !== "function") {
-    return void 0;
-  }
-  return (...args) => method.apply(client, args);
-}
+import { createRedisCacheAdapter } from "cache-hub/redis";
 
 // src/capabilities/cache/distributed-cache-invalidator.ts
-import { DistributedCacheInvalidator as HubDistributedCacheInvalidator } from "cache-hub";
-var DistributedCacheInvalidator = class {
-  constructor(options = {}) {
-    this.manualStats = {
-      messagesSent: 0,
-      messagesReceived: 0,
-      errors: 0
-    };
-    this.invalidationsTriggered = 0;
-    if (!options.cache) {
-      throw createError(ErrorCodes.INVALID_CONFIG, "DistributedCacheInvalidator requires a cache instance");
-    }
-    this.channel = options.channel ?? "monsqlize:cache:invalidate";
-    this.instanceId = options.instanceId ?? `instance-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    this.logger = options.logger;
-    const scopedCache = resolveCacheScope(options.cache);
-    this.local = scopedCache.local;
-    this.remote = scopedCache.remote;
-    const delegateOptions = this.buildDelegateOptions(options);
-    if (delegateOptions) {
-      this.delegate = new HubDistributedCacheInvalidator(delegateOptions);
-    }
-  }
-  async invalidate(pattern) {
-    if (!pattern) {
-      return;
-    }
-    await this.invalidateCaches(pattern);
-    if (this.delegate) {
-      try {
-        await this.delegate.invalidate(pattern);
-        this.logger?.debug?.(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
-        return;
-      } catch (error) {
-        this.logger?.error?.("[DistributedCacheInvalidator] Publish error:", error.message);
-        throw error;
-      }
-    }
-    if (!this.pub?.publish) {
-      return;
-    }
-    const message = JSON.stringify({
-      type: "invalidate",
-      pattern,
-      instanceId: this.instanceId,
-      timestamp: Date.now()
-    });
-    try {
-      await Promise.resolve(this.pub.publish(this.channel, message));
-      this.manualStats.messagesSent++;
-      this.logger?.debug?.(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
-    } catch (error) {
-      this.manualStats.errors++;
-      this.logger?.error?.("[DistributedCacheInvalidator] Publish error:", error.message);
-      throw error;
-    }
-  }
-  async handleMessage(channel, message) {
-    if (channel !== this.channel) {
-      return;
-    }
-    this.manualStats.messagesReceived++;
-    try {
-      const data = JSON.parse(message);
-      if (data.instanceId === this.instanceId || data.type !== "invalidate" || !data.pattern) {
-        return;
-      }
-      await this.invalidateCaches(data.pattern);
-    } catch (cause) {
-      this.manualStats.errors++;
-      this.logger?.error?.("[DistributedCacheInvalidator] Failed to parse message", cause);
-    }
-  }
-  getStats() {
-    const delegateStats = this.delegate?.getStats();
-    return {
-      messagesSent: (delegateStats?.messagesSent ?? 0) + this.manualStats.messagesSent,
-      messagesReceived: (delegateStats?.messagesReceived ?? 0) + this.manualStats.messagesReceived,
-      invalidationsTriggered: this.invalidationsTriggered,
-      errors: (delegateStats?.errors ?? 0) + this.manualStats.errors,
-      channel: this.channel,
-      instanceId: this.instanceId
-    };
-  }
-  async close() {
-    if (this.delegate) {
-      await this.delegate.close();
-      return;
-    }
-    try {
-      if (this.sub?.unsubscribe) {
-        await Promise.resolve(this.sub.unsubscribe(this.channel));
-      }
-      if (this.pub?.quit) {
-        await Promise.resolve(this.pub.quit());
-      }
-      if (this.sub?.quit) {
-        await Promise.resolve(this.sub.quit());
-      }
-      this.logger?.info?.("[DistributedCacheInvalidator] Closed");
-    } catch (error) {
-      this.logger?.error?.("[DistributedCacheInvalidator] Close error:", error.message);
-    }
-  }
-  buildDelegateOptions(options) {
-    const cache = {
-      async get() {
-        return void 0;
-      },
-      async set() {
-        return true;
-      },
-      async has() {
-        return false;
-      },
-      delPattern: async (pattern) => this.invalidateCaches(pattern)
-    };
-    const logger = createDelegateLogger(this.logger);
-    const connections = resolveConnections(options);
-    if (connections) {
-      this.pub = connections.pub;
-      this.sub = connections.sub;
-      return {
-        cache,
-        channel: this.channel,
-        instanceId: this.instanceId,
-        logger,
-        _connections: {
-          pub: normalizePubConnection(connections.pub),
-          sub: normalizeSubConnection(connections.sub),
-          _shouldClosePub: true
-        }
-      };
-    }
-    return null;
-  }
-  async invalidateCaches(pattern) {
-    let deleted = 0;
-    try {
-      if (this.local?.delPattern) {
-        const localDeleted = Number(await Promise.resolve(this.local.delPattern(pattern)));
-        deleted += localDeleted;
-        this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated local cache: ${pattern}`);
-      }
-      if (this.remote?.delPattern) {
-        const remoteDeleted = Number(await Promise.resolve(this.remote.delPattern(pattern)));
-        deleted += remoteDeleted;
-        this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated remote cache: ${pattern}`);
-      }
-      this.invalidationsTriggered++;
-      this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated pattern: ${pattern}, deleted: ${deleted} keys`);
-      return deleted;
-    } catch (error) {
-      if (!this.delegate) {
-        this.manualStats.errors++;
-      }
-      this.logger?.error?.("[DistributedCacheInvalidator] Invalidation error:", error.message);
-      throw error;
-    }
-  }
-};
-function resolveCacheScope(cache) {
-  const record = cache;
-  if ("local" in record || "remote" in record) {
-    return cache;
-  }
-  return { local: cache };
-}
-function createDelegateLogger(logger) {
-  if (!logger) {
-    return void 0;
-  }
-  return {
-    debug(message) {
-      logger.debug?.(message);
-    },
-    info(message) {
-      logger.info?.(message);
-    },
-    warn(message) {
-      logger.warn?.(message);
-    },
-    error(message) {
-      logger.error?.(message);
-    }
-  };
-}
-function resolveConnections(options) {
-  if (options.pub || options.sub) {
-    const pub = options.pub ?? options.sub;
-    const sub = options.sub ?? options.pub;
-    if (pub && sub) {
-      return { pub, sub };
-    }
-  }
-  if (options.redis) {
-    const pub = options.redis;
-    const duplicated = duplicateRedis(options.redis);
-    return { pub, sub: duplicated ?? options.redis };
-  }
-  if (options.redisUrl) {
-    const RedisCtor = loadRedisCtor();
-    return {
-      pub: new RedisCtor(options.redisUrl),
-      sub: new RedisCtor(options.redisUrl)
-    };
-  }
-  return null;
-}
-function duplicateRedis(redis) {
-  const candidate = redis;
-  if (typeof candidate.duplicate === "function") {
-    return candidate.duplicate();
-  }
-  return null;
-}
-function loadRedisCtor() {
-  const mod = __require("ioredis");
-  return mod?.default ?? mod;
-}
-function normalizePubConnection(pub) {
-  return {
-    publish(channel, message) {
-      const normalizedMessage = normalizePublishedMessage(message);
-      return pub?.publish ? pub.publish(channel, normalizedMessage) : 0;
-    },
-    on(event, handler) {
-      pub?.on?.(event, handler);
-    },
-    quit() {
-      return pub?.quit ? pub.quit() : void 0;
-    }
-  };
-}
-function normalizeSubConnection(sub) {
-  return {
-    on(event, handler) {
-      if (!sub?.on) {
-        return;
-      }
-      if (event === "message") {
-        sub.on(event, async (...args) => {
-          handler(...args);
-          await new Promise((resolve) => setImmediate(resolve));
-        });
-        return;
-      }
-      sub.on(event, handler);
-    },
-    subscribe(channel, handler) {
-      return sub?.subscribe ? sub.subscribe(channel, handler) : handler?.(null);
-    },
-    unsubscribe(channel) {
-      return sub?.unsubscribe ? sub.unsubscribe(channel) : void 0;
-    },
-    quit() {
-      return sub?.quit ? sub.quit() : void 0;
-    }
-  };
-}
-function normalizePublishedMessage(message) {
-  try {
-    const payload = JSON.parse(message);
-    if (payload.ts !== void 0 && payload.timestamp === void 0) {
-      payload.timestamp = payload.ts;
-      delete payload.ts;
-    }
-    return JSON.stringify(payload);
-  } catch {
-    return message;
-  }
-}
+import { DistributedCacheInvalidator } from "cache-hub/distributed";
 
 // src/capabilities/model/schema-dsl.ts
 var _schemaDslFn = null;
@@ -752,6 +107,92 @@ var _PopulatePromise = class _PopulatePromise {
   }
 };
 var PopulatePromise = _PopulatePromise;
+
+// src/core/errors/index.ts
+var ErrorCodes = {
+  INVALID_ARGUMENT: "INVALID_ARGUMENT",
+  INVALID_COLLECTION_NAME: "INVALID_COLLECTION_NAME",
+  INVALID_DATABASE_NAME: "INVALID_DATABASE_NAME",
+  INVALID_EXPRESSION: "INVALID_EXPRESSION",
+  INVALID_PAGINATION: "INVALID_PAGINATION",
+  INVALID_OPERATION: "INVALID_OPERATION",
+  CACHE_UNAVAILABLE: "CACHE_UNAVAILABLE",
+  MANAGEMENT_OPERATION_FAILED: "MANAGEMENT_OPERATION_FAILED",
+  NOT_CONNECTED: "NOT_CONNECTED",
+  CONNECTION_FAILED: "CONNECTION_FAILED",
+  CONNECTION_CLOSED: "CONNECTION_CLOSED",
+  INVALID_CONFIG: "INVALID_CONFIG",
+  OPERATION_TIMEOUT: "OPERATION_TIMEOUT",
+  UNSUPPORTED_DATABASE: "UNSUPPORTED_DATABASE",
+  /** v1 compat: insertOne requires a non-null, non-array object document */
+  DOCUMENT_REQUIRED: "DOCUMENT_REQUIRED",
+  /** v1 compat: MongoDB duplicate key (error code 11000) */
+  DUPLICATE_KEY: "DUPLICATE_KEY",
+  /** v1 compat: general write failure (maps from MongoError in insert/update/delete) */
+  WRITE_ERROR: "WRITE_ERROR",
+  /** v1 compat: model-layer schema validation failure */
+  VALIDATION_ERROR: "VALIDATION_ERROR",
+  /** v1 compat: stream mode cannot use page jump (page > 1 with stream: true) */
+  STREAM_NO_JUMP: "STREAM_NO_JUMP",
+  /** v1 compat: stream mode cannot compute totals */
+  STREAM_NO_TOTALS: "STREAM_NO_TOTALS",
+  /** v1 compat: stream mode cannot use explain */
+  STREAM_NO_EXPLAIN: "STREAM_NO_EXPLAIN",
+  /** v1 compat: page jump exceeds the maxHops limit */
+  JUMP_TOO_FAR: "JUMP_TOO_FAR",
+  /** v1 compat: generic MongoDB driver error (maps numeric MongoDB error codes) */
+  MONGODB_ERROR: "MONGODB_ERROR",
+  /** v1 compat: cursor sort options mismatch between pages */
+  CURSOR_SORT_MISMATCH: "CURSOR_SORT_MISMATCH",
+  /** v1 compat: invalid or expired cursor token */
+  INVALID_CURSOR: "INVALID_CURSOR",
+  /** v1 compat: connection timeout */
+  CONNECTION_TIMEOUT: "CONNECTION_TIMEOUT",
+  /** v1 compat: generic database error */
+  DATABASE_ERROR: "DATABASE_ERROR",
+  /** v1 compat: query execution timeout */
+  QUERY_TIMEOUT: "QUERY_TIMEOUT",
+  /** v1 compat: cache backend error */
+  CACHE_ERROR: "CACHE_ERROR",
+  /** v1 compat: cache operation timeout */
+  CACHE_TIMEOUT: "CACHE_TIMEOUT",
+  /** v1 compat: model.define() called without schema */
+  MISSING_SCHEMA: "MISSING_SCHEMA",
+  /** v1 compat: model already registered under same name */
+  MODEL_ALREADY_EXISTS: "MODEL_ALREADY_EXISTS",
+  /** v1 compat: write requires at least one document */
+  DOCUMENTS_REQUIRED: "DOCUMENTS_REQUIRED",
+  /** v1 compat: concurrent write conflict in transaction */
+  WRITE_CONFLICT: "WRITE_CONFLICT",
+  /** v1 compat: business lock acquire failed */
+  LOCK_ACQUIRE_FAILED: "LOCK_ACQUIRE_FAILED",
+  /** v1 compat: business lock wait timeout */
+  LOCK_TIMEOUT: "LOCK_TIMEOUT",
+  /** v1 compat: model.model() called when not connected */
+  MODEL_NOT_DEFINED: "MODEL_NOT_DEFINED",
+  /** v1 compat: pool() called without pools configured */
+  NO_POOL_MANAGER: "NO_POOL_MANAGER",
+  /** v1 compat: pool() called with a pool name that does not exist */
+  POOL_NOT_FOUND: "POOL_NOT_FOUND",
+  /** v1 compat: model definition is not a valid object */
+  INVALID_MODEL_DEFINITION: "INVALID_MODEL_DEFINITION",
+  /** v1 compat: schema property is not a function or object */
+  INVALID_SCHEMA_TYPE: "INVALID_SCHEMA_TYPE"
+};
+function createError(code, message, details, cause) {
+  const error = new Error(message);
+  error.code = code;
+  if (details !== void 0) {
+    error.details = details;
+  }
+  if (cause !== void 0) {
+    error.cause = cause;
+  }
+  return error;
+}
+function createConnectionError(message, cause) {
+  return createError(ErrorCodes.CONNECTION_FAILED, message, void 0, cause);
+}
 
 // src/capabilities/model/definition-validator.ts
 function validateCollectionName(collectionName) {
@@ -8769,342 +8210,7 @@ function resolveScopedCollection(config) {
 }
 
 // src/capabilities/function-cache/index.ts
-import { createHash as createHash3 } from "node:crypto";
-function withCache(fn, options = {}) {
-  if (typeof fn !== "function") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: fn must be a function.");
-  }
-  const {
-    ttl = 6e4,
-    namespace = "fn",
-    cache = new MemoryCache(),
-    keyBuilder,
-    condition,
-    enableStats = true
-  } = options;
-  if (typeof ttl !== "number" || ttl < 0) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: ttl must be a non-negative number.");
-  }
-  if (keyBuilder && typeof keyBuilder !== "function") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: keyBuilder must be a function.");
-  }
-  if (condition && typeof condition !== "function") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: condition must be a function.");
-  }
-  if (typeof cache.get !== "function" || typeof cache.set !== "function") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: Invalid cache instance: must implement CacheLike interface");
-  }
-  const stats = {
-    hits: 0,
-    misses: 0,
-    errors: 0,
-    calls: 0,
-    totalTime: 0
-  };
-  const inflightCache = new MemoryCache({
-    maxEntries: 1e4,
-    enableStats: false
-  });
-  const wrapped = (async (...args) => {
-    const startedAt = Date.now();
-    let cacheKey;
-    try {
-      const baseKey = keyBuilder ? `${namespace}:${keyBuilder(...args)}` : `${namespace}:${fn.name || "anonymous"}:${stableStringify3(args)}`;
-      if (baseKey.length > 1024) {
-        const hash2 = createHash3("sha256").update(baseKey).digest("hex");
-        cacheKey = `${namespace}:${fn.name || "anonymous"}:hash:${hash2}`;
-      } else {
-        cacheKey = baseKey;
-      }
-    } catch {
-      if (enableStats) stats.errors += 1;
-      return fn(...args);
-    }
-    try {
-      const cached = await cache.get(cacheKey);
-      const exists = cached !== void 0 || await Promise.resolve(cache.exists?.(cacheKey) ?? false);
-      if (exists) {
-        if (enableStats) {
-          stats.hits += 1;
-          stats.calls += 1;
-          stats.totalTime += Date.now() - startedAt;
-        }
-        return cached;
-      }
-    } catch {
-      if (enableStats) {
-        stats.errors += 1;
-      }
-    }
-    const pending = inflightCache.get(cacheKey);
-    if (pending) {
-      const result = await pending;
-      if (enableStats) {
-        stats.hits += 1;
-        stats.calls += 1;
-        stats.totalTime += Date.now() - startedAt;
-      }
-      return result;
-    }
-    const runner = (async () => {
-      try {
-        const result = await fn(...args);
-        let shouldCache = true;
-        if (condition) {
-          try {
-            shouldCache = condition(result);
-          } catch {
-            if (enableStats) stats.errors += 1;
-            shouldCache = true;
-          }
-        }
-        if (shouldCache) {
-          try {
-            await Promise.resolve(cache.set(cacheKey, result, ttl));
-          } catch {
-            if (enableStats) stats.errors += 1;
-          }
-        }
-        return result;
-      } finally {
-        inflightCache.delete(cacheKey);
-      }
-    })();
-    inflightCache.set(cacheKey, runner);
-    try {
-      const result = await runner;
-      if (enableStats) {
-        stats.misses += 1;
-        stats.calls += 1;
-        stats.totalTime += Date.now() - startedAt;
-      }
-      return result;
-    } catch (cause) {
-      if (enableStats) {
-        stats.errors += 1;
-        stats.calls += 1;
-      }
-      throw cause;
-    }
-  });
-  wrapped.invalidate = async (...args) => {
-    let cacheKey;
-    try {
-      const baseKey = keyBuilder ? `${namespace}:${keyBuilder(...args)}` : `${namespace}:${fn.name || "anonymous"}:${stableStringify3(args)}`;
-      if (baseKey.length > 1024) {
-        const hash2 = createHash3("sha256").update(baseKey).digest("hex");
-        cacheKey = `${namespace}:${fn.name || "anonymous"}:hash:${hash2}`;
-      } else {
-        cacheKey = baseKey;
-      }
-    } catch {
-      return false;
-    }
-    const result = await Promise.resolve(cache.del?.(cacheKey) ?? cache.delete?.(cacheKey) ?? false);
-    return typeof result === "boolean" ? result : Number(result) > 0;
-  };
-  wrapped.getCacheStats = () => ({
-    hits: stats.hits,
-    misses: stats.misses,
-    calls: stats.calls,
-    hitRate: stats.calls > 0 ? stats.hits / stats.calls : 0,
-    errors: stats.errors,
-    avgTime: stats.calls > 0 ? stats.totalTime / stats.calls : 0
-  });
-  return wrapped;
-}
-var FunctionCache = class {
-  constructor(cacheOrDb, options = {}) {
-    this.functions = /* @__PURE__ */ new Map();
-    if (options !== null && typeof options !== "object") {
-      throw new Error("options must be an object");
-    }
-    const namespace = options.namespace;
-    if (namespace !== void 0 && typeof namespace !== "string") {
-      throw new Error("namespace must be a string");
-    }
-    this.options = options;
-    this.cache = resolveCache(cacheOrDb);
-    if ((this.options.defaultTTL ?? 6e4) < 0) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "FunctionCache: defaultTTL must be a non-negative number.");
-    }
-  }
-  /**
-   * Register a cacheable async function.
-   *
-   * @template {unknown[]} TArgs
-   * @template TResult
-   * @param {string} name - Registration name; accessed later via `execute()` / `invalidate()`.
-   * @param {(...args: TArgs) => Promise<TResult>} fn - The original async function.
-   * @param {WithCacheOptions} [options={}] - Per-function local cache configuration.
-   * @returns {void}
-   * @throws {Error} Throws an argument error when the name is empty.
-   * @since v1.3.0
-   */
-  register(name, fn, options = {}) {
-    if (!name?.trim()) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "Function name must be a non-empty string");
-    }
-    if (typeof fn !== "function") {
-      throw new Error("fn must be a function");
-    }
-    if (options && typeof options !== "object") {
-      throw new Error("options must be an object");
-    }
-    this.functions.set(name, {
-      source: fn,
-      options,
-      cached: this.createCachedFunction(name, fn, options)
-    });
-  }
-  /**
-   * Execute a registered function.
-   *
-   * @param {string} name - Name of the registered function.
-   * @param {...unknown[]} args - Arguments to pass to the original function.
-   * @returns {Promise<unknown>} Returns the result from the original function or a cache hit.
-   * @throws {Error} Throws `FUNCTION_NOT_REGISTERED` when the function is not registered.
-   * @since v1.3.0
-   */
-  async execute(name, ...args) {
-    const entry = this.functions.get(name);
-    if (!entry) {
-      throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
-    }
-    return entry.cached(...args);
-  }
-  /**
-   * Invalidate the cached result for a registered function under the given arguments.
-   *
-   * @param {string} name - Name of the registered function.
-   * @param {...unknown[]} args - Original function arguments used to reconstruct the cache key.
-   * @returns {Promise<boolean>} Returns `true` when the cache entry was successfully deleted.
-   * @throws {Error} Throws `FUNCTION_NOT_REGISTERED` when the function is not registered.
-   * @since v1.3.0
-   */
-  async invalidate(name, ...args) {
-    if (!name || typeof name !== "string") {
-      throw new Error("Function name must be a non-empty string");
-    }
-    const entry = this.functions.get(name);
-    if (!entry) {
-      throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
-    }
-    return entry.cached.invalidate(...args);
-  }
-  /**
-   * Bulk-invalidate cache keys under the current namespace matching a pattern.
-   *
-   * @param {string} pattern - Wildcard pattern; the namespace prefix is prepended automatically when absent.
-   * @returns {Promise<number>} Number of cache keys actually deleted.
-   * @throws {Error} Throws an argument error when the pattern is empty.
-   * @since v1.3.0
-   */
-  async invalidatePattern(pattern) {
-    if (!pattern?.trim()) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "Pattern must be a non-empty string");
-    }
-    return Number(await Promise.resolve(this.cache.delPattern?.(`${this.options.namespace ?? "action"}:${pattern}`) ?? 0));
-  }
-  /**
-   * Get statistics.
-   *
-   * @param {string} [name] - When provided, returns stats for that specific registered function only; otherwise returns all.
-   * @returns {Record<string, unknown>} Statistics object.
-   * @since v1.3.0
-   */
-  getStats(name) {
-    if (name) {
-      if (this.options.enableStats === false) return null;
-      const stats = this.functions.get(name)?.cached.getCacheStats();
-      return stats ? { ...stats } : null;
-    }
-    return Object.fromEntries(
-      [...this.functions.entries()].map(([functionName, entry]) => [functionName, entry.cached.getCacheStats()])
-    );
-  }
-  /**
-   * List all registered function names.
-   *
-   * @returns {string[]}
-   * @since v1.3.0
-   */
-  list() {
-    return [...this.functions.keys()];
-  }
-  /**
-   * Reset statistics for one or all registered functions.
-   *
-   * @param {string} [name] - When provided, resets only the specified function; otherwise resets all.
-   * @returns {void}
-   * @since v1.3.0
-   */
-  resetStats(name) {
-    const names = name ? [name] : [...this.functions.keys()];
-    for (const functionName of names) {
-      const entry = this.functions.get(functionName);
-      if (!entry) {
-        continue;
-      }
-      entry.cached = this.createCachedFunction(functionName, entry.source, entry.options);
-    }
-  }
-  /**
-   * Clear all registered function definitions.
-   *
-   * @returns {void}
-   * @since v1.3.0
-   */
-  clear() {
-    this.functions.clear();
-  }
-  createCachedFunction(name, fn, options = {}) {
-    return withCache(fn, {
-      ...options,
-      cache: options.cache ?? this.cache,
-      namespace: `${this.options.namespace ?? "action"}:${name}`,
-      ttl: options.ttl ?? this.options.defaultTTL ?? 6e4,
-      enableStats: options.enableStats ?? this.options.enableStats ?? true
-    });
-  }
-};
-function resolveCache(cacheOrDb) {
-  if (cacheOrDb && typeof cacheOrDb === "object" && typeof cacheOrDb.getCache === "function") {
-    return cacheOrDb.getCache();
-  }
-  if (cacheOrDb && typeof cacheOrDb === "object" && typeof cacheOrDb.get === "function" && typeof cacheOrDb.set === "function") {
-    return cacheOrDb;
-  }
-  return new MemoryCache();
-}
-function stableStringify3(value, _seen = /* @__PURE__ */ new WeakSet()) {
-  if (typeof value === "function" || typeof value === "symbol") {
-    return JSON.stringify("[UNSUPPORTED]");
-  }
-  if (typeof value === "number" && Number.isNaN(value)) {
-    return JSON.stringify("NaN");
-  }
-  if (value instanceof RegExp) {
-    return JSON.stringify(value.toString());
-  }
-  if (value instanceof Date) {
-    return JSON.stringify(value.toISOString());
-  }
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify3(item, _seen)).join(",")}]`;
-  }
-  if (_seen.has(value)) {
-    return JSON.stringify("[CIRCULAR]");
-  }
-  _seen.add(value);
-  const keys = Object.keys(value).sort();
-  const result = `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify3(value[k], _seen)}`).join(",")}}`;
-  _seen.delete(value);
-  return result;
-}
+import { withCache, FunctionCache } from "cache-hub/function-cache";
 
 // src/entry/runtime-core.ts
 var MonSQLizeRuntime = class {
@@ -9143,7 +8249,7 @@ var MonSQLizeRuntime = class {
     if (options.findPageMaxLimit !== void 0 && options.findPageMaxLimit !== null) {
       validateRange(options.findPageMaxLimit, 1, 1e4, "findPageMaxLimit");
     }
-    this._cache = MemoryCache.getOrCreateCache(options.cache);
+    this._cache = normalizeRuntimeCache(options.cache);
     this._logger = Logger.create(options.logger ?? null);
     this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
     this._cache.setLockManager(this._cacheLockManager);
@@ -9387,7 +8493,7 @@ var MonSQLizeRuntime = class {
       if (!Model._redefinedNames.has(name)) {
         return cache.get(name);
       }
-      cache.delete(name);
+      cache.del(name);
       Model._redefinedNames.delete(name);
     }
     const registered = Model.get(name);
@@ -9652,6 +8758,27 @@ var MonSQLizeRuntime = class {
     });
   }
 };
+function normalizeRuntimeCache(cache) {
+  if (cache instanceof MemoryCache) {
+    return cache;
+  }
+  const input = cache ?? {};
+  return new MemoryCache({
+    maxEntries: toOptionalNumber(input.maxEntries ?? input.maxSize),
+    maxMemory: toOptionalNumber(input.maxMemory),
+    defaultTtl: toOptionalNumber(input.defaultTtl ?? input.ttl),
+    enableStats: toOptionalBoolean(input.enableStats),
+    enableTags: toOptionalBoolean(input.enableTags),
+    cleanupInterval: toOptionalNumber(input.cleanupInterval),
+    enabled: toOptionalBoolean(input.enabled)
+  });
+}
+function toOptionalNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+}
+function toOptionalBoolean(value) {
+  return typeof value === "boolean" ? value : void 0;
+}
 
 // src/entry/index.mts
 var MonSQLize = MonSQLizeRuntime;
