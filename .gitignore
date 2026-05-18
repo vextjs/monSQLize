@@ -142,6 +142,15 @@ dist
 
 *.csv
 
+# 私有真实环境验证脚本（含凭据，不提交）
+scripts/validation/private-real-env-*.cjs
+
+# Agent 临时工作目录（不提交）
+_agent-temp/
+
+# 同步恢复令牌（不提交）
+.sync-resume-token
+
 # yarn v2
 .yarn/cache
 .yarn/unplugged
