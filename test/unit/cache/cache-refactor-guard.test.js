@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const ROOT = path.resolve(__dirname, '../../..');
 const LIB = path.join(ROOT, 'lib/index.js');
 const CACHE_SRC = path.join(ROOT, 'src/capabilities/cache');
+function readProjectSrc(relativePath) { return fs.readFileSync(path.join(ROOT, relativePath), 'utf8'); }
 
 // A. 公开 API 导出检查
 test('cache refactor-guard: MemoryCache exported from public bundle', () => {
@@ -52,9 +53,33 @@ test('cache refactor-guard: index.ts barrel re-exports all three modules', () =>
 test('cache refactor-guard: MemoryCache satisfies CacheLike contract', () => {
     const { MemoryCache } = require(LIB);
     const inst = new MemoryCache({ ttl: 60000 });
-    for (const m of ['get', 'set', 'delete', 'clear', 'getStats']) {
+    for (const m of ['get', 'set', 'delete', 'has', 'clear', 'getStats']) {
         assert.strictEqual(typeof inst[m], 'function', 'missing: ' + m);
     }
+});
+
+test('cache refactor-guard: function-cache inflight dedupe uses MemoryCache instead of module Map', () => {
+    const src = readProjectSrc('src/capabilities/function-cache/index.ts');
+    assert.ok(src.includes('const inflightCache = new MemoryCache('));
+    assert.ok(!src.includes('const inflightFunctions = new Map'));
+});
+
+test('cache refactor-guard: find-page async totals cache uses MemoryCache', () => {
+    const src = readProjectSrc('src/adapters/mongodb/queries/find-page.ts');
+    assert.ok(src.includes('const _asyncTotalsCache = new MemoryCache('));
+    assert.ok(!src.includes('const _asyncTotalsCache = new Map'));
+});
+
+test('cache refactor-guard: runtime internal caches use MemoryCache', () => {
+    const runtimeCore = readProjectSrc('src/entry/runtime-core.ts');
+    const compat = readProjectSrc('src/entry/runtime-compat-accessors.ts');
+    const dbFacade = readProjectSrc('src/entry/runtime-db-facade.ts');
+
+    assert.ok(runtimeCore.includes('private _iidCache: MemoryCache | null = null;'));
+    assert.ok(runtimeCore.includes('private readonly _modelInstances = new MemoryCache('));
+    assert.ok(compat.includes('_modelInstances?: MemoryCache | null;'));
+    assert.ok(compat.includes('record._modelInstances = new MemoryCache('));
+    assert.ok(dbFacade.includes('config.setIidCache(new MemoryCache('));
 });
 
 // D & E. 构造函数与工厂函数存在性检查

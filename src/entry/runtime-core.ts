@@ -21,7 +21,6 @@ import type {
     LegacyAdapterBridgeLike,
     ScopedUseResult,
 } from '../types/internal/runtime';
-import type { ModelInstanceCacheEntry } from '../types/internal/model';
 import { EventEmitter } from 'node:events';
 import {
     createRedisCacheAdapter,
@@ -204,8 +203,11 @@ export class MonSQLizeRuntime {
     private _sagaOrchestrator: SagaOrchestrator | null = null;
     private _transactionManager: TransactionManager | null = null;
     private _lockManager: LockManager | null = null;
-    private _iidCache: Map<string, string> | null = null;
-    private readonly _modelInstances = new Map<string, ModelInstanceCacheEntry>();
+    private _iidCache: MemoryCache | null = null;
+    private readonly _modelInstances = new MemoryCache({
+        maxEntries: 100_000,
+        enableStats: false,
+    });
     private _connectionPromise: Promise<ConnectResult<MonSQLizeRuntime>> | null = null;
 
     /** v1 兼容：以公开属性形式暴露 defaults（冻结对象）。 */
@@ -382,7 +384,12 @@ export class MonSQLizeRuntime {
         const dbInstance = requireCompatDbInstance(this);
         // v2 路径：使用 _client 支持的标准实现
         if (this._client) {
-            if (!this._iidCache) this._iidCache = new Map();
+            if (!this._iidCache) {
+                this._iidCache = new MemoryCache({
+                    maxEntries: 100_000,
+                    enableStats: false,
+                });
+            }
             return this.db().collection(name);
         }
         // v1 兼容路径：委托给 dbInstance.collection

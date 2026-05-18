@@ -61,10 +61,10 @@ type AdapterBridgeConfig = {
     listCollections: (options?: Record<string, unknown>) => Promise<unknown>;
     /** 向 MongoDB 发送任意管理命令。 */
     runCommand: (command: Record<string, unknown>, options?: Record<string, unknown>) => Promise<Record<string, unknown>>;
-    /** 读取内部实例 ID 缓存 Map。 */
-    getIidCache: () => Map<string, string> | null;
-    /** 写入内部实例 ID 缓存 Map。 */
-    setIidCache: (value: Map<string, string> | null) => void;
+    /** 读取内部实例 ID 缓存。 */
+    getIidCache: () => MemoryCache | null;
+    /** 写入内部实例 ID 缓存。 */
+    setIidCache: (value: MemoryCache | null) => void;
     /** 按需初始化慢查询日志管理器（若未启用则返回 null）。 */
     initializeSlowQueryLogManager: () => SlowQueryLogManager | null;
     /** 读取当前慢查询日志管理器实例（已初始化时返回实例，否则返回 null）。 */
@@ -226,7 +226,7 @@ export type RuntimeAdapterBridgeHost = {
     options: MonSQLizeOptions;
     _defaultDb: DbFacade | null;
     _client: MongoClient | null;
-    _iidCache: Map<string, string> | null;
+    _iidCache: MemoryCache | null;
     _runtimeDefaults: RuntimeDefaults;
     _slowQueryLogManager: SlowQueryLogManager | null;
     resolveAdapterCache(): MemoryCache | null;

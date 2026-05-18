@@ -1,9 +1,10 @@
 /**
- * Function cache decorator.
+ * 基于 cache-hub MemoryCache 的函数缓存能力。
  *
- * Description:
- * - Provides the withCache() decorator and FunctionCache class to add a cache layer to async functions.
- * - Supports custom TTL, namespace, keyBuilder, conditional hits, and call statistics.
+ * 说明：
+ * - 公开 API 仍保持 monSQLize 的 `withCache()` / `FunctionCache` 形状不变。
+ * - 默认缓存与 in-flight 去重缓存都统一落在 cache-hub 的 MemoryCache 上。
+ * - 保留 `getCacheStats()` / `invalidate(): Promise<boolean>` 等兼容接口。
  */
 
 import { createHash } from 'node:crypto';
@@ -29,30 +30,14 @@ interface FunctionCacheEntryStats {
     totalTime: number;
 }
 
-const inflightFunctions = new Map<string, Promise<unknown>>();
-
 /**
- * Create a cache-enabled wrapper for an async function.
+ * 为异步函数添加缓存层。
  *
- * Typical use cases:
- * - Attach TTL caching to hot-path query functions
- * - Add in-flight deduplication for external API requests
- * - Reuse `CacheLike` without modifying the original function signature
- *
- * @template {unknown[]} TArgs
- * @template TResult
- * @param {(...args: TArgs) => Promise<TResult>} fn - The original async function.
- * @param {WithCacheOptions} [options={}] - Cache options including TTL, namespace, cache instance, keyBuilder, and conditional caching strategy.
- * @returns {CachedFunction<TArgs, TResult>} Returns a cache-wrapped function with the same signature, plus `invalidate()` and `getCacheStats()`.
- * @throws {Error} When `fn` is not a function, `ttl` is negative, or `keyBuilder` / `condition` has an invalid type.
+ * 兼容特性：
+ * - TTL、namespace、keyBuilder、condition、统计信息全部保留
+ * - 相同 key 的并发请求共享同一 Promise，避免缓存击穿
+ * - in-flight 去重缓存不再使用模块级 Map，而是使用 cache-hub MemoryCache
  * @since v1.3.0
- * @example
- * const cachedGetUser = withCache(getUser, {
- *     namespace: 'user',
- *     ttl: 60_000,
- * });
- *
- * const user = await cachedGetUser('u1');
  */
 export function withCache<TArgs extends unknown[], TResult>(
     fn: (...args: TArgs) => Promise<TResult>,
@@ -91,6 +76,10 @@ export function withCache<TArgs extends unknown[], TResult>(
         calls: 0,
         totalTime: 0,
     };
+    const inflightCache = new MemoryCache({
+        maxEntries: 10_000,
+        enableStats: false,
+    });
 
 
     const wrapped = (async (...args: TArgs) => {
@@ -130,8 +119,8 @@ export function withCache<TArgs extends unknown[], TResult>(
             }
         }
 
-        if (inflightFunctions.has(cacheKey)) {
-            const pending = inflightFunctions.get(cacheKey) as Promise<TResult>;
+        const pending = inflightCache.get(cacheKey) as Promise<TResult> | undefined;
+        if (pending) {
             const result = await pending;
             if (enableStats) {
                 stats.hits += 1;
@@ -162,11 +151,11 @@ export function withCache<TArgs extends unknown[], TResult>(
                 }
                 return result;
             } finally {
-                inflightFunctions.delete(cacheKey);
+                inflightCache.delete(cacheKey);
             }
         })();
 
-        inflightFunctions.set(cacheKey, runner);
+        inflightCache.set(cacheKey, runner);
 
         try {
             const result = await runner;
@@ -218,17 +207,19 @@ export function withCache<TArgs extends unknown[], TResult>(
 
 
 /**
- * Multi-function cache manager.
- *
- * Suitable for scenarios that need unified registration, execution, statistics, and cache invalidation for a set of named business functions.
- * `cacheOrDb` can be either a direct `CacheLike` or a runtime instance with `getCache()`.
- *
- * @since v1.3.0
- */
+     * 多函数缓存管理器。
+     *
+     * 适用于一组业务函数的统一注册、执行、统计与失效控制。
+     * @since v1.3.0
+     */
 export class FunctionCache {
     private readonly cache: CacheLike;
     private readonly options: FunctionCacheOptions;
-    private readonly functions = new Map<string, CachedFunction<unknown[], unknown>>();
+    private readonly functions = new Map<string, {
+        source: (...args: unknown[]) => Promise<unknown>;
+        options: WithCacheOptions;
+        cached: CachedFunction<unknown[], unknown>;
+    }>();
 
     constructor(
         cacheOrDb: unknown,
@@ -274,14 +265,11 @@ export class FunctionCache {
         if (options && typeof options !== 'object') {
             throw new Error('options must be an object');
         }
-        const cachedFn = withCache(fn, {
-            ...options,
-            cache: options.cache ?? this.cache,
-            namespace: `${this.options.namespace ?? 'action'}:${name}`,
-            ttl: options.ttl ?? this.options.defaultTTL ?? 60_000,
-            enableStats: options.enableStats ?? this.options.enableStats ?? true,
-        }) as CachedFunction<unknown[], unknown>;
-        this.functions.set(name, cachedFn);
+        this.functions.set(name, {
+            source: fn as (...args: unknown[]) => Promise<unknown>,
+            options,
+            cached: this.createCachedFunction(name, fn as (...args: unknown[]) => Promise<unknown>, options),
+        });
     }
 
     /**
@@ -294,11 +282,11 @@ export class FunctionCache {
      * @since v1.3.0
      */
     async execute(name: string, ...args: unknown[]): Promise<unknown> {
-        const fn = this.functions.get(name);
-        if (!fn) {
+        const entry = this.functions.get(name);
+        if (!entry) {
             throw createError('FUNCTION_NOT_REGISTERED', `Function not registered: ${name}`);
         }
-        return fn(...args);
+        return entry.cached(...args);
     }
 
     /**
@@ -314,11 +302,11 @@ export class FunctionCache {
         if (!name || typeof name !== 'string') {
             throw new Error('Function name must be a non-empty string');
         }
-        const fn = this.functions.get(name);
-        if (!fn) {
+        const entry = this.functions.get(name);
+        if (!entry) {
             throw createError('FUNCTION_NOT_REGISTERED', `Function not registered: ${name}`);
         }
-        return fn.invalidate(...args);
+        return entry.cached.invalidate(...args);
     }
 
     /**
@@ -346,11 +334,11 @@ export class FunctionCache {
     getStats(name?: string): Record<string, unknown> | null {
         if (name) {
             if (this.options.enableStats === false) return null;
-            const stats = this.functions.get(name)?.getCacheStats();
+            const stats = this.functions.get(name)?.cached.getCacheStats();
             return stats ? { ...stats } : null;
         }
         return Object.fromEntries(
-            [...this.functions.entries()].map(([functionName, fn]) => [functionName, fn.getCacheStats()]),
+            [...this.functions.entries()].map(([functionName, entry]) => [functionName, entry.cached.getCacheStats()]),
         );
     }
 
@@ -374,17 +362,11 @@ export class FunctionCache {
     resetStats(name?: string): void {
         const names = name ? [name] : [...this.functions.keys()];
         for (const functionName of names) {
-            const fn = this.functions.get(functionName);
-            if (!fn) {
+            const entry = this.functions.get(functionName);
+            if (!entry) {
                 continue;
             }
-            const replacement = withCache(async (...args: unknown[]) => fn(...args), {
-                cache: this.cache,
-                namespace: `${this.options.namespace ?? 'action'}:${functionName}:reset`,
-                ttl: 0,
-            }) as CachedFunction<unknown[], unknown>;
-            replacement.invalidate = fn.invalidate;
-            this.functions.set(functionName, replacement);
+            entry.cached = this.createCachedFunction(functionName, entry.source, entry.options);
         }
     }
 
@@ -396,6 +378,20 @@ export class FunctionCache {
      */
     clear(): void {
         this.functions.clear();
+    }
+
+    private createCachedFunction(
+        name: string,
+        fn: (...args: unknown[]) => Promise<unknown>,
+        options: WithCacheOptions = {},
+    ): CachedFunction<unknown[], unknown> {
+        return withCache(fn, {
+            ...options,
+            cache: options.cache ?? this.cache,
+            namespace: `${this.options.namespace ?? 'action'}:${name}`,
+            ttl: options.ttl ?? this.options.defaultTTL ?? 60_000,
+            enableStats: options.enableStats ?? this.options.enableStats ?? true,
+        }) as CachedFunction<unknown[], unknown>;
     }
 }
 

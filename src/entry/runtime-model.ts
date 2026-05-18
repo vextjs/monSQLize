@@ -9,6 +9,7 @@
  */
 
 import { Model, ModelInstance } from '../capabilities/model';
+import type { MemoryCache } from '../capabilities/cache';
 import { ErrorCodes, createError } from '../core/errors';
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type { ModelInstanceCacheEntry } from '../types/internal/model';
@@ -21,7 +22,7 @@ import { resolveDatabaseName } from './runtime-db-facade';
  */
 export type RuntimeModelHost = {
     options: MonSQLizeOptions;
-    _modelInstances: Map<string, ModelInstanceCacheEntry>;
+    _modelInstances: MemoryCache;
     runtime: ModelRuntimeLike;
     scopedCollection<TDocument = Record<string, unknown>>(
         name: string,
@@ -35,7 +36,7 @@ export type RuntimeModelHost = {
  */
 export function createRuntimeModelHost(config: {
     options: MonSQLizeOptions;
-    modelInstances: Map<string, ModelInstanceCacheEntry>;
+    modelInstances: MemoryCache;
     runtime: unknown;
     scopedCollection: <TDocument = Record<string, unknown>>(
         name: string,
@@ -76,7 +77,7 @@ export function createRuntimeModelInstance<TDocument = Record<string, unknown>>(
     const poolName = registered.definition.connection?.pool ?? scope.pool;
     const cacheKey = `${poolName ?? 'default'}:${databaseName}:${registered.collectionName}`;
     const revision = Model.getRevision(registered.collectionName);
-    const cached = host._modelInstances.get(cacheKey);
+    const cached = host._modelInstances.get(cacheKey) as ModelInstanceCacheEntry | undefined;
     if (cached && cached.revision === revision) {
         return cached.instance as ModelInstance<TDocument>;
     }

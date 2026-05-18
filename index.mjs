@@ -48,6 +48,9 @@ var MemoryCache = class _MemoryCache {
   exists(key) {
     return this._hub.exists(key);
   }
+  has(key) {
+    return this.exists(key);
+  }
   getMany(keys) {
     const output = {};
     for (const key of keys) {
@@ -5083,7 +5086,10 @@ function mergeFilters(base, extra) {
   }
   return { $and: [base, extra] };
 }
-var _asyncTotalsCache = /* @__PURE__ */ new Map();
+var _asyncTotalsCache = new MemoryCache({
+  maxEntries: 1e4,
+  enableStats: false
+});
 async function computeTotals(coll, query, limit, totals) {
   const mode = totals.mode ?? "sync";
   if (mode === "sync") {
@@ -5101,8 +5107,9 @@ async function computeTotals(coll, query, limit, totals) {
   if (mode === "async") {
     const cacheKey = JSON.stringify({ q: query });
     const token = Buffer.from(cacheKey).toString("base64url");
-    if (_asyncTotalsCache.has(cacheKey)) {
-      return { mode: "async", total: _asyncTotalsCache.get(cacheKey), token };
+    const cachedTotal = _asyncTotalsCache.get(cacheKey);
+    if (cachedTotal !== void 0) {
+      return { mode: "async", total: cachedTotal, token };
     }
     setImmediate(async () => {
       try {
@@ -6962,7 +6969,10 @@ function createRuntimeAccessors(config) {
         throw error;
       }
       if (!config.getIidCache()) {
-        config.setIidCache(/* @__PURE__ */ new Map());
+        config.setIidCache(new MemoryCache({
+          maxEntries: 1e5,
+          enableStats: false
+        }));
       }
       return config.defaultDb.collection(name);
     },
@@ -7074,7 +7084,10 @@ function getRuntimeDatabaseName(value) {
 function getCompatModelInstanceCache(value) {
   const record = asRuntimeCompatRecord(value);
   if (!record._modelInstances) {
-    record._modelInstances = /* @__PURE__ */ new Map();
+    record._modelInstances = new MemoryCache({
+      maxEntries: 1e5,
+      enableStats: false
+    });
   }
   return record._modelInstances;
 }
@@ -8757,7 +8770,6 @@ function resolveScopedCollection(config) {
 
 // src/capabilities/function-cache/index.ts
 import { createHash as createHash3 } from "node:crypto";
-var inflightFunctions = /* @__PURE__ */ new Map();
 function withCache(fn, options = {}) {
   if (typeof fn !== "function") {
     throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: fn must be a function.");
@@ -8789,6 +8801,10 @@ function withCache(fn, options = {}) {
     calls: 0,
     totalTime: 0
   };
+  const inflightCache = new MemoryCache({
+    maxEntries: 1e4,
+    enableStats: false
+  });
   const wrapped = (async (...args) => {
     const startedAt = Date.now();
     let cacheKey;
@@ -8820,8 +8836,8 @@ function withCache(fn, options = {}) {
         stats.errors += 1;
       }
     }
-    if (inflightFunctions.has(cacheKey)) {
-      const pending = inflightFunctions.get(cacheKey);
+    const pending = inflightCache.get(cacheKey);
+    if (pending) {
       const result = await pending;
       if (enableStats) {
         stats.hits += 1;
@@ -8851,10 +8867,10 @@ function withCache(fn, options = {}) {
         }
         return result;
       } finally {
-        inflightFunctions.delete(cacheKey);
+        inflightCache.delete(cacheKey);
       }
     })();
-    inflightFunctions.set(cacheKey, runner);
+    inflightCache.set(cacheKey, runner);
     try {
       const result = await runner;
       if (enableStats) {
@@ -8935,14 +8951,11 @@ var FunctionCache = class {
     if (options && typeof options !== "object") {
       throw new Error("options must be an object");
     }
-    const cachedFn = withCache(fn, {
-      ...options,
-      cache: options.cache ?? this.cache,
-      namespace: `${this.options.namespace ?? "action"}:${name}`,
-      ttl: options.ttl ?? this.options.defaultTTL ?? 6e4,
-      enableStats: options.enableStats ?? this.options.enableStats ?? true
+    this.functions.set(name, {
+      source: fn,
+      options,
+      cached: this.createCachedFunction(name, fn, options)
     });
-    this.functions.set(name, cachedFn);
   }
   /**
    * Execute a registered function.
@@ -8954,11 +8967,11 @@ var FunctionCache = class {
    * @since v1.3.0
    */
   async execute(name, ...args) {
-    const fn = this.functions.get(name);
-    if (!fn) {
+    const entry = this.functions.get(name);
+    if (!entry) {
       throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
     }
-    return fn(...args);
+    return entry.cached(...args);
   }
   /**
    * Invalidate the cached result for a registered function under the given arguments.
@@ -8973,11 +8986,11 @@ var FunctionCache = class {
     if (!name || typeof name !== "string") {
       throw new Error("Function name must be a non-empty string");
     }
-    const fn = this.functions.get(name);
-    if (!fn) {
+    const entry = this.functions.get(name);
+    if (!entry) {
       throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
     }
-    return fn.invalidate(...args);
+    return entry.cached.invalidate(...args);
   }
   /**
    * Bulk-invalidate cache keys under the current namespace matching a pattern.
@@ -9003,11 +9016,11 @@ var FunctionCache = class {
   getStats(name) {
     if (name) {
       if (this.options.enableStats === false) return null;
-      const stats = this.functions.get(name)?.getCacheStats();
+      const stats = this.functions.get(name)?.cached.getCacheStats();
       return stats ? { ...stats } : null;
     }
     return Object.fromEntries(
-      [...this.functions.entries()].map(([functionName, fn]) => [functionName, fn.getCacheStats()])
+      [...this.functions.entries()].map(([functionName, entry]) => [functionName, entry.cached.getCacheStats()])
     );
   }
   /**
@@ -9029,17 +9042,11 @@ var FunctionCache = class {
   resetStats(name) {
     const names = name ? [name] : [...this.functions.keys()];
     for (const functionName of names) {
-      const fn = this.functions.get(functionName);
-      if (!fn) {
+      const entry = this.functions.get(functionName);
+      if (!entry) {
         continue;
       }
-      const replacement = withCache(async (...args) => fn(...args), {
-        cache: this.cache,
-        namespace: `${this.options.namespace ?? "action"}:${functionName}:reset`,
-        ttl: 0
-      });
-      replacement.invalidate = fn.invalidate;
-      this.functions.set(functionName, replacement);
+      entry.cached = this.createCachedFunction(functionName, entry.source, entry.options);
     }
   }
   /**
@@ -9050,6 +9057,15 @@ var FunctionCache = class {
    */
   clear() {
     this.functions.clear();
+  }
+  createCachedFunction(name, fn, options = {}) {
+    return withCache(fn, {
+      ...options,
+      cache: options.cache ?? this.cache,
+      namespace: `${this.options.namespace ?? "action"}:${name}`,
+      ttl: options.ttl ?? this.options.defaultTTL ?? 6e4,
+      enableStats: options.enableStats ?? this.options.enableStats ?? true
+    });
   }
 };
 function resolveCache(cacheOrDb) {
@@ -9105,7 +9121,10 @@ var MonSQLizeRuntime = class {
     this._transactionManager = null;
     this._lockManager = null;
     this._iidCache = null;
-    this._modelInstances = /* @__PURE__ */ new Map();
+    this._modelInstances = new MemoryCache({
+      maxEntries: 1e5,
+      enableStats: false
+    });
     this._connectionPromise = null;
     const type = options.type;
     if (!type || !["mongodb"].includes(type)) {
@@ -9263,7 +9282,12 @@ var MonSQLizeRuntime = class {
     }
     const dbInstance = requireCompatDbInstance(this);
     if (this._client) {
-      if (!this._iidCache) this._iidCache = /* @__PURE__ */ new Map();
+      if (!this._iidCache) {
+        this._iidCache = new MemoryCache({
+          maxEntries: 1e5,
+          enableStats: false
+        });
+      }
       return this.db().collection(name);
     }
     return dbInstance.collection(name);

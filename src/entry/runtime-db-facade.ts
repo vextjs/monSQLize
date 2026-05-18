@@ -7,7 +7,7 @@
 
 import type { MongoClient } from 'mongodb';
 import type { Logger } from '../core/logger';
-import type { MemoryCache } from '../capabilities/cache';
+import { MemoryCache } from '../capabilities/cache';
 import {
     MongoDbAccessor as DbFacadeImpl,
     MongoCollectionAccessor as CollectionFacade,
@@ -34,8 +34,8 @@ type RuntimeAccessorConfig<TRuntime> = {
     runtime: TRuntime;
     db: (name?: string) => DbFacade;
     use: (name: string) => ScopedUseResult;
-    getIidCache: () => Map<string, string> | null;
-    setIidCache: (value: Map<string, string>) => void;
+    getIidCache: () => MemoryCache | null;
+    setIidCache: (value: MemoryCache) => void;
 };
 
 /**
@@ -83,7 +83,10 @@ export function createRuntimeAccessors<TRuntime>(config: RuntimeAccessorConfig<T
                 throw error;
             }
             if (!config.getIidCache()) {
-                config.setIidCache(new Map<string, string>());
+                config.setIidCache(new MemoryCache({
+                    maxEntries: 100_000,
+                    enableStats: false,
+                }));
             }
             return config.defaultDb.collection(name) as CollectionFacade;
         },

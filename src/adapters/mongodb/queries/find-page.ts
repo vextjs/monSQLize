@@ -12,6 +12,7 @@
 
 import { Collection, Document } from 'mongodb';
 
+import { MemoryCache } from '../../../capabilities/cache';
 import { createError, ErrorCodes } from '../../../core/errors';
 import type { RuntimeDefaults, SortShape } from '../../../types/internal/query';
 import type {
@@ -53,8 +54,11 @@ function mergeFilters(base: Document, extra?: Document): Document {
     return { $and: [base, extra] };
 }
 
-// 异步 totals 结果内存缓存（按查询指纹索引）
-const _asyncTotalsCache = new Map<string, number>();
+// 异步 totals 结果缓存（按查询指纹索引，统一复用 cache-hub MemoryCache）
+const _asyncTotalsCache = new MemoryCache({
+    maxEntries: 10_000,
+    enableStats: false,
+});
 
 async function computeTotals<TSchema extends Document = Document>(
     coll: Collection<TSchema>,
@@ -80,8 +84,9 @@ async function computeTotals<TSchema extends Document = Document>(
     if (mode === 'async') {
         const cacheKey = JSON.stringify({ q: query });
         const token = Buffer.from(cacheKey).toString('base64url');
-        if (_asyncTotalsCache.has(cacheKey)) {
-            return { mode: 'async', total: _asyncTotalsCache.get(cacheKey)!, token };
+        const cachedTotal = _asyncTotalsCache.get(cacheKey);
+        if (cachedTotal !== undefined) {
+            return { mode: 'async', total: cachedTotal as number, token };
         }
         setImmediate(async () => {
             try {

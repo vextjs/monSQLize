@@ -67,6 +67,10 @@ export class MemoryCache implements CacheLike {
         return this._hub.exists(key);
     }
 
+    has(key: string): boolean {
+        return this.exists(key);
+    }
+
     getMany(keys: string[]): Record<string, unknown> {
         const output: Record<string, unknown> = {};
         for (const key of keys) {

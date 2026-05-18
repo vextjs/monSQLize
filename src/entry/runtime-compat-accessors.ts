@@ -12,6 +12,7 @@
 import {
     MongoCollectionAccessor as CollectionFacade,
 } from '../adapters/mongodb/common/accessors';
+import { MemoryCache } from '../capabilities/cache';
 import { ErrorCodes, createError } from '../core/errors';
 import {
     ModelInstance,
@@ -60,7 +61,7 @@ export type RuntimePoolScopeHost = {
 export type RuntimeCompatRecord = Record<string, unknown> & {
     dbInstance?: RuntimeDbInstanceLike | null;
     _poolManager?: Record<string, unknown> | null;
-    _modelInstances?: Map<string, ModelInstance<Record<string, unknown>>> | null;
+    _modelInstances?: MemoryCache | null;
     databaseName?: string;
 };
 
@@ -174,10 +175,13 @@ export function getRuntimeDatabaseName(value: unknown): string {
  */
 export function getCompatModelInstanceCache(
     value: unknown,
-): Map<string, ModelInstance<Record<string, unknown>>> {
+): MemoryCache {
     const record = asRuntimeCompatRecord(value);
     if (!record._modelInstances) {
-        record._modelInstances = new Map<string, ModelInstance<Record<string, unknown>>>();
+        record._modelInstances = new MemoryCache({
+            maxEntries: 100_000,
+            enableStats: false,
+        });
     }
     return record._modelInstances;
 }

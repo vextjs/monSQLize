@@ -71,7 +71,7 @@ export interface AdapterBridgeLike {
 }
 
 export interface LegacyAdapterBridgeLike extends AdapterBridgeLike {
-    _iidCache: Map<string, string> | null;
+    _iidCache: MemoryCache | null;
 }
 
 // ─── Connect result ───────────────────────────────────────────────────────────
