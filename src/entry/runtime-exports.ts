@@ -11,11 +11,15 @@ export {
     MongoCollectionAccessor as CollectionFacade,
     MongoDbAccessor as DbFacade,
 } from '../adapters/mongodb/common/accessors';
+
+// 运行时与缓存能力
 export { Logger } from '../core/logger';
 export { MemoryCache, createRedisCacheAdapter, DistributedCacheInvalidator } from '../capabilities/cache';
 export type { CacheStats } from '../capabilities/cache';
 export { FunctionCache, withCache } from '../capabilities/function-cache';
 export type { CachedFunction, WithCacheOptions } from '../capabilities/function-cache';
+
+// Model / 表达式 / 连接池 / 同步等核心能力
 export { Model } from '../capabilities/model';
 export type {
     ModelConnection,
@@ -78,6 +82,8 @@ export type {
     SagaStats,
     SagaStep,
 } from '../capabilities/saga';
+
+// 通用工具与错误能力
 export { encodeCursor, decodeCursor } from '../utils/cursor';
 export {
     ErrorCodes,
@@ -90,12 +96,16 @@ export {
 export { normalizeProjection, normalizeSort } from '../utils/normalize';
 export { makePageResult } from '../utils/page-result';
 export { validateRange, validatePositiveInteger } from '../utils/validation';
+
+// 锁、事务与统计能力
 export { DistributedCacheLockManager, Lock, LockAcquireError, LockTimeoutError, LockManager } from '../capabilities/lock';
 export type { LockOptions, LockStats } from '../capabilities/lock';
 export { Transaction, TransactionManager, CacheLockManager } from '../capabilities/transaction';
 export type { MongoSession, TransactionOptions, TransactionStats } from '../capabilities/transaction';
 export { CountQueue } from '../capabilities/count-queue';
 export type { CountQueueOptions, CountQueueStats } from '../capabilities/count-queue';
+
+// 根入口声明文件需要引用的公开类型
 export type { LoggerLike } from '../core/logger';
 export type { MultiLevelCacheOptions, MultiLevelCachePolicy, WritePolicy } from '../../types/runtime';
 export type { HealthView } from '../../types/collection';

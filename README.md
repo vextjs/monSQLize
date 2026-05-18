@@ -1482,12 +1482,12 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 
 | 维度 | 当前口径 | 状态 |
 |------|---------|------|
-| **Node.js** | `>=18.0.0` | ✅ 已在当前工作区验证；Node 20.x / 22.x 实机回归已完成 |
+| **Node.js** | `>=18.0.0` | ✅ 当前公共 CI 已覆盖 18.x / 20.x / 22.x；正式 server matrix 维持 20.x / 22.x |
 | **MongoDB Driver** | 当前依赖为 `mongodb@^6.21.0` | ✅ 6.x 当前基线 + 7.x 扩展验证已完成；4.x / 5.x 仍未在本轮虚标为已验证 |
-| **MongoDB Server** | 当前 integration 以 `mongodb-memory-server` replica set 为主 | ✅ 当前 harness 可用；真实 6.x / 7.x 服务矩阵已具备探测/执行入口，但当前主机尚未完成实测 |
+| **MongoDB Server** | 默认公开验证以 `mongodb-memory-server` single / replica set 为主 | ✅ 6.x / 7.x 已进入默认 matrix；真实环境检查保留为私有 opt-in |
 | **模块系统** | CommonJS、ESM | ✅ 已由根入口与 compatibility tests 验证 |
 
-当前兼容矩阵清单见 `test/compatibility/matrix.json`，当前验证说明见 `test/compatibility/README.md` 与 `test/validation/VERIFICATION-PROGRESS.md`。
+当前兼容矩阵清单见 `test/compatibility/matrix.json`，当前验证说明见 `test/compatibility/README.md`、`test/validation/VERIFICATION-PROGRESS.md`、[`docs/support-matrix.md`](./docs/support-matrix.md) 与 [`docs/verification-entrypoints.md`](./docs/verification-entrypoints.md)。
 
 ---
 
@@ -1539,19 +1539,15 @@ cd monSQLize
 npm install
 
 # 当前可执行校验
-npm run build
-npm run type-check
-npm run test:examples
-npm run test:compatibility
-npm run test:performance
-npm test
-npm run lint
+npm run verify:fast
+npm run verify:full
+npm run release:preflight
 
-# 可选：本地私有真实环境验证（不纳入 verify）
+# 可选：本地私有真实环境验证（需显式注入环境变量，不纳入默认 verify）
 npm run test:real-env:private
 ```
 
-> 当前仓库已恢复到 **P4-D compatibility / performance / validation / docs 收口** 级别的 `build` / `type-check` / `test` / `verify` 入口：默认验证链路已包含根入口 smoke、导出兼容、声明式兼容矩阵、`test/unit/{expression,management,writes,cache,function-cache,model,lock,transaction,pool,sync,slow-query-log,saga}/**` 与 `test/integration/{cache,mongodb,model,transaction,pool,sync,slow-query-log}/**` 的基础运行时验证；同时新增 `npm run test:performance` 作为 `withCache()` 热路径与并发去重的回归守卫。`npm run verify` 与 `npm run test:server-matrix` 默认只覆盖 memory-server 闭环；真实 SSH / Mongo 环境验证已改为显式 opt-in 的 `npm run test:real-env:private`，并仅接受环境变量注入，不再在仓库中保留任何明文凭据。若需核对跨版本 / 实机矩阵，请继续参考 `monSQLize-v1` 的历史资产与 `test/validation/VERIFICATION-PROGRESS.md` 中的待补项。
+> 当前仓库已恢复到 **P4-D compatibility / performance / validation / docs 收口** 级别的 `build` / `type-check` / `test` / `verify` 入口：默认公开验证链路由 `npm run verify:fast`、`npm run verify:full`、`npm run test:server-matrix` 和 `npm run release:preflight` 组成，全部以 memory-server 与仓库内可复现资产为闭环；真实 SSH / Mongo 环境验证保留为显式 opt-in 的 `npm run test:real-env:private`，仅接受环境变量注入，不进入默认 CI / verify。若需核对跨版本 / 实机矩阵，请继续参考 `monSQLize-v1` 的历史资产与 `test/validation/VERIFICATION-PROGRESS.md` 中的待补项。
 
 ---
 

@@ -9,8 +9,8 @@
  */
 
 /**
- * Minimal interface for a query-result cache that supports TTL.
- * Satisfied by MemoryCache; injected from runtime to avoid circular deps.
+ * 支持 TTL 的最小查询结果缓存接口。
+ * 由 MemoryCache 等实现满足，通过 runtime 注入以避免循环依赖。
  */
 export interface QueryCacheLike {
     get(key: string): unknown;
@@ -23,8 +23,8 @@ export interface CountQueueLike {
 }
 
 /**
- * Runtime defaults threaded from MonSQLizeOptions down through
- * DbFacade → CollectionFacade → query functions.
+ * 从 MonSQLizeOptions 逐层传递到
+ * DbFacade → CollectionFacade → query functions 的 runtime 默认值。
  *
  * 约束：
  * - 字段全部可选，缺失时回退到 v1 默认值

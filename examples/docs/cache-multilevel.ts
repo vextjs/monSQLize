@@ -16,6 +16,7 @@
  *   node .generated/examples-dist/examples/docs/cache-multilevel.js
  */
 import MonSQLize from 'monsqlize';
+import type { RedisLike } from 'monsqlize';
 import { setupExample, teardownExample } from '../helpers/bootstrap.js';
 
 interface UserDoc { username: string; email: string; role: string; score: number; }
@@ -43,11 +44,18 @@ class InMemoryRedisStub {
         return count;
     }
     async exists(key: string): Promise<number> { return this.store.has(key) ? 1 : 0; }
+    async scan(cursor: string, _matchKeyword: string, pattern: string): Promise<[string, string[]]> {
+        const regex = new RegExp(`^${pattern.replaceAll('*', '.*')}$`);
+        const keys = [...this.store.keys()].filter((key) => regex.test(key));
+        return [cursor === '0' ? '0' : '0', keys];
+    }
     async publish(_channel: string, _message: string): Promise<number> { return 0; }
     // subscribe: 立即回调 null（表示成功订阅）
     subscribe(_channel: string, cb?: (err?: Error | null) => void): void {
         if (cb) cb(null);
     }
+    async unsubscribe(): Promise<void> {}
+    async quit(): Promise<void> {}
     // on: 注册 EventEmitter 风格事件监听器（DistributedCacheInvalidator 需要）
     on(_event: string, _handler: (...args: unknown[]) => void): this {
         if (!this._handlers.has(_event)) this._handlers.set(_event, []);
@@ -75,8 +83,8 @@ async function main() {
     //   options.channel — pub/sub channel name
     const invalidator = new MonSQLize.DistributedCacheInvalidator({
         cache: { local: l1, remote: l2 },
-        pub: redisStub as unknown,
-        sub: redisStub as unknown,
+        pub: redisStub as RedisLike,
+        sub: redisStub as RedisLike,
         channel: 'cache-invalidation',
     });
 

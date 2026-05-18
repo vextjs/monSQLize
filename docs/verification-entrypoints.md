@@ -8,7 +8,7 @@
 |------|------|----------|------|
 | Fast | `npm run verify:fast` | 本地 / CI | 日常改动、热点重构、PR 前快速守卫 |
 | Full | `npm run verify:full` | 本地 / CI | 完整功能回归、示例回归、memory-server 矩阵 |
-| Release | `npm run verify:release` | 发布前 | 在 `full` 基础上追加 opt-in 真实环境检查 |
+| Release | `npm run verify:release` | 本地私有发布前 | 在 `full` 基础上追加 opt-in 真实环境检查 |
 
 ## 补充入口
 
@@ -16,8 +16,8 @@
 |------|------|
 | `npm run test:refactor-guard` | 热点重构三联回归：exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server 默认矩阵（Node / Driver / MongoDB server） |
-| `npm run test:real-env:private` | 私有真实环境检查；默认不进入常规 verify |
-| `npm run release:preflight` | 发布前门禁：检查 changelog / 支持矩阵 / 依赖治理文档，并串联 `verify:fast` + `npm pack --dry-run` |
+| `npm run test:real-env:private` | 私有真实环境检查；默认不进入常规 verify / CI |
+| `npm run release:preflight` | 公开发布前门禁：检查 changelog / 支持矩阵 / 依赖治理文档，并串联 `verify:fast` + `npm pack --dry-run` |
 
 ## 运行策略
 
@@ -57,11 +57,26 @@ npm run test:real-env:private
 - 不作为默认 CI 阶段
 - 主要用于验证 memory-server 无法覆盖的真实部署路径
 
+需要的环境变量：
+
+- `MONSQLIZE_REAL_SSH_HOST`
+- `MONSQLIZE_REAL_SSH_PORT`
+- `MONSQLIZE_REAL_SSH_USERNAME`
+- `MONSQLIZE_REAL_SSH_PASSWORD`
+- `MONSQLIZE_REAL_MONGO_URI`
+
 ## 默认边界
 
 - **默认闭环**：`verify:fast` / `verify:full` / `test:server-matrix`
 - **显式 opt-in**：`test:real-env:private`
-- **发布前强制建议**：`release:preflight`
+- **公开发布前门禁**：`release:preflight`
+- **本地私有发布前补充**：`verify:release`
+
+## 为什么 CI 不直接跑 `verify:release`
+
+- `verify:release` 依赖私有 SSH / Mongo 环境变量，适合操作者在本地或私有 runner 明确触发。
+- 公开 CI 与仓库默认验证链只承诺 memory-server + 仓库内可复现资产。
+- 因此 GitHub Actions 的 `Release Preflight` workflow 故意只运行 `release:preflight`，不假设私有环境存在。
 
 > 仓库同时提供 GitHub Actions `Release Preflight` workflow，支持手动触发和 `v*` tag 推送时复用同一套发布前门禁。
 

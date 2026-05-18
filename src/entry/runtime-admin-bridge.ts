@@ -1,3 +1,16 @@
+/**
+ * runtime 适配器桥接层（AdapterBridge）。
+ *
+ * 负责将 MonSQLize runtime 的内部状态（MongoClient / Db / MemoryCache / SlowQueryLogManager）
+ * 包装为符合 `LegacyAdapterBridgeLike` 合约的对象，供 v1 兼容层和 adapter 扩展使用。
+ *
+ * 设计说明：
+ * - 使用 `Object.defineProperties` 而非类，使 getter 与 setter 直接委托给宿主状态，
+ *   避免桥接对象持有过期快照
+ * - 慢查询检测嵌入 `createLegacyCollectionBridge` 的 `withSlowQuery` 包装器，
+ *   对 v1 兼容层的 collection 操作透明启用慢日志
+ */
+
 import { performance } from 'node:perf_hooks';
 import type { Db, MongoClient } from 'mongodb';
 import type { MemoryCache } from '../capabilities/cache';
@@ -12,31 +25,62 @@ import type { AdapterBridgeLike, LegacyAdapterBridgeLike } from '../types/intern
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type { MongoDbAccessor as DbFacade } from '../adapters/mongodb/common/accessors';
 
+/**
+ * `createAdapterBridge` 的内部配置参数。
+ *
+ * 所有字段均为函数，而非直接持有引用，确保通过 getter/setter 始终反映宿主的最新状态。
+ * `initializeSlowQueryLogManager` 与 `getSlowQueryLogManager` 区分初始化路径和读取路径。
+ */
 type AdapterBridgeConfig = {
+    /** 获取当前默认 Db（未连接时返回 null）。 */
     getDb: () => Db | null;
+    /** 获取当前 MongoClient（未连接时返回 null）。 */
     getClient: () => MongoClient | null;
+    /** 获取当前 MemoryCache 实例（可能为 null）。 */
     getCache: () => MemoryCache | null;
+    /** 替换当前 MemoryCache 实例。 */
     setCache: (value: MemoryCache | null) => void;
+    /** 获取当前实例 ID（来自 namespace.instanceId 配置）。 */
     getInstanceId: () => string | undefined;
+    /** 测试 MongoDB 连接可达性。 */
     ping: () => Promise<boolean>;
+    /** 获取 MongoDB 服务端 buildInfo 报告。 */
     buildInfo: () => Promise<AdminBuildInfoView | Record<string, unknown>>;
+    /** 获取 MongoDB 服务端 serverStatus 报告。 */
     serverStatus: (options?: { scale?: number }) => Promise<ServerStatusView | Record<string, unknown>>;
+    /** 获取 MongoDB 服务端 stats 信息。 */
     stats: (options?: { scale?: number }) => Promise<DbStatsView | Record<string, unknown>>;
+    /** 列出所有数据库。 */
     listDatabases: (options?: { nameOnly?: boolean }) => Promise<unknown[]>;
+    /** 删除指定数据库（需显式确认，生产环境需额外参数）。 */
     dropDatabase: (
         name: string,
         options?: { confirm?: boolean; allowProduction?: boolean; user?: string },
     ) => Promise<{ dropped: boolean; database: string; timestamp: Date }>;
+    /** 列出当前数据库的集合。 */
     listCollections: (options?: Record<string, unknown>) => Promise<unknown>;
+    /** 向 MongoDB 发送任意管理命令。 */
     runCommand: (command: Record<string, unknown>, options?: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    /** 读取内部实例 ID 缓存 Map。 */
     getIidCache: () => Map<string, string> | null;
+    /** 写入内部实例 ID 缓存 Map。 */
     setIidCache: (value: Map<string, string> | null) => void;
+    /** 按需初始化慢查询日志管理器（若未启用则返回 null）。 */
     initializeSlowQueryLogManager: () => SlowQueryLogManager | null;
+    /** 读取当前慢查询日志管理器实例（已初始化时返回实例，否则返回 null）。 */
     getSlowQueryLogManager: () => SlowQueryLogManager | null;
+    /** 向宿主 EventEmitter 发送事件（如 `slow-query` / `query`）。 */
     emit: (event: string, payload: unknown) => void;
+    /** 慢查询判定阈值（毫秒），默认 500ms。 */
     slowQueryMs?: number;
 };
 
+/**
+ * 为 v1 兼容层创建集合操作代理。
+ *
+ * 代理的每个方法都由 `withSlowQuery` 包裹，支持透明的慢查询检测与日志记录。
+ * 返回的对象形状与 v1 直接调用 `mongoClient.db(...).collection(...)` 兼容。
+ */
 function createLegacyCollectionBridge(config: AdapterBridgeConfig) {
     return (dbName: string, collName: string) => {
         const client = config.getClient();
@@ -93,6 +137,13 @@ function createLegacyCollectionBridge(config: AdapterBridgeConfig) {
     };
 }
 
+/**
+ * 根据配置创建完整的 `LegacyAdapterBridgeLike` 实例。
+ *
+ * 使用 `Object.defineProperties` 将所有属性定义为 getter/setter，
+ * 确保 `bridge.db` / `bridge.client` / `bridge.cache` 等字段始终反映宿主的实时状态，
+ * 而非在桥接构建时被快照。
+ */
 function createAdapterBridge(config: AdapterBridgeConfig): LegacyAdapterBridgeLike {
     const bridge = {} as LegacyAdapterBridgeLike;
 
@@ -165,6 +216,12 @@ function createAdapterBridge(config: AdapterBridgeConfig): LegacyAdapterBridgeLi
     return bridge;
 }
 
+/**
+ * `createRuntimeAdapterBridge` 所需的宿主契约。
+ *
+ * 由 `MonSQLizeRuntime` 实现，向 bridge 层提供内部状态的访问点和操作入口。
+ * 宿主须保证 `db()` / `resolveAdapterCache()` 等方法在每次调用时均反映最新状态。
+ */
 export type RuntimeAdapterBridgeHost = {
     options: MonSQLizeOptions;
     _defaultDb: DbFacade | null;
@@ -180,6 +237,15 @@ export type RuntimeAdapterBridgeHost = {
     emit(event: string, payload: unknown): void;
 };
 
+/**
+ * 创建并返回与 `MonSQLizeRuntime` 绑定的适配器桥接对象。
+ *
+ * 返回的对象实现 `LegacyAdapterBridgeLike` 合约，所有属性均动态委托至宿主（host），
+ * 避免因持有快照导致的状态不一致问题。
+ *
+ * @param host - 宿主对象，由 `MonSQLizeRuntime` 实现
+ * @returns 完全初始化的 `LegacyAdapterBridgeLike` 实例
+ */
 export function createRuntimeAdapterBridge(host: RuntimeAdapterBridgeHost): LegacyAdapterBridgeLike {
     return createAdapterBridge({
         getDb: () => host._defaultDb?.raw() ?? null,

@@ -1,10 +1,10 @@
 /**
- * Cache façade barrel.
+ * 缓存能力桶文件。
  *
- * Description:
- * - `memory-cache.ts` owns the in-memory v1-compatible cache wrapper.
- * - `redis-cache-adapter.ts` owns Redis adapter creation and Redis client resolution.
- * - `distributed-cache-invalidator.ts` owns cross-instance invalidation orchestration.
+ * 说明：
+ * - `memory-cache.ts` 负责基于 cache-hub 的内存缓存兼容包装。
+ * - `redis-cache-adapter.ts` 负责基于 cache-hub 的 Redis 适配器兼容包装。
+ * - `distributed-cache-invalidator.ts` 负责基于 cache-hub 的分布式失效兼容包装。
  */
 
 export type {
@@ -13,9 +13,9 @@ export type {
     CacheStats,
     MemoryCacheOptions,
     RedisCacheAdapterOptions,
+    RedisLike,
+    DistributedCacheInvalidatorOptions,
 } from '../../../types/runtime';
 export { MemoryCache } from './memory-cache';
 export { createRedisCacheAdapter } from './redis-cache-adapter';
-export type { RedisLike } from './redis-cache-adapter';
 export { DistributedCacheInvalidator } from './distributed-cache-invalidator';
-export type { DistributedCacheInvalidatorOptions } from './distributed-cache-invalidator';

@@ -59,6 +59,10 @@ import {
     watchDocuments,
 } from '../queries';
 import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/query';
+import type {
+    CollectionAccessorManagementOptions,
+    CollectionNamespaceView,
+} from '../../../types/internal/accessor';
 import {
     type BatchWriteOptions,
     type DeleteBatchResult,
@@ -89,8 +93,8 @@ import {
 } from './collection-accessor-write-helpers';
 
 /**
- * Low-level MongoDB collection accessor.
- * Provides CRUD, query, and management operations for a single collection.
+ * 底层 MongoDB collection 访问器。
+ * 为单个集合提供 CRUD、查询和管理能力。
  * @since v1.0.0
  */
 export class MongoCollectionAccessor<TSchema extends Document = Document> {
@@ -98,31 +102,23 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         private readonly dbName: string,
         private readonly collectionName: string,
         private readonly collectionRef: Collection<TSchema>,
-        private readonly management: {
-            cache?: BookmarkCacheLike | null;
-            queryCache?: QueryCacheLike | null;
-            getCache?: () => BookmarkCacheLike | null | undefined;
-            getQueryCache?: () => QueryCacheLike | null | undefined;
-            logger?: Logger;
-            defaults?: RuntimeDefaults;
-            cacheAutoInvalidate?: boolean;
-        } = {},
+        private readonly management: CollectionAccessorManagementOptions = {},
         private readonly dbRef?: Db,
     ) {}
 
-    /** Auto-convert filter / query if autoConvertObjectId is enabled. */
+    /** 启用 autoConvertObjectId 时，自动转换 filter / query。 */
     private _cvFilter<T>(val: T): T {
         if (!this.management.defaults?.autoConvertObjectId) return val;
         return convertObjectIdStrings(val as unknown) as T;
     }
 
-    /** Auto-convert plain document (insert/replace) if autoConvertObjectId is enabled. */
+    /** 启用 autoConvertObjectId 时，自动转换普通文档（insert / replace）。 */
     private _cvDoc<T>(val: T): T {
         if (!this.management.defaults?.autoConvertObjectId) return val;
         return convertObjectIdStrings(val as unknown) as T;
     }
 
-    /** Auto-convert update document ($set/$push/…) if autoConvertObjectId is enabled. */
+    /** 启用 autoConvertObjectId 时，自动转换更新文档（$set / $push / ...）。 */
     private _cvUpdate<T>(val: T): T {
         if (!this.management.defaults?.autoConvertObjectId || Array.isArray(val)) return val;
         return convertUpdateDocument(val as unknown) as T;
@@ -163,7 +159,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return deleted;
     }
 
-    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; } {
+    getNamespace(): CollectionNamespaceView {
         const instanceId = this.management.defaults?.namespace?.instanceId;
         const iid = instanceId
             ? `${instanceId}:${this.dbName}:${this.collectionName}`

@@ -10,7 +10,7 @@
 | 缓存 / 函数缓存 | [`cache-and-function-cache.md`](./cache-and-function-cache.md) | ✅ | `MemoryCache` / `withCache()` / `FunctionCache` |
 | 示例映射 / Gallery | [`examples.md`](./examples.md) | ✅ | 文档主题到官方示例的映射页 |
 | 高级能力索引 | [高级能力索引页](./capability-index.md) | ✅ | 完整能力入口索引 |
-| 验证 / 架构 / 工程治理 | [`verification-entrypoints.md`](./verification-entrypoints.md) / [`runtime-architecture.md`](./runtime-architecture.md) / [`support-matrix.md`](./support-matrix.md) / [`release-preflight.md`](./release-preflight.md) | ✅ | 统一查看验证入口、运行时结构、支持边界与发布约束 |
+| 验证 / 架构 / 工程治理 | [`verification-entrypoints.md`](./verification-entrypoints.md) / [`runtime-architecture.md`](./runtime-architecture.md) / [`support-matrix.md`](./support-matrix.md) / [`release-preflight.md`](./release-preflight.md) | ✅ | 统一查看公开验证入口、私有 real-env 边界、运行时结构与发布约束 |
 
 ## 推荐阅读顺序
 

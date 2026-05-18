@@ -6,6 +6,13 @@ import type {
     MemoryCacheOptions,
 } from '../../../types/runtime';
 
+/**
+ * 基于 cache-hub 的内存缓存兼容包装。
+ *
+ * 兼容目标：
+ * - 保留 monSQLize 的锁管理器注入语义。
+ * - 保留 `keys()` / `delPattern()` / `getStats()` 等 v1 公开能力。
+ */
 export class MemoryCache implements CacheLike {
     private readonly _hub: HubMemoryCache;
     private _lockManager: CacheLockLike | null = null;
@@ -19,10 +26,12 @@ export class MemoryCache implements CacheLike {
         });
     }
 
+    /** 注入锁管理器，避免被锁键在写入时被覆盖。 */
     setLockManager(lockManager: CacheLockLike | null): void {
         this._lockManager = lockManager;
     }
 
+    /** 获取当前锁管理器，兼容 v1 调试与测试访问。 */
     getLockManager(): CacheLockLike | null {
         return this._lockManager;
     }
@@ -92,6 +101,7 @@ export class MemoryCache implements CacheLike {
         return this._hub.delPattern(pattern);
     }
 
+    /** 读取 cache-hub 统计并补充 monSQLize 兼容的 `calls` / `hitRate` 字段。 */
     getStats(): CacheStats {
         const s = this._hub.getStats();
         const calls = this._calls;
@@ -114,6 +124,7 @@ export class MemoryCache implements CacheLike {
         this._calls = 0;
     }
 
+    /** 兼容 v1：允许从现有实例或普通配置对象获取统一的 MemoryCache。 */
     static getOrCreateCache(cache?: Record<string, unknown> | MemoryCache): MemoryCache {
         return cache instanceof MemoryCache ? cache : new MemoryCache(cache as MemoryCacheOptions);
     }

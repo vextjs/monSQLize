@@ -120,10 +120,12 @@ import type {
 } from './types/model';
 import type { MonSQLize as MonSQLizeInstance, MonSQLizeOptions, SSHConfig } from './types/monsqlize';
 import type {
+    DistributedCacheInvalidatorOptions,
     FunctionCacheOptions,
     MemoryCacheOptions,
     MultiLevelCacheOptions,
     MultiLevelCachePolicy,
+    RedisLike,
     WritePolicy,
 } from './types/runtime';
 import {
@@ -243,6 +245,7 @@ export type {
     PopulateProxy,
     ResumeTokenConfig,
     RedisCacheAdapterOptions,
+    RedisLike,
     RegisteredModel,
     RelationConfig,
     SagaContext,
@@ -284,6 +287,7 @@ export type {
     SyncTargetHealthCheckConfig,
     TotalsInfo,
     TotalsOptions,
+    DistributedCacheInvalidatorOptions,
     // v1 backward-compat aliases
     PageResult,
     PrewarmBookmarksResult,

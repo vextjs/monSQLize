@@ -1,0 +1,42 @@
+﻿/**
+ * Model 能力层。
+ *
+ * 结构：本文件仅保留 ModelInstance 主类。
+ * 各子模块已拆分到独立文件：
+ *   - schema-dsl.ts:           schema-dsl 可选依赖集成
+ *   - populate-promise.ts:     PopulatePromise + 内部接口
+ *   - definition-validator.ts: Model 定义与关联关系校验
+ *   - model-utils.ts:          纯工具函数
+ *   - model-registry.ts:       Model 静态注册类
+ */
+
+import { ErrorCodes, createError } from '../../core/errors';
+import type {
+    HookContext,
+    ModelDefinition,
+    PopulateConfig,
+    PopulateProxy,
+    RelationConfig,
+    ValidationResult,
+} from '../../../types/model';
+import { _schemaDslFn, _schemaValidateFn } from './schema-dsl';
+import { PopulatePromise } from './populate-promise';
+import type { PopulatePath, ModelCollectionLike, ModelRuntimeLike } from './populate-promise';
+import { validateRelationConfig, normalizePopulateConfig } from './definition-validator';
+import { unique, groupBy, getByPath, toKey, applySort, pickFields, serializeDocument } from './model-utils';
+import { Model } from './model-registry';
+
+// 公共类型重导出（供外部消费者使用）
+export type {
+    HookContext,
+    ModelConnection,
+    ModelDefinition,
+    ModelScopeOptions,
+    PopulateConfig,
+    PopulateProxy,
+    RegisteredModel,
+    RelationConfig,
+    ValidationResult,
+    VirtualConfig,
+} from '../../../types/model';
+export { Model };

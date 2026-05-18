@@ -1,7 +1,19 @@
+/**
+ * ConnectionPoolManager 的运行时辅助函数集合。
+ *
+ * 提供连接池配置校验（严格模式与宽松模式）、空统计对象工厂、
+ * 默认 MongoClient 工厂以及默认健康检查函数，
+ * 减少 pool 核心文件对初始化细节的关注。
+ */
+
 import { MongoClient as MongoDriverClient } from 'mongodb';
 import type { MongoClient } from 'mongodb';
 import type { PoolConfig, PoolStats } from '../../../types/pool';
 
+/**
+ * 严格校验连接池配置，任意字段不合法时立即抛出错误。
+ * 适用于初始化路径，确保配置完全合法后再继续。
+ */
 export function validatePoolConfig(config: Record<string, unknown>): void {
     if (!config || typeof config !== 'object') throw new Error('Pool config must be an object');
     if (!config.name || typeof config.name !== 'string') throw new Error('Pool config.name is required and must be a string');
@@ -44,6 +56,10 @@ export function validatePoolConfig(config: Record<string, unknown>): void {
     }
 }
 
+/**
+ * 宽松校验连接池配置，收集所有错误并以字符串数组返回，不抛出异常。
+ * 适用于需要批量报错的场景（如 CLI 工具、配置预检查）。
+ */
 export function validatePoolConfigSafe(config: Record<string, unknown>): string[] {
     const errors: string[] = [];
     if (!config || typeof config !== 'object') { errors.push('Pool config must be an object'); return errors; }
@@ -95,6 +111,9 @@ export function validatePoolConfigSafe(config: Record<string, unknown>): string[
     return errors;
 }
 
+/**
+ * 校验 `PoolConfig` 类型对象的必填字段（name / uri），不合法时抛出错误。
+ */
 export function validatePoolConfigInternal(config: PoolConfig): void {
     if (!config.name?.trim()) {
         throw new Error('Pool config requires a non-empty name');
@@ -104,6 +123,9 @@ export function validatePoolConfigInternal(config: PoolConfig): void {
     }
 }
 
+/**
+ * 创建指定连接池的空统计对象，所有计数器初始化为 0。
+ */
 export function createEmptyPoolStats(name: string): PoolStats {
     return {
         name,
@@ -118,12 +140,20 @@ export function createEmptyPoolStats(name: string): PoolStats {
     };
 }
 
+/**
+ * 默认 MongoClient 工厂函数：按 `PoolConfig` 创建并连接新的 MongoClient 实例。
+ * 可通过 `ConnectionPoolManager` 构造选项覆盖为自定义实现。
+ */
 export async function defaultClientFactory(config: PoolConfig): Promise<MongoClient> {
     const client = new MongoDriverClient(config.uri, config.options);
     await client.connect();
     return client;
 }
 
+/**
+ * 默认连接池健康检查函数：向 admin 数据库发送 ping 命令。
+ * 成功返回 true，抛出异常则由调用方决定如何处理（重试/标记不健康等）。
+ */
 export async function defaultHealthCheckFn(_poolName: string, client: MongoClient): Promise<boolean> {
     await client.db('admin').command({ ping: 1 });
     return true;

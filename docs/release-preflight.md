@@ -17,15 +17,18 @@ npm run release:preflight
    - `docs/verification-entrypoints.md`
 3. 运行 `npm run verify:fast`
 4. 运行 `npm pack --dry-run`
+5. **不会**运行 `npm run verify:release`（后者依赖私有真实环境，属于操作者显式 opt-in 的补充复核）
 
 ## 为什么不是直接 publish
 
-这个脚本的目标是把**版本信息、验证链、依赖发布边界、打包可消费性**先收口，再进入人工确认的 release / tag / publish 阶段。
+这个脚本的目标是把**版本信息、公开验证链、依赖发布边界、打包可消费性**先收口，再进入人工确认的 release / tag / publish 阶段。
 
 ## 推荐顺序
 
 ```bash
 npm run release:preflight
+# 如需补充私有实机复核，再显式执行：
+# npm run verify:release
 git status
 git tag vX.Y.Z
 npm publish

@@ -109,26 +109,52 @@ export declare class MemoryCache {
 }
 
 export interface RedisCacheAdapterOptions {
-    client?: unknown;
+    client?: RedisLike;
     prefix?: string;
 }
 
+export interface RedisLike {
+    get(key: string): Promise<string | null> | string | null;
+    pttl?(key: string): Promise<number> | number;
+    set(key: string, value: string): Promise<unknown> | unknown;
+    psetex?(key: string, ttl: number, value: string): Promise<unknown> | unknown;
+    del(...keys: string[]): Promise<number> | number;
+    exists(key: string): Promise<number | boolean> | number | boolean;
+    mget?(...keys: string[]): Promise<Array<string | null>> | Array<string | null>;
+    scan?(cursor: string, ...args: Array<string | number>): Promise<[string, string[]]> | [string, string[]];
+    flushdb?(): Promise<unknown> | unknown;
+    quit?(): Promise<unknown> | unknown;
+    on?(event: string, handler: (...args: unknown[]) => void): void;
+    publish?(channel: string, message: string): Promise<unknown> | unknown;
+    subscribe?(channel: string, handler?: (error?: Error | null) => void): Promise<unknown> | unknown;
+    unsubscribe?(channel: string): Promise<unknown> | unknown;
+    pipeline?(): {
+        set(key: string, value: string, ...args: Array<string | number>): unknown;
+        del(...keys: string[]): unknown;
+        exec(): Promise<Array<unknown>> | Array<unknown>;
+    };
+}
+
 export declare function createRedisCacheAdapter(
-    redisUrlOrInstance: string | unknown | RedisCacheAdapterOptions,
+    redisUrlOrInstance: string | RedisLike | RedisCacheAdapterOptions,
     adapterOptions?: Record<string, unknown>,
-): CacheLike & { getRedisInstance(): unknown; };
+): CacheLike & { getRedisInstance(): RedisLike; };
 
 export type { LockOptions, LockStats, MongoSession, TransactionOptions, TransactionStats };
 
+export interface DistributedCacheInvalidatorOptions {
+    cache?: CacheLike | { local?: CacheLike; remote?: CacheLike; };
+    channel?: string;
+    instanceId?: string;
+    logger?: LoggerLike | null;
+    redis?: RedisLike;
+    redisUrl?: string;
+    pub?: RedisLike;
+    sub?: RedisLike;
+}
+
 export declare class DistributedCacheInvalidator {
-    constructor(options?: {
-        cache?: CacheLike | { local?: CacheLike; remote?: CacheLike; };
-        channel?: string;
-        instanceId?: string;
-        logger?: LoggerLike | null;
-        pub?: unknown;
-        sub?: unknown;
-    });
+    constructor(options?: DistributedCacheInvalidatorOptions);
     invalidate(pattern: string): Promise<void>;
     handleMessage(channel: string, message: string): Promise<void>;
     getStats(): Record<string, unknown>;

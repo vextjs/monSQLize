@@ -177,13 +177,13 @@ export * from './runtime-exports';
 type RuntimeAdapterSurface = LegacyAdapterBridgeLike;
 
 /**
- * Core runtime entry for the monSQLize TypeScript runtime.
+ * monSQLize TypeScript runtime 的核心入口。
  *
- * Responsibilities:
- * - Manages the MongoDB connection lifecycle
- * - Exposes `collection()` / `db()` / `use()` / `pool()` and other accessors
- * - Wires together cache, function-cache, model, transaction, lock, pool, sync, slow-query-log, and saga capabilities
- * - Serves as the package root export and as the runtime host returned by `connect()`
+ * 职责：
+ * - 管理 MongoDB 连接生命周期
+ * - 对外暴露 `collection()` / `db()` / `use()` / `pool()` 等运行时访问入口
+ * - 装配 cache、function-cache、model、transaction、lock、pool、sync、slow-query-log、saga 等能力
+ * - 作为包根导出与 `connect()` 返回的 runtime host
  *
  * @since v1.3.0
  */
@@ -208,13 +208,13 @@ export class MonSQLizeRuntime {
     private readonly _modelInstances = new Map<string, ModelInstanceCacheEntry>();
     private _connectionPromise: Promise<ConnectResult<MonSQLizeRuntime>> | null = null;
 
-    /** v1-compatible: defaults exposed as a public property (frozen object). */
+    /** v1 兼容：以公开属性形式暴露 defaults（冻结对象）。 */
     readonly defaults: Readonly<Record<string, unknown>>;
 
-    /** v1-compatible: autoConvertConfig exposed as a public property. */
+    /** v1 兼容：以公开属性形式暴露 autoConvertConfig。 */
     readonly autoConvertConfig: AutoConvertConfigPublic;
 
-    /** v1-compatible: public logger access (tests may monkey-patch .warn/.info). */
+    /** v1 兼容：公开 logger 访问入口（测试可能会 monkey-patch `.warn/.info`）。 */
     get logger(): Logger {
         return this._logger;
     }
@@ -228,7 +228,7 @@ export class MonSQLizeRuntime {
             ...options,
             type,
         };
-        // v1-compatible: validate constructor parameters at construction time
+        // v1 兼容：在构造阶段就校验关键参数。
         if (options.maxTimeMS !== undefined && options.maxTimeMS !== null) {
             validateRange(options.maxTimeMS, 1, 300000, 'maxTimeMS');
         }
@@ -246,7 +246,7 @@ export class MonSQLizeRuntime {
         this._adapterCacheOverride = undefined;
         this._adapterBridge = createRuntimeAdapterBridge(this.createAdapterBridgeHost());
         this.defaults = buildPublicDefaults(options);
-        // v1-compatible: initialize autoConvertConfig（委托给 capability-wiring 纯函数）
+        // v1 兼容：初始化 autoConvertConfig（委托给 capability-wiring 纯函数）。
         this.autoConvertConfig = initAutoConvertConfig(options.autoConvertObjectId, options.type);
     }
 

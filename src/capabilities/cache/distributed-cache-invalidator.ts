@@ -1,34 +1,45 @@
+import { DistributedCacheInvalidator as HubDistributedCacheInvalidator } from 'cache-hub';
 import { createError, ErrorCodes } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
-import type { CacheLike } from '../../../types/runtime';
-import type { RedisLike } from './redis-cache-adapter';
+import type {
+    CacheLike,
+    DistributedCacheInvalidatorOptions,
+    RedisLike,
+} from '../../../types/runtime';
 
-export interface DistributedCacheInvalidatorOptions {
-    cache?: CacheLike | { local?: CacheLike; remote?: CacheLike; };
-    channel?: string;
-    instanceId?: string;
-    logger?: LoggerLike | null;
-    redis?: RedisLike;
-    redisUrl?: string;
-    pub?: RedisLike;
-    sub?: RedisLike;
-}
+type InvalidatorStats = {
+    messagesSent: number;
+    messagesReceived: number;
+    invalidationsTriggered: number;
+    errors: number;
+    channel: string;
+    instanceId: string;
+};
 
+/**
+ * 基于 cache-hub 的分布式失效兼容层。
+ *
+ * 兼容目标：
+ * - 保留 monSQLize 现有的 `cache: { local, remote }` 双缓存失效语义。
+ * - 保留 `handleMessage()` 测试入口与 `pub/sub` 注入能力。
+ * - 在具备 Redis Pub/Sub 条件时，底层复用 cache-hub 的失效器实现。
+ */
 export class DistributedCacheInvalidator {
     channel: string;
     instanceId: string;
-    private logger?: LoggerLike | null;
-    private local?: CacheLike;
-    private remote?: CacheLike;
     pub?: RedisLike;
     sub?: RedisLike;
-    private _ownsConnections = false;
-    private stats = {
+
+    private readonly logger?: LoggerLike | null;
+    private readonly local?: CacheLike;
+    private readonly remote?: CacheLike;
+    private readonly delegate?: HubDistributedCacheInvalidator;
+    private readonly manualStats = {
         messagesSent: 0,
         messagesReceived: 0,
-        invalidationsTriggered: 0,
         errors: 0,
     };
+    private invalidationsTriggered = 0;
 
     constructor(options: DistributedCacheInvalidatorOptions = {}) {
         if (!options.cache) {
@@ -39,96 +50,37 @@ export class DistributedCacheInvalidator {
         this.instanceId = options.instanceId ?? `instance-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         this.logger = options.logger;
 
-        const cache = options.cache as Record<string, unknown>;
-        if ('local' in cache || 'remote' in cache) {
-            const scopedCache = options.cache as { local?: CacheLike; remote?: CacheLike; };
-            this.local = scopedCache.local;
-            this.remote = scopedCache.remote;
-        } else {
-            this.local = options.cache as CacheLike;
-        }
+        const scopedCache = resolveCacheScope(options.cache);
+        this.local = scopedCache.local;
+        this.remote = scopedCache.remote;
 
-        if (options.redis) {
-            this.pub = options.redis;
-            this.sub = options.redis;
-            this._ownsConnections = false;
-        } else if (options.redisUrl) {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const IoRedis = require('ioredis');
-            this.pub = new IoRedis(options.redisUrl) as RedisLike;
-            this.sub = new IoRedis(options.redisUrl) as RedisLike;
-            this._ownsConnections = true;
-        } else {
-            this.pub = options.pub;
-            this.sub = options.sub;
-        }
-
-        if (this.pub && this.pub.on) {
-            this.pub.on('error', (err: unknown) => {
-                this.stats.errors++;
-                this.logger?.error?.('[DistributedCacheInvalidator] Redis pub error:', (err as Error).message);
-            });
-        }
-        if (this.sub && this.sub !== this.pub && this.sub.on) {
-            this.sub.on('error', (err: unknown) => {
-                this.stats.errors++;
-                this.logger?.error?.('[DistributedCacheInvalidator] Redis sub error:', (err as Error).message);
-            });
-        }
-
-        if (this.sub) {
-            this._setupSubscription();
-        }
-    }
-
-    private _setupSubscription(): void {
-        this.sub!.subscribe!(this.channel, (err?: Error | null) => {
-            if (err) {
-                this.stats.errors++;
-                this.logger?.error?.('[DistributedCacheInvalidator] Subscribe error:', err.message);
-            } else {
-                this.logger?.info?.(`[DistributedCacheInvalidator] Subscribed to channel: ${this.channel}`);
-            }
-        });
-
-        this.sub!.on!('message', async (channel: unknown, message: unknown) => {
-            if (channel !== this.channel) return;
-            this.stats.messagesReceived++;
-            try {
-                const data = JSON.parse(message as string) as { type?: string; pattern?: string; instanceId?: string; };
-                if (data.instanceId === this.instanceId) return;
-                if (data.type === 'invalidate' && data.pattern) {
-                    await this._handleInvalidation(data.pattern);
-                }
-            } catch (error) {
-                this.stats.errors++;
-                this.logger?.error?.('[DistributedCacheInvalidator] Message parse error:', (error as Error).message);
-            }
-        });
-    }
-
-    private async _handleInvalidation(pattern: string): Promise<void> {
-        try {
-            if (this.local?.delPattern) {
-                const localDeleted = Number(await Promise.resolve(this.local.delPattern(pattern)));
-                this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated local cache: ${pattern}, deleted: ${localDeleted} keys`);
-            }
-            if (this.remote?.delPattern) {
-                const remoteDeleted = Number(await Promise.resolve(this.remote.delPattern(pattern)));
-                this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated remote cache: ${pattern}, deleted: ${remoteDeleted} keys`);
-            }
-            this.stats.invalidationsTriggered++;
-        } catch (error) {
-            this.stats.errors++;
-            this.logger?.error?.('[DistributedCacheInvalidator] Invalidation error:', (error as Error).message);
+        const delegateOptions = this.buildDelegateOptions(options);
+        if (delegateOptions) {
+            this.delegate = new HubDistributedCacheInvalidator(delegateOptions);
         }
     }
 
     async invalidate(pattern: string): Promise<void> {
-        if (!pattern) return;
+        if (!pattern) {
+            return;
+        }
 
-        await this._handleInvalidation(pattern);
-        if (!this.pub) return;
+        await this.invalidateCaches(pattern);
+
+        if (this.delegate) {
+            try {
+                await this.delegate.invalidate(pattern);
+                this.logger?.debug?.(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
+                return;
+            } catch (error) {
+                this.logger?.error?.('[DistributedCacheInvalidator] Publish error:', (error as Error).message);
+                throw error;
+            }
+        }
+
+        if (!this.pub?.publish) {
+            return;
+        }
 
         const message = JSON.stringify({
             type: 'invalidate',
@@ -138,38 +90,53 @@ export class DistributedCacheInvalidator {
         });
 
         try {
-            await Promise.resolve(this.pub.publish!(this.channel, message));
-            this.stats.messagesSent++;
+            await Promise.resolve(this.pub.publish(this.channel, message));
+            this.manualStats.messagesSent++;
             this.logger?.debug?.(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
         } catch (error) {
-            this.stats.errors++;
+            this.manualStats.errors++;
             this.logger?.error?.('[DistributedCacheInvalidator] Publish error:', (error as Error).message);
             throw error;
         }
     }
 
     async handleMessage(channel: string, message: string): Promise<void> {
-        if (channel !== this.channel) return;
-        this.stats.messagesReceived++;
+        if (channel !== this.channel) {
+            return;
+        }
+
+        this.manualStats.messagesReceived++;
+
         try {
             const data = JSON.parse(message) as { type?: string; pattern?: string; instanceId?: string; };
-            if (data.instanceId === this.instanceId || data.type !== 'invalidate' || !data.pattern) return;
-            await this._handleInvalidation(data.pattern);
+            if (data.instanceId === this.instanceId || data.type !== 'invalidate' || !data.pattern) {
+                return;
+            }
+            await this.invalidateCaches(data.pattern);
         } catch (cause) {
-            this.stats.errors++;
+            this.manualStats.errors++;
             this.logger?.error?.('[DistributedCacheInvalidator] Failed to parse message', cause);
         }
     }
 
-    getStats(): Record<string, unknown> {
+    getStats(): InvalidatorStats {
+        const delegateStats = this.delegate?.getStats();
         return {
-            ...this.stats,
+            messagesSent: (delegateStats?.messagesSent ?? 0) + this.manualStats.messagesSent,
+            messagesReceived: (delegateStats?.messagesReceived ?? 0) + this.manualStats.messagesReceived,
+            invalidationsTriggered: this.invalidationsTriggered,
+            errors: (delegateStats?.errors ?? 0) + this.manualStats.errors,
             channel: this.channel,
             instanceId: this.instanceId,
         };
     }
 
     async close(): Promise<void> {
+        if (this.delegate) {
+            await this.delegate.close();
+            return;
+        }
+
         try {
             if (this.sub?.unsubscribe) {
                 await Promise.resolve(this.sub.unsubscribe(this.channel));
@@ -184,5 +151,194 @@ export class DistributedCacheInvalidator {
         } catch (error) {
             this.logger?.error?.('[DistributedCacheInvalidator] Close error:', (error as Error).message);
         }
+    }
+
+    private buildDelegateOptions(options: DistributedCacheInvalidatorOptions): ConstructorParameters<typeof HubDistributedCacheInvalidator>[0] | null {
+        const cache = {
+            async get() {
+                return undefined;
+            },
+            async set() {
+                return true;
+            },
+            async has() {
+                return false;
+            },
+            delPattern: async (pattern: string) => this.invalidateCaches(pattern),
+        };
+
+        const logger = createDelegateLogger(this.logger);
+
+        const connections = resolveConnections(options);
+        if (connections) {
+            this.pub = connections.pub;
+            this.sub = connections.sub;
+            return {
+                cache: cache as unknown as ConstructorParameters<typeof HubDistributedCacheInvalidator>[0]['cache'],
+                channel: this.channel,
+                instanceId: this.instanceId,
+                logger,
+                _connections: {
+                    pub: normalizePubConnection(connections.pub),
+                    sub: normalizeSubConnection(connections.sub),
+                    _shouldClosePub: true,
+                },
+            };
+        }
+
+        return null;
+    }
+
+    private async invalidateCaches(pattern: string): Promise<number> {
+        let deleted = 0;
+        try {
+            if (this.local?.delPattern) {
+                const localDeleted = Number(await Promise.resolve(this.local.delPattern(pattern)));
+                deleted += localDeleted;
+                this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated local cache: ${pattern}`);
+            }
+            if (this.remote?.delPattern) {
+                const remoteDeleted = Number(await Promise.resolve(this.remote.delPattern(pattern)));
+                deleted += remoteDeleted;
+                this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated remote cache: ${pattern}`);
+            }
+            this.invalidationsTriggered++;
+            this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated pattern: ${pattern}, deleted: ${deleted} keys`);
+            return deleted;
+        } catch (error) {
+            if (!this.delegate) {
+                this.manualStats.errors++;
+            }
+            this.logger?.error?.('[DistributedCacheInvalidator] Invalidation error:', (error as Error).message);
+            throw error;
+        }
+    }
+}
+
+function resolveCacheScope(cache: CacheLike | { local?: CacheLike; remote?: CacheLike; }): { local?: CacheLike; remote?: CacheLike; } {
+    const record = cache as Record<string, unknown>;
+    if ('local' in record || 'remote' in record) {
+        return cache as { local?: CacheLike; remote?: CacheLike; };
+    }
+    return { local: cache as CacheLike };
+}
+
+function createDelegateLogger(logger?: LoggerLike | null) {
+    if (!logger) {
+        return undefined;
+    }
+    return {
+        debug(message: string) {
+            logger.debug?.(message);
+        },
+        info(message: string) {
+            logger.info?.(message);
+        },
+        warn(message: string) {
+            logger.warn?.(message);
+        },
+        error(message: string) {
+            logger.error?.(message);
+        },
+    };
+}
+
+function resolveConnections(options: DistributedCacheInvalidatorOptions): { pub: RedisLike; sub: RedisLike; } | null {
+    if (options.pub || options.sub) {
+        const pub = options.pub ?? options.sub;
+        const sub = options.sub ?? options.pub;
+        if (pub && sub) {
+            return { pub, sub };
+        }
+    }
+
+    if (options.redis) {
+        const pub = options.redis;
+        const duplicated = duplicateRedis(options.redis);
+        return { pub, sub: duplicated ?? options.redis };
+    }
+
+    if (options.redisUrl) {
+        const RedisCtor = loadRedisCtor();
+        return {
+            pub: new RedisCtor(options.redisUrl),
+            sub: new RedisCtor(options.redisUrl),
+        };
+    }
+
+    return null;
+}
+
+function duplicateRedis(redis: RedisLike): RedisLike | null {
+    const candidate = redis as RedisLike & {
+        duplicate?: () => RedisLike;
+    };
+    if (typeof candidate.duplicate === 'function') {
+        return candidate.duplicate();
+    }
+    return null;
+}
+
+function loadRedisCtor(): new (url: string) => RedisLike {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('ioredis');
+    return (mod?.default ?? mod) as new (url: string) => RedisLike;
+}
+
+function normalizePubConnection(pub?: RedisLike): Required<Pick<RedisLike, 'publish' | 'on' | 'quit'>> {
+    return {
+        publish(channel: string, message: string) {
+            const normalizedMessage = normalizePublishedMessage(message);
+            return pub?.publish ? pub.publish(channel, normalizedMessage) : 0;
+        },
+        on(event: string, handler: (...args: unknown[]) => void) {
+            pub?.on?.(event, handler);
+        },
+        quit() {
+            return pub?.quit ? pub.quit() : undefined;
+        },
+    };
+}
+
+function normalizeSubConnection(sub?: RedisLike): Required<Pick<RedisLike, 'on' | 'subscribe' | 'unsubscribe' | 'quit'>> {
+    return {
+        on(event: string, handler: (...args: unknown[]) => void) {
+            if (!sub?.on) {
+                return;
+            }
+            if (event === 'message') {
+                sub.on(event, async (...args: unknown[]) => {
+                    handler(...args);
+                    await new Promise((resolve) => setImmediate(resolve));
+                });
+                return;
+            }
+            sub.on(event, handler);
+        },
+        subscribe(channel: string, handler?: (error?: Error | null) => void) {
+            return sub?.subscribe ? sub.subscribe(channel, handler) : handler?.(null);
+        },
+        unsubscribe(channel: string) {
+            return sub?.unsubscribe ? sub.unsubscribe(channel) : undefined;
+        },
+        quit() {
+            return sub?.quit ? sub.quit() : undefined;
+        },
+    };
+}
+
+function normalizePublishedMessage(message: string): string {
+    try {
+        const payload = JSON.parse(message) as {
+            ts?: number;
+            timestamp?: number;
+        };
+        if (payload.ts !== undefined && payload.timestamp === undefined) {
+            payload.timestamp = payload.ts;
+            delete payload.ts;
+        }
+        return JSON.stringify(payload);
+    } catch {
+        return message;
     }
 }

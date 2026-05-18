@@ -99,7 +99,7 @@
     "async-lock": "^1.4.1",
     "cache-hub": "^1.0.0",
     "mongodb": "^6.21.0",
-    "schema-dsl": "file:../schema-dsl",
+    "schema-dsl": "^1.2.5",
     "ssh2": "^1.17.0"
   }
 }
