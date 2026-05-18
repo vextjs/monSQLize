@@ -17,29 +17,29 @@ test/compatibility/
 
 ### 当前已验证
 - `package.json` 的 `engines.node` 与当前测试矩阵一致
-- Node `20.x` 当前环境（本轮为 `v20.20.2`）已完成 `npm run verify` 与 `npm run test:compatibility`
-- Node `22.x` 已可通过 `volta run --node 22` 直接执行；本轮已在 `v22.22.2` 下跑通 `npm run verify`
+- Node `20.x` 当前环境（`v20.20.2`）已完成 `npm run verify` 与 `npm run test:compatibility`
+- Node `22.x` 已通过 `volta run --node 22` 实跑
 - `mongodb@^6.21.0` 作为当前依赖基线存在且与矩阵声明一致
-- MongoDB Driver `7.x` 已通过临时安装 `mongodb@7.2.0` + `volta run --node 22 npm run verify` 完成扩展验证，验证后已恢复 `6.21.0` 基线
+- MongoDB Driver `7.x` 已通过临时安装 `mongodb@7.2.0` 完成扩展验证，验证后已恢复 `6.21.0` 基线
+- MongoDB Server `6.0.14` / `7.0.14` 已通过 `mongodb-memory-server` 的单机 + replica set 双路径实跑
+- `npm run test:server-matrix` 已完成 **Node 20 / 22 × Driver 6 / 7 × MongoDB 6 / 7** 内存矩阵回归
 - CommonJS / ESM 根入口均暴露 `P4-A ~ P4-C` 已恢复的高级能力导出面
 - `npm run test:compatibility` 可在当前工作区直接执行
 
 ### 当前仍待补
-- MongoDB 6.x / 7.x 的真实服务端矩阵
 - 历史 4.x / 5.x 兼容差异的再验证（当前只保留 v1 参考资料，不在本轮直接宣称已验证）
+- 如需补充外部真实服务烟囱回归，可在当前内存矩阵基础上追加，不影响默认验证链
 
 ### 当前主机探测结论
-- `npm run probe:server-matrix` 已建立并可执行
-- 本机当前未探测到 `docker` / `docker compose` / `podman` / `mongod` / `mongosh`
-- 当前也未注入 `MONSQLIZE_MEMORY_MONGO_URI` / `MONSQLIZE_REPLSET_URI`
-- 因此真实 MongoDB 6.x / 7.x 服务端矩阵仍保持待补，但已经升级为“可执行探测 + 正式执行入口已落盘”的状态
+- `npm run probe:server-matrix` 会直接探测 `mongodb-memory-server` 是否能拉起 `MongoDB 6.0.14 / 7.0.14`
+- 本机当前已确认 `6.0.14` 与 `7.0.14` 的单机 / replica set 都可启动
+- 因此默认矩阵已不再依赖外部 `docker` / `mongod` / `mongosh` 或外部 URI
 
 ## 运行命令
 
 ```bash
 npm run test:compatibility
 npm run probe:server-matrix
-# 准备好真实 Mongo URI 后再执行
 npm run test:server-matrix
 ```
 

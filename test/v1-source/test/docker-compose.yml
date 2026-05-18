@@ -1,0 +1,81 @@
+# MongoDB 多版本测试环境
+# 用于本地测试不同 MongoDB Server 版本
+# 使用方式: docker-compose up -d mongo-4.4
+
+version: '3.8'
+
+services:
+  # MongoDB 4.4
+  mongo-4.4:
+    image: mongo:4.4
+    container_name: monsqlize-test-mongo-4.4
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: test
+    volumes:
+      - mongo-4.4-data:/data/db
+    command: --replSet rs0
+    networks:
+      - monsqlize-test
+
+  # MongoDB 5.0
+  mongo-5.0:
+    image: mongo:5.0
+    container_name: monsqlize-test-mongo-5.0
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: test
+    volumes:
+      - mongo-5.0-data:/data/db
+    command: --replSet rs0
+    networks:
+      - monsqlize-test
+
+  # MongoDB 6.0
+  mongo-6.0:
+    image: mongo:6.0
+    container_name: monsqlize-test-mongo-6.0
+    ports:
+      - "27019:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: test
+    volumes:
+      - mongo-6.0-data:/data/db
+    command: --replSet rs0
+    networks:
+      - monsqlize-test
+
+  # MongoDB 7.0
+  mongo-7.0:
+    image: mongo:7.0
+    container_name: monsqlize-test-mongo-7.0
+    ports:
+      - "27020:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: test
+    volumes:
+      - mongo-7.0-data:/data/db
+    command: --replSet rs0
+    networks:
+      - monsqlize-test
+
+volumes:
+  mongo-4.4-data:
+  mongo-5.0-data:
+  mongo-6.0-data:
+  mongo-7.0-data:
+
+networks:
+  monsqlize-test:
+    driver: bridge
+

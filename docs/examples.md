@@ -2,6 +2,8 @@
 
 文档站中的每个核心 API，都应尽量对应到**当前仓库内可直接运行的示例**。
 
+> 当前官方示例总览见 [`../examples/README.md`](../examples/README.md)，其中 `npm run test:examples` 会统一编译并执行当前 **44 个** TypeScript 示例。
+
 ## 运行方式
 
 ```bash
@@ -70,5 +72,19 @@ node .generated/examples-dist/examples/docs/find.js
 | `slow-query-log.md` | `examples/docs/slow-query-log.ts` |
 | `transaction.md` | `examples/docs/transaction.ts` |
 | `watch.md` | `examples/docs/watch.ts` |
+| `examples/README.md`（组合能力索引） | `examples/docs/aggregate-advanced.ts` |
+| `examples/README.md`（组合能力索引） | `examples/docs/batch-operations.ts` |
+| `examples/README.md`（组合能力索引） | `examples/docs/soft-delete.ts` |
+| `examples/README.md`（组合能力索引） | `examples/docs/cache-multilevel.ts` |
+| `examples/README.md`（组合能力索引） | `examples/docs/objectid.ts` |
+| `examples/README.md`（组合能力索引） | `examples/docs/pool.ts` |
+| `failure-recovery-examples.md` | `examples/docs/pool-fallback.ts` |
+| `examples/README.md`（组合能力索引） | `examples/docs/sync.ts` |
+| `failure-recovery-examples.md` | `examples/docs/sync-target-failure.ts` |
+| `examples/README.md`（组合能力索引） | `examples/docs/lock.ts` |
+| `failure-recovery-examples.md` | `examples/docs/lock-timeout.ts` |
+| `examples/README.md`（组合能力索引） | `examples/docs/saga.ts` |
+| `failure-recovery-examples.md` | `examples/docs/transaction-rollback.ts` |
+| `examples/README.md`（组合能力索引） | `examples/docs/populate-relations.ts` |
 
-> 说明：部分概念型页面会复用同一个 richer example，而不是为每个标题机械复制一份完全相同的脚本。
+> 说明：部分概念型页面会复用同一个 richer example，而不是为每个标题机械复制一份完全相同的脚本；完整列表以 `examples/README.md` 为准。

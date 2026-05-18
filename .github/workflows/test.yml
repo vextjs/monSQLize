@@ -30,5 +30,11 @@ jobs:
       - name: Type check
         run: npm run type-check
 
+      - name: Enforce file-size guard
+        run: npm run check:sizes:strict
+
       - name: Run full test suite
         run: npm test
+
+      - name: Run compatibility guard
+        run: npm run test:compatibility

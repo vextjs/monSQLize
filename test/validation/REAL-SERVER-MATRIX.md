@@ -1,6 +1,6 @@
-# MongoDB 真实服务端矩阵
+# MongoDB 内存服务端矩阵
 
-> **目的**：把 `MongoDB 6.x / 7.x` 真实服务端矩阵从“口头待补”升级为“可执行探测 + 可复用执行入口”。
+> **目的**：把 `MongoDB 6.x / 7.x` 服务端矩阵落实为**默认可执行**的内存版回归链，而不是继续依赖外部 Mongo URI。
 
 ## 1. 当前约束
 
@@ -10,20 +10,19 @@
 - `test/bootstrap/replset-server.js`
 - `mongodb-memory-server`
 
-这能验证当前运行时闭环，但**不等于真实 MongoDB 6.x / 7.x 服务端矩阵已经完成**。
+这条链路直接验证当前 runtime 在 **MongoDB 6.x / 7.x 二进制**上的行为闭环；默认使用内存版 MongoDB，不再要求外部数据库服务。
 
-## 2. 真实服务端矩阵的输入
+## 2. 输入方式
 
-执行真实服务端矩阵前，需要准备两个外部 URI：
+默认情况下无需准备外部 URI。矩阵脚本会直接通过 `mongodb-memory-server` 拉起：
 
-- `MONSQLIZE_MEMORY_MONGO_URI`
-  - 用于普通 integration 场景
-  - 例如单机 MongoDB 6.x / 7.x 实例
-- `MONSQLIZE_REPLSET_URI`
-  - 用于 transaction / sync 等需要 replica set 的场景
-  - 例如 1 节点 replica set 的连接串
+- 单机实例：覆盖普通 integration 场景
+- 单节点 replica set：覆盖 transaction / sync 等需要副本集的场景
 
-> 两个 URI 可以指向同一套服务，只要该服务同时满足对应能力。
+如需手工指定二进制版本，可使用：
+
+- `MONSQLIZE_MEMORY_MONGO_BINARY_VERSION`
+- `MONSQLIZE_REPLSET_BINARY_VERSION`
 
 ## 3. 探测命令
 
@@ -35,20 +34,19 @@ npm run probe:server-matrix
 
 该命令会输出：
 
-- 当前主机是否存在 `docker` / `podman` / `mongod` / `mongosh`
-- 当前是否已注入 `MONSQLIZE_MEMORY_MONGO_URI`
-- 当前是否已注入 `MONSQLIZE_REPLSET_URI`
-- 当前是否已具备执行真实服务端矩阵的最小条件
+- 当前 Node/Volta 环境
+- `MongoDB 6.0.14` 与 `7.0.14` 是否都能通过 `mongodb-memory-server` 启动单机与 replica set
+- 当前是否已具备执行默认矩阵的最小条件
 
 ## 4. 执行命令
 
-当真实服务已准备好后，执行：
+当探测通过后，执行：
 
 ```bash
 npm run test:server-matrix
 ```
 
-该脚本会执行以下两组测试：
+该脚本会执行以下验证：
 
 ### 4.1 普通服务端路径
 
@@ -60,32 +58,36 @@ npm run test:server-matrix
 - `test/integration/pool/pool.test.js`
 - `test/integration/slow-query-log/slow-query-log.test.js`
 
-这些测试使用：
-
-- `MONSQLIZE_MEMORY_MONGO_URI`
+这些测试在矩阵脚本中会分别对 `MongoDB 6.0.14` / `7.0.14` 执行。
 
 ### 4.2 Replica Set 路径
 
 - `test/integration/transaction/transaction.test.js`
 - `test/integration/sync/sync.test.js`
 
-这些测试使用：
+这些测试同样在矩阵脚本中分别对 `MongoDB 6.0.14` / `7.0.14` 执行。
 
-- `MONSQLIZE_REPLSET_URI`
+### 4.3 Node / Driver 维度
 
-## 5. 当前主机结论（2026-05-11）
+矩阵脚本还会补跑：
 
-本机已探测到：
+- Node `20.x` 当前环境
+- Node `22.x`（`volta run --node 22`）
+- Driver `6.21.0` 当前依赖
+- Driver `7.2.0` 临时安装后回归
 
-- `docker`：不可用
-- `docker compose`：不可用
-- `podman`：不可用
-- `mongod`：不可用
-- `mongosh`：不可用
+## 5. 当前主机结论（2026-05-17）
+
+本机已验证：
+
+- `MongoDB 6.0.14`：单机 / replica set 均可启动
+- `MongoDB 7.0.14`：单机 / replica set 均可启动
+- Node `20.20.2` / `22.22.3`：矩阵执行通过
+- Driver `6.21.0` / `7.2.0`：矩阵执行通过
 
 因此：
 
-- 当前这台机器**尚不具备**直接拉起真实 MongoDB 6.x / 7.x 服务端矩阵的本地条件
-- 但仓库已经具备**可执行探测入口**与**正式执行入口**
-- 一旦外部服务或命令可用，可直接重用现有测试资产执行真实服务端矩阵，无需再临时手工拼命令
+- 当前这台机器**已经具备**默认矩阵执行条件
+- `npm run probe:server-matrix` 与 `npm run test:server-matrix` 均可直接复用
+- 若后续还要补“外部真实服务”烟囱回归，应视为附加验证，而不是默认闭环前提
 

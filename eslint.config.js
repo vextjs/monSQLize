@@ -8,7 +8,7 @@ const js = require('@eslint/js');
 module.exports = [
     // ESLint 推荐规则
     js.configs.recommended,
-    
+
     // 全局配置
     {
         languageOptions: {
@@ -41,25 +41,25 @@ module.exports = [
             'quotes': ['warn', 'single', { avoidEscape: true }],
             'semi': ['error', 'always'],
             'no-trailing-spaces': 'warn',
-            
+
             // 最佳实践
-            'no-unused-vars': ['warn', { 
+            'no-unused-vars': ['warn', {
                 argsIgnorePattern: '^_',
                 varsIgnorePattern: '^_',
             }],
             'no-console': 'off', // 允许 console（日志库）
             'no-empty': ['error', { allowEmptyCatch: true }],
             'no-prototype-builtins': 'off',
-            
+
             // ES6+
             'prefer-const': 'warn',
             'no-var': 'warn',
             'object-shorthand': 'warn',
             'prefer-arrow-callback': 'off',
-            
+
             // 异步
             'require-await': 'warn',
-            
+
             // 错误预防
             'no-undef': 'error',
             'no-dupe-keys': 'error',
@@ -76,7 +76,7 @@ module.exports = [
             sourceType: 'module',
         }
     },
-    
+
     // 测试文件特殊配置
     {
         files: ['test/**/*.js', '**/*.test.js'],
@@ -92,7 +92,7 @@ module.exports = [
             }
         }
     },
-    
+
     // 忽略文件
     {
         ignores: [

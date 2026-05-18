@@ -166,7 +166,7 @@ function initV1SubPathRegistry () {
         parent: null,
       };
       REGISTRY_PATHS.add(fakePath);
-    } catch (e) {
+    } catch {
       // 个别导出缺失，忽略
     }
   }
@@ -253,7 +253,7 @@ global.describe = function (name, fn) {
   currentSuite = prevSuite ? `${prevSuite} > ${name}` : name;
   // 压入新作用域
   __hookStack.push({ beforeEach: [], afterEach: [] });
-  const ctx = { timeout (ms) { return this; } };
+  const ctx = { timeout (_ms) { return this; } };
   try {
     fn.call(ctx);
   } catch (e) {
@@ -290,16 +290,14 @@ global.it = function (name, fn) {
 // 别名
 global.test = global.it;
 global.specify = global.it;
-global.it.skip = (name) => { /* skip */ };
-global.describe.skip = (name, fn) => { /* skip */ };
+global.it.skip = (_name) => { /* skip */ };
+global.describe.skip = (_name, _fn) => { /* skip */ };
 global.xit = global.it.skip;
 
 // chai 最小化兼容层（v1 有些测试用 chai）
-let chaiLoaded = false;
 try {
   global.chai = require('chai');
-  chaiLoaded = true;
-} catch (e) {
+} catch {
   // chai not available, tests using it will fail naturally
 }
 
@@ -381,7 +379,7 @@ function _advanceTimersByTime(ms) {
       // re-schedule interval
       next.at = _fakeNow + next.delay;
     }
-    try { next.fn(); } catch (e) { /* swallow timer errors */ }
+    try { next.fn(); } catch { /* swallow timer errors */ }
   }
   _fakeNow = target;
 }
@@ -429,7 +427,7 @@ function _makeAsyncMatchers(originalPromise, isRejection, isNot) {
             throw new Error(`Expected to throw, but resolved with ${typeof resolved}`);
           }
           let threw = false;
-          try { resolved(); } catch (e) { threw = true; }
+          try { resolved(); } catch { threw = true; }
           if (!threw) throw new Error('Expected to throw but did not');
         }
         // resolves.not.toThrow() → settledPromise already resolved = pass (no-op)
@@ -478,19 +476,19 @@ function _makeMatchers(received, isNot) {
   const pass = (ok, msg, notMsg) => {
     if (isNot ? ok : !ok) throw new Error(isNot ? (notMsg || `NOT: ${msg}`) : msg);
   };
-  const safe = (v) => { try { return JSON.stringify(v); } catch(e) { return String(v); } };
+  const safe = (v) => { try { return JSON.stringify(v); } catch { return String(v); } };
   const matchers = {
     toBe:               (exp) => pass(received === exp,
                                   `Expected ${safe(received)} to be ${safe(exp)}`,
                                   `Expected ${safe(received)} NOT to be ${safe(exp)}`),
     toEqual:            (exp) => pass(_deepEqual(received, exp),
                                   `Expected deep equal. Got: ${safe(received)}`,
-                                  `Expected NOT deep equal.`),
-    toBeDefined:        ()    => pass(received !== undefined, `Expected defined, got undefined`, `Expected undefined`),
-    toBeUndefined:      ()    => pass(received === undefined, `Expected undefined, got ${safe(received)}`, `Expected NOT undefined`),
-    toBeNull:           ()    => pass(received === null, `Expected null, got ${safe(received)}`, `Expected NOT null`),
-    toBeTruthy:         ()    => pass(!!received, `Expected truthy, got ${safe(received)}`, `Expected falsy`),
-    toBeFalsy:          ()    => pass(!received, `Expected falsy, got ${safe(received)}`, `Expected truthy`),
+                                  'Expected NOT deep equal.'),
+    toBeDefined:        ()    => pass(received !== undefined, 'Expected defined, got undefined', 'Expected undefined'),
+    toBeUndefined:      ()    => pass(received === undefined, `Expected undefined, got ${safe(received)}`, 'Expected NOT undefined'),
+    toBeNull:           ()    => pass(received === null, `Expected null, got ${safe(received)}`, 'Expected NOT null'),
+    toBeTruthy:         ()    => pass(!!received, `Expected truthy, got ${safe(received)}`, 'Expected falsy'),
+    toBeFalsy:          ()    => pass(!received, `Expected falsy, got ${safe(received)}`, 'Expected truthy'),
     toBeGreaterThan:    (n)   => pass(received > n, `Expected ${received} > ${n}`, `Expected NOT > ${n}`),
     toBeGreaterThanOrEqual: (n) => pass(received >= n, `Expected ${received} >= ${n}`, `Expected NOT >= ${n}`),
     toBeLessThan:       (n)   => pass(received < n, `Expected ${received} < ${n}`, `Expected NOT < ${n}`),
@@ -505,14 +503,14 @@ function _makeMatchers(received, isNot) {
     toContain:          (item)=> pass(received != null && (Array.isArray(received) ? received.includes(item) : received.includes(item)),
                                   `Expected to contain ${safe(item)}`, `Expected NOT to contain ${safe(item)}`),
     toContainEqual:     (item)=> pass(received != null && received.some(x => _deepEqual(x, item)),
-                                  `Expected array to contain equal to ${safe(item)}`, `Expected NOT`),
+                                  `Expected array to contain equal to ${safe(item)}`, 'Expected NOT'),
     toMatch:            (pat) => {
       const ok = typeof pat === 'string' ? String(received).includes(pat) : pat.test(String(received));
       pass(ok, `Expected "${received}" to match ${pat}`, `Expected NOT to match ${pat}`);
     },
     toMatchObject:      (shape) => {
       const ok = shape && typeof shape === 'object' && Object.keys(shape).every(k => _deepEqual(received[k], shape[k]));
-      pass(ok, `Expected to match object shape`, `Expected NOT to match object shape`);
+      pass(ok, 'Expected to match object shape', 'Expected NOT to match object shape');
     },
     toThrow:            (msg) => {
       if (typeof received !== 'function') throw new Error('expect(fn).toThrow() requires a function');
@@ -529,7 +527,7 @@ function _makeMatchers(received, isNot) {
       }
     },
     toHaveBeenCalled:       ()    => pass(received && received.mock && received.mock.calls.length > 0,
-                                      `Expected mock to have been called`, `Expected mock NOT to have been called`),
+                                      'Expected mock to have been called', 'Expected mock NOT to have been called'),
     toHaveBeenCalledTimes:  (n)   => {
       const cnt = received && received.mock ? received.mock.calls.length : 0;
       pass(cnt === n, `Expected ${n} calls, got ${cnt}`, `Expected NOT ${n} calls`);
@@ -542,7 +540,7 @@ function _makeMatchers(received, isNot) {
     toHaveBeenLastCalledWith: (...args) => {
       const calls = received && received.mock ? received.mock.calls : [];
       const last = calls[calls.length - 1];
-      pass(last && _deepEqual(last, args), `Expected last call with ${safe(args)}`, `Expected NOT`);
+      pass(last && _deepEqual(last, args), `Expected last call with ${safe(args)}`, 'Expected NOT');
     },
   };
   // resolves / rejects — lazy getters returning chainable async matchers
@@ -634,7 +632,7 @@ async function runPendingTests (filePath) {
   let beforeFailed = false;
 
   // 执行 before 钩子（带超时）
-  const hookCtx = { timeout (ms) { return this; }, slow () { return this; } };
+  const hookCtx = { timeout (_ms) { return this; }, slow () { return this; } };
   for (const hook of global.__beforeHooks) {
     try {
       await withTimeout(callFn(hook, hookCtx), HOOK_TIMEOUT, 'before()');
@@ -658,7 +656,7 @@ async function runPendingTests (filePath) {
 
     // 执行 beforeEach（仅本 describe 链路的 hooks）
     for (const hook of (capturedBeforeEach || [])) {
-      try { await withTimeout(callFn(hook, hookCtx), HOOK_TIMEOUT, 'beforeEach()'); } catch (e) { /* ignore */ }
+      try { await withTimeout(callFn(hook, hookCtx), HOOK_TIMEOUT, 'beforeEach()'); } catch { /* ignore */ }
     }
 
     // Track if this.skip() was called (mirrors Mocha's this.pending = true behavior:
@@ -668,7 +666,7 @@ async function runPendingTests (filePath) {
     try {
       // this 注入 skip() 和 timeout()
       const ctx = {
-        timeout (ms) { return this; },
+        timeout (_ms) { return this; },
         skip () { skipCalled = true; throw new SkipSignal(); },
         slow () { return this; },
         retries () { return this; }
@@ -692,13 +690,13 @@ async function runPendingTests (filePath) {
 
     // 执行 afterEach（仅本 describe 链路的 hooks，逆序）
     for (const hook of (capturedAfterEach || [])) {
-      try { await withTimeout(callFn(hook, hookCtx), HOOK_TIMEOUT, 'afterEach()'); } catch (e) { /* ignore */ }
+      try { await withTimeout(callFn(hook, hookCtx), HOOK_TIMEOUT, 'afterEach()'); } catch { /* ignore */ }
     }
   }
 
   // 执行 after 钩子
   for (const hook of global.__afterHooks) {
-    try { await withTimeout(callFn(hook, hookCtx), HOOK_TIMEOUT, 'after()'); } catch (e) { /* ignore */ }
+    try { await withTimeout(callFn(hook, hookCtx), HOOK_TIMEOUT, 'after()'); } catch { /* ignore */ }
   }
 
   return { filePassed, fileFailed, fileSkipped };
@@ -984,7 +982,7 @@ async function main () {
     }
   }
 
-  console.log(`\n🔍 v1 兼容性测试运行器`);
+  console.log('\n🔍 v1 兼容性测试运行器');
   console.log(`📦 测试套件: ${suiteName}`);
   console.log(`🎯 TS lib: ${TS_LIB}`);
   console.log(`📂 v1 测试根: ${V1_ROOT}\n`);
@@ -1006,7 +1004,7 @@ async function main () {
     if (testDbs.length > 0) {
       console.log(`🧹 清理了 ${testDbs.length} 个 test_* 数据库: ${testDbs.join(', ')}`);
     }
-  } catch (e) {
+  } catch {
     // 清理失败不影响测试继续运行
   }
 
@@ -1070,7 +1068,7 @@ async function main () {
   if (sharedReplSet) {
     try {
       await sharedReplSet.stop();
-    } catch (_) { /* ignore */ }
+    } catch { /* ignore */ }
   }
 
   process.exit(totalFailed > 0 ? 1 : 0);

@@ -52,6 +52,7 @@ run('node', ['--test',
     'test/integration/transaction/transaction.test.js',
     'test/integration/sync/sync.test.js',
 ], {
+    MONSQLIZE_MATRIX_MODE: '1',
     MONSQLIZE_REPLSET_URI: replSetUri,
 });
 

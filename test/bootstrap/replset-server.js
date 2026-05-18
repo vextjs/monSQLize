@@ -3,6 +3,7 @@ let replSetInstance = null;
 
 function createReplSetBootstrap(options = {}) {
     const externalUri = options.uri || process.env.MONSQLIZE_REPLSET_URI;
+    const binaryVersion = options.binaryVersion || process.env.MONSQLIZE_REPLSET_BINARY_VERSION || process.env.MONSQLIZE_MEMORY_MONGO_BINARY_VERSION;
 
     async function ensureServer() {
         if (externalUri) {
@@ -17,6 +18,7 @@ function createReplSetBootstrap(options = {}) {
             replSetPromise = (async () => {
                 const { MongoMemoryReplSet } = require('mongodb-memory-server');
                 replSetInstance = await MongoMemoryReplSet.create({
+                    ...(binaryVersion ? { binary: { version: binaryVersion } } : {}),
                     replSet: {
                         count: 1,
                         dbName: options.dbName || 'monsqlize_p4a',

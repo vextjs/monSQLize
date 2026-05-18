@@ -1,0 +1,253 @@
+import { ErrorCodes, createError } from '../../core/errors';
+import type {
+    ModelDefinition,
+    PopulateConfig,
+    RelationConfig,
+    ValidationResult,
+} from '../../../types/model';
+import type { ModelCollectionLike, ModelRuntimeLike, PopulatePath } from './populate-promise';
+import { normalizePopulateConfig } from './definition-validator';
+import { Model } from './model-registry';
+import { applySort, getByPath, groupBy, pickFields, serializeDocument, toKey, unique } from './model-utils';
+
+type PopulateContext<TDocument> = {
+    relations: Map<string, RelationConfig>;
+    runtime: ModelRuntimeLike;
+    dbName: string;
+    poolName?: string;
+};
+
+export async function populateModelPath<TDocument>(
+    context: PopulateContext<TDocument>,
+    docs: Array<TDocument & Record<string, unknown>>,
+    path: PopulatePath,
+): Promise<Array<TDocument & Record<string, unknown>>> {
+    const config = normalizePopulateConfig(path);
+    if (docs.length === 0) {
+        return docs;
+    }
+    const relation = context.relations.get(config.path);
+    if (!relation) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, `未定义的关系: ${config.path}`);
+    }
+
+    const keys = unique(
+        docs
+            .map((doc) => getByPath(doc, relation.localField))
+            .filter((value) => value !== undefined && value !== null),
+    );
+
+    if (keys.length === 0) {
+        for (const doc of docs) {
+            (doc as Record<string, unknown>)[config.path] = relation.single ? null : [];
+        }
+        return docs;
+    }
+
+    const registered = Model.get(relation.from);
+    const scope = {
+        database: registered?.definition.connection?.database ?? context.dbName,
+        pool: registered?.definition.connection?.pool ?? context.poolName,
+    };
+    const relatedCollection = context.runtime.scopedCollection(relation.from, scope);
+    const relatedModel = Model.has(relation.from) ? context.runtime.scopedModel(relation.from, scope) : null;
+    const relatedDocs = await relatedCollection.find({
+        [relation.foreignField]: { $in: keys },
+        ...(config.match ?? {}),
+    });
+
+    let hydrated = relatedModel
+        ? relatedModel.hydrateDocuments(relatedDocs as Array<Record<string, unknown>>)
+        : (relatedDocs as Array<Record<string, unknown>>).map((item) => ({ ...item }));
+
+    if (config.sort) {
+        hydrated = applySort(hydrated, config.sort);
+    }
+    if (config.skip) {
+        hydrated = hydrated.slice(config.skip);
+    }
+    if (config.limit !== undefined) {
+        hydrated = hydrated.slice(0, config.limit);
+    }
+    if (config.select) {
+        const select = config.select;
+        hydrated = hydrated.map((item: TDocument & Record<string, unknown>) => pickFields(item, select, [relation.foreignField]));
+    }
+
+    if (config.populate) {
+        const nestedRaw = config.populate as unknown;
+        const isValidNestedConfig = (value: unknown): boolean => {
+            if (typeof value === 'string' || Array.isArray(value)) return true;
+            if (typeof value === 'object' && value !== null && (value as PopulateConfig).path) return true;
+            return false;
+        };
+        if (!isValidNestedConfig(nestedRaw)) {
+            throw createError(ErrorCodes.INVALID_ARGUMENT, '嵌套 populate 参数必须是字符串、数组或对象');
+        }
+        if (relatedModel) {
+            const nestedPaths = Array.isArray(config.populate) ? config.populate : [config.populate];
+            hydrated = await relatedModel.populateDocuments(hydrated, nestedPaths);
+        }
+    }
+
+    const grouped = groupBy(hydrated, (item) => getByPath(item as Record<string, unknown>, relation.foreignField));
+    for (const doc of docs) {
+        const localValue = getByPath(doc, relation.localField);
+        const matches = grouped.get(toKey(localValue)) ?? [];
+        (doc as Record<string, unknown>)[config.path] = relation.single ? (matches[0] ?? null) : [...matches];
+    }
+
+    return docs;
+}
+
+type HydrateContext<TDocument> = {
+    definition: ModelDefinition<TDocument>;
+    v1InstanceMethods: Record<string, (...args: unknown[]) => unknown>;
+    saveDocument: (document: TDocument & Record<string, unknown>) => Promise<TDocument & Record<string, unknown>>;
+    removeDocument: (document: TDocument & Record<string, unknown>) => Promise<boolean>;
+    validateDocument: (document?: unknown) => ValidationResult;
+};
+
+export function hydrateModelDocument<TDocument>(
+    context: HydrateContext<TDocument>,
+    doc: TDocument | null | undefined,
+): (TDocument & Record<string, unknown>) | null {
+    if (!doc || typeof doc !== 'object') {
+        return null;
+    }
+    const hydrated = { ...(doc as Record<string, unknown>) } as TDocument & Record<string, unknown>;
+
+    for (const [name, virtual] of Object.entries(context.definition.virtuals ?? {})) {
+        Object.defineProperty(hydrated, name, {
+            configurable: true,
+            enumerable: true,
+            get: () => virtual.get.call(hydrated),
+            set: virtual.set ? (value) => virtual.set?.call(hydrated, value) : undefined,
+        });
+    }
+
+    if (typeof (context.definition as any).methods === 'function') {
+        for (const [name, method] of Object.entries(context.v1InstanceMethods)) {
+            Object.defineProperty(hydrated, name, {
+                configurable: true,
+                enumerable: false,
+                writable: false,
+                value: (...args: unknown[]) => method.apply(hydrated, args),
+            });
+        }
+    } else {
+        for (const [name, method] of Object.entries(context.definition.methods ?? {})) {
+            Object.defineProperty(hydrated, name, {
+                configurable: true,
+                enumerable: false,
+                writable: false,
+                value: (...args: unknown[]) => method.apply(hydrated, args),
+            });
+        }
+    }
+
+    Object.defineProperties(hydrated, {
+        save: {
+            configurable: true,
+            enumerable: false,
+            value: async () => context.saveDocument(hydrated),
+        },
+        remove: {
+            configurable: true,
+            enumerable: false,
+            value: async () => context.removeDocument(hydrated),
+        },
+        validate: {
+            configurable: true,
+            enumerable: false,
+            value: async () => context.validateDocument(hydrated),
+        },
+        toObject: {
+            configurable: true,
+            enumerable: false,
+            value: () => serializeDocument(hydrated),
+        },
+        toJSON: {
+            configurable: true,
+            enumerable: false,
+            value: () => serializeDocument(hydrated),
+        },
+    });
+    return hydrated;
+}
+
+type ModelValidationRuntime = {
+    schemaError: Error | null;
+    schemaCache: unknown;
+    schemaValidateFn: ((schema: unknown, document: unknown) => { valid: boolean; errors?: Array<{ field?: string; path?: string; message?: string }> }) | null;
+};
+
+export function validateModelDocument(
+    runtime: ModelValidationRuntime,
+    document?: unknown,
+): ValidationResult {
+    try {
+        if (runtime.schemaError) {
+            return {
+                valid: false,
+                errors: [{ field: '_schema', message: `Schema validation failed: ${runtime.schemaError.message}` }],
+            };
+        }
+        if (!runtime.schemaCache || !runtime.schemaValidateFn) {
+            return { valid: true, errors: [] };
+        }
+        const result = runtime.schemaValidateFn(runtime.schemaCache, document ?? {});
+        return {
+            valid: result.valid,
+            errors: (result.errors ?? []).map((error) => ({
+                field: error.field ?? error.path ?? '',
+                message: error.message ?? '',
+            })),
+        };
+    } catch (error) {
+        return {
+            valid: false,
+            errors: [{ field: '_schema', message: `Schema validation failed: ${error instanceof Error ? error.message : String(error)}` }],
+        };
+    }
+}
+
+export function applyModelDefaults<TDocument>(
+    definition: ModelDefinition<TDocument>,
+    document?: Record<string, unknown>,
+): Record<string, unknown> {
+    const payload = { ...(document ?? {}) };
+    for (const [key, value] of Object.entries(definition.defaults ?? {})) {
+        if (payload[key] === undefined) {
+            payload[key] = typeof value === 'function'
+                ? (value as (context?: unknown, doc?: Record<string, unknown>) => unknown)(undefined, payload)
+                : value;
+        }
+    }
+    return payload;
+}
+
+export async function saveModelDocument<TDocument>(
+    collection: ModelCollectionLike<TDocument>,
+    document: TDocument & Record<string, unknown>,
+): Promise<TDocument & Record<string, unknown>> {
+    const payload = serializeDocument(document);
+    if (payload._id !== undefined) {
+        await collection.replaceOne({ _id: payload._id }, payload, { upsert: true });
+        return document;
+    }
+    const result = await collection.insertOne(payload);
+    (document as Record<string, unknown>)._id = result.insertedId;
+    return document;
+}
+
+export async function removeModelDocument<TDocument>(
+    collection: ModelCollectionLike<TDocument>,
+    document: TDocument & Record<string, unknown>,
+): Promise<boolean> {
+    if (document._id === undefined) {
+        return false;
+    }
+    const result = await collection.deleteOne({ _id: document._id });
+    return Boolean((result as { deletedCount?: number; }).deletedCount ?? (result as { acknowledged?: boolean; }).acknowledged);
+}

@@ -157,6 +157,87 @@ describe('P3-C model features', () => {
 
         await runtime.close();
     });
+
+    it('应保持 model 配置初始化与 v1 兼容注入稳定', async () => {
+        let beforeInsertCalls = 0;
+        let afterInsertCalls = 0;
+
+        MonSQLize.Model.define('accounts', {
+            enums: {
+                role: 'admin|user',
+            },
+            schema(dsl) {
+                return dsl({
+                    name: 'string!',
+                    role: this.enums.role.default('user'),
+                });
+            },
+            options: {
+                timestamps: true,
+                softDelete: {
+                    enabled: true,
+                    field: 'deletedAt',
+                    type: 'timestamp',
+                    ttl: 3600,
+                },
+                version: true,
+            },
+            hooks() {
+                return {
+                    insert: {
+                        before(_ctx, payload) {
+                            beforeInsertCalls += 1;
+                            return { ...payload, hooked: true };
+                        },
+                        after() {
+                            afterInsertCalls += 1;
+                        },
+                    },
+                };
+            },
+            methods(instance) {
+                return {
+                    instance: {
+                        isHooked() {
+                            return this.hooked === true;
+                        },
+                    },
+                    static: {
+                        getCollectionName() {
+                            return instance.collectionName;
+                        },
+                    },
+                };
+            },
+        });
+
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'p3c_model_wiring',
+            config: { uri },
+        });
+        await runtime.connect();
+
+        const accounts = runtime.model('accounts');
+        assert.equal(typeof accounts.getCollectionName, 'function');
+        assert.equal(accounts.getCollectionName(), 'accounts');
+        assert.equal(accounts.softDeleteConfig?.field, 'deletedAt');
+        assert.equal(Boolean(accounts.getEnums().role), true);
+
+        const created = await accounts.insertOne({ name: 'Ada' });
+        const stored = await accounts.findOneById(created.insertedId);
+
+        assert.equal(beforeInsertCalls, 1);
+        assert.equal(afterInsertCalls, 1);
+        assert.equal(stored.hooked, true);
+        assert.equal(stored.version, 0);
+        assert.equal(typeof stored.isHooked, 'function');
+        assert.equal(stored.isHooked(), true);
+        assert.equal(stored.createdAt instanceof Date, true);
+        assert.equal(stored.updatedAt instanceof Date, true);
+
+        await runtime.close();
+    });
 });
 
 

@@ -159,7 +159,7 @@ describe('Expression: arithmetic operators', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('Expression: string operators', () => {
-    it("CONCAT() compiles to $concat", () => {
+    it('CONCAT() compiles to $concat', () => {
         const result = compile("CONCAT(firstName, ' ', lastName)");
         assert.deepEqual(result, { $concat: ['$firstName', ' ', '$lastName'] });
     });
@@ -196,13 +196,13 @@ describe('Expression: string operators', () => {
         assert.deepEqual(compile("SPLIT(path, '/')"), { $split: ['$path', '/'] });
     });
 
-    it("REPLACE() compiles to $replaceOne", () => {
+    it('REPLACE() compiles to $replaceOne', () => {
         assert.deepEqual(compile("REPLACE(text, 'old', 'new')"), {
             $replaceOne: { input: '$text', find: 'old', replacement: 'new' },
         });
     });
 
-    it("INDEX_OF_STR() compiles to $indexOfCP", () => {
+    it('INDEX_OF_STR() compiles to $indexOfCP', () => {
         assert.deepEqual(compile("INDEX_OF_STR(str, 'term')"), { $indexOfCP: ['$str', 'term'] });
     });
 
@@ -648,12 +648,12 @@ describe('Expression: compilePipelineExpressions pipeline integration', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('Expression: literal value parsing', () => {
-    it("parses string literals (single quotes)", () => {
+    it('parses string literals (single quotes)', () => {
         const result = compile("CONCAT(name, ' Inc')");
         assert.deepEqual(result, { $concat: ['$name', ' Inc'] });
     });
 
-    it("parses string literals (double quotes)", () => {
+    it('parses string literals (double quotes)', () => {
         const result = compile('UPPER("test")');
         assert.deepEqual(result, { $toUpper: 'test' });
     });

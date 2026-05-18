@@ -1,0 +1,157 @@
+import { Collection, Document, FindOneAndUpdateOptions } from 'mongodb';
+import { normalizeProjection } from '../../../utils/normalize';
+import { createError, ErrorCodes } from '../../../core/errors';
+import type { IncrementOneOptions } from '../../../../types/collection';
+import { createIncrementUpdate } from './write-utils';
+
+export async function insertOneDocument<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    ...args: Parameters<Collection<TSchema>['insertOne']>
+): ReturnType<Collection<TSchema>['insertOne']> {
+    return collection.insertOne(...args);
+}
+
+export async function insertManyDocuments<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    ...args: Parameters<Collection<TSchema>['insertMany']>
+): ReturnType<Collection<TSchema>['insertMany']> {
+    return collection.insertMany(...args);
+}
+
+export async function updateOneDocument<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    ...args: Parameters<Collection<TSchema>['updateOne']>
+): ReturnType<Collection<TSchema>['updateOne']> {
+    return collection.updateOne(...args);
+}
+
+export async function updateManyDocuments<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    ...args: Parameters<Collection<TSchema>['updateMany']>
+): ReturnType<Collection<TSchema>['updateMany']> {
+    return collection.updateMany(...args);
+}
+
+export async function replaceOneDocument<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    ...args: Parameters<Collection<TSchema>['replaceOne']>
+): ReturnType<Collection<TSchema>['replaceOne']> {
+    return collection.replaceOne(...args);
+}
+
+export async function findOneAndUpdateDocument<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    filter: Parameters<Collection<TSchema>['findOneAndUpdate']>[0],
+    update: Parameters<Collection<TSchema>['findOneAndUpdate']>[1],
+    options?: unknown,
+): ReturnType<Collection<TSchema>['findOneAndUpdate']> {
+    return (collection as any).findOneAndUpdate(filter, update, ...(options !== undefined ? [options] : []));
+}
+
+export async function findOneAndReplaceDocument<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    filter: Parameters<Collection<TSchema>['findOneAndReplace']>[0],
+    replacement: Parameters<Collection<TSchema>['findOneAndReplace']>[1],
+    options?: unknown,
+): ReturnType<Collection<TSchema>['findOneAndReplace']> {
+    return (collection as any).findOneAndReplace(filter, replacement, ...(options !== undefined ? [options] : []));
+}
+
+export async function findOneAndDeleteDocument<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    filter: Parameters<Collection<TSchema>['findOneAndDelete']>[0],
+    options?: unknown,
+): ReturnType<Collection<TSchema>['findOneAndDelete']> {
+    return (collection as any).findOneAndDelete(filter, ...(options !== undefined ? [options] : []));
+}
+
+export async function upsertOneDocument<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    filter: Parameters<Collection<TSchema>['updateOne']>[0],
+    update: Parameters<Collection<TSchema>['updateOne']>[1],
+    options: NonNullable<Parameters<Collection<TSchema>['updateOne']>[2]> = {},
+): ReturnType<Collection<TSchema>['updateOne']> {
+    return collection.updateOne(filter, update, {
+        ...options,
+        upsert: true,
+    });
+}
+
+export async function deleteOneDocument<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    ...args: Parameters<Collection<TSchema>['deleteOne']>
+): ReturnType<Collection<TSchema>['deleteOne']> {
+    return collection.deleteOne(...args);
+}
+
+export async function deleteManyDocuments<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    ...args: Parameters<Collection<TSchema>['deleteMany']>
+): ReturnType<Collection<TSchema>['deleteMany']> {
+    return collection.deleteMany(...args);
+}
+
+export interface IncrementOneResult<TSchema extends Document = Document> {
+    acknowledged: boolean;
+    matchedCount: number;
+    modifiedCount: number;
+    value: TSchema | null;
+}
+
+export async function incrementOneDocument<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    filter: Parameters<Collection<TSchema>['findOneAndUpdate']>[0],
+    field: string | Record<string, number>,
+    incrementOrOptions?: number | IncrementOneOptions,
+    maybeOptions?: IncrementOneOptions,
+): Promise<IncrementOneResult<TSchema>> {
+    if (!filter || typeof filter !== 'object' || Array.isArray(filter)) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter 必须是非空对象');
+    }
+
+    let options: IncrementOneOptions = {};
+    let increment = 1;
+    if (typeof incrementOrOptions === 'number' || incrementOrOptions === undefined) {
+        increment = typeof incrementOrOptions === 'number' ? incrementOrOptions : 1;
+        options = maybeOptions ?? {};
+    } else if (incrementOrOptions && typeof incrementOrOptions === 'object' && !Array.isArray(incrementOrOptions)) {
+        options = incrementOrOptions;
+    } else {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'increment 必须是数字');
+    }
+
+    const updateDocument = createIncrementUpdate(field, increment, options.$set);
+    const { $set, projection, ...driverOptions } = options;
+    void $set;
+    const normalizedProjection = normalizeProjection(projection as string[] | Record<string, unknown> | null | undefined);
+    const findOptions: Record<string, unknown> = {
+        returnDocument: options.returnDocument ?? 'after',
+        includeResultMetadata: true,
+    };
+    if (normalizedProjection) findOptions.projection = normalizedProjection;
+    if (driverOptions.maxTimeMS !== undefined) findOptions.maxTimeMS = driverOptions.maxTimeMS;
+    if (driverOptions.comment !== undefined) findOptions.comment = driverOptions.comment;
+
+    const rawResult = await (collection as unknown as Collection<TSchema>).findOneAndUpdate(
+        filter as Parameters<Collection<TSchema>['findOneAndUpdate']>[0],
+        updateDocument as Parameters<Collection<TSchema>['findOneAndUpdate']>[1],
+        findOptions as unknown as FindOneAndUpdateOptions & { includeResultMetadata: true },
+    ) as unknown;
+
+    let value: TSchema | null;
+    let matchedCount: number;
+    let modifiedCount: number;
+
+    if (rawResult && typeof rawResult === 'object' && 'lastErrorObject' in (rawResult as object)) {
+        const result = rawResult as { value: TSchema | null; lastErrorObject?: { n?: number; updatedExisting?: boolean }; ok: number };
+        value = result.value ?? null;
+        matchedCount = result.lastErrorObject?.n ?? 0;
+        modifiedCount = (result.lastErrorObject?.updatedExisting === true && value != null) ? 1 : 0;
+    } else {
+        value = (rawResult as TSchema) ?? null;
+        matchedCount = value != null ? 1 : 0;
+        modifiedCount = value != null ? 1 : 0;
+    }
+
+    return { acknowledged: true, matchedCount, modifiedCount, value };
+}

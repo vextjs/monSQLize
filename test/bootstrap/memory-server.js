@@ -11,6 +11,7 @@ let memoryServerInstance = null;
 
 function createMemoryServerBootstrap(options = {}) {
     const externalUri = options.uri || process.env.MONSQLIZE_MEMORY_MONGO_URI;
+    const binaryVersion = options.binaryVersion || process.env.MONSQLIZE_MEMORY_MONGO_BINARY_VERSION;
 
     async function ensureServer() {
         if (externalUri) {
@@ -25,6 +26,7 @@ function createMemoryServerBootstrap(options = {}) {
             memoryServerPromise = (async () => {
                 const { MongoMemoryServer } = require('mongodb-memory-server');
                 memoryServerInstance = await MongoMemoryServer.create({
+                    ...(binaryVersion ? { binary: { version: binaryVersion } } : {}),
                     instance: {
                         dbName: options.dbName || 'monsqlize_p2a',
                     },

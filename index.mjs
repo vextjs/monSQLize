@@ -5,6 +5,106 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
   throw Error('Dynamic require of "' + x + '" is not supported');
 });
 
+// src/entry/runtime-core.ts
+import { EventEmitter } from "node:events";
+
+// src/capabilities/cache/memory-cache.ts
+import { MemoryCache as HubMemoryCache } from "cache-hub";
+var MemoryCache = class _MemoryCache {
+  constructor(options = {}) {
+    this._lockManager = null;
+    this._calls = 0;
+    const { maxSize, ...rest } = options;
+    this._hub = new HubMemoryCache({
+      ...rest,
+      maxEntries: rest.maxEntries ?? maxSize
+    });
+  }
+  setLockManager(lockManager) {
+    this._lockManager = lockManager;
+  }
+  getLockManager() {
+    return this._lockManager;
+  }
+  get(key) {
+    this._calls += 1;
+    return this._hub.get(key);
+  }
+  set(key, value, ttl = 0) {
+    if (this._lockManager?.isLocked(key)) {
+      return false;
+    }
+    this._hub.set(key, value, ttl);
+    return true;
+  }
+  delete(key) {
+    return this._hub.del(key);
+  }
+  del(key) {
+    return this.delete(key);
+  }
+  exists(key) {
+    return this._hub.exists(key);
+  }
+  getMany(keys) {
+    const output = {};
+    for (const key of keys) {
+      const value = this.get(key);
+      if (value !== void 0) {
+        output[key] = value;
+      }
+    }
+    return output;
+  }
+  setMany(values, ttl = 0) {
+    for (const [key, value] of Object.entries(values)) {
+      this.set(key, value, ttl);
+    }
+    return true;
+  }
+  delMany(keys) {
+    let deleted = 0;
+    for (const key of keys) {
+      if (this.delete(key)) {
+        deleted += 1;
+      }
+    }
+    return deleted;
+  }
+  clear() {
+    this._hub.clear();
+  }
+  keys(pattern = "*") {
+    return this._hub.keys(pattern);
+  }
+  delPattern(pattern = "*") {
+    return this._hub.delPattern(pattern);
+  }
+  getStats() {
+    const s = this._hub.getStats();
+    const calls = this._calls;
+    return {
+      hits: s.hits,
+      misses: s.misses,
+      calls,
+      hitRate: calls > 0 ? s.hits / calls : 0,
+      sets: s.sets,
+      deletes: s.deletes,
+      evictions: s.evictions,
+      size: s.entries,
+      memoryUsage: s.memoryUsage,
+      memoryUsageMB: s.memoryUsageMB
+    };
+  }
+  resetStats() {
+    this._hub.resetStats();
+    this._calls = 0;
+  }
+  static getOrCreateCache(cache) {
+    return cache instanceof _MemoryCache ? cache : new _MemoryCache(cache);
+  }
+};
+
 // src/core/errors/index.ts
 var ErrorCodes = {
   INVALID_ARGUMENT: "INVALID_ARGUMENT",
@@ -89,6 +189,3418 @@ function createError(code, message, details, cause) {
 }
 function createConnectionError(message, cause) {
   return createError(ErrorCodes.CONNECTION_FAILED, message, void 0, cause);
+}
+
+// src/capabilities/cache/redis-cache-adapter.ts
+function createRedisCacheAdapter(redisUrlOrInstance, adapterOptions = {}) {
+  const { client, prefix, ownsConnection } = resolveRedisClient(redisUrlOrInstance, adapterOptions);
+  const withPrefix = (key) => `${prefix}${key}`;
+  const stripPrefix = (key) => key.startsWith(prefix) ? key.slice(prefix.length) : key;
+  const getValue = async (key) => {
+    const value = await Promise.resolve(client.get(withPrefix(key)));
+    if (value === null || value === void 0) {
+      return null;
+    }
+    try {
+      return JSON.parse(String(value));
+    } catch {
+      return null;
+    }
+  };
+  const keysFn = async (pattern = "*") => {
+    const prefixedPattern = withPrefix(pattern);
+    const keys = [];
+    if (client.scan) {
+      let cursor = "0";
+      do {
+        const [nextCursor, foundKeys] = await Promise.resolve(client.scan(cursor, "MATCH", prefixedPattern, "COUNT", 100));
+        cursor = nextCursor;
+        keys.push(...foundKeys.map(stripPrefix));
+      } while (cursor !== "0");
+      return keys;
+    }
+    throw createError(ErrorCodes.INVALID_CONFIG, "Redis cache adapter requires scan() support for keys().");
+  };
+  const delManyFn = async (keys) => {
+    if (keys.length === 0) {
+      return 0;
+    }
+    return Number(await Promise.resolve(client.del(...keys.map(withPrefix))));
+  };
+  return {
+    get: getValue,
+    async set(key, value, ttl = 0) {
+      const payload = JSON.stringify(value);
+      if (ttl > 0 && client.psetex) {
+        await Promise.resolve(client.psetex(withPrefix(key), ttl, payload));
+      } else {
+        await Promise.resolve(client.set(withPrefix(key), payload));
+      }
+      return true;
+    },
+    async del(key) {
+      const deleted = await Promise.resolve(client.del(withPrefix(key)));
+      return Number(deleted) > 0;
+    },
+    async delete(key) {
+      const deleted = await Promise.resolve(client.del(withPrefix(key)));
+      return Number(deleted) > 0;
+    },
+    async exists(key) {
+      const exists = await Promise.resolve(client.exists(withPrefix(key)));
+      return typeof exists === "boolean" ? exists : Number(exists) > 0;
+    },
+    async getMany(keys) {
+      const values = {};
+      if (keys.length === 0) {
+        return values;
+      }
+      if (client.mget) {
+        const response = await Promise.resolve(client.mget(keys.map(withPrefix)));
+        keys.forEach((key, index) => {
+          const raw = response[index];
+          if (raw === null || raw === void 0) {
+            return;
+          }
+          try {
+            values[key] = JSON.parse(String(raw));
+          } catch {
+          }
+        });
+        return values;
+      }
+      for (const key of keys) {
+        const value = await getValue(key);
+        if (value !== void 0) {
+          values[key] = value;
+        }
+      }
+      return values;
+    },
+    async setMany(values, ttl = 0) {
+      for (const [key, value] of Object.entries(values)) {
+        await this.set(key, value, ttl);
+      }
+      return true;
+    },
+    delMany: delManyFn,
+    async delPattern(pattern) {
+      const keys = await keysFn(pattern);
+      return delManyFn(keys);
+    },
+    async clear() {
+      if (client.flushdb) {
+        await Promise.resolve(client.flushdb());
+      } else {
+        const keys = await keysFn("*");
+        await delManyFn(keys);
+      }
+    },
+    keys: keysFn,
+    async close() {
+      if (ownsConnection && client.quit) {
+        await Promise.resolve(client.quit());
+      }
+    },
+    getRedisInstance() {
+      return client;
+    }
+  };
+}
+function resolveRedisClient(redisUrlOrInstance, adapterOptions) {
+  if (typeof redisUrlOrInstance === "string") {
+    try {
+      const IORedis = __require("ioredis");
+      return {
+        client: new IORedis(redisUrlOrInstance),
+        prefix: String(adapterOptions.prefix ?? ""),
+        ownsConnection: true
+      };
+    } catch {
+      throw createError(ErrorCodes.INVALID_CONFIG, "ioredis is required to create a Redis cache adapter from URL.");
+    }
+  }
+  if (redisUrlOrInstance && typeof redisUrlOrInstance === "object" && "client" in redisUrlOrInstance && redisUrlOrInstance.client) {
+    const options = redisUrlOrInstance;
+    return {
+      client: options.client,
+      prefix: String(options.prefix ?? ""),
+      ownsConnection: false
+    };
+  }
+  if (redisUrlOrInstance && typeof redisUrlOrInstance === "object") {
+    return {
+      client: redisUrlOrInstance,
+      prefix: String(adapterOptions.prefix ?? ""),
+      ownsConnection: false
+    };
+  }
+  throw createError(ErrorCodes.INVALID_ARGUMENT, "redisUrlOrInstance must be a Redis URL string or Redis client instance.");
+}
+
+// src/capabilities/cache/distributed-cache-invalidator.ts
+var DistributedCacheInvalidator = class {
+  constructor(options = {}) {
+    this._ownsConnections = false;
+    this.stats = {
+      messagesSent: 0,
+      messagesReceived: 0,
+      invalidationsTriggered: 0,
+      errors: 0
+    };
+    if (!options.cache) {
+      throw createError(ErrorCodes.INVALID_CONFIG, "DistributedCacheInvalidator requires a cache instance");
+    }
+    this.channel = options.channel ?? "monsqlize:cache:invalidate";
+    this.instanceId = options.instanceId ?? `instance-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    this.logger = options.logger;
+    const cache = options.cache;
+    if ("local" in cache || "remote" in cache) {
+      const scopedCache = options.cache;
+      this.local = scopedCache.local;
+      this.remote = scopedCache.remote;
+    } else {
+      this.local = options.cache;
+    }
+    if (options.redis) {
+      this.pub = options.redis;
+      this.sub = options.redis;
+      this._ownsConnections = false;
+    } else if (options.redisUrl) {
+      const IoRedis = __require("ioredis");
+      this.pub = new IoRedis(options.redisUrl);
+      this.sub = new IoRedis(options.redisUrl);
+      this._ownsConnections = true;
+    } else {
+      this.pub = options.pub;
+      this.sub = options.sub;
+    }
+    if (this.pub && this.pub.on) {
+      this.pub.on("error", (err) => {
+        this.stats.errors++;
+        this.logger?.error?.("[DistributedCacheInvalidator] Redis pub error:", err.message);
+      });
+    }
+    if (this.sub && this.sub !== this.pub && this.sub.on) {
+      this.sub.on("error", (err) => {
+        this.stats.errors++;
+        this.logger?.error?.("[DistributedCacheInvalidator] Redis sub error:", err.message);
+      });
+    }
+    if (this.sub) {
+      this._setupSubscription();
+    }
+  }
+  _setupSubscription() {
+    this.sub.subscribe(this.channel, (err) => {
+      if (err) {
+        this.stats.errors++;
+        this.logger?.error?.("[DistributedCacheInvalidator] Subscribe error:", err.message);
+      } else {
+        this.logger?.info?.(`[DistributedCacheInvalidator] Subscribed to channel: ${this.channel}`);
+      }
+    });
+    this.sub.on("message", async (channel, message) => {
+      if (channel !== this.channel) return;
+      this.stats.messagesReceived++;
+      try {
+        const data = JSON.parse(message);
+        if (data.instanceId === this.instanceId) return;
+        if (data.type === "invalidate" && data.pattern) {
+          await this._handleInvalidation(data.pattern);
+        }
+      } catch (error) {
+        this.stats.errors++;
+        this.logger?.error?.("[DistributedCacheInvalidator] Message parse error:", error.message);
+      }
+    });
+  }
+  async _handleInvalidation(pattern) {
+    try {
+      if (this.local?.delPattern) {
+        const localDeleted = Number(await Promise.resolve(this.local.delPattern(pattern)));
+        this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated local cache: ${pattern}, deleted: ${localDeleted} keys`);
+      }
+      if (this.remote?.delPattern) {
+        const remoteDeleted = Number(await Promise.resolve(this.remote.delPattern(pattern)));
+        this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated remote cache: ${pattern}, deleted: ${remoteDeleted} keys`);
+      }
+      this.stats.invalidationsTriggered++;
+    } catch (error) {
+      this.stats.errors++;
+      this.logger?.error?.("[DistributedCacheInvalidator] Invalidation error:", error.message);
+    }
+  }
+  async invalidate(pattern) {
+    if (!pattern) return;
+    await this._handleInvalidation(pattern);
+    if (!this.pub) return;
+    const message = JSON.stringify({
+      type: "invalidate",
+      pattern,
+      instanceId: this.instanceId,
+      timestamp: Date.now()
+    });
+    try {
+      await Promise.resolve(this.pub.publish(this.channel, message));
+      this.stats.messagesSent++;
+      this.logger?.debug?.(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
+    } catch (error) {
+      this.stats.errors++;
+      this.logger?.error?.("[DistributedCacheInvalidator] Publish error:", error.message);
+      throw error;
+    }
+  }
+  async handleMessage(channel, message) {
+    if (channel !== this.channel) return;
+    this.stats.messagesReceived++;
+    try {
+      const data = JSON.parse(message);
+      if (data.instanceId === this.instanceId || data.type !== "invalidate" || !data.pattern) return;
+      await this._handleInvalidation(data.pattern);
+    } catch (cause) {
+      this.stats.errors++;
+      this.logger?.error?.("[DistributedCacheInvalidator] Failed to parse message", cause);
+    }
+  }
+  getStats() {
+    return {
+      ...this.stats,
+      channel: this.channel,
+      instanceId: this.instanceId
+    };
+  }
+  async close() {
+    try {
+      if (this.sub?.unsubscribe) {
+        await Promise.resolve(this.sub.unsubscribe(this.channel));
+      }
+      if (this.pub?.quit) {
+        await Promise.resolve(this.pub.quit());
+      }
+      if (this.sub?.quit) {
+        await Promise.resolve(this.sub.quit());
+      }
+      this.logger?.info?.("[DistributedCacheInvalidator] Closed");
+    } catch (error) {
+      this.logger?.error?.("[DistributedCacheInvalidator] Close error:", error.message);
+    }
+  }
+};
+
+// src/capabilities/model/schema-dsl.ts
+var _schemaDslFn = null;
+var _schemaValidateFn = null;
+try {
+  const mod = __require("schema-dsl");
+  _schemaDslFn = mod.dsl;
+  _schemaValidateFn = mod.validate;
+} catch {
+}
+var KNOWN_SCHEMA_BASE_TYPES = /* @__PURE__ */ new Set([
+  "string",
+  "number",
+  "boolean",
+  "integer",
+  "float",
+  "int",
+  "double",
+  "decimal",
+  "date",
+  "objectid",
+  "uuid",
+  "email",
+  "url",
+  "buffer",
+  "binary",
+  "object",
+  "array",
+  "any",
+  "mixed",
+  "null"
+]);
+function _extractBaseType(typeStr) {
+  const m = typeStr.match(/^[a-zA-Z_]+/);
+  return m ? m[0].toLowerCase() : "";
+}
+function _makeValidatingDslFn(realDsl) {
+  const validating = function validatingDsl(fields) {
+    if (fields && typeof fields === "object") {
+      for (const [field, spec] of Object.entries(fields)) {
+        if (typeof spec === "string") {
+          if (spec.includes("|")) {
+            continue;
+          }
+          const base = _extractBaseType(spec);
+          if (base && !KNOWN_SCHEMA_BASE_TYPES.has(base)) {
+            throw new TypeError(
+              `[schema] Invalid type "${base}" in field "${field}". Known types: ${[...KNOWN_SCHEMA_BASE_TYPES].join(", ")}.`
+            );
+          }
+        }
+      }
+    }
+    return realDsl(fields);
+  };
+  return validating;
+}
+
+// src/capabilities/model/populate-promise.ts
+var _a;
+_a = Symbol.toStringTag;
+var _PopulatePromise = class _PopulatePromise {
+  constructor(executor, paths = []) {
+    this.executor = executor;
+    this.paths = paths;
+    this[_a] = "Promise";
+  }
+  /**
+   * 追加一个 populate 路径，返回新的 PopulatePromise（链式调用）。
+   */
+  populate(path2, options) {
+    const config = typeof path2 === "string" ? { path: path2, ...options } : { ...path2, ...options };
+    return new _PopulatePromise(this.executor, [...this.paths, config]);
+  }
+  /**
+   * 触发实际查询并填充关联文档，返回最终结果 Promise。
+   */
+  exec() {
+    return this.executor(this.paths);
+  }
+  then(onfulfilled, onrejected) {
+    return this.exec().then(onfulfilled ?? void 0, onrejected ?? void 0);
+  }
+  catch(onrejected) {
+    return this.exec().catch(onrejected ?? void 0);
+  }
+  finally(onfinally) {
+    return this.exec().finally(onfinally ?? void 0);
+  }
+};
+var PopulatePromise = _PopulatePromise;
+
+// src/capabilities/model/definition-validator.ts
+function validateCollectionName(collectionName) {
+  if (!collectionName || typeof collectionName !== "string" || collectionName.trim() === "") {
+    throw createError(ErrorCodes.INVALID_COLLECTION_NAME, "Collection name must be a non-empty string.");
+  }
+  if (/[$.\s\x00]/.test(collectionName)) {
+    throw createError(ErrorCodes.INVALID_COLLECTION_NAME, "Invalid collection name: contains special characters ($, ., space, or null character).");
+  }
+  return collectionName;
+}
+function processTimestamps(definition) {
+  const tsOpt = definition.options?.timestamps;
+  if (tsOpt === null) return;
+  if (tsOpt !== void 0 && typeof tsOpt !== "boolean" && typeof tsOpt !== "object") {
+    throw createError(ErrorCodes.INVALID_MODEL_DEFINITION, "options.timestamps must be boolean or object.");
+  }
+  if (!tsOpt && tsOpt !== false) {
+    return;
+  }
+  const defAny = definition;
+  if (!defAny._internalHooks) defAny._internalHooks = {};
+  if (tsOpt === false) {
+    defAny._internalHooks.timestamps = void 0;
+    return;
+  }
+  if (tsOpt === true) {
+    defAny._internalHooks.timestamps = { createdAt: "createdAt", updatedAt: "updatedAt" };
+    return;
+  }
+  const result = {};
+  let createdAtAdded = false;
+  const ca = tsOpt.createdAt;
+  if (ca === false) {
+  } else if (ca === true) {
+    result.createdAt = "createdAt";
+    createdAtAdded = true;
+  } else if (typeof ca === "string") {
+    result.createdAt = ca;
+    createdAtAdded = true;
+  }
+  const ua = tsOpt.updatedAt;
+  if (ua === false) {
+  } else if (ua === true) {
+    result.updatedAt = "updatedAt";
+  } else if (typeof ua === "string") {
+    result.updatedAt = ua;
+  } else if (ua === void 0 && createdAtAdded) {
+    result.updatedAt = "updatedAt";
+  }
+  defAny._internalHooks.timestamps = Object.keys(result).length ? result : void 0;
+}
+function validateDefinition(definition) {
+  if (!definition || typeof definition !== "object") {
+    throw createError(ErrorCodes.INVALID_MODEL_DEFINITION, "Model definition must be an object.");
+  }
+  if (definition.schema === void 0 || definition.schema === null) {
+    throw createError(ErrorCodes.MISSING_SCHEMA, "Model definition must include a schema property.");
+  }
+  if (typeof definition.schema !== "function" && (typeof definition.schema !== "object" || definition.schema === null)) {
+    throw createError(ErrorCodes.INVALID_SCHEMA_TYPE, "Schema must be a function or object.");
+  }
+  if (definition.connection) {
+    if (definition.connection.pool !== void 0 && (typeof definition.connection.pool !== "string" || definition.connection.pool.trim() === "")) {
+      throw createError(ErrorCodes.INVALID_MODEL_DEFINITION, "connection.pool must be a non-empty string.");
+    }
+    if (definition.connection.database !== void 0 && (typeof definition.connection.database !== "string" || definition.connection.database.trim() === "")) {
+      throw createError(ErrorCodes.INVALID_MODEL_DEFINITION, "connection.database must be a non-empty string.");
+    }
+  }
+  for (const [name, config] of Object.entries(definition.relations ?? {})) {
+    validateRelationConfig(name, config);
+  }
+}
+function validateRelationConfig(name, config) {
+  if (!name || typeof name !== "string") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "Relation name must be a non-empty string.");
+  }
+  if (!config || typeof config !== "object") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `Relation '${name}' must be an object.`);
+  }
+  for (const field of ["from", "localField", "foreignField"]) {
+    const value = config[field];
+    if (value === void 0 || value === null) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, `relations \u914D\u7F6E\u7F3A\u5C11\u5FC5\u9700\u5B57\u6BB5: ${field}`);
+    }
+    if (typeof value !== "string" || value.trim() === "") {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
+    }
+  }
+  if (config.single !== void 0 && typeof config.single !== "boolean") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.single \u5FC5\u987B\u662F\u5E03\u5C14\u503C`);
+  }
+}
+function normalizePopulateConfig(path2) {
+  return typeof path2 === "string" ? { path: path2 } : path2;
+}
+
+// src/capabilities/model/model-registry.ts
+var Model = class {
+  static {
+    // 集合名 → 已注册 Model 定义
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.registry = /* @__PURE__ */ new Map();
+  }
+  static {
+    // 集合名 → 版本号（每次 define/redefine/undefine 自增，用于热重载检测）
+    this.revisions = /* @__PURE__ */ new Map();
+  }
+  static {
+    /** 被 redefine 过的集合名集合（供运行时触发热重载使用）。 */
+    this._redefinedNames = /* @__PURE__ */ new Set();
+  }
+  /**
+   * 注册一个新的 Model 定义。
+   * 若同名 Model 已存在，抛出 MODEL_ALREADY_EXISTS 错误。
+   * 注册时会同步校验 definition 合法性、解析 timestamps 选项、以及预校验 schema 类型字符串。
+   */
+  static define(collectionName, definition) {
+    const normalizedName = validateCollectionName(collectionName);
+    if (this.registry.has(normalizedName)) {
+      throw createError(ErrorCodes.MODEL_ALREADY_EXISTS, `Model '${normalizedName}' is already defined.`);
+    }
+    validateDefinition(definition);
+    processTimestamps(definition);
+    if (_schemaDslFn !== null && typeof definition.schema === "function") {
+      const validatingDsl = _makeValidatingDslFn(_schemaDslFn);
+      try {
+        definition.schema(validatingDsl);
+      } catch (err) {
+        if (err instanceof TypeError && err.message.includes("[schema] Invalid type")) {
+          throw err;
+        }
+      }
+    }
+    this.registry.set(normalizedName, {
+      collectionName: normalizedName,
+      definition
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    });
+    this.bumpRevision(normalizedName);
+  }
+  /**
+   * 查询已注册的 Model 定义，不存在时返回 undefined。
+   */
+  static get(collectionName) {
+    return this.registry.get(collectionName);
+  }
+  /** 检查指定集合名是否已注册。 */
+  static has(collectionName) {
+    return this.registry.has(collectionName);
+  }
+  /** 返回所有已注册的集合名列表。 */
+  static list() {
+    return [...this.registry.keys()];
+  }
+  /**
+   * 取消注册指定集合名的 Model 定义。
+   * 返回 true 表示条目存在并已删除，false 表示条目不存在。
+   */
+  static undefine(collectionName) {
+    const existed = this.registry.delete(collectionName);
+    this.bumpRevision(collectionName);
+    return existed;
+  }
+  /**
+   * 重新注册 Model（先删除旧条目再注册）。
+   * v1 兼容语义：若校验失败，旧条目不回滚（已删除状态）。
+   * 用于热重载场景，通过 _redefinedNames 通知运行时。
+   */
+  static redefine(collectionName, definition) {
+    const normalizedName = validateCollectionName(collectionName);
+    this.registry.delete(normalizedName);
+    validateDefinition(definition);
+    processTimestamps(definition);
+    this._redefinedNames.add(normalizedName);
+    this.registry.set(normalizedName, {
+      collectionName: normalizedName,
+      definition
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    });
+    this.bumpRevision(normalizedName);
+  }
+  /**
+   * 清空所有注册表（仅供测试框架使用）。
+   * 所有已注册集合名会被标记为 _redefinedNames，revision 自增。
+   */
+  static _clear() {
+    const names = [...this.registry.keys()];
+    for (const name of names) {
+      this._redefinedNames.add(name);
+      this.bumpRevision(name);
+    }
+    this.registry.clear();
+  }
+  /**
+   * 获取指定集合名的当前 revision（版本号）。
+   * 每次 define / redefine / undefine 后自增，用于运行时热重载检测。
+   */
+  static getRevision(collectionName) {
+    return this.revisions.get(collectionName) ?? 0;
+  }
+  static bumpRevision(collectionName) {
+    this.revisions.set(collectionName, (this.revisions.get(collectionName) ?? 0) + 1);
+  }
+};
+
+// src/capabilities/model/model-utils.ts
+function toKey(value) {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (typeof value === "object" && value !== null) {
+    const candidate = value;
+    if (typeof candidate.toHexString === "function") {
+      return candidate.toHexString();
+    }
+    if (typeof candidate.toString === "function") {
+      return candidate.toString();
+    }
+  }
+  return String(value);
+}
+function unique(values) {
+  const map = /* @__PURE__ */ new Map();
+  for (const value of values) {
+    const key = toKey(value);
+    if (!map.has(key)) {
+      map.set(key, value);
+    }
+  }
+  return [...map.values()];
+}
+function groupBy(values, keySelector) {
+  const map = /* @__PURE__ */ new Map();
+  for (const value of values) {
+    const key = toKey(keySelector(value));
+    const group = map.get(key);
+    if (group) {
+      group.push(value);
+    } else {
+      map.set(key, [value]);
+    }
+  }
+  return map;
+}
+function getByPath(source, path2) {
+  return path2.split(".").reduce((current, key) => {
+    if (!current || typeof current !== "object") {
+      return void 0;
+    }
+    return current[key];
+  }, source);
+}
+function pickFields(document, select, alwaysInclude = []) {
+  const keys = Array.isArray(select) ? select : select.split(/\s+/).filter(Boolean);
+  const result = {};
+  for (const key of [.../* @__PURE__ */ new Set([...keys, ...alwaysInclude])]) {
+    if (key in document) {
+      result[key] = document[key];
+    }
+  }
+  if ("_id" in document && !("_id" in result)) {
+    result._id = document._id;
+  }
+  return result;
+}
+function applySort(values, sort) {
+  const entries = Object.entries(sort);
+  return [...values].sort((left, right) => {
+    for (const [field, direction] of entries) {
+      const leftValue = getByPath(left, field);
+      const rightValue = getByPath(right, field);
+      if (leftValue === rightValue) {
+        continue;
+      }
+      const result = leftValue > rightValue ? 1 : -1;
+      return result * direction;
+    }
+    return 0;
+  });
+}
+function serializeDocument(document) {
+  const plain = {};
+  for (const [key, value] of Object.entries(document)) {
+    if (typeof value !== "function") {
+      plain[key] = value;
+    }
+  }
+  return plain;
+}
+
+// src/capabilities/model/model-instance-helpers.ts
+async function populateModelPath(context, docs, path2) {
+  const config = normalizePopulateConfig(path2);
+  if (docs.length === 0) {
+    return docs;
+  }
+  const relation = context.relations.get(config.path);
+  if (!relation) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `\u672A\u5B9A\u4E49\u7684\u5173\u7CFB: ${config.path}`);
+  }
+  const keys = unique(
+    docs.map((doc) => getByPath(doc, relation.localField)).filter((value) => value !== void 0 && value !== null)
+  );
+  if (keys.length === 0) {
+    for (const doc of docs) {
+      doc[config.path] = relation.single ? null : [];
+    }
+    return docs;
+  }
+  const registered = Model.get(relation.from);
+  const scope = {
+    database: registered?.definition.connection?.database ?? context.dbName,
+    pool: registered?.definition.connection?.pool ?? context.poolName
+  };
+  const relatedCollection = context.runtime.scopedCollection(relation.from, scope);
+  const relatedModel = Model.has(relation.from) ? context.runtime.scopedModel(relation.from, scope) : null;
+  const relatedDocs = await relatedCollection.find({
+    [relation.foreignField]: { $in: keys },
+    ...config.match ?? {}
+  });
+  let hydrated = relatedModel ? relatedModel.hydrateDocuments(relatedDocs) : relatedDocs.map((item) => ({ ...item }));
+  if (config.sort) {
+    hydrated = applySort(hydrated, config.sort);
+  }
+  if (config.skip) {
+    hydrated = hydrated.slice(config.skip);
+  }
+  if (config.limit !== void 0) {
+    hydrated = hydrated.slice(0, config.limit);
+  }
+  if (config.select) {
+    const select = config.select;
+    hydrated = hydrated.map((item) => pickFields(item, select, [relation.foreignField]));
+  }
+  if (config.populate) {
+    const nestedRaw = config.populate;
+    const isValidNestedConfig = (value) => {
+      if (typeof value === "string" || Array.isArray(value)) return true;
+      if (typeof value === "object" && value !== null && value.path) return true;
+      return false;
+    };
+    if (!isValidNestedConfig(nestedRaw)) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "\u5D4C\u5957 populate \u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u3001\u6570\u7EC4\u6216\u5BF9\u8C61");
+    }
+    if (relatedModel) {
+      const nestedPaths = Array.isArray(config.populate) ? config.populate : [config.populate];
+      hydrated = await relatedModel.populateDocuments(hydrated, nestedPaths);
+    }
+  }
+  const grouped = groupBy(hydrated, (item) => getByPath(item, relation.foreignField));
+  for (const doc of docs) {
+    const localValue = getByPath(doc, relation.localField);
+    const matches = grouped.get(toKey(localValue)) ?? [];
+    doc[config.path] = relation.single ? matches[0] ?? null : [...matches];
+  }
+  return docs;
+}
+function hydrateModelDocument(context, doc) {
+  if (!doc || typeof doc !== "object") {
+    return null;
+  }
+  const hydrated = { ...doc };
+  for (const [name, virtual] of Object.entries(context.definition.virtuals ?? {})) {
+    Object.defineProperty(hydrated, name, {
+      configurable: true,
+      enumerable: true,
+      get: () => virtual.get.call(hydrated),
+      set: virtual.set ? (value) => virtual.set?.call(hydrated, value) : void 0
+    });
+  }
+  if (typeof context.definition.methods === "function") {
+    for (const [name, method] of Object.entries(context.v1InstanceMethods)) {
+      Object.defineProperty(hydrated, name, {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: (...args) => method.apply(hydrated, args)
+      });
+    }
+  } else {
+    for (const [name, method] of Object.entries(context.definition.methods ?? {})) {
+      Object.defineProperty(hydrated, name, {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: (...args) => method.apply(hydrated, args)
+      });
+    }
+  }
+  Object.defineProperties(hydrated, {
+    save: {
+      configurable: true,
+      enumerable: false,
+      value: async () => context.saveDocument(hydrated)
+    },
+    remove: {
+      configurable: true,
+      enumerable: false,
+      value: async () => context.removeDocument(hydrated)
+    },
+    validate: {
+      configurable: true,
+      enumerable: false,
+      value: async () => context.validateDocument(hydrated)
+    },
+    toObject: {
+      configurable: true,
+      enumerable: false,
+      value: () => serializeDocument(hydrated)
+    },
+    toJSON: {
+      configurable: true,
+      enumerable: false,
+      value: () => serializeDocument(hydrated)
+    }
+  });
+  return hydrated;
+}
+function validateModelDocument(runtime, document) {
+  try {
+    if (runtime.schemaError) {
+      return {
+        valid: false,
+        errors: [{ field: "_schema", message: `Schema validation failed: ${runtime.schemaError.message}` }]
+      };
+    }
+    if (!runtime.schemaCache || !runtime.schemaValidateFn) {
+      return { valid: true, errors: [] };
+    }
+    const result = runtime.schemaValidateFn(runtime.schemaCache, document ?? {});
+    return {
+      valid: result.valid,
+      errors: (result.errors ?? []).map((error) => ({
+        field: error.field ?? error.path ?? "",
+        message: error.message ?? ""
+      }))
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      errors: [{ field: "_schema", message: `Schema validation failed: ${error instanceof Error ? error.message : String(error)}` }]
+    };
+  }
+}
+function applyModelDefaults(definition, document) {
+  const payload = { ...document ?? {} };
+  for (const [key, value] of Object.entries(definition.defaults ?? {})) {
+    if (payload[key] === void 0) {
+      payload[key] = typeof value === "function" ? value(void 0, payload) : value;
+    }
+  }
+  return payload;
+}
+async function saveModelDocument(collection, document) {
+  const payload = serializeDocument(document);
+  if (payload._id !== void 0) {
+    await collection.replaceOne({ _id: payload._id }, payload, { upsert: true });
+    return document;
+  }
+  const result = await collection.insertOne(payload);
+  document._id = result.insertedId;
+  return document;
+}
+async function removeModelDocument(collection, document) {
+  if (document._id === void 0) {
+    return false;
+  }
+  const result = await collection.deleteOne({ _id: document._id });
+  return Boolean(result.deletedCount ?? result.acknowledged);
+}
+
+// src/capabilities/model/model-soft-delete-helpers.ts
+function deletedFilter(filter, softDeleteConfig) {
+  if (!softDeleteConfig) {
+    return filter ?? {};
+  }
+  return { ...filter ?? {}, [softDeleteConfig.field]: { $ne: null } };
+}
+function findWithDeletedDocuments(context, query, options) {
+  return new PopulatePromise(async (paths) => {
+    const opts = { ...options ?? {}, withDeleted: true };
+    const docs = await context.collection.find(query, opts);
+    return context.populateDocuments(context.hydrateDocuments(docs), paths);
+  });
+}
+function findOnlyDeletedDocuments(context, query, options) {
+  return new PopulatePromise(async (paths) => {
+    const docs = await context.collection.find(deletedFilter(query, context.softDeleteConfig), options);
+    return context.populateDocuments(context.hydrateDocuments(docs), paths);
+  });
+}
+function findOneWithDeletedDocument(context, query, options) {
+  return new PopulatePromise(async (paths) => {
+    const opts = { ...options ?? {}, withDeleted: true };
+    const doc = await context.collection.findOne(query, opts);
+    return context.populateSingle(context.hydrateDocument(doc), paths);
+  });
+}
+function findOneOnlyDeletedDocument(context, query, options) {
+  return new PopulatePromise(async (paths) => {
+    const doc = await context.collection.findOne(deletedFilter(query, context.softDeleteConfig), options);
+    return context.populateSingle(context.hydrateDocument(doc), paths);
+  });
+}
+function countWithDeletedDocuments(context, query, options) {
+  return context.collection.count(query, { ...options ?? {}, withDeleted: true });
+}
+function countOnlyDeletedDocuments(context, query, options) {
+  return context.collection.count(
+    deletedFilter(query, context.softDeleteConfig),
+    { ...options ?? {}, withDeleted: true }
+  );
+}
+function restoreSoftDeletedDocuments(context, filter, options) {
+  const softDeleteConfig = context.softDeleteConfig;
+  if (!softDeleteConfig?.enabled) {
+    return Promise.resolve({ modifiedCount: 0 });
+  }
+  return context.collection.updateOne(
+    { ...filter ?? {}, [softDeleteConfig.field]: { $ne: null } },
+    { $unset: { [softDeleteConfig.field]: 1 } },
+    options
+  );
+}
+function restoreManySoftDeletedDocuments(context, filter, options) {
+  const softDeleteConfig = context.softDeleteConfig;
+  if (!softDeleteConfig?.enabled) {
+    return Promise.resolve({ modifiedCount: 0 });
+  }
+  return context.collection.updateMany(
+    { ...filter ?? {}, [softDeleteConfig.field]: { $ne: null } },
+    { $unset: { [softDeleteConfig.field]: 1 } },
+    options
+  );
+}
+function forceDeleteDocument(context, filter, options) {
+  return context.collection.deleteOne(filter, options);
+}
+function forceDeleteManyDocuments(context, filter, options) {
+  return context.collection.deleteMany(filter, options);
+}
+
+// src/capabilities/model/model-instance-config.ts
+function toCompatDefinition(definition) {
+  return definition;
+}
+function getModelEnums(definition) {
+  return toCompatDefinition(definition).enums ?? {};
+}
+function attachModelStatics(target, definition) {
+  const compat = toCompatDefinition(definition);
+  if (typeof compat.methods === "function") {
+    return;
+  }
+  for (const [name, handler] of Object.entries(compat.statics ?? {})) {
+    if (typeof handler === "function" && !(name in target)) {
+      Object.defineProperty(target, name, {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: (...args) => handler.apply(target, args)
+      });
+    }
+  }
+}
+function buildModelSchemaState(definition) {
+  const compat = toCompatDefinition(definition);
+  if (_schemaDslFn === null || typeof compat.schema !== "function") {
+    return {
+      schemaCache: null,
+      schemaError: null
+    };
+  }
+  const validatingDsl = _makeValidatingDslFn(_schemaDslFn);
+  try {
+    return {
+      schemaCache: compat.schema.call(definition, validatingDsl),
+      schemaError: null
+    };
+  } catch (error) {
+    const schemaError = error instanceof Error ? error : new Error(String(error));
+    if (schemaError instanceof TypeError && schemaError.message.includes("[schema] Invalid type")) {
+      throw schemaError;
+    }
+    return {
+      schemaCache: null,
+      schemaError
+    };
+  }
+}
+function isModelValidationEnabled(definition) {
+  return toCompatDefinition(definition).options?.validate !== false;
+}
+function resolveModelTimestampsConfig(definition) {
+  const timestamps = toCompatDefinition(definition).options?.timestamps;
+  if (timestamps == null || timestamps === false) {
+    return null;
+  }
+  if (timestamps === true) {
+    return {
+      createdAt: "createdAt",
+      updatedAt: "updatedAt"
+    };
+  }
+  return {
+    createdAt: timestamps.createdAt === false ? false : typeof timestamps.createdAt === "string" ? timestamps.createdAt : "createdAt",
+    updatedAt: timestamps.updatedAt === false ? false : typeof timestamps.updatedAt === "string" ? timestamps.updatedAt : "updatedAt"
+  };
+}
+function resolveModelSoftDeleteConfig(definition) {
+  const softDelete = toCompatDefinition(definition).options?.softDelete;
+  if (!softDelete) {
+    return null;
+  }
+  if (softDelete === true) {
+    return {
+      enabled: true,
+      field: "deletedAt",
+      type: "timestamp",
+      ttl: null
+    };
+  }
+  return {
+    enabled: softDelete.enabled !== false,
+    field: softDelete.field ?? "deletedAt",
+    type: softDelete.type ?? "timestamp",
+    ttl: softDelete.ttl ?? null
+  };
+}
+function resolveModelVersionConfig(definition) {
+  const version = toCompatDefinition(definition).options?.version;
+  if (!version) {
+    return null;
+  }
+  if (version === true) {
+    return {
+      enabled: true,
+      field: "version"
+    };
+  }
+  return {
+    enabled: version.enabled !== false,
+    field: version.field ?? "version"
+  };
+}
+function resolveModelHooksFactory(definition) {
+  const hooks = toCompatDefinition(definition).hooks;
+  return typeof hooks === "function" ? hooks : null;
+}
+function initializeModelV1Methods(target, definition) {
+  const methods = toCompatDefinition(definition).methods;
+  if (typeof methods !== "function") {
+    return {};
+  }
+  try {
+    const customMethods = methods(target);
+    for (const [name, fn] of Object.entries(customMethods.static ?? {})) {
+      if (typeof fn === "function" && !(name in target)) {
+        Object.defineProperty(target, name, {
+          configurable: true,
+          enumerable: false,
+          writable: false,
+          value: (...args) => fn.apply(target, args)
+        });
+      }
+    }
+    return customMethods.instance ?? {};
+  } catch {
+    return {};
+  }
+}
+function scheduleModelIndexes(collection, definition, softDeleteConfig) {
+  if (softDeleteConfig?.enabled && softDeleteConfig.type === "timestamp" && softDeleteConfig.ttl) {
+    const softDeleteIndex = softDeleteConfig;
+    setImmediate(() => {
+      collection.createIndex(
+        { [softDeleteIndex.field]: 1 },
+        { expireAfterSeconds: softDeleteIndex.ttl }
+      ).catch(() => {
+      });
+    });
+  }
+  const indexes = toCompatDefinition(definition).indexes;
+  if (!Array.isArray(indexes) || indexes.length === 0) {
+    return;
+  }
+  setImmediate(() => {
+    for (const indexSpec of indexes) {
+      if (!indexSpec?.key) {
+        continue;
+      }
+      const { key, ...indexOptions } = indexSpec;
+      collection.createIndex(key, indexOptions).catch(() => {
+      });
+    }
+  });
+}
+
+// src/capabilities/model/model-write-helpers.ts
+function withModelErrorMetadata(error, metadata) {
+  return Object.assign(error, metadata);
+}
+async function runModelV1Hook(hooksFactory, model, operation, phase, context, ...args) {
+  if (!hooksFactory) {
+    return void 0;
+  }
+  const hooks = hooksFactory(model);
+  const operationHooks = hooks[operation];
+  if (!operationHooks) {
+    return void 0;
+  }
+  const hook = operationHooks[phase];
+  if (typeof hook !== "function") {
+    return void 0;
+  }
+  return hook(context, ...args);
+}
+function validateModelSchemaPayload(context, document, options, metadata = {}) {
+  if (!context.validateEnabled) {
+    return;
+  }
+  if (options?.skipValidation) {
+    return;
+  }
+  if (!context.schemaCache || !context.schemaValidateFn) {
+    return;
+  }
+  const result = context.schemaValidateFn(context.schemaCache, document);
+  if (result.valid) {
+    return;
+  }
+  const errors = result.errors ?? [];
+  const fields = [...new Set(errors.map((item) => item.path ?? item.field).filter(Boolean))];
+  const summary = fields.length > 0 ? ` (${fields.join(", ")})` : "";
+  throw withModelErrorMetadata(
+    createError(ErrorCodes.VALIDATION_ERROR, `Schema validation failed${summary}`),
+    {
+      errors,
+      ...metadata
+    }
+  );
+}
+function applyModelSoftDeleteFilter(query, options, softDeleteConfig) {
+  if (!softDeleteConfig?.enabled) {
+    return query ?? {};
+  }
+  const resolvedOptions = options ?? {};
+  const resolvedQuery = query ?? {};
+  if (resolvedQuery[softDeleteConfig.field] !== void 0) {
+    return resolvedQuery;
+  }
+  if (resolvedOptions.withDeleted) {
+    return resolvedQuery;
+  }
+  if (resolvedOptions.onlyDeleted) {
+    return { ...resolvedQuery, [softDeleteConfig.field]: { $ne: null } };
+  }
+  return { ...resolvedQuery, [softDeleteConfig.field]: null };
+}
+function applyModelInsertTimestamps(document, timestampsConfig, nowFactory) {
+  if (!timestampsConfig) {
+    return document;
+  }
+  const now = nowFactory();
+  const result = { ...document };
+  if (timestampsConfig.createdAt !== false && result[timestampsConfig.createdAt] === void 0) {
+    result[timestampsConfig.createdAt] = now;
+  }
+  if (timestampsConfig.updatedAt !== false && result[timestampsConfig.updatedAt] === void 0) {
+    result[timestampsConfig.updatedAt] = now;
+  }
+  return result;
+}
+function applyModelInsertVersion(document, versionConfig) {
+  if (!versionConfig?.enabled || document[versionConfig.field] !== void 0) {
+    return document;
+  }
+  return { ...document, [versionConfig.field]: 0 };
+}
+function applyModelUpdateTimestamps(update, timestampsConfig, nowFactory) {
+  if (!timestampsConfig || timestampsConfig.updatedAt === false) {
+    return update;
+  }
+  const resolvedUpdate = update ?? {};
+  const $set = {
+    ...resolvedUpdate.$set ?? {},
+    [timestampsConfig.updatedAt]: nowFactory()
+  };
+  return { ...resolvedUpdate, $set };
+}
+function applyModelVersionIncrement(update, versionConfig) {
+  if (!versionConfig?.enabled) {
+    return update;
+  }
+  const resolvedUpdate = update ?? {};
+  const $inc = resolvedUpdate.$inc ?? {};
+  if ($inc[versionConfig.field] !== void 0) {
+    return update;
+  }
+  return {
+    ...resolvedUpdate,
+    $inc: {
+      ...$inc,
+      [versionConfig.field]: 1
+    }
+  };
+}
+function applyModelUpsertTimestamps(update, timestampsConfig, nowFactory) {
+  if (!timestampsConfig) {
+    return update;
+  }
+  const resolvedUpdate = update ?? {};
+  const result = { ...resolvedUpdate };
+  if (timestampsConfig.updatedAt !== false) {
+    result.$set = {
+      ...resolvedUpdate.$set ?? {},
+      [timestampsConfig.updatedAt]: nowFactory()
+    };
+  }
+  if (timestampsConfig.createdAt !== false) {
+    const $setOnInsert = {
+      ...resolvedUpdate.$setOnInsert ?? {}
+    };
+    if ($setOnInsert[timestampsConfig.createdAt] === void 0) {
+      $setOnInsert[timestampsConfig.createdAt] = nowFactory();
+    }
+    result.$setOnInsert = $setOnInsert;
+  }
+  return result;
+}
+function applyModelReplaceTimestamps(replacement, timestampsConfig, nowFactory) {
+  if (!timestampsConfig || timestampsConfig.updatedAt === false) {
+    return replacement;
+  }
+  const resolvedReplacement = replacement ?? {};
+  if (resolvedReplacement[timestampsConfig.updatedAt] !== void 0) {
+    return resolvedReplacement;
+  }
+  return {
+    ...resolvedReplacement,
+    [timestampsConfig.updatedAt]: nowFactory()
+  };
+}
+
+// src/capabilities/model/model-mutation-orchestrator.ts
+async function invokeV1Hook(context, operation, phase, hookContext, ...args) {
+  return runModelV1Hook(context.hooksFactory, context, operation, phase, hookContext, ...args);
+}
+async function invokeStandardHook(context, hookName, payload) {
+  if (context.hooksFactory) {
+    return;
+  }
+  await context.runHook(hookName, payload);
+}
+async function orchestrateModelInsertOne(context, document, options) {
+  const hookContext = {};
+  let payload = context.applyDefaults(document);
+  if (context.hooksFactory) {
+    const hookResult = await invokeV1Hook(context, "insert", "before", hookContext, payload);
+    if (hookResult !== void 0 && typeof hookResult === "object") {
+      payload = hookResult;
+    }
+  } else {
+    await invokeStandardHook(context, "beforeCreate", { operation: "insertOne", collection: context.collectionName, data: payload });
+  }
+  validateModelSchemaPayload({
+    validateEnabled: context.validateEnabled,
+    schemaCache: context.schemaCache,
+    schemaValidateFn: context.schemaValidateFn
+  }, payload, options);
+  payload = applyModelInsertTimestamps(payload, context.timestampsConfig, () => context.nowDate());
+  payload = applyModelInsertVersion(payload, context.versionConfig);
+  const result = await context.collection.insertOne(payload, options);
+  if (context.hooksFactory) {
+    try {
+      await invokeV1Hook(context, "insert", "after", hookContext, result);
+    } catch {
+    }
+  } else {
+    await invokeStandardHook(context, "afterCreate", {
+      operation: "insertOne",
+      collection: context.collectionName,
+      data: payload,
+      result
+    });
+  }
+  return result;
+}
+async function orchestrateModelInsertMany(context, documents, options) {
+  const resolvedOptions = options ?? {};
+  const docs = [];
+  for (let index = 0; index < (documents ?? []).length; index++) {
+    let doc = context.applyDefaults((documents ?? [])[index]);
+    validateModelSchemaPayload({
+      validateEnabled: context.validateEnabled,
+      schemaCache: context.schemaCache,
+      schemaValidateFn: context.schemaValidateFn
+    }, doc, resolvedOptions, { index });
+    doc = applyModelInsertTimestamps(doc, context.timestampsConfig, () => context.nowDate());
+    doc = applyModelInsertVersion(doc, context.versionConfig);
+    docs.push(doc);
+  }
+  return context.collection.insertMany(docs, options);
+}
+async function orchestrateModelUpdateOne(context, filter, update, options) {
+  const hookContext = {};
+  let nextUpdate = update;
+  if (context.hooksFactory) {
+    await invokeV1Hook(context, "update", "before", hookContext, filter, nextUpdate);
+  } else {
+    await invokeStandardHook(context, "beforeUpdate", {
+      operation: "updateOne",
+      collection: context.collectionName,
+      filter,
+      update: nextUpdate
+    });
+  }
+  nextUpdate = applyModelVersionIncrement(
+    applyModelUpdateTimestamps(nextUpdate, context.timestampsConfig, () => context.nowDate()),
+    context.versionConfig
+  );
+  const result = await context.collection.updateOne(filter, nextUpdate, options);
+  if (context.hooksFactory) {
+    try {
+      await invokeV1Hook(context, "update", "after", hookContext, result);
+    } catch {
+    }
+  } else {
+    await invokeStandardHook(context, "afterUpdate", {
+      operation: "updateOne",
+      collection: context.collectionName,
+      filter,
+      update: nextUpdate,
+      result
+    });
+  }
+  return result;
+}
+async function orchestrateModelUpdateMany(context, filter, update, options) {
+  const nextUpdate = applyModelVersionIncrement(
+    applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate()),
+    context.versionConfig
+  );
+  return context.collection.updateMany(filter, nextUpdate, options);
+}
+async function orchestrateModelReplaceOne(context, filter, replacement, options) {
+  const nextReplacement = applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate());
+  return context.collection.replaceOne(filter, nextReplacement, options);
+}
+async function orchestrateModelFindOneAndUpdate(context, filter, update, options) {
+  const nextUpdate = applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate());
+  return context.collection.findOneAndUpdate(filter, nextUpdate, options);
+}
+async function orchestrateModelFindOneAndReplace(context, filter, replacement, options) {
+  const nextReplacement = applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate());
+  return context.extendedCollection().findOneAndReplace(filter, nextReplacement, options);
+}
+async function orchestrateModelFindOneAndDelete(context, filter, options) {
+  return context.collection.findOneAndDelete(filter, options);
+}
+async function orchestrateModelUpsertOne(context, filter, update, options) {
+  const nextUpdate = applyModelUpsertTimestamps(update, context.timestampsConfig, () => context.nowDate());
+  return context.collection.upsertOne(filter, nextUpdate, options);
+}
+async function orchestrateModelIncrementOne(context, filter, field, increment, options) {
+  const timestamps = context.timestampsConfig;
+  if (timestamps && timestamps.updatedAt !== false) {
+    const resolvedOptions = options ?? {};
+    const $set = {
+      ...resolvedOptions.$set ?? {},
+      [timestamps.updatedAt]: context.nowDate()
+    };
+    return context.extendedCollection().incrementOne(filter, field, increment, { ...resolvedOptions, $set });
+  }
+  return context.extendedCollection().incrementOne(filter, field, increment, options);
+}
+async function orchestrateModelInsertBatch(context, docs, options) {
+  const timestamps = context.timestampsConfig;
+  const docsToInsert = timestamps ? docs.map((doc) => applyModelInsertTimestamps(doc, timestamps, () => context.nowDate())) : docs;
+  return context.extendedCollection().insertBatch(docsToInsert, options);
+}
+async function orchestrateModelUpdateBatch(context, filter, update, options) {
+  const nextUpdate = applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate());
+  return context.extendedCollection().updateBatch(filter, nextUpdate, options);
+}
+async function orchestrateModelDeleteOne(context, filter, options) {
+  const softDeleteConfig = context.softDeleteConfig;
+  const resolvedOptions = options ?? {};
+  const hookContext = {};
+  if (context.hooksFactory) {
+    await invokeV1Hook(context, "delete", "before", hookContext, filter);
+  } else {
+    await invokeStandardHook(context, "beforeDelete", {
+      operation: "deleteOne",
+      collection: context.collectionName,
+      filter
+    });
+  }
+  let result;
+  if (softDeleteConfig?.enabled && !resolvedOptions._forceDelete) {
+    result = await context.collection.updateOne(
+      { ...filter ?? {}, [softDeleteConfig.field]: null },
+      { $set: { [softDeleteConfig.field]: softDeleteConfig.type === "boolean" ? true : context.nowDate() } },
+      options
+    );
+  } else {
+    result = await context.collection.deleteOne(filter, options);
+  }
+  if (context.hooksFactory) {
+    try {
+      await invokeV1Hook(context, "delete", "after", hookContext, result);
+    } catch {
+    }
+  } else {
+    await invokeStandardHook(context, "afterDelete", {
+      operation: "deleteOne",
+      collection: context.collectionName,
+      filter,
+      result
+    });
+  }
+  return result;
+}
+async function orchestrateModelDeleteMany(context, filter, options) {
+  const softDeleteConfig = context.softDeleteConfig;
+  const resolvedOptions = options ?? {};
+  if (softDeleteConfig?.enabled && !resolvedOptions._forceDelete) {
+    return context.collection.updateMany(
+      { ...filter ?? {}, [softDeleteConfig.field]: null },
+      { $set: { [softDeleteConfig.field]: softDeleteConfig.type === "boolean" ? true : context.nowDate() } },
+      options
+    );
+  }
+  return context.collection.deleteMany(filter, options);
+}
+
+// src/capabilities/model/index.ts
+var ModelInstance = class {
+  constructor(collection, runtime, options) {
+    this.collection = collection;
+    this.runtime = runtime;
+    // ── v1 compatibility private state ──────────────────────────────────────────
+    this._schemaCache = null;
+    this._schemaError = null;
+    this._validateEnabled = true;
+    // true = validate on insert; false = skip globally
+    this._timestampsConfig = null;
+    this._softDeleteConfig = null;
+    this._versionConfig = null;
+    this._v1HooksFactory = null;
+    this._v1InstanceMethods = {};
+    // Expose softDeleteConfig for v1 test assertions
+    this.softDeleteConfig = null;
+    this.collectionName = options.collectionName;
+    this.dbName = options.dbName;
+    this.poolName = options.poolName;
+    this.definition = options.definition;
+    this.relations = new Map(Object.entries(options.definition.relations ?? {}));
+    for (const [name, config] of this.relations) {
+      validateRelationConfig(name, config);
+    }
+    attachModelStatics(this, options.definition);
+    const schemaState = buildModelSchemaState(options.definition);
+    this._schemaCache = schemaState.schemaCache;
+    this._schemaError = schemaState.schemaError;
+    this._validateEnabled = isModelValidationEnabled(options.definition);
+    this._timestampsConfig = resolveModelTimestampsConfig(options.definition);
+    this._softDeleteConfig = resolveModelSoftDeleteConfig(options.definition);
+    this.softDeleteConfig = this._softDeleteConfig;
+    this._versionConfig = resolveModelVersionConfig(options.definition);
+    this._v1HooksFactory = resolveModelHooksFactory(options.definition);
+    scheduleModelIndexes(this.collection, options.definition, this._softDeleteConfig);
+    this._v1InstanceMethods = initializeModelV1Methods(this, options.definition);
+  }
+  /** v1 compat: expose relations map as _relations */
+  get _relations() {
+    return this.relations;
+  }
+  /** v1 compat: get relations as plain object */
+  getRelations() {
+    return Object.fromEntries(this.relations);
+  }
+  /** v1 compat: get enums from definition */
+  getEnums() {
+    return getModelEnums(this.definition);
+  }
+  getNamespace() {
+    return this.collection.getNamespace();
+  }
+  raw() {
+    return this.collection.raw();
+  }
+  extendedCollection() {
+    return this.collection;
+  }
+  nowDate() {
+    return /* @__PURE__ */ new Date();
+  }
+  // ── public API ────────────────────────────────────────────────────────────────
+  find(query, options) {
+    return new PopulatePromise(async (paths) => {
+      const ctx = {};
+      const filteredQuery = applyModelSoftDeleteFilter(query, options, this._softDeleteConfig);
+      if (this._v1HooksFactory) {
+        await runModelV1Hook(this._v1HooksFactory, this, "find", "before", ctx, options);
+      } else {
+        await this.runHook("beforeFind", { operation: "find", collection: this.collectionName, filter: filteredQuery });
+      }
+      const docs = await this.collection.find(filteredQuery, options);
+      let result = await this.populateDocuments(this.hydrateDocuments(docs), paths);
+      if (this._v1HooksFactory) {
+        try {
+          const hookResult = await runModelV1Hook(this._v1HooksFactory, this, "find", "after", ctx, result);
+          if (hookResult !== void 0) result = hookResult;
+        } catch {
+        }
+      } else {
+        await this.runHook("afterFind", { operation: "find", collection: this.collectionName, filter: filteredQuery, result });
+      }
+      return result;
+    });
+  }
+  findOne(query, options) {
+    return new PopulatePromise(async (paths) => {
+      const ctx = {};
+      const filteredQuery = applyModelSoftDeleteFilter(query, options, this._softDeleteConfig);
+      if (this._v1HooksFactory) {
+        await runModelV1Hook(this._v1HooksFactory, this, "find", "before", ctx, options);
+      }
+      const doc = await this.collection.findOne(filteredQuery, options);
+      let result = await this.populateSingle(this.hydrateDocument(doc), paths);
+      if (this._v1HooksFactory) {
+        try {
+          const hookResult = await runModelV1Hook(this._v1HooksFactory, this, "find", "after", ctx, result);
+          if (hookResult !== void 0) result = hookResult;
+        } catch {
+        }
+      }
+      return result;
+    });
+  }
+  findOneById(id, options) {
+    return new PopulatePromise(async (paths) => {
+      const doc = await this.collection.findOneById(id, options);
+      return this.populateSingle(this.hydrateDocument(doc), paths);
+    });
+  }
+  findById(id, options) {
+    return this.findOneById(id, options);
+  }
+  findByIds(ids, options) {
+    return new PopulatePromise(async (paths) => {
+      const docs = await this.collection.findByIds(ids, options);
+      return this.populateDocuments(this.hydrateDocuments(docs), paths);
+    });
+  }
+  findPage(options) {
+    return new PopulatePromise(async (paths) => {
+      const result = await this.collection.findPage(options);
+      return {
+        ...result,
+        items: await this.populateDocuments(this.hydrateDocuments(result.items), paths)
+      };
+    });
+  }
+  findAndCount(query, options) {
+    return new PopulatePromise(async (paths) => {
+      const filteredQuery = applyModelSoftDeleteFilter(query, options, this._softDeleteConfig);
+      const result = await this.collection.findAndCount(filteredQuery, options);
+      return {
+        data: await this.populateDocuments(this.hydrateDocuments(result.data), paths),
+        total: result.total
+      };
+    });
+  }
+  count(query, options) {
+    const filteredQuery = applyModelSoftDeleteFilter(query, options, this._softDeleteConfig);
+    return this.collection.count(filteredQuery, options);
+  }
+  async insertOne(document, options) {
+    return orchestrateModelInsertOne(this.mutationContext(), document, options);
+  }
+  async insertMany(documents, options) {
+    return orchestrateModelInsertMany(this.mutationContext(), documents, options);
+  }
+  async updateOne(filter, update, options) {
+    return orchestrateModelUpdateOne(this.mutationContext(), filter, update, options);
+  }
+  async updateMany(filter, update, options) {
+    return orchestrateModelUpdateMany(this.mutationContext(), filter, update, options);
+  }
+  async replaceOne(filter, replacement, options) {
+    return orchestrateModelReplaceOne(this.mutationContext(), filter, replacement, options);
+  }
+  findOneAndUpdate(filter, update, options) {
+    return orchestrateModelFindOneAndUpdate(this.mutationContext(), filter, update, options);
+  }
+  findOneAndReplace(filter, replacement, options) {
+    return orchestrateModelFindOneAndReplace(this.mutationContext(), filter, replacement, options);
+  }
+  findOneAndDelete(filter, options) {
+    return orchestrateModelFindOneAndDelete(this.mutationContext(), filter, options);
+  }
+  async upsertOne(filter, update, options) {
+    return orchestrateModelUpsertOne(this.mutationContext(), filter, update, options);
+  }
+  async incrementOne(filter, field, increment, options) {
+    return orchestrateModelIncrementOne(this.mutationContext(), filter, field, increment, options);
+  }
+  async insertBatch(docs, options) {
+    return orchestrateModelInsertBatch(this.mutationContext(), docs, options);
+  }
+  async updateBatch(filter, update, options) {
+    return orchestrateModelUpdateBatch(this.mutationContext(), filter, update, options);
+  }
+  async deleteOne(filter, options) {
+    return orchestrateModelDeleteOne(this.mutationContext(), filter, options);
+  }
+  async deleteMany(filter, options) {
+    return orchestrateModelDeleteMany(this.mutationContext(), filter, options);
+  }
+  // ── soft-delete extended methods (only meaningful when softDelete is enabled) ──
+  findWithDeleted(query, options) {
+    return findWithDeletedDocuments(this.softDeleteContext(), query, options);
+  }
+  findOnlyDeleted(query, options) {
+    return findOnlyDeletedDocuments(this.softDeleteContext(), query, options);
+  }
+  findOneWithDeleted(query, options) {
+    return findOneWithDeletedDocument(this.softDeleteContext(), query, options);
+  }
+  findOneOnlyDeleted(query, options) {
+    return findOneOnlyDeletedDocument(this.softDeleteContext(), query, options);
+  }
+  countWithDeleted(query, options) {
+    return countWithDeletedDocuments(this.softDeleteContext(), query, options);
+  }
+  countOnlyDeleted(query, options) {
+    return countOnlyDeletedDocuments(this.softDeleteContext(), query, options);
+  }
+  async restore(filter, options) {
+    return restoreSoftDeletedDocuments(this.softDeleteContext(), filter, options);
+  }
+  async restoreMany(filter, options) {
+    return restoreManySoftDeletedDocuments(this.softDeleteContext(), filter, options);
+  }
+  async forceDelete(filter, options) {
+    return forceDeleteDocument(this.softDeleteContext(), filter, options);
+  }
+  async forceDeleteMany(filter, options) {
+    return forceDeleteManyDocuments(this.softDeleteContext(), filter, options);
+  }
+  createIndex(keys, options) {
+    return this.collection.createIndex(keys, options);
+  }
+  createIndexes(specs) {
+    return this.collection.createIndexes(specs);
+  }
+  listIndexes() {
+    return this.collection.listIndexes();
+  }
+  dropIndex(name) {
+    return this.collection.dropIndex(name);
+  }
+  dropIndexes() {
+    return this.collection.dropIndexes();
+  }
+  distinct(key, query, options) {
+    return this.collection.distinct(key, query, options);
+  }
+  aggregate(pipeline, options) {
+    return this.collection.aggregate(pipeline, options);
+  }
+  watch(pipeline, options) {
+    return this.collection.watch(pipeline, options);
+  }
+  validate(document) {
+    return validateModelDocument({
+      schemaError: this._schemaError,
+      schemaCache: this._schemaCache,
+      schemaValidateFn: _schemaValidateFn
+    }, document);
+  }
+  async populateSingle(doc, paths) {
+    if (!doc) {
+      return null;
+    }
+    const [result] = await this.populateDocuments([doc], paths);
+    return result ?? null;
+  }
+  async populateDocuments(docs, paths) {
+    let current = docs;
+    for (const path2 of paths) {
+      current = await this.populatePath(current, path2);
+    }
+    return current;
+  }
+  async populatePath(docs, path2) {
+    return populateModelPath({
+      relations: this.relations,
+      runtime: this.runtime,
+      dbName: this.dbName,
+      poolName: this.poolName
+    }, docs, path2);
+  }
+  hydrateDocuments(docs) {
+    return docs.filter(Boolean).map((doc) => this.hydrateDocument(doc));
+  }
+  hydrateDocument(doc) {
+    return hydrateModelDocument({
+      definition: this.definition,
+      v1InstanceMethods: this._v1InstanceMethods,
+      saveDocument: (document) => this.saveDocument(document),
+      removeDocument: (document) => this.removeDocument(document),
+      validateDocument: (document) => this.validate(document)
+    }, doc);
+  }
+  softDeleteContext() {
+    return {
+      collection: this.collection,
+      softDeleteConfig: this._softDeleteConfig,
+      hydrateDocuments: (docs) => this.hydrateDocuments(docs),
+      hydrateDocument: (doc) => this.hydrateDocument(doc),
+      populateDocuments: (docs, paths) => this.populateDocuments(docs, paths),
+      populateSingle: (doc, paths) => this.populateSingle(doc, paths)
+    };
+  }
+  async saveDocument(document) {
+    return saveModelDocument(this.collection, document);
+  }
+  async removeDocument(document) {
+    return removeModelDocument(this.collection, document);
+  }
+  applyDefaults(document) {
+    return applyModelDefaults(this.definition, document);
+  }
+  mutationContext() {
+    return {
+      collectionName: this.collectionName,
+      collection: this.collection,
+      extendedCollection: () => this.extendedCollection(),
+      applyDefaults: (document) => this.applyDefaults(document),
+      nowDate: () => this.nowDate(),
+      timestampsConfig: this._timestampsConfig,
+      softDeleteConfig: this._softDeleteConfig,
+      versionConfig: this._versionConfig,
+      validateEnabled: this._validateEnabled,
+      schemaCache: this._schemaCache,
+      schemaValidateFn: _schemaValidateFn,
+      hooksFactory: this._v1HooksFactory,
+      runHook: (hookName, context) => this.runHook(hookName, context)
+    };
+  }
+  async runHook(hookName, context) {
+    if (this._v1HooksFactory) return;
+    const hook = this.definition.hooks?.[hookName];
+    if (typeof hook === "function") {
+      await hook(context);
+    }
+  }
+};
+
+// src/capabilities/transaction/index.ts
+var CacheLockManager = class {
+  constructor(options = {}) {
+    this.locks = /* @__PURE__ */ new Map();
+    this.logger = options.logger ?? null;
+    this.maxDuration = options.maxDuration ?? 3e5;
+    this.cleanupInterval = options.cleanupInterval ?? 1e4;
+    this.cleanupTimer = setInterval(() => {
+      this.cleanupExpiredLocks();
+    }, this.cleanupInterval);
+    this.cleanupTimer.unref?.();
+  }
+  /**
+   * Add a cache lock.
+   * @since v1.4.0
+   */
+  addLock(key, owner) {
+    const ownerId = typeof owner === "string" ? owner : String(owner.id ?? "unknown");
+    this.locks.set(key, {
+      ownerId,
+      expiresAt: Date.now() + this.maxDuration
+    });
+  }
+  /**
+   * Check whether a cache key is locked.
+   * @since v1.4.0
+   */
+  isLocked(key) {
+    this.cleanupExpiredLocks();
+    if (this.locks.has(key)) {
+      return true;
+    }
+    for (const pattern of this.locks.keys()) {
+      if (!pattern.includes("*")) {
+        continue;
+      }
+      const regex = new RegExp(`^${escapeRegExp(pattern).replace(/\\\*/g, ".*")}$`);
+      if (regex.test(key)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  /**
+   * Release all cache locks held by the given owner.
+   * @since v1.4.0
+   */
+  releaseLocks(owner) {
+    const ownerId = typeof owner === "string" ? owner : String(owner.id ?? "unknown");
+    for (const [key, record] of this.locks.entries()) {
+      if (record.ownerId === ownerId) {
+        this.locks.delete(key);
+      }
+    }
+  }
+  /**
+   * Get cache lock statistics.
+   * @since v1.4.0
+   */
+  getStats() {
+    this.cleanupExpiredLocks();
+    return {
+      totalLocks: this.locks.size,
+      activeLocks: this.locks.size,
+      maxDuration: this.maxDuration
+    };
+  }
+  /**
+   * Clear all cache locks.
+   * @since v1.4.0
+   */
+  clear() {
+    this.locks.clear();
+  }
+  /**
+   * Stop the cache lock manager.
+   * @since v1.4.0
+   */
+  stop() {
+    clearInterval(this.cleanupTimer);
+  }
+  cleanupExpiredLocks() {
+    const now = Date.now();
+    for (const [key, value] of this.locks.entries()) {
+      if (value.expiresAt <= now) {
+        this.locks.delete(key);
+      }
+    }
+  }
+};
+var Transaction = class {
+  constructor(session, options = {}) {
+    this.session = session;
+    this.options = options;
+    this.id = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    this.state = "pending";
+    this.startedAt = null;
+    this.timeoutTimer = null;
+    this.pendingInvalidations = /* @__PURE__ */ new Set();
+    this.session.__monSQLizeTransaction = this;
+  }
+  /**
+   * Start the transaction.
+   * @since v1.4.0
+   */
+  async start() {
+    if (this.state !== "pending") {
+      throw new Error(`Cannot start transaction in state: ${this.state}`);
+    }
+    this.session.startTransaction();
+    this.state = "active";
+    const timeout = this.options.timeout ?? 3e4;
+    if (timeout > 0) {
+      this.timeoutTimer = setTimeout(() => {
+        if (this.state === "active") {
+          this.options.logger?.warn?.(`[Transaction] auto-abort on timeout: ${this.id}`);
+          void this.abort();
+        }
+      }, timeout);
+      this.timeoutTimer.unref?.();
+    }
+  }
+  /**
+   * Commit the transaction.
+   * @since v1.4.0
+   */
+  async commit() {
+    if (this.state !== "active") {
+      throw new Error(`Cannot commit transaction in state: ${this.state}`);
+    }
+    if (typeof this.session.commitTransaction === "function") {
+      await this.session.commitTransaction();
+    }
+    this.state = "committed";
+    this.options.lockManager?.releaseLocks(this.id);
+    this.pendingInvalidations.clear();
+    this.clearTimeout();
+  }
+  /**
+   * Roll back the transaction.
+   * @since v1.4.0
+   */
+  async abort() {
+    if (this.state !== "pending" && this.state !== "active") {
+      return;
+    }
+    if (this.state === "active") {
+      if (typeof this.session.abortTransaction === "function") {
+        await this.session.abortTransaction();
+      }
+    }
+    this.state = "aborted";
+    this.options.lockManager?.releaseLocks(this.id);
+    this.pendingInvalidations.clear();
+    this.clearTimeout();
+  }
+  /**
+   * End the transaction session.
+   * @since v1.4.0
+   */
+  async end() {
+    this.clearTimeout();
+    this.options.lockManager?.releaseLocks(this.id);
+    await this.session.endSession();
+  }
+  /**
+   * Record a cache invalidation intent.
+   * @since v1.4.0
+   */
+  async recordInvalidation(pattern) {
+    this.pendingInvalidations.add(pattern);
+    this.options.lockManager?.addLock(pattern, this.id);
+    if (this.options.cache?.delPattern) {
+      await this.options.cache.delPattern(pattern);
+    }
+  }
+  /**
+   * Get the transaction duration.
+   * @since v1.4.0
+   */
+  getDuration() {
+    if (!this.startedAt) {
+      return 0;
+    }
+    return Date.now() - this.startedAt;
+  }
+  /**
+   * Get transaction info.
+   * @since v1.4.0
+   */
+  getInfo() {
+    return {
+      id: this.id,
+      status: this.state,
+      duration: this.getDuration(),
+      sessionId: stringifySessionId(this.session.id)
+    };
+  }
+  clearTimeout() {
+    if (this.timeoutTimer) {
+      clearTimeout(this.timeoutTimer);
+      this.timeoutTimer = null;
+    }
+  }
+};
+var TransactionManager = class {
+  constructor(input, legacyCache, legacyOptions = {}) {
+    this.activeTransactions = /* @__PURE__ */ new Map();
+    this.durations = [];
+    this.stats = {
+      totalTransactions: 0,
+      successfulTransactions: 0,
+      failedTransactions: 0
+    };
+    const options = "client" in input ? input : {
+      client: input,
+      cache: legacyCache,
+      ...legacyOptions
+    };
+    this.client = options.client;
+    this.cache = options.cache ?? null;
+    this.logger = options.logger ?? null;
+    this.lockManager = options.lockManager ?? null;
+    this.defaultOptions = {
+      maxDuration: options.maxDuration ?? 3e4,
+      enableRetry: options.enableRetry ?? true,
+      maxRetries: options.maxRetries ?? 3,
+      retryDelay: options.retryDelay ?? 100,
+      retryBackoff: options.retryBackoff ?? 2
+    };
+  }
+  /**
+   * Create a manual transaction session.
+   * @since v1.4.0
+   */
+  async startSession(options = {}) {
+    const session = this.client.startSession({
+      causalConsistency: options.causalConsistency !== false
+    });
+    const transaction = new Transaction(session, {
+      cache: this.cache,
+      logger: this.logger,
+      lockManager: options.enableCacheLock === false ? null : this.lockManager,
+      timeout: options.timeout ?? options.maxDuration ?? this.defaultOptions.maxDuration
+    });
+    const originalEnd = transaction.end.bind(transaction);
+    transaction.end = async () => {
+      await originalEnd();
+      this.activeTransactions.delete(transaction.id);
+    };
+    this.activeTransactions.set(transaction.id, transaction);
+    return transaction;
+  }
+  /**
+   * Automatically manage the transaction lifecycle.
+   * @since v1.4.0
+   */
+  async withTransaction(callback, options = {}) {
+    const maxRetries = options.maxRetries ?? this.defaultOptions.maxRetries;
+    const retryDelay = options.retryDelay ?? this.defaultOptions.retryDelay;
+    const retryBackoff = options.retryBackoff ?? this.defaultOptions.retryBackoff;
+    const enableRetry = options.enableRetry ?? this.defaultOptions.enableRetry;
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      const transaction = await this.startSession(options);
+      const startedAt = Date.now();
+      try {
+        await transaction.start();
+        const result = await callback(transaction);
+        await transaction.commit();
+        this.recordStats(Date.now() - startedAt, true);
+        return result;
+      } catch (error) {
+        lastError = error;
+        await transaction.abort();
+        this.recordStats(Date.now() - startedAt, false);
+        if (!enableRetry || attempt === maxRetries || !isTransientTransactionError(error)) {
+          throw error;
+        }
+        await sleep(retryDelay * Math.pow(retryBackoff, attempt));
+      } finally {
+        await transaction.end();
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("Transaction failed.");
+  }
+  /**
+   * Get all active transactions.
+   * @since v1.4.0
+   */
+  getActiveTransactions() {
+    return [...this.activeTransactions.values()];
+  }
+  /**
+   * Abort all active transactions.
+   * @since v1.4.0
+   */
+  async abortAll() {
+    const transactions = this.getActiveTransactions();
+    for (const transaction of transactions) {
+      await transaction.abort();
+      await transaction.end();
+      this.activeTransactions.delete(transaction.id);
+    }
+  }
+  /**
+   * Get transaction statistics.
+   * @since v1.4.0
+   */
+  getStats() {
+    const averageDuration = this.durations.length === 0 ? 0 : this.durations.reduce((sum, item) => sum + item, 0) / this.durations.length;
+    return {
+      totalTransactions: this.stats.totalTransactions,
+      successfulTransactions: this.stats.successfulTransactions,
+      failedTransactions: this.stats.failedTransactions,
+      activeTransactions: this.activeTransactions.size,
+      averageDuration
+    };
+  }
+  recordStats(duration, success) {
+    this.stats.totalTransactions += 1;
+    if (success) {
+      this.stats.successfulTransactions += 1;
+    } else {
+      this.stats.failedTransactions += 1;
+    }
+    this.durations.push(duration);
+    if (this.durations.length > 100) {
+      this.durations.shift();
+    }
+  }
+};
+function stringifySessionId(id) {
+  if (typeof id === "string") {
+    return id;
+  }
+  if (typeof id === "object" && id !== null) {
+    const candidate = id;
+    if (typeof candidate.toHexString === "function") {
+      return candidate.toHexString();
+    }
+    if (candidate.id?.buffer) {
+      return Buffer.from(candidate.id.buffer).toString("hex");
+    }
+    if (typeof candidate.toString === "function") {
+      return candidate.toString();
+    }
+  }
+  return String(id);
+}
+function isTransientTransactionError(error) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const candidate = error;
+  if (typeof candidate.hasErrorLabel === "function" && candidate.hasErrorLabel("TransientTransactionError")) {
+    return true;
+  }
+  return candidate.code === 112 || candidate.code === 117;
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// src/adapters/mongodb/common/connect.ts
+import { MongoClient } from "mongodb";
+var _memoryServerInstance = null;
+async function startMemoryServer(logger, memoryServerOptions = {}) {
+  if (_memoryServerInstance) {
+    return _memoryServerInstance.getUri();
+  }
+  const { MongoMemoryReplSet } = __require("mongodb-memory-server");
+  logger?.info?.("\u{1F680} Starting MongoDB Memory ReplSet (transactions supported)...");
+  const defaultConfig = {
+    replSet: { count: 1, storageEngine: "wiredTiger" },
+    binary: { version: "6.0.12" },
+    instanceOpts: [{ ...memoryServerOptions?.instance ?? {} }]
+  };
+  const resolvedConfig = {
+    ...defaultConfig,
+    binary: { ...defaultConfig.binary, ...memoryServerOptions?.binary ?? {} }
+  };
+  try {
+    _memoryServerInstance = await MongoMemoryReplSet.create(resolvedConfig);
+    const uri = _memoryServerInstance.getUri();
+    logger?.info?.("\u2705 MongoDB Memory ReplSet started", { uri });
+    return uri;
+  } catch (err) {
+    logger?.error?.("\u274C Failed to start MongoDB Memory ReplSet", err);
+    throw new Error(`Failed to start MongoDB Memory ReplSet: ${err.message}`);
+  }
+}
+async function connectMongo(params) {
+  const databaseName = params.databaseName?.trim();
+  if (!databaseName) {
+    throw createError(ErrorCodes.INVALID_DATABASE_NAME, "Database name must be a non-empty string.");
+  }
+  let effectiveUri = params.config?.uri?.trim();
+  if (!effectiveUri && params.config?.useMemoryServer === true) {
+    if (process.env["MONSQLIZE_USE_SYSTEM_MONGO"] === "true") {
+      const systemUri = process.env["MONSQLIZE_SYSTEM_MONGO_URI"] ?? "mongodb://127.0.0.1:27017";
+      params.logger?.info?.("\u{1F527} Using system MongoDB instead of memory server", { uri: systemUri });
+      effectiveUri = systemUri;
+    } else {
+      effectiveUri = await startMemoryServer(params.logger, params.config.memoryServerOptions);
+    }
+  }
+  if (!effectiveUri) {
+    throw createError(ErrorCodes.INVALID_CONFIG, "MongoDB connect requires config.uri.");
+  }
+  const client = new MongoClient(effectiveUri, params.config?.options);
+  try {
+    await client.connect();
+    const db = client.db(databaseName);
+    params.logger?.info?.("MongoDB connected", { databaseName });
+    return { client, db };
+  } catch (cause) {
+    try {
+      await client.close();
+    } catch {
+    }
+    throw createConnectionError(
+      `Failed to connect to MongoDB database: ${databaseName}`,
+      cause instanceof Error ? cause : void 0
+    );
+  }
+}
+async function closeMongo(client, logger) {
+  if (!client) {
+    return;
+  }
+  try {
+    await client.close();
+    logger?.info?.("MongoDB connection closed");
+  } catch (cause) {
+    const error = createError(
+      ErrorCodes.CONNECTION_CLOSED,
+      "Failed to close MongoDB connection cleanly.",
+      void 0,
+      cause instanceof Error ? cause : void 0
+    );
+    logger?.warn?.(error.message, error.cause);
+  }
+}
+
+// src/utils/validation.ts
+function validateRange(value, min, max, name) {
+  if (typeof value !== "number" || isNaN(value)) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `${name} \u5FC5\u987B\u662F\u4E00\u4E2A\u6709\u6548\u7684\u6570\u5B57`);
+  }
+  if (!isFinite(value)) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `${name} \u5FC5\u987B\u662F\u6709\u9650\u6570\u5B57`);
+  }
+  if (value < min || value > max) {
+    throw createError(
+      ErrorCodes.INVALID_ARGUMENT,
+      `${name} \u5FC5\u987B\u5728 ${min} \u5230 ${max} \u4E4B\u95F4\uFF0C\u5F53\u524D\u503C: ${value}`
+    );
+  }
+  return value;
+}
+
+// src/core/logger/index.ts
+import { AsyncLocalStorage } from "node:async_hooks";
+var _storage = null;
+try {
+  _storage = new AsyncLocalStorage();
+} catch {
+  _storage = null;
+}
+var Logger = class _Logger {
+  constructor(_logger = null, _options = {}) {
+    this._logger = _logger;
+    this._options = _options;
+  }
+  _formatStructured(level, msg, ctx) {
+    const entry = {
+      level: level.toUpperCase(),
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      message: msg
+    };
+    if (_storage) {
+      const store = _storage.getStore();
+      if (store?.traceId) {
+        entry.traceId = store.traceId;
+      }
+    }
+    if (ctx !== void 0) {
+      entry.context = ctx;
+    }
+    return JSON.stringify(entry);
+  }
+  /**
+   * Outputs a debug log.
+   * @since v1.3.0
+   */
+  debug(msg, ctx) {
+    if (this._options.structured) {
+      this._logger?.debug?.(this._formatStructured("debug", msg, ctx));
+    } else {
+      ctx !== void 0 ? this._logger?.debug?.(msg, ctx) : this._logger?.debug?.(msg);
+    }
+  }
+  /**
+   * Outputs an info log.
+   * @since v1.3.0
+   */
+  info(msg, ctx) {
+    if (this._options.structured) {
+      this._logger?.info?.(this._formatStructured("info", msg, ctx));
+    } else {
+      ctx !== void 0 ? this._logger?.info?.(msg, ctx) : this._logger?.info?.(msg);
+    }
+  }
+  /**
+   * Outputs a warn log.
+   * @since v1.3.0
+   */
+  warn(msg, ctx) {
+    if (this._options.structured) {
+      this._logger?.warn?.(this._formatStructured("warn", msg, ctx));
+    } else {
+      ctx !== void 0 ? this._logger?.warn?.(msg, ctx) : this._logger?.warn?.(msg);
+    }
+  }
+  /**
+   * Outputs an error log.
+   * @since v1.3.0
+   */
+  error(msg, ctx) {
+    if (this._options.structured) {
+      this._logger?.error?.(this._formatStructured("error", msg, ctx));
+    } else {
+      ctx !== void 0 ? this._logger?.error?.(msg, ctx) : this._logger?.error?.(msg);
+    }
+  }
+  /**
+   * Creates a Logger instance.
+   * @since v1.3.0
+   */
+  static create(logger = null, options = {}) {
+    const effectiveLogger = logger !== null && _Logger.isValidLogger(logger) ? logger : null;
+    return new _Logger(effectiveLogger, options);
+  }
+  /**
+   * Creates a silent logger that discards all output.
+   * @since v1.4.0
+   */
+  static createSilent() {
+    const noop = () => {
+    };
+    return { debug: noop, info: noop, warn: noop, error: noop };
+  }
+  /**
+   * Generates a random 16-character hex trace ID.
+   * @since v1.4.0
+   */
+  static generateTraceId() {
+    return __require("crypto").randomBytes(8).toString("hex");
+  }
+  /**
+   * Returns true when the given value is a valid logger (has all four log-level methods).
+   * @since v1.4.0
+   */
+  static isValidLogger(logger) {
+    if (!logger || typeof logger !== "object") return false;
+    const l = logger;
+    return typeof l.debug === "function" && typeof l.info === "function" && typeof l.warn === "function" && typeof l.error === "function";
+  }
+  static {
+    /**
+     * Runs `fn` inside an AsyncLocalStorage context tagged with `traceId`.
+     * When AsyncLocalStorage is unavailable this is `undefined`.
+     * @since v1.4.0
+     */
+    this.withTraceId = _storage ? (fn, traceId) => _storage.run({ traceId: traceId ?? _Logger.generateTraceId() }, fn) : void 0;
+  }
+  static {
+    /**
+     * Returns the trace ID from the current AsyncLocalStorage context, or `null` if none.
+     * When AsyncLocalStorage is unavailable this is `undefined`.
+     * @since v1.4.0
+     */
+    this.getTraceId = _storage ? () => _storage.getStore()?.traceId ?? null : void 0;
+  }
+  /**
+   * Creates a logger that prepends an ISO timestamp to every message.
+   * @since v1.4.0
+   */
+  static createWithTimestamp(customLogger) {
+    const base = new _Logger(customLogger ?? null);
+    const ts = () => (/* @__PURE__ */ new Date()).toISOString();
+    return {
+      debug: (msg, ...args) => base.debug(`${ts()} ${msg}`, ...args),
+      info: (msg, ...args) => base.info(`${ts()} ${msg}`, ...args),
+      warn: (msg, ...args) => base.warn(`${ts()} ${msg}`, ...args),
+      error: (msg, ...args) => base.error(`${ts()} ${msg}`, ...args)
+    };
+  }
+};
+
+// src/capabilities/count-queue/index.ts
+import { cpus } from "node:os";
+var CountQueue = class {
+  constructor(options = {}) {
+    this.running = 0;
+    this.queue = [];
+    this.stats = {
+      executed: 0,
+      queued: 0,
+      timeout: 0,
+      rejected: 0,
+      avgWaitTime: 0,
+      maxWaitTime: 0
+    };
+    const cpuCount = cpus().length;
+    const defaultConcurrency = Math.max(4, Math.min(cpuCount, 16));
+    this.concurrency = options.concurrency ?? defaultConcurrency;
+    this.maxQueueSize = options.maxQueueSize ?? 1e4;
+    this.timeout = options.timeout ?? 6e4;
+  }
+  /**
+   * 执行一个受队列控制的 count 操作。
+   *
+   * 执行逻辑：
+   * - 若 running < concurrency：直接执行 fn（"快路径"）。
+   * - 若 running >= concurrency：
+   *   - 队列未满 → 入队等待，等待时长计入统计。
+   *   - 队列已满 → 拒绝，rejected++ 并抛出 INVALID_OPERATION 错误。
+   * - fn 执行完成（无论成功或异常）后自动 running--
+   *   并调用 _wakeNext() 唤醒下一个等待请求。
+   *
+   * @param fn - 需要受并发保护的 count 函数（返回 Promise<T>）
+   * @returns fn 的执行结果
+   * @throws 队列满或等待超时时抛出受控错误
+   */
+  async execute(fn) {
+    const startTime = Date.now();
+    if (this.running >= this.concurrency) {
+      if (this.queue.length >= this.maxQueueSize) {
+        this.stats.rejected++;
+        throw createError(ErrorCodes.INVALID_OPERATION, `Count queue is full (${this.maxQueueSize})`);
+      }
+      this.stats.queued++;
+      const waitResult = await this._waitInQueue(startTime);
+      if (waitResult === "cleared") {
+        return void 0;
+      }
+    }
+    this.running++;
+    this.stats.executed++;
+    try {
+      return await this._executeWithTimeout(fn);
+    } finally {
+      this.running--;
+      this._wakeNext();
+    }
+  }
+  /**
+   * Get queue statistics (including live state).
+   */
+  getStats() {
+    return {
+      ...this.stats,
+      running: this.running,
+      queuedNow: this.queue.length,
+      concurrency: this.concurrency,
+      maxQueueSize: this.maxQueueSize
+    };
+  }
+  /**
+   * Reset accumulated statistics (does not affect in-flight requests).
+   */
+  resetStats() {
+    this.stats = {
+      executed: 0,
+      queued: 0,
+      timeout: 0,
+      rejected: 0,
+      avgWaitTime: 0,
+      maxWaitTime: 0
+    };
+  }
+  /**
+   * Clear all queued pending requests without executing them.
+   */
+  clear() {
+    while (this.queue.length > 0) {
+      const entry = this.queue.shift();
+      if (entry) {
+        clearTimeout(entry.timer);
+        entry.resolve("cleared");
+      }
+    }
+  }
+  _waitInQueue(startTime) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const index = this.queue.findIndex((item) => item.resolve === resolve);
+        if (index !== -1) {
+          this.queue.splice(index, 1);
+          this.stats.timeout++;
+          reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count queue wait timeout (${this.timeout}ms)`));
+        }
+      }, this.timeout);
+      this.queue.push({
+        resolve: (reason) => {
+          const waitTime = Date.now() - startTime;
+          this._updateWaitTimeStats(waitTime);
+          resolve(reason);
+        },
+        reject,
+        timer,
+        startTime
+      });
+    });
+  }
+  _wakeNext() {
+    if (this.queue.length > 0) {
+      const entry = this.queue.shift();
+      if (entry) {
+        clearTimeout(entry.timer);
+        entry.resolve("run");
+      }
+    }
+  }
+  _executeWithTimeout(fn) {
+    return Promise.race([
+      fn(),
+      new Promise(
+        (_, reject) => setTimeout(
+          () => reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count execution timeout (${this.timeout}ms)`)),
+          this.timeout
+        )
+      )
+    ]);
+  }
+  _updateWaitTimeStats(waitTime) {
+    const totalQueued = this.stats.queued;
+    this.stats.avgWaitTime = (this.stats.avgWaitTime * (totalQueued - 1) + waitTime) / totalQueued;
+    if (waitTime > this.stats.maxWaitTime) {
+      this.stats.maxWaitTime = waitTime;
+    }
+  }
+};
+
+// src/capabilities/pool/pool-health-checker.ts
+var HealthChecker = class {
+  constructor(options = {}) {
+    this._healthStatus = /* @__PURE__ */ new Map();
+    this._checkConfigs = /* @__PURE__ */ new Map();
+    this._clients = /* @__PURE__ */ new Map();
+    this._intervals = /* @__PURE__ */ new Map();
+    this._started = false;
+    this._poolManager = options.poolManager ?? null;
+    this._logger = options.logger ?? console;
+  }
+  register(poolNameOrConfig, configOrClient) {
+    let poolName;
+    let healthCheckConfig;
+    let client = null;
+    if (typeof poolNameOrConfig === "string") {
+      poolName = poolNameOrConfig;
+      healthCheckConfig = configOrClient ?? {};
+    } else {
+      poolName = poolNameOrConfig.name;
+      healthCheckConfig = poolNameOrConfig.healthCheck ?? {};
+      client = configOrClient ?? null;
+    }
+    this._checkConfigs.set(poolName, healthCheckConfig);
+    if (client !== null) this._clients.set(poolName, client);
+    const initialStatus = typeof poolNameOrConfig === "string" ? "up" : "unknown";
+    this._healthStatus.set(poolName, { status: initialStatus, lastCheck: /* @__PURE__ */ new Date(), consecutiveFailures: 0 });
+    if (this._started) this._startCheckForPool(poolName, healthCheckConfig);
+  }
+  unregister(poolName) {
+    this._stopCheckForPool(poolName);
+    this._healthStatus.delete(poolName);
+    this._checkConfigs.delete(poolName);
+    this._clients.delete(poolName);
+  }
+  start() {
+    if (this._started) return;
+    this._started = true;
+    for (const [poolName, config] of this._checkConfigs.entries()) {
+      this._startCheckForPool(poolName, config);
+    }
+    this._logger.info?.("[HealthChecker] Health check started");
+  }
+  stop() {
+    if (!this._started) return;
+    this._started = false;
+    for (const poolName of this._intervals.keys()) this._stopCheckForPool(poolName);
+    this._logger.info?.("[HealthChecker] Health check stopped");
+  }
+  async checkPool(poolName) {
+    const config = this._checkConfigs.get(poolName) ?? {};
+    await this._checkPool(poolName, config);
+  }
+  _startCheckForPool(poolName, config) {
+    if (config.enabled === false) return;
+    this._stopCheckForPool(poolName);
+    const interval = config.interval ?? 5e3;
+    const timer = setInterval(async () => {
+      await this._checkPool(poolName, config);
+    }, interval);
+    timer.unref?.();
+    this._intervals.set(poolName, timer);
+    setImmediate(async () => {
+      await this._checkPool(poolName, config);
+    });
+  }
+  _stopCheckForPool(poolName) {
+    const timer = this._intervals.get(poolName);
+    if (timer) {
+      clearInterval(timer);
+      this._intervals.delete(poolName);
+    }
+  }
+  async _checkPool(poolName, config) {
+    const status = this._healthStatus.get(poolName);
+    if (!status) return;
+    status.status = "checking";
+    status.lastCheck = /* @__PURE__ */ new Date();
+    const retries = config.retries ?? 3;
+    let success = false;
+    let lastError = null;
+    try {
+      await this._pingPool(poolName, config.timeout ?? 3e3);
+      success = true;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+    if (success) {
+      status.status = "up";
+      status.consecutiveFailures = 0;
+      delete status.lastError;
+    } else {
+      status.consecutiveFailures++;
+      if (lastError) status.lastError = lastError;
+      if (status.consecutiveFailures >= retries) {
+        status.status = "down";
+      }
+    }
+  }
+  async _pingPool(poolName, timeout) {
+    const stored = this._clients.get(poolName);
+    const client = stored ?? this._poolManager?._getPool(poolName);
+    if (!client) throw new Error(`No client for pool: ${poolName}`);
+    const db = client.db("admin");
+    const pingFn = db.command ? () => db.command({ ping: 1 }) : () => db.admin().ping();
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Ping timeout")), timeout));
+    await Promise.race([pingFn(), timeoutPromise]);
+  }
+  getStatus(poolName) {
+    return this._healthStatus.get(poolName) ?? null;
+  }
+  getAllStatus() {
+    return new Map(this._healthStatus);
+  }
+};
+
+// src/capabilities/pool/pool-selector.ts
+var PoolSelector = class {
+  constructor(options = {}) {
+    this._roundRobinIndex = /* @__PURE__ */ new Map();
+    this._strategy = options.strategy ?? "auto";
+    this._logger = options.logger ?? console;
+  }
+  select(pools, context) {
+    if (!pools || pools.length === 0) {
+      throw new Error("No available pools");
+    }
+    switch (this._strategy) {
+      case "auto":
+        return this.selectByAuto(pools, context);
+      case "roundRobin":
+        return this.selectByRoundRobin(pools, context);
+      case "leastConnections":
+        return this.selectByLeastConnections(pools, context);
+      case "weighted":
+        return this.selectByWeighted(pools);
+      case "manual":
+        return pools[0].name;
+      default:
+        this._logger.warn?.(`[PoolSelector] Unknown strategy: ${this._strategy}, falling back to auto`);
+        return this.selectByAuto(pools, context);
+    }
+  }
+  selectByAuto(pools, context) {
+    const { operation, poolPreference } = context;
+    let candidates = pools;
+    if (operation === "read") {
+      const secondaries = pools.filter((pool) => pool.role === "secondary");
+      if (secondaries.length > 0) {
+        candidates = secondaries;
+      }
+    } else if (operation === "write") {
+      const primaries = pools.filter((pool) => pool.role === "primary");
+      if (primaries.length > 0) {
+        candidates = primaries;
+      }
+    }
+    if (poolPreference?.role) {
+      const filteredByRole = candidates.filter((pool) => pool.role === poolPreference.role);
+      if (filteredByRole.length > 0) {
+        candidates = filteredByRole;
+      }
+    }
+    if (poolPreference?.tags?.length) {
+      const tags = poolPreference.tags;
+      const filteredByTags = candidates.filter((pool) => {
+        if (!pool.tags) {
+          return false;
+        }
+        return tags.length === 1 ? tags.some((tag) => pool.tags?.includes(tag)) : tags.every((tag) => pool.tags?.includes(tag));
+      });
+      if (filteredByTags.length > 0) {
+        candidates = filteredByTags;
+      }
+    }
+    if (candidates.length === 1) {
+      return candidates[0].name;
+    }
+    return this.selectByWeighted(candidates);
+  }
+  selectByRoundRobin(pools, context) {
+    let candidates = pools;
+    if (context.operation === "read") {
+      const nonPrimary = pools.filter((pool2) => pool2.role === "secondary" || pool2.role === "analytics");
+      if (nonPrimary.length > 0) {
+        candidates = nonPrimary;
+      }
+    } else if (context.operation === "write") {
+      const primaries = pools.filter((pool2) => (pool2.role ?? "primary") === "primary");
+      if (primaries.length > 0) {
+        candidates = primaries;
+      }
+    }
+    const key = context.operation ?? "default";
+    const index = this._roundRobinIndex.get(key) ?? 0;
+    const pool = candidates[index % candidates.length];
+    this._roundRobinIndex.set(key, (index + 1) % candidates.length);
+    return pool.name;
+  }
+  selectByLeastConnections(pools, context) {
+    if (!context.stats) {
+      return this.selectByRoundRobin(pools, context);
+    }
+    let minConnections = Infinity;
+    let selectedPool = pools[0];
+    for (const pool of pools) {
+      const poolStats = context.stats[pool.name];
+      if (!poolStats) {
+        continue;
+      }
+      const connections = poolStats.connections ?? 0;
+      if (connections < minConnections) {
+        minConnections = connections;
+        selectedPool = pool;
+      }
+    }
+    return selectedPool.name;
+  }
+  selectByWeighted(pools) {
+    let totalWeight = 0;
+    for (const pool of pools) {
+      totalWeight += pool.weight ?? 1;
+    }
+    let random = Math.random() * totalWeight;
+    for (const pool of pools) {
+      random -= pool.weight ?? 1;
+      if (random <= 0) {
+        return pool.name;
+      }
+    }
+    return pools[0].name;
+  }
+  setStrategy(strategy) {
+    this._strategy = strategy;
+    this._logger.info?.(`[PoolSelector] Strategy changed: ${strategy}`);
+  }
+  getStrategy() {
+    return this._strategy;
+  }
+};
+
+// src/capabilities/pool/pool-stats-manager.ts
+var PoolStatsManager = class {
+  constructor(options = {}) {
+    this._stats = /* @__PURE__ */ new Map();
+    this._buffer = [];
+    this._logger = options.logger ?? console;
+    this._batchInterval = setInterval(() => {
+      this._flush();
+    }, 100);
+    this._batchInterval.unref?.();
+  }
+  recordSelection(poolName, operation) {
+    this._buffer.push({ poolName, type: "selection", operation, timestamp: Date.now() });
+    this._flush();
+  }
+  async recordQuery(poolName, responseTime, error) {
+    this.recordRequest(poolName, responseTime, !error);
+    this._flush();
+  }
+  recordConnections(poolName, count) {
+    let stats = this._stats.get(poolName);
+    if (!stats) {
+      stats = this._emptyStats();
+      this._stats.set(poolName, stats);
+    }
+    stats.connections = count;
+  }
+  recordRequest(poolName, responseTime, success) {
+    this._buffer.push({ poolName, type: "request", responseTime, success, timestamp: Date.now() });
+  }
+  _flush() {
+    if (this._buffer.length === 0) return;
+    const batch = this._buffer.splice(0);
+    for (const item of batch) {
+      this._updateStats(item);
+    }
+  }
+  _updateStats(item) {
+    let stats = this._stats.get(item.poolName);
+    if (!stats) {
+      stats = this._emptyStats();
+      this._stats.set(item.poolName, stats);
+    }
+    if (item.type === "selection") {
+      stats.totalRequests++;
+    } else if (item.type === "request") {
+      stats.totalRequests++;
+      if (item.success) {
+        stats.successRequests++;
+      } else {
+        stats.failedRequests++;
+      }
+      stats.totalResponseTime += item.responseTime ?? 0;
+      stats.avgResponseTime = stats.totalResponseTime / stats.totalRequests;
+      stats.errorRate = stats.failedRequests / stats.totalRequests;
+    }
+  }
+  _emptyStats() {
+    return { connections: 0, available: 0, waiting: 0, totalRequests: 0, successRequests: 0, failedRequests: 0, totalResponseTime: 0, avgResponseTime: 0, errorRate: 0 };
+  }
+  getStats(poolName) {
+    return { ...this._stats.get(poolName) ?? this._emptyStats() };
+  }
+  getAllStats() {
+    const result = {};
+    for (const [poolName, stats] of this._stats.entries()) {
+      result[poolName] = { ...stats };
+    }
+    return result;
+  }
+  reset(poolName) {
+    if (poolName) {
+      this._stats.delete(poolName);
+    } else {
+      this._stats.clear();
+    }
+  }
+  resetAll() {
+    this._stats.clear();
+    this._buffer = [];
+  }
+  close() {
+    if (this._batchInterval) {
+      clearInterval(this._batchInterval);
+      this._batchInterval = null;
+    }
+    this._flush();
+  }
+};
+
+// src/capabilities/pool/pool-runtime-helpers.ts
+import { MongoClient as MongoDriverClient } from "mongodb";
+function validatePoolConfigInternal(config) {
+  if (!config.name?.trim()) {
+    throw new Error("Pool config requires a non-empty name");
+  }
+  if (!config.uri?.trim()) {
+    throw new Error("Pool config requires a non-empty uri");
+  }
+}
+function createEmptyPoolStats(name) {
+  return {
+    name,
+    totalRequests: 0,
+    successCount: 0,
+    errorCount: 0,
+    avgResponseTime: 0,
+    minResponseTime: 0,
+    maxResponseTime: 0,
+    errorRate: 0,
+    lastRequestTime: null
+  };
+}
+async function defaultClientFactory(config) {
+  const client = new MongoDriverClient(config.uri, config.options);
+  await client.connect();
+  return client;
+}
+async function defaultHealthCheckFn(_poolName, client) {
+  await client.db("admin").command({ ping: 1 });
+  return true;
+}
+
+// src/capabilities/pool/index.ts
+var DEFAULT_HEALTH_CHECK = {
+  enabled: true,
+  interval: 5e3,
+  timeout: 3e3,
+  retries: 3
+};
+var ConnectionPoolManager = class {
+  constructor(options = {}) {
+    this.pools = /* @__PURE__ */ new Map();
+    this.healthStatus = /* @__PURE__ */ new Map();
+    this.stats = /* @__PURE__ */ new Map();
+    this.intervals = /* @__PURE__ */ new Map();
+    this.roundRobinIndex = /* @__PURE__ */ new Map();
+    // v1 compat properties
+    this._closed = false;
+    this._configs = /* @__PURE__ */ new Map();
+    this._pendingAdds = /* @__PURE__ */ new Set();
+    this.logger = options.logger ?? null;
+    this.maxPoolsCount = options.maxPoolsCount ?? 10;
+    this.strategy = options.poolStrategy ?? "auto";
+    const rawFallback = options.fallback ?? options.poolFallback;
+    const fallback = typeof rawFallback === "boolean" ? { enabled: rawFallback, fallbackStrategy: "error", retryDelay: 1e3, maxRetries: 3 } : {
+      enabled: rawFallback?.enabled ?? false,
+      fallbackStrategy: rawFallback?.fallbackStrategy ?? "error",
+      retryDelay: rawFallback?.retryDelay ?? 1e3,
+      maxRetries: rawFallback?.maxRetries ?? 3
+    };
+    this.fallback = fallback;
+    this.clientFactory = options.clientFactory ?? defaultClientFactory;
+    this.healthCheckFn = options.healthCheckFn ?? defaultHealthCheckFn;
+    this._fallbackConfig = this.fallback;
+    this._fallback = this.fallback;
+    this._pools = this.pools;
+    this._selector = new PoolSelector({ strategy: this.strategy });
+    this._healthChecker = new HealthChecker({ poolManager: this });
+    this._stats = new PoolStatsManager({ logger: options.logger ?? void 0 });
+  }
+  /**
+   * Add a connection pool.
+   * @since v1.0.8
+   */
+  async addPool(config) {
+    validatePoolConfigInternal(config);
+    if (this.pools.has(config.name) || this._pendingAdds.has(config.name)) {
+      throw new Error(`Pool '${config.name}' already exists`);
+    }
+    if (this.maxPoolsCount > 0 && this.pools.size >= this.maxPoolsCount) {
+      throw new Error(`Maximum pool count (${this.maxPoolsCount}) reached`);
+    }
+    this._pendingAdds.add(config.name);
+    try {
+      const client = await this.clientFactory(config);
+      if (this.pools.has(config.name)) {
+        await client.close().catch(() => {
+        });
+        throw new Error(`Pool '${config.name}' already exists`);
+      }
+      this.pools.set(config.name, {
+        client,
+        config,
+        createdAt: Date.now()
+      });
+      this.healthStatus.set(config.name, {
+        status: "up",
+        consecutiveFailures: 0,
+        lastCheckTime: null,
+        lastError: null,
+        uptime: 0
+      });
+      this.stats.set(config.name, createEmptyPoolStats(config.name));
+      this._configs.set(config.name, config);
+      this._healthChecker.register(config.name, config.healthCheck ?? {});
+    } catch (err) {
+      const error = err;
+      const msg = error.message ?? "";
+      const hasNetworkKeyword = msg.includes("connect") || msg.includes("ETIMEDOUT") || msg.includes("ECONNREFUSED");
+      if (!hasNetworkKeyword && error.name && error.name.toLowerCase().includes("mongo")) {
+        const enhanced = new Error(`connect ETIMEDOUT: ${msg}`);
+        enhanced.name = error.name;
+        enhanced.code = error.code;
+        throw enhanced;
+      }
+      throw err;
+    } finally {
+      this._pendingAdds.delete(config.name);
+    }
+  }
+  /**
+   * Remove a connection pool.
+   * @since v1.0.8
+   */
+  async removePool(name) {
+    const pool = this.pools.get(name);
+    if (!pool) {
+      throw new Error(`Pool '${name}' not found`);
+    }
+    this.stopHealthCheck(name);
+    await pool.client.close();
+    this.pools.delete(name);
+    this.healthStatus.delete(name);
+    this.stats.delete(name);
+    this._configs.delete(name);
+    this._healthChecker.unregister(name);
+  }
+  /**
+   * Get the native MongoClient for a pool.
+   * @since v1.0.8
+   */
+  getPool(name) {
+    return this.pools.get(name)?.client ?? null;
+  }
+  /**
+   * Select a connection pool.
+   * @since v1.0.8
+   */
+  selectPool(operation, options = {}) {
+    if (options.pool) {
+      const poolData2 = this.pools.get(options.pool);
+      if (!poolData2) throw new Error(`Pool '${options.pool}' not found`);
+      return this._createPoolResult(options.pool, poolData2.client);
+    }
+    let candidates = this._getHealthyPools();
+    if (candidates.length === 0) {
+      if (!this.fallback.enabled) {
+        throw new Error("No available connection pool");
+      }
+      candidates = this._handleAllPoolsDown(operation);
+      if (candidates.length === 0) {
+        throw new Error("No available connection pool");
+      }
+    }
+    const poolName = this._selector.select(candidates, {
+      operation,
+      stats: this._stats.getAllStats(),
+      poolPreference: options.poolPreference
+    });
+    const poolData = this.pools.get(poolName);
+    if (!poolData) {
+      throw new Error(`Selected pool '${poolName}' not available`);
+    }
+    this._stats.recordSelection(poolName, operation);
+    this.recordSelection(poolName, true);
+    return this._createPoolResult(poolName, poolData.client);
+  }
+  _createPoolResult(name, client) {
+    return {
+      name,
+      client,
+      db: (n) => client.db(n),
+      collection: (databaseName, collectionName) => client.db(databaseName).collection(collectionName)
+    };
+  }
+  /**
+   * Start health checks.
+   * @since v1.0.8
+   */
+  startHealthCheck(name) {
+    const targets = name ? [name] : [...this.pools.keys()];
+    for (const poolName of targets) {
+      const managed = this.pools.get(poolName);
+      if (!managed) {
+        continue;
+      }
+      const healthConfig = {
+        ...DEFAULT_HEALTH_CHECK,
+        ...managed.config.healthCheck
+      };
+      if (!healthConfig.enabled) {
+        continue;
+      }
+      this.stopHealthCheck(poolName);
+      const timer = setInterval(() => {
+        void this.checkPoolHealth(poolName);
+      }, healthConfig.interval);
+      timer.unref?.();
+      this.intervals.set(poolName, timer);
+      void this.checkPoolHealth(poolName);
+    }
+  }
+  /**
+   * Stop health checks.
+   * @since v1.0.8
+   */
+  stopHealthCheck(name) {
+    const targets = name ? [name] : [...this.intervals.keys()];
+    for (const poolName of targets) {
+      const timer = this.intervals.get(poolName);
+      if (!timer) {
+        continue;
+      }
+      clearInterval(timer);
+      this.intervals.delete(poolName);
+    }
+  }
+  /**
+   * Get health status.
+   * @since v1.0.8
+   */
+  getHealthStatus() {
+    return Object.fromEntries(this.healthStatus.entries());
+  }
+  /**
+   * Get all pool names.
+   * @since v1.3.0
+   */
+  getPoolNames() {
+    return Array.from(this.pools.keys());
+  }
+  /**
+   * Get pool statistics.
+   * @since v1.0.8
+   */
+  getPoolStats() {
+    const result = {};
+    for (const name of this.pools.keys()) {
+      const healthStatus = this.healthStatus.get(name);
+      const poolStats = this._stats.getStats(name);
+      result[name] = {
+        connections: poolStats?.connections || 0,
+        available: poolStats?.available || 0,
+        waiting: poolStats?.waiting || 0,
+        status: healthStatus?.status || "unknown",
+        avgResponseTime: poolStats?.avgResponseTime || 0,
+        totalRequests: poolStats?.totalRequests || 0,
+        errorRate: poolStats?.errorRate || 0
+      };
+    }
+    return result;
+  }
+  /**
+   * Close all connection pools.
+   * @since v1.0.8
+   */
+  async close() {
+    this.stopHealthCheck();
+    this._healthChecker.stop();
+    this._stats.close();
+    for (const pool of this.pools.values()) {
+      await pool.client.close();
+    }
+    this.pools.clear();
+    this.healthStatus.clear();
+    this.stats.clear();
+    this._closed = true;
+  }
+  // ─── v1 compat methods ───────────────────────────────────────────────────────────
+  /** v1 compat: get pool health Map */
+  getPoolHealth() {
+    return new Map(this.healthStatus);
+  }
+  /** v1 compat: get healthy pool config list (iterates _configs, matches v1 logic) */
+  _getHealthyPools() {
+    const result = [];
+    for (const [name, config] of this._configs.entries()) {
+      const status = this._healthChecker.getStatus(name);
+      if (!status || status.status !== "down") {
+        result.push(config);
+      }
+    }
+    return result;
+  }
+  /** v1 compat: get raw MongoClient */
+  _getPool(name) {
+    return this.pools.get(name)?.client ?? null;
+  }
+  /** v1 compat: get pool config list by role */
+  _getPoolsByRole(role) {
+    const result = [];
+    for (const [, config] of this._configs.entries()) {
+      if (config.role === role) result.push(config);
+    }
+    return result;
+  }
+  /** v1 compat: fallback when all pools are down (synchronously returns candidate pool list) */
+  _handleAllPoolsDown(operation) {
+    this.logger?.warn?.(`[PoolManager] All pools down, fallback strategy: ${this.fallback.fallbackStrategy}`);
+    const { fallbackStrategy } = this.fallback;
+    if (fallbackStrategy === "readonly") {
+      if (operation === "write") return [];
+      return this._getPoolsByRole("secondary");
+    }
+    if (fallbackStrategy === "secondary") {
+      return this._getPoolsByRole("secondary");
+    }
+    return [];
+  }
+  getCandidatePools(operation, options) {
+    if (options.pool) {
+      const pool = this.pools.get(options.pool);
+      if (!pool) {
+        throw new Error(`Pool '${options.pool}' not found`);
+      }
+      return [options.pool];
+    }
+    let candidates = [...this.pools.entries()].filter(([name]) => (this.healthStatus.get(name)?.status ?? "down") !== "down");
+    if (candidates.length === 0 && this.fallback.enabled) {
+      candidates = [...this.pools.entries()];
+    }
+    if (operation === "write") {
+      const primaries = candidates.filter(([, pool]) => (pool.config.role ?? "primary") === "primary");
+      if (primaries.length > 0) {
+        candidates = primaries;
+      }
+    } else {
+      const secondaries = candidates.filter(([, pool]) => pool.config.role === "secondary" || pool.config.role === "analytics");
+      if (secondaries.length > 0) {
+        candidates = secondaries;
+      }
+    }
+    if (options.tags?.length) {
+      const tagged = candidates.filter(([, pool]) => options.tags?.some((tag) => pool.config.tags?.includes(tag)));
+      if (tagged.length > 0) {
+        candidates = tagged;
+      }
+    }
+    return candidates.map(([name]) => name);
+  }
+  selectPoolName(candidateNames, operation) {
+    if (candidateNames.length === 1) {
+      return candidateNames[0];
+    }
+    if (this.strategy === "roundRobin") {
+      const current = this.roundRobinIndex.get(operation) ?? 0;
+      const selected = candidateNames[current % candidateNames.length];
+      this.roundRobinIndex.set(operation, current + 1);
+      return selected;
+    }
+    if (this.strategy === "leastConnections") {
+      return [...candidateNames].sort((left, right) => {
+        const leftStats = this.stats.get(left)?.totalRequests ?? 0;
+        const rightStats = this.stats.get(right)?.totalRequests ?? 0;
+        return leftStats - rightStats;
+      })[0];
+    }
+    if (this.strategy === "weighted" || this.strategy === "auto") {
+      const weighted = candidateNames.flatMap((name) => {
+        const weight = this.pools.get(name)?.config.weight ?? 1;
+        return Array.from({ length: weight }, () => name);
+      });
+      return weighted[Math.floor(Math.random() * weighted.length)] ?? candidateNames[0];
+    }
+    return candidateNames[0];
+  }
+  async checkPoolHealth(poolName) {
+    const managed = this.pools.get(poolName);
+    const current = this.healthStatus.get(poolName);
+    if (!managed || !current) {
+      return;
+    }
+    try {
+      const healthy = await this.healthCheckFn(poolName, managed.client, managed.config);
+      current.lastCheckTime = /* @__PURE__ */ new Date();
+      current.uptime = Date.now() - managed.createdAt;
+      if (healthy) {
+        current.status = "up";
+        current.consecutiveFailures = 0;
+        current.lastError = null;
+        return;
+      }
+      current.consecutiveFailures += 1;
+      current.status = current.consecutiveFailures > 1 ? "down" : "degraded";
+    } catch (error) {
+      current.lastCheckTime = /* @__PURE__ */ new Date();
+      current.uptime = Date.now() - managed.createdAt;
+      current.consecutiveFailures += 1;
+      current.lastError = error instanceof Error ? error : new Error(String(error));
+      current.status = current.consecutiveFailures > 1 ? "down" : "degraded";
+      this.logger?.warn?.(`[PoolManager] health check failed for ${poolName}`, current.lastError);
+    }
+  }
+  recordSelection(poolName, success) {
+    const stats = this.stats.get(poolName);
+    if (!stats) {
+      return;
+    }
+    stats.totalRequests += 1;
+    if (success) {
+      stats.successCount += 1;
+    } else {
+      stats.errorCount += 1;
+    }
+    stats.lastRequestTime = /* @__PURE__ */ new Date();
+    const samples = [stats.minResponseTime, stats.maxResponseTime].filter((value) => value > 0);
+    stats.avgResponseTime = samples.length === 0 ? 0 : samples.reduce((sum, value) => sum + value, 0) / samples.length;
+    stats.errorRate = stats.totalRequests === 0 ? 0 : stats.errorCount / stats.totalRequests;
+  }
+};
+
+// src/entry/capability-wiring.ts
+function initAutoConvertConfig(config, type) {
+  if (type !== "mongodb") {
+    return { enabled: false };
+  }
+  if (config === false) {
+    return { enabled: false };
+  }
+  const defaults = { enabled: true, excludeFields: [], customFieldPatterns: [], maxDepth: 10, logLevel: "warn" };
+  if (config === true || config === void 0) {
+    return defaults;
+  }
+  if (typeof config === "object" && config !== null) {
+    if (config.enabled === false) {
+      return { enabled: false };
+    }
+    return { ...defaults, ...config, enabled: true };
+  }
+  return defaults;
+}
+function buildRuntimeDefaults(options) {
+  const o = options;
+  const defaults = {};
+  if (o.maxTimeMS !== void 0) defaults.maxTimeMS = o.maxTimeMS;
+  if (o.findLimit !== void 0) defaults.findLimit = o.findLimit;
+  if (o.findPageMaxLimit !== void 0) defaults.findPageMaxLimit = o.findPageMaxLimit;
+  if (o.slowQueryMs !== void 0) defaults.slowQueryMs = o.slowQueryMs;
+  defaults.autoConvertObjectId = o.autoConvertObjectId !== void 0 ? o.autoConvertObjectId : o.type === "mongodb" || !o.type ? true : false;
+  if (o.cursorSecret !== void 0) defaults.cursorSecret = o.cursorSecret;
+  if (o.namespace !== void 0) defaults.namespace = o.namespace;
+  if (o.countQueue?.enabled) {
+    defaults.countQueue = new CountQueue({
+      concurrency: o.countQueue.concurrency,
+      maxQueueSize: o.countQueue.maxQueueSize,
+      timeout: o.countQueue.timeout
+    });
+  }
+  return defaults;
+}
+async function createAndStartPoolManager(options) {
+  if (!options.pools?.length) {
+    return null;
+  }
+  const pm = new ConnectionPoolManager({
+    pools: options.pools,
+    poolStrategy: options.poolStrategy,
+    poolFallback: options.poolFallback,
+    maxPoolsCount: options.maxPoolsCount,
+    logger: options.logger ?? null
+  });
+  for (const pool of options.pools) {
+    await pm.addPool(pool);
+  }
+  pm.startHealthCheck();
+  return pm;
+}
+async function loadModelFiles(options, logger, opts = {}) {
+  const modelsConfig = options.models;
+  if (!modelsConfig) return;
+  if (typeof modelsConfig !== "string" && typeof modelsConfig !== "object") return;
+  const { readdirSync } = await import("node:fs");
+  const { resolve, join, isAbsolute } = await import("node:path");
+  const { createRequire } = await import("node:module");
+  let targetPath;
+  let pattern;
+  let recursive;
+  if (typeof modelsConfig === "string") {
+    targetPath = isAbsolute(modelsConfig) ? modelsConfig : resolve(process.cwd(), modelsConfig);
+    pattern = "*.model.{js,ts,mjs,cjs}";
+    recursive = false;
+  } else {
+    const p = modelsConfig.path;
+    targetPath = isAbsolute(p) ? p : resolve(process.cwd(), p);
+    pattern = modelsConfig.pattern ?? "*.model.{js,ts,mjs,cjs}";
+    recursive = modelsConfig.recursive ?? false;
+  }
+  const globToRegex = (glob) => {
+    const escaped = glob.replace(/\./g, "\\.").replace(/\{([^}]+)\}/g, (_, inner) => `(?:${inner.split(",").join("|")})`).replace(/\*/g, "[^/\\\\]*");
+    return new RegExp(`^${escaped}$`);
+  };
+  const filePattern = globToRegex(pattern);
+  const collectFiles = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      logger.warn?.(`[Models] cannot read directory: ${dir}`);
+      return [];
+    }
+    const files2 = [];
+    for (const entry of entries) {
+      const entryName = typeof entry.name === "string" ? entry.name : entry.name.toString();
+      if (entry.isDirectory() && recursive) {
+        files2.push(...collectFiles(join(dir, entryName)));
+      } else if (entry.isFile() && filePattern.test(entryName)) {
+        files2.push(join(dir, entryName));
+      }
+    }
+    return files2;
+  };
+  const files = collectFiles(targetPath);
+  if (files.length === 0) return;
+  const req = createRequire(resolve(process.cwd(), "package.json"));
+  for (const file of files) {
+    try {
+      delete req.cache[req.resolve(file)];
+      const mod = req(file);
+      const definition = mod.default ?? mod;
+      if (!definition?.name) {
+        logger.warn?.(`[Models] ${file}: exported object must have a 'name' field`);
+        continue;
+      }
+      if (opts.reload && Model.has(definition.name)) {
+        Model.redefine(definition.name, definition);
+      } else {
+        Model.define(definition.name, definition);
+      }
+    } catch (err) {
+      logger.warn?.(`[Models] failed to load ${file}`, err);
+    }
+  }
+}
+
+// src/entry/runtime-defaults.ts
+function deepMerge(base, patch) {
+  const output = { ...base };
+  for (const key of Object.keys(patch || {})) {
+    const value = patch[key];
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      output[key] = deepMerge(base[key] || {}, value);
+    } else if (value !== void 0) {
+      output[key] = value;
+    }
+  }
+  return output;
+}
+function buildPublicDefaults(options) {
+  return Object.freeze(deepMerge({
+    maxTimeMS: 2e3,
+    findLimit: 10,
+    slowQueryMs: 500,
+    namespace: { scope: "database" },
+    findPageMaxLimit: 500,
+    cursorSecret: void 0,
+    log: { slowQueryTag: { event: "slow_query", code: "SLOW_QUERY" } }
+  }, {
+    maxTimeMS: options.maxTimeMS,
+    findLimit: options.findLimit,
+    findPageMaxLimit: options.findPageMaxLimit,
+    slowQueryMs: options.slowQueryMs,
+    namespace: options.namespace,
+    cursorSecret: options.cursorSecret,
+    autoConvertObjectId: options.autoConvertObjectId,
+    log: options.log,
+    slowQueryLog: options.slowQueryLog,
+    cacheAutoInvalidate: options.cacheAutoInvalidate
+  }));
 }
 
 // src/utils/normalize.ts
@@ -430,13 +3942,639 @@ function extractErrorMessage(cause) {
   return String(cause);
 }
 
-// src/adapters/mongodb/queries/index.ts
-import { createHmac } from "node:crypto";
-import { ObjectId } from "mongodb";
+// src/adapters/mongodb/common/collection-accessor-management-helpers.ts
+function resolveDb(collectionRef, dbRef) {
+  return dbRef ?? collectionRef.db;
+}
+function resolveBookmarkCache(context) {
+  return context.getCache ? context.getCache() : context.cache;
+}
+function createIndexForAccessor(collectionRef, keys, options) {
+  return createIndexDefinition(collectionRef, keys, options);
+}
+function createIndexesForAccessor(collectionRef, specs) {
+  return createIndexDefinitions(collectionRef, specs);
+}
+function listIndexesForAccessor(collectionRef) {
+  return listIndexDefinitions(collectionRef);
+}
+function dropIndexForAccessor(collectionRef, name) {
+  return dropIndexDefinition(collectionRef, name);
+}
+function dropIndexesForAccessor(collectionRef) {
+  return dropIndexDefinitions(collectionRef);
+}
+function prewarmBookmarksForAccessor(context, keyDims = {}, pages = []) {
+  return prewarmBookmarks({
+    namespace: context.namespace,
+    cache: resolveBookmarkCache(context),
+    logger: context.logger,
+    keyDims,
+    pages,
+    findPage: context.findPage
+  });
+}
+function listBookmarksForAccessor(context, keyDims) {
+  return listBookmarks({
+    namespace: context.namespace,
+    cache: resolveBookmarkCache(context),
+    keyDims
+  });
+}
+function clearBookmarksForAccessor(context, keyDims) {
+  return clearBookmarks({
+    namespace: context.namespace,
+    cache: resolveBookmarkCache(context),
+    keyDims
+  });
+}
+function dropCollectionForAccessor(collectionRef) {
+  return collectionRef.drop();
+}
+async function createCollectionForAccessor(collectionRef, collectionName, dbRef, name, options = {}) {
+  await resolveDb(collectionRef, dbRef).createCollection(name ?? collectionName, options);
+  return true;
+}
+async function createViewForAccessor(collectionRef, dbRef, name, source, pipeline = []) {
+  await resolveDb(collectionRef, dbRef).createCollection(name, { viewOn: source, pipeline });
+  return true;
+}
+async function indexStatsForAccessor(collectionRef) {
+  return collectionRef.aggregate([{ $indexStats: {} }]).toArray();
+}
+async function setValidatorForAccessor(collectionRef, collectionName, dbRef, validator, options = {}) {
+  if (validator === null || typeof validator !== "object") {
+    throw new Error("Validator must be a non-null object");
+  }
+  const isEmptyValidator = Object.keys(validator).length === 0;
+  const command = {
+    collMod: collectionName,
+    validator
+  };
+  if (options.validationLevel) {
+    command["validationLevel"] = options.validationLevel;
+  } else if (isEmptyValidator) {
+    command["validationLevel"] = "strict";
+    command["validationAction"] = "error";
+  }
+  if (options.validationAction) {
+    command["validationAction"] = options.validationAction;
+  }
+  const result = await resolveDb(collectionRef, dbRef).command(command);
+  return { ok: result["ok"], collection: collectionName };
+}
+async function setValidationLevelForAccessor(collectionRef, collectionName, dbRef, level) {
+  if (typeof level !== "string" || !["off", "strict", "moderate"].includes(level)) {
+    throw new Error('Invalid validation level: must be "off", "strict", or "moderate"');
+  }
+  const result = await resolveDb(collectionRef, dbRef).command({ collMod: collectionName, validationLevel: level });
+  return { ok: result["ok"], validationLevel: level };
+}
+async function setValidationActionForAccessor(collectionRef, collectionName, dbRef, action) {
+  if (typeof action !== "string" || !["error", "warn"].includes(action)) {
+    throw new Error('Invalid validation action: must be "error" or "warn"');
+  }
+  const result = await resolveDb(collectionRef, dbRef).command({ collMod: collectionName, validationAction: action });
+  return { ok: result["ok"], validationAction: action };
+}
+async function getValidatorForAccessor(collectionRef, collectionName, dbRef) {
+  const collections = await resolveDb(collectionRef, dbRef).listCollections({ name: collectionName }).toArray();
+  const info = collections[0];
+  return {
+    validator: info?.options?.["validator"] ?? null,
+    validationLevel: info?.options?.["validationLevel"] ?? "strict",
+    validationAction: info?.options?.["validationAction"] ?? "error"
+  };
+}
+async function statsForAccessor(collectionRef, dbName, collectionName, options = {}) {
+  const scale = options.scale ?? 1;
+  const results = await collectionRef.aggregate([{ $collStats: { storageStats: { scale }, count: {} } }]).toArray();
+  const raw = results[0] ?? {};
+  const storage = raw["storageStats"] ?? {};
+  return {
+    ns: raw["ns"] ?? `${dbName}.${collectionName}`,
+    count: storage["count"] ?? 0,
+    size: storage["size"] ?? 0,
+    storageSize: storage["storageSize"] ?? 0,
+    totalIndexSize: storage["totalIndexSize"] ?? 0,
+    nindexes: storage["nindexes"] ?? 0,
+    avgObjSize: storage["avgObjSize"],
+    scaleFactor: storage["scaleFactor"] ?? scale
+  };
+}
+async function renameCollectionForAccessor(collectionRef, collectionName, newName, options = {}) {
+  if (!newName || typeof newName !== "string") {
+    throw new Error("New collection name is required and must be a non-empty string");
+  }
+  await collectionRef.rename(newName, { dropTarget: options.dropTarget ?? false });
+  return { renamed: true, from: collectionName, to: newName };
+}
+async function collModForAccessor(collectionRef, collectionName, dbRef, modifications) {
+  if (modifications === null || typeof modifications !== "object") {
+    throw new Error("Modifications must be a non-null object");
+  }
+  return resolveDb(collectionRef, dbRef).command({
+    collMod: collectionName,
+    ...modifications
+  });
+}
+async function convertToCappedForAccessor(collectionRef, collectionName, dbRef, size, options = {}) {
+  if (typeof size !== "number") {
+    throw new Error("Size must be a number");
+  }
+  if (size <= 0) {
+    throw new Error("Size must be a positive number");
+  }
+  const command = { convertToCapped: collectionName, size };
+  if (options.max !== void 0) {
+    command["max"] = options.max;
+  }
+  const result = await resolveDb(collectionRef, dbRef).command(command);
+  return { ok: result["ok"], collection: collectionName, capped: true, size };
+}
 
-// src/core/expression/index.ts
+// src/core/expression/expression-compiler.ts
 var FUNC_REGEX = /^(CONCAT|UPPER|LOWER|TRIM|SUBSTR|LENGTH|ABS|CEIL|FLOOR|ROUND|SQRT|POW|SIZE|IN|SLICE|FIRST|LAST|ARRAY_ELEM_AT|FILTER|MAP|INDEX_OF|CONCAT_ARRAYS|TYPE|NOT|EXISTS|IS_NUMBER|IS_ARRAY|SUM|AVG|MAX|MIN|COUNT|PUSH|ADD_TO_SET|YEAR|MONTH|DAY_OF_MONTH|HOUR|MINUTE|SECOND|SPLIT|REPLACE|INDEX_OF_STR|LTRIM|RTRIM|SUBSTR_CP|REGEX|MERGE_OBJECTS|TO_INT|TO_STRING|OBJECT_TO_ARRAY|ARRAY_TO_OBJECT|SET_UNION|SWITCH|DATE_ADD|DATE_SUBTRACT|DATE_DIFF|DATE_TO_STRING|DATE_FROM_STRING|TO_BOOL|TO_DATE|TO_DOUBLE|CONVERT|TO_DECIMAL|TO_LONG|TO_OBJECT_ID|REDUCE|ZIP|REVERSE_ARRAY|RANGE|DATE_FROM_PARTS|DATE_TO_PARTS|ISO_WEEK|ISO_WEEK_YEAR|ISO_DAY_OF_WEEK|DAY_OF_WEEK|DAY_OF_YEAR|WEEK|STR_LEN_BYTES|STR_LEN_CP|SUBSTR_BYTES|LOG|LOG10|ALL_ELEMENTS_TRUE|ANY_ELEMENT_TRUE|COND|IF_NULL|SET_FIELD|UNSET_FIELD|GET_FIELD|SET_DIFFERENCE|SET_EQUALS|SET_INTERSECTION|SET_IS_SUBSET|LET|LITERAL|RAND|SAMPLE_RATE)\s*\((.+)?\)$/i;
 var IS_FUNC_CALL_RE = /^(CONCAT|UPPER|LOWER|TRIM|SUBSTR|LENGTH|ABS|CEIL|FLOOR|ROUND|SQRT|POW|SIZE|IN|SLICE|FIRST|LAST|ARRAY_ELEM_AT|FILTER|MAP|INDEX_OF|CONCAT_ARRAYS|TYPE|NOT|EXISTS|IS_NUMBER|IS_ARRAY|SUM|AVG|MAX|MIN|COUNT|PUSH|ADD_TO_SET|YEAR|MONTH|DAY_OF_MONTH|HOUR|MINUTE|SECOND|SPLIT|REPLACE|INDEX_OF_STR|LTRIM|RTRIM|SUBSTR_CP|REGEX|MERGE_OBJECTS|TO_INT|TO_STRING|OBJECT_TO_ARRAY|ARRAY_TO_OBJECT|SET_UNION|SWITCH)\s*\(/i;
+function compileInnerExpression(expression) {
+  const expr2 = expression.trim();
+  const funcMatch = expr2.match(FUNC_REGEX);
+  if (funcMatch) {
+    return dispatchFunction(funcMatch[1].toUpperCase(), funcMatch[2] ?? "");
+  }
+  const andParts = splitTopLevel(expr2, "&&");
+  if (andParts.length > 1) {
+    return { $and: andParts.map((part) => compileInnerExpression(part.trim())) };
+  }
+  const orParts = splitTopLevel(expr2, "||");
+  if (orParts.length > 1) {
+    return { $or: orParts.map((part) => compileInnerExpression(part.trim())) };
+  }
+  const ternary = /^([^?]+)\s*\?\s*([^:]+)\s*:\s*(.+)$/.exec(expr2);
+  if (ternary) {
+    const [, condition, thenPart, elsePart] = ternary;
+    return {
+      $cond: {
+        if: compileInnerExpression(condition.trim()),
+        then: parseThenElse(thenPart.trim()),
+        else: parseThenElse(elsePart.trim())
+      }
+    };
+  }
+  const nullCoalParts = splitTopLevel(expr2, "??");
+  if (nullCoalParts.length > 1) {
+    return { $ifNull: [parseValue(nullCoalParts[0].trim()), parseValue(nullCoalParts[1].trim())] };
+  }
+  const addSubMatch = /^(.+?)\s*([+\-])\s*(.+)$/.exec(expr2);
+  if (addSubMatch) {
+    const [, left, operator, right] = addSubMatch;
+    const operatorMap = { "+": "$add", "-": "$subtract" };
+    return { [operatorMap[operator]]: [parseOperand(left.trim()), parseOperand(right.trim())] };
+  }
+  const mulDivMatch = /^(.+?)\s*([*\/%])\s*(.+)$/.exec(expr2);
+  if (mulDivMatch) {
+    const [, left, operator, right] = mulDivMatch;
+    const operatorMap = { "*": "$multiply", "/": "$divide", "%": "$mod" };
+    return { [operatorMap[operator]]: [parseOperand(left.trim()), parseOperand(right.trim())] };
+  }
+  const cmpMatch = /^(.+?)\s*(===|!==|>=|<=|>|<)\s*(.+)$/.exec(expr2);
+  if (cmpMatch) {
+    const [, left, operator, right] = cmpMatch;
+    const operatorMap = {
+      "===": "$eq",
+      "!==": "$ne",
+      ">=": "$gte",
+      "<=": "$lte",
+      ">": "$gt",
+      "<": "$lt"
+    };
+    const leftValue = IS_FUNC_CALL_RE.test(left.trim()) ? compileInnerExpression(left.trim()) : `$${left.trim()}`;
+    return { [operatorMap[operator]]: [leftValue, parseValue(right.trim())] };
+  }
+  const genericFuncCallRe = /^[A-Za-z_][A-Za-z0-9_]*\s*\(.+\)$/;
+  if (genericFuncCallRe.test(expr2)) {
+    const funcName = expr2.slice(0, expr2.indexOf("(")).trim();
+    throw createError(ErrorCodes.INVALID_EXPRESSION, `Unsupported expression function: ${funcName}`);
+  }
+  return parseValue(expr2);
+}
+function parseThenElse(source) {
+  return source.includes("?") && source.includes(":") ? compileInnerExpression(source) : parseValue(source);
+}
+function parseValue(value) {
+  const normalized = stripOuterParentheses(value.trim());
+  if (normalized.startsWith("'") && normalized.endsWith("'") || normalized.startsWith('"') && normalized.endsWith('"')) {
+    return normalized.slice(1, -1);
+  }
+  if (normalized === "null") return null;
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  if (!isNaN(Number(normalized)) && normalized !== "") return Number(normalized);
+  if (IS_FUNC_CALL_RE.test(normalized)) {
+    return compileInnerExpression(normalized);
+  }
+  return `$${normalized}`;
+}
+function parseOperand(value) {
+  const normalized = stripOuterParentheses(value);
+  if (/[+\-*/%]/.test(normalized)) {
+    return compileInnerExpression(normalized);
+  }
+  return parseValue(normalized);
+}
+function dispatchFunction(name, argsStr) {
+  const args = splitArgsStr(argsStr);
+  switch (name) {
+    case "CONCAT":
+      return { $concat: args.map((arg) => parseValue(arg)) };
+    case "UPPER":
+      return { $toUpper: parseValue(args[0]) };
+    case "LOWER":
+      return { $toLower: parseValue(args[0]) };
+    case "TRIM":
+      return { $trim: { input: parseValue(args[0]) } };
+    case "LENGTH":
+      return { $strLenCP: parseValue(args[0]) };
+    case "SUBSTR":
+      return { $substr: [parseValue(args[0]), parseInt(args[1], 10), parseInt(args[2], 10)] };
+    case "SPLIT":
+      return { $split: [parseValue(args[0]), parseValue(args[1])] };
+    case "REPLACE":
+      return { $replaceOne: { input: parseValue(args[0]), find: parseValue(args[1]), replacement: parseValue(args[2]) } };
+    case "INDEX_OF_STR": {
+      const base = [parseValue(args[0]), parseValue(args[1])];
+      if (args[2]) return { $indexOfCP: [...base, parseValue(args[2])] };
+      return { $indexOfCP: base };
+    }
+    case "LTRIM":
+      return { $ltrim: { input: parseValue(args[0]) } };
+    case "RTRIM":
+      return { $rtrim: { input: parseValue(args[0]) } };
+    case "SUBSTR_CP":
+      return { $substrCP: [parseValue(args[0]), parseInt(args[1], 10), parseInt(args[2], 10)] };
+    case "STR_LEN_BYTES":
+      return { $strLenBytes: parseValue(args[0]) };
+    case "STR_LEN_CP":
+      return { $strLenCP: parseValue(args[0]) };
+    case "SUBSTR_BYTES":
+      return { $substrBytes: [parseValue(args[0]), parseValue(args[1]), parseValue(args[2])] };
+    case "ABS":
+      return { $abs: parseValue(args[0]) };
+    case "CEIL":
+      return { $ceil: parseValue(args[0]) };
+    case "FLOOR":
+      return { $floor: parseValue(args[0]) };
+    case "ROUND":
+      return args[1] ? { $round: [parseValue(args[0]), parseValue(args[1])] } : { $round: [parseValue(args[0])] };
+    case "SQRT":
+      return { $sqrt: parseValue(args[0]) };
+    case "POW":
+      return { $pow: [parseValue(args[0]), parseValue(args[1])] };
+    case "LOG":
+      return { $log: [parseValue(args[0]), parseValue(args[1])] };
+    case "LOG10":
+      return { $log10: parseValue(args[0]) };
+    case "SIZE":
+      return { $size: parseValue(args[0]) };
+    case "IN":
+      return { $in: [parseValue(args[0]), parseValue(args[1])] };
+    case "SLICE":
+      return args.length === 3 ? { $slice: [parseValue(args[0]), parseInt(args[1], 10), parseInt(args[2], 10)] } : { $slice: [parseValue(args[0]), parseInt(args[1], 10)] };
+    case "FIRST":
+      return { $first: parseValue(args[0]) };
+    case "LAST":
+      return { $last: parseValue(args[0]) };
+    case "ARRAY_ELEM_AT":
+      return { $arrayElemAt: [parseValue(args[0]), parseInt(args[1], 10)] };
+    case "INDEX_OF":
+      return { $indexOfArray: [parseValue(args[0]), parseValue(args[1])] };
+    case "CONCAT_ARRAYS":
+      return { $concatArrays: args.map((arg) => parseValue(arg)) };
+    case "FILTER": {
+      const filterArray = parseValue(args[0]);
+      const varName = args[1].replace(/['"]/g, "").trim();
+      const filterCondition = compileFilterCondition(args[2], varName);
+      return { $filter: { input: filterArray, as: varName, cond: filterCondition } };
+    }
+    case "MAP": {
+      const mapArray = parseValue(args[0]);
+      const varName = args[1].replace(/['"]/g, "").trim();
+      const mapExpr = compileMapExpression(args[2], varName);
+      return { $map: { input: mapArray, as: varName, in: mapExpr } };
+    }
+    case "REDUCE": {
+      const lambdaMatch = /\((\w+),\s*(\w+)\)\s*=>\s*(.+)/.exec(args[2]);
+      if (!lambdaMatch) throw new Error("REDUCE requires a lambda: (acc, item) => expr");
+      const [, accVar, itemVar, lambdaExpr] = lambdaMatch;
+      const compiledExpr = lambdaExpr.replace(new RegExp(`\\b${accVar}\\b`, "g"), "$$value").replace(new RegExp(`\\b${itemVar}\\b`, "g"), "$$this");
+      return { $reduce: { input: parseValue(args[0]), initialValue: parseValue(args[1]), in: compileInnerExpression(compiledExpr) } };
+    }
+    case "ZIP":
+      return { $zip: { inputs: args.map((arg) => parseValue(arg)) } };
+    case "REVERSE_ARRAY":
+      return { $reverseArray: parseValue(args[0]) };
+    case "RANGE": {
+      const rangeArgs = [parseValue(args[0]), parseValue(args[1])];
+      if (args[2]) rangeArgs.push(parseValue(args[2]));
+      return { $range: rangeArgs };
+    }
+    case "TYPE":
+      return { $type: parseValue(args[0]) };
+    case "NOT":
+      return { $not: [compileInnerExpression(args[0])] };
+    case "EXISTS":
+      return { $ne: [parseValue(args[0]), null] };
+    case "IS_NUMBER":
+      return { $isNumber: parseValue(args[0]) };
+    case "IS_ARRAY":
+      return { $isArray: parseValue(args[0]) };
+    case "TO_INT":
+      return { $toInt: parseValue(args[0]) };
+    case "TO_STRING":
+      return { $toString: parseValue(args[0]) };
+    case "OBJECT_TO_ARRAY":
+      return { $objectToArray: parseValue(args[0]) };
+    case "ARRAY_TO_OBJECT":
+      return { $arrayToObject: parseValue(args[0]) };
+    case "TO_BOOL":
+      return { $toBool: parseValue(args[0]) };
+    case "TO_DATE":
+      return { $toDate: parseValue(args[0]) };
+    case "TO_DOUBLE":
+      return { $toDouble: parseValue(args[0]) };
+    case "TO_DECIMAL":
+      return { $toDecimal: parseValue(args[0]) };
+    case "TO_LONG":
+      return { $toLong: parseValue(args[0]) };
+    case "TO_OBJECT_ID":
+      return { $toObjectId: parseValue(args[0]) };
+    case "CONVERT": {
+      const result = { $convert: { input: parseValue(args[0]), to: args[1].replace(/['"]/g, "") } };
+      if (args[2]) result.$convert.onError = parseValue(args[2]);
+      if (args[3]) result.$convert.onNull = parseValue(args[3]);
+      return result;
+    }
+    case "SUM":
+      return { $sum: parseValue(args[0]) };
+    case "AVG":
+      return { $avg: parseValue(args[0]) };
+    case "MAX":
+      return { $max: parseValue(args[0]) };
+    case "MIN":
+      return { $min: parseValue(args[0]) };
+    case "COUNT":
+      return { $sum: 1 };
+    case "PUSH":
+      return { $push: parseValue(args[0]) };
+    case "ADD_TO_SET":
+      return { $addToSet: parseValue(args[0]) };
+    case "YEAR":
+      return { $year: parseValue(args[0]) };
+    case "MONTH":
+      return { $month: parseValue(args[0]) };
+    case "DAY_OF_MONTH":
+      return { $dayOfMonth: parseValue(args[0]) };
+    case "HOUR":
+      return { $hour: parseValue(args[0]) };
+    case "MINUTE":
+      return { $minute: parseValue(args[0]) };
+    case "SECOND":
+      return { $second: parseValue(args[0]) };
+    case "DATE_ADD":
+      return { $dateAdd: { startDate: parseValue(args[0]), amount: parseValue(args[1]), unit: args[2].replace(/['"]/g, "") } };
+    case "DATE_SUBTRACT":
+      return { $dateSubtract: { startDate: parseValue(args[0]), amount: parseValue(args[1]), unit: args[2].replace(/['"]/g, "") } };
+    case "DATE_DIFF":
+      return { $dateDiff: { startDate: parseValue(args[0]), endDate: parseValue(args[1]), unit: args[2].replace(/['"]/g, "") } };
+    case "DATE_TO_STRING": {
+      const result = { $dateToString: { format: args[1].replace(/['"]/g, ""), date: parseValue(args[0]) } };
+      if (args[2]) result.$dateToString.timezone = args[2].replace(/['"]/g, "");
+      return result;
+    }
+    case "DATE_FROM_STRING":
+      return { $dateFromString: { dateString: parseValue(args[0]) } };
+    case "DATE_FROM_PARTS": {
+      const parts = {};
+      const partNames = ["year", "month", "day", "hour", "minute", "second", "millisecond"];
+      args.forEach((arg, index) => {
+        if (partNames[index]) {
+          parts[partNames[index]] = parseValue(arg);
+        }
+      });
+      return { $dateFromParts: parts };
+    }
+    case "DATE_TO_PARTS": {
+      const result = { $dateToParts: { date: parseValue(args[0]) } };
+      if (args[1]) result.$dateToParts.timezone = args[1].replace(/['"]/g, "");
+      return result;
+    }
+    case "ISO_WEEK":
+      return { $isoWeek: parseValue(args[0]) };
+    case "ISO_WEEK_YEAR":
+      return { $isoWeekYear: parseValue(args[0]) };
+    case "ISO_DAY_OF_WEEK":
+      return { $isoDayOfWeek: parseValue(args[0]) };
+    case "DAY_OF_WEEK":
+      return { $dayOfWeek: parseValue(args[0]) };
+    case "DAY_OF_YEAR":
+      return { $dayOfYear: parseValue(args[0]) };
+    case "WEEK":
+      return { $week: parseValue(args[0]) };
+    case "REGEX":
+      return { $regexMatch: { input: parseValue(args[0]), regex: args[1].replace(/['"]/g, "") } };
+    case "MERGE_OBJECTS": {
+      const mergeArgs = args.map((arg) => {
+        if (arg.trim().startsWith("{")) {
+          try {
+            return JSON.parse(arg.trim());
+          } catch {
+            return parseValue(arg);
+          }
+        }
+        return parseValue(arg);
+      });
+      return { $mergeObjects: mergeArgs };
+    }
+    case "SET_UNION": {
+      const unionArgs = args.map((arg) => {
+        if (arg.trim().startsWith("[")) {
+          try {
+            return JSON.parse(arg.trim());
+          } catch {
+            return parseValue(arg);
+          }
+        }
+        return parseValue(arg);
+      });
+      return { $setUnion: unionArgs };
+    }
+    case "SWITCH": {
+      if (args.length < 2) throw new Error("SWITCH requires at least 2 arguments");
+      const branches = [];
+      let defaultValue = null;
+      for (let index = 0; index < args.length - 1; index += 2) {
+        if (index + 1 < args.length) {
+          branches.push({ case: compileInnerExpression(args[index]), then: parseValue(args[index + 1]) });
+        }
+      }
+      if (args.length % 2 === 1) defaultValue = parseValue(args[args.length - 1]);
+      const result = { $switch: { branches } };
+      if (defaultValue !== null) result.$switch.default = defaultValue;
+      return result;
+    }
+    case "ALL_ELEMENTS_TRUE":
+      return { $allElementsTrue: [parseValue(args[0])] };
+    case "ANY_ELEMENT_TRUE":
+      return { $anyElementTrue: [parseValue(args[0])] };
+    case "COND": {
+      if (args.length !== 3) throw new Error("COND requires 3 arguments");
+      return { $cond: { if: compileInnerExpression(args[0]), then: parseValue(args[1]), else: parseValue(args[2]) } };
+    }
+    case "IF_NULL": {
+      if (args.length !== 2) throw new Error("IF_NULL requires 2 arguments");
+      return { $ifNull: [parseValue(args[0]), parseValue(args[1])] };
+    }
+    case "SET_FIELD":
+      return { $setField: { field: parseValue(args[0]), input: parseValue(args[2]), value: parseValue(args[1]) } };
+    case "UNSET_FIELD":
+      return { $unsetField: { field: parseValue(args[0]), input: parseValue(args[1]) } };
+    case "GET_FIELD":
+      return args.length === 1 ? { $getField: parseValue(args[0]) } : { $getField: { field: parseValue(args[0]), input: parseValue(args[1]) } };
+    case "SET_DIFFERENCE":
+      return { $setDifference: [parseValue(args[0]), parseValue(args[1])] };
+    case "SET_EQUALS":
+      return { $setEquals: args.map((arg) => parseValue(arg)) };
+    case "SET_INTERSECTION":
+      return { $setIntersection: args.map((arg) => parseValue(arg)) };
+    case "SET_IS_SUBSET":
+      return { $setIsSubset: [parseValue(args[0]), parseValue(args[1])] };
+    case "LET": {
+      const varsMatch = /\{(.+)\}/.exec(args[0]);
+      if (!varsMatch) throw new Error("LET requires an object literal for variables");
+      const varPairs = varsMatch[1].split(",").map((pair) => {
+        const [key, ...rest] = pair.split(":");
+        return [key.trim(), rest.join(":").trim()];
+      });
+      const vars = {};
+      for (const [key, value] of varPairs) {
+        vars[key] = parseValue(value);
+      }
+      return { $let: { vars, in: compileInnerExpression(args[1]) } };
+    }
+    case "LITERAL":
+      return { $literal: parseValue(args[0]) };
+    case "RAND":
+      return { $rand: {} };
+    case "SAMPLE_RATE":
+      return { $sampleRate: parseValue(args[0]) };
+    default:
+      throw new Error(`Unsupported function: ${name}`);
+  }
+}
+function compileFilterCondition(condition, varName) {
+  const replaced = condition.replace(new RegExp(`\\b${varName}\\.`, "g"), `$$${varName}.`);
+  return compileInnerExpression(replaced);
+}
+function compileMapExpression(exprStr, varName) {
+  const replaced = exprStr.replace(new RegExp(`\\b${varName}\\.`, "g"), `$$${varName}.`);
+  return compileInnerExpression(replaced);
+}
+function splitArgsStr(argsStr) {
+  const args = [];
+  let current = "";
+  let inString = false;
+  let stringChar = "";
+  let parenDepth = 0;
+  for (let index = 0; index < argsStr.length; index++) {
+    const ch = argsStr[index];
+    if ((ch === '"' || ch === "'") && (index === 0 || argsStr[index - 1] !== "\\")) {
+      if (!inString) {
+        inString = true;
+        stringChar = ch;
+      } else if (ch === stringChar) {
+        inString = false;
+        stringChar = "";
+      }
+      current += ch;
+    } else if (ch === "(" && !inString) {
+      parenDepth++;
+      current += ch;
+    } else if (ch === ")" && !inString) {
+      parenDepth--;
+      current += ch;
+    } else if (ch === "," && !inString && parenDepth === 0) {
+      args.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) args.push(current.trim());
+  return args;
+}
+function splitTopLevel(source, separator) {
+  const parts = [];
+  let current = "";
+  let parenDepth = 0;
+  let inString = false;
+  let stringChar = "";
+  for (let index = 0; index < source.length; index++) {
+    const ch = source[index];
+    if ((ch === '"' || ch === "'") && (index === 0 || source[index - 1] !== "\\")) {
+      if (!inString) {
+        inString = true;
+        stringChar = ch;
+      } else if (ch === stringChar) {
+        inString = false;
+        stringChar = "";
+      }
+      current += ch;
+    } else if (!inString && ch === "(") {
+      parenDepth++;
+      current += ch;
+    } else if (!inString && ch === ")") {
+      parenDepth--;
+      current += ch;
+    } else if (!inString && parenDepth === 0 && source.startsWith(separator, index)) {
+      parts.push(current);
+      current = "";
+      index += separator.length - 1;
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+function stripOuterParentheses(source) {
+  let normalized = source.trim();
+  while (normalized.startsWith("(") && normalized.endsWith(")") && isWrappedByOuterParentheses(normalized)) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  return normalized;
+}
+function isWrappedByOuterParentheses(source) {
+  let depth = 0;
+  let quote = null;
+  for (let index = 0; index < source.length; index++) {
+    const ch = source[index];
+    const prev = source[index - 1];
+    if ((ch === '"' || ch === "'") && prev !== "\\") {
+      if (quote === ch) quote = null;
+      else if (!quote) quote = ch;
+      continue;
+    }
+    if (quote) continue;
+    if (ch === "(") depth++;
+    else if (ch === ")") {
+      depth--;
+      if (depth === 0 && index < source.length - 1) return false;
+    }
+  }
+  return true;
+}
+
+// src/core/expression/index.ts
 function createExpression(expression) {
   if (typeof expression !== "string") {
     throw new TypeError("Expression must be a string");
@@ -476,8 +4614,8 @@ function transformExpressions(value, context) {
   if (!value || typeof value !== "object") return value;
   const entries = Object.entries(value);
   const result = {};
-  for (const [k, v] of entries) {
-    result[k] = transformExpressions(v, context);
+  for (const [key, current] of entries) {
+    result[key] = transformExpressions(current, context);
   }
   return result;
 }
@@ -487,9 +4625,9 @@ function transformStageEntry(stage) {
   }
   const entries = Object.entries(stage);
   const result = {};
-  for (const [k, v] of entries) {
-    const ctx = getStageContext(k);
-    result[k] = transformStageValue(v, ctx);
+  for (const [key, current] of entries) {
+    const context = getStageContext(key);
+    result[key] = transformStageValue(current, context);
   }
   return result;
 }
@@ -509,488 +4647,15 @@ function transformStageValue(value, context) {
   if (!value || typeof value !== "object") return value;
   const entries = Object.entries(value);
   const result = {};
-  for (const [k, v] of entries) {
-    result[k] = transformStageValue(v, context);
+  for (const [key, current] of entries) {
+    result[key] = transformStageValue(current, context);
   }
   return result;
 }
-function compileInnerExpression(expression) {
-  const expr2 = expression.trim();
-  const funcMatch = expr2.match(FUNC_REGEX);
-  if (funcMatch) {
-    return dispatchFunction(funcMatch[1].toUpperCase(), funcMatch[2] ?? "");
-  }
-  const andParts = splitTopLevel(expr2, "&&");
-  if (andParts.length > 1) {
-    return { $and: andParts.map((p) => compileInnerExpression(p.trim())) };
-  }
-  const orParts = splitTopLevel(expr2, "||");
-  if (orParts.length > 1) {
-    return { $or: orParts.map((p) => compileInnerExpression(p.trim())) };
-  }
-  const ternary = /^([^?]+)\s*\?\s*([^:]+)\s*:\s*(.+)$/.exec(expr2);
-  if (ternary) {
-    const [, cond, thenPart, elsePart] = ternary;
-    return {
-      $cond: {
-        if: compileInnerExpression(cond.trim()),
-        then: parseThenElse(thenPart.trim()),
-        else: parseThenElse(elsePart.trim())
-      }
-    };
-  }
-  const nullCoalParts = splitTopLevel(expr2, "??");
-  if (nullCoalParts.length > 1) {
-    return { $ifNull: [parseValue(nullCoalParts[0].trim()), parseValue(nullCoalParts[1].trim())] };
-  }
-  const addSubMatch = /^(.+?)\s*([+\-])\s*(.+)$/.exec(expr2);
-  if (addSubMatch) {
-    const [, left, op, right] = addSubMatch;
-    const opMap = { "+": "$add", "-": "$subtract" };
-    return { [opMap[op]]: [parseOperand(left.trim()), parseOperand(right.trim())] };
-  }
-  const mulDivMatch = /^(.+?)\s*([*\/%])\s*(.+)$/.exec(expr2);
-  if (mulDivMatch) {
-    const [, left, op, right] = mulDivMatch;
-    const opMap = { "*": "$multiply", "/": "$divide", "%": "$mod" };
-    return { [opMap[op]]: [parseOperand(left.trim()), parseOperand(right.trim())] };
-  }
-  const cmpMatch = /^(.+?)\s*(===|!==|>=|<=|>|<)\s*(.+)$/.exec(expr2);
-  if (cmpMatch) {
-    const [, left, op, right] = cmpMatch;
-    const opMap = {
-      "===": "$eq",
-      "!==": "$ne",
-      ">=": "$gte",
-      "<=": "$lte",
-      ">": "$gt",
-      "<": "$lt"
-    };
-    const leftValue = IS_FUNC_CALL_RE.test(left.trim()) ? compileInnerExpression(left.trim()) : `$${left.trim()}`;
-    return { [opMap[op]]: [leftValue, parseValue(right.trim())] };
-  }
-  const genericFuncCallRe = /^[A-Za-z_][A-Za-z0-9_]*\s*\(.+\)$/;
-  if (genericFuncCallRe.test(expr2)) {
-    const funcName = expr2.slice(0, expr2.indexOf("(")).trim();
-    throw createError(ErrorCodes.INVALID_EXPRESSION, `Unsupported expression function: ${funcName}`);
-  }
-  return parseValue(expr2);
-}
-function parseThenElse(s) {
-  return s.includes("?") && s.includes(":") ? compileInnerExpression(s) : parseValue(s);
-}
-function parseValue(value) {
-  const v = value.trim();
-  if (v.startsWith("'") && v.endsWith("'") || v.startsWith('"') && v.endsWith('"')) {
-    return v.slice(1, -1);
-  }
-  if (v === "null") return null;
-  if (v === "true") return true;
-  if (v === "false") return false;
-  if (!isNaN(Number(v)) && v !== "") return Number(v);
-  if (IS_FUNC_CALL_RE.test(v)) {
-    return compileInnerExpression(v);
-  }
-  return `$${v}`;
-}
-function parseOperand(value) {
-  if (/[+\-*/%]/.test(value)) {
-    return compileInnerExpression(value);
-  }
-  return parseValue(value);
-}
-function dispatchFunction(name, argsStr) {
-  const args = splitArgsStr(argsStr);
-  switch (name) {
-    // ── String ──────────────────────────────────────────────────────────
-    case "CONCAT":
-      return { $concat: args.map((a) => parseValue(a)) };
-    case "UPPER":
-      return { $toUpper: parseValue(args[0]) };
-    case "LOWER":
-      return { $toLower: parseValue(args[0]) };
-    case "TRIM":
-      return { $trim: { input: parseValue(args[0]) } };
-    case "LENGTH":
-      return { $strLenCP: parseValue(args[0]) };
-    case "SUBSTR": {
-      return { $substr: [parseValue(args[0]), parseInt(args[1], 10), parseInt(args[2], 10)] };
-    }
-    case "SPLIT":
-      return { $split: [parseValue(args[0]), parseValue(args[1])] };
-    case "REPLACE":
-      return { $replaceOne: { input: parseValue(args[0]), find: parseValue(args[1]), replacement: parseValue(args[2]) } };
-    case "INDEX_OF_STR": {
-      const base = [parseValue(args[0]), parseValue(args[1])];
-      if (args[2]) return { $indexOfCP: [...base, parseValue(args[2])] };
-      return { $indexOfCP: base };
-    }
-    case "LTRIM":
-      return { $ltrim: { input: parseValue(args[0]) } };
-    case "RTRIM":
-      return { $rtrim: { input: parseValue(args[0]) } };
-    case "SUBSTR_CP": {
-      return { $substrCP: [parseValue(args[0]), parseInt(args[1], 10), parseInt(args[2], 10)] };
-    }
-    // ── String Extended ─────────────────────────────────────────────────
-    case "STR_LEN_BYTES":
-      return { $strLenBytes: parseValue(args[0]) };
-    case "STR_LEN_CP":
-      return { $strLenCP: parseValue(args[0]) };
-    case "SUBSTR_BYTES":
-      return { $substrBytes: [parseValue(args[0]), parseValue(args[1]), parseValue(args[2])] };
-    // ── Math ─────────────────────────────────────────────────────────────
-    case "ABS":
-      return { $abs: parseValue(args[0]) };
-    case "CEIL":
-      return { $ceil: parseValue(args[0]) };
-    case "FLOOR":
-      return { $floor: parseValue(args[0]) };
-    case "ROUND": {
-      if (args[1]) return { $round: [parseValue(args[0]), parseValue(args[1])] };
-      return { $round: [parseValue(args[0])] };
-    }
-    case "SQRT":
-      return { $sqrt: parseValue(args[0]) };
-    case "POW":
-      return { $pow: [parseValue(args[0]), parseValue(args[1])] };
-    // ── Math Extended ────────────────────────────────────────────────────
-    case "LOG":
-      return { $log: [parseValue(args[0]), parseValue(args[1])] };
-    case "LOG10":
-      return { $log10: parseValue(args[0]) };
-    // ── Array ─────────────────────────────────────────────────────────────
-    case "SIZE":
-      return { $size: parseValue(args[0]) };
-    case "IN":
-      return { $in: [parseValue(args[0]), parseValue(args[1])] };
-    case "SLICE": {
-      if (args.length === 3) return { $slice: [parseValue(args[0]), parseInt(args[1], 10), parseInt(args[2], 10)] };
-      return { $slice: [parseValue(args[0]), parseInt(args[1], 10)] };
-    }
-    case "FIRST":
-      return { $first: parseValue(args[0]) };
-    case "LAST":
-      return { $last: parseValue(args[0]) };
-    case "ARRAY_ELEM_AT":
-      return { $arrayElemAt: [parseValue(args[0]), parseInt(args[1], 10)] };
-    case "INDEX_OF":
-      return { $indexOfArray: [parseValue(args[0]), parseValue(args[1])] };
-    case "CONCAT_ARRAYS":
-      return { $concatArrays: args.map((a) => parseValue(a)) };
-    case "FILTER": {
-      const filterArray = parseValue(args[0]);
-      const varName = args[1].replace(/['"]/g, "").trim();
-      const filterCondition = compileFilterCondition(args[2], varName);
-      return { $filter: { input: filterArray, as: varName, cond: filterCondition } };
-    }
-    case "MAP": {
-      const mapArray = parseValue(args[0]);
-      const varName = args[1].replace(/['"]/g, "").trim();
-      const mapExpr = compileMapExpression(args[2], varName);
-      return { $map: { input: mapArray, as: varName, in: mapExpr } };
-    }
-    // ── Array Extended ───────────────────────────────────────────────────
-    case "REDUCE": {
-      const lambdaMatch = /\((\w+),\s*(\w+)\)\s*=>\s*(.+)/.exec(args[2]);
-      if (!lambdaMatch) throw new Error("REDUCE requires a lambda: (acc, item) => expr");
-      const [, accVar, itemVar, lambdaExpr] = lambdaMatch;
-      const compiledExpr = lambdaExpr.replace(new RegExp(`\\b${accVar}\\b`, "g"), "$$value").replace(new RegExp(`\\b${itemVar}\\b`, "g"), "$$this");
-      return { $reduce: { input: parseValue(args[0]), initialValue: parseValue(args[1]), in: compileInnerExpression(compiledExpr) } };
-    }
-    case "ZIP":
-      return { $zip: { inputs: args.map((a) => parseValue(a)) } };
-    case "REVERSE_ARRAY":
-      return { $reverseArray: parseValue(args[0]) };
-    case "RANGE": {
-      const rangeArgs = [parseValue(args[0]), parseValue(args[1])];
-      if (args[2]) rangeArgs.push(parseValue(args[2]));
-      return { $range: rangeArgs };
-    }
-    // ── Type ──────────────────────────────────────────────────────────────
-    case "TYPE":
-      return { $type: parseValue(args[0]) };
-    case "NOT":
-      return { $not: [compileInnerExpression(args[0])] };
-    case "EXISTS":
-      return { $ne: [parseValue(args[0]), null] };
-    case "IS_NUMBER":
-      return { $isNumber: parseValue(args[0]) };
-    case "IS_ARRAY":
-      return { $isArray: parseValue(args[0]) };
-    // ── Type Conversion ──────────────────────────────────────────────────
-    case "TO_INT":
-      return { $toInt: parseValue(args[0]) };
-    case "TO_STRING":
-      return { $toString: parseValue(args[0]) };
-    case "OBJECT_TO_ARRAY":
-      return { $objectToArray: parseValue(args[0]) };
-    case "ARRAY_TO_OBJECT":
-      return { $arrayToObject: parseValue(args[0]) };
-    case "TO_BOOL":
-      return { $toBool: parseValue(args[0]) };
-    case "TO_DATE":
-      return { $toDate: parseValue(args[0]) };
-    case "TO_DOUBLE":
-      return { $toDouble: parseValue(args[0]) };
-    case "TO_DECIMAL":
-      return { $toDecimal: parseValue(args[0]) };
-    case "TO_LONG":
-      return { $toLong: parseValue(args[0]) };
-    case "TO_OBJECT_ID":
-      return { $toObjectId: parseValue(args[0]) };
-    case "CONVERT": {
-      const convertResult = { $convert: { input: parseValue(args[0]), to: args[1].replace(/['"]/g, "") } };
-      if (args[2]) convertResult.$convert.onError = parseValue(args[2]);
-      if (args[3]) convertResult.$convert.onNull = parseValue(args[3]);
-      return convertResult;
-    }
-    // ── Aggregation ───────────────────────────────────────────────────────
-    case "SUM":
-      return { $sum: parseValue(args[0]) };
-    case "AVG":
-      return { $avg: parseValue(args[0]) };
-    case "MAX":
-      return { $max: parseValue(args[0]) };
-    case "MIN":
-      return { $min: parseValue(args[0]) };
-    case "COUNT":
-      return { $sum: 1 };
-    case "PUSH":
-      return { $push: parseValue(args[0]) };
-    case "ADD_TO_SET":
-      return { $addToSet: parseValue(args[0]) };
-    // ── Date ──────────────────────────────────────────────────────────────
-    case "YEAR":
-      return { $year: parseValue(args[0]) };
-    case "MONTH":
-      return { $month: parseValue(args[0]) };
-    case "DAY_OF_MONTH":
-      return { $dayOfMonth: parseValue(args[0]) };
-    case "HOUR":
-      return { $hour: parseValue(args[0]) };
-    case "MINUTE":
-      return { $minute: parseValue(args[0]) };
-    case "SECOND":
-      return { $second: parseValue(args[0]) };
-    case "DATE_ADD": {
-      return { $dateAdd: { startDate: parseValue(args[0]), amount: parseValue(args[1]), unit: args[2].replace(/['"]/g, "") } };
-    }
-    case "DATE_SUBTRACT": {
-      return { $dateSubtract: { startDate: parseValue(args[0]), amount: parseValue(args[1]), unit: args[2].replace(/['"]/g, "") } };
-    }
-    case "DATE_DIFF": {
-      return { $dateDiff: { startDate: parseValue(args[0]), endDate: parseValue(args[1]), unit: args[2].replace(/['"]/g, "") } };
-    }
-    case "DATE_TO_STRING": {
-      const dtsResult = { $dateToString: { format: args[1].replace(/['"]/g, ""), date: parseValue(args[0]) } };
-      if (args[2]) dtsResult.$dateToString.timezone = args[2].replace(/['"]/g, "");
-      return dtsResult;
-    }
-    case "DATE_FROM_STRING": {
-      return { $dateFromString: { dateString: parseValue(args[0]) } };
-    }
-    // ── Date Extended ────────────────────────────────────────────────────
-    case "DATE_FROM_PARTS": {
-      const dfp = {};
-      const dfpFields = ["year", "month", "day", "hour", "minute", "second", "millisecond"];
-      args.forEach((a, i) => {
-        if (dfpFields[i]) dfp[dfpFields[i]] = parseValue(a);
-      });
-      return { $dateFromParts: dfp };
-    }
-    case "DATE_TO_PARTS": {
-      const dtpResult = { $dateToParts: { date: parseValue(args[0]) } };
-      if (args[1]) dtpResult.$dateToParts.timezone = args[1].replace(/['"]/g, "");
-      return dtpResult;
-    }
-    case "ISO_WEEK":
-      return { $isoWeek: parseValue(args[0]) };
-    case "ISO_WEEK_YEAR":
-      return { $isoWeekYear: parseValue(args[0]) };
-    case "ISO_DAY_OF_WEEK":
-      return { $isoDayOfWeek: parseValue(args[0]) };
-    case "DAY_OF_WEEK":
-      return { $dayOfWeek: parseValue(args[0]) };
-    case "DAY_OF_YEAR":
-      return { $dayOfYear: parseValue(args[0]) };
-    case "WEEK":
-      return { $week: parseValue(args[0]) };
-    // ── High Frequency ───────────────────────────────────────────────────
-    case "REGEX":
-      return { $regexMatch: { input: parseValue(args[0]), regex: args[1].replace(/['"]/g, "") } };
-    case "MERGE_OBJECTS": {
-      const mergeArgs = args.map((a) => {
-        if (a.trim().startsWith("{")) {
-          try {
-            return JSON.parse(a.trim());
-          } catch {
-            return parseValue(a);
-          }
-        }
-        return parseValue(a);
-      });
-      return { $mergeObjects: mergeArgs };
-    }
-    case "SET_UNION": {
-      const suArgs = args.map((a) => {
-        if (a.trim().startsWith("[")) {
-          try {
-            return JSON.parse(a.trim());
-          } catch {
-            return parseValue(a);
-          }
-        }
-        return parseValue(a);
-      });
-      return { $setUnion: suArgs };
-    }
-    // ── Switch ───────────────────────────────────────────────────────────
-    case "SWITCH": {
-      if (args.length < 2) throw new Error("SWITCH requires at least 2 arguments");
-      const branches = [];
-      let defaultValue = null;
-      for (let i = 0; i < args.length - 1; i += 2) {
-        if (i + 1 < args.length) {
-          branches.push({ case: compileInnerExpression(args[i]), then: parseValue(args[i + 1]) });
-        }
-      }
-      if (args.length % 2 === 1) defaultValue = parseValue(args[args.length - 1]);
-      const switchResult = { $switch: { branches } };
-      if (defaultValue !== null) switchResult.$switch.default = defaultValue;
-      return switchResult;
-    }
-    // ── Logical Extended ─────────────────────────────────────────────────
-    case "ALL_ELEMENTS_TRUE":
-      return { $allElementsTrue: [parseValue(args[0])] };
-    case "ANY_ELEMENT_TRUE":
-      return { $anyElementTrue: [parseValue(args[0])] };
-    // ── Conditional Extended ─────────────────────────────────────────────
-    case "COND": {
-      if (args.length !== 3) throw new Error("COND requires 3 arguments");
-      return { $cond: { if: compileInnerExpression(args[0]), then: parseValue(args[1]), else: parseValue(args[2]) } };
-    }
-    case "IF_NULL": {
-      if (args.length !== 2) throw new Error("IF_NULL requires 2 arguments");
-      return { $ifNull: [parseValue(args[0]), parseValue(args[1])] };
-    }
-    // ── Object Operations ────────────────────────────────────────────────
-    case "SET_FIELD":
-      return { $setField: { field: parseValue(args[0]), input: parseValue(args[2]), value: parseValue(args[1]) } };
-    case "UNSET_FIELD":
-      return { $unsetField: { field: parseValue(args[0]), input: parseValue(args[1]) } };
-    case "GET_FIELD": {
-      if (args.length === 1) return { $getField: parseValue(args[0]) };
-      return { $getField: { field: parseValue(args[0]), input: parseValue(args[1]) } };
-    }
-    // ── Set Operations ───────────────────────────────────────────────────
-    case "SET_DIFFERENCE":
-      return { $setDifference: [parseValue(args[0]), parseValue(args[1])] };
-    case "SET_EQUALS":
-      return { $setEquals: args.map((a) => parseValue(a)) };
-    case "SET_INTERSECTION":
-      return { $setIntersection: args.map((a) => parseValue(a)) };
-    case "SET_IS_SUBSET":
-      return { $setIsSubset: [parseValue(args[0]), parseValue(args[1])] };
-    // ── Advanced Operations ──────────────────────────────────────────────
-    case "LET": {
-      const varsMatch = /\{(.+)\}/.exec(args[0]);
-      if (!varsMatch) throw new Error("LET requires an object literal for variables");
-      const varPairs = varsMatch[1].split(",").map((pair) => {
-        const [k, ...rest] = pair.split(":");
-        return [k.trim(), rest.join(":").trim()];
-      });
-      const vars = {};
-      for (const [k, v] of varPairs) vars[k] = parseValue(v);
-      return { $let: { vars, in: compileInnerExpression(args[1]) } };
-    }
-    case "LITERAL":
-      return { $literal: parseValue(args[0]) };
-    case "RAND":
-      return { $rand: {} };
-    case "SAMPLE_RATE":
-      return { $sampleRate: parseValue(args[0]) };
-    default:
-      throw new Error(`Unsupported function: ${name}`);
-  }
-}
-function compileFilterCondition(condition, varName) {
-  const replaced = condition.replace(new RegExp(`\\b${varName}\\.`, "g"), `$$${varName}.`);
-  return compileInnerExpression(replaced);
-}
-function compileMapExpression(exprStr, varName) {
-  const replaced = exprStr.replace(new RegExp(`\\b${varName}\\.`, "g"), `$$${varName}.`);
-  return compileInnerExpression(replaced);
-}
-function splitArgsStr(argsStr) {
-  const args = [];
-  let current = "";
-  let inString = false;
-  let stringChar = "";
-  let parenDepth = 0;
-  for (let i = 0; i < argsStr.length; i++) {
-    const ch = argsStr[i];
-    if ((ch === '"' || ch === "'") && (i === 0 || argsStr[i - 1] !== "\\")) {
-      if (!inString) {
-        inString = true;
-        stringChar = ch;
-      } else if (ch === stringChar) {
-        inString = false;
-        stringChar = "";
-      }
-      current += ch;
-    } else if (ch === "(" && !inString) {
-      parenDepth++;
-      current += ch;
-    } else if (ch === ")" && !inString) {
-      parenDepth--;
-      current += ch;
-    } else if (ch === "," && !inString && parenDepth === 0) {
-      args.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  if (current.trim()) args.push(current.trim());
-  return args;
-}
-function splitTopLevel(source, separator) {
-  const parts = [];
-  let current = "";
-  let parenDepth = 0;
-  let inString = false;
-  let stringChar = "";
-  for (let i = 0; i < source.length; i++) {
-    const ch = source[i];
-    if ((ch === '"' || ch === "'") && (i === 0 || source[i - 1] !== "\\")) {
-      if (!inString) {
-        inString = true;
-        stringChar = ch;
-      } else if (ch === stringChar) {
-        inString = false;
-        stringChar = "";
-      }
-      current += ch;
-    } else if (!inString && ch === "(") {
-      parenDepth++;
-      current += ch;
-    } else if (!inString && ch === ")") {
-      parenDepth--;
-      current += ch;
-    } else if (!inString && parenDepth === 0 && source.startsWith(separator, i)) {
-      parts.push(current);
-      current = "";
-      i += separator.length - 1;
-    } else {
-      current += ch;
-    }
-  }
-  parts.push(current);
-  return parts;
-}
 
-// src/adapters/mongodb/queries/index.ts
+// src/adapters/mongodb/queries/query-helpers.ts
+import { createHmac } from "node:crypto";
+import { ObjectId } from "mongodb";
 function normalizeSortShape(sort) {
   const normalized = {};
   if (Array.isArray(sort)) {
@@ -1199,6 +4864,45 @@ function buildCursorFilter(sort, cursorValues, direction) {
   }
   return clauses.length === 1 ? clauses[0] : { $or: clauses };
 }
+function buildEffectiveProjection(projection, sort) {
+  if (!projection) return void 0;
+  let projObj;
+  if (Array.isArray(projection)) {
+    projObj = {};
+    for (const f of projection) {
+      projObj[f] = 1;
+    }
+  } else {
+    projObj = { ...projection };
+  }
+  const sortFields = Object.keys(sort || {});
+  const isExclusion = Object.entries(projObj).some(
+    ([k, v]) => k !== "_id" && (v === 0 || v === false)
+  );
+  if (isExclusion) {
+    for (const k of sortFields) {
+      if (projObj[k] === 0 || projObj[k] === false) {
+        delete projObj[k];
+      }
+    }
+  } else {
+    for (const k of sortFields) {
+      if (!projObj[k]) projObj[k] = 1;
+    }
+  }
+  return projObj;
+}
+
+// src/adapters/mongodb/queries/find-page.ts
+function normalizePositiveInteger(value, fallback, field) {
+  if (value === void 0 || value === null) {
+    return fallback;
+  }
+  if (!Number.isInteger(value) || value <= 0) {
+    throw createError(ErrorCodes.INVALID_PAGINATION, `${field} must be a positive integer.`);
+  }
+  return value;
+}
 function mergeFilters(base, extra) {
   if (!extra || Object.keys(extra).length === 0) {
     return base;
@@ -1251,34 +4955,6 @@ async function computeTotals(coll, query, limit, totals) {
   }
   return { mode: mode ?? "sync" };
 }
-function buildEffectiveProjection(projection, sort) {
-  if (!projection) return void 0;
-  let projObj;
-  if (Array.isArray(projection)) {
-    projObj = {};
-    for (const f of projection) {
-      projObj[f] = 1;
-    }
-  } else {
-    projObj = { ...projection };
-  }
-  const sortFields = Object.keys(sort || {});
-  const isExclusion = Object.entries(projObj).some(
-    ([k, v]) => k !== "_id" && (v === 0 || v === false)
-  );
-  if (isExclusion) {
-    for (const k of sortFields) {
-      if (projObj[k] === 0 || projObj[k] === false) {
-        delete projObj[k];
-      }
-    }
-  } else {
-    for (const k of sortFields) {
-      if (!projObj[k]) projObj[k] = 1;
-    }
-  }
-  return projObj;
-}
 async function executeFindPage(collection, options = {}, defaults = {}) {
   const metaEnabled = options.meta === true || typeof options.meta === "object" && options.meta !== null;
   const metaOptions = options.meta && typeof options.meta === "object" ? options.meta : {};
@@ -1299,6 +4975,16 @@ async function executeFindPage(collection, options = {}, defaults = {}) {
       metaSteps.push({ name, phase, durationMs, ...index !== void 0 ? { index } : {} });
     }
   };
+  let effectiveMaxTimeMS;
+  const driverOpts = { ...options.options ?? {} };
+  effectiveMaxTimeMS = ext.maxTimeMS ?? defaults.maxTimeMS;
+  if (effectiveMaxTimeMS !== void 0) driverOpts.maxTimeMS = effectiveMaxTimeMS;
+  if (ext.hint !== void 0) driverOpts.hint = ext.hint;
+  if (ext.collation !== void 0) driverOpts.collation = ext.collation;
+  if (ext.batchSize !== void 0) driverOpts.batchSize = ext.batchSize;
+  if (options.projection !== void 0) {
+    driverOpts.projection = buildEffectiveProjection(options.projection, sort);
+  }
   const finishResult = (result2) => {
     if (!metaEnabled) {
       return result2;
@@ -1357,15 +5043,6 @@ async function executeFindPage(collection, options = {}, defaults = {}) {
     throw createError(ErrorCodes.JUMP_TOO_FAR, "Page jump exceeds maxHops limit.", [
       { page, maxHops: jumpOpts.maxHops, requestedHops: page - 1 }
     ]);
-  }
-  const driverOpts = { ...options.options ?? {} };
-  const effectiveMaxTimeMS = ext.maxTimeMS ?? defaults.maxTimeMS;
-  if (effectiveMaxTimeMS !== void 0) driverOpts.maxTimeMS = effectiveMaxTimeMS;
-  if (ext.hint !== void 0) driverOpts.hint = ext.hint;
-  if (ext.collation !== void 0) driverOpts.collation = ext.collation;
-  if (ext.batchSize !== void 0) driverOpts.batchSize = ext.batchSize;
-  if (options.projection !== void 0) {
-    driverOpts.projection = buildEffectiveProjection(options.projection, sort);
   }
   const buildPageQuery = (cursor, direction = "after") => {
     const cursorFilter = cursor ? buildCursorFilter(sort, decodeCursor(cursor, cursorSecret), direction) : void 0;
@@ -1526,14 +5203,134 @@ async function executeFindPage(collection, options = {}, defaults = {}) {
   }
   return finishResult(result);
 }
-var _a;
-_a = Symbol.toStringTag;
+async function findPageDocuments(collection, options = {}, defaults) {
+  return executeFindPage(collection, options, defaults ?? {});
+}
+
+// src/adapters/mongodb/queries/find-by-id.ts
+import { ObjectId as ObjectId2 } from "mongodb";
+async function findOneByIdDocument(collection, id, options) {
+  const objectId = parseRequiredObjectId(id);
+  const rawOptions = options ?? {};
+  const findOptions = {};
+  const projection = normalizeProjection(rawOptions.projection);
+  if (projection) findOptions.projection = projection;
+  if (rawOptions.maxTimeMS !== void 0) findOptions.maxTimeMS = rawOptions.maxTimeMS;
+  if (rawOptions.comment !== void 0) findOptions.comment = rawOptions.comment;
+  return collection.findOne(
+    { _id: objectId },
+    findOptions
+  );
+}
+async function findByIdsDocuments(collection, ids, options, defaults = {}) {
+  if (!Array.isArray(ids)) {
+    throw createError(
+      ErrorCodes.INVALID_ARGUMENT,
+      "ids \u5FC5\u987B\u662F\u6570\u7EC4",
+      [{ field: "ids", type: "type", message: "ids must be an array", received: typeof ids }]
+    );
+  }
+  if (ids.length === 0) {
+    return [];
+  }
+  const objectIds = [];
+  const invalidIds = [];
+  for (const [index, id] of ids.entries()) {
+    if (id instanceof ObjectId2) {
+      objectIds.push(id);
+      continue;
+    }
+    if (typeof id === "string" && isHexObjectIdString(id)) {
+      objectIds.push(new ObjectId2(id));
+      continue;
+    }
+    if (id && typeof id === "object" && typeof id.toHexString === "function") {
+      const hex = id.toHexString();
+      if (isHexObjectIdString(hex)) {
+        objectIds.push(new ObjectId2(hex));
+        continue;
+      }
+    }
+    invalidIds.push({ index, value: id });
+  }
+  if (invalidIds.length > 0) {
+    throw createError(
+      ErrorCodes.INVALID_ARGUMENT,
+      `ids \u6570\u7EC4\u5305\u542B ${invalidIds.length} \u4E2A\u65E0\u6548 ID`,
+      invalidIds.map((item) => ({
+        field: `ids[${item.index}]`,
+        type: "format",
+        message: "invalid ID",
+        received: item.value
+      }))
+    );
+  }
+  const uniqueIds = [...new Set(objectIds.map((item) => item.toString()))].map((item) => new ObjectId2(item));
+  const rawOptions = options ?? {};
+  const driverOptions = {};
+  const projection = normalizeProjection(rawOptions.projection);
+  if (projection) driverOptions.projection = projection;
+  if (rawOptions.sort !== void 0) driverOptions.sort = rawOptions.sort;
+  if (rawOptions.comment !== void 0) driverOptions.comment = rawOptions.comment;
+  if (rawOptions.maxTimeMS !== void 0) {
+    driverOptions.maxTimeMS = rawOptions.maxTimeMS;
+  } else if (defaults.maxTimeMS !== void 0) {
+    driverOptions.maxTimeMS = defaults.maxTimeMS;
+  }
+  const results = await collection.find({
+    _id: { $in: uniqueIds }
+  }, driverOptions).toArray();
+  if (rawOptions.preserveOrder === true) {
+    const resultMap = /* @__PURE__ */ new Map();
+    for (const doc of results) {
+      const docId = doc._id;
+      if (docId instanceof ObjectId2) {
+        resultMap.set(docId.toString(), doc);
+      } else if (docId !== void 0 && docId !== null) {
+        resultMap.set(String(docId), doc);
+      }
+    }
+    return objectIds.map((item) => resultMap.get(item.toString())).filter((item) => item !== void 0);
+  }
+  return results;
+}
+
+// src/adapters/mongodb/queries/find-and-count.ts
+async function findAndCountDocuments(collection, query, options, defaults) {
+  const normalizedQuery = query == null ? {} : query;
+  const rawOptions = options ?? {};
+  const driverOptions = {};
+  const projection = normalizeProjection(rawOptions.projection);
+  if (projection) driverOptions.projection = projection;
+  if (rawOptions.sort !== void 0) driverOptions.sort = rawOptions.sort;
+  if (rawOptions.limit !== void 0) driverOptions.limit = rawOptions.limit;
+  if (rawOptions.skip !== void 0) driverOptions.skip = rawOptions.skip;
+  if (rawOptions.maxTimeMS !== void 0) {
+    driverOptions.maxTimeMS = rawOptions.maxTimeMS;
+  } else if (defaults?.maxTimeMS !== void 0) {
+    driverOptions.maxTimeMS = defaults.maxTimeMS;
+  }
+  if (rawOptions.comment !== void 0) driverOptions.comment = rawOptions.comment;
+  if (rawOptions.hint !== void 0) driverOptions.hint = rawOptions.hint;
+  const [data, total] = await Promise.all([
+    collection.find(
+      normalizedQuery,
+      driverOptions
+    ).toArray(),
+    collection.countDocuments(normalizedQuery)
+  ]);
+  return { data, total };
+}
+
+// src/adapters/mongodb/queries/index.ts
+var _a2;
+_a2 = Symbol.toStringTag;
 var FindChain = class {
   constructor(collection, query = {}, initialOptions = {}, defaults = {}, queryCache) {
     this.collection = collection;
     this.defaults = defaults;
     this.queryCache = queryCache;
-    this[_a] = "Promise";
+    this[_a2] = "Promise";
     this.executed = false;
     this.options = { ...initialOptions };
     this.normalizedQuery = defaults.autoConvertObjectId ? normalizeQueryFilter(
@@ -1637,14 +5434,14 @@ var FindChain = class {
     return this.toArray().finally(onfinally ?? void 0);
   }
 };
-var _a2;
-_a2 = Symbol.toStringTag;
+var _a3;
+_a3 = Symbol.toStringTag;
 var AggregateChain = class {
   constructor(collection, pipeline = [], initialOptions = {}, defaults = {}) {
     this.collection = collection;
     this.pipeline = pipeline;
     this.defaults = defaults;
-    this[_a2] = "Promise";
+    this[_a3] = "Promise";
     this.executed = false;
     this.options = { ...initialOptions };
   }
@@ -1784,101 +5581,6 @@ function watchDocuments(collection, pipeline = [], options) {
   const processedPipeline = hasExpressionInPipeline(pipeline) ? compilePipelineExpressions(pipeline) : pipeline;
   return collection.watch(processedPipeline, options);
 }
-async function findOneByIdDocument(collection, id, options) {
-  const objectId = parseRequiredObjectId(id);
-  const rawOptions = options ?? {};
-  const normalizedOptions = {};
-  const projection = normalizeProjection(rawOptions.projection);
-  if (projection) normalizedOptions.projection = projection;
-  if (rawOptions.maxTimeMS !== void 0) normalizedOptions.maxTimeMS = rawOptions.maxTimeMS;
-  if (rawOptions.comment !== void 0) normalizedOptions.comment = rawOptions.comment;
-  return findOneDocument(
-    collection,
-    { _id: objectId },
-    normalizedOptions
-  );
-}
-async function findByIdsDocuments(collection, ids, options, defaults = {}) {
-  if (!Array.isArray(ids)) {
-    throw createError(
-      ErrorCodes.INVALID_ARGUMENT,
-      "ids \u5FC5\u987B\u662F\u6570\u7EC4",
-      [{ field: "ids", type: "type", message: "ids must be an array", received: typeof ids }]
-    );
-  }
-  if (ids.length === 0) {
-    return [];
-  }
-  const objectIds = [];
-  const invalidIds = [];
-  for (const [index, id] of ids.entries()) {
-    if (id instanceof ObjectId) {
-      objectIds.push(id);
-      continue;
-    }
-    if (typeof id === "string" && isHexObjectIdString(id)) {
-      objectIds.push(new ObjectId(id));
-      continue;
-    }
-    if (id && typeof id === "object" && typeof id.toHexString === "function") {
-      const hex = id.toHexString();
-      if (isHexObjectIdString(hex)) {
-        objectIds.push(new ObjectId(hex));
-        continue;
-      }
-    }
-    invalidIds.push({ index, value: id });
-  }
-  if (invalidIds.length > 0) {
-    throw createError(
-      ErrorCodes.INVALID_ARGUMENT,
-      `ids \u6570\u7EC4\u5305\u542B ${invalidIds.length} \u4E2A\u65E0\u6548 ID`,
-      invalidIds.map((item) => ({
-        field: `ids[${item.index}]`,
-        type: "format",
-        message: "invalid ID",
-        received: item.value
-      }))
-    );
-  }
-  const uniqueIds = [...new Set(objectIds.map((item) => item.toString()))].map((item) => new ObjectId(item));
-  const rawOptions = options ?? {};
-  const driverOptions = {};
-  const projection = normalizeProjection(rawOptions.projection);
-  if (projection) driverOptions.projection = projection;
-  if (rawOptions.sort !== void 0) driverOptions.sort = rawOptions.sort;
-  if (rawOptions.comment !== void 0) driverOptions.comment = rawOptions.comment;
-  if (rawOptions.maxTimeMS !== void 0) {
-    driverOptions.maxTimeMS = rawOptions.maxTimeMS;
-  } else if (defaults.maxTimeMS !== void 0) {
-    driverOptions.maxTimeMS = defaults.maxTimeMS;
-  }
-  const results = await collection.find({
-    _id: { $in: uniqueIds }
-  }, driverOptions).toArray();
-  if (rawOptions.preserveOrder === true) {
-    const resultMap = /* @__PURE__ */ new Map();
-    for (const doc of results) {
-      const docId = doc._id;
-      if (docId instanceof ObjectId) {
-        resultMap.set(docId.toString(), doc);
-      } else if (docId !== void 0 && docId !== null) {
-        resultMap.set(String(docId), doc);
-      }
-    }
-    return objectIds.map((item) => resultMap.get(item.toString())).filter((item) => item !== void 0);
-  }
-  return results;
-}
-async function findAndCountDocuments(collection, query, options, defaults) {
-  const normalizedQuery = query == null ? {} : query;
-  const countDefaults = defaults ? { ...defaults, findLimit: void 0 } : {};
-  const [data, total] = await Promise.all([
-    createFindChain(collection, normalizedQuery, options, countDefaults).toArray(),
-    collection.countDocuments(normalizedQuery)
-  ]);
-  return { data, total };
-}
 function streamDocuments(collection, query, options, defaults) {
   const streamDefaults = defaults ? { ...defaults, findLimit: void 0 } : {};
   return createFindChain(collection, query, options, streamDefaults).stream();
@@ -1886,21 +5588,116 @@ function streamDocuments(collection, query, options, defaults) {
 function explainDocuments(collection, query, options, defaults) {
   return createFindChain(collection, query, options, defaults).explain(options?.explain ?? "queryPlanner");
 }
-async function findPageDocuments(collection, options = {}, defaults) {
-  return executeFindPage(collection, options, defaults ?? {});
+
+// src/adapters/mongodb/utils/objectid-converter.ts
+import { ObjectId as ObjectId3 } from "mongodb";
+var OBJECTID_FIELD_PATTERNS = [
+  "_id",
+  /^.*Id$/,
+  /^.*Ids$/,
+  /^.*_id$/,
+  /^.*_ids$/
+];
+var SPECIAL_OPERATORS = /* @__PURE__ */ new Set(["$expr", "$function", "$where", "$accumulator"]);
+function shouldConvertField(fieldName) {
+  if (!fieldName || typeof fieldName !== "string") return false;
+  return OBJECTID_FIELD_PATTERNS.some((pattern) => {
+    if (typeof pattern === "string") return fieldName === pattern;
+    if (pattern instanceof RegExp) return pattern.test(fieldName);
+    return false;
+  });
 }
-function normalizePositiveInteger(value, fallback, field) {
-  if (value === void 0 || value === null) {
-    return fallback;
+function isValidObjectIdString(str) {
+  if (typeof str !== "string") return false;
+  if (!/^[0-9a-fA-F]{24}$/.test(str)) return false;
+  return ObjectId3.isValid(str);
+}
+function isFieldReference(value) {
+  if (typeof value !== "string") return false;
+  return value.startsWith("$");
+}
+function convertObjectIdStrings(obj, fieldPath = "", depth = 0, visited = /* @__PURE__ */ new WeakSet()) {
+  const MAX_DEPTH = 10;
+  if (depth > MAX_DEPTH) return obj;
+  if (obj === null || obj === void 0) return obj;
+  if (obj instanceof ObjectId3) return obj;
+  if (obj !== null && typeof obj === "object" && obj.constructor?.name === "ObjectId") {
+    try {
+      const hex = obj.toString();
+      if (isValidObjectIdString(hex)) return new ObjectId3(hex);
+    } catch {
+    }
+    return obj;
   }
-  if (!Number.isInteger(value) || value <= 0) {
-    throw createError(ErrorCodes.INVALID_PAGINATION, `${field} must be a positive integer.`);
+  if (typeof obj === "string") {
+    if (isFieldReference(obj)) return obj;
+    if (isValidObjectIdString(obj)) {
+      try {
+        return new ObjectId3(obj);
+      } catch {
+        return obj;
+      }
+    }
+    return obj;
   }
-  return value;
+  if (Array.isArray(obj)) {
+    let changed = false;
+    const converted = obj.map((item, i) => {
+      const newItem = convertObjectIdStrings(item, `${fieldPath}[${i}]`, depth + 1, visited);
+      if (newItem !== item) changed = true;
+      return newItem;
+    });
+    return changed ? converted : obj;
+  }
+  if (typeof obj === "object") {
+    const o = obj;
+    if (visited.has(o)) return obj;
+    visited.add(o);
+    let changed = false;
+    const converted = {};
+    for (const [key, value] of Object.entries(o)) {
+      const currentPath = fieldPath ? `${fieldPath}.${key}` : key;
+      if (SPECIAL_OPERATORS.has(key)) {
+        converted[key] = value;
+        continue;
+      }
+      if (typeof value === "string" && shouldConvertField(key) && !isFieldReference(value) && isValidObjectIdString(value)) {
+        try {
+          converted[key] = new ObjectId3(value);
+          changed = true;
+        } catch {
+          converted[key] = value;
+        }
+      } else {
+        const newValue = convertObjectIdStrings(value, currentPath, depth + 1, visited);
+        if (newValue !== value) changed = true;
+        converted[key] = newValue;
+      }
+    }
+    return changed ? converted : obj;
+  }
+  return obj;
+}
+function convertUpdateDocument(update) {
+  if (!update || typeof update !== "object" || Array.isArray(update)) return update;
+  const ops = update;
+  let changed = false;
+  const converted = {};
+  const CONVERT_OPS = /* @__PURE__ */ new Set(["$set", "$setOnInsert", "$push", "$addToSet", "$pull"]);
+  for (const [op, value] of Object.entries(ops)) {
+    if (CONVERT_OPS.has(op)) {
+      const newVal = convertObjectIdStrings(value, `update.${op}`);
+      if (newVal !== value) changed = true;
+      converted[op] = newVal;
+    } else {
+      converted[op] = value;
+    }
+  }
+  return changed ? converted : update;
 }
 
-// src/adapters/mongodb/writes/index.ts
-function sleep(ms) {
+// src/adapters/mongodb/writes/write-utils.ts
+function sleep2(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function splitIntoBatches(items, batchSize) {
@@ -1942,6 +5739,8 @@ function createIncrementUpdate(field, increment = 1, setPatch) {
     ...setPatch && Object.keys(setPatch).length > 0 ? { $set: setPatch } : {}
   };
 }
+
+// src/adapters/mongodb/writes/write-basic.ts
 async function insertOneDocument(collection, ...args) {
   return collection.insertOne(...args);
 }
@@ -1978,6 +5777,53 @@ async function deleteOneDocument(collection, ...args) {
 async function deleteManyDocuments(collection, ...args) {
   return collection.deleteMany(...args);
 }
+async function incrementOneDocument(collection, filter, field, incrementOrOptions, maybeOptions) {
+  if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  }
+  let options = {};
+  let increment = 1;
+  if (typeof incrementOrOptions === "number" || incrementOrOptions === void 0) {
+    increment = typeof incrementOrOptions === "number" ? incrementOrOptions : 1;
+    options = maybeOptions ?? {};
+  } else if (incrementOrOptions && typeof incrementOrOptions === "object" && !Array.isArray(incrementOrOptions)) {
+    options = incrementOrOptions;
+  } else {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "increment \u5FC5\u987B\u662F\u6570\u5B57");
+  }
+  const updateDocument = createIncrementUpdate(field, increment, options.$set);
+  const { $set, projection, ...driverOptions } = options;
+  void $set;
+  const normalizedProjection = normalizeProjection(projection);
+  const findOptions = {
+    returnDocument: options.returnDocument ?? "after",
+    includeResultMetadata: true
+  };
+  if (normalizedProjection) findOptions.projection = normalizedProjection;
+  if (driverOptions.maxTimeMS !== void 0) findOptions.maxTimeMS = driverOptions.maxTimeMS;
+  if (driverOptions.comment !== void 0) findOptions.comment = driverOptions.comment;
+  const rawResult = await collection.findOneAndUpdate(
+    filter,
+    updateDocument,
+    findOptions
+  );
+  let value;
+  let matchedCount;
+  let modifiedCount;
+  if (rawResult && typeof rawResult === "object" && "lastErrorObject" in rawResult) {
+    const result = rawResult;
+    value = result.value ?? null;
+    matchedCount = result.lastErrorObject?.n ?? 0;
+    modifiedCount = result.lastErrorObject?.updatedExisting === true && value != null ? 1 : 0;
+  } else {
+    value = rawResult ?? null;
+    matchedCount = value != null ? 1 : 0;
+    modifiedCount = value != null ? 1 : 0;
+  }
+  return { acknowledged: true, matchedCount, modifiedCount, value };
+}
+
+// src/adapters/mongodb/writes/write-batch.ts
 async function insertBatchDocuments(collection, documents, options = {}) {
   if (!Array.isArray(documents)) {
     throw createError(ErrorCodes.INVALID_ARGUMENT, "documents \u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
@@ -2057,7 +5903,7 @@ async function insertBatchDocuments(collection, documents, options = {}) {
           result.retries.push(retryInfo);
           onRetry?.(retryInfo);
           if (retryDelay > 0) {
-            await sleep(retryDelay);
+            await sleep2(retryDelay);
           }
           continue;
         }
@@ -2204,7 +6050,7 @@ async function deleteBatchDocuments(collection, filter, options = {}) {
           result.retries.push(retryInfo);
           onRetry?.(retryInfo);
           if (retryDelay > 0) {
-            await sleep(retryDelay);
+            await sleep2(retryDelay);
           }
           continue;
         }
@@ -2218,160 +6064,294 @@ async function deleteBatchDocuments(collection, filter, options = {}) {
   }
   return result;
 }
-async function incrementOneDocument(collection, filter, field, incrementOrOptions, maybeOptions) {
-  if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+
+// src/adapters/mongodb/common/collection-accessor-batch-helpers.ts
+async function insertBatchForAccessor(context, documents, options) {
+  if (!Array.isArray(documents)) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "documents \u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
   }
-  let options = {};
-  let increment = 1;
-  if (typeof incrementOrOptions === "number" || incrementOrOptions === void 0) {
-    increment = typeof incrementOrOptions === "number" ? incrementOrOptions : 1;
-    options = maybeOptions ?? {};
-  } else if (incrementOrOptions && typeof incrementOrOptions === "object" && !Array.isArray(incrementOrOptions)) {
-    options = incrementOrOptions;
-  } else {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "increment \u5FC5\u987B\u662F\u6570\u5B57");
+  const result = await insertBatchDocuments(context.collectionRef, documents.map((document) => context.cvDoc(document)), options);
+  await context.invalidateAll();
+  return result;
+}
+async function updateBatchForAccessor(context, filter, update, options) {
+  const result = await updateBatchDocuments(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
+  if (result.modifiedCount > 0) {
+    await context.invalidateAll();
   }
-  const updateDocument = createIncrementUpdate(field, increment, options.$set);
-  const { $set, projection, ...driverOptions } = options;
-  void $set;
-  const normalizedProjection = normalizeProjection(projection);
-  const findOptions = {
-    returnDocument: options.returnDocument ?? "after",
-    includeResultMetadata: true
-  };
-  if (normalizedProjection) findOptions.projection = normalizedProjection;
-  if (driverOptions.maxTimeMS !== void 0) findOptions.maxTimeMS = driverOptions.maxTimeMS;
-  if (driverOptions.comment !== void 0) findOptions.comment = driverOptions.comment;
-  const rawResult = await collection.findOneAndUpdate(
-    filter,
-    updateDocument,
-    findOptions
+  return result;
+}
+async function deleteBatchForAccessor(context, filter, options) {
+  const result = await deleteBatchDocuments(context.collectionRef, context.cvFilter(filter), options);
+  if (result.deletedCount > 0) {
+    await context.invalidateAll();
+  }
+  return result;
+}
+async function incrementOneForAccessor(context, filter, field, incrementOrOptions, maybeOptions) {
+  const result = await incrementOneDocument(
+    context.collectionRef,
+    context.cvFilter(filter),
+    field,
+    incrementOrOptions,
+    maybeOptions
   );
-  let value;
-  let matchedCount;
-  let modifiedCount;
-  if (rawResult && typeof rawResult === "object" && "lastErrorObject" in rawResult) {
-    const r = rawResult;
-    value = r.value ?? null;
-    matchedCount = r.lastErrorObject?.n ?? 0;
-    modifiedCount = r.lastErrorObject?.updatedExisting === true && value != null ? 1 : 0;
-  } else {
-    value = rawResult ?? null;
-    matchedCount = value != null ? 1 : 0;
-    modifiedCount = value != null ? 1 : 0;
+  if (result.modifiedCount > 0) {
+    await context.invalidateAll();
   }
-  return { acknowledged: true, matchedCount, modifiedCount, value };
+  return result;
 }
 
-// src/adapters/mongodb/utils/objectid-converter.ts
-import { ObjectId as ObjectId2 } from "mongodb";
-var OBJECTID_FIELD_PATTERNS = [
-  "_id",
-  /^.*Id$/,
-  /^.*Ids$/,
-  /^.*_id$/,
-  /^.*_ids$/
-];
-var SPECIAL_OPERATORS = /* @__PURE__ */ new Set(["$expr", "$function", "$where", "$accumulator"]);
-function shouldConvertField(fieldName) {
-  if (!fieldName || typeof fieldName !== "string") return false;
-  return OBJECTID_FIELD_PATTERNS.some((pattern) => {
-    if (typeof pattern === "string") return fieldName === pattern;
-    if (pattern instanceof RegExp) return pattern.test(fieldName);
-    return false;
-  });
+// src/adapters/mongodb/common/collection-accessor-write-helpers.ts
+function assertObjectArgument(value, field, message, errorCode = ErrorCodes.INVALID_ARGUMENT) {
+  if (value === null || value === void 0 || typeof value !== "object" || Array.isArray(value)) {
+    throw createError(errorCode, message, [{ field, type: "object.required", message }]);
+  }
 }
-function isValidObjectIdString(str) {
-  if (typeof str !== "string") return false;
-  if (!/^[0-9a-fA-F]{24}$/.test(str)) return false;
-  return ObjectId2.isValid(str);
+function assertUpdateDocument(update) {
+  if (update === null || update === void 0) {
+    throw createError(
+      ErrorCodes.INVALID_ARGUMENT,
+      "update \u5FC5\u987B\u662F\u5BF9\u8C61\uFF08\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF09\u6216\u6570\u7EC4\uFF08\u805A\u5408\u7BA1\u9053\uFF09",
+      [{ field: "update", type: "object|array.required", message: "update \u5FC5\u987B\u662F\u66F4\u65B0\u64CD\u4F5C\u7B26\u5BF9\u8C61\u6216\u805A\u5408\u7BA1\u9053\u6570\u7EC4" }]
+    );
+  }
+  if (Array.isArray(update)) {
+    if (update.length === 0) {
+      throw createError(
+        ErrorCodes.INVALID_ARGUMENT,
+        "update \u805A\u5408\u7BA1\u9053\u4E0D\u80FD\u4E3A\u7A7A\u6570\u7EC4",
+        [{ field: "update", type: "array.empty", message: "aggregation pipeline must contain at least one stage" }]
+      );
+    }
+    for (let index = 0; index < update.length; index++) {
+      const stage = update[index];
+      if (stage === null || typeof stage !== "object" || Array.isArray(stage)) {
+        throw createError(
+          ErrorCodes.INVALID_ARGUMENT,
+          `update \u805A\u5408\u7BA1\u9053\u7B2C ${index + 1} \u9636\u6BB5\u5FC5\u987B\u662F\u5BF9\u8C61`,
+          [{ field: `update[${index}]`, type: "object.required", message: "pipeline stage must be an object" }]
+        );
+      }
+      const stageKeys = Object.keys(stage);
+      if (stageKeys.length === 0) {
+        throw createError(
+          ErrorCodes.INVALID_ARGUMENT,
+          `update \u805A\u5408\u7BA1\u9053\u7B2C ${index + 1} \u9636\u6BB5\u4E0D\u80FD\u4E3A\u7A7A\u5BF9\u8C61`,
+          [{ field: `update[${index}]`, type: "object.empty", message: "pipeline stage must not be empty" }]
+        );
+      }
+      const stageOperator = stageKeys[0];
+      if (!stageOperator.startsWith("$")) {
+        throw createError(
+          ErrorCodes.INVALID_ARGUMENT,
+          `update pipeline stage ${index + 1} operator must start with $, got "${stageOperator}"`,
+          [{ field: `update[${index}]`, type: "object.invalidKeys", message: "pipeline operator must start with $" }]
+        );
+      }
+    }
+    return;
+  }
+  if (typeof update !== "object") {
+    throw createError(
+      ErrorCodes.INVALID_ARGUMENT,
+      "update \u5FC5\u987B\u662F\u5BF9\u8C61\uFF08\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF09\u6216\u6570\u7EC4\uFF08\u805A\u5408\u7BA1\u9053\uFF09",
+      [{ field: "update", type: "object|array.required", message: "update \u5FC5\u987B\u662F\u66F4\u65B0\u64CD\u4F5C\u7B26\u5BF9\u8C61\u6216\u805A\u5408\u7BA1\u9053\u6570\u7EC4" }]
+    );
+  }
+  const keys = Object.keys(update);
+  if (keys.length === 0) {
+    throw createError(
+      ErrorCodes.INVALID_ARGUMENT,
+      "update \u4E0D\u80FD\u4E3A\u7A7A\u5BF9\u8C61",
+      [{ field: "update", type: "object.empty", message: "update must not be empty" }]
+    );
+  }
+  if (!keys.some((key) => key.startsWith("$"))) {
+    throw createError(
+      ErrorCodes.INVALID_ARGUMENT,
+      "update \u5FC5\u987B\u4F7F\u7528\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF08\u5982 $set, $inc \u7B49\uFF09",
+      [{ field: "update", type: "object.invalidKeys", message: "\u8BF7\u4F7F\u7528 $set, $inc, $push \u7B49\u66F4\u65B0\u64CD\u4F5C\u7B26" }]
+    );
+  }
 }
-function isFieldReference(value) {
-  if (typeof value !== "string") return false;
-  return value.startsWith("$");
+function assertReplacementDocument(replacement) {
+  assertObjectArgument(replacement, "replacement", "replacement \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
+  if (Object.keys(replacement).some((key) => key.startsWith("$"))) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "replacement \u4E0D\u80FD\u5305\u542B\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF08\u5982 $set, $inc \u7B49\uFF09");
+  }
 }
-function convertObjectIdStrings(obj, fieldPath = "", depth = 0, visited = /* @__PURE__ */ new WeakSet()) {
-  const MAX_DEPTH = 10;
-  if (depth > MAX_DEPTH) return obj;
-  if (obj === null || obj === void 0) return obj;
-  if (obj instanceof ObjectId2) return obj;
-  if (obj !== null && typeof obj === "object" && obj.constructor?.name === "ObjectId") {
+async function insertOneForAccessor(context, doc, options) {
+  assertObjectArgument(doc, "document", "document must be an object", ErrorCodes.DOCUMENT_REQUIRED);
+  let result;
+  const startedAt = Date.now();
+  try {
+    result = await insertOneDocument(context.collectionRef, context.cvDoc(doc), options);
+  } catch (err) {
+    const mongoErr = err;
+    if (mongoErr?.code === 11e3) {
+      throw createError(
+        ErrorCodes.DUPLICATE_KEY,
+        "\u6587\u6863\u63D2\u5165\u5931\u8D25\uFF1A\u8FDD\u53CD\u552F\u4E00\u6027\u7EA6\u675F (duplicate key)",
+        [{ field: "_id", message: mongoErr.message ?? "duplicate key" }],
+        err
+      );
+    }
+    throw createError(
+      ErrorCodes.WRITE_ERROR,
+      `insertOne failed: ${mongoErr?.message ?? String(err)}`,
+      void 0,
+      err
+    );
+  }
+  const elapsed = Date.now() - startedAt;
+  const threshold = context.defaults?.slowQueryMs ?? 500;
+  if (elapsed > threshold && context.logger) {
     try {
-      const hex = obj.toString();
-      if (isValidObjectIdString(hex)) return new ObjectId2(hex);
-    } catch {
+      context.logger.warn("[insertOne] \u6162\u64CD\u4F5C\u8B66\u544A", {
+        ns: `${context.dbName}.${context.collectionName}`,
+        threshold,
+        duration: elapsed,
+        insertedId: result.insertedId,
+        comment: options?.comment,
+        op: "insertOne",
+        ts: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } catch (_) {
     }
-    return obj;
   }
-  if (typeof obj === "string") {
-    if (isFieldReference(obj)) return obj;
-    if (isValidObjectIdString(obj)) {
-      try {
-        return new ObjectId2(obj);
-      } catch {
-        return obj;
-      }
-    }
-    return obj;
-  }
-  if (Array.isArray(obj)) {
-    let changed = false;
-    const converted = obj.map((item, i) => {
-      const newItem = convertObjectIdStrings(item, `${fieldPath}[${i}]`, depth + 1, visited);
-      if (newItem !== item) changed = true;
-      return newItem;
-    });
-    return changed ? converted : obj;
-  }
-  if (typeof obj === "object") {
-    const o = obj;
-    if (visited.has(o)) return obj;
-    visited.add(o);
-    let changed = false;
-    const converted = {};
-    for (const [key, value] of Object.entries(o)) {
-      const currentPath = fieldPath ? `${fieldPath}.${key}` : key;
-      if (SPECIAL_OPERATORS.has(key)) {
-        converted[key] = value;
-        continue;
-      }
-      if (typeof value === "string" && shouldConvertField(key) && !isFieldReference(value) && isValidObjectIdString(value)) {
-        try {
-          converted[key] = new ObjectId2(value);
-          changed = true;
-        } catch {
-          converted[key] = value;
-        }
-      } else {
-        const newValue = convertObjectIdStrings(value, currentPath, depth + 1, visited);
-        if (newValue !== value) changed = true;
-        converted[key] = newValue;
-      }
-    }
-    return changed ? converted : obj;
-  }
-  return obj;
+  await context.invalidateAll();
+  return result;
 }
-function convertUpdateDocument(update) {
-  if (!update || typeof update !== "object" || Array.isArray(update)) return update;
-  const ops = update;
-  let changed = false;
-  const converted = {};
-  const CONVERT_OPS = /* @__PURE__ */ new Set(["$set", "$setOnInsert", "$push", "$addToSet", "$pull"]);
-  for (const [op, value] of Object.entries(ops)) {
-    if (CONVERT_OPS.has(op)) {
-      const newVal = convertObjectIdStrings(value, `update.${op}`);
-      if (newVal !== value) changed = true;
-      converted[op] = newVal;
-    } else {
-      converted[op] = value;
-    }
+async function insertManyForAccessor(context, documents, options) {
+  if (!Array.isArray(documents)) {
+    throw createError("DOCUMENTS_REQUIRED", "documents \u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
   }
-  return changed ? converted : update;
+  if (documents.length === 0) {
+    throw createError("DOCUMENTS_REQUIRED", "documents \u6570\u7EC4\u4E0D\u80FD\u4E3A\u7A7A");
+  }
+  if (documents.some((item) => item === null || typeof item !== "object" || Array.isArray(item))) {
+    throw createError("DOCUMENTS_REQUIRED", "documents \u4E2D\u7684\u6240\u6709\u5143\u7D20\u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
+  }
+  const startedAt = Date.now();
+  let result;
+  try {
+    const convertedDocs = documents.map((document) => context.cvDoc(document));
+    result = await insertManyDocuments(context.collectionRef, convertedDocs, options);
+  } catch (err) {
+    const mongoErr = err;
+    if (mongoErr?.code === 11e3) {
+      throw createError(
+        ErrorCodes.DUPLICATE_KEY,
+        "\u6279\u91CF\u63D2\u5165\u5931\u8D25\uFF1A\u8FDD\u53CD\u552F\u4E00\u6027\u7EA6\u675F (duplicate key)",
+        [{ field: "_id", message: mongoErr.message ?? "duplicate key" }],
+        err
+      );
+    }
+    throw err;
+  }
+  const elapsed = Date.now() - startedAt;
+  const threshold = context.defaults?.slowQueryMs ?? 500;
+  if (elapsed >= threshold && context.logger) {
+    context.logger.warn("[insertMany] \u6162\u64CD\u4F5C\u8B66\u544A", {
+      ns: `${context.dbName}.${context.collectionName}`,
+      threshold,
+      duration: elapsed,
+      documentCount: documents.length,
+      insertedCount: result.insertedCount,
+      ordered: options?.ordered ?? true,
+      comment: options?.comment,
+      op: "insertMany"
+    });
+  }
+  await context.invalidateAll();
+  return result;
+}
+async function updateOneForAccessor(context, filter, update, options) {
+  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
+  assertUpdateDocument(update);
+  const normalizedFilter = context.cvFilter(filter);
+  const finalUpdate = Array.isArray(update) ? update : convertUpdateDocument(update);
+  const result = await updateOneDocument(context.collectionRef, normalizedFilter, finalUpdate, options);
+  if (result.modifiedCount > 0 || result.upsertedId) {
+    await context.invalidateAll();
+  }
+  return result;
+}
+async function updateManyForAccessor(context, filter, update, options) {
+  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertUpdateDocument(update);
+  const result = await updateManyDocuments(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
+  if (result.modifiedCount > 0 || result.upsertedId) {
+    await context.invalidateAll();
+  }
+  return result;
+}
+async function replaceOneForAccessor(context, filter, replacement, options) {
+  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertReplacementDocument(replacement);
+  const result = await replaceOneDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), options);
+  await context.invalidateAll();
+  return result;
+}
+async function findOneAndReplaceForAccessor(context, filter, replacement, options) {
+  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertReplacementDocument(replacement);
+  const result = await findOneAndReplaceDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), options);
+  if (result) {
+    await context.invalidateAll();
+  }
+  return result;
+}
+async function findOneAndUpdateForAccessor(context, filter, update, options) {
+  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertUpdateDocument(update);
+  const result = await findOneAndUpdateDocument(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
+  if (result) {
+    await context.invalidateAll();
+  }
+  return result;
+}
+async function findOneAndDeleteForAccessor(context, filter, options) {
+  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  const result = await findOneAndDeleteDocument(context.collectionRef, context.cvFilter(filter), options);
+  if (result) {
+    await context.invalidateAll();
+  }
+  return result;
+}
+async function upsertOneForAccessor(context, filter, update, options) {
+  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertObjectArgument(update, "update", "update \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  const updateDoc = Object.keys(update).some((key) => key.startsWith("$")) ? update : { $set: update };
+  const result = await upsertOneDocument(
+    context.collectionRef,
+    context.cvFilter(filter),
+    context.cvUpdate(updateDoc),
+    options
+  );
+  await context.invalidateAll();
+  const normalizedResult = result.upsertedId === null ? { ...result, upsertedId: void 0 } : result;
+  return normalizedResult;
+}
+async function deleteOneForAccessor(context, filter, options) {
+  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
+  const result = await deleteOneDocument(context.collectionRef, context.cvFilter(filter), options);
+  if (result.deletedCount > 0) {
+    await context.invalidateAll();
+  }
+  return result;
+}
+async function deleteManyForAccessor(context, filter, options) {
+  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  const result = await deleteManyDocuments(context.collectionRef, context.cvFilter(filter), options);
+  if (result.deletedCount > 0) {
+    await context.invalidateAll();
+  }
+  return result;
 }
 
-// src/adapters/mongodb/common/accessors.ts
+// src/adapters/mongodb/common/collection-accessor.ts
 var MongoCollectionAccessor = class {
   constructor(dbName, collectionName, collectionRef, management = {}, dbRef) {
     this.dbName = dbName;
@@ -2418,10 +6398,6 @@ var MongoCollectionAccessor = class {
     }
     return deleted;
   }
-  /**
-   * Returns the collection namespace.
-   * @since v1.3.0
-   */
   getNamespace() {
     const instanceId = this.management.defaults?.namespace?.instanceId;
     const iid = instanceId ? `${instanceId}:${this.dbName}:${this.collectionName}` : `${this.dbName}:${this.collectionName}`;
@@ -2432,17 +6408,9 @@ var MongoCollectionAccessor = class {
       collection: this.collectionName
     };
   }
-  /**
-   * Returns the underlying native MongoDB Collection.
-   * @since v1.3.0
-   */
   raw() {
     return this.collectionRef;
   }
-  /**
-   * Finds a single document matching the query.
-   * @since v1.3.0
-   */
   async findOne(query, options) {
     const normalizedQuery = this._cvFilter(query);
     const maxTimeMS = this.management.defaults?.maxTimeMS;
@@ -2471,65 +6439,29 @@ var MongoCollectionAccessor = class {
     }
     return findOneDocument(this.collectionRef, normalizedQuery, driverOptions);
   }
-  /**
-   * Queries multiple documents (restores v1 FindChain compatible form).
-   *
-   * When `options.stream === true`, returns a Node.js ReadableStream (v1 compatible).
-   * @since v1.3.0
-   */
   find(query, options) {
     if (options?.stream) {
       return streamDocuments(this.collectionRef, query, options, this.management.defaults);
     }
     return createFindChain(this.collectionRef, query, options, this.management.defaults, this.management.queryCache);
   }
-  /**
-   * Finds a single document by its `_id`.
-   * @since v1.3.0
-   */
   async findOneById(id, options) {
     const maxTimeMS = this.management.defaults?.maxTimeMS;
-    const merged = maxTimeMS !== void 0 ? { maxTimeMS, ...options } : options;
-    return findOneByIdDocument(this.collectionRef, id, merged);
+    return findOneByIdDocument(this.collectionRef, id, maxTimeMS !== void 0 ? { maxTimeMS, ...options } : options);
   }
-  /**
-   * Finds multiple documents by a set of `_id` values.
-   * @since v1.3.0
-   */
   async findByIds(ids, options) {
     const { findLimit: _skip, ...noLimitDefaults } = this.management.defaults ?? {};
     return findByIdsDocuments(this.collectionRef, ids, options, noLimitDefaults);
   }
-  /**
-   * Returns both matching documents and the total count.
-   * @since v1.3.0
-   */
   async findAndCount(query, options) {
-    return findAndCountDocuments(
-      this.collectionRef,
-      query != null ? this._cvFilter(query) : query,
-      options,
-      this.management.defaults
-    );
+    return findAndCountDocuments(this.collectionRef, query != null ? this._cvFilter(query) : query, options, this.management.defaults);
   }
-  /**
-   * Returns query results as a streaming cursor.
-   * @since v1.3.0
-   */
   stream(query, options) {
     return streamDocuments(this.collectionRef, query, options, this.management.defaults);
   }
-  /**
-   * Returns the query execution plan.
-   * @since v1.3.0
-   */
   explain(query, options) {
     return explainDocuments(this.collectionRef, query, options, this.management.defaults);
   }
-  /**
-   * Counts the number of documents matching the query.
-   * @since v1.3.0
-   */
   async count(query, options) {
     const normalizedQuery = this._cvFilter(query);
     const maxTimeMS = this.management.defaults?.maxTimeMS;
@@ -2553,679 +6485,190 @@ var MongoCollectionAccessor = class {
     }
     return countQueue ? countQueue.execute(executeCount) : executeCount();
   }
-  /**
-   * Runs an aggregation pipeline.
-   * @since v1.3.0
-   */
   aggregate(pipeline = [], options) {
     const normalizedPipeline = this.management.defaults?.autoConvertObjectId ? pipeline.map((stage) => convertObjectIdStrings(stage)) : pipeline;
     return createAggregateChain(this.collectionRef, normalizedPipeline, options, this.management.defaults);
   }
-  /**
-   * Returns distinct values for a field.
-   * @since v1.3.0
-   */
   async distinct(key, query, options) {
     return distinctValues(this.collectionRef, key, this._cvFilter(query), options);
   }
-  /**
-   * Simplified paginated query.
-   * @since v1.3.0
-   */
   async findPage(options = {}) {
     const resolvedOptions = options.query ? { ...options, query: this._cvFilter(options.query) } : options;
     return findPageDocuments(this.collectionRef, resolvedOptions, this.management.defaults);
   }
-  /**
-   * Watches for collection change events.
-   * @since v1.3.0
-   */
   watch(pipeline = [], options) {
     return watchDocuments(this.collectionRef, pipeline, options);
   }
-  /**
-   * Passthrough for native single-document insert, with v1 validation and cache invalidation.
-   * @since v1.3.0
-   */
   async insertOne(doc, options) {
-    if (doc === null || doc === void 0 || typeof doc !== "object" || Array.isArray(doc)) {
-      throw createError(
-        ErrorCodes.DOCUMENT_REQUIRED,
-        "document must be an object",
-        [{ field: "document", type: "object.required", message: "document is required and must be an object" }]
-      );
-    }
-    let result;
-    const t0 = Date.now();
-    try {
-      result = await insertOneDocument(this.collectionRef, this._cvDoc(doc), options);
-    } catch (err) {
-      const mongoErr = err;
-      if (mongoErr?.code === 11e3) {
-        throw createError(
-          ErrorCodes.DUPLICATE_KEY,
-          `\u6587\u6863\u63D2\u5165\u5931\u8D25\uFF1A\u8FDD\u53CD\u552F\u4E00\u6027\u7EA6\u675F (duplicate key)`,
-          [{ field: "_id", message: mongoErr.message ?? "duplicate key" }],
-          err
-        );
-      }
-      throw createError(
-        ErrorCodes.WRITE_ERROR,
-        `insertOne failed: ${mongoErr?.message ?? String(err)}`,
-        void 0,
-        err
-      );
-    }
-    const elapsed = Date.now() - t0;
-    const threshold = this.management.defaults?.slowQueryMs ?? 500;
-    if (elapsed > threshold && this.management.logger) {
-      try {
-        this.management.logger.warn("[insertOne] \u6162\u64CD\u4F5C\u8B66\u544A", {
-          ns: `${this.dbName}.${this.collectionName}`,
-          threshold,
-          duration: elapsed,
-          insertedId: result.insertedId,
-          comment: options?.comment,
-          op: "insertOne",
-          ts: (/* @__PURE__ */ new Date()).toISOString()
-        });
-      } catch (_) {
-      }
-    }
-    await this.invalidateReadCaches("all");
-    return result;
+    return insertOneForAccessor(this.writeContext(), doc, options);
   }
-  /**
-   * Passthrough for native bulk insert.
-   * @since v1.3.0
-   */
   async insertMany(...args) {
     const [documents, options] = args;
-    if (!Array.isArray(documents)) {
-      throw createError("DOCUMENTS_REQUIRED", "documents \u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-    }
-    if (documents.length === 0) {
-      throw createError("DOCUMENTS_REQUIRED", "documents \u6570\u7EC4\u4E0D\u80FD\u4E3A\u7A7A");
-    }
-    if (documents.some((item) => item === null || typeof item !== "object" || Array.isArray(item))) {
-      throw createError("DOCUMENTS_REQUIRED", "documents \u4E2D\u7684\u6240\u6709\u5143\u7D20\u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
-    }
-    const t0 = Date.now();
-    let result;
-    try {
-      const convertedDocs = documents.map((d) => this._cvDoc(d));
-      result = await insertManyDocuments(this.collectionRef, ...[convertedDocs, options]);
-    } catch (err) {
-      const mongoErr = err;
-      if (mongoErr?.code === 11e3) {
-        throw createError(
-          ErrorCodes.DUPLICATE_KEY,
-          `\u6279\u91CF\u63D2\u5165\u5931\u8D25\uFF1A\u8FDD\u53CD\u552F\u4E00\u6027\u7EA6\u675F (duplicate key)`,
-          [{ field: "_id", message: mongoErr.message ?? "duplicate key" }],
-          err
-        );
-      }
-      throw err;
-    }
-    const elapsed = Date.now() - t0;
-    const threshold = this.management.defaults?.slowQueryMs ?? 500;
-    if (elapsed >= threshold && this.management.logger) {
-      this.management.logger.warn("[insertMany] \u6162\u64CD\u4F5C\u8B66\u544A", {
-        ns: `${this.dbName}.${this.collectionName}`,
-        threshold,
-        duration: elapsed,
-        documentCount: documents.length,
-        insertedCount: result.insertedCount,
-        ordered: options?.ordered ?? true,
-        comment: options?.comment,
-        op: "insertMany"
-      });
-    }
-    await this.invalidateReadCaches("all");
-    return result;
+    return insertManyForAccessor(this.writeContext(), documents, options);
   }
   /**
    * Passthrough for native single-document update, with v1 validation and cache invalidation.
    * @since v1.3.0
    */
   async updateOne(filter, update, options) {
-    if (filter === null || filter === void 0 || typeof filter !== "object" || Array.isArray(filter)) {
-      throw createError(
-        ErrorCodes.INVALID_ARGUMENT,
-        "filter \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B",
-        [{ field: "filter", type: "object.required", message: "filter \u662F\u5FC5\u9700\u53C2\u6570\u4E14\u5FC5\u987B\u662F\u5BF9\u8C61" }]
-      );
-    }
-    if (update === null || update === void 0) {
-      throw createError(
-        ErrorCodes.INVALID_ARGUMENT,
-        "update \u5FC5\u987B\u662F\u5BF9\u8C61\uFF08\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF09\u6216\u6570\u7EC4\uFF08\u805A\u5408\u7BA1\u9053\uFF09",
-        [{ field: "update", type: "object|array.required", message: "update \u5FC5\u987B\u662F\u66F4\u65B0\u64CD\u4F5C\u7B26\u5BF9\u8C61\u6216\u805A\u5408\u7BA1\u9053\u6570\u7EC4" }]
-      );
-    }
-    if (Array.isArray(update)) {
-      if (update.length === 0) {
-        throw createError(
-          ErrorCodes.INVALID_ARGUMENT,
-          "update \u805A\u5408\u7BA1\u9053\u4E0D\u80FD\u4E3A\u7A7A\u6570\u7EC4",
-          [{ field: "update", type: "array.empty", message: "aggregation pipeline must contain at least one stage" }]
-        );
-      }
-      for (let i = 0; i < update.length; i++) {
-        const stage = update[i];
-        if (stage === null || typeof stage !== "object" || Array.isArray(stage)) {
-          throw createError(
-            ErrorCodes.INVALID_ARGUMENT,
-            `update \u805A\u5408\u7BA1\u9053\u7B2C ${i + 1} \u9636\u6BB5\u5FC5\u987B\u662F\u5BF9\u8C61`,
-            [{ field: `update[${i}]`, type: "object.required", message: "pipeline stage must be an object" }]
-          );
-        }
-        const stageKeys = Object.keys(stage);
-        if (stageKeys.length === 0) {
-          throw createError(
-            ErrorCodes.INVALID_ARGUMENT,
-            `update \u805A\u5408\u7BA1\u9053\u7B2C ${i + 1} \u9636\u6BB5\u4E0D\u80FD\u4E3A\u7A7A\u5BF9\u8C61`,
-            [{ field: `update[${i}]`, type: "object.empty", message: "pipeline stage must not be empty" }]
-          );
-        }
-        const stageOperator = stageKeys[0];
-        if (!stageOperator.startsWith("$")) {
-          throw createError(
-            ErrorCodes.INVALID_ARGUMENT,
-            `update pipeline stage ${i + 1} operator must start with $, got "${stageOperator}"`,
-            [{ field: `update[${i}]`, type: "object.invalidKeys", message: "pipeline operator must start with $" }]
-          );
-        }
-      }
-    } else if (typeof update === "object") {
-      const keys = Object.keys(update);
-      if (keys.length === 0) {
-        throw createError(
-          ErrorCodes.INVALID_ARGUMENT,
-          "update \u4E0D\u80FD\u4E3A\u7A7A\u5BF9\u8C61",
-          [{ field: "update", type: "object.empty", message: "update must not be empty" }]
-        );
-      }
-      const hasOperator = keys.some((k) => k.startsWith("$"));
-      if (!hasOperator) {
-        throw createError(
-          ErrorCodes.INVALID_ARGUMENT,
-          "update \u5FC5\u987B\u4F7F\u7528\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF08\u5982 $set, $inc \u7B49\uFF09",
-          [{ field: "update", type: "object.invalidKeys", message: "\u8BF7\u4F7F\u7528 $set, $inc, $push \u7B49\u66F4\u65B0\u64CD\u4F5C\u7B26" }]
-        );
-      }
-    }
-    const normalizedFilter = this._cvFilter(filter);
-    const finalUpdate = Array.isArray(update) ? update : convertUpdateDocument(update);
-    const result = await updateOneDocument(this.collectionRef, normalizedFilter, finalUpdate, options);
-    if (result.modifiedCount > 0 || result.upsertedId) {
-      await this.invalidateReadCaches("all");
-    }
-    return result;
+    return updateOneForAccessor(this.writeContext(), filter, update, options);
   }
-  /**
-   * Passthrough for native bulk update.
-   * @since v1.3.0
-   */
   async updateMany(...args) {
     const [filter, update, options] = args;
-    if (filter === null || filter === void 0 || typeof filter !== "object" || Array.isArray(filter)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
-    }
-    if (update === null || update === void 0 || typeof update !== "object") {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "update \u5FC5\u987B\u662F\u5BF9\u8C61\uFF08\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF09\u6216\u6570\u7EC4\uFF08\u805A\u5408\u7BA1\u9053\uFF09");
-    }
-    if (!Array.isArray(update)) {
-      const keys = Object.keys(update);
-      if (keys.length === 0 || !keys.some((key) => key.startsWith("$"))) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, "update \u5FC5\u987B\u4F7F\u7528\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF08\u5982 $set, $inc \u7B49\uFF09");
-      }
-    }
-    const result = await updateManyDocuments(this.collectionRef, this._cvFilter(filter), this._cvUpdate(update), options);
-    if (result.modifiedCount > 0 || result.upsertedId) {
-      await this.invalidateReadCaches("all");
-    }
-    return result;
+    return updateManyForAccessor(this.writeContext(), filter, update, options);
   }
-  /**
-   * Passthrough for native single-document replace.
-   * @since v1.3.0
-   */
   async replaceOne(...args) {
     const [filter, replacement, options] = args;
-    if (filter === null || filter === void 0 || typeof filter !== "object" || Array.isArray(filter)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
-    }
-    if (replacement === null || replacement === void 0 || typeof replacement !== "object" || Array.isArray(replacement)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "replacement \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
-    }
-    if (Object.keys(replacement).some((key) => key.startsWith("$"))) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "replacement \u4E0D\u80FD\u5305\u542B\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF08\u5982 $set, $inc \u7B49\uFF09");
-    }
-    const result = await replaceOneDocument(this.collectionRef, this._cvFilter(filter), this._cvDoc(replacement), options);
-    await this.invalidateReadCaches("all");
-    return result;
+    return replaceOneForAccessor(this.writeContext(), filter, replacement, options);
   }
   /**
    * Atomically finds and replaces a single document.
    * @since v1.3.0
    */
   async findOneAndReplace(filter, replacement, options) {
-    if (filter === null || filter === void 0 || typeof filter !== "object" || Array.isArray(filter)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
-    }
-    if (replacement === null || replacement === void 0 || typeof replacement !== "object" || Array.isArray(replacement)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "replacement \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
-    }
-    if (Object.keys(replacement).some((key) => key.startsWith("$"))) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "replacement \u4E0D\u80FD\u5305\u542B\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF08\u5982 $set, $inc \u7B49\uFF09");
-    }
-    const result = await findOneAndReplaceDocument(this.collectionRef, this._cvFilter(filter), this._cvDoc(replacement), options);
-    if (result) {
-      await this.invalidateReadCaches("all");
-    }
-    return result;
+    return findOneAndReplaceForAccessor(this.writeContext(), filter, replacement, options);
   }
   /**
    * Atomically finds and updates a single document.
    * @since v1.3.0
    */
   async findOneAndUpdate(filter, update, options) {
-    if (filter === null || filter === void 0 || typeof filter !== "object" || Array.isArray(filter)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
-    }
-    if (update === null || update === void 0 || typeof update !== "object") {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "update \u5FC5\u987B\u662F\u5BF9\u8C61\uFF08\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF09\u6216\u6570\u7EC4\uFF08\u805A\u5408\u7BA1\u9053\uFF09");
-    }
-    if (!Array.isArray(update)) {
-      const keys = Object.keys(update);
-      if (keys.length === 0 || !keys.some((key) => key.startsWith("$"))) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, "update \u5FC5\u987B\u4F7F\u7528\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF08\u5982 $set, $inc \u7B49\uFF09");
-      }
-    }
-    const result = await findOneAndUpdateDocument(this.collectionRef, this._cvFilter(filter), this._cvUpdate(update), options);
-    if (result) {
-      await this.invalidateReadCaches("all");
-    }
-    return result;
+    return findOneAndUpdateForAccessor(this.writeContext(), filter, update, options);
   }
   /**
    * Atomically finds and deletes a single document.
    * @since v1.3.0
    */
   async findOneAndDelete(filter, options) {
-    if (filter === null || filter === void 0 || typeof filter !== "object" || Array.isArray(filter)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
-    }
-    const result = await findOneAndDeleteDocument(this.collectionRef, this._cvFilter(filter), options);
-    if (result) {
-      await this.invalidateReadCaches("all");
-    }
-    return result;
+    return findOneAndDeleteForAccessor(this.writeContext(), filter, options);
   }
   /**
    * Convenience upsert wrapper.
    * @since v1.3.0
    */
   async upsertOne(filter, update, options) {
-    if (filter === null || filter === void 0 || typeof filter !== "object" || Array.isArray(filter)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
-    }
-    if (update === null || update === void 0 || typeof update !== "object" || Array.isArray(update)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "update \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
-    }
-    const updateDoc = Object.keys(update).some((key) => key.startsWith("$")) ? update : { $set: update };
-    const result = await upsertOneDocument(this.collectionRef, this._cvFilter(filter), this._cvUpdate(updateDoc), options);
-    await this.invalidateReadCaches("all");
-    const normalizedResult = result.upsertedId === null ? { ...result, upsertedId: void 0 } : result;
-    return normalizedResult;
+    return upsertOneForAccessor(this.writeContext(), filter, update, options);
   }
   /**
    * Passthrough for native single-document delete, with v1 validation and cache invalidation.
    * @since v1.3.0
    */
   async deleteOne(filter, options) {
-    if (filter === null || filter === void 0 || typeof filter !== "object" || Array.isArray(filter)) {
-      throw createError(
-        ErrorCodes.INVALID_ARGUMENT,
-        "filter \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B",
-        [{ field: "filter", type: "object.required", message: "filter \u662F\u5FC5\u9700\u53C2\u6570\u4E14\u5FC5\u987B\u662F\u5BF9\u8C61" }]
-      );
-    }
-    const result = await deleteOneDocument(this.collectionRef, this._cvFilter(filter), options);
-    if (result.deletedCount > 0) {
-      await this.invalidateReadCaches("all");
-    }
-    return result;
+    return deleteOneForAccessor(this.writeContext(), filter, options);
   }
-  /**
-   * Passthrough for native bulk delete.
-   * @since v1.3.0
-   */
   async deleteMany(...args) {
     const [filter, options] = args;
-    if (filter === null || filter === void 0 || typeof filter !== "object" || Array.isArray(filter)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
-    }
-    const result = await deleteManyDocuments(this.collectionRef, this._cvFilter(filter), options);
-    if (result.deletedCount > 0) {
-      await this.invalidateReadCaches("all");
-    }
-    return result;
+    return deleteManyForAccessor(this.writeContext(), filter, options);
   }
-  /**
-   * Bulk-inserts documents in batches.
-   * @since v1.3.0
-   */
   async insertBatch(documents, options) {
-    if (!Array.isArray(documents)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "documents \u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-    }
-    const result = await insertBatchDocuments(this.collectionRef, documents.map((d) => this._cvDoc(d)), options);
-    await this.invalidateReadCaches("all");
-    return result;
+    return insertBatchForAccessor(this.batchContext(), documents, options);
   }
-  /**
-   * Bulk-updates matching documents in batches.
-   * @since v1.3.0
-   */
   async updateBatch(filter, update, options) {
-    const result = await updateBatchDocuments(this.collectionRef, this._cvFilter(filter), this._cvUpdate(update), options);
-    if (result.modifiedCount > 0) {
-      await this.invalidateReadCaches("all");
-    }
-    return result;
+    return updateBatchForAccessor(this.batchContext(), filter, update, options);
   }
-  /**
-   * Bulk-deletes matching documents in batches.
-   * @since v1.3.0
-   */
   async deleteBatch(filter, options) {
-    const result = await deleteBatchDocuments(this.collectionRef, this._cvFilter(filter), options);
-    if (result.deletedCount > 0) {
-      await this.invalidateReadCaches("all");
-    }
-    return result;
+    return deleteBatchForAccessor(this.batchContext(), filter, options);
   }
-  /**
-   * Convenience field increment / decrement.
-   * @since v1.3.0
-   */
   async incrementOne(filter, field, incrementOrOptions, maybeOptions) {
-    const result = await incrementOneDocument(this.collectionRef, this._cvFilter(filter), field, incrementOrOptions, maybeOptions);
-    if (result.modifiedCount > 0) {
-      await this.invalidateReadCaches("all");
-    }
-    return result;
+    return incrementOneForAccessor(this.batchContext(), filter, field, incrementOrOptions, maybeOptions);
   }
-  /**
-   * Creates a single index.
-   * @since v1.3.0
-   */
   async createIndex(keys, options) {
-    return createIndexDefinition(this.collectionRef, keys, options);
+    return createIndexForAccessor(this.collectionRef, keys, options);
   }
-  /**
-   * Creates multiple indexes in bulk.
-   * @since v1.3.0
-   */
   async createIndexes(specs) {
-    return createIndexDefinitions(this.collectionRef, specs);
+    return createIndexesForAccessor(this.collectionRef, specs);
   }
-  /**
-   * Lists all indexes on the collection.
-   * @since v1.3.0
-   */
   async listIndexes() {
-    return listIndexDefinitions(this.collectionRef);
+    return listIndexesForAccessor(this.collectionRef);
   }
-  /**
-   * Drops a specific index.
-   * @since v1.3.0
-   */
   async dropIndex(name) {
-    return dropIndexDefinition(this.collectionRef, name);
+    return dropIndexForAccessor(this.collectionRef, name);
   }
-  /**
-   * Drops all non-`_id_` indexes.
-   * @since v1.3.0
-   */
   async dropIndexes() {
-    return dropIndexDefinitions(this.collectionRef);
+    return dropIndexesForAccessor(this.collectionRef);
   }
-  /**
-   * Pre-warms the findPage bookmark cache.
-   * @since v1.3.0
-   */
   async prewarmBookmarks(keyDims = {}, pages = []) {
-    return prewarmBookmarks({
-      namespace: `${this.dbName}:${this.collectionName}`,
-      cache: this.management.getCache ? this.management.getCache() : this.management.cache,
-      logger: this.management.logger,
-      keyDims,
-      pages,
-      findPage: (options) => this.findPage(options)
-    });
+    return prewarmBookmarksForAccessor(this.bookmarkContext(), keyDims, pages);
   }
-  /**
-   * Lists the findPage bookmark cache entries.
-   * @since v1.3.0
-   */
   async listBookmarks(keyDims) {
-    return listBookmarks({
-      namespace: `${this.dbName}:${this.collectionName}`,
-      cache: this.management.getCache ? this.management.getCache() : this.management.cache,
-      keyDims
-    });
+    return listBookmarksForAccessor(this.bookmarkContext(), keyDims);
   }
-  /**
-   * Clears the findPage bookmark cache.
-   * @since v1.3.0
-   */
   async clearBookmarks(keyDims) {
-    return clearBookmarks({
-      namespace: `${this.dbName}:${this.collectionName}`,
-      cache: this.management.getCache ? this.management.getCache() : this.management.cache,
-      keyDims
-    });
+    return clearBookmarksForAccessor(this.bookmarkContext(), keyDims);
   }
-  /**
-   * Invalidates the cache (v1 compatible).
-   * The TS version only maintains the findPage cursor cache; there is no full query cache.
-   * - If `op` is `'findPage'` or unspecified, the bookmark cache is cleared.
-   * - Other `op` values (`find`/`findOne`/`count`) are no-ops in the TS version and return 0.
-   * @since v1.3.0
-   */
   async invalidate(op) {
     return this.invalidateReadCaches(op);
   }
-  /**
-   * Drops the collection (v1 compatible).
-   * @since v1.3.0
-   */
   async dropCollection() {
-    return this.collectionRef.drop();
+    return dropCollectionForAccessor(this.collectionRef);
   }
-  /**
-   * Creates a collection (v1 compatible).
-   * @param name - Collection name; defaults to the currently bound collection name when omitted.
-   * @param options - MongoDB createCollection options.
-   * @since v1.3.0
-   */
   async createCollection(name, options = {}) {
-    const db = this.dbRef ?? this.collectionRef.db;
-    const collName = name ?? this.collectionName;
-    await db.createCollection(collName, options);
-    return true;
+    return createCollectionForAccessor(this.collectionRef, this.collectionName, this.dbRef, name, options);
   }
-  /**
-   * Creates a view collection (v1 compatible).
-   * @param name - View name.
-   * @param source - Source collection name.
-   * @param pipeline - Aggregation pipeline.
-   * @since v1.3.0
-   */
   async createView(name, source, pipeline = []) {
-    const db = this.dbRef ?? this.collectionRef.db;
-    await db.createCollection(name, { viewOn: source, pipeline });
-    return true;
+    return createViewForAccessor(this.collectionRef, this.dbRef, name, source, pipeline);
   }
-  /**
-   * Returns index statistics (v1 compatible).
-   * @since v1.3.0
-   */
   async indexStats() {
-    const cursor = this.collectionRef.aggregate([{ $indexStats: {} }]);
-    return cursor.toArray();
+    return indexStatsForAccessor(this.collectionRef);
   }
-  /**
-   * Sets the collection validation rules (v1 compatible).
-   * @param validator - Validator object ($jsonSchema or query expression).
-   * @param options - Optional validation level and action configuration.
-   * @since v1.3.0
-   */
   async setValidator(validator, options = {}) {
-    if (validator === null || typeof validator !== "object") {
-      throw new Error("Validator must be a non-null object");
-    }
-    const db = this.dbRef ?? this.collectionRef.db;
-    const isEmptyValidator = Object.keys(validator).length === 0;
-    const cmd = {
-      collMod: this.collectionName,
-      validator
-    };
-    if (options.validationLevel) {
-      cmd["validationLevel"] = options.validationLevel;
-    } else if (isEmptyValidator) {
-      cmd["validationLevel"] = "strict";
-      cmd["validationAction"] = "error";
-    }
-    if (options.validationAction) cmd["validationAction"] = options.validationAction;
-    const result = await db.command(cmd);
-    return { ok: result["ok"], collection: this.collectionName };
+    return setValidatorForAccessor(this.collectionRef, this.collectionName, this.dbRef, validator, options);
   }
-  /**
-   * Sets the collection validation level (v1 compatible).
-   * @param level - Validation level: `'off'` | `'strict'` | `'moderate'`.
-   * @since v1.3.0
-   */
   async setValidationLevel(level) {
-    if (typeof level !== "string" || !["off", "strict", "moderate"].includes(level)) {
-      throw new Error('Invalid validation level: must be "off", "strict", or "moderate"');
-    }
-    const db = this.dbRef ?? this.collectionRef.db;
-    const result = await db.command({ collMod: this.collectionName, validationLevel: level });
-    return { ok: result["ok"], validationLevel: level };
+    return setValidationLevelForAccessor(this.collectionRef, this.collectionName, this.dbRef, level);
   }
-  /**
-   * Sets the collection validation action (v1 compatible).
-   * @param action - Validation action: `'error'` | `'warn'`.
-   * @since v1.3.0
-   */
   async setValidationAction(action) {
-    if (typeof action !== "string" || !["error", "warn"].includes(action)) {
-      throw new Error('Invalid validation action: must be "error" or "warn"');
-    }
-    const db = this.dbRef ?? this.collectionRef.db;
-    const result = await db.command({ collMod: this.collectionName, validationAction: action });
-    return { ok: result["ok"], validationAction: action };
+    return setValidationActionForAccessor(this.collectionRef, this.collectionName, this.dbRef, action);
   }
-  /**
-   * Returns the collection validation configuration (v1 compatible).
-   * @returns The validator, validation level, and validation action.
-   * @since v1.3.0
-   */
   async getValidator() {
-    const db = this.dbRef ?? this.collectionRef.db;
-    const cursor = db.listCollections({ name: this.collectionName });
-    const collections = await cursor.toArray();
-    const info = collections[0];
-    return {
-      validator: info?.options?.["validator"] ?? null,
-      validationLevel: info?.options?.["validationLevel"] ?? "strict",
-      validationAction: info?.options?.["validationAction"] ?? "error"
-    };
+    return getValidatorForAccessor(this.collectionRef, this.collectionName, this.dbRef);
   }
-  /**
-   * Returns collection statistics (v1 compatible; uses $collStats aggregation).
-   * The collStats command was removed in MongoDB 7.x and must be replaced with an aggregation pipeline.
-   * @param options - Optional scale factor (bytes/1 = default).
-   * @since v1.3.0
-   */
   async stats(options = {}) {
-    const scale = options.scale ?? 1;
-    const pipeline = [{ $collStats: { storageStats: { scale }, count: {} } }];
-    const cursor = this.collectionRef.aggregate(pipeline);
-    const results = await cursor.toArray();
-    const raw = results[0] ?? {};
-    const storage = raw["storageStats"] ?? {};
+    return statsForAccessor(this.collectionRef, this.dbName, this.collectionName, options);
+  }
+  async renameCollection(newName, options = {}) {
+    return renameCollectionForAccessor(this.collectionRef, this.collectionName, newName, options);
+  }
+  async collMod(modifications) {
+    return collModForAccessor(this.collectionRef, this.collectionName, this.dbRef, modifications);
+  }
+  async convertToCapped(size, options = {}) {
+    return convertToCappedForAccessor(this.collectionRef, this.collectionName, this.dbRef, size, options);
+  }
+  batchContext() {
     return {
-      ns: raw["ns"] ?? `${this.dbName}.${this.collectionName}`,
-      count: storage["count"] ?? 0,
-      size: storage["size"] ?? 0,
-      storageSize: storage["storageSize"] ?? 0,
-      totalIndexSize: storage["totalIndexSize"] ?? 0,
-      nindexes: storage["nindexes"] ?? 0,
-      avgObjSize: storage["avgObjSize"],
-      scaleFactor: storage["scaleFactor"] ?? scale
+      collectionRef: this.collectionRef,
+      cvFilter: (value) => this._cvFilter(value),
+      cvDoc: (value) => this._cvDoc(value),
+      cvUpdate: (value) => this._cvUpdate(value),
+      invalidateAll: () => this.invalidateReadCaches("all")
     };
   }
-  /**
-   * Renames the collection (v1-compat).
-   * @param newName - New collection name.
-   * @param options - Optional options (dropTarget: whether to overwrite an existing collection with the new name).
-   * @since v1.3.0
-   */
-  async renameCollection(newName, options = {}) {
-    if (!newName || typeof newName !== "string") {
-      throw new Error("New collection name is required and must be a non-empty string");
-    }
-    await this.collectionRef.rename(newName, {
-      dropTarget: options.dropTarget ?? false
-    });
-    return { renamed: true, from: this.collectionName, to: newName };
-  }
-  /**
-   * Modifies collection properties (v1-compat).
-   * @param modifications - Object containing the collection property modifications.
-   * @since v1.3.0
-   */
-  async collMod(modifications) {
-    if (modifications === null || typeof modifications !== "object") {
-      throw new Error("Modifications must be a non-null object");
-    }
-    const db = this.dbRef ?? this.collectionRef.db;
-    const result = await db.command({
-      collMod: this.collectionName,
-      ...modifications
-    });
-    return result;
-  }
-  /**
-   * Converts the collection to a fixed-size capped collection (v1-compat).
-   * @param size - Maximum byte size of the collection (must be a positive integer).
-   * @param options - Optional options (max: maximum document count).
-   * @since v1.3.0
-   */
-  async convertToCapped(size, options = {}) {
-    if (typeof size !== "number") {
-      throw new Error("Size must be a number");
-    }
-    if (size <= 0) {
-      throw new Error("Size must be a positive number");
-    }
-    const db = this.dbRef ?? this.collectionRef.db;
-    const cmd = { convertToCapped: this.collectionName, size };
-    if (options.max !== void 0) cmd["max"] = options.max;
-    const result = await db.command(cmd);
+  writeContext() {
     return {
-      ok: result["ok"],
-      collection: this.collectionName,
-      capped: true,
-      size
+      dbName: this.dbName,
+      collectionName: this.collectionName,
+      collectionRef: this.collectionRef,
+      defaults: this.management.defaults,
+      logger: this.management.logger,
+      cvFilter: (value) => this._cvFilter(value),
+      cvDoc: (value) => this._cvDoc(value),
+      cvUpdate: (value) => this._cvUpdate(value),
+      invalidateAll: () => this.invalidateReadCaches("all")
+    };
+  }
+  bookmarkContext() {
+    return {
+      namespace: `${this.dbName}:${this.collectionName}`,
+      cache: this.management.cache,
+      getCache: this.management.getCache,
+      logger: this.management.logger,
+      findPage: (options) => this.findPage(options)
     };
   }
 };
+
+// src/adapters/mongodb/common/db-accessor.ts
 var MongoDbAccessor = class {
   constructor(dbName, dbRef, management = {}) {
     this.dbName = dbName;
@@ -3320,806 +6763,356 @@ var MongoDbAccessor = class {
   }
 };
 
-// src/entry/runtime-core.ts
-import { EventEmitter } from "node:events";
-import { performance } from "node:perf_hooks";
-
-// src/capabilities/cache/index.ts
-import { MemoryCache as HubMemoryCache } from "cache-hub";
-var MemoryCache = class _MemoryCache {
-  constructor(options = {}) {
-    this._lockManager = null;
-    this._calls = 0;
-    const { maxSize, ...rest } = options;
-    this._hub = new HubMemoryCache({
-      ...rest,
-      // v1 uses maxSize, cache-hub uses maxEntries — map for compat
-      maxEntries: rest.maxEntries ?? maxSize
-    });
-  }
-  /**
-   * Set the cache lock manager.
-   * @since v1.3.0
-   */
-  setLockManager(lockManager) {
-    this._lockManager = lockManager;
-  }
-  /**
-   * Get the cache lock manager.
-   * @since v1.3.0
-   */
-  getLockManager() {
-    return this._lockManager;
-  }
-  /**
-   * Get a cached value. Every call is counted in `calls` stats.
-   * @since v1.3.0
-   */
-  get(key) {
-    this._calls += 1;
-    return this._hub.get(key);
-  }
-  /**
-   * Write a cached value. Returns false if the key is locked by the lock manager.
-   * @since v1.3.0
-   */
-  set(key, value, ttl = 0) {
-    if (this._lockManager?.isLocked(key)) {
-      return false;
+// src/entry/runtime-db-facade.ts
+function createRuntimeDbFacade(host, databaseName) {
+  return new MongoDbAccessor(
+    databaseName,
+    host._client.db(databaseName),
+    {
+      cache: host.resolveAdapterCache(),
+      queryCache: host.resolveAdapterCache(),
+      getCache: () => host.resolveAdapterCache(),
+      getQueryCache: () => host.resolveAdapterCache(),
+      logger: host._logger,
+      defaults: host._runtimeDefaults,
+      cacheAutoInvalidate: !!host.options.cache?.autoInvalidate
     }
-    this._hub.set(key, value, ttl);
-    return true;
-  }
-  /**
-   * Delete a cached value.
-   * @since v1.3.0
-   */
-  delete(key) {
-    return this._hub.del(key);
-  }
-  /**
-   * Alias for `delete()`.
-   * @since v1.3.0
-   */
-  del(key) {
-    return this.delete(key);
-  }
-  /**
-   * Check whether a cache key exists (also counted in calls stats).
-   * @since v1.3.0
-   */
-  exists(key) {
-    return this._hub.exists(key);
-  }
-  /**
-   * Read multiple cache entries (each key is counted in calls stats).
-   * @since v1.3.0
-   */
-  getMany(keys) {
-    const output = {};
-    for (const key of keys) {
-      const value = this.get(key);
-      if (value !== void 0) {
-        output[key] = value;
-      }
-    }
-    return output;
-  }
-  /**
-   * Write multiple cache entries (each key is checked against the lock manager).
-   * @since v1.3.0
-   */
-  setMany(values, ttl = 0) {
-    for (const [key, value] of Object.entries(values)) {
-      this.set(key, value, ttl);
-    }
-    return true;
-  }
-  /**
-   * Delete multiple cache entries.
-   * @since v1.3.0
-   */
-  delMany(keys) {
-    let deleted = 0;
-    for (const key of keys) {
-      if (this.delete(key)) {
-        deleted += 1;
-      }
-    }
-    return deleted;
-  }
-  /**
-   * Clear the cache.
-   * @since v1.3.0
-   */
-  clear() {
-    this._hub.clear();
-  }
-  /**
-   * List cache keys matching a wildcard pattern.
-   * @since v1.3.0
-   */
-  keys(pattern = "*") {
-    return this._hub.keys(pattern);
-  }
-  /**
-   * Delete cache keys matching a wildcard pattern.
-   * @since v1.3.0
-   */
-  delPattern(pattern = "*") {
-    return this._hub.delPattern(pattern);
-  }
-  /**
-   * Get cache statistics (including the `calls` field required by v1).
-   * @since v1.3.0
-   */
-  getStats() {
-    const s = this._hub.getStats();
-    const calls = this._calls;
-    return {
-      hits: s.hits,
-      misses: s.misses,
-      calls,
-      hitRate: calls > 0 ? s.hits / calls : 0,
-      sets: s.sets,
-      deletes: s.deletes,
-      evictions: s.evictions,
-      size: s.entries,
-      memoryUsage: s.memoryUsage,
-      memoryUsageMB: s.memoryUsageMB
-    };
-  }
-  /**
-   * Reset cache statistics (including calls).
-   * @since v1.3.0
-   */
-  resetStats() {
-    this._hub.resetStats();
-    this._calls = 0;
-  }
-  /**
-   * Get or create a cache instance.
-   * @since v1.3.0
-   */
-  static getOrCreateCache(cache) {
-    return cache instanceof _MemoryCache ? cache : new _MemoryCache(cache);
-  }
-};
-function createRedisCacheAdapter(redisUrlOrInstance, adapterOptions = {}) {
-  const { client, prefix, ownsConnection } = resolveRedisClient(redisUrlOrInstance, adapterOptions);
-  const withPrefix = (key) => `${prefix}${key}`;
-  const stripPrefix = (key) => key.startsWith(prefix) ? key.slice(prefix.length) : key;
-  const getValue = async (key) => {
-    const value = await Promise.resolve(client.get(withPrefix(key)));
-    if (value === null || value === void 0) {
-      return null;
-    }
-    try {
-      return JSON.parse(String(value));
-    } catch {
-      return null;
-    }
-  };
-  const keysFn = async (pattern = "*") => {
-    const prefixedPattern = withPrefix(pattern);
-    const keys = [];
-    if (client.scan) {
-      let cursor = "0";
-      do {
-        const [nextCursor, foundKeys] = await Promise.resolve(client.scan(cursor, "MATCH", prefixedPattern, "COUNT", 100));
-        cursor = nextCursor;
-        keys.push(...foundKeys.map(stripPrefix));
-      } while (cursor !== "0");
-      return keys;
-    }
-    throw createError(ErrorCodes.INVALID_CONFIG, "Redis cache adapter requires scan() support for keys().");
-  };
-  const delManyFn = async (keys) => {
-    if (keys.length === 0) {
-      return 0;
-    }
-    return Number(await Promise.resolve(client.del(...keys.map(withPrefix))));
-  };
+  );
+}
+function resolveDatabaseName(options) {
+  return options["database"] ?? options.databaseName ?? "default";
+}
+function createRuntimeAccessors(config) {
   return {
-    get: getValue,
-    async set(key, value, ttl = 0) {
-      const payload = JSON.stringify(value);
-      if (ttl > 0 && client.psetex) {
-        await Promise.resolve(client.psetex(withPrefix(key), ttl, payload));
-      } else {
-        await Promise.resolve(client.set(withPrefix(key), payload));
+    collection: (name) => {
+      if (!name || typeof name !== "string" || !name.trim()) {
+        const error = new Error("Collection name must be a non-empty string");
+        error.code = "INVALID_COLLECTION_NAME";
+        throw error;
       }
-      return true;
-    },
-    async del(key) {
-      const deleted = await Promise.resolve(client.del(withPrefix(key)));
-      return Number(deleted) > 0;
-    },
-    async delete(key) {
-      const deleted = await Promise.resolve(client.del(withPrefix(key)));
-      return Number(deleted) > 0;
-    },
-    async exists(key) {
-      const exists = await Promise.resolve(client.exists(withPrefix(key)));
-      return typeof exists === "boolean" ? exists : Number(exists) > 0;
-    },
-    async getMany(keys) {
-      const values = {};
-      if (keys.length === 0) {
-        return values;
+      if (!config.getIidCache()) {
+        config.setIidCache(/* @__PURE__ */ new Map());
       }
-      if (client.mget) {
-        const response = await Promise.resolve(client.mget(keys.map(withPrefix)));
-        keys.forEach((key, index) => {
-          const raw = response[index];
-          if (raw === null || raw === void 0) {
-            return;
-          }
-          try {
-            values[key] = JSON.parse(String(raw));
-          } catch {
-          }
-        });
-        return values;
-      }
-      for (const key of keys) {
-        const value = await getValue(key);
-        if (value !== void 0) {
-          values[key] = value;
-        }
-      }
-      return values;
+      return config.defaultDb.collection(name);
     },
-    async setMany(values, ttl = 0) {
-      for (const [key, value] of Object.entries(values)) {
-        await this.set(key, value, ttl);
-      }
-      return true;
-    },
-    delMany: delManyFn,
-    async delPattern(pattern) {
-      const keys = await keysFn(pattern);
-      return delManyFn(keys);
-    },
-    async clear() {
-      if (client.flushdb) {
-        await Promise.resolve(client.flushdb());
-      } else {
-        const keys = await keysFn("*");
-        await delManyFn(keys);
-      }
-    },
-    keys: keysFn,
-    async close() {
-      if (ownsConnection && client.quit) {
-        await Promise.resolve(client.quit());
-      }
-    },
-    getRedisInstance() {
-      return client;
-    }
+    db: (name) => config.db(name),
+    use: (name) => config.use(name),
+    instance: config.runtime
   };
-}
-var DistributedCacheInvalidator = class {
-  constructor(options = {}) {
-    this._ownsConnections = false;
-    this.stats = {
-      messagesSent: 0,
-      messagesReceived: 0,
-      invalidationsTriggered: 0,
-      errors: 0
-    };
-    if (!options.cache) {
-      throw createError(ErrorCodes.INVALID_CONFIG, "DistributedCacheInvalidator requires a cache instance");
-    }
-    this.channel = options.channel ?? "monsqlize:cache:invalidate";
-    this.instanceId = options.instanceId ?? `instance-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    this.logger = options.logger;
-    const cache = options.cache;
-    if ("local" in cache || "remote" in cache) {
-      const scopedCache = options.cache;
-      this.local = scopedCache.local;
-      this.remote = scopedCache.remote;
-    } else {
-      this.local = options.cache;
-    }
-    if (options.redis) {
-      this.pub = options.redis;
-      this.sub = options.redis;
-      this._ownsConnections = false;
-    } else if (options.redisUrl) {
-      const IoRedis = __require("ioredis");
-      this.pub = new IoRedis(options.redisUrl);
-      this.sub = new IoRedis(options.redisUrl);
-      this._ownsConnections = true;
-    } else {
-      this.pub = options.pub;
-      this.sub = options.sub;
-    }
-    if (this.pub && this.pub.on) {
-      this.pub.on("error", (err) => {
-        this.stats.errors++;
-        this.logger?.error?.("[DistributedCacheInvalidator] Redis pub error:", err.message);
-      });
-    }
-    if (this.sub && this.sub !== this.pub && this.sub.on) {
-      this.sub.on("error", (err) => {
-        this.stats.errors++;
-        this.logger?.error?.("[DistributedCacheInvalidator] Redis sub error:", err.message);
-      });
-    }
-    if (this.sub) {
-      this._setupSubscription();
-    }
-  }
-  _setupSubscription() {
-    this.sub.subscribe(this.channel, (err) => {
-      if (err) {
-        this.stats.errors++;
-        this.logger?.error?.("[DistributedCacheInvalidator] Subscribe error:", err.message);
-      } else {
-        this.logger?.info?.(`[DistributedCacheInvalidator] Subscribed to channel: ${this.channel}`);
-      }
-    });
-    this.sub.on("message", async (channel, message) => {
-      if (channel !== this.channel) return;
-      this.stats.messagesReceived++;
-      try {
-        const data = JSON.parse(message);
-        if (data.instanceId === this.instanceId) return;
-        if (data.type === "invalidate" && data.pattern) {
-          await this._handleInvalidation(data.pattern);
-        }
-      } catch (error) {
-        this.stats.errors++;
-        this.logger?.error?.("[DistributedCacheInvalidator] Message parse error:", error.message);
-      }
-    });
-  }
-  async _handleInvalidation(pattern) {
-    try {
-      if (this.local?.delPattern) {
-        const localDeleted = Number(await Promise.resolve(this.local.delPattern(pattern)));
-        this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated local cache: ${pattern}, deleted: ${localDeleted} keys`);
-      }
-      if (this.remote?.delPattern) {
-        const remoteDeleted = Number(await Promise.resolve(this.remote.delPattern(pattern)));
-        this.logger?.debug?.(`[DistributedCacheInvalidator] Invalidated remote cache: ${pattern}, deleted: ${remoteDeleted} keys`);
-      }
-      this.stats.invalidationsTriggered++;
-    } catch (error) {
-      this.stats.errors++;
-      this.logger?.error?.("[DistributedCacheInvalidator] Invalidation error:", error.message);
-    }
-  }
-  /**
-   * Broadcast a cache invalidation message to other instances.
-   * Only publishes — local cache of the sending instance is NOT cleared here.
-   * (Cache clearing happens in _handleInvalidation when OTHER instances receive the message.)
-   */
-  async invalidate(pattern) {
-    if (!pattern) return;
-    await this._handleInvalidation(pattern);
-    if (!this.pub) return;
-    const message = JSON.stringify({
-      type: "invalidate",
-      pattern,
-      instanceId: this.instanceId,
-      timestamp: Date.now()
-    });
-    try {
-      await Promise.resolve(this.pub.publish(this.channel, message));
-      this.stats.messagesSent++;
-      this.logger?.debug?.(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
-    } catch (error) {
-      this.stats.errors++;
-      this.logger?.error?.("[DistributedCacheInvalidator] Publish error:", error.message);
-      throw error;
-    }
-  }
-  /**
-   * Manually handle a message from the subscription channel (for external message routing).
-   */
-  async handleMessage(channel, message) {
-    if (channel !== this.channel) return;
-    this.stats.messagesReceived++;
-    try {
-      const data = JSON.parse(message);
-      if (data.instanceId === this.instanceId || data.type !== "invalidate" || !data.pattern) return;
-      await this._handleInvalidation(data.pattern);
-    } catch (cause) {
-      this.stats.errors++;
-      this.logger?.error?.("[DistributedCacheInvalidator] Failed to parse message", cause);
-    }
-  }
-  getStats() {
-    return {
-      ...this.stats,
-      channel: this.channel,
-      instanceId: this.instanceId
-    };
-  }
-  async close() {
-    try {
-      if (this.sub?.unsubscribe) {
-        await Promise.resolve(this.sub.unsubscribe(this.channel));
-      }
-      if (this.pub?.quit) {
-        await Promise.resolve(this.pub.quit());
-      }
-      if (this.sub?.quit) {
-        await Promise.resolve(this.sub.quit());
-      }
-      this.logger?.info?.("[DistributedCacheInvalidator] Closed");
-    } catch (error) {
-      this.logger?.error?.("[DistributedCacheInvalidator] Close error:", error.message);
-    }
-  }
-};
-function resolveRedisClient(redisUrlOrInstance, adapterOptions) {
-  if (typeof redisUrlOrInstance === "string") {
-    try {
-      const IORedis = __require("ioredis");
-      return {
-        client: new IORedis(redisUrlOrInstance),
-        prefix: String(adapterOptions.prefix ?? ""),
-        ownsConnection: true
-      };
-    } catch {
-      throw createError(ErrorCodes.INVALID_CONFIG, "ioredis is required to create a Redis cache adapter from URL.");
-    }
-  }
-  if (redisUrlOrInstance && typeof redisUrlOrInstance === "object" && "client" in redisUrlOrInstance && redisUrlOrInstance.client) {
-    const options = redisUrlOrInstance;
-    return {
-      client: options.client,
-      prefix: String(options.prefix ?? ""),
-      ownsConnection: false
-    };
-  }
-  if (redisUrlOrInstance && typeof redisUrlOrInstance === "object") {
-    return {
-      client: redisUrlOrInstance,
-      prefix: String(adapterOptions.prefix ?? ""),
-      ownsConnection: false
-    };
-  }
-  throw createError(ErrorCodes.INVALID_ARGUMENT, "redisUrlOrInstance must be a Redis URL string or Redis client instance.");
 }
 
-// src/capabilities/function-cache/index.ts
-import { createHash as createHash2 } from "node:crypto";
-var inflightFunctions = /* @__PURE__ */ new Map();
-function withCache(fn, options = {}) {
-  if (typeof fn !== "function") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: fn must be a function.");
-  }
-  const {
-    ttl = 6e4,
-    namespace = "fn",
-    cache = new MemoryCache(),
-    keyBuilder,
-    condition,
-    enableStats = true
-  } = options;
-  if (typeof ttl !== "number" || ttl < 0) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: ttl must be a non-negative number.");
-  }
-  if (keyBuilder && typeof keyBuilder !== "function") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: keyBuilder must be a function.");
-  }
-  if (condition && typeof condition !== "function") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: condition must be a function.");
-  }
-  if (typeof cache.get !== "function" || typeof cache.set !== "function") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: Invalid cache instance: must implement CacheLike interface");
-  }
-  const stats = {
-    hits: 0,
-    misses: 0,
-    errors: 0,
-    calls: 0,
-    totalTime: 0
+// src/entry/runtime-model.ts
+function createRuntimeModelHost(config) {
+  return {
+    options: config.options,
+    _modelInstances: config.modelInstances,
+    runtime: config.runtime,
+    scopedCollection: (name, options) => config.scopedCollection(name, options)
   };
-  const wrapped = (async (...args) => {
-    const startedAt = Date.now();
-    let cacheKey;
-    try {
-      const baseKey = keyBuilder ? `${namespace}:${keyBuilder(...args)}` : `${namespace}:${fn.name || "anonymous"}:${stableStringify2(args)}`;
-      if (baseKey.length > 1024) {
-        const hash2 = createHash2("sha256").update(baseKey).digest("hex");
-        cacheKey = `${namespace}:${fn.name || "anonymous"}:hash:${hash2}`;
-      } else {
-        cacheKey = baseKey;
-      }
-    } catch {
-      if (enableStats) stats.errors += 1;
-      return fn(...args);
+}
+function createRuntimeModelInstance(host, name, scope) {
+  const registered = Model.get(name);
+  if (!registered) {
+    throw createError(ErrorCodes.MODEL_NOT_DEFINED, `Model '${name}' is not defined.`);
+  }
+  const databaseName = registered.definition.connection?.database ?? scope.database ?? resolveDatabaseName(host.options);
+  const poolName = registered.definition.connection?.pool ?? scope.pool;
+  const cacheKey = `${poolName ?? "default"}:${databaseName}:${registered.collectionName}`;
+  const revision = Model.getRevision(registered.collectionName);
+  const cached = host._modelInstances.get(cacheKey);
+  if (cached && cached.revision === revision) {
+    return cached.instance;
+  }
+  const instance = new ModelInstance(
+    host.scopedCollection(registered.collectionName, { database: databaseName }),
+    host.runtime,
+    {
+      collectionName: registered.collectionName,
+      dbName: databaseName,
+      poolName,
+      definition: registered.definition
     }
+  );
+  host._modelInstances.set(cacheKey, {
+    revision,
+    instance
+  });
+  return instance;
+}
+
+// src/entry/runtime-compat-accessors.ts
+function asRuntimeCompatRecord(value) {
+  return value;
+}
+function requireCompatDbInstance(value) {
+  const dbInstance = asRuntimeCompatRecord(value).dbInstance;
+  if (!dbInstance) {
+    throw createError(ErrorCodes.NOT_CONNECTED, "Database is not connected. Call connect() first.");
+  }
+  return dbInstance;
+}
+function requireCompatPoolManagerRecord(value) {
+  const poolManager = asRuntimeCompatRecord(value)._poolManager;
+  if (!poolManager) {
+    throw createError(ErrorCodes.NO_POOL_MANAGER, "No pool manager configured. Add pools to MonSQLize constructor options.");
+  }
+  return poolManager;
+}
+function assertCompatPoolExists(poolManager, poolName) {
+  const getPoolV1 = poolManager["_getPool"];
+  const getPoolV2 = poolManager["getPool"];
+  let client = null;
+  if (typeof getPoolV1 === "function") {
+    client = getPoolV1.call(poolManager, poolName);
+  } else if (typeof getPoolV2 === "function") {
     try {
-      const cached = await cache.get(cacheKey);
-      const exists = cached !== void 0 || await Promise.resolve(cache.exists?.(cacheKey) ?? false);
-      if (exists) {
-        if (enableStats) {
-          stats.hits += 1;
-          stats.calls += 1;
-          stats.totalTime += Date.now() - startedAt;
-        }
-        return cached;
-      }
+      client = getPoolV2.call(poolManager, poolName);
     } catch {
-      if (enableStats) {
-        stats.errors += 1;
-      }
+      client = null;
     }
-    if (inflightFunctions.has(cacheKey)) {
-      const pending = inflightFunctions.get(cacheKey);
-      const result = await pending;
-      if (enableStats) {
-        stats.hits += 1;
-        stats.calls += 1;
-        stats.totalTime += Date.now() - startedAt;
+  }
+  if (client) {
+    return;
+  }
+  const getNames = poolManager["getPoolNames"];
+  const available = typeof getNames === "function" ? getNames.call(poolManager) : [];
+  const error = createError(ErrorCodes.POOL_NOT_FOUND, `Pool '${poolName}' not found. Available pools: [${available.join(", ")}]`);
+  error["available"] = available;
+  throw error;
+}
+function createPoolScope(runtime, poolName) {
+  return {
+    collection: (name) => runtime.scopedCollection(name, { pool: poolName }),
+    model: (name) => runtime.scopedModel(name, { pool: poolName }),
+    use: (dbName) => ({
+      collection: (name) => runtime.scopedCollection(name, { pool: poolName, database: dbName }),
+      model: (name) => runtime.scopedModel(name, { pool: poolName, database: dbName })
+    })
+  };
+}
+function getRegisteredModelMetadata(registered) {
+  const definition = registered.definition;
+  return {
+    actualCollectionName: definition.collection ?? definition.name ?? registered.collectionName,
+    connection: definition.connection
+  };
+}
+function getRuntimeDatabaseName(value) {
+  return asRuntimeCompatRecord(value).databaseName ?? "default";
+}
+function getCompatModelInstanceCache(value) {
+  const record = asRuntimeCompatRecord(value);
+  if (!record._modelInstances) {
+    record._modelInstances = /* @__PURE__ */ new Map();
+  }
+  return record._modelInstances;
+}
+function createCompatModelInstance(config) {
+  return new ModelInstance(
+    config.collection,
+    config.runtime,
+    {
+      collectionName: config.collectionName,
+      dbName: config.dbName,
+      poolName: config.poolName,
+      definition: config.definition
+    }
+  );
+}
+
+// src/entry/runtime-admin-bridge.ts
+import { performance } from "node:perf_hooks";
+function createLegacyCollectionBridge(config) {
+  return (dbName, collName) => {
+    const client = config.getClient();
+    if (!client) {
+      throw createError(ErrorCodes.NOT_CONNECTED, "MonSQLize is not connected yet.");
+    }
+    const nativeCollection = client.db(dbName).collection(collName);
+    const withSlowQuery = async (operation, execute, query) => {
+      const startedAt = performance.now();
+      const result = await execute();
+      const durationMs = Math.max(1, Math.ceil(performance.now() - startedAt));
+      const threshold = config.slowQueryMs ?? 500;
+      const manager = config.initializeSlowQueryLogManager();
+      if (manager && durationMs >= threshold) {
+        const entry = {
+          database: dbName,
+          collection: collName,
+          operation,
+          durationMs,
+          query,
+          timestamp: /* @__PURE__ */ new Date()
+        };
+        await manager.save(entry);
+        config.emit("slow-query", entry);
+        config.emit("query", entry);
       }
       return result;
-    }
-    const runner = (async () => {
-      try {
-        const result = await fn(...args);
-        let shouldCache = true;
-        if (condition) {
-          try {
-            shouldCache = condition(result);
-          } catch {
-            if (enableStats) stats.errors += 1;
-            shouldCache = true;
-          }
-        }
-        if (shouldCache) {
-          try {
-            await Promise.resolve(cache.set(cacheKey, result, ttl));
-          } catch {
-            if (enableStats) stats.errors += 1;
-          }
-        }
-        return result;
-      } finally {
-        inflightFunctions.delete(cacheKey);
-      }
-    })();
-    inflightFunctions.set(cacheKey, runner);
-    try {
-      const result = await runner;
-      if (enableStats) {
-        stats.misses += 1;
-        stats.calls += 1;
-        stats.totalTime += Date.now() - startedAt;
-      }
-      return result;
-    } catch (cause) {
-      if (enableStats) {
-        stats.errors += 1;
-        stats.calls += 1;
-      }
-      throw cause;
-    }
-  });
-  wrapped.invalidate = async (...args) => {
-    let cacheKey;
-    try {
-      const baseKey = keyBuilder ? `${namespace}:${keyBuilder(...args)}` : `${namespace}:${fn.name || "anonymous"}:${stableStringify2(args)}`;
-      if (baseKey.length > 1024) {
-        const hash2 = createHash2("sha256").update(baseKey).digest("hex");
-        cacheKey = `${namespace}:${fn.name || "anonymous"}:hash:${hash2}`;
-      } else {
-        cacheKey = baseKey;
-      }
-    } catch {
-      return false;
-    }
-    const result = await Promise.resolve(cache.del?.(cacheKey) ?? cache.delete?.(cacheKey) ?? false);
-    return typeof result === "boolean" ? result : Number(result) > 0;
+    };
+    return {
+      find: async (query, options) => withSlowQuery("find", () => nativeCollection.find(query ?? {}, options).toArray(), query),
+      findOne: async (query, options) => withSlowQuery("findOne", () => nativeCollection.findOne(query, options), query),
+      insertOne: async (document, options) => withSlowQuery("insertOne", () => nativeCollection.insertOne(document, options)),
+      insertMany: async (documents, options) => withSlowQuery("insertMany", () => nativeCollection.insertMany(documents, options)),
+      updateOne: async (filter, update, options) => withSlowQuery("updateOne", () => nativeCollection.updateOne(filter, update, options)),
+      updateMany: async (filter, update, options) => withSlowQuery("updateMany", () => nativeCollection.updateMany(filter, update, options)),
+      deleteOne: async (filter, options) => withSlowQuery("deleteOne", () => nativeCollection.deleteOne(filter, options)),
+      deleteMany: async (filter, options) => withSlowQuery("deleteMany", () => nativeCollection.deleteMany(filter, options)),
+      aggregate: async (pipeline, options) => withSlowQuery("aggregate", () => nativeCollection.aggregate(pipeline, options).toArray()),
+      countDocuments: async (filter, options) => withSlowQuery("countDocuments", () => nativeCollection.countDocuments(filter ?? {}, options)),
+      drop: async () => nativeCollection.drop()
+    };
   };
-  wrapped.getCacheStats = () => ({
-    hits: stats.hits,
-    misses: stats.misses,
-    calls: stats.calls,
-    hitRate: stats.calls > 0 ? stats.hits / stats.calls : 0,
-    errors: stats.errors,
-    avgTime: stats.calls > 0 ? stats.totalTime / stats.calls : 0
+}
+function createAdapterBridge(config) {
+  const bridge = {};
+  Object.defineProperties(bridge, {
+    db: {
+      enumerable: true,
+      get: config.getDb
+    },
+    client: {
+      enumerable: true,
+      get: config.getClient
+    },
+    cache: {
+      enumerable: true,
+      get: config.getCache,
+      set: config.setCache
+    },
+    instanceId: {
+      enumerable: true,
+      get: config.getInstanceId
+    },
+    ping: {
+      enumerable: true,
+      value: config.ping
+    },
+    buildInfo: {
+      enumerable: true,
+      value: config.buildInfo
+    },
+    serverStatus: {
+      enumerable: true,
+      value: config.serverStatus
+    },
+    stats: {
+      enumerable: true,
+      value: config.stats
+    },
+    listDatabases: {
+      enumerable: true,
+      value: config.listDatabases
+    },
+    dropDatabase: {
+      enumerable: true,
+      value: config.dropDatabase
+    },
+    listCollections: {
+      enumerable: true,
+      value: config.listCollections
+    },
+    runCommand: {
+      enumerable: true,
+      value: config.runCommand
+    },
+    collection: {
+      enumerable: true,
+      value: createLegacyCollectionBridge(config)
+    },
+    slowQueryLogManager: {
+      enumerable: true,
+      configurable: true,
+      get: config.getSlowQueryLogManager
+    },
+    _iidCache: {
+      enumerable: true,
+      get: config.getIidCache,
+      set: config.setIidCache
+    }
   });
-  return wrapped;
+  return bridge;
 }
-var FunctionCache = class {
-  constructor(cacheOrDb, options = {}) {
-    this.functions = /* @__PURE__ */ new Map();
-    if (options !== null && typeof options !== "object") {
-      throw new Error("options must be an object");
-    }
-    const namespace = options.namespace;
-    if (namespace !== void 0 && typeof namespace !== "string") {
-      throw new Error("namespace must be a string");
-    }
-    this.options = options;
-    this.cache = resolveCache(cacheOrDb);
-    if ((this.options.defaultTTL ?? 6e4) < 0) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "FunctionCache: defaultTTL must be a non-negative number.");
-    }
-  }
-  /**
-   * Register a cacheable async function.
-   *
-   * @template {unknown[]} TArgs
-   * @template TResult
-   * @param {string} name - Registration name; accessed later via `execute()` / `invalidate()`.
-   * @param {(...args: TArgs) => Promise<TResult>} fn - The original async function.
-   * @param {WithCacheOptions} [options={}] - Per-function local cache configuration.
-   * @returns {void}
-   * @throws {Error} Throws an argument error when the name is empty.
-   * @since v1.3.0
-   */
-  register(name, fn, options = {}) {
-    if (!name?.trim()) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "Function name must be a non-empty string");
-    }
-    if (typeof fn !== "function") {
-      throw new Error("fn must be a function");
-    }
-    if (options && typeof options !== "object") {
-      throw new Error("options must be an object");
-    }
-    const cachedFn = withCache(fn, {
-      ...options,
-      cache: options.cache ?? this.cache,
-      namespace: `${this.options.namespace ?? "action"}:${name}`,
-      ttl: options.ttl ?? this.options.defaultTTL ?? 6e4,
-      enableStats: options.enableStats ?? this.options.enableStats ?? true
-    });
-    this.functions.set(name, cachedFn);
-  }
-  /**
-   * Execute a registered function.
-   *
-   * @param {string} name - Name of the registered function.
-   * @param {...unknown[]} args - Arguments to pass to the original function.
-   * @returns {Promise<unknown>} Returns the result from the original function or a cache hit.
-   * @throws {Error} Throws `FUNCTION_NOT_REGISTERED` when the function is not registered.
-   * @since v1.3.0
-   */
-  async execute(name, ...args) {
-    const fn = this.functions.get(name);
-    if (!fn) {
-      throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
-    }
-    return fn(...args);
-  }
-  /**
-   * Invalidate the cached result for a registered function under the given arguments.
-   *
-   * @param {string} name - Name of the registered function.
-   * @param {...unknown[]} args - Original function arguments used to reconstruct the cache key.
-   * @returns {Promise<boolean>} Returns `true` when the cache entry was successfully deleted.
-   * @throws {Error} Throws `FUNCTION_NOT_REGISTERED` when the function is not registered.
-   * @since v1.3.0
-   */
-  async invalidate(name, ...args) {
-    if (!name || typeof name !== "string") {
-      throw new Error("Function name must be a non-empty string");
-    }
-    const fn = this.functions.get(name);
-    if (!fn) {
-      throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
-    }
-    return fn.invalidate(...args);
-  }
-  /**
-   * Bulk-invalidate cache keys under the current namespace matching a pattern.
-   *
-   * @param {string} pattern - Wildcard pattern; the namespace prefix is prepended automatically when absent.
-   * @returns {Promise<number>} Number of cache keys actually deleted.
-   * @throws {Error} Throws an argument error when the pattern is empty.
-   * @since v1.3.0
-   */
-  async invalidatePattern(pattern) {
-    if (!pattern?.trim()) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "Pattern must be a non-empty string");
-    }
-    return Number(await Promise.resolve(this.cache.delPattern?.(`${this.options.namespace ?? "action"}:${pattern}`) ?? 0));
-  }
-  /**
-   * Get statistics.
-   *
-   * @param {string} [name] - When provided, returns stats for that specific registered function only; otherwise returns all.
-   * @returns {Record<string, unknown>} Statistics object.
-   * @since v1.3.0
-   */
-  getStats(name) {
-    if (name) {
-      if (this.options.enableStats === false) return null;
-      const stats = this.functions.get(name)?.getCacheStats();
-      return stats ? { ...stats } : null;
-    }
-    return Object.fromEntries(
-      [...this.functions.entries()].map(([functionName, fn]) => [functionName, fn.getCacheStats()])
-    );
-  }
-  /**
-   * List all registered function names.
-   *
-   * @returns {string[]}
-   * @since v1.3.0
-   */
-  list() {
-    return [...this.functions.keys()];
-  }
-  /**
-   * Reset statistics for one or all registered functions.
-   *
-   * @param {string} [name] - When provided, resets only the specified function; otherwise resets all.
-   * @returns {void}
-   * @since v1.3.0
-   */
-  resetStats(name) {
-    const names = name ? [name] : [...this.functions.keys()];
-    for (const functionName of names) {
-      const fn = this.functions.get(functionName);
-      if (!fn) {
-        continue;
+function createRuntimeAdapterBridge(host) {
+  return createAdapterBridge({
+    getDb: () => host._defaultDb?.raw() ?? null,
+    getClient: () => host._client,
+    getCache: () => host.resolveAdapterCache(),
+    setCache: (value) => host.setAdapterCache(value),
+    getInstanceId: () => host._runtimeDefaults.namespace?.instanceId,
+    ping: async () => {
+      host.ensureConnected();
+      return host.db().admin().ping();
+    },
+    buildInfo: async () => {
+      host.ensureConnected();
+      return host.db().admin().buildInfo();
+    },
+    serverStatus: async (adminOptions) => {
+      host.ensureConnected();
+      return host.db().admin().serverStatus(adminOptions ?? {});
+    },
+    stats: async (adminOptions) => {
+      host.ensureConnected();
+      return host.db().admin().stats(adminOptions ?? {});
+    },
+    listDatabases: async (adminOptions) => {
+      host.ensureConnected();
+      return host.db().listDatabases(adminOptions ?? {});
+    },
+    dropDatabase: async (name, adminOptions) => {
+      host.ensureConnected();
+      if (!name || typeof name !== "string") {
+        throw new Error("Database name is required and must be a non-empty string");
       }
-      const replacement = withCache(async (...args) => fn(...args), {
-        cache: this.cache,
-        namespace: `${this.options.namespace ?? "action"}:${functionName}:reset`,
-        ttl: 0
-      });
-      replacement.invalidate = fn.invalidate;
-      this.functions.set(functionName, replacement);
-    }
-  }
-  /**
-   * Clear all registered function definitions.
-   *
-   * @returns {void}
-   * @since v1.3.0
-   */
-  clear() {
-    this.functions.clear();
-  }
-};
-function resolveCache(cacheOrDb) {
-  if (cacheOrDb && typeof cacheOrDb === "object" && typeof cacheOrDb.getCache === "function") {
-    return cacheOrDb.getCache();
-  }
-  if (cacheOrDb && typeof cacheOrDb === "object" && typeof cacheOrDb.get === "function" && typeof cacheOrDb.set === "function") {
-    return cacheOrDb;
-  }
-  return new MemoryCache();
-}
-function stableStringify2(value, _seen = /* @__PURE__ */ new WeakSet()) {
-  if (typeof value === "function" || typeof value === "symbol") {
-    return JSON.stringify("[UNSUPPORTED]");
-  }
-  if (typeof value === "number" && Number.isNaN(value)) {
-    return JSON.stringify("NaN");
-  }
-  if (value instanceof RegExp) {
-    return JSON.stringify(value.toString());
-  }
-  if (value instanceof Date) {
-    return JSON.stringify(value.toISOString());
-  }
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify2(item, _seen)).join(",")}]`;
-  }
-  if (_seen.has(value)) {
-    return JSON.stringify("[CIRCULAR]");
-  }
-  _seen.add(value);
-  const keys = Object.keys(value).sort();
-  const result = `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify2(value[k], _seen)}`).join(",")}}`;
-  _seen.delete(value);
-  return result;
+      if (!adminOptions?.confirm) {
+        const error = new Error(
+          "dropDatabase requires explicit confirmation. Pass { confirm: true } to proceed.\n\n\u26A0\uFE0F  WARNING: This will DELETE ALL DATA in the database!\n\u26A0\uFE0F  This operation CANNOT BE UNDONE!"
+        );
+        error.code = "CONFIRMATION_REQUIRED";
+        throw error;
+      }
+      const isProduction = process.env["NODE_ENV"] === "production";
+      if (isProduction && !adminOptions.allowProduction) {
+        const error = new Error("dropDatabase is blocked in production. Pass { allowProduction: true } to override.");
+        error.code = "PRODUCTION_BLOCKED";
+        throw error;
+      }
+      if (!host._client) {
+        throw createError(ErrorCodes.NOT_CONNECTED, "MonSQLize is not connected yet.");
+      }
+      await host._client.db(name).dropDatabase();
+      return { dropped: true, database: name, timestamp: /* @__PURE__ */ new Date() };
+    },
+    listCollections: async (adminOptions) => {
+      host.ensureConnected();
+      const optionsRecord = adminOptions ?? {};
+      const nameOnly = optionsRecord["nameOnly"] === true;
+      const filter = { ...optionsRecord };
+      delete filter["nameOnly"];
+      const results = await host.db().listCollections(filter);
+      if (nameOnly) {
+        return results.map((collection) => collection.name);
+      }
+      return results;
+    },
+    runCommand: async (command, adminOptions) => {
+      host.ensureConnected();
+      if (command === null || typeof command !== "object") {
+        throw new Error("Command must be a non-null object");
+      }
+      return host.db().runCommand(command, adminOptions ?? {});
+    },
+    getIidCache: () => host._iidCache,
+    setIidCache: (value) => {
+      host._iidCache = value;
+    },
+    initializeSlowQueryLogManager: () => host.initializeSlowQueryLogManager(),
+    getSlowQueryLogManager: () => host._slowQueryLogManager,
+    emit: (event, payload) => host.emit(event, payload),
+    slowQueryMs: host.options.slowQueryMs
+  });
 }
 
 // src/capabilities/lock/index.ts
@@ -4227,7 +7220,7 @@ var LockManager = class {
         break;
       }
       const delay = retryDelay * Math.pow(retryBackoff, attempt);
-      await sleep2(delay);
+      await sleep3(delay);
     }
     this.stats.errors += 1;
     if (options.fallbackToNoLock) {
@@ -4339,1823 +7332,8 @@ var LockManager = class {
     }
   }
 };
-async function sleep2(ms) {
+async function sleep3(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// src/capabilities/model/index.ts
-var _schemaDslFn = null;
-var _schemaValidateFn = null;
-try {
-  const mod = __require("schema-dsl");
-  _schemaDslFn = mod.dsl;
-  _schemaValidateFn = mod.validate;
-} catch {
-}
-var KNOWN_SCHEMA_BASE_TYPES = /* @__PURE__ */ new Set([
-  "string",
-  "number",
-  "boolean",
-  "integer",
-  "float",
-  "int",
-  "double",
-  "decimal",
-  "date",
-  "objectid",
-  "uuid",
-  "email",
-  "url",
-  "buffer",
-  "binary",
-  "object",
-  "array",
-  "any",
-  "mixed",
-  "null"
-]);
-function _extractBaseType(typeStr) {
-  const m = typeStr.match(/^[a-zA-Z_]+/);
-  return m ? m[0].toLowerCase() : "";
-}
-function _makeValidatingDslFn(realDsl) {
-  const validating = function validatingDsl(fields) {
-    if (fields && typeof fields === "object") {
-      for (const [field, spec] of Object.entries(fields)) {
-        if (typeof spec === "string") {
-          if (spec.includes("|")) {
-            continue;
-          }
-          const base = _extractBaseType(spec);
-          if (base && !KNOWN_SCHEMA_BASE_TYPES.has(base)) {
-            throw new TypeError(
-              `[schema] Invalid type "${base}" in field "${field}". Known types: ${[...KNOWN_SCHEMA_BASE_TYPES].join(", ")}.`
-            );
-          }
-        }
-      }
-    }
-    return realDsl(fields);
-  };
-  return validating;
-}
-var _a3;
-_a3 = Symbol.toStringTag;
-var _PopulatePromise = class _PopulatePromise {
-  constructor(executor, paths = []) {
-    this.executor = executor;
-    this.paths = paths;
-    this[_a3] = "Promise";
-  }
-  populate(path2, options) {
-    const config = typeof path2 === "string" ? { path: path2, ...options } : { ...path2, ...options };
-    return new _PopulatePromise(this.executor, [...this.paths, config]);
-  }
-  exec() {
-    return this.executor(this.paths);
-  }
-  then(onfulfilled, onrejected) {
-    return this.exec().then(onfulfilled ?? void 0, onrejected ?? void 0);
-  }
-  catch(onrejected) {
-    return this.exec().catch(onrejected ?? void 0);
-  }
-  finally(onfinally) {
-    return this.exec().finally(onfinally ?? void 0);
-  }
-};
-var PopulatePromise = _PopulatePromise;
-var Model = class {
-  static {
-    this.registry = /* @__PURE__ */ new Map();
-  }
-  static {
-    this.revisions = /* @__PURE__ */ new Map();
-  }
-  static {
-    this._redefinedNames = /* @__PURE__ */ new Set();
-  }
-  static define(collectionName, definition) {
-    const normalizedName = validateCollectionName(collectionName);
-    if (this.registry.has(normalizedName)) {
-      throw createError(ErrorCodes.MODEL_ALREADY_EXISTS, `Model '${normalizedName}' is already defined.`);
-    }
-    validateDefinition(definition);
-    processTimestamps(definition);
-    if (_schemaDslFn !== null && typeof definition.schema === "function") {
-      const validatingDsl = _makeValidatingDslFn(_schemaDslFn);
-      try {
-        definition.schema(validatingDsl);
-      } catch (err) {
-        if (err instanceof TypeError && err.message.includes("[schema] Invalid type")) {
-          throw err;
-        }
-      }
-    }
-    this.registry.set(normalizedName, {
-      collectionName: normalizedName,
-      definition
-    });
-    this.bumpRevision(normalizedName);
-  }
-  static get(collectionName) {
-    return this.registry.get(collectionName);
-  }
-  static has(collectionName) {
-    return this.registry.has(collectionName);
-  }
-  static list() {
-    return [...this.registry.keys()];
-  }
-  static undefine(collectionName) {
-    const existed = this.registry.delete(collectionName);
-    this.bumpRevision(collectionName);
-    return existed;
-  }
-  static redefine(collectionName, definition) {
-    const normalizedName = validateCollectionName(collectionName);
-    this.registry.delete(normalizedName);
-    validateDefinition(definition);
-    processTimestamps(definition);
-    this._redefinedNames.add(normalizedName);
-    this.registry.set(normalizedName, {
-      collectionName: normalizedName,
-      definition
-    });
-    this.bumpRevision(normalizedName);
-  }
-  static _clear() {
-    const names = [...this.registry.keys()];
-    for (const name of names) {
-      this._redefinedNames.add(name);
-      this.bumpRevision(name);
-    }
-    this.registry.clear();
-  }
-  static getRevision(collectionName) {
-    return this.revisions.get(collectionName) ?? 0;
-  }
-  static bumpRevision(collectionName) {
-    this.revisions.set(collectionName, (this.revisions.get(collectionName) ?? 0) + 1);
-  }
-};
-var ModelInstance = class {
-  constructor(collection, runtime, options) {
-    this.collection = collection;
-    this.runtime = runtime;
-    // ── v1 compatibility private state ──────────────────────────────────────────
-    this._schemaCache = null;
-    this._schemaError = null;
-    this._validateEnabled = true;
-    // true = validate on insert; false = skip globally
-    this._timestampsConfig = null;
-    this._softDeleteConfig = null;
-    this._versionConfig = null;
-    this._v1HooksFactory = null;
-    this._v1InstanceMethods = {};
-    // Expose softDeleteConfig for v1 test assertions
-    this.softDeleteConfig = null;
-    this.collectionName = options.collectionName;
-    this.dbName = options.dbName;
-    this.poolName = options.poolName;
-    this.definition = options.definition;
-    this.relations = new Map(Object.entries(options.definition.relations ?? {}));
-    for (const [name, config] of this.relations) {
-      validateRelationConfig(name, config);
-    }
-    if (typeof options.definition.methods !== "function") {
-      for (const [name, handler] of Object.entries(options.definition.statics ?? {})) {
-        if (typeof handler === "function" && !(name in this)) {
-          Object.defineProperty(this, name, {
-            configurable: true,
-            enumerable: false,
-            writable: false,
-            value: (...args) => handler.apply(this, args)
-          });
-        }
-      }
-    }
-    if (_schemaDslFn !== null && typeof options.definition.schema === "function") {
-      const validatingDsl = _makeValidatingDslFn(_schemaDslFn);
-      try {
-        this._schemaCache = options.definition.schema.call(
-          options.definition,
-          validatingDsl
-        );
-      } catch (err) {
-        this._schemaCache = null;
-        this._schemaError = err instanceof Error ? err : new Error(String(err));
-        if (err instanceof TypeError && err.message.includes("[schema] Invalid type")) {
-          throw err;
-        }
-      }
-    }
-    const validateOpt = options.definition.options?.validate;
-    if (validateOpt === false) this._validateEnabled = false;
-    const tsOpts = options.definition.options?.timestamps;
-    if (tsOpts && tsOpts !== false) {
-      if (tsOpts === true) {
-        this._timestampsConfig = { createdAt: "createdAt", updatedAt: "updatedAt" };
-      } else if (typeof tsOpts === "object") {
-        const ca = tsOpts.createdAt;
-        const ua = tsOpts.updatedAt;
-        this._timestampsConfig = {
-          createdAt: ca === false ? false : typeof ca === "string" ? ca : "createdAt",
-          updatedAt: ua === false ? false : typeof ua === "string" ? ua : "updatedAt"
-        };
-      }
-    }
-    const sdOpts = options.definition.options?.softDelete;
-    if (sdOpts) {
-      this._softDeleteConfig = sdOpts === true ? { enabled: true, field: "deletedAt", type: "timestamp", ttl: null } : {
-        enabled: sdOpts.enabled !== false,
-        field: sdOpts.field ?? "deletedAt",
-        type: sdOpts.type ?? "timestamp",
-        ttl: sdOpts.ttl ?? null
-      };
-      this.softDeleteConfig = this._softDeleteConfig;
-      if (this._softDeleteConfig.enabled && this._softDeleteConfig.type === "timestamp" && this._softDeleteConfig.ttl) {
-        const sd = this._softDeleteConfig;
-        setImmediate(() => {
-          this.collection.createIndex({ [sd.field]: 1 }, { expireAfterSeconds: sd.ttl }).catch(() => {
-          });
-        });
-      }
-    }
-    const vOpts = options.definition.options?.version;
-    if (vOpts) {
-      this._versionConfig = vOpts === true ? { enabled: true, field: "version" } : { enabled: vOpts.enabled !== false, field: vOpts.field ?? "version" };
-    }
-    if (typeof options.definition.hooks === "function") {
-      this._v1HooksFactory = options.definition.hooks;
-    }
-    const definedIndexes = options.definition.indexes;
-    if (Array.isArray(definedIndexes) && definedIndexes.length > 0) {
-      setImmediate(() => {
-        for (const idxSpec of definedIndexes) {
-          if (!idxSpec?.key) continue;
-          const { key, ...idxOpts } = idxSpec;
-          this.collection.createIndex(key, idxOpts).catch(() => {
-          });
-        }
-      });
-    }
-    if (typeof options.definition.methods === "function") {
-      try {
-        const methodsFactory = options.definition.methods;
-        const customMethods = methodsFactory(this);
-        this._v1InstanceMethods = customMethods.instance ?? {};
-        for (const [name, fn] of Object.entries(customMethods.static ?? {})) {
-          if (typeof fn === "function" && !(name in this)) {
-            Object.defineProperty(this, name, {
-              configurable: true,
-              enumerable: false,
-              writable: false,
-              value: (...args) => fn.apply(this, args)
-            });
-          }
-        }
-      } catch {
-        this._v1InstanceMethods = {};
-      }
-    }
-  }
-  /** v1 compat: expose relations map as _relations */
-  get _relations() {
-    return this.relations;
-  }
-  /** v1 compat: get relations as plain object */
-  getRelations() {
-    return Object.fromEntries(this.relations);
-  }
-  /** v1 compat: get enums from definition */
-  getEnums() {
-    return this.definition.enums ?? {};
-  }
-  getNamespace() {
-    return this.collection.getNamespace();
-  }
-  raw() {
-    return this.collection.raw();
-  }
-  // ── v1 hooks helpers ──────────────────────────────────────────────────────────
-  _v1GetOpType(method) {
-    if (/^(find|count|distinct|aggregate)/i.test(method)) return "find";
-    if (/^insert/i.test(method)) return "insert";
-    if (/^(update|replace|upsert|findOneAnd(Update|Replace)|increment)/i.test(method)) return "update";
-    if (/^(delete|findOneAndDelete)/i.test(method)) return "delete";
-    return "find";
-  }
-  async _runV1Hook(opType, phase, ctx, ...args) {
-    if (!this._v1HooksFactory) return void 0;
-    const hooks = this._v1HooksFactory(this);
-    const opHooks = hooks[opType];
-    if (!opHooks) return void 0;
-    const hookFn = opHooks[phase];
-    if (typeof hookFn !== "function") return void 0;
-    return hookFn(ctx, ...args);
-  }
-  // ── v1 schema validation ──────────────────────────────────────────────────────
-  async _validateDoc(doc, opts) {
-    if (!this._validateEnabled) return;
-    if (opts?.skipValidation) return;
-    if (!this._schemaCache || !_schemaValidateFn) return;
-    const result = _schemaValidateFn(this._schemaCache, doc);
-    if (!result.valid) {
-      const errors = result.errors ?? [];
-      const fields = [...new Set(errors.map((e) => e.path ?? e.field).filter(Boolean))];
-      const summary = fields.length > 0 ? ` (${fields.join(", ")})` : "";
-      const err = createError(ErrorCodes.VALIDATION_ERROR, `Schema validation failed${summary}`);
-      err.errors = errors;
-      throw err;
-    }
-  }
-  // ── v1 soft-delete filter ─────────────────────────────────────────────────────
-  _applySoftDeleteFilter(query, options) {
-    const sd = this._softDeleteConfig;
-    if (!sd || !sd.enabled) return query ?? {};
-    const opts = options ?? {};
-    const q = query ?? {};
-    if (q[sd.field] !== void 0) return q;
-    if (opts.withDeleted) return q;
-    if (opts.onlyDeleted) return { ...q, [sd.field]: { $ne: null } };
-    return { ...q, [sd.field]: null };
-  }
-  // ── timestamps helpers ────────────────────────────────────────────────────────
-  _nowDate() {
-    return /* @__PURE__ */ new Date();
-  }
-  _applyInsertTimestamps(doc) {
-    const ts = this._timestampsConfig;
-    if (!ts) return doc;
-    const now = this._nowDate();
-    const result = { ...doc };
-    if (ts.createdAt !== false && result[ts.createdAt] === void 0) result[ts.createdAt] = now;
-    if (ts.updatedAt !== false && result[ts.updatedAt] === void 0) result[ts.updatedAt] = now;
-    return result;
-  }
-  _applyUpdateTimestamps(update) {
-    const ts = this._timestampsConfig;
-    if (!ts || ts.updatedAt === false) return update;
-    const u = update ?? {};
-    const $set = { ...u["$set"] ?? {}, [ts.updatedAt]: this._nowDate() };
-    return { ...u, $set };
-  }
-  _applyVersionIncrement(update) {
-    const vc = this._versionConfig;
-    if (!vc?.enabled) return update;
-    const u = update ?? {};
-    const $inc = u["$inc"] ?? {};
-    if ($inc[vc.field] !== void 0) return update;
-    return { ...u, $inc: { ...$inc, [vc.field]: 1 } };
-  }
-  _applyUpsertTimestamps(update) {
-    const ts = this._timestampsConfig;
-    if (!ts) return update;
-    const u = update ?? {};
-    const result = { ...u };
-    if (ts.updatedAt !== false) {
-      const $set = { ...u["$set"] ?? {}, [ts.updatedAt]: this._nowDate() };
-      result["$set"] = $set;
-    }
-    if (ts.createdAt !== false) {
-      const $setOnInsert = { ...u["$setOnInsert"] ?? {} };
-      if ($setOnInsert[ts.createdAt] === void 0) $setOnInsert[ts.createdAt] = this._nowDate();
-      result["$setOnInsert"] = $setOnInsert;
-    }
-    return result;
-  }
-  _applyReplaceTimestamps(replacement) {
-    const ts = this._timestampsConfig;
-    if (!ts || ts.updatedAt === false) return replacement;
-    const r = replacement ?? {};
-    if (r[ts.updatedAt] !== void 0) return r;
-    return { ...r, [ts.updatedAt]: this._nowDate() };
-  }
-  // ── public API ────────────────────────────────────────────────────────────────
-  find(query, options) {
-    return new PopulatePromise(async (paths) => {
-      const ctx = {};
-      const filteredQuery = this._applySoftDeleteFilter(query, options);
-      if (this._v1HooksFactory) {
-        await this._runV1Hook("find", "before", ctx, options);
-      } else {
-        await this.runHook("beforeFind", { operation: "find", collection: this.collectionName, filter: filteredQuery });
-      }
-      const docs = await this.collection.find(filteredQuery, options);
-      let result = await this.populateDocuments(this.hydrateDocuments(docs), paths);
-      if (this._v1HooksFactory) {
-        try {
-          const hookResult = await this._runV1Hook("find", "after", ctx, result);
-          if (hookResult !== void 0) result = hookResult;
-        } catch {
-        }
-      } else {
-        await this.runHook("afterFind", { operation: "find", collection: this.collectionName, filter: filteredQuery, result });
-      }
-      return result;
-    });
-  }
-  findOne(query, options) {
-    return new PopulatePromise(async (paths) => {
-      const ctx = {};
-      const filteredQuery = this._applySoftDeleteFilter(query, options);
-      if (this._v1HooksFactory) {
-        await this._runV1Hook("find", "before", ctx, options);
-      }
-      const doc = await this.collection.findOne(filteredQuery, options);
-      let result = await this.populateSingle(this.hydrateDocument(doc), paths);
-      if (this._v1HooksFactory) {
-        try {
-          const hookResult = await this._runV1Hook("find", "after", ctx, result);
-          if (hookResult !== void 0) result = hookResult;
-        } catch {
-        }
-      }
-      return result;
-    });
-  }
-  findOneById(id, options) {
-    return new PopulatePromise(async (paths) => {
-      const doc = await this.collection.findOneById(id, options);
-      return this.populateSingle(this.hydrateDocument(doc), paths);
-    });
-  }
-  findById(id, options) {
-    return this.findOneById(id, options);
-  }
-  findByIds(ids, options) {
-    return new PopulatePromise(async (paths) => {
-      const docs = await this.collection.findByIds(ids, options);
-      return this.populateDocuments(this.hydrateDocuments(docs), paths);
-    });
-  }
-  findPage(options) {
-    return new PopulatePromise(async (paths) => {
-      const result = await this.collection.findPage(options);
-      return {
-        ...result,
-        items: await this.populateDocuments(this.hydrateDocuments(result.items), paths)
-      };
-    });
-  }
-  findAndCount(query, options) {
-    return new PopulatePromise(async (paths) => {
-      const filteredQuery = this._applySoftDeleteFilter(query, options);
-      const result = await this.collection.findAndCount(filteredQuery, options);
-      return {
-        data: await this.populateDocuments(this.hydrateDocuments(result.data), paths),
-        total: result.total
-      };
-    });
-  }
-  count(query, options) {
-    const filteredQuery = this._applySoftDeleteFilter(query, options);
-    return this.collection.count(filteredQuery, options);
-  }
-  async insertOne(document, options) {
-    const ctx = {};
-    let payload = this.applyDefaults(document);
-    if (this._v1HooksFactory) {
-      const hookResult = await this._runV1Hook("insert", "before", ctx, payload);
-      if (hookResult !== void 0 && typeof hookResult === "object") payload = hookResult;
-    } else {
-      await this.runHook("beforeCreate", { operation: "insertOne", collection: this.collectionName, data: payload });
-    }
-    await this._validateDoc(payload, options);
-    payload = this._applyInsertTimestamps(payload);
-    if (this._versionConfig?.enabled) {
-      if (payload[this._versionConfig.field] === void 0) {
-        payload = { ...payload, [this._versionConfig.field]: 0 };
-      }
-    }
-    const result = await this.collection.insertOne(payload, options);
-    if (this._v1HooksFactory) {
-      try {
-        await this._runV1Hook("insert", "after", ctx, result);
-      } catch {
-      }
-    } else {
-      await this.runHook("afterCreate", { operation: "insertOne", collection: this.collectionName, data: payload, result });
-    }
-    return result;
-  }
-  async insertMany(documents, options) {
-    const opts = options ?? {};
-    const docs = [];
-    for (let i = 0; i < (documents ?? []).length; i++) {
-      let d = this.applyDefaults((documents ?? [])[i]);
-      if (!opts.skipValidation && this._validateEnabled && this._schemaCache && _schemaValidateFn) {
-        const vr = _schemaValidateFn(this._schemaCache, d);
-        if (!vr.valid) {
-          const errors = vr.errors ?? [];
-          const fields = [...new Set(errors.map((e) => e.path ?? e.field).filter(Boolean))];
-          const summary = fields.length > 0 ? ` (${fields.join(", ")})` : "";
-          const err = createError(ErrorCodes.VALIDATION_ERROR, `Schema validation failed${summary}`);
-          err.errors = errors;
-          err.index = i;
-          throw err;
-        }
-      }
-      d = this._applyInsertTimestamps(d);
-      if (this._versionConfig?.enabled && d[this._versionConfig.field] === void 0) {
-        d = { ...d, [this._versionConfig.field]: 0 };
-      }
-      docs.push(d);
-    }
-    return this.collection.insertMany(docs, options);
-  }
-  async updateOne(filter, update, options) {
-    const ctx = {};
-    let u = update;
-    if (this._v1HooksFactory) {
-      await this._runV1Hook("update", "before", ctx, filter, u);
-    } else {
-      await this.runHook("beforeUpdate", { operation: "updateOne", collection: this.collectionName, filter, update: u });
-    }
-    u = this._applyVersionIncrement(this._applyUpdateTimestamps(u));
-    const result = await this.collection.updateOne(filter, u, options);
-    if (this._v1HooksFactory) {
-      try {
-        await this._runV1Hook("update", "after", ctx, result);
-      } catch {
-      }
-    } else {
-      await this.runHook("afterUpdate", { operation: "updateOne", collection: this.collectionName, filter, update: u, result });
-    }
-    return result;
-  }
-  async updateMany(filter, update, options) {
-    const u = this._applyVersionIncrement(this._applyUpdateTimestamps(update));
-    return this.collection.updateMany(filter, u, options);
-  }
-  async replaceOne(filter, replacement, options) {
-    const r = this._applyReplaceTimestamps(replacement);
-    return this.collection.replaceOne(filter, r, options);
-  }
-  findOneAndUpdate(filter, update, options) {
-    const u = this._applyUpdateTimestamps(update);
-    return this.collection.findOneAndUpdate(filter, u, options);
-  }
-  findOneAndReplace(filter, replacement, options) {
-    const r = this._applyReplaceTimestamps(replacement);
-    return this.collection.findOneAndReplace(filter, r, options);
-  }
-  findOneAndDelete(filter, options) {
-    return this.collection.findOneAndDelete(filter, options);
-  }
-  async upsertOne(filter, update, options) {
-    const u = this._applyUpsertTimestamps(update);
-    return this.collection.upsertOne(filter, u, options);
-  }
-  async incrementOne(filter, field, increment, options) {
-    const ts = this._timestampsConfig;
-    if (ts && ts.updatedAt !== false) {
-      const opts = options ?? {};
-      const $set = { ...opts["$set"] ?? {}, [ts.updatedAt]: this._nowDate() };
-      return this.collection.incrementOne(filter, field, increment, { ...opts, $set });
-    }
-    return this.collection.incrementOne(filter, field, increment, options);
-  }
-  async insertBatch(docs, options) {
-    const ts = this._timestampsConfig;
-    const docsToInsert = ts ? docs.map((d) => this._applyInsertTimestamps(d)) : docs;
-    return this.collection.insertBatch(docsToInsert, options);
-  }
-  async updateBatch(filter, update, options) {
-    const u = this._applyUpdateTimestamps(update);
-    return this.collection.updateBatch(filter, u, options);
-  }
-  async deleteOne(filter, options) {
-    const sd = this._softDeleteConfig;
-    const opts = options ?? {};
-    const ctx = {};
-    if (this._v1HooksFactory) {
-      await this._runV1Hook("delete", "before", ctx, filter);
-    } else {
-      await this.runHook("beforeDelete", { operation: "deleteOne", collection: this.collectionName, filter });
-    }
-    let result;
-    if (sd?.enabled && !opts._forceDelete) {
-      result = await this.collection.updateOne(
-        { ...filter ?? {}, [sd.field]: null },
-        { $set: { [sd.field]: sd.type === "boolean" ? true : this._nowDate() } },
-        options
-      );
-    } else {
-      result = await this.collection.deleteOne(filter, options);
-    }
-    if (this._v1HooksFactory) {
-      try {
-        await this._runV1Hook("delete", "after", ctx, result);
-      } catch {
-      }
-    } else {
-      await this.runHook("afterDelete", { operation: "deleteOne", collection: this.collectionName, filter, result });
-    }
-    return result;
-  }
-  async deleteMany(filter, options) {
-    const sd = this._softDeleteConfig;
-    const opts = options ?? {};
-    if (sd?.enabled && !opts._forceDelete) {
-      return this.collection.updateMany(
-        { ...filter ?? {}, [sd.field]: null },
-        { $set: { [sd.field]: sd.type === "boolean" ? true : this._nowDate() } },
-        options
-      );
-    }
-    return this.collection.deleteMany(filter, options);
-  }
-  // ── soft-delete extended methods (only meaningful when softDelete is enabled) ──
-  findWithDeleted(query, options) {
-    return new PopulatePromise(async (paths) => {
-      const opts = { ...options ?? {}, withDeleted: true };
-      const docs = await this.collection.find(query, opts);
-      return this.populateDocuments(this.hydrateDocuments(docs), paths);
-    });
-  }
-  findOnlyDeleted(query, options) {
-    return new PopulatePromise(async (paths) => {
-      const sd = this._softDeleteConfig;
-      const deletedFilter = sd ? { ...query ?? {}, [sd.field]: { $ne: null } } : query ?? {};
-      const docs = await this.collection.find(deletedFilter, options);
-      return this.populateDocuments(this.hydrateDocuments(docs), paths);
-    });
-  }
-  findOneWithDeleted(query, options) {
-    return new PopulatePromise(async (paths) => {
-      const opts = { ...options ?? {}, withDeleted: true };
-      const doc = await this.collection.findOne(query, opts);
-      return this.populateSingle(this.hydrateDocument(doc), paths);
-    });
-  }
-  findOneOnlyDeleted(query, options) {
-    return new PopulatePromise(async (paths) => {
-      const sd = this._softDeleteConfig;
-      const deletedFilter = sd ? { ...query ?? {}, [sd.field]: { $ne: null } } : query ?? {};
-      const doc = await this.collection.findOne(deletedFilter, options);
-      return this.populateSingle(this.hydrateDocument(doc), paths);
-    });
-  }
-  countWithDeleted(query, options) {
-    return this.collection.count(query, { ...options ?? {}, withDeleted: true });
-  }
-  countOnlyDeleted(query, options) {
-    const sd = this._softDeleteConfig;
-    const deletedFilter = sd ? { ...query ?? {}, [sd.field]: { $ne: null } } : query ?? {};
-    return this.collection.count(deletedFilter, { ...options ?? {}, withDeleted: true });
-  }
-  async restore(filter, options) {
-    const sd = this._softDeleteConfig;
-    if (!sd?.enabled) return { modifiedCount: 0 };
-    return this.collection.updateOne(
-      { ...filter ?? {}, [sd.field]: { $ne: null } },
-      { $unset: { [sd.field]: 1 } },
-      options
-    );
-  }
-  async restoreMany(filter, options) {
-    const sd = this._softDeleteConfig;
-    if (!sd?.enabled) return { modifiedCount: 0 };
-    return this.collection.updateMany(
-      { ...filter ?? {}, [sd.field]: { $ne: null } },
-      { $unset: { [sd.field]: 1 } },
-      options
-    );
-  }
-  async forceDelete(filter, options) {
-    return this.collection.deleteOne(filter, options);
-  }
-  async forceDeleteMany(filter, options) {
-    return this.collection.deleteMany(filter, options);
-  }
-  createIndex(keys, options) {
-    return this.collection.createIndex(keys, options);
-  }
-  createIndexes(specs) {
-    return this.collection.createIndexes(specs);
-  }
-  listIndexes() {
-    return this.collection.listIndexes();
-  }
-  dropIndex(name) {
-    return this.collection.dropIndex(name);
-  }
-  dropIndexes() {
-    return this.collection.dropIndexes();
-  }
-  distinct(key, query, options) {
-    return this.collection.distinct(key, query, options);
-  }
-  aggregate(pipeline, options) {
-    return this.collection.aggregate(pipeline, options);
-  }
-  watch(pipeline, options) {
-    return this.collection.watch(pipeline, options);
-  }
-  validate(document) {
-    try {
-      if (this._schemaError) {
-        return {
-          valid: false,
-          errors: [{ field: "_schema", message: `Schema validation failed: ${this._schemaError.message}` }]
-        };
-      }
-      if (!this._schemaCache || !_schemaValidateFn) return { valid: true, errors: [] };
-      const result = _schemaValidateFn(this._schemaCache, document ?? {});
-      return { valid: result.valid, errors: (result.errors ?? []).map((e) => ({
-        field: e.field ?? e.path ?? "",
-        message: e.message ?? ""
-      })) };
-    } catch (err) {
-      return {
-        valid: false,
-        errors: [{ field: "_schema", message: `Schema validation failed: ${err instanceof Error ? err.message : String(err)}` }]
-      };
-    }
-  }
-  async populateSingle(doc, paths) {
-    if (!doc) {
-      return null;
-    }
-    const [result] = await this.populateDocuments([doc], paths);
-    return result ?? null;
-  }
-  async populateDocuments(docs, paths) {
-    let current = docs;
-    for (const path2 of paths) {
-      current = await this.populatePath(current, path2);
-    }
-    return current;
-  }
-  async populatePath(docs, path2) {
-    const config = normalizePopulateConfig(path2);
-    if (docs.length === 0) {
-      return docs;
-    }
-    const relation = this.relations.get(config.path);
-    if (!relation) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, `\u672A\u5B9A\u4E49\u7684\u5173\u7CFB: ${config.path}`);
-    }
-    const keys = unique(
-      docs.map((doc) => getByPath(doc, relation.localField)).filter((value) => value !== void 0 && value !== null)
-    );
-    if (keys.length === 0) {
-      for (const doc of docs) {
-        doc[config.path] = relation.single ? null : [];
-      }
-      return docs;
-    }
-    const registered = Model.get(relation.from);
-    const scope = {
-      database: registered?.definition.connection?.database ?? this.dbName,
-      pool: registered?.definition.connection?.pool ?? this.poolName
-    };
-    const relatedCollection = this.runtime.scopedCollection(relation.from, scope);
-    const relatedModel = Model.has(relation.from) ? this.runtime.scopedModel(relation.from, scope) : null;
-    const relatedDocs = await relatedCollection.find({
-      [relation.foreignField]: { $in: keys },
-      ...config.match ?? {}
-    });
-    let hydrated = relatedModel ? relatedModel.hydrateDocuments(relatedDocs) : relatedDocs.map((item) => ({ ...item }));
-    if (config.sort) {
-      hydrated = applySort(hydrated, config.sort);
-    }
-    if (config.skip) {
-      hydrated = hydrated.slice(config.skip);
-    }
-    if (config.limit !== void 0) {
-      hydrated = hydrated.slice(0, config.limit);
-    }
-    if (config.select) {
-      const select = config.select;
-      hydrated = hydrated.map((item) => pickFields(item, select, [relation.foreignField]));
-    }
-    if (config.populate) {
-      const nestedRaw = config.populate;
-      const isValidNestedConfig = (n) => {
-        if (typeof n === "string") return true;
-        if (Array.isArray(n)) return true;
-        if (typeof n === "object" && n !== null && n.path) return true;
-        return false;
-      };
-      if (!isValidNestedConfig(nestedRaw)) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, "\u5D4C\u5957 populate \u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u3001\u6570\u7EC4\u6216\u5BF9\u8C61");
-      }
-      if (relatedModel) {
-        const nestedPaths = Array.isArray(config.populate) ? config.populate : [config.populate];
-        hydrated = await relatedModel.populateDocuments(hydrated, nestedPaths);
-      }
-    }
-    const grouped = groupBy(hydrated, (item) => getByPath(item, relation.foreignField));
-    for (const doc of docs) {
-      const localValue = getByPath(doc, relation.localField);
-      const matches = grouped.get(toKey(localValue)) ?? [];
-      doc[config.path] = relation.single ? matches[0] ?? null : [...matches];
-    }
-    return docs;
-  }
-  hydrateDocuments(docs) {
-    return docs.filter(Boolean).map((doc) => this.hydrateDocument(doc));
-  }
-  hydrateDocument(doc) {
-    if (!doc || typeof doc !== "object") {
-      return null;
-    }
-    const hydrated = { ...doc };
-    for (const [name, virtual] of Object.entries(this.definition.virtuals ?? {})) {
-      Object.defineProperty(hydrated, name, {
-        configurable: true,
-        enumerable: true,
-        get: () => virtual.get.call(hydrated),
-        set: virtual.set ? (value) => virtual.set?.call(hydrated, value) : void 0
-      });
-    }
-    if (typeof this.definition.methods === "function") {
-      for (const [name, method] of Object.entries(this._v1InstanceMethods)) {
-        Object.defineProperty(hydrated, name, {
-          configurable: true,
-          enumerable: false,
-          writable: false,
-          value: (...args) => method.apply(hydrated, args)
-        });
-      }
-    } else {
-      for (const [name, method] of Object.entries(this.definition.methods ?? {})) {
-        Object.defineProperty(hydrated, name, {
-          configurable: true,
-          enumerable: false,
-          writable: false,
-          value: (...args) => method.apply(hydrated, args)
-        });
-      }
-    }
-    Object.defineProperties(hydrated, {
-      save: {
-        configurable: true,
-        enumerable: false,
-        value: async () => this.saveDocument(hydrated)
-      },
-      remove: {
-        configurable: true,
-        enumerable: false,
-        value: async () => this.removeDocument(hydrated)
-      },
-      validate: {
-        configurable: true,
-        enumerable: false,
-        value: async () => this.validate(hydrated)
-      },
-      toObject: {
-        configurable: true,
-        enumerable: false,
-        value: () => serializeDocument(hydrated)
-      },
-      toJSON: {
-        configurable: true,
-        enumerable: false,
-        value: () => serializeDocument(hydrated)
-      }
-    });
-    return hydrated;
-  }
-  async saveDocument(document) {
-    const payload = serializeDocument(document);
-    if (payload._id !== void 0) {
-      await this.collection.replaceOne({ _id: payload._id }, payload, { upsert: true });
-      return document;
-    }
-    const result = await this.collection.insertOne(payload);
-    document._id = result.insertedId;
-    return document;
-  }
-  async removeDocument(document) {
-    if (document._id === void 0) {
-      return false;
-    }
-    const result = await this.collection.deleteOne({ _id: document._id });
-    return Boolean(result.deletedCount ?? result.acknowledged);
-  }
-  applyDefaults(document) {
-    const payload = { ...document ?? {} };
-    for (const [key, value] of Object.entries(this.definition.defaults ?? {})) {
-      if (payload[key] === void 0) {
-        payload[key] = typeof value === "function" ? value(void 0, payload) : value;
-      }
-    }
-    return payload;
-  }
-  async runHook(hookName, context) {
-    if (typeof this.definition.hooks === "function") return;
-    const hook = this.definition.hooks?.[hookName];
-    if (typeof hook === "function") {
-      await hook(context);
-    }
-  }
-};
-function validateCollectionName(collectionName) {
-  if (!collectionName || typeof collectionName !== "string" || collectionName.trim() === "") {
-    throw createError(ErrorCodes.INVALID_COLLECTION_NAME, "Collection name must be a non-empty string.");
-  }
-  if (/[$.\s\x00]/.test(collectionName)) {
-    throw createError(ErrorCodes.INVALID_COLLECTION_NAME, "Invalid collection name: contains special characters ($, ., space, or null character).");
-  }
-  return collectionName;
-}
-function processTimestamps(definition) {
-  const tsOpt = definition.options?.timestamps;
-  if (tsOpt === null) return;
-  if (tsOpt !== void 0 && typeof tsOpt !== "boolean" && typeof tsOpt !== "object") {
-    throw createError(ErrorCodes.INVALID_MODEL_DEFINITION, "options.timestamps must be boolean or object.");
-  }
-  if (!tsOpt && tsOpt !== false) {
-    return;
-  }
-  const defAny = definition;
-  if (!defAny._internalHooks) defAny._internalHooks = {};
-  if (tsOpt === false) {
-    defAny._internalHooks.timestamps = void 0;
-    return;
-  }
-  if (tsOpt === true) {
-    defAny._internalHooks.timestamps = { createdAt: "createdAt", updatedAt: "updatedAt" };
-    return;
-  }
-  const result = {};
-  let createdAtAdded = false;
-  const ca = tsOpt.createdAt;
-  if (ca === false) {
-  } else if (ca === true) {
-    result.createdAt = "createdAt";
-    createdAtAdded = true;
-  } else if (typeof ca === "string") {
-    result.createdAt = ca;
-    createdAtAdded = true;
-  }
-  const ua = tsOpt.updatedAt;
-  if (ua === false) {
-  } else if (ua === true) {
-    result.updatedAt = "updatedAt";
-  } else if (typeof ua === "string") {
-    result.updatedAt = ua;
-  } else if (ua === void 0 && createdAtAdded) {
-    result.updatedAt = "updatedAt";
-  }
-  defAny._internalHooks.timestamps = Object.keys(result).length ? result : void 0;
-}
-function validateDefinition(definition) {
-  if (!definition || typeof definition !== "object") {
-    throw createError(ErrorCodes.INVALID_MODEL_DEFINITION, "Model definition must be an object.");
-  }
-  if (definition.schema === void 0 || definition.schema === null) {
-    throw createError(ErrorCodes.MISSING_SCHEMA, "Model definition must include a schema property.");
-  }
-  if (typeof definition.schema !== "function" && (typeof definition.schema !== "object" || definition.schema === null)) {
-    throw createError(ErrorCodes.INVALID_SCHEMA_TYPE, "Schema must be a function or object.");
-  }
-  if (definition.connection) {
-    if (definition.connection.pool !== void 0 && (typeof definition.connection.pool !== "string" || definition.connection.pool.trim() === "")) {
-      throw createError(ErrorCodes.INVALID_MODEL_DEFINITION, "connection.pool must be a non-empty string.");
-    }
-    if (definition.connection.database !== void 0 && (typeof definition.connection.database !== "string" || definition.connection.database.trim() === "")) {
-      throw createError(ErrorCodes.INVALID_MODEL_DEFINITION, "connection.database must be a non-empty string.");
-    }
-  }
-  for (const [name, config] of Object.entries(definition.relations ?? {})) {
-    validateRelationConfig(name, config);
-  }
-}
-function validateRelationConfig(name, config) {
-  if (!name || typeof name !== "string") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "Relation name must be a non-empty string.");
-  }
-  if (!config || typeof config !== "object") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, `Relation '${name}' must be an object.`);
-  }
-  for (const field of ["from", "localField", "foreignField"]) {
-    const value = config[field];
-    if (value === void 0 || value === null) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, `relations \u914D\u7F6E\u7F3A\u5C11\u5FC5\u9700\u5B57\u6BB5: ${field}`);
-    }
-    if (typeof value !== "string" || value.trim() === "") {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
-    }
-  }
-  if (config.single !== void 0 && typeof config.single !== "boolean") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.single \u5FC5\u987B\u662F\u5E03\u5C14\u503C`);
-  }
-}
-function normalizePopulateConfig(path2) {
-  return typeof path2 === "string" ? { path: path2 } : path2;
-}
-function unique(values) {
-  const map = /* @__PURE__ */ new Map();
-  for (const value of values) {
-    const key = toKey(value);
-    if (!map.has(key)) {
-      map.set(key, value);
-    }
-  }
-  return [...map.values()];
-}
-function groupBy(values, keySelector) {
-  const map = /* @__PURE__ */ new Map();
-  for (const value of values) {
-    const key = toKey(keySelector(value));
-    const group = map.get(key);
-    if (group) {
-      group.push(value);
-    } else {
-      map.set(key, [value]);
-    }
-  }
-  return map;
-}
-function toKey(value) {
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  if (typeof value === "object" && value !== null) {
-    const candidate = value;
-    if (typeof candidate.toHexString === "function") {
-      return candidate.toHexString();
-    }
-    if (typeof candidate.toString === "function") {
-      return candidate.toString();
-    }
-  }
-  return String(value);
-}
-function getByPath(source, path2) {
-  return path2.split(".").reduce((current, key) => {
-    if (!current || typeof current !== "object") {
-      return void 0;
-    }
-    return current[key];
-  }, source);
-}
-function pickFields(document, select, alwaysInclude = []) {
-  const keys = Array.isArray(select) ? select : select.split(/\s+/).filter(Boolean);
-  const result = {};
-  for (const key of [.../* @__PURE__ */ new Set([...keys, ...alwaysInclude])]) {
-    if (key in document) {
-      result[key] = document[key];
-    }
-  }
-  if ("_id" in document && !("_id" in result)) {
-    result._id = document._id;
-  }
-  return result;
-}
-function applySort(values, sort) {
-  const entries = Object.entries(sort);
-  return [...values].sort((left, right) => {
-    for (const [field, direction] of entries) {
-      const leftValue = getByPath(left, field);
-      const rightValue = getByPath(right, field);
-      if (leftValue === rightValue) {
-        continue;
-      }
-      const result = leftValue > rightValue ? 1 : -1;
-      return result * direction;
-    }
-    return 0;
-  });
-}
-function serializeDocument(document) {
-  const plain = {};
-  for (const [key, value] of Object.entries(document)) {
-    if (typeof value !== "function") {
-      plain[key] = value;
-    }
-  }
-  return plain;
-}
-
-// src/capabilities/pool/index.ts
-import { MongoClient as MongoDriverClient } from "mongodb";
-var PoolStatsManager = class {
-  constructor(options = {}) {
-    this._stats = /* @__PURE__ */ new Map();
-    this._buffer = [];
-    this._logger = options.logger ?? console;
-    this._batchInterval = setInterval(() => {
-      this._flush();
-    }, 100);
-    this._batchInterval.unref?.();
-  }
-  recordSelection(poolName, operation) {
-    this._buffer.push({ poolName, type: "selection", operation, timestamp: Date.now() });
-    this._flush();
-  }
-  async recordQuery(poolName, responseTime, error) {
-    this.recordRequest(poolName, responseTime, !error);
-    this._flush();
-  }
-  recordConnections(poolName, count) {
-    let stats = this._stats.get(poolName);
-    if (!stats) {
-      stats = this._emptyStats();
-      this._stats.set(poolName, stats);
-    }
-    stats.connections = count;
-  }
-  recordRequest(poolName, responseTime, success) {
-    this._buffer.push({ poolName, type: "request", responseTime, success, timestamp: Date.now() });
-  }
-  _flush() {
-    if (this._buffer.length === 0) return;
-    const batch = this._buffer.splice(0);
-    for (const item of batch) {
-      this._updateStats(item);
-    }
-  }
-  _updateStats(item) {
-    let stats = this._stats.get(item.poolName);
-    if (!stats) {
-      stats = this._emptyStats();
-      this._stats.set(item.poolName, stats);
-    }
-    if (item.type === "selection") {
-      stats.totalRequests++;
-    } else if (item.type === "request") {
-      stats.totalRequests++;
-      if (item.success) {
-        stats.successRequests++;
-      } else {
-        stats.failedRequests++;
-      }
-      stats.totalResponseTime += item.responseTime ?? 0;
-      stats.avgResponseTime = stats.totalResponseTime / stats.totalRequests;
-      stats.errorRate = stats.failedRequests / stats.totalRequests;
-    }
-  }
-  _emptyStats() {
-    return { connections: 0, available: 0, waiting: 0, totalRequests: 0, successRequests: 0, failedRequests: 0, totalResponseTime: 0, avgResponseTime: 0, errorRate: 0 };
-  }
-  getStats(poolName) {
-    return { ...this._stats.get(poolName) ?? this._emptyStats() };
-  }
-  getAllStats() {
-    const result = {};
-    for (const [poolName, stats] of this._stats.entries()) {
-      result[poolName] = { ...stats };
-    }
-    return result;
-  }
-  reset(poolName) {
-    if (poolName) {
-      this._stats.delete(poolName);
-    } else {
-      this._stats.clear();
-    }
-  }
-  resetAll() {
-    this._stats.clear();
-    this._buffer = [];
-  }
-  close() {
-    if (this._batchInterval) {
-      clearInterval(this._batchInterval);
-      this._batchInterval = null;
-    }
-    this._flush();
-  }
-};
-var PoolSelector = class {
-  constructor(options = {}) {
-    this._roundRobinIndex = /* @__PURE__ */ new Map();
-    this._strategy = options.strategy ?? "auto";
-    this._logger = options.logger ?? console;
-  }
-  select(pools, context) {
-    if (!pools || pools.length === 0) throw new Error("No available pools");
-    switch (this._strategy) {
-      case "auto":
-        return this._selectByAuto(pools, context);
-      case "roundRobin":
-        return this._selectByRoundRobin(pools, context);
-      case "leastConnections":
-        return this._selectByLeastConnections(pools, context);
-      case "weighted":
-        return this._selectByWeighted(pools, context);
-      case "manual":
-        return pools[0].name;
-      default:
-        this._logger.warn?.(`[PoolSelector] Unknown strategy: ${this._strategy}, falling back to auto`);
-        return this._selectByAuto(pools, context);
-    }
-  }
-  _selectByAuto(pools, context) {
-    const { operation, poolPreference } = context;
-    let candidates = pools;
-    if (operation === "read") {
-      const secondaries = pools.filter((p) => p.role === "secondary");
-      if (secondaries.length > 0) candidates = secondaries;
-    } else if (operation === "write") {
-      const primaries = pools.filter((p) => p.role === "primary");
-      if (primaries.length > 0) candidates = primaries;
-    }
-    if (poolPreference) {
-      if (poolPreference.role) {
-        const filtered = candidates.filter((p) => p.role === poolPreference.role);
-        if (filtered.length > 0) candidates = filtered;
-      }
-      if (poolPreference.tags && poolPreference.tags.length > 0) {
-        const tags = poolPreference.tags;
-        const filtered = candidates.filter((p) => {
-          if (!p.tags) return false;
-          return tags.length === 1 ? tags.some((tag) => p.tags.includes(tag)) : tags.every((tag) => p.tags.includes(tag));
-        });
-        if (filtered.length > 0) candidates = filtered;
-      }
-    }
-    if (candidates.length === 1) return candidates[0].name;
-    return this._selectByWeighted(candidates, context);
-  }
-  _selectByRoundRobin(pools, context) {
-    let candidates = pools;
-    if (context.operation === "read") {
-      const nonPrimary = pools.filter((p) => p.role === "secondary" || p.role === "analytics");
-      if (nonPrimary.length > 0) candidates = nonPrimary;
-    } else if (context.operation === "write") {
-      const primaries = pools.filter((p) => (p.role ?? "primary") === "primary");
-      if (primaries.length > 0) candidates = primaries;
-    }
-    const key = context.operation ?? "default";
-    const index = this._roundRobinIndex.get(key) ?? 0;
-    const pool = candidates[index % candidates.length];
-    this._roundRobinIndex.set(key, (index + 1) % candidates.length);
-    return pool.name;
-  }
-  _selectByLeastConnections(pools, context) {
-    const { stats } = context;
-    if (!stats) return this._selectByRoundRobin(pools, context);
-    let minConnections = Infinity;
-    let selectedPool = pools[0];
-    for (const pool of pools) {
-      const poolStats = stats[pool.name];
-      if (!poolStats) continue;
-      const connections = poolStats.connections ?? 0;
-      if (connections < minConnections) {
-        minConnections = connections;
-        selectedPool = pool;
-      }
-    }
-    return selectedPool.name;
-  }
-  _selectByWeighted(pools, _context) {
-    let totalWeight = 0;
-    for (const pool of pools) totalWeight += pool.weight ?? 1;
-    let random = Math.random() * totalWeight;
-    for (const pool of pools) {
-      random -= pool.weight ?? 1;
-      if (random <= 0) return pool.name;
-    }
-    return pools[0].name;
-  }
-  setStrategy(strategy) {
-    this._strategy = strategy;
-    this._logger.info?.(`[PoolSelector] Strategy changed: ${strategy}`);
-  }
-  getStrategy() {
-    return this._strategy;
-  }
-};
-var HealthChecker = class {
-  constructor(options = {}) {
-    this._healthStatus = /* @__PURE__ */ new Map();
-    this._checkConfigs = /* @__PURE__ */ new Map();
-    this._clients = /* @__PURE__ */ new Map();
-    this._intervals = /* @__PURE__ */ new Map();
-    this._started = false;
-    this._poolManager = options.poolManager ?? null;
-    this._logger = options.logger ?? console;
-  }
-  register(poolNameOrConfig, configOrClient) {
-    let poolName;
-    let healthCheckConfig;
-    let client = null;
-    if (typeof poolNameOrConfig === "string") {
-      poolName = poolNameOrConfig;
-      healthCheckConfig = configOrClient ?? {};
-    } else {
-      poolName = poolNameOrConfig.name;
-      healthCheckConfig = poolNameOrConfig.healthCheck ?? {};
-      client = configOrClient ?? null;
-    }
-    this._checkConfigs.set(poolName, healthCheckConfig);
-    if (client !== null) this._clients.set(poolName, client);
-    const initialStatus = typeof poolNameOrConfig === "string" ? "up" : "unknown";
-    this._healthStatus.set(poolName, { status: initialStatus, lastCheck: /* @__PURE__ */ new Date(), consecutiveFailures: 0 });
-    if (this._started) this._startCheckForPool(poolName, healthCheckConfig);
-  }
-  unregister(poolName) {
-    this._stopCheckForPool(poolName);
-    this._healthStatus.delete(poolName);
-    this._checkConfigs.delete(poolName);
-    this._clients.delete(poolName);
-  }
-  start() {
-    if (this._started) return;
-    this._started = true;
-    for (const [poolName, config] of this._checkConfigs.entries()) {
-      this._startCheckForPool(poolName, config);
-    }
-    this._logger.info?.("[HealthChecker] Health check started");
-  }
-  stop() {
-    if (!this._started) return;
-    this._started = false;
-    for (const poolName of this._intervals.keys()) this._stopCheckForPool(poolName);
-    this._logger.info?.("[HealthChecker] Health check stopped");
-  }
-  /** Public single-check method (fixes v1 bug: v1 only had private _checkPool) */
-  async checkPool(poolName) {
-    const config = this._checkConfigs.get(poolName) ?? {};
-    await this._checkPool(poolName, config);
-  }
-  _startCheckForPool(poolName, config) {
-    if (config.enabled === false) return;
-    this._stopCheckForPool(poolName);
-    const interval = config.interval ?? 5e3;
-    const timer = setInterval(async () => {
-      await this._checkPool(poolName, config);
-    }, interval);
-    timer.unref?.();
-    this._intervals.set(poolName, timer);
-    setImmediate(async () => {
-      await this._checkPool(poolName, config);
-    });
-  }
-  _stopCheckForPool(poolName) {
-    const timer = this._intervals.get(poolName);
-    if (timer) {
-      clearInterval(timer);
-      this._intervals.delete(poolName);
-    }
-  }
-  async _checkPool(poolName, config) {
-    const status = this._healthStatus.get(poolName);
-    if (!status) return;
-    status.status = "checking";
-    status.lastCheck = /* @__PURE__ */ new Date();
-    const retries = config.retries ?? 3;
-    let success = false;
-    let lastError = null;
-    try {
-      await this._pingPool(poolName, config.timeout ?? 3e3);
-      success = true;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-    }
-    if (success) {
-      status.status = "up";
-      status.consecutiveFailures = 0;
-      delete status.lastError;
-    } else {
-      status.consecutiveFailures++;
-      if (lastError) status.lastError = lastError;
-      if (status.consecutiveFailures >= retries) {
-        status.status = "down";
-      }
-    }
-  }
-  async _pingPool(poolName, timeout) {
-    const stored = this._clients.get(poolName);
-    const client = stored ?? this._poolManager?._getPool(poolName);
-    if (!client) throw new Error(`No client for pool: ${poolName}`);
-    const db = client.db("admin");
-    const pingFn = db.command ? () => db.command({ ping: 1 }) : () => db.admin().ping();
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Ping timeout")), timeout));
-    await Promise.race([pingFn(), timeoutPromise]);
-  }
-  _sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-  getStatus(poolName) {
-    return this._healthStatus.get(poolName) ?? null;
-  }
-  getAllStatus() {
-    return new Map(this._healthStatus);
-  }
-};
-var DEFAULT_HEALTH_CHECK = {
-  enabled: true,
-  interval: 5e3,
-  timeout: 3e3,
-  retries: 3
-};
-var ConnectionPoolManager = class {
-  constructor(options = {}) {
-    this.pools = /* @__PURE__ */ new Map();
-    this.healthStatus = /* @__PURE__ */ new Map();
-    this.stats = /* @__PURE__ */ new Map();
-    this.intervals = /* @__PURE__ */ new Map();
-    this.roundRobinIndex = /* @__PURE__ */ new Map();
-    // v1 compat properties
-    this._closed = false;
-    this._configs = /* @__PURE__ */ new Map();
-    this._pendingAdds = /* @__PURE__ */ new Set();
-    this.logger = options.logger ?? null;
-    this.maxPoolsCount = options.maxPoolsCount ?? 10;
-    this.strategy = options.poolStrategy ?? "auto";
-    const rawFallback = options.fallback ?? options.poolFallback;
-    const fallback = typeof rawFallback === "boolean" ? { enabled: rawFallback, fallbackStrategy: "error", retryDelay: 1e3, maxRetries: 3 } : {
-      enabled: rawFallback?.enabled ?? false,
-      fallbackStrategy: rawFallback?.fallbackStrategy ?? "error",
-      retryDelay: rawFallback?.retryDelay ?? 1e3,
-      maxRetries: rawFallback?.maxRetries ?? 3
-    };
-    this.fallback = fallback;
-    this.clientFactory = options.clientFactory ?? defaultClientFactory;
-    this.healthCheckFn = options.healthCheckFn ?? defaultHealthCheckFn;
-    this._fallbackConfig = this.fallback;
-    this._fallback = this.fallback;
-    this._pools = this.pools;
-    this._selector = new PoolSelector({ strategy: this.strategy });
-    this._healthChecker = new HealthChecker({ poolManager: this });
-    this._stats = new PoolStatsManager({ logger: options.logger ?? void 0 });
-  }
-  /**
-   * Add a connection pool.
-   * @since v1.0.8
-   */
-  async addPool(config) {
-    _validatePoolConfigInternal(config);
-    if (this.pools.has(config.name) || this._pendingAdds.has(config.name)) {
-      throw new Error(`Pool '${config.name}' already exists`);
-    }
-    if (this.maxPoolsCount > 0 && this.pools.size >= this.maxPoolsCount) {
-      throw new Error(`Maximum pool count (${this.maxPoolsCount}) reached`);
-    }
-    this._pendingAdds.add(config.name);
-    try {
-      const client = await this.clientFactory(config);
-      if (this.pools.has(config.name)) {
-        await client.close().catch(() => {
-        });
-        throw new Error(`Pool '${config.name}' already exists`);
-      }
-      this.pools.set(config.name, {
-        client,
-        config,
-        createdAt: Date.now()
-      });
-      this.healthStatus.set(config.name, {
-        status: "up",
-        consecutiveFailures: 0,
-        lastCheckTime: null,
-        lastError: null,
-        uptime: 0
-      });
-      this.stats.set(config.name, createEmptyPoolStats(config.name));
-      this._configs.set(config.name, config);
-      this._healthChecker.register(config.name, config.healthCheck ?? {});
-    } catch (err) {
-      const msg = err?.message ?? "";
-      const hasNetworkKeyword = msg.includes("connect") || msg.includes("ETIMEDOUT") || msg.includes("ECONNREFUSED");
-      if (!hasNetworkKeyword && err?.name && err.name.toLowerCase().includes("mongo")) {
-        const enhanced = new Error(`connect ETIMEDOUT: ${msg}`);
-        enhanced.name = err.name;
-        enhanced.code = err.code;
-        throw enhanced;
-      }
-      throw err;
-    } finally {
-      this._pendingAdds.delete(config.name);
-    }
-  }
-  /**
-   * Remove a connection pool.
-   * @since v1.0.8
-   */
-  async removePool(name) {
-    const pool = this.pools.get(name);
-    if (!pool) {
-      throw new Error(`Pool '${name}' not found`);
-    }
-    this.stopHealthCheck(name);
-    await pool.client.close();
-    this.pools.delete(name);
-    this.healthStatus.delete(name);
-    this.stats.delete(name);
-    this._configs.delete(name);
-    this._healthChecker.unregister(name);
-  }
-  /**
-   * Get the native MongoClient for a pool.
-   * @since v1.0.8
-   */
-  getPool(name) {
-    return this.pools.get(name)?.client ?? null;
-  }
-  /**
-   * Select a connection pool.
-   * @since v1.0.8
-   */
-  selectPool(operation, options = {}) {
-    if (options.pool) {
-      const poolData2 = this.pools.get(options.pool);
-      if (!poolData2) throw new Error(`Pool '${options.pool}' not found`);
-      return this._createPoolResult(options.pool, poolData2.client);
-    }
-    let candidates = this._getHealthyPools();
-    if (candidates.length === 0) {
-      if (!this.fallback.enabled) {
-        throw new Error("No available connection pool");
-      }
-      candidates = this._handleAllPoolsDown(operation);
-      if (candidates.length === 0) {
-        throw new Error("No available connection pool");
-      }
-    }
-    const poolName = this._selector.select(candidates, {
-      operation,
-      stats: this._stats.getAllStats(),
-      poolPreference: options.poolPreference
-    });
-    const poolData = this.pools.get(poolName);
-    if (!poolData) {
-      throw new Error(`Selected pool '${poolName}' not available`);
-    }
-    this._stats.recordSelection(poolName, operation);
-    this.recordSelection(poolName, true);
-    return this._createPoolResult(poolName, poolData.client);
-  }
-  _createPoolResult(name, client) {
-    return {
-      name,
-      client,
-      db: (n) => client.db(n),
-      collection: (databaseName, collectionName) => client.db(databaseName).collection(collectionName)
-    };
-  }
-  /**
-   * Start health checks.
-   * @since v1.0.8
-   */
-  startHealthCheck(name) {
-    const targets = name ? [name] : [...this.pools.keys()];
-    for (const poolName of targets) {
-      const managed = this.pools.get(poolName);
-      if (!managed) {
-        continue;
-      }
-      const healthConfig = {
-        ...DEFAULT_HEALTH_CHECK,
-        ...managed.config.healthCheck
-      };
-      if (!healthConfig.enabled) {
-        continue;
-      }
-      this.stopHealthCheck(poolName);
-      const timer = setInterval(() => {
-        void this.checkPoolHealth(poolName);
-      }, healthConfig.interval);
-      timer.unref?.();
-      this.intervals.set(poolName, timer);
-      void this.checkPoolHealth(poolName);
-    }
-  }
-  /**
-   * Stop health checks.
-   * @since v1.0.8
-   */
-  stopHealthCheck(name) {
-    const targets = name ? [name] : [...this.intervals.keys()];
-    for (const poolName of targets) {
-      const timer = this.intervals.get(poolName);
-      if (!timer) {
-        continue;
-      }
-      clearInterval(timer);
-      this.intervals.delete(poolName);
-    }
-  }
-  /**
-   * Get health status.
-   * @since v1.0.8
-   */
-  getHealthStatus() {
-    return Object.fromEntries(this.healthStatus.entries());
-  }
-  /**
-   * Get all pool names.
-   * @since v1.3.0
-   */
-  getPoolNames() {
-    return Array.from(this.pools.keys());
-  }
-  /**
-   * Get pool statistics.
-   * @since v1.0.8
-   */
-  getPoolStats() {
-    const result = {};
-    for (const name of this.pools.keys()) {
-      const healthStatus = this.healthStatus.get(name);
-      const poolStats = this._stats.getStats(name);
-      result[name] = {
-        connections: poolStats?.connections || 0,
-        available: poolStats?.available || 0,
-        waiting: poolStats?.waiting || 0,
-        status: healthStatus?.status || "unknown",
-        avgResponseTime: poolStats?.avgResponseTime || 0,
-        totalRequests: poolStats?.totalRequests || 0,
-        errorRate: poolStats?.errorRate || 0
-      };
-    }
-    return result;
-  }
-  /**
-   * Close all connection pools.
-   * @since v1.0.8
-   */
-  async close() {
-    this.stopHealthCheck();
-    this._healthChecker.stop();
-    this._stats.close();
-    for (const pool of this.pools.values()) {
-      await pool.client.close();
-    }
-    this.pools.clear();
-    this.healthStatus.clear();
-    this.stats.clear();
-    this._closed = true;
-  }
-  // ─── v1 compat methods ───────────────────────────────────────────────────────────
-  /** v1 compat: get pool health Map */
-  getPoolHealth() {
-    return new Map(this.healthStatus);
-  }
-  /** v1 compat: get healthy pool config list (iterates _configs, matches v1 logic) */
-  _getHealthyPools() {
-    const result = [];
-    for (const [name, config] of this._configs.entries()) {
-      const status = this._healthChecker.getStatus(name);
-      if (!status || status.status !== "down") {
-        result.push(config);
-      }
-    }
-    return result;
-  }
-  /** v1 compat: get raw MongoClient */
-  _getPool(name) {
-    return this.pools.get(name)?.client ?? null;
-  }
-  /** v1 compat: get pool config list by role */
-  _getPoolsByRole(role) {
-    const result = [];
-    for (const [, config] of this._configs.entries()) {
-      if (config.role === role) result.push(config);
-    }
-    return result;
-  }
-  /** v1 compat: fallback when all pools are down (synchronously returns candidate pool list) */
-  _handleAllPoolsDown(operation) {
-    this.logger?.warn?.(`[PoolManager] All pools down, fallback strategy: ${this.fallback.fallbackStrategy}`);
-    const { fallbackStrategy } = this.fallback;
-    if (fallbackStrategy === "readonly") {
-      if (operation === "write") return [];
-      return this._getPoolsByRole("secondary");
-    }
-    if (fallbackStrategy === "secondary") {
-      return this._getPoolsByRole("secondary");
-    }
-    return [];
-  }
-  getCandidatePools(operation, options) {
-    if (options.pool) {
-      const pool = this.pools.get(options.pool);
-      if (!pool) {
-        throw new Error(`Pool '${options.pool}' not found`);
-      }
-      return [options.pool];
-    }
-    let candidates = [...this.pools.entries()].filter(([name]) => (this.healthStatus.get(name)?.status ?? "down") !== "down");
-    if (candidates.length === 0 && this.fallback.enabled) {
-      candidates = [...this.pools.entries()];
-    }
-    if (operation === "write") {
-      const primaries = candidates.filter(([, pool]) => (pool.config.role ?? "primary") === "primary");
-      if (primaries.length > 0) {
-        candidates = primaries;
-      }
-    } else {
-      const secondaries = candidates.filter(([, pool]) => pool.config.role === "secondary" || pool.config.role === "analytics");
-      if (secondaries.length > 0) {
-        candidates = secondaries;
-      }
-    }
-    if (options.tags?.length) {
-      const tagged = candidates.filter(([, pool]) => options.tags?.some((tag) => pool.config.tags?.includes(tag)));
-      if (tagged.length > 0) {
-        candidates = tagged;
-      }
-    }
-    return candidates.map(([name]) => name);
-  }
-  selectPoolName(candidateNames, operation) {
-    if (candidateNames.length === 1) {
-      return candidateNames[0];
-    }
-    if (this.strategy === "roundRobin") {
-      const current = this.roundRobinIndex.get(operation) ?? 0;
-      const selected = candidateNames[current % candidateNames.length];
-      this.roundRobinIndex.set(operation, current + 1);
-      return selected;
-    }
-    if (this.strategy === "leastConnections") {
-      return [...candidateNames].sort((left, right) => {
-        const leftStats = this.stats.get(left)?.totalRequests ?? 0;
-        const rightStats = this.stats.get(right)?.totalRequests ?? 0;
-        return leftStats - rightStats;
-      })[0];
-    }
-    if (this.strategy === "weighted" || this.strategy === "auto") {
-      const weighted = candidateNames.flatMap((name) => {
-        const weight = this.pools.get(name)?.config.weight ?? 1;
-        return Array.from({ length: weight }, () => name);
-      });
-      return weighted[Math.floor(Math.random() * weighted.length)] ?? candidateNames[0];
-    }
-    return candidateNames[0];
-  }
-  async checkPoolHealth(poolName) {
-    const managed = this.pools.get(poolName);
-    const current = this.healthStatus.get(poolName);
-    if (!managed || !current) {
-      return;
-    }
-    try {
-      const healthy = await this.healthCheckFn(poolName, managed.client, managed.config);
-      current.lastCheckTime = /* @__PURE__ */ new Date();
-      current.uptime = Date.now() - managed.createdAt;
-      if (healthy) {
-        current.status = "up";
-        current.consecutiveFailures = 0;
-        current.lastError = null;
-        return;
-      }
-      current.consecutiveFailures += 1;
-      current.status = current.consecutiveFailures > 1 ? "down" : "degraded";
-    } catch (error) {
-      current.lastCheckTime = /* @__PURE__ */ new Date();
-      current.uptime = Date.now() - managed.createdAt;
-      current.consecutiveFailures += 1;
-      current.lastError = error instanceof Error ? error : new Error(String(error));
-      current.status = current.consecutiveFailures > 1 ? "down" : "degraded";
-      this.logger?.warn?.(`[PoolManager] health check failed for ${poolName}`, current.lastError);
-    }
-  }
-  recordSelection(poolName, success) {
-    const stats = this.stats.get(poolName);
-    if (!stats) {
-      return;
-    }
-    stats.totalRequests += 1;
-    if (success) {
-      stats.successCount += 1;
-    } else {
-      stats.errorCount += 1;
-    }
-    stats.lastRequestTime = /* @__PURE__ */ new Date();
-    const samples = [stats.minResponseTime, stats.maxResponseTime].filter((value) => value > 0);
-    stats.avgResponseTime = samples.length === 0 ? 0 : samples.reduce((sum, value) => sum + value, 0) / samples.length;
-    stats.errorRate = stats.totalRequests === 0 ? 0 : stats.errorCount / stats.totalRequests;
-  }
-};
-function _validatePoolConfigInternal(config) {
-  if (!config.name?.trim()) {
-    throw new Error("Pool config requires a non-empty name");
-  }
-  if (!config.uri?.trim()) {
-    throw new Error("Pool config requires a non-empty uri");
-  }
-}
-function createEmptyPoolStats(name) {
-  return {
-    name,
-    totalRequests: 0,
-    successCount: 0,
-    errorCount: 0,
-    avgResponseTime: 0,
-    minResponseTime: 0,
-    maxResponseTime: 0,
-    errorRate: 0,
-    lastRequestTime: null
-  };
-}
-async function defaultClientFactory(config) {
-  const client = new MongoDriverClient(config.uri, config.options);
-  await client.connect();
-  return client;
-}
-async function defaultHealthCheckFn(_poolName, client) {
-  await client.db("admin").command({ ping: 1 });
-  return true;
 }
 
 // src/capabilities/saga/index.ts
@@ -6399,9 +7577,7 @@ async function withTimeout(stepName, promise, timeoutMs) {
   }
 }
 
-// src/capabilities/slow-query-log/index.ts
-import { createHash as createHash3 } from "node:crypto";
-import { MongoClient as MongoDriverClient2 } from "mongodb";
+// src/capabilities/slow-query-log/slow-query-log-config.ts
 var DEFAULT_SLOW_QUERY_LOG_CONFIG = {
   enabled: false,
   storage: {
@@ -6429,9 +7605,84 @@ var DEFAULT_SLOW_QUERY_LOG_CONFIG = {
     autoCreateIndexes: true
   }
 };
-function generateQueryHash(input) {
-  return createHash3("sha1").update(stableStringify3(input)).digest("hex");
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value, (_key, current) => current instanceof Date ? current.toISOString() : current));
 }
+function mergeSlowQueryLogConfig(target, source) {
+  return {
+    ...target,
+    ...source,
+    storage: {
+      ...target.storage,
+      ...source.storage ?? {}
+    },
+    batch: {
+      ...target.batch,
+      ...source.batch ?? {}
+    },
+    filter: {
+      ...target.filter,
+      ...source.filter ?? {}
+    },
+    advanced: {
+      ...target.advanced,
+      ...source.advanced ?? {}
+    }
+  };
+}
+var SlowQueryLogConfigManager = class {
+  static mergeConfig(userConfig, businessType = "mongodb") {
+    if (userConfig === void 0 || userConfig === null) {
+      return deepClone(DEFAULT_SLOW_QUERY_LOG_CONFIG);
+    }
+    if (typeof userConfig === "boolean") {
+      const config = deepClone(DEFAULT_SLOW_QUERY_LOG_CONFIG);
+      config.enabled = userConfig;
+      config.storage.type = businessType === "mongodb" ? "mongodb" : "memory";
+      return config;
+    }
+    const merged = mergeSlowQueryLogConfig(deepClone(DEFAULT_SLOW_QUERY_LOG_CONFIG), userConfig);
+    if (merged.storage.type === void 0) {
+      merged.storage.type = businessType === "mongodb" ? "mongodb" : "memory";
+    }
+    if (userConfig.storage && merged.enabled === false) {
+      merged.enabled = true;
+    }
+    return merged;
+  }
+  static validate(config, businessType = "mongodb") {
+    if (!config || typeof config !== "object") {
+      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] config must be an object.");
+    }
+    if (!config.enabled) {
+      return true;
+    }
+    if (!["memory", "mongodb"].includes(config.storage.type ?? "memory")) {
+      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] storage.type must be memory or mongodb.");
+    }
+    if (config.storage.type === "mongodb" && config.storage.useBusinessConnection === false && !config.storage.uri) {
+      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] storage.uri is required when mongodb storage does not reuse business connection.");
+    }
+    if (config.storage.type === "memory" && businessType !== "mongodb") {
+      return true;
+    }
+    if (!Number.isInteger(config.batch.size) || config.batch.size < 1) {
+      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] batch.size must be >= 1.");
+    }
+    if (!Number.isInteger(config.batch.interval) || config.batch.interval < 50) {
+      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] batch.interval must be >= 50ms.");
+    }
+    if (!Number.isInteger(config.batch.maxBufferSize) || config.batch.maxBufferSize < config.batch.size) {
+      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] batch.maxBufferSize must be >= batch.size.");
+    }
+    if (config.filter.minExecutionTimeMs < 0) {
+      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] filter.minExecutionTimeMs must be >= 0.");
+    }
+    return true;
+  }
+};
+
+// src/capabilities/slow-query-log/slow-query-log-batch-queue.ts
 var BatchQueue = class {
   constructor(storage, options = {}, logger = null) {
     this.storage = storage;
@@ -6443,10 +7694,6 @@ var BatchQueue = class {
     this.maxBufferSize = options.maxBufferSize ?? DEFAULT_SLOW_QUERY_LOG_CONFIG.batch.maxBufferSize;
     this.logger = logger;
   }
-  /**
-   * Add a log entry to the queue.
-   * @since v1.3.1
-   */
   async add(log) {
     this.buffer.push(log);
     if (this.buffer.length >= this.maxBufferSize || this.buffer.length >= this.batchSize) {
@@ -6460,10 +7707,6 @@ var BatchQueue = class {
       this.timer.unref?.();
     }
   }
-  /**
-   * Flush the buffer.
-   * @since v1.3.1
-   */
   async flush() {
     if (this.flushing || this.buffer.length === 0) {
       return;
@@ -6483,10 +7726,6 @@ var BatchQueue = class {
       this.flushing = false;
     }
   }
-  /**
-   * Close the queue and flush any remaining log entries.
-   * @since v1.3.1
-   */
   async close() {
     if (this.timer) {
       clearTimeout(this.timer);
@@ -6495,6 +7734,146 @@ var BatchQueue = class {
     await this.flush();
   }
 };
+
+// src/capabilities/slow-query-log/slow-query-log-storage.ts
+import { MongoClient as MongoDriverClient2 } from "mongodb";
+
+// src/capabilities/slow-query-log/slow-query-log-records.ts
+import { createHash as createHash2 } from "node:crypto";
+function stableStringify2(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify2(item)).join(",")}]`;
+  }
+  if (value instanceof Date) {
+    return JSON.stringify(value.toISOString());
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value).sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries.map(([key, current]) => `${JSON.stringify(key)}:${stableStringify2(current)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+function generateQueryHash(input) {
+  return createHash2("sha1").update(stableStringify2(input)).digest("hex");
+}
+function handleSlowQueryLogError(logger, policy, error) {
+  if (policy === "throw") {
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+  if (policy === "log") {
+    logger?.error?.("[SlowQueryLog] operation failed", error);
+  }
+}
+function toMongoFilter(filter) {
+  const query = {};
+  if (filter.database) {
+    query.database = filter.database;
+  }
+  if (filter.collection) {
+    query.collection = filter.collection;
+  }
+  if (filter.operation) {
+    query.operation = filter.operation;
+  }
+  if (filter.queryHash) {
+    query.queryHash = filter.queryHash;
+  }
+  return query;
+}
+function normalizeSlowQueryLogEntry(log) {
+  if (!log.database || !log.collection || !log.operation) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "[SlowQueryLog] database / collection / operation are required.");
+  }
+  if (!Number.isFinite(log.durationMs) || log.durationMs < 0) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "[SlowQueryLog] durationMs must be a non-negative number.");
+  }
+  const timestamp = log.timestamp ?? /* @__PURE__ */ new Date();
+  return {
+    queryHash: log.queryHash ?? generateQueryHash({
+      database: log.database,
+      collection: log.collection,
+      operation: log.operation,
+      query: log.query
+    }),
+    database: log.database,
+    collection: log.collection,
+    operation: log.operation,
+    count: 1,
+    totalTimeMs: log.durationMs,
+    avgTimeMs: log.durationMs,
+    maxTimeMs: log.durationMs,
+    minTimeMs: log.durationMs,
+    firstSeen: timestamp,
+    lastSeen: timestamp,
+    sampleQuery: log.query,
+    metadata: log.metadata
+  };
+}
+function mergeSlowQueryLogRecord(existing, incoming) {
+  if (!existing) {
+    return incoming;
+  }
+  const count = existing.count + incoming.count;
+  const totalTimeMs = existing.totalTimeMs + incoming.totalTimeMs;
+  return {
+    ...existing,
+    count,
+    totalTimeMs,
+    avgTimeMs: totalTimeMs / count,
+    maxTimeMs: Math.max(existing.maxTimeMs, incoming.maxTimeMs),
+    minTimeMs: Math.min(existing.minTimeMs, incoming.minTimeMs),
+    firstSeen: existing.firstSeen < incoming.firstSeen ? existing.firstSeen : incoming.firstSeen,
+    lastSeen: existing.lastSeen > incoming.lastSeen ? existing.lastSeen : incoming.lastSeen,
+    sampleQuery: incoming.sampleQuery ?? existing.sampleQuery,
+    metadata: incoming.metadata ?? existing.metadata
+  };
+}
+function recordKey(record) {
+  return `${record.queryHash}:${record.database}:${record.collection}:${record.operation}`;
+}
+function matchesSlowQueryLogFilter(record, filter) {
+  if (filter.database && record.database !== filter.database) {
+    return false;
+  }
+  if (filter.collection && record.collection !== filter.collection) {
+    return false;
+  }
+  if (filter.operation && record.operation !== filter.operation) {
+    return false;
+  }
+  if (filter.queryHash && record.queryHash !== filter.queryHash) {
+    return false;
+  }
+  return true;
+}
+function sortSlowQueryLogRecords(records, sort = { lastSeen: -1 }) {
+  const entries = Object.entries(sort);
+  return [...records].sort((left, right) => {
+    for (const [field, direction] of entries) {
+      const leftValue = left[field];
+      const rightValue = right[field];
+      if (leftValue === rightValue) {
+        continue;
+      }
+      return (leftValue > rightValue ? 1 : -1) * direction;
+    }
+    return 0;
+  });
+}
+function cloneSlowQueryLogRecord(record) {
+  return {
+    ...record,
+    firstSeen: new Date(record.firstSeen),
+    lastSeen: new Date(record.lastSeen)
+  };
+}
+
+// src/capabilities/slow-query-log/slow-query-log-storage.ts
+async function defaultClientFactory2(uri, options) {
+  const client = new MongoDriverClient2(uri, options);
+  await client.connect();
+  return client;
+}
 var SlowQueryLogMemoryStorage = class {
   constructor() {
     this.records = /* @__PURE__ */ new Map();
@@ -6511,15 +7890,15 @@ var SlowQueryLogMemoryStorage = class {
     }
   }
   async query(filter = {}, options = {}) {
-    let records = [...this.records.values()].filter((record) => matchesFilter(record, filter));
-    records = sortRecords(records, options.sort);
+    let records = [...this.records.values()].filter((record) => matchesSlowQueryLogFilter(record, filter));
+    records = sortSlowQueryLogRecords(records, options.sort);
     if (options.skip) {
       records = records.slice(options.skip);
     }
     if (options.limit) {
       records = records.slice(0, options.limit);
     }
-    return records.map(cloneRecord);
+    return records.map(cloneSlowQueryLogRecord);
   }
   async close() {
     return void 0;
@@ -6528,7 +7907,7 @@ var SlowQueryLogMemoryStorage = class {
     const normalized = normalizeSlowQueryLogEntry(log);
     const key = recordKey(normalized);
     const existing = this.records.get(key);
-    this.records.set(key, mergeRecord(existing, normalized));
+    this.records.set(key, mergeSlowQueryLogRecord(existing, normalized));
   }
 };
 var MongoDBSlowQueryLogStorage = class {
@@ -6649,57 +8028,8 @@ var MongoDBSlowQueryLogStorage = class {
     return this.client;
   }
 };
-var SlowQueryLogConfigManager = class {
-  static mergeConfig(userConfig, businessType = "mongodb") {
-    if (userConfig === void 0 || userConfig === null) {
-      return deepClone(DEFAULT_SLOW_QUERY_LOG_CONFIG);
-    }
-    if (typeof userConfig === "boolean") {
-      const config = deepClone(DEFAULT_SLOW_QUERY_LOG_CONFIG);
-      config.enabled = userConfig;
-      config.storage.type = businessType === "mongodb" ? "mongodb" : "memory";
-      return config;
-    }
-    const merged = mergeSlowQueryLogConfig(deepClone(DEFAULT_SLOW_QUERY_LOG_CONFIG), userConfig);
-    if (merged.storage.type === void 0) {
-      merged.storage.type = businessType === "mongodb" ? "mongodb" : "memory";
-    }
-    if (userConfig.storage && merged.enabled === false) {
-      merged.enabled = true;
-    }
-    return merged;
-  }
-  static validate(config, businessType = "mongodb") {
-    if (!config || typeof config !== "object") {
-      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] config must be an object.");
-    }
-    if (!config.enabled) {
-      return true;
-    }
-    if (!["memory", "mongodb"].includes(config.storage.type ?? "memory")) {
-      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] storage.type must be memory or mongodb.");
-    }
-    if (config.storage.type === "mongodb" && config.storage.useBusinessConnection === false && !config.storage.uri) {
-      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] storage.uri is required when mongodb storage does not reuse business connection.");
-    }
-    if (config.storage.type === "memory" && businessType !== "mongodb") {
-      return true;
-    }
-    if (!Number.isInteger(config.batch.size) || config.batch.size < 1) {
-      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] batch.size must be >= 1.");
-    }
-    if (!Number.isInteger(config.batch.interval) || config.batch.interval < 50) {
-      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] batch.interval must be >= 50ms.");
-    }
-    if (!Number.isInteger(config.batch.maxBufferSize) || config.batch.maxBufferSize < config.batch.size) {
-      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] batch.maxBufferSize must be >= batch.size.");
-    }
-    if (config.filter.minExecutionTimeMs < 0) {
-      throw createError(ErrorCodes.INVALID_CONFIG, "[SlowQueryLog] filter.minExecutionTimeMs must be >= 0.");
-    }
-    return true;
-  }
-};
+
+// src/capabilities/slow-query-log/slow-query-log-manager.ts
 var SlowQueryLogManager = class {
   constructor(userConfig, businessClient = null, businessType = "mongodb", logger = null, options = {}) {
     this.initialized = false;
@@ -6709,10 +8039,6 @@ var SlowQueryLogManager = class {
     this.storage = options.storage ?? (this.config.storage.type === "memory" ? new SlowQueryLogMemoryStorage() : new MongoDBSlowQueryLogStorage(this.config.storage, businessClient, logger));
     this.queue = this.config.batch.enabled ? new BatchQueue(this.storage, this.config.batch, logger) : null;
   }
-  /**
-   * Initialize the manager.
-   * @since v1.3.1
-   */
   async initialize() {
     if (this.initialized || !this.config.enabled) {
       return;
@@ -6720,10 +8046,6 @@ var SlowQueryLogManager = class {
     await this.storage.initialize();
     this.initialized = true;
   }
-  /**
-   * Save a single slow-query log entry.
-   * @since v1.3.1
-   */
   async save(log) {
     if (!this.config.enabled || this.shouldFilter(log)) {
       return;
@@ -6736,21 +8058,13 @@ var SlowQueryLogManager = class {
         await this.storage.save(log);
       }
     } catch (error) {
-      handleError(this.logger, this.config.advanced.errorHandling, error);
+      handleSlowQueryLogError(this.logger, this.config.advanced.errorHandling, error);
     }
   }
-  /**
-   * Query aggregated slow-query log records.
-   * @since v1.3.1
-   */
   async query(filter = {}, options = {}) {
     await this.initialize();
     return this.storage.query(filter, options);
   }
-  /**
-   * Close the manager.
-   * @since v1.3.1
-   */
   async close() {
     await this.queue?.close();
     await this.storage.close();
@@ -6771,297 +8085,6 @@ var SlowQueryLogManager = class {
       return true;
     }
     return false;
-  }
-};
-function handleError(logger, policy, error) {
-  if (policy === "throw") {
-    throw error instanceof Error ? error : new Error(String(error));
-  }
-  if (policy === "log") {
-    logger?.error?.("[SlowQueryLog] operation failed", error);
-  }
-}
-function toMongoFilter(filter) {
-  const query = {};
-  if (filter.database) {
-    query.database = filter.database;
-  }
-  if (filter.collection) {
-    query.collection = filter.collection;
-  }
-  if (filter.operation) {
-    query.operation = filter.operation;
-  }
-  if (filter.queryHash) {
-    query.queryHash = filter.queryHash;
-  }
-  return query;
-}
-function normalizeSlowQueryLogEntry(log) {
-  if (!log.database || !log.collection || !log.operation) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "[SlowQueryLog] database / collection / operation are required.");
-  }
-  if (!Number.isFinite(log.durationMs) || log.durationMs < 0) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "[SlowQueryLog] durationMs must be a non-negative number.");
-  }
-  const timestamp = log.timestamp ?? /* @__PURE__ */ new Date();
-  return {
-    queryHash: log.queryHash ?? generateQueryHash({
-      database: log.database,
-      collection: log.collection,
-      operation: log.operation,
-      query: log.query
-    }),
-    database: log.database,
-    collection: log.collection,
-    operation: log.operation,
-    count: 1,
-    totalTimeMs: log.durationMs,
-    avgTimeMs: log.durationMs,
-    maxTimeMs: log.durationMs,
-    minTimeMs: log.durationMs,
-    firstSeen: timestamp,
-    lastSeen: timestamp,
-    sampleQuery: log.query,
-    metadata: log.metadata
-  };
-}
-function mergeRecord(existing, incoming) {
-  if (!existing) {
-    return incoming;
-  }
-  const count = existing.count + incoming.count;
-  const totalTimeMs = existing.totalTimeMs + incoming.totalTimeMs;
-  return {
-    ...existing,
-    count,
-    totalTimeMs,
-    avgTimeMs: totalTimeMs / count,
-    maxTimeMs: Math.max(existing.maxTimeMs, incoming.maxTimeMs),
-    minTimeMs: Math.min(existing.minTimeMs, incoming.minTimeMs),
-    firstSeen: existing.firstSeen < incoming.firstSeen ? existing.firstSeen : incoming.firstSeen,
-    lastSeen: existing.lastSeen > incoming.lastSeen ? existing.lastSeen : incoming.lastSeen,
-    sampleQuery: incoming.sampleQuery ?? existing.sampleQuery,
-    metadata: incoming.metadata ?? existing.metadata
-  };
-}
-function recordKey(record) {
-  return `${record.queryHash}:${record.database}:${record.collection}:${record.operation}`;
-}
-function matchesFilter(record, filter) {
-  if (filter.database && record.database !== filter.database) {
-    return false;
-  }
-  if (filter.collection && record.collection !== filter.collection) {
-    return false;
-  }
-  if (filter.operation && record.operation !== filter.operation) {
-    return false;
-  }
-  if (filter.queryHash && record.queryHash !== filter.queryHash) {
-    return false;
-  }
-  return true;
-}
-function sortRecords(records, sort = { lastSeen: -1 }) {
-  const entries = Object.entries(sort);
-  return [...records].sort((left, right) => {
-    for (const [field, direction] of entries) {
-      const leftValue = left[field];
-      const rightValue = right[field];
-      if (leftValue === rightValue) {
-        continue;
-      }
-      return (leftValue > rightValue ? 1 : -1) * direction;
-    }
-    return 0;
-  });
-}
-function cloneRecord(record) {
-  return {
-    ...record,
-    firstSeen: new Date(record.firstSeen),
-    lastSeen: new Date(record.lastSeen)
-  };
-}
-function deepClone(value) {
-  return JSON.parse(JSON.stringify(value, (_key, current) => current instanceof Date ? current.toISOString() : current));
-}
-function mergeSlowQueryLogConfig(target, source) {
-  return {
-    ...target,
-    ...source,
-    storage: {
-      ...target.storage,
-      ...source.storage ?? {}
-    },
-    batch: {
-      ...target.batch,
-      ...source.batch ?? {}
-    },
-    filter: {
-      ...target.filter,
-      ...source.filter ?? {}
-    },
-    advanced: {
-      ...target.advanced,
-      ...source.advanced ?? {}
-    }
-  };
-}
-function stableStringify3(value) {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify3(item)).join(",")}]`;
-  }
-  if (value instanceof Date) {
-    return JSON.stringify(value.toISOString());
-  }
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value).sort(([left], [right]) => left.localeCompare(right));
-    return `{${entries.map(([key, current]) => `${JSON.stringify(key)}:${stableStringify3(current)}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-async function defaultClientFactory2(uri, options) {
-  const client = new MongoDriverClient2(uri, options);
-  await client.connect();
-  return client;
-}
-
-// src/capabilities/count-queue/index.ts
-import { cpus } from "node:os";
-var CountQueue = class {
-  constructor(options = {}) {
-    this.running = 0;
-    this.queue = [];
-    this.stats = {
-      executed: 0,
-      queued: 0,
-      timeout: 0,
-      rejected: 0,
-      avgWaitTime: 0,
-      maxWaitTime: 0
-    };
-    const cpuCount = cpus().length;
-    const defaultConcurrency = Math.max(4, Math.min(cpuCount, 16));
-    this.concurrency = options.concurrency ?? defaultConcurrency;
-    this.maxQueueSize = options.maxQueueSize ?? 1e4;
-    this.timeout = options.timeout ?? 6e4;
-  }
-  /**
-   * Execute a count operation with queue control.
-   *
-   * @param fn - The count function to execute (returns Promise<number>)
-   * @returns The count result
-   * @throws When the queue is full or the wait times out
-   */
-  async execute(fn) {
-    const startTime = Date.now();
-    if (this.running >= this.concurrency) {
-      if (this.queue.length >= this.maxQueueSize) {
-        this.stats.rejected++;
-        throw createError(ErrorCodes.INVALID_OPERATION, `Count queue is full (${this.maxQueueSize})`);
-      }
-      this.stats.queued++;
-      const waitResult = await this._waitInQueue(startTime);
-      if (waitResult === "cleared") {
-        return void 0;
-      }
-    }
-    this.running++;
-    this.stats.executed++;
-    try {
-      return await this._executeWithTimeout(fn);
-    } finally {
-      this.running--;
-      this._wakeNext();
-    }
-  }
-  /**
-   * Get queue statistics (including live state).
-   */
-  getStats() {
-    return {
-      ...this.stats,
-      running: this.running,
-      queuedNow: this.queue.length,
-      concurrency: this.concurrency,
-      maxQueueSize: this.maxQueueSize
-    };
-  }
-  /**
-   * Reset accumulated statistics (does not affect in-flight requests).
-   */
-  resetStats() {
-    this.stats = {
-      executed: 0,
-      queued: 0,
-      timeout: 0,
-      rejected: 0,
-      avgWaitTime: 0,
-      maxWaitTime: 0
-    };
-  }
-  /**
-   * Clear all queued pending requests without executing them.
-   */
-  clear() {
-    while (this.queue.length > 0) {
-      const entry = this.queue.shift();
-      if (entry) {
-        clearTimeout(entry.timer);
-        entry.resolve("cleared");
-      }
-    }
-  }
-  _waitInQueue(startTime) {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        const index = this.queue.findIndex((item) => item.resolve === resolve);
-        if (index !== -1) {
-          this.queue.splice(index, 1);
-          this.stats.timeout++;
-          reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count queue wait timeout (${this.timeout}ms)`));
-        }
-      }, this.timeout);
-      this.queue.push({
-        resolve: (reason) => {
-          const waitTime = Date.now() - startTime;
-          this._updateWaitTimeStats(waitTime);
-          resolve(reason);
-        },
-        reject,
-        timer,
-        startTime
-      });
-    });
-  }
-  _wakeNext() {
-    if (this.queue.length > 0) {
-      const entry = this.queue.shift();
-      if (entry) {
-        clearTimeout(entry.timer);
-        entry.resolve("run");
-      }
-    }
-  }
-  _executeWithTimeout(fn) {
-    return Promise.race([
-      fn(),
-      new Promise(
-        (_, reject) => setTimeout(
-          () => reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count execution timeout (${this.timeout}ms)`)),
-          this.timeout
-        )
-      )
-    ]);
-  }
-  _updateWaitTimeStats(waitTime) {
-    const totalQueued = this.stats.queued;
-    this.stats.avgWaitTime = (this.stats.avgWaitTime * (totalQueued - 1) + waitTime) / totalQueued;
-    if (waitTime > this.stats.maxWaitTime) {
-      this.stats.maxWaitTime = waitTime;
-    }
   }
 };
 
@@ -7422,609 +8445,479 @@ async function defaultClientFactory3(uri, options) {
   return client;
 }
 
-// src/capabilities/transaction/index.ts
-var CacheLockManager = class {
-  constructor(options = {}) {
-    this.locks = /* @__PURE__ */ new Map();
-    this.logger = options.logger ?? null;
-    this.maxDuration = options.maxDuration ?? 3e5;
-    this.cleanupInterval = options.cleanupInterval ?? 1e4;
-    this.cleanupTimer = setInterval(() => {
-      this.cleanupExpiredLocks();
-    }, this.cleanupInterval);
-    this.cleanupTimer.unref?.();
+// src/entry/runtime-capability-factories.ts
+function getOrCreateTransactionManager(config) {
+  if (!config.client) {
+    throw createError(ErrorCodes.NOT_CONNECTED, "MonSQLize is not connected yet.");
   }
-  /**
-   * Add a cache lock.
-   * @since v1.4.0
-   */
-  addLock(key, owner) {
-    const ownerId = typeof owner === "string" ? owner : String(owner.id ?? "unknown");
-    this.locks.set(key, {
-      ownerId,
-      expiresAt: Date.now() + this.maxDuration
-    });
+  if (config.current) {
+    return config.current;
   }
-  /**
-   * Check whether a cache key is locked.
-   * @since v1.4.0
-   */
-  isLocked(key) {
-    this.cleanupExpiredLocks();
-    if (this.locks.has(key)) {
-      return true;
+  return new TransactionManager({
+    client: config.client,
+    cache: config.cache,
+    logger: config.logger,
+    lockManager: config.lockManager
+  });
+}
+function getOrCreateLockManager(current, logger) {
+  return current ?? new LockManager({ logger });
+}
+async function initializeRuntimeSyncManager(config) {
+  if (!config.enabled || !config.defaultDb) {
+    return null;
+  }
+  if (config.current) {
+    return config.current;
+  }
+  const manager = new ChangeStreamSyncManager({
+    db: config.defaultDb.raw(),
+    poolManager: config.poolManager,
+    config: config.sync,
+    logger: config.logger
+  });
+  try {
+    await manager.start();
+  } catch (error) {
+    config.onStartFailure(error);
+  }
+  return manager;
+}
+function initializeRuntimeSlowQueryLogManager(config) {
+  if (!config.slowQueryLog || !config.client) {
+    return null;
+  }
+  if (config.current) {
+    return config.current;
+  }
+  let slowQueryLogConfig = config.slowQueryLog;
+  if (config.slowQueryMs !== void 0 && typeof slowQueryLogConfig === "object" && slowQueryLogConfig !== null) {
+    const partialConfig = slowQueryLogConfig;
+    if (!partialConfig.filter?.minExecutionTimeMs) {
+      slowQueryLogConfig = {
+        ...partialConfig,
+        filter: {
+          ...partialConfig.filter,
+          minExecutionTimeMs: config.slowQueryMs
+        }
+      };
     }
-    for (const pattern of this.locks.keys()) {
-      if (!pattern.includes("*")) {
+  }
+  return new SlowQueryLogManager(
+    slowQueryLogConfig,
+    config.client,
+    "mongodb",
+    config.logger
+  );
+}
+function ensureRuntimeSlowQueryLogManager(manager) {
+  if (!manager) {
+    throw createError(ErrorCodes.INVALID_CONFIG, "MonSQLize slow query log is not enabled for this runtime.");
+  }
+  return manager;
+}
+function getOrCreateSagaOrchestrator(current, logger) {
+  return current ?? new SagaOrchestrator({ logger });
+}
+function requireRuntimePoolManager(poolManager) {
+  if (!poolManager) {
+    throw createError(ErrorCodes.INVALID_CONFIG, "MonSQLize pool() requires options.pools configuration.");
+  }
+  return poolManager;
+}
+
+// src/entry/runtime-scoped-collection.ts
+function resolveScopedCollection(config) {
+  const poolName = config.connection.pool;
+  const defaultDbName = config.self["databaseName"] ?? config.options["database"] ?? config.options.databaseName ?? "default";
+  const databaseName = config.connection.database || defaultDbName;
+  if (poolName) {
+    const poolManagerRecord = config.self["_poolManager"];
+    if (!poolManagerRecord) {
+      throw createError(ErrorCodes.NO_POOL_MANAGER, `Model '${config.collectionName}' requires pool '${poolName}' but no pools are configured. Add 'pools' to MonSQLize constructor options.`);
+    }
+    let client = null;
+    const getPoolV1 = poolManagerRecord["_getPool"];
+    const getPoolV2 = poolManagerRecord["getPool"];
+    if (typeof getPoolV1 === "function") {
+      client = getPoolV1.call(poolManagerRecord, poolName);
+    } else if (typeof getPoolV2 === "function") {
+      try {
+        client = getPoolV2.call(poolManagerRecord, poolName);
+      } catch {
+        client = null;
+      }
+    }
+    if (!client) {
+      const getNames = poolManagerRecord["getPoolNames"];
+      const available = typeof getNames === "function" ? getNames.call(poolManagerRecord) : [];
+      const error = createError(ErrorCodes.POOL_NOT_FOUND, `Pool '${poolName}' not found. Available pools: [${available.join(", ")}]`);
+      error["available"] = available;
+      throw error;
+    }
+    const adapter = config.self["_adapter"];
+    if (adapter && typeof adapter["collectionFromClient"] === "function") {
+      return adapter["collectionFromClient"](
+        client,
+        databaseName,
+        config.collectionName
+      );
+    }
+    if (config.poolManager) {
+      const selected = config.poolManager.selectPool("read", { pool: poolName, databaseName });
+      return new MongoCollectionAccessor(
+        databaseName,
+        config.collectionName,
+        selected.collection(databaseName, config.collectionName),
+        { cache: config.cache, logger: config.logger, defaults: config.runtimeDefaults }
+      );
+    }
+    return null;
+  }
+  if (config.client) {
+    return config.db(databaseName).collection(config.collectionName);
+  }
+  const dbInstance = config.self["dbInstance"];
+  if (!dbInstance) {
+    throw createError(ErrorCodes.NOT_CONNECTED, "Database is not connected. Call connect() first.");
+  }
+  return dbInstance.db(databaseName).collection(config.collectionName);
+}
+
+// src/capabilities/function-cache/index.ts
+import { createHash as createHash3 } from "node:crypto";
+var inflightFunctions = /* @__PURE__ */ new Map();
+function withCache(fn, options = {}) {
+  if (typeof fn !== "function") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: fn must be a function.");
+  }
+  const {
+    ttl = 6e4,
+    namespace = "fn",
+    cache = new MemoryCache(),
+    keyBuilder,
+    condition,
+    enableStats = true
+  } = options;
+  if (typeof ttl !== "number" || ttl < 0) {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: ttl must be a non-negative number.");
+  }
+  if (keyBuilder && typeof keyBuilder !== "function") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: keyBuilder must be a function.");
+  }
+  if (condition && typeof condition !== "function") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: condition must be a function.");
+  }
+  if (typeof cache.get !== "function" || typeof cache.set !== "function") {
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "withCache: Invalid cache instance: must implement CacheLike interface");
+  }
+  const stats = {
+    hits: 0,
+    misses: 0,
+    errors: 0,
+    calls: 0,
+    totalTime: 0
+  };
+  const wrapped = (async (...args) => {
+    const startedAt = Date.now();
+    let cacheKey;
+    try {
+      const baseKey = keyBuilder ? `${namespace}:${keyBuilder(...args)}` : `${namespace}:${fn.name || "anonymous"}:${stableStringify3(args)}`;
+      if (baseKey.length > 1024) {
+        const hash2 = createHash3("sha256").update(baseKey).digest("hex");
+        cacheKey = `${namespace}:${fn.name || "anonymous"}:hash:${hash2}`;
+      } else {
+        cacheKey = baseKey;
+      }
+    } catch {
+      if (enableStats) stats.errors += 1;
+      return fn(...args);
+    }
+    try {
+      const cached = await cache.get(cacheKey);
+      const exists = cached !== void 0 || await Promise.resolve(cache.exists?.(cacheKey) ?? false);
+      if (exists) {
+        if (enableStats) {
+          stats.hits += 1;
+          stats.calls += 1;
+          stats.totalTime += Date.now() - startedAt;
+        }
+        return cached;
+      }
+    } catch {
+      if (enableStats) {
+        stats.errors += 1;
+      }
+    }
+    if (inflightFunctions.has(cacheKey)) {
+      const pending = inflightFunctions.get(cacheKey);
+      const result = await pending;
+      if (enableStats) {
+        stats.hits += 1;
+        stats.calls += 1;
+        stats.totalTime += Date.now() - startedAt;
+      }
+      return result;
+    }
+    const runner = (async () => {
+      try {
+        const result = await fn(...args);
+        let shouldCache = true;
+        if (condition) {
+          try {
+            shouldCache = condition(result);
+          } catch {
+            if (enableStats) stats.errors += 1;
+            shouldCache = true;
+          }
+        }
+        if (shouldCache) {
+          try {
+            await Promise.resolve(cache.set(cacheKey, result, ttl));
+          } catch {
+            if (enableStats) stats.errors += 1;
+          }
+        }
+        return result;
+      } finally {
+        inflightFunctions.delete(cacheKey);
+      }
+    })();
+    inflightFunctions.set(cacheKey, runner);
+    try {
+      const result = await runner;
+      if (enableStats) {
+        stats.misses += 1;
+        stats.calls += 1;
+        stats.totalTime += Date.now() - startedAt;
+      }
+      return result;
+    } catch (cause) {
+      if (enableStats) {
+        stats.errors += 1;
+        stats.calls += 1;
+      }
+      throw cause;
+    }
+  });
+  wrapped.invalidate = async (...args) => {
+    let cacheKey;
+    try {
+      const baseKey = keyBuilder ? `${namespace}:${keyBuilder(...args)}` : `${namespace}:${fn.name || "anonymous"}:${stableStringify3(args)}`;
+      if (baseKey.length > 1024) {
+        const hash2 = createHash3("sha256").update(baseKey).digest("hex");
+        cacheKey = `${namespace}:${fn.name || "anonymous"}:hash:${hash2}`;
+      } else {
+        cacheKey = baseKey;
+      }
+    } catch {
+      return false;
+    }
+    const result = await Promise.resolve(cache.del?.(cacheKey) ?? cache.delete?.(cacheKey) ?? false);
+    return typeof result === "boolean" ? result : Number(result) > 0;
+  };
+  wrapped.getCacheStats = () => ({
+    hits: stats.hits,
+    misses: stats.misses,
+    calls: stats.calls,
+    hitRate: stats.calls > 0 ? stats.hits / stats.calls : 0,
+    errors: stats.errors,
+    avgTime: stats.calls > 0 ? stats.totalTime / stats.calls : 0
+  });
+  return wrapped;
+}
+var FunctionCache = class {
+  constructor(cacheOrDb, options = {}) {
+    this.functions = /* @__PURE__ */ new Map();
+    if (options !== null && typeof options !== "object") {
+      throw new Error("options must be an object");
+    }
+    const namespace = options.namespace;
+    if (namespace !== void 0 && typeof namespace !== "string") {
+      throw new Error("namespace must be a string");
+    }
+    this.options = options;
+    this.cache = resolveCache(cacheOrDb);
+    if ((this.options.defaultTTL ?? 6e4) < 0) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "FunctionCache: defaultTTL must be a non-negative number.");
+    }
+  }
+  /**
+   * Register a cacheable async function.
+   *
+   * @template {unknown[]} TArgs
+   * @template TResult
+   * @param {string} name - Registration name; accessed later via `execute()` / `invalidate()`.
+   * @param {(...args: TArgs) => Promise<TResult>} fn - The original async function.
+   * @param {WithCacheOptions} [options={}] - Per-function local cache configuration.
+   * @returns {void}
+   * @throws {Error} Throws an argument error when the name is empty.
+   * @since v1.3.0
+   */
+  register(name, fn, options = {}) {
+    if (!name?.trim()) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "Function name must be a non-empty string");
+    }
+    if (typeof fn !== "function") {
+      throw new Error("fn must be a function");
+    }
+    if (options && typeof options !== "object") {
+      throw new Error("options must be an object");
+    }
+    const cachedFn = withCache(fn, {
+      ...options,
+      cache: options.cache ?? this.cache,
+      namespace: `${this.options.namespace ?? "action"}:${name}`,
+      ttl: options.ttl ?? this.options.defaultTTL ?? 6e4,
+      enableStats: options.enableStats ?? this.options.enableStats ?? true
+    });
+    this.functions.set(name, cachedFn);
+  }
+  /**
+   * Execute a registered function.
+   *
+   * @param {string} name - Name of the registered function.
+   * @param {...unknown[]} args - Arguments to pass to the original function.
+   * @returns {Promise<unknown>} Returns the result from the original function or a cache hit.
+   * @throws {Error} Throws `FUNCTION_NOT_REGISTERED` when the function is not registered.
+   * @since v1.3.0
+   */
+  async execute(name, ...args) {
+    const fn = this.functions.get(name);
+    if (!fn) {
+      throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
+    }
+    return fn(...args);
+  }
+  /**
+   * Invalidate the cached result for a registered function under the given arguments.
+   *
+   * @param {string} name - Name of the registered function.
+   * @param {...unknown[]} args - Original function arguments used to reconstruct the cache key.
+   * @returns {Promise<boolean>} Returns `true` when the cache entry was successfully deleted.
+   * @throws {Error} Throws `FUNCTION_NOT_REGISTERED` when the function is not registered.
+   * @since v1.3.0
+   */
+  async invalidate(name, ...args) {
+    if (!name || typeof name !== "string") {
+      throw new Error("Function name must be a non-empty string");
+    }
+    const fn = this.functions.get(name);
+    if (!fn) {
+      throw createError("FUNCTION_NOT_REGISTERED", `Function not registered: ${name}`);
+    }
+    return fn.invalidate(...args);
+  }
+  /**
+   * Bulk-invalidate cache keys under the current namespace matching a pattern.
+   *
+   * @param {string} pattern - Wildcard pattern; the namespace prefix is prepended automatically when absent.
+   * @returns {Promise<number>} Number of cache keys actually deleted.
+   * @throws {Error} Throws an argument error when the pattern is empty.
+   * @since v1.3.0
+   */
+  async invalidatePattern(pattern) {
+    if (!pattern?.trim()) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "Pattern must be a non-empty string");
+    }
+    return Number(await Promise.resolve(this.cache.delPattern?.(`${this.options.namespace ?? "action"}:${pattern}`) ?? 0));
+  }
+  /**
+   * Get statistics.
+   *
+   * @param {string} [name] - When provided, returns stats for that specific registered function only; otherwise returns all.
+   * @returns {Record<string, unknown>} Statistics object.
+   * @since v1.3.0
+   */
+  getStats(name) {
+    if (name) {
+      if (this.options.enableStats === false) return null;
+      const stats = this.functions.get(name)?.getCacheStats();
+      return stats ? { ...stats } : null;
+    }
+    return Object.fromEntries(
+      [...this.functions.entries()].map(([functionName, fn]) => [functionName, fn.getCacheStats()])
+    );
+  }
+  /**
+   * List all registered function names.
+   *
+   * @returns {string[]}
+   * @since v1.3.0
+   */
+  list() {
+    return [...this.functions.keys()];
+  }
+  /**
+   * Reset statistics for one or all registered functions.
+   *
+   * @param {string} [name] - When provided, resets only the specified function; otherwise resets all.
+   * @returns {void}
+   * @since v1.3.0
+   */
+  resetStats(name) {
+    const names = name ? [name] : [...this.functions.keys()];
+    for (const functionName of names) {
+      const fn = this.functions.get(functionName);
+      if (!fn) {
         continue;
       }
-      const regex = new RegExp(`^${escapeRegExp(pattern).replace(/\\\*/g, ".*")}$`);
-      if (regex.test(key)) {
-        return true;
-      }
-    }
-    return false;
-  }
-  /**
-   * Release all cache locks held by the given owner.
-   * @since v1.4.0
-   */
-  releaseLocks(owner) {
-    const ownerId = typeof owner === "string" ? owner : String(owner.id ?? "unknown");
-    for (const [key, record] of this.locks.entries()) {
-      if (record.ownerId === ownerId) {
-        this.locks.delete(key);
-      }
+      const replacement = withCache(async (...args) => fn(...args), {
+        cache: this.cache,
+        namespace: `${this.options.namespace ?? "action"}:${functionName}:reset`,
+        ttl: 0
+      });
+      replacement.invalidate = fn.invalidate;
+      this.functions.set(functionName, replacement);
     }
   }
   /**
-   * Get cache lock statistics.
-   * @since v1.4.0
-   */
-  getStats() {
-    this.cleanupExpiredLocks();
-    return {
-      totalLocks: this.locks.size,
-      activeLocks: this.locks.size,
-      maxDuration: this.maxDuration
-    };
-  }
-  /**
-   * Clear all cache locks.
-   * @since v1.4.0
+   * Clear all registered function definitions.
+   *
+   * @returns {void}
+   * @since v1.3.0
    */
   clear() {
-    this.locks.clear();
-  }
-  /**
-   * Stop the cache lock manager.
-   * @since v1.4.0
-   */
-  stop() {
-    clearInterval(this.cleanupTimer);
-  }
-  cleanupExpiredLocks() {
-    const now = Date.now();
-    for (const [key, value] of this.locks.entries()) {
-      if (value.expiresAt <= now) {
-        this.locks.delete(key);
-      }
-    }
+    this.functions.clear();
   }
 };
-var Transaction = class {
-  constructor(session, options = {}) {
-    this.session = session;
-    this.options = options;
-    this.id = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    this.state = "pending";
-    this.startedAt = null;
-    this.timeoutTimer = null;
-    this.pendingInvalidations = /* @__PURE__ */ new Set();
-    this.session.__monSQLizeTransaction = this;
+function resolveCache(cacheOrDb) {
+  if (cacheOrDb && typeof cacheOrDb === "object" && typeof cacheOrDb.getCache === "function") {
+    return cacheOrDb.getCache();
   }
-  /**
-   * Start the transaction.
-   * @since v1.4.0
-   */
-  async start() {
-    if (this.state !== "pending") {
-      throw new Error(`Cannot start transaction in state: ${this.state}`);
-    }
-    this.session.startTransaction();
-    this.state = "active";
-    const timeout = this.options.timeout ?? 3e4;
-    if (timeout > 0) {
-      this.timeoutTimer = setTimeout(() => {
-        if (this.state === "active") {
-          this.options.logger?.warn?.(`[Transaction] auto-abort on timeout: ${this.id}`);
-          void this.abort();
-        }
-      }, timeout);
-      this.timeoutTimer.unref?.();
-    }
+  if (cacheOrDb && typeof cacheOrDb === "object" && typeof cacheOrDb.get === "function" && typeof cacheOrDb.set === "function") {
+    return cacheOrDb;
   }
-  /**
-   * Commit the transaction.
-   * @since v1.4.0
-   */
-  async commit() {
-    if (this.state !== "active") {
-      throw new Error(`Cannot commit transaction in state: ${this.state}`);
-    }
-    if (typeof this.session.commitTransaction === "function") {
-      await this.session.commitTransaction();
-    }
-    this.state = "committed";
-    this.options.lockManager?.releaseLocks(this.id);
-    this.pendingInvalidations.clear();
-    this.clearTimeout();
-  }
-  /**
-   * Roll back the transaction.
-   * @since v1.4.0
-   */
-  async abort() {
-    if (this.state !== "pending" && this.state !== "active") {
-      return;
-    }
-    if (this.state === "active") {
-      if (typeof this.session.abortTransaction === "function") {
-        await this.session.abortTransaction();
-      }
-    }
-    this.state = "aborted";
-    this.options.lockManager?.releaseLocks(this.id);
-    this.pendingInvalidations.clear();
-    this.clearTimeout();
-  }
-  /**
-   * End the transaction session.
-   * @since v1.4.0
-   */
-  async end() {
-    this.clearTimeout();
-    this.options.lockManager?.releaseLocks(this.id);
-    await this.session.endSession();
-  }
-  /**
-   * Record a cache invalidation intent.
-   * @since v1.4.0
-   */
-  async recordInvalidation(pattern) {
-    this.pendingInvalidations.add(pattern);
-    this.options.lockManager?.addLock(pattern, this.id);
-    if (this.options.cache?.delPattern) {
-      await this.options.cache.delPattern(pattern);
-    }
-  }
-  /**
-   * Get the transaction duration.
-   * @since v1.4.0
-   */
-  getDuration() {
-    if (!this.startedAt) {
-      return 0;
-    }
-    return Date.now() - this.startedAt;
-  }
-  /**
-   * Get transaction info.
-   * @since v1.4.0
-   */
-  getInfo() {
-    return {
-      id: this.id,
-      status: this.state,
-      duration: this.getDuration(),
-      sessionId: stringifySessionId(this.session.id)
-    };
-  }
-  clearTimeout() {
-    if (this.timeoutTimer) {
-      clearTimeout(this.timeoutTimer);
-      this.timeoutTimer = null;
-    }
-  }
-};
-var TransactionManager = class {
-  constructor(input, legacyCache, legacyOptions = {}) {
-    this.activeTransactions = /* @__PURE__ */ new Map();
-    this.durations = [];
-    this.stats = {
-      totalTransactions: 0,
-      successfulTransactions: 0,
-      failedTransactions: 0
-    };
-    const options = "client" in input ? input : {
-      client: input,
-      cache: legacyCache,
-      ...legacyOptions
-    };
-    this.client = options.client;
-    this.cache = options.cache ?? null;
-    this.logger = options.logger ?? null;
-    this.lockManager = options.lockManager ?? null;
-    this.defaultOptions = {
-      maxDuration: options.maxDuration ?? 3e4,
-      enableRetry: options.enableRetry ?? true,
-      maxRetries: options.maxRetries ?? 3,
-      retryDelay: options.retryDelay ?? 100,
-      retryBackoff: options.retryBackoff ?? 2
-    };
-  }
-  /**
-   * Create a manual transaction session.
-   * @since v1.4.0
-   */
-  async startSession(options = {}) {
-    const session = this.client.startSession({
-      causalConsistency: options.causalConsistency !== false
-    });
-    const transaction = new Transaction(session, {
-      cache: this.cache,
-      logger: this.logger,
-      lockManager: options.enableCacheLock === false ? null : this.lockManager,
-      timeout: options.timeout ?? options.maxDuration ?? this.defaultOptions.maxDuration
-    });
-    const originalEnd = transaction.end.bind(transaction);
-    transaction.end = async () => {
-      await originalEnd();
-      this.activeTransactions.delete(transaction.id);
-    };
-    this.activeTransactions.set(transaction.id, transaction);
-    return transaction;
-  }
-  /**
-   * Automatically manage the transaction lifecycle.
-   * @since v1.4.0
-   */
-  async withTransaction(callback, options = {}) {
-    const maxRetries = options.maxRetries ?? this.defaultOptions.maxRetries;
-    const retryDelay = options.retryDelay ?? this.defaultOptions.retryDelay;
-    const retryBackoff = options.retryBackoff ?? this.defaultOptions.retryBackoff;
-    const enableRetry = options.enableRetry ?? this.defaultOptions.enableRetry;
-    let lastError;
-    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
-      const transaction = await this.startSession(options);
-      const startedAt = Date.now();
-      try {
-        await transaction.start();
-        const result = await callback(transaction);
-        await transaction.commit();
-        this.recordStats(Date.now() - startedAt, true);
-        return result;
-      } catch (error) {
-        lastError = error;
-        await transaction.abort();
-        this.recordStats(Date.now() - startedAt, false);
-        if (!enableRetry || attempt === maxRetries || !isTransientTransactionError(error)) {
-          throw error;
-        }
-        await sleep3(retryDelay * Math.pow(retryBackoff, attempt));
-      } finally {
-        await transaction.end();
-      }
-    }
-    throw lastError instanceof Error ? lastError : new Error("Transaction failed.");
-  }
-  /**
-   * Get all active transactions.
-   * @since v1.4.0
-   */
-  getActiveTransactions() {
-    return [...this.activeTransactions.values()];
-  }
-  /**
-   * Abort all active transactions.
-   * @since v1.4.0
-   */
-  async abortAll() {
-    const transactions = this.getActiveTransactions();
-    for (const transaction of transactions) {
-      await transaction.abort();
-      await transaction.end();
-      this.activeTransactions.delete(transaction.id);
-    }
-  }
-  /**
-   * Get transaction statistics.
-   * @since v1.4.0
-   */
-  getStats() {
-    const averageDuration = this.durations.length === 0 ? 0 : this.durations.reduce((sum, item) => sum + item, 0) / this.durations.length;
-    return {
-      totalTransactions: this.stats.totalTransactions,
-      successfulTransactions: this.stats.successfulTransactions,
-      failedTransactions: this.stats.failedTransactions,
-      activeTransactions: this.activeTransactions.size,
-      averageDuration
-    };
-  }
-  recordStats(duration, success) {
-    this.stats.totalTransactions += 1;
-    if (success) {
-      this.stats.successfulTransactions += 1;
-    } else {
-      this.stats.failedTransactions += 1;
-    }
-    this.durations.push(duration);
-    if (this.durations.length > 100) {
-      this.durations.shift();
-    }
-  }
-};
-function stringifySessionId(id) {
-  if (typeof id === "string") {
-    return id;
-  }
-  if (typeof id === "object" && id !== null) {
-    const candidate = id;
-    if (typeof candidate.toHexString === "function") {
-      return candidate.toHexString();
-    }
-    if (candidate.id?.buffer) {
-      return Buffer.from(candidate.id.buffer).toString("hex");
-    }
-    if (typeof candidate.toString === "function") {
-      return candidate.toString();
-    }
-  }
-  return String(id);
+  return new MemoryCache();
 }
-function isTransientTransactionError(error) {
-  if (!error || typeof error !== "object") {
-    return false;
+function stableStringify3(value, _seen = /* @__PURE__ */ new WeakSet()) {
+  if (typeof value === "function" || typeof value === "symbol") {
+    return JSON.stringify("[UNSUPPORTED]");
   }
-  const candidate = error;
-  if (typeof candidate.hasErrorLabel === "function" && candidate.hasErrorLabel("TransientTransactionError")) {
-    return true;
+  if (typeof value === "number" && Number.isNaN(value)) {
+    return JSON.stringify("NaN");
   }
-  return candidate.code === 112 || candidate.code === 117;
+  if (value instanceof RegExp) {
+    return JSON.stringify(value.toString());
+  }
+  if (value instanceof Date) {
+    return JSON.stringify(value.toISOString());
+  }
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify3(item, _seen)).join(",")}]`;
+  }
+  if (_seen.has(value)) {
+    return JSON.stringify("[CIRCULAR]");
+  }
+  _seen.add(value);
+  const keys = Object.keys(value).sort();
+  const result = `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify3(value[k], _seen)}`).join(",")}}`;
+  _seen.delete(value);
+  return result;
 }
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-async function sleep3(ms) {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// src/adapters/mongodb/common/connect.ts
-import { MongoClient } from "mongodb";
-var _memoryServerInstance = null;
-async function startMemoryServer(logger, memoryServerOptions = {}) {
-  if (_memoryServerInstance) {
-    return _memoryServerInstance.getUri();
-  }
-  const { MongoMemoryReplSet } = __require("mongodb-memory-server");
-  logger?.info?.("\u{1F680} Starting MongoDB Memory ReplSet (transactions supported)...");
-  const defaultConfig = {
-    replSet: { count: 1, storageEngine: "wiredTiger" },
-    binary: { version: "6.0.12" },
-    instanceOpts: [{ ...memoryServerOptions?.instance ?? {} }]
-  };
-  const resolvedConfig = {
-    ...defaultConfig,
-    binary: { ...defaultConfig.binary, ...memoryServerOptions?.binary ?? {} }
-  };
-  try {
-    _memoryServerInstance = await MongoMemoryReplSet.create(resolvedConfig);
-    const uri = _memoryServerInstance.getUri();
-    logger?.info?.("\u2705 MongoDB Memory ReplSet started", { uri });
-    return uri;
-  } catch (err) {
-    logger?.error?.("\u274C Failed to start MongoDB Memory ReplSet", err);
-    throw new Error(`Failed to start MongoDB Memory ReplSet: ${err.message}`);
-  }
-}
-async function connectMongo(params) {
-  const databaseName = params.databaseName?.trim();
-  if (!databaseName) {
-    throw createError(ErrorCodes.INVALID_DATABASE_NAME, "Database name must be a non-empty string.");
-  }
-  let effectiveUri = params.config?.uri?.trim();
-  if (!effectiveUri && params.config?.useMemoryServer === true) {
-    if (process.env["MONSQLIZE_USE_SYSTEM_MONGO"] === "true") {
-      const systemUri = process.env["MONSQLIZE_SYSTEM_MONGO_URI"] ?? "mongodb://127.0.0.1:27017";
-      params.logger?.info?.("\u{1F527} Using system MongoDB instead of memory server", { uri: systemUri });
-      effectiveUri = systemUri;
-    } else {
-      effectiveUri = await startMemoryServer(params.logger, params.config.memoryServerOptions);
-    }
-  }
-  if (!effectiveUri) {
-    throw createError(ErrorCodes.INVALID_CONFIG, "MongoDB connect requires config.uri.");
-  }
-  const client = new MongoClient(effectiveUri, params.config?.options);
-  try {
-    await client.connect();
-    const db = client.db(databaseName);
-    params.logger?.info?.("MongoDB connected", { databaseName });
-    return { client, db };
-  } catch (cause) {
-    try {
-      await client.close();
-    } catch {
-    }
-    throw createConnectionError(
-      `Failed to connect to MongoDB database: ${databaseName}`,
-      cause instanceof Error ? cause : void 0
-    );
-  }
-}
-async function closeMongo(client, logger) {
-  if (!client) {
-    return;
-  }
-  try {
-    await client.close();
-    logger?.info?.("MongoDB connection closed");
-  } catch (cause) {
-    const error = createError(
-      ErrorCodes.CONNECTION_CLOSED,
-      "Failed to close MongoDB connection cleanly.",
-      void 0,
-      cause instanceof Error ? cause : void 0
-    );
-    logger?.warn?.(error.message, error.cause);
-  }
-}
-
-// src/utils/validation.ts
-function validateRange(value, min, max, name) {
-  if (typeof value !== "number" || isNaN(value)) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, `${name} \u5FC5\u987B\u662F\u4E00\u4E2A\u6709\u6548\u7684\u6570\u5B57`);
-  }
-  if (!isFinite(value)) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, `${name} \u5FC5\u987B\u662F\u6709\u9650\u6570\u5B57`);
-  }
-  if (value < min || value > max) {
-    throw createError(
-      ErrorCodes.INVALID_ARGUMENT,
-      `${name} \u5FC5\u987B\u5728 ${min} \u5230 ${max} \u4E4B\u95F4\uFF0C\u5F53\u524D\u503C: ${value}`
-    );
-  }
-  return value;
-}
-
-// src/core/logger/index.ts
-import { AsyncLocalStorage } from "node:async_hooks";
-var _storage = null;
-try {
-  _storage = new AsyncLocalStorage();
-} catch {
-  _storage = null;
-}
-var Logger = class _Logger {
-  constructor(_logger = null, _options = {}) {
-    this._logger = _logger;
-    this._options = _options;
-  }
-  _formatStructured(level, msg, ctx) {
-    const entry = {
-      level: level.toUpperCase(),
-      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      message: msg
-    };
-    if (_storage) {
-      const store = _storage.getStore();
-      if (store?.traceId) {
-        entry.traceId = store.traceId;
-      }
-    }
-    if (ctx !== void 0) {
-      entry.context = ctx;
-    }
-    return JSON.stringify(entry);
-  }
-  /**
-   * Outputs a debug log.
-   * @since v1.3.0
-   */
-  debug(msg, ctx) {
-    if (this._options.structured) {
-      this._logger?.debug?.(this._formatStructured("debug", msg, ctx));
-    } else {
-      ctx !== void 0 ? this._logger?.debug?.(msg, ctx) : this._logger?.debug?.(msg);
-    }
-  }
-  /**
-   * Outputs an info log.
-   * @since v1.3.0
-   */
-  info(msg, ctx) {
-    if (this._options.structured) {
-      this._logger?.info?.(this._formatStructured("info", msg, ctx));
-    } else {
-      ctx !== void 0 ? this._logger?.info?.(msg, ctx) : this._logger?.info?.(msg);
-    }
-  }
-  /**
-   * Outputs a warn log.
-   * @since v1.3.0
-   */
-  warn(msg, ctx) {
-    if (this._options.structured) {
-      this._logger?.warn?.(this._formatStructured("warn", msg, ctx));
-    } else {
-      ctx !== void 0 ? this._logger?.warn?.(msg, ctx) : this._logger?.warn?.(msg);
-    }
-  }
-  /**
-   * Outputs an error log.
-   * @since v1.3.0
-   */
-  error(msg, ctx) {
-    if (this._options.structured) {
-      this._logger?.error?.(this._formatStructured("error", msg, ctx));
-    } else {
-      ctx !== void 0 ? this._logger?.error?.(msg, ctx) : this._logger?.error?.(msg);
-    }
-  }
-  /**
-   * Creates a Logger instance.
-   * @since v1.3.0
-   */
-  static create(logger = null, options = {}) {
-    const effectiveLogger = logger !== null && _Logger.isValidLogger(logger) ? logger : null;
-    return new _Logger(effectiveLogger, options);
-  }
-  /**
-   * Creates a silent logger that discards all output.
-   * @since v1.4.0
-   */
-  static createSilent() {
-    const noop = () => {
-    };
-    return { debug: noop, info: noop, warn: noop, error: noop };
-  }
-  /**
-   * Generates a random 16-character hex trace ID.
-   * @since v1.4.0
-   */
-  static generateTraceId() {
-    return __require("crypto").randomBytes(8).toString("hex");
-  }
-  /**
-   * Returns true when the given value is a valid logger (has all four log-level methods).
-   * @since v1.4.0
-   */
-  static isValidLogger(logger) {
-    if (!logger || typeof logger !== "object") return false;
-    const l = logger;
-    return typeof l.debug === "function" && typeof l.info === "function" && typeof l.warn === "function" && typeof l.error === "function";
-  }
-  static {
-    /**
-     * Runs `fn` inside an AsyncLocalStorage context tagged with `traceId`.
-     * When AsyncLocalStorage is unavailable this is `undefined`.
-     * @since v1.4.0
-     */
-    this.withTraceId = _storage ? (fn, traceId) => _storage.run({ traceId: traceId ?? _Logger.generateTraceId() }, fn) : void 0;
-  }
-  static {
-    /**
-     * Returns the trace ID from the current AsyncLocalStorage context, or `null` if none.
-     * When AsyncLocalStorage is unavailable this is `undefined`.
-     * @since v1.4.0
-     */
-    this.getTraceId = _storage ? () => _storage.getStore()?.traceId ?? null : void 0;
-  }
-  /**
-   * Creates a logger that prepends an ISO timestamp to every message.
-   * @since v1.4.0
-   */
-  static createWithTimestamp(customLogger) {
-    const base = new _Logger(customLogger ?? null);
-    const ts = () => (/* @__PURE__ */ new Date()).toISOString();
-    return {
-      debug: (msg, ...args) => base.debug(`${ts()} ${msg}`, ...args),
-      info: (msg, ...args) => base.info(`${ts()} ${msg}`, ...args),
-      warn: (msg, ...args) => base.warn(`${ts()} ${msg}`, ...args),
-      error: (msg, ...args) => base.error(`${ts()} ${msg}`, ...args)
-    };
-  }
-};
 
 // src/entry/runtime-core.ts
 var MonSQLizeRuntime = class {
@@ -8064,293 +8957,35 @@ var MonSQLizeRuntime = class {
     this._logger = Logger.create(options.logger ?? null);
     this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
     this._cache.setLockManager(this._cacheLockManager);
-    this._runtimeDefaults = this._buildRuntimeDefaults();
+    this._runtimeDefaults = buildRuntimeDefaults(options);
     this._adapterCacheOverride = void 0;
-    this._adapterBridge = {};
-    Object.defineProperties(this._adapterBridge, {
-      db: {
-        enumerable: true,
-        get: () => this._defaultDb?.raw() ?? null
-      },
-      client: {
-        enumerable: true,
-        get: () => this._client
-      },
-      cache: {
-        enumerable: true,
-        get: () => this.resolveAdapterCache(),
-        set: (value) => {
-          this._adapterCacheOverride = value;
-        }
-      },
-      instanceId: {
-        enumerable: true,
-        get: () => this._runtimeDefaults.namespace?.instanceId
-      }
-    });
-    Object.defineProperties(this._adapterBridge, {
-      ping: {
-        enumerable: true,
-        value: async () => {
-          this.ensureConnected();
-          return this.db().admin().ping();
-        }
-      },
-      buildInfo: {
-        enumerable: true,
-        value: async () => {
-          this.ensureConnected();
-          return this.db().admin().buildInfo();
-        }
-      },
-      serverStatus: {
-        enumerable: true,
-        value: async (options2) => {
-          this.ensureConnected();
-          return this.db().admin().serverStatus(options2 ?? {});
-        }
-      },
-      stats: {
-        enumerable: true,
-        value: async (options2) => {
-          this.ensureConnected();
-          return this.db().admin().stats(options2 ?? {});
-        }
-      },
-      listDatabases: {
-        enumerable: true,
-        value: async (options2) => {
-          this.ensureConnected();
-          return this.db().listDatabases(options2 ?? {});
-        }
-      },
-      dropDatabase: {
-        enumerable: true,
-        value: async (name, options2) => {
-          this.ensureConnected();
-          if (!name || typeof name !== "string") {
-            throw new Error("Database name is required and must be a non-empty string");
-          }
-          if (!options2?.confirm) {
-            const err = new Error(
-              "dropDatabase requires explicit confirmation. Pass { confirm: true } to proceed.\n\n\u26A0\uFE0F  WARNING: This will DELETE ALL DATA in the database!\n\u26A0\uFE0F  This operation CANNOT BE UNDONE!"
-            );
-            err.code = "CONFIRMATION_REQUIRED";
-            throw err;
-          }
-          const isProduction = process.env["NODE_ENV"] === "production";
-          if (isProduction && !options2?.allowProduction) {
-            const err = new Error("dropDatabase is blocked in production. Pass { allowProduction: true } to override.");
-            err.code = "PRODUCTION_BLOCKED";
-            throw err;
-          }
-          if (!this._client) {
-            throw createError(ErrorCodes.NOT_CONNECTED, "MonSQLize is not connected yet.");
-          }
-          await this._client.db(name).dropDatabase();
-          return { dropped: true, database: name, timestamp: /* @__PURE__ */ new Date() };
-        }
-      },
-      listCollections: {
-        enumerable: true,
-        value: async (options2) => {
-          this.ensureConnected();
-          const opts = options2 ?? {};
-          const nameOnly = opts["nameOnly"] === true;
-          const filter = { ...opts };
-          delete filter["nameOnly"];
-          const results = await this.db().listCollections(filter);
-          if (nameOnly) {
-            return results.map((c) => c.name);
-          }
-          return results;
-        }
-      },
-      runCommand: {
-        enumerable: true,
-        value: async (command, options2) => {
-          this.ensureConnected();
-          if (command === null || typeof command !== "object") {
-            throw new Error("Command must be a non-null object");
-          }
-          return this.db().runCommand(command, options2 ?? {});
-        }
-      }
-    });
-    Object.defineProperty(this._adapterBridge, "_iidCache", {
-      enumerable: true,
-      get: () => this._iidCache,
-      set: (value) => {
-        this._iidCache = value;
-      }
-    });
-    Object.defineProperty(this._adapterBridge, "collection", {
-      enumerable: true,
-      value: (dbName, collName) => {
-        if (!this._client) {
-          throw createError(ErrorCodes.NOT_CONNECTED, "MonSQLize is not connected yet.");
-        }
-        const nativeColl = this._client.db(dbName).collection(collName);
-        const withSlowQuery = async (op, exec, query) => {
-          const t0 = performance.now();
-          const result = await exec();
-          const durationMs = Math.max(1, Math.ceil(performance.now() - t0));
-          const threshold = this.options.slowQueryMs ?? 500;
-          const manager = this.initializeSlowQueryLogManager();
-          if (manager && durationMs >= threshold) {
-            const entry = {
-              database: dbName,
-              collection: collName,
-              operation: op,
-              durationMs,
-              query,
-              timestamp: /* @__PURE__ */ new Date()
-            };
-            await manager.save(entry);
-            this.emit("slow-query", entry);
-            this.emit("query", entry);
-          }
-          return result;
-        };
-        return {
-          find: async (query, options2) => withSlowQuery("find", () => nativeColl.find(query ?? {}, options2).toArray(), query),
-          findOne: async (query, options2) => withSlowQuery("findOne", () => nativeColl.findOne(query, options2), query),
-          insertOne: async (doc, options2) => withSlowQuery("insertOne", () => nativeColl.insertOne(doc, options2)),
-          insertMany: async (docs, options2) => withSlowQuery("insertMany", () => nativeColl.insertMany(docs, options2)),
-          updateOne: async (filter, update, options2) => withSlowQuery("updateOne", () => nativeColl.updateOne(filter, update, options2)),
-          updateMany: async (filter, update, options2) => withSlowQuery("updateMany", () => nativeColl.updateMany(filter, update, options2)),
-          deleteOne: async (filter, options2) => withSlowQuery("deleteOne", () => nativeColl.deleteOne(filter, options2)),
-          deleteMany: async (filter, options2) => withSlowQuery("deleteMany", () => nativeColl.deleteMany(filter, options2)),
-          aggregate: async (pipeline, options2) => withSlowQuery("aggregate", () => nativeColl.aggregate(pipeline, options2).toArray()),
-          countDocuments: async (filter, options2) => withSlowQuery("countDocuments", () => nativeColl.countDocuments(filter ?? {}, options2)),
-          drop: async () => nativeColl.drop()
-        };
-      }
-    });
-    Object.defineProperty(this._adapterBridge, "slowQueryLogManager", {
-      enumerable: true,
-      configurable: true,
-      get: () => this._slowQueryLogManager
-    });
-    const _deepMerge = (base, patch) => {
-      const out = { ...base };
-      for (const k of Object.keys(patch || {})) {
-        const v = patch[k];
-        if (v && typeof v === "object" && !Array.isArray(v)) {
-          out[k] = _deepMerge(base[k] || {}, v);
-        } else if (v !== void 0) {
-          out[k] = v;
-        }
-      }
-      return out;
-    };
-    const DEFAULTS = {
-      maxTimeMS: 2e3,
-      findLimit: 10,
-      slowQueryMs: 500,
-      namespace: { scope: "database" },
-      findPageMaxLimit: 500,
-      cursorSecret: void 0,
-      log: { slowQueryTag: { event: "slow_query", code: "SLOW_QUERY" } }
-    };
-    this.defaults = Object.freeze(_deepMerge(DEFAULTS, {
-      maxTimeMS: options.maxTimeMS,
-      findLimit: options.findLimit,
-      findPageMaxLimit: options.findPageMaxLimit,
-      slowQueryMs: options.slowQueryMs,
-      namespace: options.namespace,
-      cursorSecret: options.cursorSecret,
-      autoConvertObjectId: options.autoConvertObjectId,
-      log: options.log,
-      slowQueryLog: options.slowQueryLog,
-      cacheAutoInvalidate: options.cacheAutoInvalidate
-    }));
-    this.autoConvertConfig = this._initAutoConvertConfig(options.autoConvertObjectId, options.type);
+    this._adapterBridge = createRuntimeAdapterBridge(this.createAdapterBridgeHost());
+    this.defaults = buildPublicDefaults(options);
+    this.autoConvertConfig = initAutoConvertConfig(options.autoConvertObjectId, options.type);
   }
   /** v1-compatible: public logger access (tests may monkey-patch .warn/.info). */
   get logger() {
     return this._logger;
   }
-  /** v1-compatible: initialize autoConvertConfig from constructor options. */
-  _initAutoConvertConfig(config, type) {
-    if (type !== "mongodb") {
-      return { enabled: false };
-    }
-    if (config === false) {
-      return { enabled: false };
-    }
-    const defaults = { enabled: true, excludeFields: [], customFieldPatterns: [], maxDepth: 10, logLevel: "warn" };
-    if (config === true || config === void 0) {
-      return defaults;
-    }
-    if (typeof config === "object" && config !== null) {
-      if (config.enabled === false) {
-        return { enabled: false };
-      }
-      return {
-        ...defaults,
-        ...config,
-        enabled: true
-      };
-    }
-    return defaults;
-  }
-  _buildRuntimeDefaults() {
-    const o = this.options;
-    const defaults = {};
-    if (o.maxTimeMS !== void 0) defaults.maxTimeMS = o.maxTimeMS;
-    if (o.findLimit !== void 0) defaults.findLimit = o.findLimit;
-    if (o.findPageMaxLimit !== void 0) defaults.findPageMaxLimit = o.findPageMaxLimit;
-    if (o.slowQueryMs !== void 0) defaults.slowQueryMs = o.slowQueryMs;
-    defaults.autoConvertObjectId = o.autoConvertObjectId !== void 0 ? o.autoConvertObjectId : o.type === "mongodb" || !o.type ? true : false;
-    if (o.cursorSecret !== void 0) defaults.cursorSecret = o.cursorSecret;
-    if (o.namespace !== void 0) defaults.namespace = o.namespace;
-    if (o.countQueue?.enabled) {
-      defaults.countQueue = new CountQueue({
-        concurrency: o.countQueue.concurrency,
-        maxQueueSize: o.countQueue.maxQueueSize,
-        timeout: o.countQueue.timeout
-      });
-    }
-    return defaults;
-  }
-  /**
-   * Establishes the database connection and returns the standard accessor set for the current runtime.
-   *
-   * Behavior:
-   * - The first call actually connects to MongoDB and initializes all enabled capabilities
-   * - Subsequent calls reuse the existing connection
-   * - Concurrent calls share the same in-progress connection promise to avoid duplicate connections
-   *
-   * @returns {Promise<{ collection: (name: string) => CollectionFacade; db: (name?: string) => DbFacade; use: (name: string) => { collection: (collectionName: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>; }; instance: MonSQLizeRuntime; }>} Returns an accessor object containing `collection`, `db`, `use`, and `instance`.
-   * @throws {Error} Thrown when the connection configuration is invalid, the MongoDB connection fails, or initialization of a capability fails.
-   * @since v1.3.0
-   */
   async connect() {
     if (this._connected) {
-      return this.createRuntimeAccessors();
+      return this.createAccessors();
     }
     if (this._connectionPromise) {
       return this._connectionPromise;
     }
     this._connectionPromise = (async () => {
-      const databaseName = this.resolveDatabaseName();
-      const { client, db } = await connectMongo({
+      const databaseName = resolveDatabaseName(this.options);
+      const { client } = await connectMongo({
         databaseName,
         config: this.options.config,
         logger: this._logger
       });
       this._client = client;
-      this._defaultDb = new MongoDbAccessor(databaseName, db, {
-        cache: this.resolveAdapterCache(),
-        queryCache: this.resolveAdapterCache(),
-        getCache: () => this.resolveAdapterCache(),
-        getQueryCache: () => this.resolveAdapterCache(),
-        logger: this._logger,
-        defaults: this._runtimeDefaults,
-        cacheAutoInvalidate: !!this.options.cache?.autoInvalidate
-      });
-      await this.ensurePoolManager();
+      this._defaultDb = this.createDbFacade(databaseName);
+      if (!this._poolManager) {
+        this._poolManager = await createAndStartPoolManager(this.options);
+      }
       this.initializeSagaOrchestrator();
       this.initializeSlowQueryLogManager();
       await this.initializeSyncManager();
@@ -8360,14 +8995,14 @@ var MonSQLizeRuntime = class {
         type: this.options.type,
         db: databaseName
       });
-      return this.createRuntimeAccessors();
+      return this.createAccessors();
     })();
     try {
       return await this._connectionPromise;
     } catch (error) {
       this.emit("error", {
         type: this.options.type,
-        db: this.resolveDatabaseName(),
+        db: resolveDatabaseName(this.options),
         error: error instanceof Error ? error.message : String(error)
       });
       throw error;
@@ -8375,23 +9010,9 @@ var MonSQLizeRuntime = class {
       this._connectionPromise = null;
     }
   }
-  /**
-   * Returns the local cache instance bound to the current runtime.
-   *
-   * @returns {MemoryCache}
-   * @since v1.3.0
-   */
   getCache() {
     return this._cache;
   }
-  /**
-   * Returns a snapshot of the current instance's default public configuration.
-   *
-   * This method exposes the lightweight default state of the current instance, rather than the full internal configuration object.
-   *
-   * @returns {Record<string, unknown>}
-   * @since v1.3.0
-   */
   getDefaults() {
     const d = this.defaults;
     return {
@@ -8410,10 +9031,6 @@ var MonSQLizeRuntime = class {
       models: this.options.models
     };
   }
-  /**
-   * Closes the connection.
-   * @since v1.3.0
-   */
   async close() {
     await this._syncManager?.stop();
     await this._slowQueryLogManager?.close();
@@ -8434,13 +9051,9 @@ var MonSQLizeRuntime = class {
     this._modelInstances.clear();
     this.emit("closed", {
       type: this.options.type,
-      db: this.resolveDatabaseName()
+      db: resolveDatabaseName(this.options)
     });
   }
-  /**
-   * Health check.
-   * @since v1.3.0
-   */
   async health() {
     return {
       status: this._connected ? "up" : "down",
@@ -8452,29 +9065,14 @@ var MonSQLizeRuntime = class {
       }
     };
   }
-  /**
-   * v1-compat: Exposes the cache property publicly.
-   * In v1, `msq.cache` directly exposes the internal MemoryCache instance.
-   * @since v1.3.0 (v1-compat)
-   */
+  // v1 直接暴露 cache / _adapter / dbInstance / _connecting，这里保持同名桥接。
   get cache() {
     return this._cache;
   }
-  /**
-   * v1-compat adapter accessor.
-   *
-   * In v1 tests, the native MongoDB Db object is accessed via `msq._adapter.db`.
-   * @since v1.3.0 (v1-compat)
-   */
   get _adapter() {
     if (this._client === null) return null;
     return this._adapterBridge;
   }
-  /**
-   * v1-compat: Connection instance; null when not connected or after close.
-   * In v1, `dbInstance` is the { collection, db } object returned by connect().
-   * @since v1.3.0 (v1-compat)
-   */
   get dbInstance() {
     if (this._client === null) return null;
     return {
@@ -8482,46 +9080,23 @@ var MonSQLizeRuntime = class {
       db: (name) => this.db(name)
     };
   }
-  /**
-   * v1-compat: Connection-lock Promise; set to null after the connection succeeds or fails.
-   * In v1, `_connecting` is the in-progress connection Promise, set to null after completion.
-   * @since v1.3.0 (v1-compat)
-   */
   get _connecting() {
     return this._connectionPromise;
   }
-  /**
-   * Returns the Collection accessor for the default database.
-   *
-   * @param {string} name - Collection name.
-   * @returns {CollectionFacade}
-   * @throws {Error} Throws `NOT_CONNECTED` when the runtime is not yet connected.
-   * @since v1.3.0
-   */
+  // Root accessors ----------------------------------------------------------
   collection(name) {
     if (!name || typeof name !== "string" || !name.trim()) {
       const err = new Error("Collection name must be a non-empty string");
       err.code = "INVALID_COLLECTION_NAME";
       throw err;
     }
-    const self = this;
-    if (!self["dbInstance"]) {
-      throw createError(ErrorCodes.NOT_CONNECTED, "Database is not connected. Call connect() before accessing collections.");
-    }
+    const dbInstance = requireCompatDbInstance(this);
     if (this._client) {
       if (!this._iidCache) this._iidCache = /* @__PURE__ */ new Map();
       return this.db().collection(name);
     }
-    return self["dbInstance"].collection(name);
+    return dbInstance.collection(name);
   }
-  /**
-   * Returns the database accessor.
-   *
-   * @param {string} [name] - Optional database name; uses the default database when omitted.
-   * @returns {DbFacade}
-   * @throws {Error} Throws `NOT_CONNECTED` when the runtime is not yet connected.
-   * @since v1.3.0
-   */
   db(name) {
     if (name !== void 0) {
       if (!name || typeof name !== "string" || !name.trim()) {
@@ -8534,174 +9109,56 @@ var MonSQLizeRuntime = class {
     if (!this._client) {
       throw createError(ErrorCodes.NOT_CONNECTED, "MonSQLize is not connected yet.");
     }
-    const databaseName = name ?? this.resolveDatabaseName();
-    if (databaseName === this.resolveDatabaseName() && this._defaultDb) {
+    const databaseName = name ?? resolveDatabaseName(this.options);
+    if (databaseName === resolveDatabaseName(this.options) && this._defaultDb) {
       return this._defaultDb;
     }
-    return new MongoDbAccessor(databaseName, this._client.db(databaseName), {
-      cache: this.resolveAdapterCache(),
-      queryCache: this.resolveAdapterCache(),
-      getCache: () => this.resolveAdapterCache(),
-      getQueryCache: () => this.resolveAdapterCache(),
-      logger: this._logger,
-      defaults: this._runtimeDefaults,
-      cacheAutoInvalidate: !!this.options.cache?.autoInvalidate
-    });
+    return this.createDbFacade(databaseName);
   }
   resolveAdapterCache() {
     return this._adapterCacheOverride === void 0 ? this._cache : this._adapterCacheOverride;
   }
-  /**
-   * Returns the accessor set scoped to the specified database.
-   *
-   * @param {string} name - Target database name.
-   * @returns {{ collection: (collectionName: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>; }} Returns `collection()` and `model()` accessors bound to the given database.
-   * @throws {Error} Throws `NOT_CONNECTED` when the runtime is not yet connected.
-   * @since v1.3.0
-   */
+  setAdapterCache(value) {
+    this._adapterCacheOverride = value;
+  }
   use(name) {
-    const self = this;
-    if (!self["dbInstance"]) {
-      throw createError(ErrorCodes.NOT_CONNECTED, "Database is not connected. Call connect() first.");
-    }
+    requireCompatDbInstance(this);
     return {
       collection: (collectionName) => this.scopedCollection(collectionName, { database: name }),
       model: (modelName) => this.scopedModel(modelName, { database: name })
     };
   }
-  /**
-   * Returns the accessor set scoped to the specified connection pool.
-   *
-   * @param {string} poolName - Name of the connection pool.
-   * @returns {{ collection: (name: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>; use: (dbName: string) => { collection: (name: string) => CollectionFacade; model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>; }; }} Returns collection/model/use accessors bound to the connection pool.
-   * @throws {Error} Thrown when the runtime is not yet connected, `options.pools` is not configured, or the specified pool does not exist.
-   * @since v1.3.0
-   */
   pool(poolName) {
-    const self = this;
-    if (!self["dbInstance"]) {
-      throw createError(ErrorCodes.NOT_CONNECTED, "Database is not connected. Call connect() first.");
-    }
-    const poolMgr = self["_poolManager"];
-    if (!poolMgr) {
-      throw createError(ErrorCodes.NO_POOL_MANAGER, "No pool manager configured. Add pools to MonSQLize constructor options.");
-    }
-    const getPoolV1 = poolMgr["_getPool"];
-    const getPoolV2 = poolMgr["getPool"];
-    let client = null;
-    if (typeof getPoolV1 === "function") {
-      client = getPoolV1.call(poolMgr, poolName);
-    } else if (typeof getPoolV2 === "function") {
-      try {
-        client = getPoolV2.call(poolMgr, poolName);
-      } catch {
-        client = null;
-      }
-    }
-    if (!client) {
-      const getNames = poolMgr["getPoolNames"];
-      const available = typeof getNames === "function" ? getNames.call(poolMgr) : [];
-      const err = createError(ErrorCodes.POOL_NOT_FOUND, `Pool '${poolName}' not found. Available pools: [${available.join(", ")}]`);
-      err["available"] = available;
-      throw err;
-    }
-    return {
-      collection: (name) => this.scopedCollection(name, { pool: poolName }),
-      model: (name) => this.scopedModel(name, { pool: poolName }),
-      use: (dbName) => ({
-        collection: (name) => this.scopedCollection(name, { pool: poolName, database: dbName }),
-        model: (name) => this.scopedModel(name, { pool: poolName, database: dbName })
-      })
-    };
+    requireCompatDbInstance(this);
+    const poolManager = requireCompatPoolManagerRecord(this);
+    assertCompatPoolExists(poolManager, poolName);
+    return createPoolScope(this, poolName);
   }
-  /**
-   * Returns the Collection accessor under the optional database / connection pool scope.
-   *
-   * @param {string} name - Collection name.
-   * @param {{ database?: string; pool?: string; }} [options={}] - Optional database name or connection pool name.
-   * @returns {CollectionFacade}
-   * @throws {Error} Thrown when the runtime is not yet connected or the specified pool does not exist.
-   * @since v1.3.0
-   */
   scopedCollection(name, options = {}) {
-    const self = this;
-    if (!self["dbInstance"]) {
-      throw createError(ErrorCodes.NOT_CONNECTED, "Database is not connected. Call connect() first.");
-    }
+    requireCompatDbInstance(this);
     const { pool, database } = options;
     if (!pool && !database) {
       return this.collection(name);
     }
     return this._resolveModelCollection(name, { pool, database });
   }
-  /**
-   * v1-compat: Resolves the model/collection route, supporting pool and database switching.
-   * In mock environments uses _adapter.collectionFromClient; in real v2 uses the pool manager's selectPool.
-   * @since v1.3.0
-   */
   _resolveModelCollection(collectionName, connection) {
-    const poolName = connection.pool;
-    const self = this;
-    const optsRaw = self["options"];
-    const defaultDb = self["databaseName"] ?? optsRaw?.["databaseName"] ?? optsRaw?.["database"] ?? "default";
-    const dbName = connection.database || defaultDb;
-    if (poolName) {
-      const poolMgr = self["_poolManager"];
-      if (!poolMgr) {
-        throw createError(ErrorCodes.NO_POOL_MANAGER, `Model '${collectionName}' requires pool '${poolName}' but no pools are configured. Add 'pools' to MonSQLize constructor options.`);
-      }
-      let client = null;
-      const getPoolV1 = poolMgr["_getPool"];
-      const getPoolV2 = poolMgr["getPool"];
-      if (typeof getPoolV1 === "function") {
-        client = getPoolV1.call(poolMgr, poolName);
-      } else if (typeof getPoolV2 === "function") {
-        try {
-          client = getPoolV2.call(poolMgr, poolName);
-        } catch {
-          client = null;
-        }
-      }
-      if (!client) {
-        const getNames = poolMgr["getPoolNames"];
-        const available = typeof getNames === "function" ? getNames.call(poolMgr) : [];
-        const err = createError(ErrorCodes.POOL_NOT_FOUND, `Pool '${poolName}' not found. Available pools: [${available.join(", ")}]`);
-        err["available"] = available;
-        throw err;
-      }
-      const adapter = self["_adapter"];
-      if (adapter && typeof adapter["collectionFromClient"] === "function") {
-        return adapter["collectionFromClient"](client, dbName, collectionName);
-      }
-      if (this._poolManager) {
-        const selected = this._poolManager.selectPool("read", { pool: poolName, databaseName: dbName });
-        return new MongoCollectionAccessor(
-          dbName,
-          collectionName,
-          selected.collection(dbName, collectionName),
-          { cache: this._cache, logger: this._logger, defaults: this._runtimeDefaults }
-        );
-      }
-      return null;
-    }
-    if (this._client) {
-      return this.db(dbName).collection(collectionName);
-    }
-    const dbInst = self["dbInstance"];
-    if (!dbInst) {
-      throw createError(ErrorCodes.NOT_CONNECTED, "Database is not connected. Call connect() first.");
-    }
-    return dbInst.db(dbName).collection(collectionName);
+    return resolveScopedCollection({
+      collectionName,
+      connection,
+      options: this.options,
+      self: asRuntimeCompatRecord(this),
+      client: this._client,
+      poolManager: this._poolManager,
+      cache: this._cache,
+      logger: this._logger,
+      runtimeDefaults: this._runtimeDefaults,
+      db: (name) => this.db(name)
+    });
   }
-  /**
-   * Returns the Model accessor scoped to the specified database (v1-compat implementation).
-   * @since v1.3.0
-   */
+  // Model accessors ---------------------------------------------------------
   scopedModel(name, options = {}) {
-    const self = this;
-    if (!self["dbInstance"]) {
-      throw createError(ErrorCodes.NOT_CONNECTED, "Database is not connected. Call connect() first.");
-    }
+    const dbInstance = requireCompatDbInstance(this);
     if (this._client) {
       return this.createModelInstance(name, options);
     }
@@ -8709,164 +9166,84 @@ var MonSQLizeRuntime = class {
     if (!registered) {
       throw createError(ErrorCodes.MODEL_NOT_DEFINED, `Model '${name}' is not defined. Call Model.define() first.`);
     }
-    const regDef = registered.definition;
-    const actualCollectionName = regDef.collection || regDef.name || registered.collectionName;
-    const merged = { ...regDef.connection ?? {}, ...options };
+    const { actualCollectionName, connection } = getRegisteredModelMetadata(registered);
+    const merged = { ...connection ?? {}, ...options };
     const { pool, database } = merged;
-    const collection = pool || database ? this._resolveModelCollection(actualCollectionName, { pool, database }) : self["dbInstance"].collection(actualCollectionName);
-    return new ModelInstance(
+    const collection = pool || database ? this._resolveModelCollection(actualCollectionName, { pool, database }) : dbInstance.collection(actualCollectionName);
+    return createCompatModelInstance({
       collection,
-      this,
-      {
-        collectionName: actualCollectionName,
-        dbName: database ?? self["databaseName"] ?? "default",
-        poolName: pool,
-        definition: registered.definition
-      }
-    );
+      runtime: this,
+      collectionName: actualCollectionName,
+      dbName: database ?? getRuntimeDatabaseName(this),
+      poolName: pool,
+      definition: registered.definition
+    });
   }
-  /**
-   * Returns the Model accessor for the default database.
-   *
-   * @template TDocument
-   * @param {string} name - Name of the registered model.
-   * @returns {ModelInstance<TDocument>}
-   * @throws {Error} Thrown when the runtime is not yet connected or the model is not registered.
-   * @since v1.3.0
-   */
   model(name) {
     if (this._client) {
       this.ensureConnected();
       return this.createModelInstance(name, {
-        database: this.resolveDatabaseName()
+        database: resolveDatabaseName(this.options)
       });
     }
-    const self = this;
-    if (!self["dbInstance"]) {
-      throw createError(ErrorCodes.NOT_CONNECTED, "Database is not connected. Call connect() first.");
-    }
-    if (self["_modelInstances"] != null) {
-      const cache = self["_modelInstances"];
-      if (cache.has(name)) {
-        if (!Model._redefinedNames.has(name)) {
-          return cache.get(name);
-        }
-        cache.delete(name);
-        Model._redefinedNames.delete(name);
+    const dbInstance = requireCompatDbInstance(this);
+    const cache = getCompatModelInstanceCache(this);
+    if (cache.has(name)) {
+      if (!Model._redefinedNames.has(name)) {
+        return cache.get(name);
       }
+      cache.delete(name);
+      Model._redefinedNames.delete(name);
     }
     const registered = Model.get(name);
     if (!registered) {
       throw createError(ErrorCodes.MODEL_NOT_DEFINED, `Model '${name}' is not defined.`);
     }
-    const regDef2 = registered.definition;
-    const actualCollectionName = regDef2.collection || regDef2.name || registered.collectionName;
-    const connection = regDef2.connection;
-    const collection = connection && (connection.pool || connection.database) ? this._resolveModelCollection(actualCollectionName, connection) : self["dbInstance"].collection(actualCollectionName);
-    const instance = new ModelInstance(
+    const { actualCollectionName, connection } = getRegisteredModelMetadata(registered);
+    const collection = connection && (connection.pool || connection.database) ? this._resolveModelCollection(actualCollectionName, connection) : dbInstance.collection(actualCollectionName);
+    const instance = createCompatModelInstance({
       collection,
-      this,
-      {
-        collectionName: actualCollectionName,
-        dbName: self["databaseName"] ?? "default",
-        definition: registered.definition
-      }
-    );
-    if (self["_modelInstances"] == null) {
-      self["_modelInstances"] = /* @__PURE__ */ new Map();
-    }
-    self["_modelInstances"].set(name, instance);
+      runtime: this,
+      collectionName: actualCollectionName,
+      dbName: getRuntimeDatabaseName(this),
+      definition: registered.definition
+    });
+    cache.set(name, instance);
     return instance;
   }
-  /**
-   * Manually starts a transaction session.
-   *
-   * @param {TransactionOptions} [options={}] - Transaction options.
-   * @returns {Promise<Transaction>}
-   * @throws {Error} Throws `NOT_CONNECTED` when the runtime is not yet connected.
-   * @since v1.3.0
-   */
+  // Capability delegates ----------------------------------------------------
   async startSession(options = {}) {
     this.ensureConnected();
     return this.getTransactionManager().startSession(options);
   }
-  /**
-   * Executes a callback inside a transaction with automatic lifecycle management.
-   *
-   * @template T
-   * @param {(transaction: Transaction) => Promise<T>} callback - Transaction body.
-   * @param {TransactionOptions} [options={}] - Transaction options.
-   * @returns {Promise<T>} Resolves with the callback's return value.
-   * @throws {Error} Thrown when the runtime is not yet connected or the transaction fails.
-   * @since v1.3.0
-   */
   async withTransaction(callback, options = {}) {
     this.ensureConnected();
     return this.getTransactionManager().withTransaction(callback, options);
   }
-  /**
-   * Executes an async callback under a distributed lock with automatic acquire/release lifecycle.
-   *
-   * @template T
-   * @param {string} key - Lock key.
-   * @param {() => Promise<T>} callback - The protected async logic.
-   * @param {LockOptions} [options={}] - Lock options.
-   * @returns {Promise<T>} Resolves with the callback's return value.
-   * @throws {Error} Thrown when the runtime is not yet connected or the lock cannot be acquired.
-   * @since v1.4.0
-   */
   async withLock(key, callback, options = {}) {
     this.ensureConnected();
     return this.getLockManager().withLock(key, callback, options);
   }
-  /**
-   * Acquires a lock (blocking with retries).
-   * @since v1.4.0
-   */
   async acquireLock(key, options = {}) {
     this.ensureConnected();
     return this.getLockManager().acquireLock(key, options);
   }
-  /**
-   * Attempts to acquire a lock (non-blocking).
-   * @since v1.4.0
-   */
   async tryAcquireLock(key, options = {}) {
     this.ensureConnected();
     return this.getLockManager().tryAcquireLock(key, options);
   }
-  /**
-   * Returns the Change Stream sync manager.
-   * @since v1.0.9
-   */
   getSyncManager() {
     return this._syncManager;
   }
-  /**
-   * Returns the slow query log manager.
-   * @since v1.3.1
-   */
   getSlowQueryLogManager() {
     return this._slowQueryLogManager;
   }
-  /**
-   * Returns the Saga orchestrator.
-   * @since v1.1.0
-   */
   getSagaOrchestrator() {
     return this.initializeSagaOrchestrator();
   }
-  /**
-   * Returns the Saga façade.
-   * @since v1.1.0
-   */
   saga() {
     return this.getSagaOrchestrator();
   }
-  /**
-   * Records a slow query log entry.
-   * @since v1.3.1
-   */
   async recordSlowQuery(log) {
     this.ensureConnected();
     const manager = this.ensureSlowQueryLogManager();
@@ -8874,47 +9251,23 @@ var MonSQLizeRuntime = class {
     this.emit("slow-query", log);
     this.emit("query", log);
   }
-  /**
-   * Queries the slow query log.
-   * @since v1.3.1
-   */
   async getSlowQueryLogs(filter = {}, options = {}) {
     this.ensureConnected();
     const manager = this.ensureSlowQueryLogManager();
     return manager.query(filter, options);
   }
-  /**
-   * Registers a Saga definition.
-   * @since v1.1.0
-   */
   defineSaga(definition) {
     this.initializeSagaOrchestrator().define(definition);
   }
-  /**
-   * Executes a registered Saga.
-   * @since v1.1.0
-   */
   async executeSaga(name, data) {
     return this.initializeSagaOrchestrator().execute(name, data);
   }
-  /**
-   * Lists all registered Sagas.
-   * @since v1.1.0
-   */
   async listSagas() {
     return this.initializeSagaOrchestrator().listSagas();
   }
-  /**
-   * Returns Saga statistics.
-   * @since v1.1.0
-   */
   getSagaStats() {
     return this.initializeSagaOrchestrator().getStats();
   }
-  /**
-   * Manually starts synchronization.
-   * @since v1.0.9
-   */
   async startSync() {
     this.ensureConnected();
     const manager = await this.initializeSyncManager();
@@ -8923,45 +9276,21 @@ var MonSQLizeRuntime = class {
     }
     await manager.start();
   }
-  /**
-   * Manually stops synchronization.
-   * @since v1.0.9
-   */
   async stopSync() {
     await this._syncManager?.stop();
   }
-  /**
-   * Returns sync statistics.
-   * @since v1.0.9
-   */
   getSyncStats() {
     return this._syncManager?.getStats() ?? null;
   }
-  /**
-   * Subscribes to an event.
-   * @since v1.3.0
-   */
   on(event, handler) {
     this._events.on(event, handler);
   }
-  /**
-   * Subscribes to an event once.
-   * @since v1.3.0
-   */
   once(event, handler) {
     this._events.once(event, handler);
   }
-  /**
-   * Unsubscribes from an event.
-   * @since v1.3.0
-   */
   off(event, handler) {
     this._events.off(event, handler);
   }
-  /**
-   * Emits an event.
-   * @since v1.3.0
-   */
   emit(event, payload) {
     if (event === "error" && this._events.listenerCount("error") === 0) {
       this._logger.error("[MonSQLizeRuntime] error event", payload);
@@ -8969,328 +9298,163 @@ var MonSQLizeRuntime = class {
     }
     this._events.emit(event, payload);
   }
-  /**
-   * Adds a connection pool (v1-compat).
-   * @since v1.3.0
-   */
   async addPool(config) {
     await this.requirePoolManager().addPool(config);
   }
-  /**
-   * Removes a connection pool (v1-compat).
-   * @since v1.3.0
-   */
   async removePool(name) {
     await this.requirePoolManager().removePool(name);
   }
-  /**
-   * Returns all connection pool names (v1-compat).
-   * @since v1.3.0
-   */
   getPoolNames() {
     return this.requirePoolManager().getPoolNames();
   }
-  /**
-   * Returns connection pool statistics (v1-compat).
-   * @since v1.3.0
-   */
   getPoolStats() {
     return Object.values(this.requirePoolManager().getPoolStats());
   }
-  /**
-   * Returns connection pool health status (v1-compat).
-   * @since v1.3.0
-   */
   getPoolHealth() {
     return Object.values(this.requirePoolManager().getHealthStatus());
   }
-  /**
-   * Returns lock statistics (v1-compat).
-   * @since v1.3.0
-   */
   getLockStats() {
     return this._lockManager?.getStats() ?? null;
   }
-  /**
-   * Lists all databases (v1-compat; delegates to the default db accessor).
-   * @since v1.3.0
-   */
   async listDatabases(options = {}) {
     this.ensureConnected();
-    const dbAccessor = this.db();
-    return dbAccessor.listDatabases(options);
+    return this.db().listDatabases(options);
   }
-  /**
-   * Drops the specified database (v1-compat; delegates to the default db accessor).
-   * @since v1.3.0
-   */
   async dropDatabase(options = { confirm: false }) {
     this.ensureConnected();
-    const dbAccessor = this.db();
-    return dbAccessor.dropDatabase(options);
+    return this.db().dropDatabase(options);
   }
-  /**
-   * Lists all collections in the current database (v1-compat).
-   * @since v1.3.0
-   */
   async listCollections(filter = {}, options = {}) {
     this.ensureConnected();
-    const dbAccessor = this.db();
-    return dbAccessor.listCollections(filter, options);
+    return this.db().listCollections(filter, options);
   }
-  /**
-   * Executes a raw database command (v1-compat).
-   * @since v1.3.0
-   */
   async runCommand(command, options = {}) {
     this.ensureConnected();
-    const dbAccessor = this.db();
-    return dbAccessor.runCommand(command, options);
+    return this.db().runCommand(command, options);
   }
   ensureConnected() {
     if (!this._connected) {
       throw createError(ErrorCodes.NOT_CONNECTED, "Database is not connected. Please call connect() first.");
     }
   }
-  createRuntimeAccessors() {
-    const defaultDb = this._defaultDb;
-    return {
-      collection: (name) => {
-        if (!name || typeof name !== "string" || !name.trim()) {
-          const err = new Error("Collection name must be a non-empty string");
-          err.code = "INVALID_COLLECTION_NAME";
-          throw err;
-        }
-        if (!this._iidCache) this._iidCache = /* @__PURE__ */ new Map();
-        return defaultDb.collection(name);
-      },
+  createAccessors() {
+    return createRuntimeAccessors({
+      defaultDb: this._defaultDb,
+      runtime: this,
       db: (name) => this.db(name),
       use: (name) => this.use(name),
-      instance: this
-    };
+      getIidCache: () => this._iidCache,
+      setIidCache: (value) => {
+        this._iidCache = value;
+      }
+    });
   }
-  resolveDatabaseName() {
-    return this.options["database"] ?? this.options.databaseName ?? "default";
+  createDbFacade(databaseName) {
+    return createRuntimeDbFacade(this.createDbFacadeHost(), databaseName);
   }
   getTransactionManager() {
-    if (!this._client) {
-      throw createError(ErrorCodes.NOT_CONNECTED, "MonSQLize is not connected yet.");
-    }
-    if (!this._transactionManager) {
-      this._transactionManager = new TransactionManager({
-        client: this._client,
-        cache: this._cache,
-        logger: this.options.logger ?? null,
-        lockManager: this._cacheLockManager
-      });
-    }
+    this._transactionManager = getOrCreateTransactionManager({
+      current: this._transactionManager,
+      client: this._client,
+      cache: this._cache,
+      logger: this.options.logger ?? null,
+      lockManager: this._cacheLockManager
+    });
     return this._transactionManager;
   }
   getLockManager() {
-    if (!this._lockManager) {
-      this._lockManager = new LockManager({
-        logger: this.options.logger ?? null
-      });
-    }
+    this._lockManager = getOrCreateLockManager(this._lockManager, this.options.logger ?? null);
     return this._lockManager;
   }
-  async ensurePoolManager() {
-    if (!this.options.pools?.length) {
-      return null;
-    }
-    if (this._poolManager) {
-      return this._poolManager;
-    }
-    this._poolManager = new ConnectionPoolManager({
-      pools: this.options.pools,
-      poolStrategy: this.options.poolStrategy,
-      poolFallback: this.options.poolFallback,
-      maxPoolsCount: this.options.maxPoolsCount,
-      logger: this.options.logger ?? null
-    });
-    for (const pool of this.options.pools) {
-      await this._poolManager.addPool(pool);
-    }
-    this._poolManager.startHealthCheck();
-    return this._poolManager;
-  }
-  /**
-   * Automatically loads Model definition files from the configured path (mirrors v1 behavior).
-   *
-   * Supports two configuration formats:
-   * - String: `models: './models'` → scans for `*.model.{js,ts,mjs,cjs}`, non-recursive
-   * - Object: `models: { path, pattern?, recursive? }` → full control
-   *
-   * Each file must export an object containing a `name` field (i.e. the argument to Model.define()).
-   */
   async _loadModels(opts = {}) {
-    const modelsConfig = this.options.models;
-    if (!modelsConfig) return;
-    if (typeof modelsConfig !== "string" && typeof modelsConfig !== "object") return;
-    const { readdirSync } = await import("node:fs");
-    const { resolve, join, isAbsolute } = await import("node:path");
-    const { createRequire } = await import("node:module");
-    let targetPath;
-    let pattern;
-    let recursive;
-    if (typeof modelsConfig === "string") {
-      targetPath = isAbsolute(modelsConfig) ? modelsConfig : resolve(process.cwd(), modelsConfig);
-      pattern = "*.model.{js,ts,mjs,cjs}";
-      recursive = false;
-    } else {
-      const p = modelsConfig.path;
-      targetPath = isAbsolute(p) ? p : resolve(process.cwd(), p);
-      pattern = modelsConfig.pattern ?? "*.model.{js,ts,mjs,cjs}";
-      recursive = modelsConfig.recursive ?? false;
-    }
-    const globToRegex = (glob) => {
-      const escaped = glob.replace(/\./g, "\\.").replace(/\{([^}]+)\}/g, (_, inner) => `(?:${inner.split(",").join("|")})`).replace(/\*/g, "[^/\\\\]*");
-      return new RegExp(`^${escaped}$`);
-    };
-    const filePattern = globToRegex(pattern);
-    const collectFiles = (dir) => {
-      let entries;
-      try {
-        entries = readdirSync(dir, { withFileTypes: true });
-      } catch {
-        this._logger.warn(`[Models] cannot read directory: ${dir}`);
-        return [];
-      }
-      const files2 = [];
-      for (const entry of entries) {
-        const entryName = typeof entry.name === "string" ? entry.name : entry.name.toString();
-        if (entry.isDirectory() && recursive) {
-          files2.push(...collectFiles(join(dir, entryName)));
-        } else if (entry.isFile() && filePattern.test(entryName)) {
-          files2.push(join(dir, entryName));
-        }
-      }
-      return files2;
-    };
-    const files = collectFiles(targetPath);
-    if (files.length === 0) return;
-    const req = createRequire(resolve(process.cwd(), "package.json"));
-    for (const file of files) {
-      try {
-        delete req.cache[req.resolve(file)];
-        const mod = req(file);
-        const definition = mod.default ?? mod;
-        if (!definition?.name) {
-          this._logger.warn(`[Models] ${file}: exported object must have a 'name' field`);
-          continue;
-        }
-        if (opts.reload && Model.has(definition.name)) {
-          Model.redefine(definition.name, definition);
-        } else {
-          Model.define(definition.name, definition);
-        }
-      } catch (err) {
-        this._logger.warn(`[Models] failed to load ${file}`, err);
-      }
-    }
+    await loadModelFiles(this.options, this._logger, opts);
   }
   async initializeSyncManager() {
-    if (!this.options.sync?.enabled || !this._defaultDb) {
-      return null;
-    }
-    if (this._syncManager) {
-      return this._syncManager;
-    }
-    this._syncManager = new ChangeStreamSyncManager({
-      db: this._defaultDb.raw(),
+    this._syncManager = await initializeRuntimeSyncManager({
+      enabled: !!this.options.sync?.enabled,
+      defaultDb: this._defaultDb,
+      current: this._syncManager,
       poolManager: this._poolManager,
-      config: this.options.sync,
-      logger: this.options.logger ?? null
+      sync: this.options.sync,
+      logger: this.options.logger ?? null,
+      onStartFailure: (error) => {
+        this._logger.warn("[Sync] failed to start automatically", error);
+        this.emit("error", {
+          type: this.options.type,
+          db: resolveDatabaseName(this.options),
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
     });
-    try {
-      await this._syncManager.start();
-    } catch (error) {
-      this._logger.warn("[Sync] failed to start automatically", error);
-      this.emit("error", {
-        type: this.options.type,
-        db: this.resolveDatabaseName(),
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
     return this._syncManager;
   }
   initializeSlowQueryLogManager() {
-    if (!this.options.slowQueryLog || !this._client) {
-      return null;
-    }
-    if (this._slowQueryLogManager) {
-      return this._slowQueryLogManager;
-    }
-    let slowQueryLogConfig = this.options.slowQueryLog;
-    if (this.options.slowQueryMs !== void 0 && typeof slowQueryLogConfig === "object" && slowQueryLogConfig !== null) {
-      const config = slowQueryLogConfig;
-      if (!config.filter?.minExecutionTimeMs) {
-        slowQueryLogConfig = {
-          ...config,
-          filter: {
-            ...config.filter,
-            minExecutionTimeMs: this.options.slowQueryMs
-          }
-        };
-      }
-    }
-    this._slowQueryLogManager = new SlowQueryLogManager(
-      slowQueryLogConfig,
-      this._client,
-      "mongodb",
-      this.options.logger ?? null
-    );
+    this._slowQueryLogManager = initializeRuntimeSlowQueryLogManager({
+      current: this._slowQueryLogManager,
+      slowQueryLog: this.options.slowQueryLog,
+      slowQueryMs: this.options.slowQueryMs,
+      client: this._client,
+      logger: this.options.logger ?? null
+    });
     return this._slowQueryLogManager;
   }
   ensureSlowQueryLogManager() {
-    const manager = this.initializeSlowQueryLogManager();
-    if (!manager) {
-      throw createError(ErrorCodes.INVALID_CONFIG, "MonSQLize slow query log is not enabled for this runtime.");
-    }
-    return manager;
+    return ensureRuntimeSlowQueryLogManager(this.initializeSlowQueryLogManager());
   }
   initializeSagaOrchestrator() {
-    if (!this._sagaOrchestrator) {
-      this._sagaOrchestrator = new SagaOrchestrator({
-        logger: this.options.logger ?? null
-      });
-    }
+    this._sagaOrchestrator = getOrCreateSagaOrchestrator(this._sagaOrchestrator, this.options.logger ?? null);
     return this._sagaOrchestrator;
   }
   requirePoolManager() {
-    if (!this._poolManager) {
-      throw createError(ErrorCodes.INVALID_CONFIG, "MonSQLize pool() requires options.pools configuration.");
-    }
-    return this._poolManager;
+    return requireRuntimePoolManager(this._poolManager);
   }
   createModelInstance(name, scope) {
-    const registered = Model.get(name);
-    if (!registered) {
-      throw createError(ErrorCodes.MODEL_NOT_DEFINED, `Model '${name}' is not defined.`);
+    return createRuntimeModelInstance(this.createModelHost(), name, scope);
+  }
+  createAdapterBridgeHost() {
+    const self = this;
+    return {
+      options: self.options,
+      get _defaultDb() {
+        return self._defaultDb;
+      },
+      get _client() {
+        return self._client;
+      },
+      get _iidCache() {
+        return self._iidCache;
+      },
+      _runtimeDefaults: self._runtimeDefaults,
+      get _slowQueryLogManager() {
+        return self._slowQueryLogManager;
+      },
+      resolveAdapterCache: () => self.resolveAdapterCache(),
+      setAdapterCache: (value) => self.setAdapterCache(value),
+      initializeSlowQueryLogManager: () => self.initializeSlowQueryLogManager(),
+      ensureConnected: () => self.ensureConnected(),
+      db: (name) => self.db(name),
+      emit: (event, payload) => self.emit(event, payload)
+    };
+  }
+  createDbFacadeHost() {
+    if (!this._client) {
+      throw createError(ErrorCodes.NOT_CONNECTED, "MonSQLize is not connected yet.");
     }
-    const databaseName = registered.definition.connection?.database ?? scope.database ?? this.resolveDatabaseName();
-    const poolName = registered.definition.connection?.pool ?? scope.pool;
-    const cacheKey = `${poolName ?? "default"}:${databaseName}:${registered.collectionName}`;
-    const revision = Model.getRevision(registered.collectionName);
-    const cached = this._modelInstances.get(cacheKey);
-    if (cached && cached.revision === revision) {
-      return cached.instance;
-    }
-    const instance = new ModelInstance(
-      this.scopedCollection(registered.collectionName, { database: databaseName }),
-      this,
-      {
-        collectionName: registered.collectionName,
-        dbName: databaseName,
-        poolName,
-        definition: registered.definition
-      }
-    );
-    this._modelInstances.set(cacheKey, {
-      revision,
-      instance
+    return {
+      options: this.options,
+      _client: this._client,
+      _logger: this._logger,
+      _runtimeDefaults: this._runtimeDefaults,
+      resolveAdapterCache: () => this.resolveAdapterCache()
+    };
+  }
+  createModelHost() {
+    return createRuntimeModelHost({
+      options: this.options,
+      modelInstances: this._modelInstances,
+      runtime: this,
+      scopedCollection: (name, options) => this.scopedCollection(name, options)
     });
-    return instance;
   }
 };
 

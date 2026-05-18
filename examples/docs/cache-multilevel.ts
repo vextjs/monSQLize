@@ -21,8 +21,12 @@ import { setupExample, teardownExample } from '../helpers/bootstrap.js';
 interface UserDoc { username: string; email: string; role: string; score: number; }
 
 // ── Minimal Redis-compatible stub (no real Redis required) ────────────────────
+// 完整模拟 Redis 客户端接口，支持 pub/sub on('message') 事件监听
 class InMemoryRedisStub {
     private store = new Map<string, { value: string; exp?: number }>();
+    // 事件处理器 Map：event → handlers[]
+    private _handlers = new Map<string, Array<(...args: unknown[]) => void>>();
+
     async get(key: string): Promise<string | null> {
         const entry = this.store.get(key);
         if (!entry) return null;
@@ -40,7 +44,16 @@ class InMemoryRedisStub {
     }
     async exists(key: string): Promise<number> { return this.store.has(key) ? 1 : 0; }
     async publish(_channel: string, _message: string): Promise<number> { return 0; }
-    subscribe(_channel: string, _cb: (msg: string) => void): void { /* no-op */ }
+    // subscribe: 立即回调 null（表示成功订阅）
+    subscribe(_channel: string, cb?: (err?: Error | null) => void): void {
+        if (cb) cb(null);
+    }
+    // on: 注册 EventEmitter 风格事件监听器（DistributedCacheInvalidator 需要）
+    on(_event: string, _handler: (...args: unknown[]) => void): this {
+        if (!this._handlers.has(_event)) this._handlers.set(_event, []);
+        this._handlers.get(_event)!.push(_handler);
+        return this;
+    }
 }
 
 async function main() {

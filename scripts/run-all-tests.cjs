@@ -13,7 +13,7 @@
 
 'use strict';
 
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
@@ -57,6 +57,7 @@ const INTEGRATION = [
     'test/integration/model/model-features.test.js',
     'test/integration/transaction/transaction.test.js',
     'test/integration/pool/pool.test.js',
+    'test/integration/runtime/runtime-core-regression.test.js',
     'test/integration/sync/sync.test.js',
     'test/integration/slow-query-log/slow-query-log.test.js',
 ];
@@ -83,38 +84,46 @@ function parseStats(output) {
     return { pass, fail, skip };
 }
 
-function runSuite(label, files) {
+function runCommand(label, args) {
     banner(label);
-    const args = ['--test', ...files];
-    const result = spawnSync(process.execPath, args, {
-        cwd: ROOT,
-        stdio: ['inherit', 'pipe', 'pipe'],
-        encoding: 'utf8',
+    return new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, args, {
+            cwd: ROOT,
+            stdio: ['inherit', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (chunk) => {
+            const text = chunk.toString();
+            stdout += text;
+            process.stdout.write(text);
+        });
+        child.stderr.on('data', (chunk) => {
+            const text = chunk.toString();
+            stderr += text;
+            process.stderr.write(text);
+        });
+        child.on('error', reject);
+        child.on('close', (code) => {
+            resolve({ stdout, stderr, exitCode: code ?? 1 });
+        });
     });
+}
 
-    // Print the raw TAP output
-    if (result.stdout) process.stdout.write(result.stdout);
-    if (result.stderr) process.stderr.write(result.stderr);
-
+async function runSuite(label, files) {
+    const result = await runCommand(label, ['--test', ...files]);
     const stats = parseStats(result.stdout || '');
-    return { ...stats, exitCode: result.status ?? 1 };
+    return { ...stats, exitCode: result.exitCode };
 }
 
 // ─── v1 Compat Runner (separate process, custom output format) ────────────────
 
-function runV1Compat() {
-    banner('v1 Compatibility Tests (2500+ cases)');
-    const result = spawnSync(process.execPath, [
+async function runV1Compat() {
+    const result = await runCommand('v1 Compatibility Tests (2500+ cases)', [
         path.join(__dirname, 'v1-compat-runner.cjs'),
         'all-v2',
-    ], {
-        cwd: ROOT,
-        stdio: ['inherit', 'pipe', 'pipe'],
-        encoding: 'utf8',
-    });
-
-    if (result.stdout) process.stdout.write(result.stdout);
-    if (result.stderr) process.stderr.write(result.stderr);
+    ]);
 
     const out = result.stdout || '';
     let pass = 0, fail = 0, skip = 0;
@@ -126,7 +135,7 @@ function runV1Compat() {
     if (passMatches.length) pass = parseInt(passMatches[passMatches.length - 1][1], 10);
     if (failMatches.length) fail = parseInt(failMatches[failMatches.length - 1][1], 10);
     if (skipMatches.length) skip = parseInt(skipMatches[skipMatches.length - 1][1], 10);
-    return { pass, fail, skip, exitCode: result.status ?? 1 };
+    return { pass, fail, skip, exitCode: result.exitCode };
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -138,46 +147,52 @@ const suites = [
     { label: 'Integration Tests', files: INTEGRATION },
 ];
 
-let totalPass = 0;
-let totalFail = 0;
-let totalSkip = 0;
-let anyFailed = false;
+async function main() {
+    let totalPass = 0;
+    let totalFail = 0;
+    let totalSkip = 0;
+    let anyFailed = false;
 
-for (const { label, files } of suites) {
-    const stats = runSuite(label, files);
-    totalPass += stats.pass;
-    totalFail += stats.fail;
-    totalSkip += stats.skip;
-    if (stats.exitCode !== 0 || stats.fail > 0) {
+    for (const { label, files } of suites) {
+        const stats = await runSuite(label, files);
+        totalPass += stats.pass;
+        totalFail += stats.fail;
+        totalSkip += stats.skip;
+        if (stats.exitCode !== 0 || stats.fail > 0) {
+            anyFailed = true;
+        }
+    }
+
+    const v1Stats = await runV1Compat();
+    totalPass += v1Stats.pass;
+    totalFail += v1Stats.fail;
+    totalSkip += v1Stats.skip;
+    if (v1Stats.exitCode !== 0 || v1Stats.fail > 0) {
         anyFailed = true;
     }
-}
 
-// Run v1 compat tests last (long-running)
-const v1Stats = runV1Compat();
-totalPass += v1Stats.pass;
-totalFail += v1Stats.fail;
-totalSkip += v1Stats.skip;
-if (v1Stats.exitCode !== 0 || v1Stats.fail > 0) {
-    anyFailed = true;
-}
+    const total = totalPass + totalFail + totalSkip;
+    const line = '─'.repeat(65);
 
-const total = totalPass + totalFail + totalSkip;
-const line = '─'.repeat(65);
+    console.log(`\n${'═'.repeat(65)}`);
+    console.log('  monSQLize Test Suite — Final Summary');
+    console.log(`${'─'.repeat(65)}`);
+    console.log(`  ✅  Passed :  ${String(totalPass).padStart(5)}`);
+    console.log(`  ❌  Failed :  ${String(totalFail).padStart(5)}`);
+    console.log(`  ⏭   Skipped:  ${String(totalSkip).padStart(5)}`);
+    console.log(`${line}`);
+    console.log(`  📊  Total  :  ${String(total).padStart(5)}`);
+    console.log(`${'═'.repeat(65)}\n`);
 
-console.log(`\n${'═'.repeat(65)}`);
-console.log('  monSQLize Test Suite — Final Summary');
-console.log(`${'─'.repeat(65)}`);
-console.log(`  ✅  Passed :  ${String(totalPass).padStart(5)}`);
-console.log(`  ❌  Failed :  ${String(totalFail).padStart(5)}`);
-console.log(`  ⏭   Skipped:  ${String(totalSkip).padStart(5)}`);
-console.log(`${line}`);
-console.log(`  📊  Total  :  ${String(total).padStart(5)}`);
-console.log(`${'═'.repeat(65)}\n`);
+    if (anyFailed) {
+        console.error('❌ One or more test suites FAILED.\n');
+        process.exit(1);
+    }
 
-if (anyFailed) {
-    console.error('❌ One or more test suites FAILED.\n');
-    process.exit(1);
-} else {
     console.log('✅ All test suites passed.\n');
 }
+
+main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+});

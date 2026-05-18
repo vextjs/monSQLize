@@ -8,7 +8,9 @@
 |------|----------|------|------|
 | 快速开始 / 安装 / 连接 / 基础查询 | [`getting-started.md`](./getting-started.md) | ✅ | 对齐当前 runtime，TypeScript 完整类型 |
 | 缓存 / 函数缓存 | [`cache-and-function-cache.md`](./cache-and-function-cache.md) | ✅ | `MemoryCache` / `withCache()` / `FunctionCache` |
+| 示例映射 / Gallery | [`examples.md`](./examples.md) | ✅ | 文档主题到官方示例的映射页 |
 | 高级能力索引 | [高级能力索引页](./capability-index.md) | ✅ | 完整能力入口索引 |
+| 验证 / 架构 / 工程治理 | [`verification-entrypoints.md`](./verification-entrypoints.md) / [`runtime-architecture.md`](./runtime-architecture.md) / [`support-matrix.md`](./support-matrix.md) / [`release-preflight.md`](./release-preflight.md) | ✅ | 统一查看验证入口、运行时结构、支持边界与发布约束 |
 
 ## 推荐阅读顺序
 
@@ -16,7 +18,13 @@
 2. 上手路径：[`getting-started.md`](./getting-started.md)
 3. 缓存专题：[`cache-and-function-cache.md`](./cache-and-function-cache.md)
 4. 能力索引：[高级能力索引页](./capability-index.md)
-5. 可执行示例：
+5. 工程与边界：
+   - [`verification-entrypoints.md`](./verification-entrypoints.md)
+   - [`support-matrix.md`](./support-matrix.md)
+   - [`release-preflight.md`](./release-preflight.md)
+   - [`roadmap-boundaries.md`](./roadmap-boundaries.md)
+6. 可执行示例：
+   - `examples/README.md`
    - `examples/quick-start/basic-connect.ts`
    - `examples/cache/with-cache.ts`
    - `examples/docs/*.ts`

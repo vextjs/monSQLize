@@ -24,122 +24,190 @@ import MonSQLize from 'monsqlize';
 
 interface EventDoc { type: string; payload: Record<string, unknown>; processedAt: Date; }
 
+async function waitFor(
+    check: () => boolean,
+    timeoutMs = 8000,
+    intervalMs = 50,
+) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if (check()) {
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    throw new Error('Timed out waiting for sync manager stats to settle');
+}
+
 async function main() {
     const { msq, server } = await setupReplicaSetExample('example-sync');
-
     const events = msq.collection<EventDoc>('events');
+    const tokenPath = path.join(os.tmpdir(), `example-sync-token-${process.pid}.json`);
+    const watchTokenPath = path.join(os.tmpdir(), `example-sync-watch-token-${process.pid}.json`);
 
-    // ── ResumeTokenStore — file-based ────────────────────────────────────────
-    console.log('=== ResumeTokenStore ===');
-    const tokenPath = path.join(os.tmpdir(), 'example-sync-token.json');
-    // storage: 'file' | 'redis'  (default: 'file')
     const tokenStore = new MonSQLize.ResumeTokenStore({
         storage: 'file',
         path: tokenPath,
     });
-
-    // Initially empty
-    const initial = await tokenStore.load();
-    console.log(`  Token on start: ${initial === null ? 'null (fresh start)' : JSON.stringify(initial)}`);
-
-    // Simulate saving a token (would normally come from a ChangeStream event)
-    const fakeToken = { _data: 'fakeResume0000000000000000000000000000000000' };
-    await tokenStore.save(fakeToken);
-    const loaded = await tokenStore.load();
-    console.log(`  Token after save: ${JSON.stringify(loaded)}`);
-
-    // Clear it
-    await tokenStore.clear();
-    console.log(`  Token after clear: ${await tokenStore.load() === null ? 'null' : 'exists'}`);
-
-    // ── ChangeStreamSyncManager — no-op in-memory target ─────────────────────
-    console.log('\n=== ChangeStreamSyncManager lifecycle ===');
-
-    // We use the MonSQLize-internal db handle to build the manager
-    const dbHandle = (msq as any)._db ?? (msq as any).dbInstance ?? (msq as any)._adapter?.db;
-
-    if (!dbHandle) {
-        console.log('  Could not resolve internal db handle — skipping sync manager demo');
-    } else {
-        const syncedEvents: unknown[] = [];
-
-        const syncManager = new MonSQLize.ChangeStreamSyncManager({
-            db: dbHandle,
-            config: {
-                enabled: true,
-                collections: ['events'],
-                targets: [
-                    {
-                        name: 'in-memory-target',
-                        uri: server.getUri(),   // required by SyncTargetConfig; apply override below
-                        apply: async (event: unknown) => {
-                            syncedEvents.push(event);
-                        },
-                    },
-                ],
-            },
-        });
-
-        await syncManager.start();
-        console.log('  SyncManager started');
-
-        // Insert some events — change stream will capture them
-        await events.insertMany([
-            { type: 'user.signup', payload: { userId: 'u1' }, processedAt: new Date() },
-            { type: 'order.placed', payload: { orderId: 'o1', amount: 99 }, processedAt: new Date() },
-        ]);
-
-        // Give the change stream a moment to propagate
-        await new Promise(r => setTimeout(r, 300));
-
-        const stats = syncManager.getStats();
-        console.log(`  Running: ${stats.isRunning}`);
-        console.log(`  Events received: ${stats.eventCount}`);
-        console.log(`  Targets: ${stats.targets.map(t => t.name).join(', ')}`);
-
-        await syncManager.stop();
-        console.log('  SyncManager stopped');
-        console.log(`  Total events synced: ${syncedEvents.length}`);
-    }
-
-    // ── Manual watch with resumeToken passthrough ────────────────────────────
-    console.log('\n=== Manual watch with ResumeTokenStore integration ===');
-    // Use default file storage (storage defaults to 'file')
     const watchTokenStore = new MonSQLize.ResumeTokenStore({
-        path: path.join(os.tmpdir(), 'example-sync-watch-token.json'),
+        path: watchTokenPath,
     });
 
-    const nativeEvents = (msq as any)._adapter?.db?.collection('events')
-        ?? (msq as any).dbInstance?.collection('events');
+    try {
+        console.log('=== ResumeTokenStore ===');
+        const initial = await tokenStore.load();
+        console.log(`  Token on start: ${initial === null ? 'null (fresh start)' : JSON.stringify(initial)}`);
 
-    if (nativeEvents) {
-        const pipeline = [{ $match: { operationType: { $in: ['insert', 'update', 'delete'] } } }];
-        const savedToken = await watchTokenStore.load();
-        const watchOpts: Record<string, unknown> = { fullDocument: 'updateLookup' };
-        if (savedToken) watchOpts.resumeAfter = savedToken;
+        const fakeToken = { _data: 'fakeResume0000000000000000000000000000000000' };
+        await tokenStore.save(fakeToken);
+        console.log(`  Token after save: ${JSON.stringify(await tokenStore.load())}`);
 
-        const cs = nativeEvents.watch(pipeline, watchOpts);
-        const captured: string[] = [];
+        await tokenStore.clear();
+        console.log(`  Token after clear: ${await tokenStore.load() === null ? 'null' : 'exists'}`);
 
-        cs.on('change', async (change: { operationType: string; _id: unknown }) => {
-            captured.push(change.operationType);
-            if (change._id) await watchTokenStore.save(change._id);
-        });
+        console.log('\n=== ChangeStreamSyncManager lifecycle ===');
+        const dbHandle = (msq as any)._adapter?.db ?? null;
 
-        // Produce a change
-        await events.insertOne({ type: 'test.watch', payload: {}, processedAt: new Date() });
-        await new Promise(r => setTimeout(r, 300));
+        if (!dbHandle) {
+            console.log('  Could not resolve internal db handle — skipping sync manager demo');
+        } else {
+            const syncedEvents: unknown[] = [];
+            const syncManager = new MonSQLize.ChangeStreamSyncManager({
+                db: dbHandle,
+                config: {
+                    enabled: true,
+                    collections: ['events'],
+                    targets: [
+                        {
+                            name: 'in-memory-target',
+                            uri: server.getUri(),
+                            apply: async (event: unknown) => {
+                                syncedEvents.push(event);
+                            },
+                        },
+                    ],
+                },
+            });
 
-        await cs.close();
-        const finalToken = await watchTokenStore.load();
-        console.log(`  Change types captured: ${captured.join(', ') || '(none in window)'}`);
-        console.log(`  Resume token saved: ${finalToken !== null}`);
-    } else {
-        console.log('  Skipping manual watch demo (native collection handle not available)');
+            await syncManager.start();
+            console.log('  SyncManager started');
+            await waitFor(() => {
+                const stats = syncManager.getStats();
+                return stats.isRunning && stats.startTime !== null && stats.targets.length === 1;
+            });
+
+            await events.insertMany([
+                { type: 'user.signup', payload: { userId: 'u1' }, processedAt: new Date() },
+                { type: 'order.placed', payload: { orderId: 'o1', amount: 99 }, processedAt: new Date() },
+            ]);
+
+            await new Promise((resolve) => setTimeout(resolve, 800));
+
+            const stats = syncManager.getStats();
+            console.log(`  Running: ${stats.isRunning}`);
+            console.log(`  Events received: ${stats.eventCount}`);
+            console.log(`  Events synced: ${stats.syncedCount}`);
+            console.log(`  Targets: ${stats.targets.map((target) => target.name).join(', ')}`);
+            if (stats.startTime === null || stats.targets.length !== 1) {
+                throw new Error('SyncManager lifecycle stats did not initialize as expected');
+            }
+
+            await syncManager.stop();
+            console.log('  SyncManager stopped');
+            console.log(`  Total events synced: ${syncedEvents.length}`);
+        }
+
+        console.log('\n=== Manual watch with ResumeTokenStore integration ===');
+        await watchTokenStore.clear();
+
+        const nativeEvents = (msq as any)._adapter?.db?.collection('events')
+            ?? (msq as any).dbInstance?.collection('events');
+
+        if (nativeEvents) {
+            const pipeline = [{ $match: { operationType: { $in: ['insert', 'update', 'delete'] } } }];
+
+            const runWatchSession = async (
+                resumeAfter: unknown,
+                expectedCount: number,
+                performWrites: () => Promise<void>,
+            ) => {
+                const captured: string[] = [];
+                const watchErrors: string[] = [];
+                const watchOptions: Record<string, unknown> = { fullDocument: 'updateLookup' };
+                if (resumeAfter) {
+                    watchOptions.resumeAfter = resumeAfter;
+                }
+
+                const changeStream = nativeEvents.watch(pipeline, watchOptions);
+                const waitForChanges = new Promise<void>((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('Timed out waiting for change stream events')), 10000);
+                    changeStream.on('change', async (change: { operationType: string; _id?: unknown }) => {
+                        captured.push(change.operationType);
+                        if (change._id) {
+                            await watchTokenStore.save(change._id);
+                        }
+                        if (captured.length >= expectedCount) {
+                            clearTimeout(timeout);
+                            resolve();
+                        }
+                    });
+                    changeStream.on('error', (error: unknown) => {
+                        watchErrors.push(error instanceof Error ? error.message : String(error));
+                        clearTimeout(timeout);
+                        reject(error instanceof Error ? error : new Error(String(error)));
+                    });
+                });
+
+                try {
+                    await new Promise((resolve) => setTimeout(resolve, 500));
+                    await performWrites();
+                    await waitForChanges;
+                } finally {
+                    await changeStream.close();
+                }
+
+                return {
+                    captured,
+                    watchErrors,
+                    token: await watchTokenStore.load(),
+                };
+            };
+
+            await watchTokenStore.clear();
+
+            const firstSession = await runWatchSession(null, 1, async () => {
+                await events.insertOne({
+                    type: 'test.watch.first',
+                    payload: { step: 1 },
+                    processedAt: new Date(),
+                });
+            });
+
+            const resumedToken = firstSession.token;
+            const secondSession = await runWatchSession(resumedToken, 1, async () => {
+                await events.insertOne({
+                    type: 'test.watch.second',
+                    payload: { step: 2 },
+                    processedAt: new Date(),
+                });
+            });
+
+            console.log(`  First session changes: ${firstSession.captured.join(', ') || '(none)'}`);
+            console.log(`  Resume token persisted: ${resumedToken !== null}`);
+            console.log(`  Second session changes after resume: ${secondSession.captured.join(', ') || '(none)'}`);
+            if (firstSession.watchErrors.length || secondSession.watchErrors.length) {
+                console.log(`  Watch errors handled: ${firstSession.watchErrors.length + secondSession.watchErrors.length}`);
+            }
+        } else {
+            console.log('  Skipping manual watch demo (native collection handle not available)');
+        }
+
+        console.log('\n=== Sync / ResumeTokenStore example complete ===');
+    } finally {
+        await tokenStore.clear();
+        await watchTokenStore.clear();
+        await teardownExample(msq, server);
     }
-
-    await teardownExample(msq, server);
-    console.log('\n=== Sync / ResumeTokenStore example complete ===');
 }
 
 main().catch((err) => {

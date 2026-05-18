@@ -75,6 +75,27 @@ describe('P4-B pool manager', () => {
 
         await manager.close();
     });
+
+    it('应保持 PoolSelector 静态导出与策略行为稳定', () => {
+        const selector = new MonSQLize.PoolSelector({ strategy: 'auto' });
+        const pools = [
+            { name: 'primary', role: 'primary', weight: 1, tags: ['prod'] },
+            { name: 'analytics', role: 'analytics', weight: 1, tags: ['olap'] },
+            { name: 'secondary', role: 'secondary', weight: 2, tags: ['prod', 'read'] },
+        ];
+
+        assert.equal(selector.select(pools, { operation: 'write' }), 'primary');
+        assert.equal(selector.select(pools, { poolPreference: { tags: ['olap'] } }), 'analytics');
+
+        selector.setStrategy('leastConnections');
+        assert.equal(selector.select(pools, {
+            stats: {
+                primary: { connections: 12 },
+                analytics: { connections: 7 },
+                secondary: { connections: 2 },
+            },
+        }), 'secondary');
+    });
 });
 
 

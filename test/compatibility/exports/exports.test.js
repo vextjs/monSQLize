@@ -20,6 +20,7 @@ const EXPECTED_ESM_EXPORTS = [
 const EXPECTED_CJS_STATICS = [
     'Model',
     'ConnectionPoolManager',
+    'PoolSelector',
     'createRedisCacheAdapter',
     'expr',
     'createExpression',

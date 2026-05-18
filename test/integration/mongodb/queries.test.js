@@ -218,8 +218,8 @@ describe('P2-B MongoDB expression/queries', () => {
             (error) => error && error.code === 'INVALID_PAGINATION',
         );
 
-        await assert.rejects(
-            async () => logs.aggregate([{ $project: { unsupported: MonSQLize.expr('UNSUPPORTED(metric)') } }]),
+        assert.throws(
+            () => logs.aggregate([{ $project: { unsupported: MonSQLize.expr('UNSUPPORTED(metric)') } }]),
             (error) => error && error.code === 'INVALID_EXPRESSION',
         );
 

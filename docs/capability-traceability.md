@@ -1,0 +1,35 @@
+# 能力 → 文档 → 示例 → 测试追踪表
+
+> 目的：把核心能力的**用户入口、可执行示例、自动化测试**放到同一张表里，降低“功能存在但不知道去哪看/怎么验证”的成本。
+
+## 核心追踪表
+
+| 能力 | 文档入口 | 官方示例 | 自动化验证 |
+|------|----------|----------|------------|
+| 连接 / 基础 CRUD | `getting-started.md` | `examples/quick-start/basic-connect.ts` | `test/integration/mongodb/connect.test.js` |
+| Query（find / findOne / count / distinct） | `find.md` / `findOne.md` / `count.md` / `distinct.md` | `examples/docs/find.ts` / `find-one.ts` / `count.ts` / `distinct.ts` | `test/integration/mongodb/queries.test.js` |
+| 分页 / 链式查询 | `findPage.md` / `chaining-api.md` | `examples/docs/find-page.ts` / `chaining-api.ts` | `test/v1-source` compat + `test/compatibility/matrix.test.js` |
+| 聚合 / 表达式 | `aggregate.md` / `expression-functions.md` | `examples/docs/aggregate.ts` / `aggregate-advanced.ts` / `expression-functions.ts` | `test/unit/expression/*.test.js` |
+| 写入扩展 / Batch | `write-operations.md` / `updateBatch.md` / `deleteBatch.md` | `examples/docs/update.ts` / `batch-operations.ts` | `test/unit/writes/batch.test.js` + `test/integration/mongodb/writes-batch.test.js` |
+| Collection 管理能力 | `collection-management.md` / `create-index.md` / `database-ops.md` | `examples/docs/collection-management.ts` | `test/integration/mongodb/management.test.js` |
+| Cache / Function Cache | `cache.md` / `function-cache.md` / `cache-and-function-cache.md` | `examples/cache/with-cache.ts` / `examples/docs/cache-multilevel.ts` | `test/unit/cache/cache.test.js` / `test/unit/function-cache/function-cache.test.js` |
+| Model / Populate / Hooks | `model.md` / `populate.md` / `hooks.md` / `relations.md` | `examples/docs/model.ts` / `populate-relations.ts` | `test/integration/model/model-features.test.js` |
+| Transaction | `transaction.md` / `transaction-optimizations.md` | `examples/docs/transaction.ts` / `transaction-rollback.ts` | `test/integration/transaction/transaction.test.js` |
+| Lock | `business-lock.md` | `examples/docs/lock.ts` / `lock-timeout.ts` | `test/unit/lock/lock.test.js` |
+| Pool / 多连接池 | `multi-pool.md` / `multi-pool-health-check.md` / `pool-chain-api.md` | `examples/docs/pool.ts` / `pool-fallback.ts` | `test/unit/pool/pool.test.js` / `test/integration/pool/pool.test.js` |
+| Sync / Resume Token | `sync-backup.md` / `watch.md` | `examples/docs/sync.ts` / `sync-target-failure.ts` | `test/unit/sync/sync.test.js` / `test/integration/sync/sync.test.js` |
+| Slow Query Log | `slow-query-log.md` | `examples/docs/slow-query-log.ts` | `test/unit/slow-query-log/slow-query-log.test.js` / `test/integration/slow-query-log/slow-query-log.test.js` |
+| Saga | `saga-transaction.md` / `saga-advanced.md` | `examples/docs/saga.ts` | `test/unit/saga/saga.test.js` |
+| ObjectId 自动转换 | `objectid-auto-convert.md` / `objectid-cross-version.md` | `examples/docs/objectid.ts` | `test/v1-source` compat + `test/compatibility/matrix.test.js` |
+
+## 使用建议
+
+1. **先看文档入口**：明确能力边界与公开 API。
+2. **再跑对应示例**：验证最小可执行路径与推荐写法。
+3. **最后看测试**：确认边界条件、回归点和兼容守卫。
+
+## 维护规则
+
+- 新增能力时，至少同步更新 **文档入口 / 一个官方示例 / 一个自动化验证点**。
+- 新增示例时，优先把它纳入 `npm run test:examples`。
+- 热点重构后，优先补 `test:refactor-guard` 所引用的聚焦回归链。
