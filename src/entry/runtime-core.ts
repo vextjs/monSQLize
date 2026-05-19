@@ -288,6 +288,19 @@ export class MonSQLizeRuntime {
         try {
             return await this._connectionPromise;
         } catch (error) {
+            // Clean up partially initialized resources so a retry starts fresh.
+            // Only runs when _connected is still false (i.e., failure before the
+            // point-of-no-return assignment), which means client/pool may have
+            // been created but never handed off to callers.
+            if (!this._connected) {
+                const clientToClose = this._client;
+                const poolToClose = this._poolManager;
+                this._client = null;
+                this._defaultDb = null;
+                this._poolManager = null;
+                clientToClose?.close().catch(() => {});
+                poolToClose?.close().catch(() => {});
+            }
             this.emit('error', {
                 type: this.options.type,
                 db: resolveDatabaseName(this.options),
