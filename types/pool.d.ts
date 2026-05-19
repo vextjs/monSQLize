@@ -44,6 +44,14 @@ export interface PoolHealthStatus {
 
 export interface PoolStats {
     name: string;
+    /** Current active connections (reported by MongoDB driver). */
+    connections: number;
+    /** Available (idle) connections in the pool. */
+    available: number;
+    /** Requests currently waiting for a connection. */
+    waiting: number;
+    /** Health status from the last health check. */
+    status: 'up' | 'down' | 'degraded' | 'unknown';
     totalRequests: number;
     successCount: number;
     errorCount: number;

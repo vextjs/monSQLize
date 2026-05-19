@@ -129,6 +129,10 @@ export function validatePoolConfigInternal(config: PoolConfig): void {
 export function createEmptyPoolStats(name: string): PoolStats {
     return {
         name,
+        connections: 0,
+        available: 0,
+        waiting: 0,
+        status: 'unknown',
         totalRequests: 0,
         successCount: 0,
         errorCount: 0,

@@ -120,13 +120,14 @@ export class SagaOrchestrator {
 
             this._stats.successfulExecutions += 1;
             return {
-                success: true,
                 sagaId,
                 sagaName: name,
+                success: true,
                 completedSteps: completedSteps.length,
+                compensatedSteps: [],
                 result: completedSteps[completedSteps.length - 1]?.result,
                 duration: Date.now() - startedAt,
-            } as unknown as SagaResult;
+            } as SagaResult;
         } catch (cause) {
             const errorMessage = cause instanceof Error ? cause.message : String(cause);
             this._stats.failedExecutions += 1;
@@ -151,7 +152,7 @@ export class SagaOrchestrator {
                 }
                 const compStart = Date.now();
                 try {
-                    await (step.compensate as (ctx: SagaContext, result: unknown) => Promise<void>)(context, stepResult);
+                    await step.compensate(context, stepResult);
                     compensationResults.push({ stepName: step.name, success: true, duration: Date.now() - compStart });
                 } catch (compensationError) {
                     const compMsg = compensationError instanceof Error ? compensationError.message : String(compensationError);
@@ -169,9 +170,9 @@ export class SagaOrchestrator {
             );
 
             return {
-                success: false,
                 sagaId,
                 sagaName: name,
+                success: false,
                 completedSteps: completedSteps.length,
                 compensatedSteps: compensationResults
                     .filter(r => r.reason !== 'no-compensate-defined')
@@ -182,7 +183,7 @@ export class SagaOrchestrator {
                     success: compensationSuccess,
                     results: compensationResults,
                 },
-            } as unknown as SagaResult;
+            } as SagaResult;
         }
     }
 

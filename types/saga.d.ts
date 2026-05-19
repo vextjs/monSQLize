@@ -12,7 +12,8 @@ export interface SagaContext {
 export interface SagaStep {
     name: string;
     execute: (context: SagaContext) => Promise<unknown>;
-    compensate?: (context: SagaContext) => Promise<void>;
+    /** Compensation handler — receives the context and the step's own execute result. */
+    compensate?: (context: SagaContext, result?: unknown) => Promise<void>;
     timeout?: number;
     retries?: number;
 }
@@ -25,13 +26,20 @@ export interface SagaDefinition {
 }
 
 export interface SagaResult {
-    executionId: string;
+    sagaId: string;
+    sagaName: string;
     success: boolean;
     result?: unknown;
-    error?: Error;
+    /** Error message string (set when success is false). */
+    error?: string;
     completedSteps: number;
-    compensatedSteps: string[];
+    compensatedSteps?: string[];
     duration: number;
+    /** Present on the failure path when at least one completed step has a compensate function. */
+    compensation?: {
+        success: boolean;
+        results: Array<{ stepName: string; success: boolean; reason?: string; error?: string; duration?: number; }>;
+    };
 }
 
 export interface SagaOrchestratorOptions {
@@ -59,7 +67,7 @@ export interface SagaStats {
 export declare class SagaOrchestrator {
     constructor(options?: SagaOrchestratorOptions);
     define(definition: SagaDefinition): void;
-    defineSaga(definition: SagaDefinition): void;
+    defineSaga(definition: SagaDefinition): Promise<{ name: string }>;
     execute(name: string, data: unknown): Promise<SagaResult>;
     getSaga(name: string): SagaDefinition | undefined;
     listSagas(): Promise<string[]>;

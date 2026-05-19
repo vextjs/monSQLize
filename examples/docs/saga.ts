@@ -94,14 +94,14 @@ async function main() {
     // ── Run 2: out-of-stock → compensation ────────────────────────────────
     console.log('\n=== Out-of-stock (fails at reserve step) ===');
     const fail1 = await msq.executeSaga('checkout', { userId: 'u2', sku: 'GDG-001', qty: 1, price: 99.99 });
-    console.log(`  Success: ${fail1.success} | Completed steps: ${fail1.completedSteps} | Compensated: ${fail1.compensatedSteps.length}`);
+    console.log(`  Success: ${fail1.success} | Completed steps: ${fail1.completedSteps} | Compensated: ${(fail1.compensatedSteps ?? []).length}`);
 
     // ── Run 3: payment failure with full rollback compensation ─────────────
     console.log('\n=== Payment failure — full compensation ===');
     const fail2 = await msq.executeSaga('checkout', {
         userId: 'u3', sku: 'WGT-001', qty: 1, price: 29.99, simulatePaymentFailure: true,
     });
-    console.log(`  Success: ${fail2.success} | Compensated steps: ${fail2.compensatedSteps.join(', ')}`);
+    console.log(`  Success: ${fail2.success} | Compensated steps: ${(fail2.compensatedSteps ?? []).join(', ')}`);
     const widgetAfter = await inventory.findOne({ sku: 'WGT-001' });
     console.log(`  Widget stock after compensation: ${(widgetAfter as Record<string, unknown>)?.stock} (should be restored to 8)`);
     const cancelledOrders = await orders.count({ status: 'cancelled' });

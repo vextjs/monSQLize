@@ -357,19 +357,26 @@ export class ConnectionPoolManager {
      * Get pool statistics.
      * @since v1.0.8
      */
-    getPoolStats(): Record<string, any> {
-        const result: Record<string, any> = {};
+    getPoolStats(): Record<string, PoolStats> {
+        const result: Record<string, PoolStats> = {};
         for (const name of this.pools.keys()) {
             const healthStatus = this.healthStatus.get(name);
-            const poolStats = this._stats.getStats(name);
+            const internalStats = this._stats.getStats(name);
+            const poolStats = this.stats.get(name) ?? createEmptyPoolStats(name);
             result[name] = {
-                connections: poolStats?.connections || 0,
-                available: poolStats?.available || 0,
-                waiting: poolStats?.waiting || 0,
-                status: healthStatus?.status || 'unknown',
-                avgResponseTime: poolStats?.avgResponseTime || 0,
-                totalRequests: poolStats?.totalRequests || 0,
-                errorRate: poolStats?.errorRate || 0,
+                name,
+                connections: internalStats.connections,
+                available: internalStats.available,
+                waiting: internalStats.waiting,
+                status: (healthStatus?.status ?? 'unknown') as PoolStats['status'],
+                totalRequests: poolStats.totalRequests || internalStats.totalRequests,
+                successCount: poolStats.successCount,
+                errorCount: poolStats.errorCount,
+                avgResponseTime: internalStats.avgResponseTime,
+                minResponseTime: poolStats.minResponseTime,
+                maxResponseTime: poolStats.maxResponseTime,
+                errorRate: poolStats.errorRate || internalStats.errorRate,
+                lastRequestTime: poolStats.lastRequestTime,
             };
         }
         return result;

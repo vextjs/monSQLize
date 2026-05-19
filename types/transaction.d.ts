@@ -30,7 +30,7 @@ export interface TransactionOptions {
 
 export interface TransactionInfo {
     id: string;
-    status: 'pending' | 'started' | 'active' | 'committed' | 'aborted';
+    status: 'pending' | 'active' | 'committed' | 'aborted';
     duration: number;
     sessionId: string;
 }
