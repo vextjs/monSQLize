@@ -6,6 +6,7 @@
  * - Public and shared types are managed by `types/transaction.d.ts`; only runtime implementation and internal state types are kept here.
  */
 
+import { randomBytes } from 'node:crypto';
 import type { MongoClient, ClientSession } from 'mongodb';
 import type { CacheLike } from '../cache';
 import type { LoggerLike } from '../../core/logger';
@@ -141,7 +142,7 @@ export class CacheLockManager {
  * @since v1.3.0
  */
 export class Transaction {
-    readonly id = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    readonly id = `tx_${randomBytes(8).toString('hex')}`;
     state: 'pending' | 'active' | 'committed' | 'aborted' = 'pending';
     private startedAt: number | null = null;
     private timeoutTimer: NodeJS.Timeout | null = null;

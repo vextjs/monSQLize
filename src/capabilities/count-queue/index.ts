@@ -120,23 +120,25 @@ async execute<T>(fn: () => Promise<T>): Promise<T> {
 
         if (this.running >= this.concurrency) {
             if (this.queue.length >= this.maxQueueSize) {
-                this.stats.rejected++;
+                this.stats.rejected += 1;
                 throw createError(ErrorCodes.INVALID_OPERATION, `Count queue is full (${this.maxQueueSize})`);
             }
-            this.stats.queued++;
+            this.stats.queued += 1;
             const waitResult = await this._waitInQueue(startTime);
             if (waitResult === 'cleared') {
                 return undefined as T;
             }
         }
 
-        this.running++;
-        this.stats.executed++;
+        this.running += 1;
+        this.stats.executed += 1;
 
         try {
-            return await this._executeWithTimeout(fn);
+            const elapsed = Date.now() - startTime;
+            const remainingMs = Math.max(1, this.timeout - elapsed);
+            return await this._executeWithTimeout(fn, remainingMs);
         } finally {
-            this.running--;
+            this.running -= 1;
             this._wakeNext();
         }
     }
@@ -187,7 +189,7 @@ async execute<T>(fn: () => Promise<T>): Promise<T> {
                 const index = this.queue.findIndex(item => item.resolve === resolve);
                 if (index !== -1) {
                     this.queue.splice(index, 1);
-                    this.stats.timeout++;
+                    this.stats.timeout += 1;
                     reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count queue wait timeout (${this.timeout}ms)`));
                 }
             }, this.timeout);
@@ -215,12 +217,12 @@ async execute<T>(fn: () => Promise<T>): Promise<T> {
         }
     }
 
-    private _executeWithTimeout<T>(fn: () => Promise<T>): Promise<T> {
+    private _executeWithTimeout<T>(fn: () => Promise<T>, timeoutMs = this.timeout): Promise<T> {
         let timer: ReturnType<typeof setTimeout> | null = null;
         const timeoutPromise = new Promise<never>((_, reject) => {
             timer = setTimeout(
                 () => reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count execution timeout (${this.timeout}ms)`)),
-                this.timeout,
+                timeoutMs,
             );
         });
         return Promise.race([fn(), timeoutPromise]).finally(() => {

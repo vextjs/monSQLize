@@ -122,7 +122,7 @@ export class HealthChecker {
                 status.consecutiveFailures = 0;
                 delete status.lastError;
             } else {
-                status.consecutiveFailures++;
+                status.consecutiveFailures += 1;
                 if (lastError) status.lastError = lastError;
                 if (status.consecutiveFailures >= retries) {
                     status.status = 'down';

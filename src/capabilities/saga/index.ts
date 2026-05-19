@@ -6,6 +6,7 @@
  * - Public and shared types are managed by `types/saga.d.ts`; only runtime implementation is kept here.
  */
 
+import { randomBytes } from 'node:crypto';
 import { ErrorCodes, createError } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
 import type {
@@ -101,7 +102,7 @@ export class SagaOrchestrator {
             throw createError(ErrorCodes.INVALID_ARGUMENT, `Saga '${name}' is not defined`);
         }
 
-        const sagaId = `saga_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const sagaId = `saga_${randomBytes(8).toString('hex')}`;
         const startedAt = Date.now();
         const context = new SagaExecutionContext(sagaId, data);
         const completedSteps: Array<{ step: SagaStep; result: unknown }> = [];
@@ -138,7 +139,10 @@ export class SagaOrchestrator {
                 duration?: number;
             }> = [];
 
-            this._stats.compensatedExecutions += 1;
+            const hasCompensationSteps = completedSteps.some(({ step }) => typeof step.compensate === 'function');
+            if (hasCompensationSteps) {
+                this._stats.compensatedExecutions += 1;
+            }
 
             for (const { step, result: stepResult } of [...completedSteps].reverse()) {
                 if (typeof step.compensate !== 'function') {

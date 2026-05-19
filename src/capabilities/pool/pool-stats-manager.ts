@@ -56,13 +56,13 @@ export class PoolStatsManager {
             this._stats.set(item.poolName, stats);
         }
         if (item.type === 'selection') {
-            stats.totalRequests++;
+            stats.totalRequests += 1;
         } else if (item.type === 'request') {
-            stats.totalRequests++;
+            stats.totalRequests += 1;
             if (item.success) {
-                stats.successRequests++;
+                stats.successRequests += 1;
             } else {
-                stats.failedRequests++;
+                stats.failedRequests += 1;
             }
             stats.totalResponseTime += item.responseTime ?? 0;
             stats.avgResponseTime = stats.totalResponseTime / stats.totalRequests;
