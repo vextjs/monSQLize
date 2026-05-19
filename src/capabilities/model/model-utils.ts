@@ -107,7 +107,9 @@ export function applySort<T extends Record<string, unknown>>(
             if (leftValue === rightValue) {
                 continue;
             }
-            const result = leftValue! > rightValue! ? 1 : -1;
+            if (leftValue == null) return direction;
+            if (rightValue == null) return -direction;
+            const result = leftValue > rightValue ? 1 : -1;
             return result * direction;
         }
         return 0;

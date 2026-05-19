@@ -291,7 +291,10 @@ function dispatchFunction(name: string, argsStr: string): unknown {
             if (args.length !== 2) throw new Error('IF_NULL requires 2 arguments');
             return { $ifNull: [parseValue(args[0]), parseValue(args[1])] };
         }
-        case 'SET_FIELD': return { $setField: { field: parseValue(args[0]), input: parseValue(args[2]), value: parseValue(args[1]) } };
+        case 'SET_FIELD': {
+            if (args.length !== 3) throw new Error('SET_FIELD requires 3 arguments: (field, value, input)');
+            return { $setField: { field: parseValue(args[0]), input: parseValue(args[2]), value: parseValue(args[1]) } };
+        }
         case 'UNSET_FIELD': return { $unsetField: { field: parseValue(args[0]), input: parseValue(args[1]) } };
         case 'GET_FIELD': return args.length === 1
             ? { $getField: parseValue(args[0]) }

@@ -98,7 +98,7 @@ export class SagaOrchestrator {
     async execute(name: string, data: unknown): Promise<SagaResult> {
         const definition = this.sagas.get(name);
         if (!definition) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, `Saga '${name}' 未定义`);
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `Saga '${name}' is not defined`);
         }
 
         const sagaId = `saga_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -138,6 +138,8 @@ export class SagaOrchestrator {
                 duration?: number;
             }> = [];
 
+            this._stats.compensatedExecutions += 1;
+
             for (const { step, result: stepResult } of [...completedSteps].reverse()) {
                 if (typeof step.compensate !== 'function') {
                     compensationResults.push({ stepName: step.name, success: false, reason: 'no-compensate-defined' });
@@ -147,7 +149,6 @@ export class SagaOrchestrator {
                 try {
                     await (step.compensate as (ctx: SagaContext, result: unknown) => Promise<void>)(context, stepResult);
                     compensationResults.push({ stepName: step.name, success: true, duration: Date.now() - compStart });
-                    this._stats.compensatedExecutions += 1;
                 } catch (compensationError) {
                     const compMsg = compensationError instanceof Error ? compensationError.message : String(compensationError);
                     compensationResults.push({ stepName: step.name, success: false, error: compMsg });
@@ -211,7 +212,7 @@ export class SagaOrchestrator {
             failedExecutions,
             compensatedExecutions,
             successRate,
-            storageMode: '内存',
+            storageMode: 'memory',
             // v1 aliases
             successCount: successfulExecutions,
             failureCount: failedExecutions,

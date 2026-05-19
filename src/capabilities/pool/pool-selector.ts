@@ -126,7 +126,7 @@ export class PoolSelector {
                 candidates = nonPrimary;
             }
         } else if (context.operation === 'write') {
-            const primaries = pools.filter((pool) => (pool.role ?? 'primary') === 'primary');
+            const primaries = pools.filter((pool) => pool.role === 'primary');
             if (primaries.length > 0) {
                 candidates = primaries;
             }

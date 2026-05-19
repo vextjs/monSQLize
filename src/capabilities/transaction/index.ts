@@ -38,6 +38,7 @@ export class CacheLockManager {
     private readonly maxDuration: number;
     private readonly cleanupInterval: number;
     private readonly cleanupTimer: NodeJS.Timeout;
+    private _totalLocksAdded = 0;
 
     constructor(options: { logger?: LoggerLike | null; maxDuration?: number; cleanupInterval?: number; } = {}) {
         this.logger = options.logger ?? null;
@@ -59,6 +60,7 @@ export class CacheLockManager {
             ownerId,
             expiresAt: Date.now() + this.maxDuration,
         });
+        this._totalLocksAdded += 1;
     }
 
     /**
@@ -102,7 +104,7 @@ export class CacheLockManager {
     getStats(): { totalLocks: number; activeLocks: number; maxDuration: number; } {
         this.cleanupExpiredLocks();
         return {
-            totalLocks: this.locks.size,
+            totalLocks: this._totalLocksAdded,
             activeLocks: this.locks.size,
             maxDuration: this.maxDuration,
         };
@@ -167,6 +169,7 @@ export class Transaction {
         }
         this.session.startTransaction();
         this.state = 'active';
+        this.startedAt = Date.now();
         const timeout = this.options.timeout ?? 30000;
         if (timeout > 0) {
             this.timeoutTimer = setTimeout(() => {

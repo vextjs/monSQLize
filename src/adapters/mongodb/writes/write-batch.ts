@@ -20,10 +20,10 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
     options: BatchWriteOptions & Parameters<Collection<TSchema>['insertMany']>[1] = {},
 ): Promise<InsertBatchResult> {
     if (!Array.isArray(documents)) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents 必须是数组类型');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents must be an array');
     }
     if (documents.length === 0) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents 数组不能为空');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents array must not be empty');
     }
 
     const rawOptions = options as BatchWriteOptions & Parameters<Collection<TSchema>['insertMany']>[1] & {
@@ -146,15 +146,15 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
     options: UpdateBatchOptions & Parameters<Collection<TSchema>['updateMany']>[2] = {},
 ): Promise<UpdateBatchResult> {
     if (!filter || typeof filter !== 'object' || Array.isArray(filter)) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter 必须是对象类型');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter must be a non-array object');
     }
     if (!update || typeof update !== 'object') {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'update 必须是对象（更新操作符）或数组（聚合管道）');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'update must be an object (update operators) or array (aggregation pipeline)');
     }
     if (!Array.isArray(update)) {
         const keys = Object.keys(update as Record<string, unknown>);
         if (keys.length === 0 || !keys.some((key) => key.startsWith('$'))) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, 'update 必须使用更新操作符（如 $set, $inc 等）');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'update must use update operators (e.g. $set, $inc)');
         }
     }
 
@@ -212,7 +212,7 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
     options: UpdateBatchOptions & Parameters<Collection<TSchema>['deleteMany']>[1] = {},
 ): Promise<DeleteBatchResult> {
     if (!filter || typeof filter !== 'object' || Array.isArray(filter)) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter 必须是对象类型');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter must be a non-array object');
     }
 
     const rawOptions = options as UpdateBatchOptions & Parameters<Collection<TSchema>['deleteMany']>[1] & {

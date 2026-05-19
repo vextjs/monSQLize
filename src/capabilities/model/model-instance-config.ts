@@ -204,7 +204,9 @@ export function initializeModelV1Methods<TDocument>(
             }
         }
         return customMethods.instance ?? {};
-    } catch {
+    } catch (error) {
+        // v1 compat: methods() factory errors are non-fatal, but log them so they are diagnosable.
+        console.warn('[MonSQLize] initializeModelV1Methods: methods() factory threw an error', error);
         return {};
     }
 }

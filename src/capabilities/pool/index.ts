@@ -108,7 +108,6 @@ export class ConnectionPoolManager {
     private readonly fallback: { enabled: boolean; fallbackStrategy: FallbackStrategy; retryDelay: number; maxRetries: number; };
     private readonly clientFactory: (config: PoolConfig) => Promise<MongoClient>;
     private readonly healthCheckFn: (poolName: string, client: MongoClient, config: PoolConfig) => Promise<boolean>;
-    private readonly roundRobinIndex = new Map<string, number>();
 
     // v1 compat properties
     _closed = false;
@@ -436,71 +435,6 @@ export class ConnectionPoolManager {
         return [];
     }
 
-    private getCandidatePools(operation: 'read' | 'write', options: { pool?: string; tags?: string[]; }): string[] {
-        if (options.pool) {
-            const pool = this.pools.get(options.pool);
-            if (!pool) {
-                throw new Error(`Pool '${options.pool}' not found`);
-            }
-            return [options.pool];
-        }
-
-        let candidates = [...this.pools.entries()]
-            .filter(([name]) => (this.healthStatus.get(name)?.status ?? 'down') !== 'down');
-
-        if (candidates.length === 0 && this.fallback.enabled) {
-            candidates = [...this.pools.entries()];
-        }
-
-        if (operation === 'write') {
-            const primaries = candidates.filter(([, pool]) => (pool.config.role ?? 'primary') === 'primary');
-            if (primaries.length > 0) {
-                candidates = primaries;
-            }
-        } else {
-            const secondaries = candidates.filter(([, pool]) => pool.config.role === 'secondary' || pool.config.role === 'analytics');
-            if (secondaries.length > 0) {
-                candidates = secondaries;
-            }
-        }
-
-        if (options.tags?.length) {
-            const tagged = candidates.filter(([, pool]) => options.tags?.some((tag) => pool.config.tags?.includes(tag)));
-            if (tagged.length > 0) {
-                candidates = tagged;
-            }
-        }
-
-        return candidates.map(([name]) => name);
-    }
-
-    private selectPoolName(candidateNames: string[], operation: 'read' | 'write'): string {
-        if (candidateNames.length === 1) {
-            return candidateNames[0];
-        }
-        if (this.strategy === 'roundRobin') {
-            const current = this.roundRobinIndex.get(operation) ?? 0;
-            const selected = candidateNames[current % candidateNames.length];
-            this.roundRobinIndex.set(operation, current + 1);
-            return selected;
-        }
-        if (this.strategy === 'leastConnections') {
-            return [...candidateNames].sort((left, right) => {
-                const leftStats = this.stats.get(left)?.totalRequests ?? 0;
-                const rightStats = this.stats.get(right)?.totalRequests ?? 0;
-                return leftStats - rightStats;
-            })[0];
-        }
-        if (this.strategy === 'weighted' || this.strategy === 'auto') {
-            const weighted = candidateNames.flatMap((name) => {
-                const weight = this.pools.get(name)?.config.weight ?? 1;
-                return Array.from({ length: weight }, () => name);
-            });
-            return weighted[Math.floor(Math.random() * weighted.length)] ?? candidateNames[0];
-        }
-        return candidateNames[0];
-    }
-
     private async checkPoolHealth(poolName: string): Promise<void> {
         const managed = this.pools.get(poolName);
         const current = this.healthStatus.get(poolName);
@@ -542,8 +476,6 @@ export class ConnectionPoolManager {
             stats.errorCount += 1;
         }
         stats.lastRequestTime = new Date();
-        const samples = [stats.minResponseTime, stats.maxResponseTime].filter((value) => value > 0);
-        stats.avgResponseTime = samples.length === 0 ? 0 : samples.reduce((sum, value) => sum + value, 0) / samples.length;
         stats.errorRate = stats.totalRequests === 0 ? 0 : stats.errorCount / stats.totalRequests;
     }
 }

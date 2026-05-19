@@ -64,7 +64,7 @@ export async function findByIdsDocuments<TSchema extends Document = Document>(
     if (!Array.isArray(ids)) {
         throw createError(
             ErrorCodes.INVALID_ARGUMENT,
-            'ids 必须是数组',
+            'ids must be an array',
             [{ field: 'ids', type: 'type', message: 'ids must be an array', received: typeof ids }],
         );
     }
@@ -101,7 +101,7 @@ export async function findByIdsDocuments<TSchema extends Document = Document>(
     if (invalidIds.length > 0) {
         throw createError(
             ErrorCodes.INVALID_ARGUMENT,
-            `ids 数组包含 ${invalidIds.length} 个无效 ID`,
+            `ids array contains ${invalidIds.length} invalid ID(s)`,
             invalidIds.map((item) => ({
                 field: `ids[${item.index}]`,
                 type: 'format',
@@ -139,7 +139,7 @@ export async function findByIdsDocuments<TSchema extends Document = Document>(
                 resultMap.set(String(docId), doc);
             }
         }
-        return objectIds.map((item) => resultMap.get(item.toString())).filter((item): item is TSchema => item !== undefined);
+        return uniqueIds.map((item) => resultMap.get(item.toString())).filter((item): item is TSchema => item !== undefined);
     }
 
     return results;

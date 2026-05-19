@@ -230,7 +230,7 @@ export async function dropIndexDefinition<TSchema extends Document = Document>(
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'dropIndex: name must be a non-empty string.');
     }
     if (name === '_id_') {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'dropIndex: 不允许删除 _id 索引');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'dropIndex: dropping the _id index is not allowed');
     }
     try {
         return await collectionRef.dropIndex(name);
@@ -375,7 +375,7 @@ const VALID_INDEX_VALUES = new Set([1, -1, '1', '-1', 'text', '2d', '2dsphere', 
 
 function validateIndexKeys(keys: Document | undefined, operation: string): void {
     if (!keys || typeof keys !== 'object' || Array.isArray(keys) || Object.keys(keys).length === 0) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, `${operation}: 索引键不能为空`);
+        throw createError(ErrorCodes.INVALID_ARGUMENT, `${operation}: index keys must not be empty`);
     }
     for (const [field, value] of Object.entries(keys)) {
         if (!VALID_INDEX_VALUES.has(value as number | string)) {

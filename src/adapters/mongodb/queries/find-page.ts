@@ -166,6 +166,8 @@ export async function executeFindPage<TSchema extends Document = Document>(
         driverOpts.projection = buildEffectiveProjection(options.projection, sort);
     }
 
+    const jumpOpts = ext.jump as { step: number; maxHops: number } | undefined;
+
     const finishResult = (result: FindPageResult<TSchema>): FindPageResult<TSchema> => {
         if (!metaEnabled) {
             return result;
@@ -227,7 +229,6 @@ export async function executeFindPage<TSchema extends Document = Document>(
     }
 
     // ── 跳跃检查 ──────────────────────────────────────────────────────────────
-    const jumpOpts = ext.jump as { step: number; maxHops: number } | undefined;
     if (jumpOpts && page > 1 && (page - 1) > jumpOpts.maxHops) {
         throw createError(ErrorCodes.JUMP_TOO_FAR, 'Page jump exceeds maxHops limit.', [
             { page, maxHops: jumpOpts.maxHops, requestedHops: page - 1 },

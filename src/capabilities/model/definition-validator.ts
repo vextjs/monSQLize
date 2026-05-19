@@ -145,14 +145,14 @@ export function validateRelationConfig(name: string, config: RelationConfig): vo
     for (const field of ['from', 'localField', 'foreignField'] as const) {
         const value = config[field];
         if (value === undefined || value === null) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, `relations 配置缺少必需字段: ${field}`);
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `relations config is missing required field: ${field}`);
         }
         if (typeof value !== 'string' || (value as string).trim() === '') {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.${field} 必须是字符串`);
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.${field} must be a string`);
         }
     }
     if (config.single !== undefined && typeof config.single !== 'boolean') {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.single 必须是布尔值`);
+        throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.single must be a boolean`);
     }
 }
 

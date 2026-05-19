@@ -26,6 +26,7 @@ export class SlowQueryLogManager {
     readonly queue: BatchQueue | null;
     private readonly logger: LoggerLike | null;
     private initialized = false;
+    private _initializingPromise: Promise<void> | null = null;
 
     constructor(
         userConfig?: SlowQueryLogConfigInput,
@@ -48,8 +49,15 @@ export class SlowQueryLogManager {
         if (this.initialized || !this.config.enabled) {
             return;
         }
-        await this.storage.initialize();
-        this.initialized = true;
+        if (this._initializingPromise) {
+            return this._initializingPromise;
+        }
+        this._initializingPromise = this.storage.initialize().then(() => {
+            this.initialized = true;
+        }).finally(() => {
+            this._initializingPromise = null;
+        });
+        return this._initializingPromise;
     }
 
     async save(log: SlowQueryLogEntry): Promise<void> {

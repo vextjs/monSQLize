@@ -34,7 +34,7 @@ export async function insertBatchForAccessor<TSchema extends Document>(
     options?: BatchWriteOptions & Parameters<Collection<TSchema>['insertMany']>[1],
 ): Promise<InsertBatchResult> {
     if (!Array.isArray(documents)) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents 必须是数组类型');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents must be an array');
     }
     const result = await insertBatchDocuments(context.collectionRef, documents.map((document) => context.cvDoc(document)), options);
     await context.invalidateAll();

@@ -111,7 +111,7 @@ export async function incrementOneDocument<TSchema extends Document = Document>(
     maybeOptions?: IncrementOneOptions,
 ): Promise<IncrementOneResult<TSchema>> {
     if (!filter || typeof filter !== 'object' || Array.isArray(filter)) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter 必须是非空对象');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter must be a non-empty object');
     }
 
     let options: IncrementOneOptions = {};
@@ -122,7 +122,7 @@ export async function incrementOneDocument<TSchema extends Document = Document>(
     } else if (incrementOrOptions && typeof incrementOrOptions === 'object' && !Array.isArray(incrementOrOptions)) {
         options = incrementOrOptions;
     } else {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'increment 必须是数字');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'increment must be a number');
     }
 
     const updateDocument = createIncrementUpdate(field, increment, options.$set);

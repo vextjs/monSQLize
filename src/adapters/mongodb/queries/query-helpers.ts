@@ -57,7 +57,7 @@ export function parseRequiredObjectId(id: unknown): ObjectId {
         if (!isHexObjectIdString(id)) {
             throw createError(
                 ErrorCodes.INVALID_ARGUMENT,
-                `无效的 ObjectId 格式: "${id}"`,
+                `invalid ObjectId format: "${id}"`,
                 [{
                     field: 'id',
                     type: 'format',
@@ -89,7 +89,7 @@ export function parseRequiredObjectId(id: unknown): ObjectId {
 
     throw createError(
         ErrorCodes.INVALID_ARGUMENT,
-        'id 必须是字符串或 ObjectId 实例',
+        'id must be a string or ObjectId instance',
         [{
             field: 'id',
             type: 'type',

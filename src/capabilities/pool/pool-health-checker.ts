@@ -22,6 +22,7 @@ export class HealthChecker {
     private readonly _checkConfigs = new Map<string, Record<string, unknown>>();
     private readonly _clients = new Map<string, unknown>();
     private readonly _intervals = new Map<string, ReturnType<typeof setInterval>>();
+    private readonly _inProgress = new Set<string>();
     _started = false;
 
     constructor(options: { poolManager?: HealthCheckerPoolManager; logger?: { info?: (...args: unknown[]) => void; warn?: (...args: unknown[]) => void; }; } = {}) {
@@ -97,32 +98,38 @@ export class HealthChecker {
     }
 
     private async _checkPool(poolName: string, config: Record<string, unknown>): Promise<void> {
-        const status = this._healthStatus.get(poolName);
-        if (!status) return;
-
-        status.status = 'checking';
-        status.lastCheck = new Date();
-        const retries = (config.retries as number) ?? 3;
-        let success = false;
-        let lastError: Error | null = null;
-
+        if (this._inProgress.has(poolName)) return;
+        this._inProgress.add(poolName);
         try {
-            await this._pingPool(poolName, (config.timeout as number) ?? 3000);
-            success = true;
-        } catch (error) {
-            lastError = error instanceof Error ? error : new Error(String(error));
-        }
+            const status = this._healthStatus.get(poolName);
+            if (!status) return;
 
-        if (success) {
-            status.status = 'up';
-            status.consecutiveFailures = 0;
-            delete status.lastError;
-        } else {
-            status.consecutiveFailures++;
-            if (lastError) status.lastError = lastError;
-            if (status.consecutiveFailures >= retries) {
-                status.status = 'down';
+            status.status = 'checking';
+            status.lastCheck = new Date();
+            const retries = (config.retries as number) ?? 3;
+            let success = false;
+            let lastError: Error | null = null;
+
+            try {
+                await this._pingPool(poolName, (config.timeout as number) ?? 3000);
+                success = true;
+            } catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
             }
+
+            if (success) {
+                status.status = 'up';
+                status.consecutiveFailures = 0;
+                delete status.lastError;
+            } else {
+                status.consecutiveFailures++;
+                if (lastError) status.lastError = lastError;
+                if (status.consecutiveFailures >= retries) {
+                    status.status = 'down';
+                }
+            }
+        } finally {
+            this._inProgress.delete(poolName);
         }
     }
 

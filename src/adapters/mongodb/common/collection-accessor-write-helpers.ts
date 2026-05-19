@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 集合访问器单条写操作辅助函数。
  *
  * 为 MongoCollectionAccessor 提供 insertOne、updateOne、deleteOne、
@@ -45,15 +45,15 @@ function assertUpdateDocument(update: unknown): void {
     if (update === null || update === undefined) {
         throw createError(
             ErrorCodes.INVALID_ARGUMENT,
-            'update 必须是对象（更新操作符）或数组（聚合管道）',
-            [{ field: 'update', type: 'object|array.required', message: 'update 必须是更新操作符对象或聚合管道数组' }],
+            'update must be an object (update operators) or array (aggregation pipeline)',
+            [{ field: 'update', type: 'object|array.required', message: 'update must be an update-operator object or aggregation pipeline array' }],
         );
     }
     if (Array.isArray(update)) {
         if (update.length === 0) {
             throw createError(
                 ErrorCodes.INVALID_ARGUMENT,
-                'update 聚合管道不能为空数组',
+                'update aggregation pipeline must not be an empty array',
                 [{ field: 'update', type: 'array.empty', message: 'aggregation pipeline must contain at least one stage' }],
             );
         }
@@ -62,7 +62,7 @@ function assertUpdateDocument(update: unknown): void {
             if (stage === null || typeof stage !== 'object' || Array.isArray(stage)) {
                 throw createError(
                     ErrorCodes.INVALID_ARGUMENT,
-                    `update 聚合管道第 ${index + 1} 阶段必须是对象`,
+                    `update pipeline stage ${index + 1} must be an object`,
                     [{ field: `update[${index}]`, type: 'object.required', message: 'pipeline stage must be an object' }],
                 );
             }
@@ -70,7 +70,7 @@ function assertUpdateDocument(update: unknown): void {
             if (stageKeys.length === 0) {
                 throw createError(
                     ErrorCodes.INVALID_ARGUMENT,
-                    `update 聚合管道第 ${index + 1} 阶段不能为空对象`,
+                    `update pipeline stage ${index + 1} must not be an empty object`,
                     [{ field: `update[${index}]`, type: 'object.empty', message: 'pipeline stage must not be empty' }],
                 );
             }
@@ -89,8 +89,8 @@ function assertUpdateDocument(update: unknown): void {
     if (typeof update !== 'object') {
         throw createError(
             ErrorCodes.INVALID_ARGUMENT,
-            'update 必须是对象（更新操作符）或数组（聚合管道）',
-            [{ field: 'update', type: 'object|array.required', message: 'update 必须是更新操作符对象或聚合管道数组' }],
+            'update must be an object (update operators) or array (aggregation pipeline)',
+            [{ field: 'update', type: 'object|array.required', message: 'update must be an update-operator object or aggregation pipeline array' }],
         );
     }
 
@@ -98,23 +98,23 @@ function assertUpdateDocument(update: unknown): void {
     if (keys.length === 0) {
         throw createError(
             ErrorCodes.INVALID_ARGUMENT,
-            'update 不能为空对象',
+            'update must not be an empty object',
             [{ field: 'update', type: 'object.empty', message: 'update must not be empty' }],
         );
     }
     if (!keys.some((key) => key.startsWith('$'))) {
         throw createError(
             ErrorCodes.INVALID_ARGUMENT,
-            'update 必须使用更新操作符（如 $set, $inc 等）',
-            [{ field: 'update', type: 'object.invalidKeys', message: '请使用 $set, $inc, $push 等更新操作符' }],
+            'update must use update operators (e.g. $set, $inc)',
+            [{ field: 'update', type: 'object.invalidKeys', message: 'use update operators such as $set, $inc, $push' }],
         );
     }
 }
 
 function assertReplacementDocument(replacement: unknown): void {
-    assertObjectArgument(replacement, 'replacement', 'replacement 必须是对象类型');
+    assertObjectArgument(replacement, 'replacement', 'replacement must be an object');
     if (Object.keys(replacement as Record<string, unknown>).some((key) => key.startsWith('$'))) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'replacement 不能包含更新操作符（如 $set, $inc 等）');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'replacement must not contain update operators (e.g. $set, $inc)');
     }
 }
 
@@ -134,7 +134,7 @@ export async function insertOneForAccessor<TSchema extends Document = Document>(
         if (mongoErr?.code === 11000) {
             throw createError(
                 ErrorCodes.DUPLICATE_KEY,
-                '文档插入失败：违反唯一性约束 (duplicate key)',
+                'Insert failed: duplicate key violation',
                 [{ field: '_id', message: mongoErr.message ?? 'duplicate key' }],
                 err as Error,
             );
@@ -151,7 +151,7 @@ export async function insertOneForAccessor<TSchema extends Document = Document>(
     const threshold = context.defaults?.slowQueryMs ?? 500;
     if (elapsed > threshold && context.logger) {
         try {
-            context.logger.warn('[insertOne] 慢操作警告', {
+            context.logger.warn('[insertOne] slow operation warning', {
                 ns: `${context.dbName}.${context.collectionName}`,
                 threshold,
                 duration: elapsed,
@@ -173,13 +173,13 @@ export async function insertManyForAccessor<TSchema extends Document = Document>
     options?: Parameters<Collection<TSchema>['insertMany']>[1],
 ): ReturnType<Collection<TSchema>['insertMany']> {
     if (!Array.isArray(documents)) {
-        throw createError('DOCUMENTS_REQUIRED', 'documents 必须是数组类型');
+        throw createError('DOCUMENTS_REQUIRED', 'documents must be an array');
     }
     if (documents.length === 0) {
-        throw createError('DOCUMENTS_REQUIRED', 'documents 数组不能为空');
+        throw createError('DOCUMENTS_REQUIRED', 'documents array must not be empty');
     }
     if (documents.some((item) => item === null || typeof item !== 'object' || Array.isArray(item))) {
-        throw createError('DOCUMENTS_REQUIRED', 'documents 中的所有元素必须是对象类型');
+        throw createError('DOCUMENTS_REQUIRED', 'every element in documents must be an object');
     }
 
     const startedAt = Date.now();
@@ -192,7 +192,7 @@ export async function insertManyForAccessor<TSchema extends Document = Document>
         if (mongoErr?.code === 11000) {
             throw createError(
                 ErrorCodes.DUPLICATE_KEY,
-                '批量插入失败：违反唯一性约束 (duplicate key)',
+                'insertMany failed: duplicate key violation',
                 [{ field: '_id', message: mongoErr.message ?? 'duplicate key' }],
                 err as Error,
             );
@@ -203,7 +203,7 @@ export async function insertManyForAccessor<TSchema extends Document = Document>
     const elapsed = Date.now() - startedAt;
     const threshold = context.defaults?.slowQueryMs ?? 500;
     if (elapsed >= threshold && context.logger) {
-        context.logger.warn('[insertMany] 慢操作警告', {
+        context.logger.warn('[insertMany] slow operation warning', {
             ns: `${context.dbName}.${context.collectionName}`,
             threshold,
             duration: elapsed,
@@ -225,7 +225,7 @@ export async function updateOneForAccessor<TSchema extends Document = Document>(
     update: Parameters<Collection<TSchema>['updateOne']>[1],
     options?: Parameters<Collection<TSchema>['updateOne']>[2],
 ): ReturnType<Collection<TSchema>['updateOne']> {
-    assertObjectArgument(filter, 'filter', 'filter 必须是对象类型');
+    assertObjectArgument(filter, 'filter', 'filter must be an object');
     assertUpdateDocument(update);
 
     const normalizedFilter = context.cvFilter(filter);
@@ -245,7 +245,7 @@ export async function updateManyForAccessor<TSchema extends Document = Document>
     update: Parameters<Collection<TSchema>['updateMany']>[1],
     options?: Parameters<Collection<TSchema>['updateMany']>[2],
 ): ReturnType<Collection<TSchema>['updateMany']> {
-    assertObjectArgument(filter, 'filter', 'filter 必须是非空对象');
+    assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
     assertUpdateDocument(update);
 
     const result = await updateManyDocuments(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
@@ -261,7 +261,7 @@ export async function replaceOneForAccessor<TSchema extends Document = Document>
     replacement: Parameters<Collection<TSchema>['replaceOne']>[1],
     options?: Parameters<Collection<TSchema>['replaceOne']>[2],
 ): ReturnType<Collection<TSchema>['replaceOne']> {
-    assertObjectArgument(filter, 'filter', 'filter 必须是非空对象');
+    assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
     assertReplacementDocument(replacement);
 
     const result = await replaceOneDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), options);
@@ -275,7 +275,7 @@ export async function findOneAndReplaceForAccessor<TSchema extends Document = Do
     replacement: Parameters<Collection<TSchema>['findOneAndReplace']>[1],
     options?: unknown,
 ): ReturnType<Collection<TSchema>['findOneAndReplace']> {
-    assertObjectArgument(filter, 'filter', 'filter 必须是非空对象');
+    assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
     assertReplacementDocument(replacement);
 
     const result = await findOneAndReplaceDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), options);
@@ -291,7 +291,7 @@ export async function findOneAndUpdateForAccessor<TSchema extends Document = Doc
     update: Parameters<Collection<TSchema>['findOneAndUpdate']>[1],
     options?: unknown,
 ): ReturnType<Collection<TSchema>['findOneAndUpdate']> {
-    assertObjectArgument(filter, 'filter', 'filter 必须是非空对象');
+    assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
     assertUpdateDocument(update);
 
     const result = await findOneAndUpdateDocument(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
@@ -306,7 +306,7 @@ export async function findOneAndDeleteForAccessor<TSchema extends Document = Doc
     filter: Parameters<Collection<TSchema>['findOneAndDelete']>[0],
     options?: unknown,
 ): ReturnType<Collection<TSchema>['findOneAndDelete']> {
-    assertObjectArgument(filter, 'filter', 'filter 必须是非空对象');
+    assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
 
     const result = await findOneAndDeleteDocument(context.collectionRef, context.cvFilter(filter), options);
     if (result) {
@@ -321,8 +321,8 @@ export async function upsertOneForAccessor<TSchema extends Document = Document>(
     update: Parameters<Collection<TSchema>['updateOne']>[1],
     options?: Parameters<Collection<TSchema>['updateOne']>[2],
 ): ReturnType<Collection<TSchema>['updateOne']> {
-    assertObjectArgument(filter, 'filter', 'filter 必须是非空对象');
-    assertObjectArgument(update, 'update', 'update 必须是非空对象');
+    assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
+    assertObjectArgument(update, 'update', 'update must be a non-empty object');
 
     const updateDoc = Object.keys(update as Record<string, unknown>).some((key) => key.startsWith('$'))
         ? update
@@ -345,7 +345,7 @@ export async function deleteOneForAccessor<TSchema extends Document = Document>(
     filter: Parameters<Collection<TSchema>['deleteOne']>[0],
     options?: Parameters<Collection<TSchema>['deleteOne']>[1],
 ): ReturnType<Collection<TSchema>['deleteOne']> {
-    assertObjectArgument(filter, 'filter', 'filter 必须是对象类型');
+    assertObjectArgument(filter, 'filter', 'filter must be an object');
 
     const result = await deleteOneDocument(context.collectionRef, context.cvFilter(filter), options);
     if (result.deletedCount > 0) {
@@ -359,7 +359,7 @@ export async function deleteManyForAccessor<TSchema extends Document = Document>
     filter: Parameters<Collection<TSchema>['deleteMany']>[0],
     options?: Parameters<Collection<TSchema>['deleteMany']>[1],
 ): ReturnType<Collection<TSchema>['deleteMany']> {
-    assertObjectArgument(filter, 'filter', 'filter 必须是非空对象');
+    assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
 
     const result = await deleteManyDocuments(context.collectionRef, context.cvFilter(filter), options);
     if (result.deletedCount > 0) {

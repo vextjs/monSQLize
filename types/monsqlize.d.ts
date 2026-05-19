@@ -66,7 +66,7 @@ export interface MonSQLizeOptions {
     cursorSecret?: string;
     /** Logging tag configuration applied to slow-query event payloads. @since v1.3.0 */
     log?: { slowQueryTag?: { event?: string; code?: string; }; };
-    /** Auto-convert 24-character hex strings to ObjectId in query filters. Pass a field map to selectively enable per field. Default: false. @since v1.3.0 */
+    /** Auto-convert 24-character hex strings to ObjectId in query filters. Pass a field map to selectively enable per field. Default: true for mongodb type (pass `false` to disable). @since v1.3.0 */
     autoConvertObjectId?: boolean | Record<string, boolean>;
     /** Batch count operations to reduce server round-trips. @since v1.3.0 */
     countQueue?: { enabled: boolean; concurrency?: number; maxQueueSize?: number; timeout?: number; };

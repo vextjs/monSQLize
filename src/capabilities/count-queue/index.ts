@@ -216,15 +216,16 @@ async execute<T>(fn: () => Promise<T>): Promise<T> {
     }
 
     private _executeWithTimeout<T>(fn: () => Promise<T>): Promise<T> {
-        return Promise.race([
-            fn(),
-            new Promise<never>((_, reject) =>
-                setTimeout(
-                    () => reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count execution timeout (${this.timeout}ms)`)),
-                    this.timeout,
-                )
-            ),
-        ]);
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timer = setTimeout(
+                () => reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count execution timeout (${this.timeout}ms)`)),
+                this.timeout,
+            );
+        });
+        return Promise.race([fn(), timeoutPromise]).finally(() => {
+            if (timer !== null) clearTimeout(timer);
+        });
     }
 
     private _updateWaitTimeStats(waitTime: number): void {

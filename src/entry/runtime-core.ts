@@ -321,13 +321,23 @@ export class MonSQLizeRuntime {
     }
 
     async close(): Promise<void> {
-        await this._syncManager?.stop();
-        await this._slowQueryLogManager?.close();
-        await this._transactionManager?.abortAll();
+        // Run async cleanup concurrently; a single failure must not skip remaining steps.
+        const results = await Promise.allSettled([
+            this._syncManager?.stop(),
+            this._slowQueryLogManager?.close(),
+            this._transactionManager?.abortAll(),
+            this._poolManager?.close(),
+        ]);
+        for (const result of results) {
+            if (result.status === 'rejected') {
+                this._logger.warn('[MonSQLizeRuntime] cleanup error during close', result.reason);
+            }
+        }
+        // Synchronous cleanup — order matters: locks before mongo client.
         this._cacheLockManager.stop();
         this._lockManager?.close();
-        await this._poolManager?.close();
         await closeMongo(this._client, this._logger);
+        // Reset all state references.
         this._client = null;
         this._defaultDb = null;
         this._connected = false;
@@ -336,6 +346,7 @@ export class MonSQLizeRuntime {
         this._slowQueryLogManager = null;
         this._transactionManager = null;
         this._lockManager = null;
+        this._sagaOrchestrator = null;
         this._iidCache = null;
         this._modelInstances.clear();
         this.emit('closed', {
@@ -382,17 +393,11 @@ export class MonSQLizeRuntime {
             throw err;
         }
         const dbInstance = requireCompatDbInstance(this);
-        // v2 路径：使用 _client 支持的标准实现
+        // v2 path: delegate to db().collection() via MongoClient
         if (this._client) {
-            if (!this._iidCache) {
-                this._iidCache = new MemoryCache({
-                    maxEntries: 100_000,
-                    enableStats: false,
-                });
-            }
             return this.db().collection(name);
         }
-        // v1 兼容路径：委托给 dbInstance.collection
+        // v1 compat path: delegate via dbInstance
         return dbInstance.collection(name) as CollectionFacade;
     }
 

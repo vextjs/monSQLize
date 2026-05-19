@@ -59,6 +59,8 @@ class NoopLockManager {
     }
 }
 
+// Module-level singleton shared by all LockManager instances in the same process.
+// Isolation is prefix-scoped: use distinct lockKeyPrefix values for independent namespaces.
 const globalStore = new Map<string, LockRecord>();
 
 /**
@@ -374,6 +376,8 @@ export class DistributedCacheLockManager {
             const lockKey = this.lockKeyPrefix + key;
             const exists = await this.redis.exists(lockKey);
             if (exists) return true;
+            // KEYS scan is only reached when checking wildcard patterns stored in Redis.
+            // Avoid calling isLocked() on hot paths; use tryAcquireLock() for contention checks.
             const pattern = this.lockKeyPrefix + '*';
             const keys = await this.redis.keys(pattern);
             for (const foundKey of keys) {

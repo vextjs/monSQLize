@@ -30,25 +30,25 @@ export function createIncrementUpdate(
 
     if (typeof field === 'string') {
         if (!field.trim()) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, 'field 必须是字符串或对象');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'field must be a string or object');
         }
         if (typeof increment !== 'number' || Number.isNaN(increment)) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, 'increment 必须是数字');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'increment must be a number');
         }
         incPayload = { [field]: increment };
     } else if (field && typeof field === 'object' && !Array.isArray(field)) {
         incPayload = {};
         for (const [key, value] of Object.entries(field)) {
             if (typeof value !== 'number' || Number.isNaN(value)) {
-                throw createError(ErrorCodes.INVALID_ARGUMENT, '增量必须是数字');
+                throw createError(ErrorCodes.INVALID_ARGUMENT, 'increment value must be a number');
             }
             incPayload[key] = value;
         }
         if (Object.keys(incPayload).length === 0) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, 'field 必须是字符串或对象');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'field must be a string or object');
         }
     } else {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'field 必须是字符串或对象');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'field must be a string or object');
     }
 
     return {

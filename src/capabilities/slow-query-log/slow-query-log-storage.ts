@@ -81,6 +81,7 @@ export class MongoDBSlowQueryLogStorage implements SlowQueryLogStorage {
     private readonly clientFactory: (uri: string, options?: MongoClientOptions) => Promise<MongoClient>;
     private client: MongoClient | null = null;
     private collectionRef: Collection | null = null;
+    private _initializingPromise: Promise<void> | null = null;
 
     constructor(
         config: SlowQueryLogStorageConfig = {},
@@ -103,16 +104,23 @@ export class MongoDBSlowQueryLogStorage implements SlowQueryLogStorage {
         if (this.collectionRef) {
             return;
         }
-
-        const client = await this.resolveClient();
-        this.collectionRef = client.db(this.config.database).collection(this.config.collection);
-        if (this.config.ttl && this.config.ttl > 0) {
-            await this.collectionRef.createIndex({ lastSeen: 1 }, { expireAfterSeconds: this.config.ttl, name: 'slow_query_lastSeen_ttl' });
+        if (this._initializingPromise) {
+            return this._initializingPromise;
         }
-        await this.collectionRef.createIndex(
-            { queryHash: 1, database: 1, collection: 1, operation: 1 },
-            { unique: true, name: 'slow_query_log_unique' },
-        );
+        this._initializingPromise = (async () => {
+            const client = await this.resolveClient();
+            this.collectionRef = client.db(this.config.database).collection(this.config.collection);
+            if (this.config.ttl && this.config.ttl > 0) {
+                await this.collectionRef.createIndex({ lastSeen: 1 }, { expireAfterSeconds: this.config.ttl, name: 'slow_query_lastSeen_ttl' });
+            }
+            await this.collectionRef.createIndex(
+                { queryHash: 1, database: 1, collection: 1, operation: 1 },
+                { unique: true, name: 'slow_query_log_unique' },
+            );
+        })().finally(() => {
+            this._initializingPromise = null;
+        });
+        return this._initializingPromise;
     }
 
     async save(log: SlowQueryLogEntry): Promise<void> {
@@ -154,9 +162,51 @@ export class MongoDBSlowQueryLogStorage implements SlowQueryLogStorage {
     }
 
     async saveBatch(logs: SlowQueryLogEntry[]): Promise<void> {
-        for (const log of logs) {
-            await this.save(log);
+        if (logs.length === 0) return;
+        if (logs.length === 1) {
+            await this.save(logs[0]);
+            return;
         }
+        await this.initialize();
+        const operations = logs.map((log) => {
+            const record = normalizeSlowQueryLogEntry(log);
+            return {
+                updateOne: {
+                    filter: {
+                        queryHash: record.queryHash,
+                        database: record.database,
+                        collection: record.collection,
+                        operation: record.operation,
+                    },
+                    update: {
+                        $setOnInsert: {
+                            queryHash: record.queryHash,
+                            database: record.database,
+                            collection: record.collection,
+                            operation: record.operation,
+                            firstSeen: record.firstSeen,
+                        },
+                        $set: {
+                            lastSeen: record.lastSeen,
+                            sampleQuery: record.sampleQuery,
+                            metadata: record.metadata,
+                        },
+                        $inc: {
+                            count: 1,
+                            totalTimeMs: record.totalTimeMs,
+                        },
+                        $min: {
+                            minTimeMs: record.minTimeMs,
+                        },
+                        $max: {
+                            maxTimeMs: record.maxTimeMs,
+                        },
+                    },
+                    upsert: true,
+                },
+            };
+        });
+        await this.collectionRef!.bulkWrite(operations, { ordered: false });
     }
 
     async query(filter: SlowQueryLogFilter = {}, options: SlowQueryLogQueryOptions = {}): Promise<SlowQueryLogRecord[]> {

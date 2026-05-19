@@ -34,7 +34,7 @@ export async function populateModelPath<TDocument>(
     }
     const relation = context.relations.get(config.path);
     if (!relation) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, `未定义的关系: ${config.path}`);
+        throw createError(ErrorCodes.INVALID_ARGUMENT, `Undefined relation: ${config.path}`);
     }
 
     const keys = unique(
@@ -88,7 +88,7 @@ export async function populateModelPath<TDocument>(
             return false;
         };
         if (!isValidNestedConfig(nestedRaw)) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, '嵌套 populate 参数必须是字符串、数组或对象');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'nested populate must be a string, array, or object');
         }
         if (relatedModel) {
             const nestedPaths = Array.isArray(config.populate) ? config.populate : [config.populate];

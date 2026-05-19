@@ -144,7 +144,9 @@ export function sortSlowQueryLogRecords(
             if (leftValue === rightValue) {
                 continue;
             }
-            return (leftValue! > rightValue! ? 1 : -1) * direction;
+            if (leftValue == null) return direction;
+            if (rightValue == null) return -direction;
+            return (leftValue > rightValue ? 1 : -1) * direction;
         }
         return 0;
     });

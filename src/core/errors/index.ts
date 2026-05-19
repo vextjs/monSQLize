@@ -123,14 +123,14 @@ export function createConnectionError(message: string, cause?: Error): MonSQLize
  * @since v1.3.0
  */
 export function createValidationError(details: unknown[]): MonSQLizeError {
-    return createError(ErrorCodes.VALIDATION_ERROR, '参数校验失败', details);
+    return createError(ErrorCodes.VALIDATION_ERROR, 'Validation failed', details);
 }
 
 /**
  * Creates a cursor error.
  * @since v1.3.0
  */
-export function createCursorError(message = '游标无效'): MonSQLizeError {
+export function createCursorError(message = 'Invalid cursor'): MonSQLizeError {
     return createError(ErrorCodes.INVALID_CURSOR, message);
 }
 

@@ -267,10 +267,12 @@ export async function orchestrateModelInsertBatch<TDocument = Record<string, unk
     docs: unknown[],
     options?: unknown,
 ): Promise<unknown> {
-    const timestamps = context.timestampsConfig;
-    const docsToInsert = timestamps
-        ? docs.map((doc) => applyModelInsertTimestamps(doc as Record<string, unknown>, timestamps, () => context.nowDate()))
-        : docs;
+    const docsToInsert = docs.map((doc) => {
+        let record = doc as Record<string, unknown>;
+        record = applyModelInsertTimestamps(record, context.timestampsConfig, () => context.nowDate());
+        record = applyModelInsertVersion(record, context.versionConfig) as Record<string, unknown>;
+        return record;
+    });
     return context.extendedCollection().insertBatch(docsToInsert, options);
 }
 
