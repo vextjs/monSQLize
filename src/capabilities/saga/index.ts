@@ -119,12 +119,14 @@ export class SagaOrchestrator {
             }
 
             this._stats.successfulExecutions += 1;
+            const stepNames = completedSteps.map(({ step }) => step.name);
             return {
                 sagaId,
                 executionId: sagaId,
                 sagaName: name,
                 success: true,
                 completedSteps: completedSteps.length,
+                completedStepNames: stepNames,
                 compensatedSteps: [],
                 result: completedSteps[completedSteps.length - 1]?.result,
                 duration: Date.now() - startedAt,
@@ -176,11 +178,13 @@ export class SagaOrchestrator {
                 sagaName: name,
                 success: false,
                 completedSteps: completedSteps.length,
+                completedStepNames: completedSteps.map(({ step }) => step.name),
                 compensatedSteps: compensationResults
                     .filter(r => r.reason !== 'no-compensate-defined')
                     .map(r => r.stepName),
                 duration: Date.now() - startedAt,
                 error: errorMessage,
+                errorCause: cause instanceof Error ? cause : undefined,
                 compensation: {
                     success: compensationSuccess,
                     results: compensationResults,

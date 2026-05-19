@@ -60,5 +60,6 @@ export async function findAndCountDocuments<TSchema extends Document = Document>
         collection.countDocuments(normalizedQuery as Parameters<Collection<TSchema>['countDocuments']>[0]),
     ]);
 
-    return { data, total };
+    // v1 compat: expose `documents` as an alias for `data`
+    return { data, total, documents: data };
 }

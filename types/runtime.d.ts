@@ -132,6 +132,22 @@ export declare class MultiLevelCache {
 export type RedisCacheAdapterOptions = never;
 export type RedisLike = object;
 
+/**
+ * Adapts a v1-style CacheLike object to the v2 CacheLike interface.
+ *
+ * v2 requires a `has()` method that was absent in v1. This helper adds it
+ * by delegating to the existing `exists()`. All other methods are forwarded as-is.
+ *
+ * @param v1Cache - A v1 custom cache implementation missing `has()`.
+ * @returns A fully v2-compatible `CacheLike` instance.
+ * @example
+ * ```ts
+ * const v2Cache = adaptLegacyCacheLike(myV1Cache);
+ * const msq = new MonSQLize({ cache: v2Cache });
+ * ```
+ */
+export declare function adaptLegacyCacheLike(v1Cache: Omit<CacheLike, 'has'>): CacheLike;
+
 /** Re-exported alias so consumers can type the return value of `createRedisCacheAdapter`. */
 export type RedisCacheAdapter = HubRedisCacheAdapter;
 
@@ -187,7 +203,10 @@ export type WithCacheOptions<
 
 export type CacheStats = HubCacheStats;
 
-export type CachedFunction<TArgs extends unknown[] = unknown[], TResult = unknown> = HubWrappedFunction<(...args: TArgs) => Promise<TResult>>;
+export type CachedFunction<TArgs extends unknown[] = unknown[], TResult = unknown> = HubWrappedFunction<(...args: TArgs) => Promise<TResult>> & {
+    /** @deprecated Use `stats()`. v1 backward-compat alias. */
+    getCacheStats(): HubWithCacheStats;
+};
 
 export type FunctionCacheOptions = HubFunctionCacheOptions;
 

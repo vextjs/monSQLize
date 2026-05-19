@@ -220,6 +220,8 @@ export interface FindPageResult<TSchema = unknown> {
 export interface FindAndCountResult<TSchema = unknown> {
     data: TSchema[];
     total: number;
+    /** @deprecated Use `data`. v1 backward-compat alias — will be removed in a future major. */
+    documents?: TSchema[];
 }
 
 export interface FindChain<TSchema = unknown> extends Promise<TSchema[]> {

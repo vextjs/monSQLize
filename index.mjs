@@ -17,6 +17,9 @@ import { createRedisCacheAdapter } from "cache-hub/redis";
 // src/capabilities/cache/distributed-cache-invalidator.ts
 import { DistributedCacheInvalidator } from "cache-hub/distributed";
 
+// src/capabilities/cache/index.ts
+import { MultiLevelCache } from "cache-hub";
+
 // src/capabilities/model/schema-dsl.ts
 var _schemaDslFn = null;
 var _schemaValidateFn = null;
@@ -84,14 +87,14 @@ var _PopulatePromise = class _PopulatePromise {
     this[_a] = "Promise";
   }
   /**
-   * 追加一个 populate 路径，返回新的 PopulatePromise（链式调用）。
+   * Append a populate path and return a new PopulatePromise (chainable).
    */
   populate(path2, options) {
     const config = typeof path2 === "string" ? { path: path2, ...options } : { ...path2, ...options };
     return new _PopulatePromise(this.executor, [...this.paths, config]);
   }
   /**
-   * 触发实际查询并填充关联文档，返回最终结果 Promise。
+   * Trigger the actual query, populate related documents, and return the final Promise.
    */
   exec() {
     return this.executor(this.paths);
@@ -277,14 +280,14 @@ function validateRelationConfig(name, config) {
   for (const field of ["from", "localField", "foreignField"]) {
     const value = config[field];
     if (value === void 0 || value === null) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, `relations \u914D\u7F6E\u7F3A\u5C11\u5FC5\u9700\u5B57\u6BB5: ${field}`);
+      throw createError(ErrorCodes.INVALID_ARGUMENT, `relations config is missing required field: ${field}`);
     }
     if (typeof value !== "string" || value.trim() === "") {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
+      throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.${field} must be a string`);
     }
   }
   if (config.single !== void 0 && typeof config.single !== "boolean") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.single \u5FC5\u987B\u662F\u5E03\u5C14\u503C`);
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `relations.single must be a boolean`);
   }
 }
 function normalizePopulateConfig(path2) {
@@ -294,22 +297,22 @@ function normalizePopulateConfig(path2) {
 // src/capabilities/model/model-registry.ts
 var Model = class {
   static {
-    // 集合名 → 已注册 Model 定义
+    // collection name → registered model definition
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.registry = /* @__PURE__ */ new Map();
   }
   static {
-    // 集合名 → 版本号（每次 define/redefine/undefine 自增，用于热重载检测）
+    // collection name → revision number (incremented on each define/redefine/undefine, used for hot-reload detection)
     this.revisions = /* @__PURE__ */ new Map();
   }
   static {
-    /** 被 redefine 过的集合名集合（供运行时触发热重载使用）。 */
+    /** Collection names that have been redefined (used by the runtime to trigger hot-reload). */
     this._redefinedNames = /* @__PURE__ */ new Set();
   }
   /**
-   * 注册一个新的 Model 定义。
-   * 若同名 Model 已存在，抛出 MODEL_ALREADY_EXISTS 错误。
-   * 注册时会同步校验 definition 合法性、解析 timestamps 选项、以及预校验 schema 类型字符串。
+   * Register a new model definition.
+   * Throws MODEL_ALREADY_EXISTS if a model with the same name already exists.
+   * Validates the definition, resolves the timestamps option, and pre-validates schema type strings.
    */
   static define(collectionName, definition) {
     const normalizedName = validateCollectionName(collectionName);
@@ -336,22 +339,22 @@ var Model = class {
     this.bumpRevision(normalizedName);
   }
   /**
-   * 查询已注册的 Model 定义，不存在时返回 undefined。
+   * Look up a registered model definition; returns undefined if not found.
    */
   static get(collectionName) {
     return this.registry.get(collectionName);
   }
-  /** 检查指定集合名是否已注册。 */
+  /** Check whether the given collection name has been registered. */
   static has(collectionName) {
     return this.registry.has(collectionName);
   }
-  /** 返回所有已注册的集合名列表。 */
+  /** Return a list of all registered collection names. */
   static list() {
     return [...this.registry.keys()];
   }
   /**
-   * 取消注册指定集合名的 Model 定义。
-   * 返回 true 表示条目存在并已删除，false 表示条目不存在。
+   * Unregister the model definition for the given collection name.
+   * Returns true if the entry existed and was removed; false if it did not exist.
    */
   static undefine(collectionName) {
     const existed = this.registry.delete(collectionName);
@@ -359,9 +362,9 @@ var Model = class {
     return existed;
   }
   /**
-   * 重新注册 Model（先删除旧条目再注册）。
-   * v1 兼容语义：若校验失败，旧条目不回滚（已删除状态）。
-   * 用于热重载场景，通过 _redefinedNames 通知运行时。
+   * Re-register a model (deletes the old entry before registering the new one).
+   * v1-compat: if validation fails the old entry is not restored (it stays deleted).
+   * Used for hot-reload; the runtime is notified via _redefinedNames.
    */
   static redefine(collectionName, definition) {
     const normalizedName = validateCollectionName(collectionName);
@@ -377,8 +380,8 @@ var Model = class {
     this.bumpRevision(normalizedName);
   }
   /**
-   * 清空所有注册表（仅供测试框架使用）。
-   * 所有已注册集合名会被标记为 _redefinedNames，revision 自增。
+   * Clear the entire registry (for test frameworks only).
+   * All registered collection names are added to _redefinedNames and their revisions are incremented.
    */
   static _clear() {
     const names = [...this.registry.keys()];
@@ -389,8 +392,8 @@ var Model = class {
     this.registry.clear();
   }
   /**
-   * 获取指定集合名的当前 revision（版本号）。
-   * 每次 define / redefine / undefine 后自增，用于运行时热重载检测。
+   * Get the current revision number for a collection name.
+   * Incremented on every define / redefine / undefine; used for runtime hot-reload detection.
    */
   static getRevision(collectionName) {
     return this.revisions.get(collectionName) ?? 0;
@@ -469,6 +472,8 @@ function applySort(values, sort) {
       if (leftValue === rightValue) {
         continue;
       }
+      if (leftValue == null) return direction;
+      if (rightValue == null) return -direction;
       const result = leftValue > rightValue ? 1 : -1;
       return result * direction;
     }
@@ -493,7 +498,7 @@ async function populateModelPath(context, docs, path2) {
   }
   const relation = context.relations.get(config.path);
   if (!relation) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, `\u672A\u5B9A\u4E49\u7684\u5173\u7CFB: ${config.path}`);
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `Undefined relation: ${config.path}`);
   }
   const keys = unique(
     docs.map((doc) => getByPath(doc, relation.localField)).filter((value) => value !== void 0 && value !== null)
@@ -537,7 +542,7 @@ async function populateModelPath(context, docs, path2) {
       return false;
     };
     if (!isValidNestedConfig(nestedRaw)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "\u5D4C\u5957 populate \u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u3001\u6570\u7EC4\u6216\u5BF9\u8C61");
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "nested populate must be a string, array, or object");
     }
     if (relatedModel) {
       const nestedPaths = Array.isArray(config.populate) ? config.populate : [config.populate];
@@ -862,7 +867,8 @@ function initializeModelV1Methods(target, definition) {
       }
     }
     return customMethods.instance ?? {};
-  } catch {
+  } catch (error) {
+    console.warn("[MonSQLize] initializeModelV1Methods: methods() factory threw an error", error);
     return {};
   }
 }
@@ -1006,12 +1012,13 @@ function applyModelUpsertTimestamps(update, timestampsConfig, nowFactory) {
   if (!timestampsConfig) {
     return update;
   }
+  const now = nowFactory();
   const resolvedUpdate = update ?? {};
   const result = { ...resolvedUpdate };
   if (timestampsConfig.updatedAt !== false) {
     result.$set = {
       ...resolvedUpdate.$set ?? {},
-      [timestampsConfig.updatedAt]: nowFactory()
+      [timestampsConfig.updatedAt]: now
     };
   }
   if (timestampsConfig.createdAt !== false) {
@@ -1019,7 +1026,7 @@ function applyModelUpsertTimestamps(update, timestampsConfig, nowFactory) {
       ...resolvedUpdate.$setOnInsert ?? {}
     };
     if ($setOnInsert[timestampsConfig.createdAt] === void 0) {
-      $setOnInsert[timestampsConfig.createdAt] = nowFactory();
+      $setOnInsert[timestampsConfig.createdAt] = now;
     }
     result.$setOnInsert = $setOnInsert;
   }
@@ -1172,8 +1179,12 @@ async function orchestrateModelIncrementOne(context, filter, field, increment, o
   return context.extendedCollection().incrementOne(filter, field, increment, options);
 }
 async function orchestrateModelInsertBatch(context, docs, options) {
-  const timestamps = context.timestampsConfig;
-  const docsToInsert = timestamps ? docs.map((doc) => applyModelInsertTimestamps(doc, timestamps, () => context.nowDate())) : docs;
+  const docsToInsert = docs.map((doc) => {
+    let record = doc;
+    record = applyModelInsertTimestamps(record, context.timestampsConfig, () => context.nowDate());
+    record = applyModelInsertVersion(record, context.versionConfig);
+    return record;
+  });
   return context.extendedCollection().insertBatch(docsToInsert, options);
 }
 async function orchestrateModelUpdateBatch(context, filter, update, options) {
@@ -1558,9 +1569,11 @@ var ModelInstance = class {
 };
 
 // src/capabilities/transaction/index.ts
+import { randomBytes } from "node:crypto";
 var CacheLockManager = class {
   constructor(options = {}) {
     this.locks = /* @__PURE__ */ new Map();
+    this._totalLocksAdded = 0;
     this.logger = options.logger ?? null;
     this.maxDuration = options.maxDuration ?? 3e5;
     this.cleanupInterval = options.cleanupInterval ?? 1e4;
@@ -1579,6 +1592,7 @@ var CacheLockManager = class {
       ownerId,
       expiresAt: Date.now() + this.maxDuration
     });
+    this._totalLocksAdded += 1;
   }
   /**
    * Check whether a cache key is locked.
@@ -1619,7 +1633,7 @@ var CacheLockManager = class {
   getStats() {
     this.cleanupExpiredLocks();
     return {
-      totalLocks: this.locks.size,
+      totalLocks: this._totalLocksAdded,
       activeLocks: this.locks.size,
       maxDuration: this.maxDuration
     };
@@ -1651,7 +1665,7 @@ var Transaction = class {
   constructor(session, options = {}) {
     this.session = session;
     this.options = options;
-    this.id = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    this.id = `tx_${randomBytes(8).toString("hex")}`;
     this.state = "pending";
     this.startedAt = null;
     this.timeoutTimer = null;
@@ -1668,6 +1682,7 @@ var Transaction = class {
     }
     this.session.startTransaction();
     this.state = "active";
+    this.startedAt = Date.now();
     const timeout = this.options.timeout ?? 3e4;
     if (timeout > 0) {
       this.timeoutTimer = setTimeout(() => {
@@ -2182,39 +2197,41 @@ var CountQueue = class {
     this.timeout = options.timeout ?? 6e4;
   }
   /**
-   * 执行一个受队列控制的 count 操作。
+   * Execute a queue-controlled count operation.
    *
-   * 执行逻辑：
-   * - 若 running < concurrency：直接执行 fn（"快路径"）。
-   * - 若 running >= concurrency：
-   *   - 队列未满 → 入队等待，等待时长计入统计。
-   *   - 队列已满 → 拒绝，rejected++ 并抛出 INVALID_OPERATION 错误。
-   * - fn 执行完成（无论成功或异常）后自动 running--
-   *   并调用 _wakeNext() 唤醒下一个等待请求。
+   * Execution logic:
+   * - If running < concurrency: execute fn immediately (fast path).
+   * - If running >= concurrency:
+   *   - Queue not full → enqueue and wait; wait time is recorded in stats.
+   *   - Queue full → reject, increment rejected counter, throw INVALID_OPERATION.
+   * - After fn completes (success or error), running is decremented and
+   *   _wakeNext() is called to unblock the next queued request.
    *
-   * @param fn - 需要受并发保护的 count 函数（返回 Promise<T>）
-   * @returns fn 的执行结果
-   * @throws 队列满或等待超时时抛出受控错误
+   * @param fn - The count function to guard with concurrency control (returns Promise<T>)
+   * @returns The result of fn
+   * @throws A controlled error when the queue is full or the wait times out
    */
   async execute(fn) {
     const startTime = Date.now();
     if (this.running >= this.concurrency) {
       if (this.queue.length >= this.maxQueueSize) {
-        this.stats.rejected++;
+        this.stats.rejected += 1;
         throw createError(ErrorCodes.INVALID_OPERATION, `Count queue is full (${this.maxQueueSize})`);
       }
-      this.stats.queued++;
+      this.stats.queued += 1;
       const waitResult = await this._waitInQueue(startTime);
       if (waitResult === "cleared") {
         return void 0;
       }
     }
-    this.running++;
-    this.stats.executed++;
+    this.running += 1;
+    this.stats.executed += 1;
     try {
-      return await this._executeWithTimeout(fn);
+      const elapsed = Date.now() - startTime;
+      const remainingMs = Math.max(1, this.timeout - elapsed);
+      return await this._executeWithTimeout(fn, remainingMs);
     } finally {
-      this.running--;
+      this.running -= 1;
       this._wakeNext();
     }
   }
@@ -2261,7 +2278,7 @@ var CountQueue = class {
         const index = this.queue.findIndex((item) => item.resolve === resolve);
         if (index !== -1) {
           this.queue.splice(index, 1);
-          this.stats.timeout++;
+          this.stats.timeout += 1;
           reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count queue wait timeout (${this.timeout}ms)`));
         }
       }, this.timeout);
@@ -2286,16 +2303,17 @@ var CountQueue = class {
       }
     }
   }
-  _executeWithTimeout(fn) {
-    return Promise.race([
-      fn(),
-      new Promise(
-        (_, reject) => setTimeout(
-          () => reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count execution timeout (${this.timeout}ms)`)),
-          this.timeout
-        )
-      )
-    ]);
+  _executeWithTimeout(fn, timeoutMs = this.timeout) {
+    let timer = null;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count execution timeout (${this.timeout}ms)`)),
+        timeoutMs
+      );
+    });
+    return Promise.race([fn(), timeoutPromise]).finally(() => {
+      if (timer !== null) clearTimeout(timer);
+    });
   }
   _updateWaitTimeStats(waitTime) {
     const totalQueued = this.stats.queued;
@@ -2313,6 +2331,7 @@ var HealthChecker = class {
     this._checkConfigs = /* @__PURE__ */ new Map();
     this._clients = /* @__PURE__ */ new Map();
     this._intervals = /* @__PURE__ */ new Map();
+    this._inProgress = /* @__PURE__ */ new Set();
     this._started = false;
     this._poolManager = options.poolManager ?? null;
     this._logger = options.logger ?? console;
@@ -2380,29 +2399,35 @@ var HealthChecker = class {
     }
   }
   async _checkPool(poolName, config) {
-    const status = this._healthStatus.get(poolName);
-    if (!status) return;
-    status.status = "checking";
-    status.lastCheck = /* @__PURE__ */ new Date();
-    const retries = config.retries ?? 3;
-    let success = false;
-    let lastError = null;
+    if (this._inProgress.has(poolName)) return;
+    this._inProgress.add(poolName);
     try {
-      await this._pingPool(poolName, config.timeout ?? 3e3);
-      success = true;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-    }
-    if (success) {
-      status.status = "up";
-      status.consecutiveFailures = 0;
-      delete status.lastError;
-    } else {
-      status.consecutiveFailures++;
-      if (lastError) status.lastError = lastError;
-      if (status.consecutiveFailures >= retries) {
-        status.status = "down";
+      const status = this._healthStatus.get(poolName);
+      if (!status) return;
+      status.status = "checking";
+      status.lastCheck = /* @__PURE__ */ new Date();
+      const retries = config.retries ?? 3;
+      let success = false;
+      let lastError = null;
+      try {
+        await this._pingPool(poolName, config.timeout ?? 3e3);
+        success = true;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
       }
+      if (success) {
+        status.status = "up";
+        status.consecutiveFailures = 0;
+        delete status.lastError;
+      } else {
+        status.consecutiveFailures += 1;
+        if (lastError) status.lastError = lastError;
+        if (status.consecutiveFailures >= retries) {
+          status.status = "down";
+        }
+      }
+    } finally {
+      this._inProgress.delete(poolName);
     }
   }
   async _pingPool(poolName, timeout) {
@@ -2494,7 +2519,7 @@ var PoolSelector = class {
         candidates = nonPrimary;
       }
     } else if (context.operation === "write") {
-      const primaries = pools.filter((pool2) => (pool2.role ?? "primary") === "primary");
+      const primaries = pools.filter((pool2) => pool2.role === "primary");
       if (primaries.length > 0) {
         candidates = primaries;
       }
@@ -2591,13 +2616,13 @@ var PoolStatsManager = class {
       this._stats.set(item.poolName, stats);
     }
     if (item.type === "selection") {
-      stats.totalRequests++;
+      stats.totalRequests += 1;
     } else if (item.type === "request") {
-      stats.totalRequests++;
+      stats.totalRequests += 1;
       if (item.success) {
-        stats.successRequests++;
+        stats.successRequests += 1;
       } else {
-        stats.failedRequests++;
+        stats.failedRequests += 1;
       }
       stats.totalResponseTime += item.responseTime ?? 0;
       stats.avgResponseTime = stats.totalResponseTime / stats.totalRequests;
@@ -2650,6 +2675,10 @@ function validatePoolConfigInternal(config) {
 function createEmptyPoolStats(name) {
   return {
     name,
+    connections: 0,
+    available: 0,
+    waiting: 0,
+    status: "unknown",
     totalRequests: 0,
     successCount: 0,
     errorCount: 0,
@@ -2683,7 +2712,6 @@ var ConnectionPoolManager = class {
     this.healthStatus = /* @__PURE__ */ new Map();
     this.stats = /* @__PURE__ */ new Map();
     this.intervals = /* @__PURE__ */ new Map();
-    this.roundRobinIndex = /* @__PURE__ */ new Map();
     // v1 compat properties
     this._closed = false;
     this._configs = /* @__PURE__ */ new Map();
@@ -2887,15 +2915,22 @@ var ConnectionPoolManager = class {
     const result = {};
     for (const name of this.pools.keys()) {
       const healthStatus = this.healthStatus.get(name);
-      const poolStats = this._stats.getStats(name);
+      const internalStats = this._stats.getStats(name);
+      const poolStats = this.stats.get(name) ?? createEmptyPoolStats(name);
       result[name] = {
-        connections: poolStats?.connections || 0,
-        available: poolStats?.available || 0,
-        waiting: poolStats?.waiting || 0,
-        status: healthStatus?.status || "unknown",
-        avgResponseTime: poolStats?.avgResponseTime || 0,
-        totalRequests: poolStats?.totalRequests || 0,
-        errorRate: poolStats?.errorRate || 0
+        name,
+        connections: internalStats.connections,
+        available: internalStats.available,
+        waiting: internalStats.waiting,
+        status: healthStatus?.status ?? "unknown",
+        totalRequests: poolStats.totalRequests || internalStats.totalRequests,
+        successCount: poolStats.successCount,
+        errorCount: poolStats.errorCount,
+        avgResponseTime: internalStats.avgResponseTime,
+        minResponseTime: poolStats.minResponseTime,
+        maxResponseTime: poolStats.maxResponseTime,
+        errorRate: poolStats.errorRate || internalStats.errorRate,
+        lastRequestTime: poolStats.lastRequestTime
       };
     }
     return result;
@@ -2957,63 +2992,6 @@ var ConnectionPoolManager = class {
     }
     return [];
   }
-  getCandidatePools(operation, options) {
-    if (options.pool) {
-      const pool = this.pools.get(options.pool);
-      if (!pool) {
-        throw new Error(`Pool '${options.pool}' not found`);
-      }
-      return [options.pool];
-    }
-    let candidates = [...this.pools.entries()].filter(([name]) => (this.healthStatus.get(name)?.status ?? "down") !== "down");
-    if (candidates.length === 0 && this.fallback.enabled) {
-      candidates = [...this.pools.entries()];
-    }
-    if (operation === "write") {
-      const primaries = candidates.filter(([, pool]) => (pool.config.role ?? "primary") === "primary");
-      if (primaries.length > 0) {
-        candidates = primaries;
-      }
-    } else {
-      const secondaries = candidates.filter(([, pool]) => pool.config.role === "secondary" || pool.config.role === "analytics");
-      if (secondaries.length > 0) {
-        candidates = secondaries;
-      }
-    }
-    if (options.tags?.length) {
-      const tagged = candidates.filter(([, pool]) => options.tags?.some((tag) => pool.config.tags?.includes(tag)));
-      if (tagged.length > 0) {
-        candidates = tagged;
-      }
-    }
-    return candidates.map(([name]) => name);
-  }
-  selectPoolName(candidateNames, operation) {
-    if (candidateNames.length === 1) {
-      return candidateNames[0];
-    }
-    if (this.strategy === "roundRobin") {
-      const current = this.roundRobinIndex.get(operation) ?? 0;
-      const selected = candidateNames[current % candidateNames.length];
-      this.roundRobinIndex.set(operation, current + 1);
-      return selected;
-    }
-    if (this.strategy === "leastConnections") {
-      return [...candidateNames].sort((left, right) => {
-        const leftStats = this.stats.get(left)?.totalRequests ?? 0;
-        const rightStats = this.stats.get(right)?.totalRequests ?? 0;
-        return leftStats - rightStats;
-      })[0];
-    }
-    if (this.strategy === "weighted" || this.strategy === "auto") {
-      const weighted = candidateNames.flatMap((name) => {
-        const weight = this.pools.get(name)?.config.weight ?? 1;
-        return Array.from({ length: weight }, () => name);
-      });
-      return weighted[Math.floor(Math.random() * weighted.length)] ?? candidateNames[0];
-    }
-    return candidateNames[0];
-  }
   async checkPoolHealth(poolName) {
     const managed = this.pools.get(poolName);
     const current = this.healthStatus.get(poolName);
@@ -3053,8 +3031,6 @@ var ConnectionPoolManager = class {
       stats.errorCount += 1;
     }
     stats.lastRequestTime = /* @__PURE__ */ new Date();
-    const samples = [stats.minResponseTime, stats.maxResponseTime].filter((value) => value > 0);
-    stats.avgResponseTime = samples.length === 0 ? 0 : samples.reduce((sum, value) => sum + value, 0) / samples.length;
     stats.errorRate = stats.totalRequests === 0 ? 0 : stats.errorCount / stats.totalRequests;
   }
 };
@@ -3383,7 +3359,7 @@ async function dropIndexDefinition(collectionRef, name) {
     throw createError(ErrorCodes.INVALID_ARGUMENT, "dropIndex: name must be a non-empty string.");
   }
   if (name === "_id_") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "dropIndex: \u4E0D\u5141\u8BB8\u5220\u9664 _id \u7D22\u5F15");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "dropIndex: dropping the _id index is not allowed");
   }
   try {
     return await collectionRef.dropIndex(name);
@@ -3474,7 +3450,7 @@ async function clearBookmarks(params) {
 var VALID_INDEX_VALUES = /* @__PURE__ */ new Set([1, -1, "1", "-1", "text", "2d", "2dsphere", "geoHaystack", "hashed", "columnstore"]);
 function validateIndexKeys(keys, operation) {
   if (!keys || typeof keys !== "object" || Array.isArray(keys) || Object.keys(keys).length === 0) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, `${operation}: \u7D22\u5F15\u952E\u4E0D\u80FD\u4E3A\u7A7A`);
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `${operation}: index keys must not be empty`);
   }
   for (const [field, value] of Object.entries(keys)) {
     if (!VALID_INDEX_VALUES.has(value)) {
@@ -4049,8 +4025,10 @@ function dispatchFunction(name, argsStr) {
       if (args.length !== 2) throw new Error("IF_NULL requires 2 arguments");
       return { $ifNull: [parseValue(args[0]), parseValue(args[1])] };
     }
-    case "SET_FIELD":
+    case "SET_FIELD": {
+      if (args.length !== 3) throw new Error("SET_FIELD requires 3 arguments: (field, value, input)");
       return { $setField: { field: parseValue(args[0]), input: parseValue(args[2]), value: parseValue(args[1]) } };
+    }
     case "UNSET_FIELD":
       return { $unsetField: { field: parseValue(args[0]), input: parseValue(args[1]) } };
     case "GET_FIELD":
@@ -4294,7 +4272,7 @@ function parseRequiredObjectId(id) {
   if (!id) {
     throw createError(
       ErrorCodes.INVALID_ARGUMENT,
-      "id \u53C2\u6570\u662F\u5FC5\u9700\u7684",
+      "id is required",
       [{ field: "id", type: "required", message: "id must not be empty" }]
     );
   }
@@ -4302,7 +4280,7 @@ function parseRequiredObjectId(id) {
     if (!isHexObjectIdString(id)) {
       throw createError(
         ErrorCodes.INVALID_ARGUMENT,
-        `\u65E0\u6548\u7684 ObjectId \u683C\u5F0F: "${id}"`,
+        `invalid ObjectId format: "${id}"`,
         [{
           field: "id",
           type: "format",
@@ -4330,7 +4308,7 @@ function parseRequiredObjectId(id) {
   }
   throw createError(
     ErrorCodes.INVALID_ARGUMENT,
-    "id \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6216 ObjectId \u5B9E\u4F8B",
+    "id must be a string or ObjectId instance",
     [{
       field: "id",
       type: "type",
@@ -4546,7 +4524,7 @@ async function computeTotals(coll, query, limit, totals) {
     return { mode: "sync", total, totalPages, ts: Date.now() };
   }
   if (mode === "async") {
-    const cacheKey = JSON.stringify({ q: query });
+    const cacheKey = JSON.stringify({ ns: coll.namespace, q: query });
     const token = Buffer.from(cacheKey).toString("base64url");
     const cachedTotal = _asyncTotalsCache.get(cacheKey);
     if (cachedTotal !== void 0) {
@@ -4604,6 +4582,7 @@ async function executeFindPage(collection, options = {}, defaults = {}) {
   if (options.projection !== void 0) {
     driverOpts.projection = buildEffectiveProjection(options.projection, sort);
   }
+  const jumpOpts = ext.jump;
   const finishResult = (result2) => {
     if (!metaEnabled) {
       return result2;
@@ -4657,7 +4636,6 @@ async function executeFindPage(collection, options = {}, defaults = {}) {
       throw createError(ErrorCodes.STREAM_NO_TOTALS, "totals cannot be computed in stream mode.");
     }
   }
-  const jumpOpts = ext.jump;
   if (jumpOpts && page > 1 && page - 1 > jumpOpts.maxHops) {
     throw createError(ErrorCodes.JUMP_TOO_FAR, "Page jump exceeds maxHops limit.", [
       { page, maxHops: jumpOpts.maxHops, requestedHops: page - 1 }
@@ -4845,7 +4823,7 @@ async function findByIdsDocuments(collection, ids, options, defaults = {}) {
   if (!Array.isArray(ids)) {
     throw createError(
       ErrorCodes.INVALID_ARGUMENT,
-      "ids \u5FC5\u987B\u662F\u6570\u7EC4",
+      "ids must be an array",
       [{ field: "ids", type: "type", message: "ids must be an array", received: typeof ids }]
     );
   }
@@ -4875,7 +4853,7 @@ async function findByIdsDocuments(collection, ids, options, defaults = {}) {
   if (invalidIds.length > 0) {
     throw createError(
       ErrorCodes.INVALID_ARGUMENT,
-      `ids \u6570\u7EC4\u5305\u542B ${invalidIds.length} \u4E2A\u65E0\u6548 ID`,
+      `ids array contains ${invalidIds.length} invalid ID(s)`,
       invalidIds.map((item) => ({
         field: `ids[${item.index}]`,
         type: "format",
@@ -4909,7 +4887,7 @@ async function findByIdsDocuments(collection, ids, options, defaults = {}) {
         resultMap.set(String(docId), doc);
       }
     }
-    return objectIds.map((item) => resultMap.get(item.toString())).filter((item) => item !== void 0);
+    return uniqueIds.map((item) => resultMap.get(item.toString())).filter((item) => item !== void 0);
   }
   return results;
 }
@@ -4938,7 +4916,7 @@ async function findAndCountDocuments(collection, query, options, defaults) {
     ).toArray(),
     collection.countDocuments(normalizedQuery)
   ]);
-  return { data, total };
+  return { data, total, documents: data };
 }
 
 // src/adapters/mongodb/queries/index.ts
@@ -5333,25 +5311,25 @@ function createIncrementUpdate(field, increment = 1, setPatch) {
   let incPayload;
   if (typeof field === "string") {
     if (!field.trim()) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "field \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6216\u5BF9\u8C61");
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "field must be a string or object");
     }
     if (typeof increment !== "number" || Number.isNaN(increment)) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "increment \u5FC5\u987B\u662F\u6570\u5B57");
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "increment must be a number");
     }
     incPayload = { [field]: increment };
   } else if (field && typeof field === "object" && !Array.isArray(field)) {
     incPayload = {};
     for (const [key, value] of Object.entries(field)) {
       if (typeof value !== "number" || Number.isNaN(value)) {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, "\u589E\u91CF\u5FC5\u987B\u662F\u6570\u5B57");
+        throw createError(ErrorCodes.INVALID_ARGUMENT, "increment value must be a number");
       }
       incPayload[key] = value;
     }
     if (Object.keys(incPayload).length === 0) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "field \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6216\u5BF9\u8C61");
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "field must be a string or object");
     }
   } else {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "field \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6216\u5BF9\u8C61");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "field must be a string or object");
   }
   return {
     $inc: incPayload,
@@ -5376,13 +5354,22 @@ async function replaceOneDocument(collection, ...args) {
   return collection.replaceOne(...args);
 }
 async function findOneAndUpdateDocument(collection, filter, update, options) {
-  return collection.findOneAndUpdate(filter, update, ...options !== void 0 ? [options] : []);
+  if (options !== void 0) {
+    return collection.findOneAndUpdate(filter, update, options);
+  }
+  return collection.findOneAndUpdate(filter, update);
 }
 async function findOneAndReplaceDocument(collection, filter, replacement, options) {
-  return collection.findOneAndReplace(filter, replacement, ...options !== void 0 ? [options] : []);
+  if (options !== void 0) {
+    return collection.findOneAndReplace(filter, replacement, options);
+  }
+  return collection.findOneAndReplace(filter, replacement);
 }
 async function findOneAndDeleteDocument(collection, filter, options) {
-  return collection.findOneAndDelete(filter, ...options !== void 0 ? [options] : []);
+  if (options !== void 0) {
+    return collection.findOneAndDelete(filter, options);
+  }
+  return collection.findOneAndDelete(filter);
 }
 async function upsertOneDocument(collection, filter, update, options = {}) {
   return collection.updateOne(filter, update, {
@@ -5398,7 +5385,7 @@ async function deleteManyDocuments(collection, ...args) {
 }
 async function incrementOneDocument(collection, filter, field, incrementOrOptions, maybeOptions) {
   if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "filter must be a non-empty object");
   }
   let options = {};
   let increment = 1;
@@ -5408,7 +5395,7 @@ async function incrementOneDocument(collection, filter, field, incrementOrOption
   } else if (incrementOrOptions && typeof incrementOrOptions === "object" && !Array.isArray(incrementOrOptions)) {
     options = incrementOrOptions;
   } else {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "increment \u5FC5\u987B\u662F\u6570\u5B57");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "increment must be a number");
   }
   const updateDocument = createIncrementUpdate(field, increment, options.$set);
   const { $set, projection, ...driverOptions } = options;
@@ -5445,10 +5432,10 @@ async function incrementOneDocument(collection, filter, field, incrementOrOption
 // src/adapters/mongodb/writes/write-batch.ts
 async function insertBatchDocuments(collection, documents, options = {}) {
   if (!Array.isArray(documents)) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "documents \u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "documents must be an array");
   }
   if (documents.length === 0) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "documents \u6570\u7EC4\u4E0D\u80FD\u4E3A\u7A7A");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "documents array must not be empty");
   }
   const rawOptions = options;
   const {
@@ -5546,15 +5533,15 @@ async function insertBatchDocuments(collection, documents, options = {}) {
 }
 async function updateBatchDocuments(collection, filter, update, options = {}) {
   if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "filter must be a non-array object");
   }
   if (!update || typeof update !== "object") {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "update \u5FC5\u987B\u662F\u5BF9\u8C61\uFF08\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF09\u6216\u6570\u7EC4\uFF08\u805A\u5408\u7BA1\u9053\uFF09");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "update must be an object (update operators) or array (aggregation pipeline)");
   }
   if (!Array.isArray(update)) {
     const keys = Object.keys(update);
     if (keys.length === 0 || !keys.some((key) => key.startsWith("$"))) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, "update \u5FC5\u987B\u4F7F\u7528\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF08\u5982 $set, $inc \u7B49\uFF09");
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "update must use update operators (e.g. $set, $inc)");
     }
   }
   const { batchSize = 1e3, sort = { _id: 1 }, onProgress, ...driverOptions } = options;
@@ -5602,7 +5589,7 @@ async function updateBatchDocuments(collection, filter, update, options = {}) {
 }
 async function deleteBatchDocuments(collection, filter, options = {}) {
   if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "filter \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "filter must be a non-array object");
   }
   const rawOptions = options;
   const {
@@ -5687,7 +5674,7 @@ async function deleteBatchDocuments(collection, filter, options = {}) {
 // src/adapters/mongodb/common/collection-accessor-batch-helpers.ts
 async function insertBatchForAccessor(context, documents, options) {
   if (!Array.isArray(documents)) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "documents \u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "documents must be an array");
   }
   const result = await insertBatchDocuments(context.collectionRef, documents.map((document) => context.cvDoc(document)), options);
   await context.invalidateAll();
@@ -5731,15 +5718,15 @@ function assertUpdateDocument(update) {
   if (update === null || update === void 0) {
     throw createError(
       ErrorCodes.INVALID_ARGUMENT,
-      "update \u5FC5\u987B\u662F\u5BF9\u8C61\uFF08\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF09\u6216\u6570\u7EC4\uFF08\u805A\u5408\u7BA1\u9053\uFF09",
-      [{ field: "update", type: "object|array.required", message: "update \u5FC5\u987B\u662F\u66F4\u65B0\u64CD\u4F5C\u7B26\u5BF9\u8C61\u6216\u805A\u5408\u7BA1\u9053\u6570\u7EC4" }]
+      "update must be an object (update operators) or array (aggregation pipeline)",
+      [{ field: "update", type: "object|array.required", message: "update must be an update-operator object or aggregation pipeline array" }]
     );
   }
   if (Array.isArray(update)) {
     if (update.length === 0) {
       throw createError(
         ErrorCodes.INVALID_ARGUMENT,
-        "update \u805A\u5408\u7BA1\u9053\u4E0D\u80FD\u4E3A\u7A7A\u6570\u7EC4",
+        "update aggregation pipeline must not be an empty array",
         [{ field: "update", type: "array.empty", message: "aggregation pipeline must contain at least one stage" }]
       );
     }
@@ -5748,7 +5735,7 @@ function assertUpdateDocument(update) {
       if (stage === null || typeof stage !== "object" || Array.isArray(stage)) {
         throw createError(
           ErrorCodes.INVALID_ARGUMENT,
-          `update \u805A\u5408\u7BA1\u9053\u7B2C ${index + 1} \u9636\u6BB5\u5FC5\u987B\u662F\u5BF9\u8C61`,
+          `update pipeline stage ${index + 1} must be an object`,
           [{ field: `update[${index}]`, type: "object.required", message: "pipeline stage must be an object" }]
         );
       }
@@ -5756,7 +5743,7 @@ function assertUpdateDocument(update) {
       if (stageKeys.length === 0) {
         throw createError(
           ErrorCodes.INVALID_ARGUMENT,
-          `update \u805A\u5408\u7BA1\u9053\u7B2C ${index + 1} \u9636\u6BB5\u4E0D\u80FD\u4E3A\u7A7A\u5BF9\u8C61`,
+          `update pipeline stage ${index + 1} must not be an empty object`,
           [{ field: `update[${index}]`, type: "object.empty", message: "pipeline stage must not be empty" }]
         );
       }
@@ -5774,30 +5761,30 @@ function assertUpdateDocument(update) {
   if (typeof update !== "object") {
     throw createError(
       ErrorCodes.INVALID_ARGUMENT,
-      "update \u5FC5\u987B\u662F\u5BF9\u8C61\uFF08\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF09\u6216\u6570\u7EC4\uFF08\u805A\u5408\u7BA1\u9053\uFF09",
-      [{ field: "update", type: "object|array.required", message: "update \u5FC5\u987B\u662F\u66F4\u65B0\u64CD\u4F5C\u7B26\u5BF9\u8C61\u6216\u805A\u5408\u7BA1\u9053\u6570\u7EC4" }]
+      "update must be an object (update operators) or array (aggregation pipeline)",
+      [{ field: "update", type: "object|array.required", message: "update must be an update-operator object or aggregation pipeline array" }]
     );
   }
   const keys = Object.keys(update);
   if (keys.length === 0) {
     throw createError(
       ErrorCodes.INVALID_ARGUMENT,
-      "update \u4E0D\u80FD\u4E3A\u7A7A\u5BF9\u8C61",
+      "update must not be an empty object",
       [{ field: "update", type: "object.empty", message: "update must not be empty" }]
     );
   }
   if (!keys.some((key) => key.startsWith("$"))) {
     throw createError(
       ErrorCodes.INVALID_ARGUMENT,
-      "update \u5FC5\u987B\u4F7F\u7528\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF08\u5982 $set, $inc \u7B49\uFF09",
-      [{ field: "update", type: "object.invalidKeys", message: "\u8BF7\u4F7F\u7528 $set, $inc, $push \u7B49\u66F4\u65B0\u64CD\u4F5C\u7B26" }]
+      "update must use update operators (e.g. $set, $inc)",
+      [{ field: "update", type: "object.invalidKeys", message: "use update operators such as $set, $inc, $push" }]
     );
   }
 }
 function assertReplacementDocument(replacement) {
-  assertObjectArgument(replacement, "replacement", "replacement \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
+  assertObjectArgument(replacement, "replacement", "replacement must be an object");
   if (Object.keys(replacement).some((key) => key.startsWith("$"))) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, "replacement \u4E0D\u80FD\u5305\u542B\u66F4\u65B0\u64CD\u4F5C\u7B26\uFF08\u5982 $set, $inc \u7B49\uFF09");
+    throw createError(ErrorCodes.INVALID_ARGUMENT, "replacement must not contain update operators (e.g. $set, $inc)");
   }
 }
 async function insertOneForAccessor(context, doc, options) {
@@ -5811,7 +5798,7 @@ async function insertOneForAccessor(context, doc, options) {
     if (mongoErr?.code === 11e3) {
       throw createError(
         ErrorCodes.DUPLICATE_KEY,
-        "\u6587\u6863\u63D2\u5165\u5931\u8D25\uFF1A\u8FDD\u53CD\u552F\u4E00\u6027\u7EA6\u675F (duplicate key)",
+        "Insert failed: duplicate key violation",
         [{ field: "_id", message: mongoErr.message ?? "duplicate key" }],
         err
       );
@@ -5827,7 +5814,7 @@ async function insertOneForAccessor(context, doc, options) {
   const threshold = context.defaults?.slowQueryMs ?? 500;
   if (elapsed > threshold && context.logger) {
     try {
-      context.logger.warn("[insertOne] \u6162\u64CD\u4F5C\u8B66\u544A", {
+      context.logger.warn("[insertOne] slow operation warning", {
         ns: `${context.dbName}.${context.collectionName}`,
         threshold,
         duration: elapsed,
@@ -5844,13 +5831,13 @@ async function insertOneForAccessor(context, doc, options) {
 }
 async function insertManyForAccessor(context, documents, options) {
   if (!Array.isArray(documents)) {
-    throw createError("DOCUMENTS_REQUIRED", "documents \u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
+    throw createError("DOCUMENTS_REQUIRED", "documents must be an array");
   }
   if (documents.length === 0) {
-    throw createError("DOCUMENTS_REQUIRED", "documents \u6570\u7EC4\u4E0D\u80FD\u4E3A\u7A7A");
+    throw createError("DOCUMENTS_REQUIRED", "documents array must not be empty");
   }
   if (documents.some((item) => item === null || typeof item !== "object" || Array.isArray(item))) {
-    throw createError("DOCUMENTS_REQUIRED", "documents \u4E2D\u7684\u6240\u6709\u5143\u7D20\u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
+    throw createError("DOCUMENTS_REQUIRED", "every element in documents must be an object");
   }
   const startedAt = Date.now();
   let result;
@@ -5862,7 +5849,7 @@ async function insertManyForAccessor(context, documents, options) {
     if (mongoErr?.code === 11e3) {
       throw createError(
         ErrorCodes.DUPLICATE_KEY,
-        "\u6279\u91CF\u63D2\u5165\u5931\u8D25\uFF1A\u8FDD\u53CD\u552F\u4E00\u6027\u7EA6\u675F (duplicate key)",
+        "insertMany failed: duplicate key violation",
         [{ field: "_id", message: mongoErr.message ?? "duplicate key" }],
         err
       );
@@ -5872,7 +5859,7 @@ async function insertManyForAccessor(context, documents, options) {
   const elapsed = Date.now() - startedAt;
   const threshold = context.defaults?.slowQueryMs ?? 500;
   if (elapsed >= threshold && context.logger) {
-    context.logger.warn("[insertMany] \u6162\u64CD\u4F5C\u8B66\u544A", {
+    context.logger.warn("[insertMany] slow operation warning", {
       ns: `${context.dbName}.${context.collectionName}`,
       threshold,
       duration: elapsed,
@@ -5887,7 +5874,7 @@ async function insertManyForAccessor(context, documents, options) {
   return result;
 }
 async function updateOneForAccessor(context, filter, update, options) {
-  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
+  assertObjectArgument(filter, "filter", "filter must be an object");
   assertUpdateDocument(update);
   const normalizedFilter = context.cvFilter(filter);
   const finalUpdate = Array.isArray(update) ? update : convertUpdateDocument(update);
@@ -5898,7 +5885,7 @@ async function updateOneForAccessor(context, filter, update, options) {
   return result;
 }
 async function updateManyForAccessor(context, filter, update, options) {
-  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertObjectArgument(filter, "filter", "filter must be a non-empty object");
   assertUpdateDocument(update);
   const result = await updateManyDocuments(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
   if (result.modifiedCount > 0 || result.upsertedId) {
@@ -5907,14 +5894,14 @@ async function updateManyForAccessor(context, filter, update, options) {
   return result;
 }
 async function replaceOneForAccessor(context, filter, replacement, options) {
-  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertObjectArgument(filter, "filter", "filter must be a non-empty object");
   assertReplacementDocument(replacement);
   const result = await replaceOneDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), options);
   await context.invalidateAll();
   return result;
 }
 async function findOneAndReplaceForAccessor(context, filter, replacement, options) {
-  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertObjectArgument(filter, "filter", "filter must be a non-empty object");
   assertReplacementDocument(replacement);
   const result = await findOneAndReplaceDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), options);
   if (result) {
@@ -5923,7 +5910,7 @@ async function findOneAndReplaceForAccessor(context, filter, replacement, option
   return result;
 }
 async function findOneAndUpdateForAccessor(context, filter, update, options) {
-  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertObjectArgument(filter, "filter", "filter must be a non-empty object");
   assertUpdateDocument(update);
   const result = await findOneAndUpdateDocument(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
   if (result) {
@@ -5932,7 +5919,7 @@ async function findOneAndUpdateForAccessor(context, filter, update, options) {
   return result;
 }
 async function findOneAndDeleteForAccessor(context, filter, options) {
-  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertObjectArgument(filter, "filter", "filter must be a non-empty object");
   const result = await findOneAndDeleteDocument(context.collectionRef, context.cvFilter(filter), options);
   if (result) {
     await context.invalidateAll();
@@ -5940,8 +5927,8 @@ async function findOneAndDeleteForAccessor(context, filter, options) {
   return result;
 }
 async function upsertOneForAccessor(context, filter, update, options) {
-  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
-  assertObjectArgument(update, "update", "update \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertObjectArgument(filter, "filter", "filter must be a non-empty object");
+  assertObjectArgument(update, "update", "update must be a non-empty object");
   const updateDoc = Object.keys(update).some((key) => key.startsWith("$")) ? update : { $set: update };
   const result = await upsertOneDocument(
     context.collectionRef,
@@ -5954,7 +5941,7 @@ async function upsertOneForAccessor(context, filter, update, options) {
   return normalizedResult;
 }
 async function deleteOneForAccessor(context, filter, options) {
-  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
+  assertObjectArgument(filter, "filter", "filter must be an object");
   const result = await deleteOneDocument(context.collectionRef, context.cvFilter(filter), options);
   if (result.deletedCount > 0) {
     await context.invalidateAll();
@@ -5962,7 +5949,7 @@ async function deleteOneForAccessor(context, filter, options) {
   return result;
 }
 async function deleteManyForAccessor(context, filter, options) {
-  assertObjectArgument(filter, "filter", "filter \u5FC5\u987B\u662F\u975E\u7A7A\u5BF9\u8C61");
+  assertObjectArgument(filter, "filter", "filter must be a non-empty object");
   const result = await deleteManyDocuments(context.collectionRef, context.cvFilter(filter), options);
   if (result.deletedCount > 0) {
     await context.invalidateAll();
@@ -5979,17 +5966,17 @@ var MongoCollectionAccessor = class {
     this.management = management;
     this.dbRef = dbRef;
   }
-  /** 启用 autoConvertObjectId 时，自动转换 filter / query。 */
+  /** When autoConvertObjectId is enabled, auto-converts filter/query values. */
   _cvFilter(val) {
     if (!this.management.defaults?.autoConvertObjectId) return val;
     return convertObjectIdStrings(val);
   }
-  /** 启用 autoConvertObjectId 时，自动转换普通文档（insert / replace）。 */
+  /** When autoConvertObjectId is enabled, auto-converts plain documents (insert/replace). */
   _cvDoc(val) {
     if (!this.management.defaults?.autoConvertObjectId) return val;
     return convertObjectIdStrings(val);
   }
-  /** 启用 autoConvertObjectId 时，自动转换更新文档（$set / $push / ...）。 */
+  /** When autoConvertObjectId is enabled, auto-converts update documents ($set/$push/etc.). */
   _cvUpdate(val) {
     if (!this.management.defaults?.autoConvertObjectId || Array.isArray(val)) return val;
     return convertUpdateDocument(val);
@@ -6030,6 +6017,7 @@ var MongoCollectionAccessor = class {
   raw() {
     return this.collectionRef;
   }
+  /** Finds a single document matching the query, with optional cache support. */
   async findOne(query, options) {
     const normalizedQuery = this._cvFilter(query);
     const maxTimeMS = this.management.defaults?.maxTimeMS;
@@ -6058,29 +6046,36 @@ var MongoCollectionAccessor = class {
     }
     return findOneDocument(this.collectionRef, normalizedQuery, driverOptions);
   }
+  /** Returns a find chain (or a readable stream when `options.stream` is true). */
   find(query, options) {
     if (options?.stream) {
       return streamDocuments(this.collectionRef, query, options, this.management.defaults);
     }
     return createFindChain(this.collectionRef, query, options, this.management.defaults, this.management.queryCache);
   }
+  /** Finds a single document by its `_id` field. */
   async findOneById(id, options) {
     const maxTimeMS = this.management.defaults?.maxTimeMS;
     return findOneByIdDocument(this.collectionRef, id, maxTimeMS !== void 0 ? { maxTimeMS, ...options } : options);
   }
+  /** Finds multiple documents by an array of `_id` values. */
   async findByIds(ids, options) {
     const { findLimit: _skip, ...noLimitDefaults } = this.management.defaults ?? {};
     return findByIdsDocuments(this.collectionRef, ids, options, noLimitDefaults);
   }
+  /** Returns `{ data, total }` — the matched documents together with the total count in a single round-trip. */
   async findAndCount(query, options) {
     return findAndCountDocuments(this.collectionRef, query != null ? this._cvFilter(query) : query, options, this.management.defaults);
   }
+  /** Returns a Node.js Readable stream of documents matching the query (object mode). */
   stream(query, options) {
     return streamDocuments(this.collectionRef, query, options, this.management.defaults);
   }
+  /** Returns the MongoDB query plan for the given query (passes `explain` to the driver). */
   explain(query, options) {
     return explainDocuments(this.collectionRef, query, options, this.management.defaults);
   }
+  /** Counts documents matching the query, with optional cache and queue support. */
   async count(query, options) {
     const normalizedQuery = this._cvFilter(query);
     const maxTimeMS = this.management.defaults?.maxTimeMS;
@@ -6104,10 +6099,12 @@ var MongoCollectionAccessor = class {
     }
     return countQueue ? countQueue.execute(executeCount) : executeCount();
   }
+  /** Runs an aggregation pipeline and returns a chainable aggregate cursor. */
   aggregate(pipeline = [], options) {
     const normalizedPipeline = this.management.defaults?.autoConvertObjectId ? pipeline.map((stage) => convertObjectIdStrings(stage)) : pipeline;
     return createAggregateChain(this.collectionRef, normalizedPipeline, options, this.management.defaults);
   }
+  /** Returns an array of distinct values for the given field key. */
   async distinct(key, query, options) {
     return distinctValues(this.collectionRef, key, this._cvFilter(query), options);
   }
@@ -6115,12 +6112,15 @@ var MongoCollectionAccessor = class {
     const resolvedOptions = options.query ? { ...options, query: this._cvFilter(options.query) } : options;
     return findPageDocuments(this.collectionRef, resolvedOptions, this.management.defaults);
   }
+  /** Opens a change stream on the collection with an optional aggregation pipeline. */
   watch(pipeline = [], options) {
     return watchDocuments(this.collectionRef, pipeline, options);
   }
+  /** Inserts a single document and invalidates read caches. */
   async insertOne(doc, options) {
     return insertOneForAccessor(this.writeContext(), doc, options);
   }
+  /** Inserts multiple documents and invalidates read caches. */
   async insertMany(...args) {
     const [documents, options] = args;
     return insertManyForAccessor(this.writeContext(), documents, options);
@@ -6132,10 +6132,12 @@ var MongoCollectionAccessor = class {
   async updateOne(filter, update, options) {
     return updateOneForAccessor(this.writeContext(), filter, update, options);
   }
+  /** Updates all documents matching the filter and invalidates read caches. */
   async updateMany(...args) {
     const [filter, update, options] = args;
     return updateManyForAccessor(this.writeContext(), filter, update, options);
   }
+  /** Replaces a single matching document and invalidates read caches. */
   async replaceOne(...args) {
     const [filter, replacement, options] = args;
     return replaceOneForAccessor(this.writeContext(), filter, replacement, options);
@@ -6175,82 +6177,107 @@ var MongoCollectionAccessor = class {
   async deleteOne(filter, options) {
     return deleteOneForAccessor(this.writeContext(), filter, options);
   }
+  /** Deletes all documents matching the filter and invalidates read caches. */
   async deleteMany(...args) {
     const [filter, options] = args;
     return deleteManyForAccessor(this.writeContext(), filter, options);
   }
+  /** Inserts documents in configurable batches to avoid exceeding driver limits. */
   async insertBatch(documents, options) {
     return insertBatchForAccessor(this.batchContext(), documents, options);
   }
+  /** Applies an update to matching documents in configurable batches. */
   async updateBatch(filter, update, options) {
     return updateBatchForAccessor(this.batchContext(), filter, update, options);
   }
+  /** Deletes matching documents in configurable batches. */
   async deleteBatch(filter, options) {
     return deleteBatchForAccessor(this.batchContext(), filter, options);
   }
+  /** Atomically increments one or more numeric fields on a matching document. */
   async incrementOne(filter, field, incrementOrOptions, maybeOptions) {
     return incrementOneForAccessor(this.batchContext(), filter, field, incrementOrOptions, maybeOptions);
   }
+  /** Creates a single index on the collection. */
   async createIndex(keys, options) {
     return createIndexForAccessor(this.collectionRef, keys, options);
   }
+  /** Creates multiple indexes in a single command. */
   async createIndexes(specs) {
     return createIndexesForAccessor(this.collectionRef, specs);
   }
+  /** Lists all indexes on the collection. */
   async listIndexes() {
     return listIndexesForAccessor(this.collectionRef);
   }
+  /** Drops a named index from the collection. */
   async dropIndex(name) {
     return dropIndexForAccessor(this.collectionRef, name);
   }
+  /** Drops all non-`_id` indexes from the collection. */
   async dropIndexes() {
     return dropIndexesForAccessor(this.collectionRef);
   }
+  /** Pre-populates bookmark cache entries for the specified key dimensions and page numbers. */
   async prewarmBookmarks(keyDims = {}, pages = []) {
     return prewarmBookmarksForAccessor(this.bookmarkContext(), keyDims, pages);
   }
+  /** Lists cached bookmark entries, optionally filtered by key dimensions. */
   async listBookmarks(keyDims) {
     return listBookmarksForAccessor(this.bookmarkContext(), keyDims);
   }
+  /** Removes cached bookmark entries, optionally scoped to specific key dimensions. */
   async clearBookmarks(keyDims) {
     return clearBookmarksForAccessor(this.bookmarkContext(), keyDims);
   }
   async invalidate(op) {
     return this.invalidateReadCaches(op);
   }
+  /** Drops the collection from the database. */
   async dropCollection() {
     return dropCollectionForAccessor(this.collectionRef);
   }
+  /** Creates a collection (or a named alternative) with the given options. */
   async createCollection(name, options = {}) {
     return createCollectionForAccessor(this.collectionRef, this.collectionName, this.dbRef, name, options);
   }
+  /** Creates a MongoDB view backed by the given source collection and aggregation pipeline. */
   async createView(name, source, pipeline = []) {
     return createViewForAccessor(this.collectionRef, this.dbRef, name, source, pipeline);
   }
+  /** Returns usage statistics for each index on the collection. */
   async indexStats() {
     return indexStatsForAccessor(this.collectionRef);
   }
+  /** Sets the JSON Schema validator and optional validation level/action for the collection. */
   async setValidator(validator, options = {}) {
     return setValidatorForAccessor(this.collectionRef, this.collectionName, this.dbRef, validator, options);
   }
+  /** Sets the validation level (`off`, `moderate`, or `strict`) for the collection. */
   async setValidationLevel(level) {
     return setValidationLevelForAccessor(this.collectionRef, this.collectionName, this.dbRef, level);
   }
+  /** Sets the validation action (`error` or `warn`) for the collection. */
   async setValidationAction(action) {
     return setValidationActionForAccessor(this.collectionRef, this.collectionName, this.dbRef, action);
   }
+  /** Retrieves the current validator schema, validation level, and validation action. */
   async getValidator() {
     return getValidatorForAccessor(this.collectionRef, this.collectionName, this.dbRef);
   }
+  /** Returns storage and document statistics for the collection. */
   async stats(options = {}) {
     return statsForAccessor(this.collectionRef, this.dbName, this.collectionName, options);
   }
+  /** Renames the collection, optionally dropping an existing target collection. */
   async renameCollection(newName, options = {}) {
     return renameCollectionForAccessor(this.collectionRef, this.collectionName, newName, options);
   }
+  /** Runs a `collMod` command to modify collection options or validator settings. */
   async collMod(modifications) {
     return collModForAccessor(this.collectionRef, this.collectionName, this.dbRef, modifications);
   }
+  /** Converts the collection to a capped collection with the given maximum byte size. */
   async convertToCapped(size, options = {}) {
     return convertToCappedForAccessor(this.collectionRef, this.collectionName, this.dbRef, size, options);
   }
@@ -6394,7 +6421,8 @@ function createRuntimeDbFacade(host, databaseName) {
       getQueryCache: () => host.resolveAdapterCache(),
       logger: host._logger,
       defaults: host._runtimeDefaults,
-      cacheAutoInvalidate: !!host.options.cache?.autoInvalidate
+      // v2: cacheAutoInvalidate top-level option; v1 compat: cache.autoInvalidate nested field.
+      cacheAutoInvalidate: !!host.options.cacheAutoInvalidate || !!host.options.cache?.autoInvalidate
     }
   );
 }
@@ -6480,20 +6508,23 @@ function requireCompatPoolManagerRecord(value) {
   }
   return poolManager;
 }
-function assertCompatPoolExists(poolManager, poolName) {
+function resolvePoolClientFromRecord(poolManager, poolName) {
   const getPoolV1 = poolManager["_getPool"];
   const getPoolV2 = poolManager["getPool"];
-  let client = null;
   if (typeof getPoolV1 === "function") {
-    client = getPoolV1.call(poolManager, poolName);
-  } else if (typeof getPoolV2 === "function") {
+    return getPoolV1.call(poolManager, poolName) ?? null;
+  }
+  if (typeof getPoolV2 === "function") {
     try {
-      client = getPoolV2.call(poolManager, poolName);
+      return getPoolV2.call(poolManager, poolName) ?? null;
     } catch {
-      client = null;
+      return null;
     }
   }
-  if (client) {
+  return null;
+}
+function assertCompatPoolExists(poolManager, poolName) {
+  if (resolvePoolClientFromRecord(poolManager, poolName)) {
     return;
   }
   const getNames = poolManager["getPoolNames"];
@@ -6962,6 +6993,7 @@ async function sleep3(ms) {
 }
 
 // src/capabilities/saga/index.ts
+import { randomBytes as randomBytes2 } from "node:crypto";
 var SagaExecutionContext = class {
   constructor(executionId, data) {
     this.executionId = executionId;
@@ -7018,9 +7050,9 @@ var SagaOrchestrator = class {
   async execute(name, data) {
     const definition = this.sagas.get(name);
     if (!definition) {
-      throw createError(ErrorCodes.INVALID_ARGUMENT, `Saga '${name}' \u672A\u5B9A\u4E49`);
+      throw createError(ErrorCodes.INVALID_ARGUMENT, `Saga '${name}' is not defined`);
     }
-    const sagaId = `saga_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const sagaId = `saga_${randomBytes2(8).toString("hex")}`;
     const startedAt = Date.now();
     const context = new SagaExecutionContext(sagaId, data);
     const completedSteps = [];
@@ -7034,11 +7066,15 @@ var SagaOrchestrator = class {
         }
       }
       this._stats.successfulExecutions += 1;
+      const stepNames = completedSteps.map(({ step }) => step.name);
       return {
-        success: true,
         sagaId,
+        executionId: sagaId,
         sagaName: name,
+        success: true,
         completedSteps: completedSteps.length,
+        completedStepNames: stepNames,
+        compensatedSteps: [],
         result: completedSteps[completedSteps.length - 1]?.result,
         duration: Date.now() - startedAt
       };
@@ -7046,6 +7082,10 @@ var SagaOrchestrator = class {
       const errorMessage = cause instanceof Error ? cause.message : String(cause);
       this._stats.failedExecutions += 1;
       const compensationResults = [];
+      const hasCompensationSteps = completedSteps.some(({ step }) => typeof step.compensate === "function");
+      if (hasCompensationSteps) {
+        this._stats.compensatedExecutions += 1;
+      }
       for (const { step, result: stepResult } of [...completedSteps].reverse()) {
         if (typeof step.compensate !== "function") {
           compensationResults.push({ stepName: step.name, success: false, reason: "no-compensate-defined" });
@@ -7055,7 +7095,6 @@ var SagaOrchestrator = class {
         try {
           await step.compensate(context, stepResult);
           compensationResults.push({ stepName: step.name, success: true, duration: Date.now() - compStart });
-          this._stats.compensatedExecutions += 1;
         } catch (compensationError) {
           const compMsg = compensationError instanceof Error ? compensationError.message : String(compensationError);
           compensationResults.push({ stepName: step.name, success: false, error: compMsg });
@@ -7070,13 +7109,16 @@ var SagaOrchestrator = class {
         (r) => r.success || r.reason === "no-compensate-defined"
       );
       return {
-        success: false,
         sagaId,
+        executionId: sagaId,
         sagaName: name,
+        success: false,
         completedSteps: completedSteps.length,
+        completedStepNames: completedSteps.map(({ step }) => step.name),
         compensatedSteps: compensationResults.filter((r) => r.reason !== "no-compensate-defined").map((r) => r.stepName),
         duration: Date.now() - startedAt,
         error: errorMessage,
+        errorCause: cause instanceof Error ? cause : void 0,
         compensation: {
           success: compensationSuccess,
           results: compensationResults
@@ -7111,7 +7153,7 @@ var SagaOrchestrator = class {
       failedExecutions,
       compensatedExecutions,
       successRate,
-      storageMode: "\u5185\u5B58",
+      storageMode: "memory",
       // v1 aliases
       successCount: successfulExecutions,
       failureCount: failedExecutions,
@@ -7327,6 +7369,7 @@ var BatchQueue = class {
     }
     if (!this.timer) {
       this.timer = setTimeout(() => {
+        this.timer = null;
         void this.flush();
       }, this.flushInterval);
       this.timer.unref?.();
@@ -7480,6 +7523,8 @@ function sortSlowQueryLogRecords(records, sort = { lastSeen: -1 }) {
       if (leftValue === rightValue) {
         continue;
       }
+      if (leftValue == null) return direction;
+      if (rightValue == null) return -direction;
       return (leftValue > rightValue ? 1 : -1) * direction;
     }
     return 0;
@@ -7539,6 +7584,7 @@ var MongoDBSlowQueryLogStorage = class {
   constructor(config = {}, businessClient = null, logger = null, clientFactory = defaultClientFactory2) {
     this.client = null;
     this.collectionRef = null;
+    this._initializingPromise = null;
     this.logger = logger;
     this.businessClient = businessClient;
     this.clientFactory = clientFactory;
@@ -7553,15 +7599,23 @@ var MongoDBSlowQueryLogStorage = class {
     if (this.collectionRef) {
       return;
     }
-    const client = await this.resolveClient();
-    this.collectionRef = client.db(this.config.database).collection(this.config.collection);
-    if (this.config.ttl && this.config.ttl > 0) {
-      await this.collectionRef.createIndex({ lastSeen: 1 }, { expireAfterSeconds: this.config.ttl, name: "slow_query_lastSeen_ttl" });
+    if (this._initializingPromise) {
+      return this._initializingPromise;
     }
-    await this.collectionRef.createIndex(
-      { queryHash: 1, database: 1, collection: 1, operation: 1 },
-      { unique: true, name: "slow_query_log_unique" }
-    );
+    this._initializingPromise = (async () => {
+      const client = await this.resolveClient();
+      this.collectionRef = client.db(this.config.database).collection(this.config.collection);
+      if (this.config.ttl && this.config.ttl > 0) {
+        await this.collectionRef.createIndex({ lastSeen: 1 }, { expireAfterSeconds: this.config.ttl, name: "slow_query_lastSeen_ttl" });
+      }
+      await this.collectionRef.createIndex(
+        { queryHash: 1, database: 1, collection: 1, operation: 1 },
+        { unique: true, name: "slow_query_log_unique" }
+      );
+    })().finally(() => {
+      this._initializingPromise = null;
+    });
+    return this._initializingPromise;
   }
   async save(log) {
     await this.initialize();
@@ -7601,9 +7655,51 @@ var MongoDBSlowQueryLogStorage = class {
     );
   }
   async saveBatch(logs) {
-    for (const log of logs) {
-      await this.save(log);
+    if (logs.length === 0) return;
+    if (logs.length === 1) {
+      await this.save(logs[0]);
+      return;
     }
+    await this.initialize();
+    const operations = logs.map((log) => {
+      const record = normalizeSlowQueryLogEntry(log);
+      return {
+        updateOne: {
+          filter: {
+            queryHash: record.queryHash,
+            database: record.database,
+            collection: record.collection,
+            operation: record.operation
+          },
+          update: {
+            $setOnInsert: {
+              queryHash: record.queryHash,
+              database: record.database,
+              collection: record.collection,
+              operation: record.operation,
+              firstSeen: record.firstSeen
+            },
+            $set: {
+              lastSeen: record.lastSeen,
+              sampleQuery: record.sampleQuery,
+              metadata: record.metadata
+            },
+            $inc: {
+              count: 1,
+              totalTimeMs: record.totalTimeMs
+            },
+            $min: {
+              minTimeMs: record.minTimeMs
+            },
+            $max: {
+              maxTimeMs: record.maxTimeMs
+            }
+          },
+          upsert: true
+        }
+      };
+    });
+    await this.collectionRef.bulkWrite(operations, { ordered: false });
   }
   async query(filter = {}, options = {}) {
     await this.initialize();
@@ -7658,6 +7754,7 @@ var MongoDBSlowQueryLogStorage = class {
 var SlowQueryLogManager = class {
   constructor(userConfig, businessClient = null, businessType = "mongodb", logger = null, options = {}) {
     this.initialized = false;
+    this._initializingPromise = null;
     this.logger = logger;
     this.config = SlowQueryLogConfigManager.mergeConfig(userConfig, businessType);
     SlowQueryLogConfigManager.validate(this.config, businessType);
@@ -7668,8 +7765,15 @@ var SlowQueryLogManager = class {
     if (this.initialized || !this.config.enabled) {
       return;
     }
-    await this.storage.initialize();
-    this.initialized = true;
+    if (this._initializingPromise) {
+      return this._initializingPromise;
+    }
+    this._initializingPromise = this.storage.initialize().then(() => {
+      this.initialized = true;
+    }).finally(() => {
+      this._initializingPromise = null;
+    });
+    return this._initializingPromise;
   }
   async save(log) {
     if (!this.config.enabled || this.shouldFilter(log)) {
@@ -8161,18 +8265,7 @@ function resolveScopedCollection(config) {
     if (!poolManagerRecord) {
       throw createError(ErrorCodes.NO_POOL_MANAGER, `Model '${config.collectionName}' requires pool '${poolName}' but no pools are configured. Add 'pools' to MonSQLize constructor options.`);
     }
-    let client = null;
-    const getPoolV1 = poolManagerRecord["_getPool"];
-    const getPoolV2 = poolManagerRecord["getPool"];
-    if (typeof getPoolV1 === "function") {
-      client = getPoolV1.call(poolManagerRecord, poolName);
-    } else if (typeof getPoolV2 === "function") {
-      try {
-        client = getPoolV2.call(poolManagerRecord, poolName);
-      } catch {
-        client = null;
-      }
-    }
+    const client = resolvePoolClientFromRecord(poolManagerRecord, poolName);
     if (!client) {
       const getNames = poolManagerRecord["getPoolNames"];
       const available = typeof getNames === "function" ? getNames.call(poolManagerRecord) : [];
@@ -8210,7 +8303,12 @@ function resolveScopedCollection(config) {
 }
 
 // src/capabilities/function-cache/index.ts
-import { withCache, FunctionCache } from "cache-hub/function-cache";
+import { withCache as hubWithCache, FunctionCache } from "cache-hub/function-cache";
+function withCache(fn, options) {
+  const wrapped = hubWithCache(fn, options);
+  wrapped.getCacheStats = () => wrapped.stats();
+  return wrapped;
+}
 
 // src/entry/runtime-core.ts
 var MonSQLizeRuntime = class {
@@ -8233,7 +8331,7 @@ var MonSQLizeRuntime = class {
     });
     this._connectionPromise = null;
     const type = options.type;
-    if (!type || !["mongodb"].includes(type)) {
+    if (type !== "mongodb") {
       throw createError(ErrorCodes.UNSUPPORTED_DATABASE, "Invalid database type. Supported types are: mongodb");
     }
     this.options = {
@@ -8252,14 +8350,14 @@ var MonSQLizeRuntime = class {
     this._cache = normalizeRuntimeCache(options.cache);
     this._logger = Logger.create(options.logger ?? null);
     this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
-    this._cache.setLockManager(this._cacheLockManager);
+    this._cache.setLockManager?.(this._cacheLockManager);
     this._runtimeDefaults = buildRuntimeDefaults(options);
     this._adapterCacheOverride = void 0;
     this._adapterBridge = createRuntimeAdapterBridge(this.createAdapterBridgeHost());
     this.defaults = buildPublicDefaults(options);
     this.autoConvertConfig = initAutoConvertConfig(options.autoConvertObjectId, options.type);
   }
-  /** v1 兼容：公开 logger 访问入口（测试可能会 monkey-patch `.warn/.info`）。 */
+  /** v1 compat: expose logger as a public accessor (tests may monkey-patch `.warn/.info`). */
   get logger() {
     return this._logger;
   }
@@ -8296,6 +8394,17 @@ var MonSQLizeRuntime = class {
     try {
       return await this._connectionPromise;
     } catch (error) {
+      if (!this._connected) {
+        const clientToClose = this._client;
+        const poolToClose = this._poolManager;
+        this._client = null;
+        this._defaultDb = null;
+        this._poolManager = null;
+        clientToClose?.close().catch(() => {
+        });
+        poolToClose?.close().catch(() => {
+        });
+      }
       this.emit("error", {
         type: this.options.type,
         db: resolveDatabaseName(this.options),
@@ -8328,12 +8437,19 @@ var MonSQLizeRuntime = class {
     };
   }
   async close() {
-    await this._syncManager?.stop();
-    await this._slowQueryLogManager?.close();
-    await this._transactionManager?.abortAll();
+    const results = await Promise.allSettled([
+      this._syncManager?.stop(),
+      this._slowQueryLogManager?.close(),
+      this._transactionManager?.abortAll(),
+      this._poolManager?.close()
+    ]);
+    for (const result of results) {
+      if (result.status === "rejected") {
+        this._logger.warn("[MonSQLizeRuntime] cleanup error during close", result.reason);
+      }
+    }
     this._cacheLockManager.stop();
     this._lockManager?.close();
-    await this._poolManager?.close();
     await closeMongo(this._client, this._logger);
     this._client = null;
     this._defaultDb = null;
@@ -8343,6 +8459,7 @@ var MonSQLizeRuntime = class {
     this._slowQueryLogManager = null;
     this._transactionManager = null;
     this._lockManager = null;
+    this._sagaOrchestrator = null;
     this._iidCache = null;
     this._modelInstances.clear();
     this.emit("closed", {
@@ -8354,6 +8471,7 @@ var MonSQLizeRuntime = class {
     return {
       status: this._connected ? "up" : "down",
       connected: this._connected,
+      driver: { connected: this._connected },
       defaults: this.getDefaults(),
       cache: {
         enabled: true,
@@ -8361,7 +8479,7 @@ var MonSQLizeRuntime = class {
       }
     };
   }
-  // v1 直接暴露 cache / _adapter / dbInstance / _connecting，这里保持同名桥接。
+  // v1 exposes cache / _adapter / dbInstance / _connecting directly; keep same-name bridges here.
   get cache() {
     return this._cache;
   }
@@ -8379,7 +8497,7 @@ var MonSQLizeRuntime = class {
   get _connecting() {
     return this._connectionPromise;
   }
-  // 根访问器 ----------------------------------------------------------
+  // Root accessors ----------------------------------------------------------
   collection(name) {
     if (!name || typeof name !== "string" || !name.trim()) {
       const err = new Error("Collection name must be a non-empty string");
@@ -8388,12 +8506,6 @@ var MonSQLizeRuntime = class {
     }
     const dbInstance = requireCompatDbInstance(this);
     if (this._client) {
-      if (!this._iidCache) {
-        this._iidCache = new MemoryCache({
-          maxEntries: 1e5,
-          enableStats: false
-        });
-      }
       return this.db().collection(name);
     }
     return dbInstance.collection(name);
@@ -8457,7 +8569,7 @@ var MonSQLizeRuntime = class {
       db: (name) => this.db(name)
     });
   }
-  // Model 访问器 ---------------------------------------------------------
+  // Model accessors ---------------------------------------------------------
   scopedModel(name, options = {}) {
     const dbInstance = requireCompatDbInstance(this);
     if (this._client) {
@@ -8512,7 +8624,7 @@ var MonSQLizeRuntime = class {
     cache.set(name, instance);
     return instance;
   }
-  // 能力委托 ----------------------------------------------------
+  // Capability delegation ----------------------------------------------------
   async startSession(options = {}) {
     this.ensureConnected();
     return this.getTransactionManager().startSession(options);
@@ -8609,10 +8721,10 @@ var MonSQLizeRuntime = class {
     return this.requirePoolManager().getPoolNames();
   }
   getPoolStats() {
-    return Object.values(this.requirePoolManager().getPoolStats());
+    return this.requirePoolManager().getPoolStats();
   }
   getPoolHealth() {
-    return Object.values(this.requirePoolManager().getHealthStatus());
+    return this.requirePoolManager().getHealthStatus();
   }
   getLockStats() {
     return this._lockManager?.getStats() ?? null;
@@ -8758,11 +8870,46 @@ var MonSQLizeRuntime = class {
     });
   }
 };
+function isCacheLike(value) {
+  if (!value || typeof value !== "object") return false;
+  const v = value;
+  return typeof v["get"] === "function" && typeof v["set"] === "function" && typeof v["del"] === "function";
+}
 function normalizeRuntimeCache(cache) {
-  if (cache instanceof MemoryCache) {
-    return cache;
-  }
+  if (cache instanceof MemoryCache) return cache;
+  if (isCacheLike(cache)) return cache;
   const input = cache ?? {};
+  if (input.multiLevel === true) {
+    const localOpts = input.local ?? {};
+    const local = new MemoryCache({
+      maxEntries: toOptionalNumber(localOpts.maxEntries ?? localOpts.maxSize),
+      maxMemory: toOptionalNumber(localOpts.maxMemory),
+      defaultTtl: toOptionalNumber(localOpts.defaultTtl ?? localOpts.ttl),
+      enableStats: toOptionalBoolean(localOpts.enableStats),
+      enableTags: toOptionalBoolean(localOpts.enableTags),
+      cleanupInterval: toOptionalNumber(localOpts.cleanupInterval),
+      enabled: toOptionalBoolean(localOpts.enabled)
+    });
+    const remoteInput = input.remote;
+    const remote = isCacheLike(remoteInput) ? remoteInput : remoteInput ? new MemoryCache({
+      maxEntries: toOptionalNumber(remoteInput.maxEntries ?? remoteInput.maxSize),
+      maxMemory: toOptionalNumber(remoteInput.maxMemory),
+      defaultTtl: toOptionalNumber(remoteInput.defaultTtl ?? remoteInput.ttl),
+      enableStats: toOptionalBoolean(remoteInput.enableStats),
+      enableTags: toOptionalBoolean(remoteInput.enableTags),
+      cleanupInterval: toOptionalNumber(remoteInput.cleanupInterval),
+      enabled: toOptionalBoolean(remoteInput.enabled)
+    }) : void 0;
+    const policy = input.policy ?? {};
+    return new MultiLevelCache({
+      local,
+      remote,
+      writePolicy: policy.writePolicy ?? "both",
+      backfillOnRemoteHit: policy.backfillLocalOnRemoteHit ?? true,
+      remoteTimeoutMs: remoteInput && !isCacheLike(remoteInput) ? toOptionalNumber(remoteInput.timeoutMs) : void 0,
+      publish: input.publish
+    });
+  }
   return new MemoryCache({
     maxEntries: toOptionalNumber(input.maxEntries ?? input.maxSize),
     maxMemory: toOptionalNumber(input.maxMemory),

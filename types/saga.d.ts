@@ -50,10 +50,14 @@ export interface SagaResult {
     /** Error message string (set when success is false). */
     error?: string;
     completedSteps: number;
+    /** @deprecated Use `completedSteps` (count). v1 backward-compat: ordered list of executed step names. */
+    completedStepNames?: string[];
     /** Names of steps whose compensation handlers were invoked. */
     compensatedSteps?: string[];
     /** Total execution duration in milliseconds. */
     duration: number;
+    /** Original Error object (failure path only). v1 compat — `error` field is a string in v2. */
+    errorCause?: unknown;
     /** Present on the failure path when at least one completed step has a compensate function. */
     compensation?: {
         success: boolean;

@@ -58,10 +58,17 @@ test('cache refactor-guard: MemoryCache satisfies CacheLike contract', () => {
     }
 });
 
-test('cache refactor-guard: function-cache directly re-exports cache-hub implementation', () => {
+test('cache refactor-guard: function-cache uses cache-hub as backing (no standalone in-flight impl)', () => {
     const src = readProjectSrc('src/capabilities/function-cache/index.ts');
-    assert.ok(src.includes("export { withCache, FunctionCache } from 'cache-hub/function-cache';"));
-    assert.ok(!src.includes('const inflightFunctions = new Map'));
+    // FunctionCache is still a direct re-export from cache-hub
+    assert.ok(src.includes("from 'cache-hub/function-cache'"), 'must import from cache-hub/function-cache');
+    // withCache wrapper must delegate to the hub import, not maintain its own inflight map
+    assert.ok(!src.includes('const inflightFunctions = new Map'), 'must not define standalone inflight map');
+    // v1 compat: withCache should expose getCacheStats shim
+    const lib = require(LIB);
+    const wrapped = lib.withCache(async (x) => x, { ttl: 1000 });
+    assert.strictEqual(typeof wrapped.stats, 'function', 'stats() must exist');
+    assert.strictEqual(typeof wrapped.getCacheStats, 'function', 'getCacheStats() v1 compat shim must exist');
 });
 
 test('cache refactor-guard: find-page async totals cache uses MemoryCache', () => {

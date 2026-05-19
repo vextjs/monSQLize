@@ -163,6 +163,7 @@ import {
     RedisCacheAdapterOptions,
     validateSyncConfig,
     withCache,
+    adaptLegacyCacheLike,
 } from './types/runtime';
 
 export type {
@@ -320,6 +321,7 @@ export {
     createRedisCacheAdapter,
     withCache,
     FunctionCache,
+    adaptLegacyCacheLike,
     ChangeStreamSyncManager,
     ResumeTokenStore,
     validateSyncConfig,

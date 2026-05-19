@@ -1,12 +1,15 @@
 /**
  * Function cache capability barrel file.
  *
- * After this refactor, `withCache` / `FunctionCache` delegate directly to the
- * native `cache-hub/function-cache` implementation; only thin type aliases for
- * monSQLize public names are retained.
+ * `FunctionCache` is a thin re-export from cache-hub.
+ *
+ * `withCache` is wrapped to add a v1 backward-compat `getCacheStats()` alias
+ * that delegates to the native `stats()` method.
  */
 
-export { withCache, FunctionCache } from 'cache-hub/function-cache';
+import { withCache as hubWithCache, FunctionCache } from 'cache-hub/function-cache';
+
+export { FunctionCache };
 
 import type {
     FunctionCacheOptions as HubFunctionCacheOptions,
@@ -23,7 +26,10 @@ export type WithCacheOptions<
 export type CachedFunction<
     TArgs extends unknown[] = unknown[],
     TResult = unknown,
-> = WrappedFunction<(...args: TArgs) => Promise<TResult>>;
+> = WrappedFunction<(...args: TArgs) => Promise<TResult>> & {
+    /** @deprecated Use `stats()`. v1 backward-compat alias. */
+    getCacheStats(): WithCacheStats;
+};
 
 export type FunctionCacheOptions = HubFunctionCacheOptions;
 
@@ -31,3 +37,17 @@ export type {
     FunctionCacheStats,
     WithCacheStats,
 };
+
+/**
+ * Wraps an async function with a cache layer.
+ * Adds a v1 backward-compat `getCacheStats()` shim alongside the native `stats()`.
+ */
+export function withCache<TArgs extends unknown[], TResult>(
+    fn: (...args: TArgs) => Promise<TResult>,
+    options?: HubWithCacheOptions<(...args: TArgs) => Promise<TResult>>,
+): CachedFunction<TArgs, TResult> {
+    const wrapped = hubWithCache(fn, options) as CachedFunction<TArgs, TResult>;
+    // v1 compat shim: getCacheStats() → stats()
+    wrapped.getCacheStats = () => wrapped.stats();
+    return wrapped;
+}

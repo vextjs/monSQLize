@@ -129,7 +129,7 @@ expectType<Promise<unknown>>(aggregateChain.explain());
 
 expectType<Promise<{ name: string; } | null>>(users.findOneById('507f1f77bcf86cd799439011'));
 expectType<Promise<{ name: string; }[]>>(users.findByIds(['507f1f77bcf86cd799439011']));
-expectType<Promise<{ data: { name: string; }[]; total: number }>>(users.findAndCount({ name: 'Ada' }));
+expectType<Promise<import('../..').FindAndCountResult<{ name: string; }>>>(users.findAndCount({ name: 'Ada' }));
 expectType<Promise<import('../..').FindPageResult<{ name: string; }>>>(users.findPage({ page: 1, limit: 10 }));
 expectType<Promise<{ name: string; } | null>>(users.findOneAndReplace({}, { name: 'Grace' }));
 expectType<Promise<boolean>>(db.db().admin().ping());

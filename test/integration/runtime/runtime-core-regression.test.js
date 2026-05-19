@@ -92,8 +92,9 @@ describe('P5 runtime-core regression', () => {
             assert.equal(rows[0].kind, 'report_ready');
 
             const poolStats = runtime.getPoolStats();
-            assert.equal(poolStats.length >= 2, true);
-            assert.equal(poolStats.every((entry) => typeof entry.totalRequests === 'number'), true);
+            const poolEntries = Object.values(poolStats);
+            assert.equal(poolEntries.length >= 2, true);
+            assert.equal(poolEntries.every((entry) => typeof entry.totalRequests === 'number'), true);
 
             const syncManager = runtime.getSyncManager();
             assert.notEqual(syncManager, null);
