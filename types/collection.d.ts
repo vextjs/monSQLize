@@ -151,6 +151,8 @@ export interface ExplainResult {
 export interface HealthView {
     status: 'up' | 'down';
     connected: boolean;
+    /** @since v1 — driver connection state alias */
+    driver?: { connected: boolean };
     defaults?: Record<string, unknown>;
     cache?: Record<string, unknown>;
 }
@@ -561,7 +563,7 @@ export interface Collection<TSchema = unknown> {
     findPage(options?: FindPageOptions<TSchema>): Promise<FindPageResult<TSchema>>;
     watch(pipeline?: unknown[], options?: unknown): ChangeStream;
     /** @since v1.3.0 */
-    invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage'): Promise<number>;
+    invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
     /** @since v1.3.0 */
     dropCollection(): Promise<boolean>;
     /** @since v1.3.0 */

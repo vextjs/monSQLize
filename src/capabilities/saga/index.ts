@@ -121,6 +121,7 @@ export class SagaOrchestrator {
             this._stats.successfulExecutions += 1;
             return {
                 sagaId,
+                executionId: sagaId,
                 sagaName: name,
                 success: true,
                 completedSteps: completedSteps.length,
@@ -171,6 +172,7 @@ export class SagaOrchestrator {
 
             return {
                 sagaId,
+                executionId: sagaId,
                 sagaName: name,
                 success: false,
                 completedSteps: completedSteps.length,

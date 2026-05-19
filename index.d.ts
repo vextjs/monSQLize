@@ -390,8 +390,8 @@ export default class MonSQLize implements MonSQLizeInstance {
     addPool(config: PoolConfig): Promise<void>;
     removePool(name: string): Promise<void>;
     getPoolNames(): string[];
-    getPoolStats(): PoolStats[];
-    getPoolHealth(): PoolHealthStatus[];
+    getPoolStats(): Record<string, PoolStats>;
+    getPoolHealth(): Record<string, PoolHealthStatus>;
     getLockStats(): LockStats | null;
     /** @since v1.3.0 — v1 database management parity */
     listDatabases(options?: { nameOnly?: boolean }): Promise<Array<{ name: string; sizeOnDisk: number; empty: boolean }> | string[]>;

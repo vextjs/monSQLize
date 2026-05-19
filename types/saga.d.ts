@@ -27,6 +27,8 @@ export interface SagaDefinition {
 
 export interface SagaResult {
     sagaId: string;
+    /** @alias sagaId — v1 compatibility */
+    executionId?: string;
     sagaName: string;
     success: boolean;
     result?: unknown;

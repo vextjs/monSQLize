@@ -372,6 +372,7 @@ export class MonSQLizeRuntime {
         return {
             status: this._connected ? 'up' : 'down',
             connected: this._connected,
+            driver: { connected: this._connected },
             defaults: this.getDefaults(),
             cache: {
                 enabled: true,
@@ -626,8 +627,8 @@ export class MonSQLizeRuntime {
     async addPool(config: PoolConfig): Promise<void> { await this.requirePoolManager().addPool(config); }
     async removePool(name: string): Promise<void> { await this.requirePoolManager().removePool(name); }
     getPoolNames(): string[] { return this.requirePoolManager().getPoolNames(); }
-    getPoolStats(): PoolStats[] { return Object.values(this.requirePoolManager().getPoolStats()); }
-    getPoolHealth(): PoolHealthStatus[] { return Object.values(this.requirePoolManager().getHealthStatus()) as PoolHealthStatus[]; }
+    getPoolStats(): Record<string, PoolStats> { return this.requirePoolManager().getPoolStats(); }
+    getPoolHealth(): Record<string, PoolHealthStatus> { return this.requirePoolManager().getHealthStatus(); }
     getLockStats(): LockStats | null { return this._lockManager?.getStats() ?? null; }
     async listDatabases(options: { nameOnly?: boolean } = {}): Promise<Array<{ name: string; sizeOnDisk: number; empty: boolean }> | string[]> { this.ensureConnected(); return this.db().listDatabases(options); }
     async dropDatabase(options: { confirm: boolean; allowProduction?: boolean; user?: string } = { confirm: false }): Promise<{ dropped: boolean; database: string; timestamp: Date }> { this.ensureConnected(); return this.db().dropDatabase(options); }
