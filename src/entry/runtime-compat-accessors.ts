@@ -98,24 +98,32 @@ export function requireCompatPoolManagerRecord(value: unknown): Record<string, u
 }
 
 /**
+ * 从连接池管理器记录中解析指定连接池的 MongoClient。
+ * 同时兼容 v1（`_getPool`）和 v2（`getPool`）两种获取接口。
+ * 池不存在或调用失败时返回 null。
+ */
+export function resolvePoolClientFromRecord(poolManager: Record<string, unknown>, poolName: string): unknown {
+    const getPoolV1 = poolManager['_getPool'] as ((name: string) => unknown) | undefined;
+    const getPoolV2 = poolManager['getPool'] as ((name: string) => unknown) | undefined;
+    if (typeof getPoolV1 === 'function') {
+        return getPoolV1.call(poolManager, poolName) ?? null;
+    }
+    if (typeof getPoolV2 === 'function') {
+        try {
+            return getPoolV2.call(poolManager, poolName) ?? null;
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
+/**
  * 断言指定连接池在池管理器中存在。
- * 兼容 v1 (`_getPool`) 和 v2 (`getPool`) 两种获取接口。
  * 若池不存在则抛出 `POOL_NOT_FOUND` 错误，并附带当前可用池名列表。
  */
 export function assertCompatPoolExists(poolManager: Record<string, unknown>, poolName: string): void {
-    const getPoolV1 = poolManager['_getPool'] as ((name: string) => unknown) | undefined;
-    const getPoolV2 = poolManager['getPool'] as ((name: string) => unknown) | undefined;
-    let client: unknown = null;
-    if (typeof getPoolV1 === 'function') {
-        client = getPoolV1.call(poolManager, poolName);
-    } else if (typeof getPoolV2 === 'function') {
-        try {
-            client = getPoolV2.call(poolManager, poolName);
-        } catch {
-            client = null;
-        }
-    }
-    if (client) {
+    if (resolvePoolClientFromRecord(poolManager, poolName)) {
         return;
     }
     const getNames = poolManager['getPoolNames'] as (() => string[]) | undefined;

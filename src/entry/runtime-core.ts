@@ -223,7 +223,7 @@ export class MonSQLizeRuntime {
 
     constructor(public readonly options: MonSQLizeOptions = {}) {
         const type = options.type;
-        if (!type || !(['mongodb'] as string[]).includes(type)) {
+        if (type !== 'mongodb') {
             throw createError(ErrorCodes.UNSUPPORTED_DATABASE, 'Invalid database type. Supported types are: mongodb');
         }
         this.options = {

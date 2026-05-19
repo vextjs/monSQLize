@@ -5,7 +5,7 @@
  * 版本控制（__v）和软删除标记，确保各写操作路径行为一致。
  */
 import type { HookContext } from '../../../types/model';
-import type { ModelCollectionLike } from './populate-promise';
+import type { ExtendedModelCollectionLike, ModelCollectionLike } from './populate-promise';
 import {
     applyModelInsertTimestamps,
     applyModelInsertVersion,
@@ -21,18 +21,6 @@ import {
     runModelV1Hook,
     validateModelSchemaPayload,
 } from './model-write-helpers';
-
-type ExtendedModelCollectionLike<TDocument> = ModelCollectionLike<TDocument> & {
-    findOneAndReplace: (filter?: unknown, replacement?: unknown, options?: unknown) => Promise<TDocument | null>;
-    incrementOne: (
-        filter?: unknown,
-        field?: string | Record<string, number>,
-        increment?: number,
-        options?: unknown,
-    ) => Promise<unknown>;
-    insertBatch: (docs: unknown[], options?: unknown) => Promise<unknown>;
-    updateBatch: (filter?: unknown, update?: unknown, options?: unknown) => Promise<unknown>;
-};
 
 type HookOperation = 'find' | 'insert' | 'update' | 'delete';
 type HookPhase = 'before' | 'after';

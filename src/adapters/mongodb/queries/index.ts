@@ -377,7 +377,7 @@ export async function findOneDocument<TSchema extends Document = Document>(
 export async function countDocuments<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     query?: Parameters<Collection<TSchema>['countDocuments']>[0],
-    options?: Parameters<Collection<TSchema>['countDocuments']>[1] & { explain?: boolean | string; comment?: string; hint?: unknown; collation?: unknown; skip?: number; limit?: number; },
+    options?: Parameters<Collection<TSchema>['countDocuments']>[1],
 ): Promise<unknown> {
     const rawQuery = (query ?? {}) as Record<string, unknown>;
     const rawOptions = (options ?? {}) as Record<string, unknown>;

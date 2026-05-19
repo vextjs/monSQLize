@@ -6,8 +6,6 @@
  *   1. 指定 pool 且存在 CollectionFromClient adapter → 通过 adapter 路由
  *   2. 指定 pool 且存在 poolManager → 通过 poolManager.selectPool 路由
  *   3. 无 pool 配置 → 通过默认 MongoClient 路由
- *
- * 兼容 v1 poolManager API (`_getPool`) 和 v2 API (`getPool`)。
  */
 
 import type { MongoClient } from 'mongodb';
@@ -21,6 +19,7 @@ import type { ConnectionPoolManager } from '../capabilities/pool';
 import { ErrorCodes, createError } from '../core/errors';
 import type { RuntimeDefaults } from '../types/internal/query';
 import type { MonSQLizeOptions } from '../../types/monsqlize';
+import { resolvePoolClientFromRecord } from './runtime-compat-accessors';
 
 /**
  * `resolveScopedCollection` 所需的全量配置参数。
@@ -65,18 +64,7 @@ export function resolveScopedCollection(config: ResolveScopedCollectionConfig): 
         if (!poolManagerRecord) {
             throw createError(ErrorCodes.NO_POOL_MANAGER, `Model '${config.collectionName}' requires pool '${poolName}' but no pools are configured. Add 'pools' to MonSQLize constructor options.`);
         }
-        let client: unknown = null;
-        const getPoolV1 = poolManagerRecord['_getPool'] as ((name: string) => unknown) | undefined;
-        const getPoolV2 = poolManagerRecord['getPool'] as ((name: string) => unknown) | undefined;
-        if (typeof getPoolV1 === 'function') {
-            client = getPoolV1.call(poolManagerRecord, poolName);
-        } else if (typeof getPoolV2 === 'function') {
-            try {
-                client = getPoolV2.call(poolManagerRecord, poolName);
-            } catch {
-                client = null;
-            }
-        }
+        const client = resolvePoolClientFromRecord(poolManagerRecord, poolName);
         if (!client) {
             const getNames = poolManagerRecord['getPoolNames'] as (() => string[]) | undefined;
             const available = typeof getNames === 'function' ? getNames.call(poolManagerRecord) : [];

@@ -202,12 +202,13 @@ export function applyModelUpsertTimestamps(
     if (!timestampsConfig) {
         return update;
     }
+    const now = nowFactory();
     const resolvedUpdate = (update ?? {}) as Record<string, unknown>;
     const result: Record<string, unknown> = { ...resolvedUpdate };
     if (timestampsConfig.updatedAt !== false) {
         result.$set = {
             ...((resolvedUpdate.$set ?? {}) as Record<string, unknown>),
-            [timestampsConfig.updatedAt]: nowFactory(),
+            [timestampsConfig.updatedAt]: now,
         };
     }
     if (timestampsConfig.createdAt !== false) {
@@ -215,7 +216,7 @@ export function applyModelUpsertTimestamps(
             ...((resolvedUpdate.$setOnInsert ?? {}) as Record<string, unknown>),
         };
         if ($setOnInsert[timestampsConfig.createdAt] === undefined) {
-            $setOnInsert[timestampsConfig.createdAt] = nowFactory();
+            $setOnInsert[timestampsConfig.createdAt] = now;
         }
         result.$setOnInsert = $setOnInsert;
     }

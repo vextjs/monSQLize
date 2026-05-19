@@ -252,7 +252,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         const cacheTTL = typeof merged.cache === 'number' ? merged.cache : 0;
         const { cache: _cache, ...keyOptions } = merged;
         void _cache;
-        const executeCount = () => countDocuments(this.collectionRef, normalizedQuery ?? {}, keyOptions as any);
+        const executeCount = () => countDocuments(this.collectionRef, normalizedQuery ?? {}, keyOptions as Parameters<Collection<TSchema>['countDocuments']>[1]);
         const countQueue = this.management.defaults?.countQueue;
         if (cacheTTL > 0 && this.management.queryCache) {
             const cacheKey = `count:${this.collectionRef.namespace}:${JSON.stringify(normalizedQuery ?? {})}:${JSON.stringify(keyOptions)}`;

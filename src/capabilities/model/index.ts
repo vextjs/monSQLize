@@ -15,7 +15,7 @@ import type {
 } from '../../../types/model';
 import { _schemaValidateFn } from './schema-dsl';
 import { PopulatePromise } from './populate-promise';
-import type { PopulatePath, ModelCollectionLike, ModelRuntimeLike } from './populate-promise';
+import type { ExtendedModelCollectionLike, PopulatePath, ModelCollectionLike, ModelRuntimeLike } from './populate-promise';
 import { validateRelationConfig, normalizePopulateConfig } from './definition-validator';
 import { unique, groupBy, getByPath, toKey, applySort, pickFields, serializeDocument } from './model-utils';
 import { Model } from './model-registry';
@@ -72,18 +72,6 @@ import {
     orchestrateModelUpdateOne,
     orchestrateModelUpsertOne,
 } from './model-mutation-orchestrator';
-
-type ExtendedModelCollectionLike<TDocument> = ModelCollectionLike<TDocument> & {
-    findOneAndReplace: (filter?: unknown, replacement?: unknown, options?: unknown) => Promise<TDocument | null>;
-    incrementOne: (
-        filter?: unknown,
-        field?: string | Record<string, number>,
-        increment?: number,
-        options?: unknown,
-    ) => Promise<unknown>;
-    insertBatch: (docs: unknown[], options?: unknown) => Promise<unknown>;
-    updateBatch: (filter?: unknown, update?: unknown, options?: unknown) => Promise<unknown>;
-};
 
 // 公共类型重导出（供外部消费者使用）
 export type {

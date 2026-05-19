@@ -70,6 +70,26 @@ export interface ModelCollectionLike<TDocument = Record<string, unknown>> {
     watch(pipeline?: unknown[], options?: unknown): unknown;
 }
 
+/**
+ * ModelCollectionLike 的扩展版本，补充了批量写入和字段递增接口。
+ *
+ * 相比基础接口新增了：
+ * - `incrementOne` 的 field 参数支持 `Record<string, number>`（多字段同时递增）
+ * - `insertBatch` / `updateBatch` 批量操作方法
+ *
+ * orchestrateModel* 和 ModelInstance 共同使用此类型，避免重复定义。
+ */
+export type ExtendedModelCollectionLike<TDocument> = ModelCollectionLike<TDocument> & {
+    incrementOne(
+        filter?: unknown,
+        field?: string | Record<string, number>,
+        increment?: number,
+        options?: unknown,
+    ): Promise<unknown>;
+    insertBatch(docs: unknown[], options?: unknown): Promise<unknown>;
+    updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
+};
+
 // 前向类型声明，避免循环依赖（model-instance.ts 导入本文件，本文件需要引用 ModelInstance 类型）
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ModelInstance<TDocument = Record<string, unknown>> = import('./index').ModelInstance<TDocument> & any;
