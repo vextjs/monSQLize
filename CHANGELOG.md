@@ -1,14 +1,15 @@
-# 变更日志 (CHANGELOG)
+# CHANGELOG
 
-> **说明**: 版本概览摘要，详细变更见 [changelogs/](./changelogs/) 目录  
-> **最后更新**: 2026-04-27
+> Summary index — full details in [changelogs/](./changelogs/)  
+> **Last updated**: 2026-05-19
 
 ---
 
-## 版本概览
+## Version Overview
 
-| 版本 | 日期 | 变更摘要 | 详细 |
-|------|------|---------|------|
+| Version | Date | Summary | Details |
+|---------|------|---------|---------|
+| [v2.0.0](./changelogs/v2.0.0.md) | 2026-05-19 | 🎉 **v2.0.0 — TypeScript rewrite**: full TypeScript source, cache-hub integration, MultiLevel cache support, v1 API compat preserved, JSDoc coverage complete, `getPoolStats/getPoolHealth` keyed by pool name | [View](./changelogs/v2.0.0.md) |
 | [v1.3.0](./changelogs/v1.3.0.md) | 2026-04-27 | 🆕 **新功能**：链式池访问 API — `pool(name)` / `use(dbName)` / `scopedCollection()` / `scopedModel()` 四个公开方法，支持多连接池多数据库路由，connection 合并语义，TypeScript 类型签名完整覆盖 | [查看](./changelogs/v1.3.0.md) |
 | [v1.2.3](./changelogs/v1.2.3.md) | 2026-04-26 | 🐛 **Bug Fix**：`model()` 方法修复注册 key 直接作为 MongoDB 集合名的问题，优先读 `definition.collection > definition.name`，注册 key 仅作 fallback，向后兼容 | [查看](./changelogs/v1.2.3.md) |
 | [v1.2.2](./changelogs/v1.2.2.md) | 2026-04-24 | 🆕 **新功能**：Model 数据源绑定 — `connection: { pool?, database? }` 支持 Model 绑定指定连接池和/或数据库，四种组合路由，向后兼容；🐛 **Bug Fix**：修复 `Model._clear()` 导致 `msq.model()` 实例缓存失效失效，populate 关系丢失问题 | [查看](./changelogs/v1.2.2.md) |
