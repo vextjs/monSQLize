@@ -132,7 +132,7 @@ export function hydrateModelDocument<TDocument>(
         });
     }
 
-    if (typeof (context.definition as any).methods === 'function') {
+    if (typeof (context.definition as Record<string, unknown>).methods === 'function') {
         for (const [name, method] of Object.entries(context.v1InstanceMethods)) {
             Object.defineProperty(hydrated, name, {
                 configurable: true,

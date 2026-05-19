@@ -48,7 +48,7 @@ export function parseRequiredObjectId(id: unknown): ObjectId {
     if (!id) {
         throw createError(
             ErrorCodes.INVALID_ARGUMENT,
-            'id 参数是必需的',
+            'id is required',
             [{ field: 'id', type: 'required', message: 'id must not be empty' }],
         );
     }

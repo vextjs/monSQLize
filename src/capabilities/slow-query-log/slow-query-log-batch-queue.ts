@@ -36,6 +36,7 @@ export class BatchQueue {
         }
         if (!this.timer) {
             this.timer = setTimeout(() => {
+                this.timer = null;
                 void this.flush();
             }, this.flushInterval);
             this.timer.unref?.();

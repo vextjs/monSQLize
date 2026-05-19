@@ -82,7 +82,7 @@ async function computeTotals<TSchema extends Document = Document>(
     }
 
     if (mode === 'async') {
-        const cacheKey = JSON.stringify({ q: query });
+        const cacheKey = JSON.stringify({ ns: coll.namespace, q: query });
         const token = Buffer.from(cacheKey).toString('base64url');
         const cachedTotal = _asyncTotalsCache.get(cacheKey);
         if (cachedTotal !== undefined) {
@@ -154,7 +154,6 @@ export async function executeFindPage<TSchema extends Document = Document>(
         }
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let effectiveMaxTimeMS: number | undefined;
     const driverOpts: Record<string, unknown> = { ...(options.options ?? {}) };
     effectiveMaxTimeMS = (ext.maxTimeMS as number | undefined) ?? defaults.maxTimeMS;

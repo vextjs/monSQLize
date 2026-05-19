@@ -3,7 +3,7 @@
  *
  * 对应 MongoDB 驱动单条/多条写操作，供集合访问器调用。
  */
-import { Collection, Document, FindOneAndUpdateOptions } from 'mongodb';
+import { Collection, Document, FindOneAndDeleteOptions, FindOneAndReplaceOptions, FindOneAndUpdateOptions } from 'mongodb';
 import { normalizeProjection } from '../../../utils/normalize';
 import { createError, ErrorCodes } from '../../../core/errors';
 import type { IncrementOneOptions } from '../../../../types/collection';
@@ -50,7 +50,10 @@ export async function findOneAndUpdateDocument<TSchema extends Document = Docume
     update: Parameters<Collection<TSchema>['findOneAndUpdate']>[1],
     options?: unknown,
 ): ReturnType<Collection<TSchema>['findOneAndUpdate']> {
-    return (collection as any).findOneAndUpdate(filter, update, ...(options !== undefined ? [options] : []));
+    if (options !== undefined) {
+        return collection.findOneAndUpdate(filter, update, options as FindOneAndUpdateOptions);
+    }
+    return collection.findOneAndUpdate(filter, update);
 }
 
 export async function findOneAndReplaceDocument<TSchema extends Document = Document>(
@@ -59,7 +62,10 @@ export async function findOneAndReplaceDocument<TSchema extends Document = Docum
     replacement: Parameters<Collection<TSchema>['findOneAndReplace']>[1],
     options?: unknown,
 ): ReturnType<Collection<TSchema>['findOneAndReplace']> {
-    return (collection as any).findOneAndReplace(filter, replacement, ...(options !== undefined ? [options] : []));
+    if (options !== undefined) {
+        return collection.findOneAndReplace(filter, replacement, options as FindOneAndReplaceOptions);
+    }
+    return collection.findOneAndReplace(filter, replacement);
 }
 
 export async function findOneAndDeleteDocument<TSchema extends Document = Document>(
@@ -67,7 +73,10 @@ export async function findOneAndDeleteDocument<TSchema extends Document = Docume
     filter: Parameters<Collection<TSchema>['findOneAndDelete']>[0],
     options?: unknown,
 ): ReturnType<Collection<TSchema>['findOneAndDelete']> {
-    return (collection as any).findOneAndDelete(filter, ...(options !== undefined ? [options] : []));
+    if (options !== undefined) {
+        return collection.findOneAndDelete(filter, options as FindOneAndDeleteOptions);
+    }
+    return collection.findOneAndDelete(filter);
 }
 
 export async function upsertOneDocument<TSchema extends Document = Document>(
