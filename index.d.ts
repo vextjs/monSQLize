@@ -343,7 +343,7 @@ export default class MonSQLize implements MonSQLizeInstance {
         };
         instance: MonSQLize;
     }>;
-    getCache(): MemoryCache;
+    getCache(): CacheLike;
     getDefaults(): Record<string, unknown>;
     close(): Promise<void>;
     health(): Promise<HealthView>;
