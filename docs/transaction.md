@@ -241,7 +241,7 @@ await msq.withTransaction(async (tx) => {
 - `callback(tx)`: 事务回调函数
   - `tx.session`: MongoDB session 对象
   - `tx.id`: 事务唯一标识
-  - `tx.state`: 事务状态（'pending' | 'committed' | 'aborted'）
+  - `tx.state`: 事务状态（'pending' | 'active' | 'committed' | 'aborted'）
 - `options`: 事务选项（可选）
 
 **返回**: Promise<any> - 返回 callback 的返回值

@@ -28,7 +28,7 @@ export declare class Lock {
     readonly key: string;
     readonly lockId: string;
     readonly ttl: number;
-    readonly released: boolean;
+    released: boolean;
     release(): Promise<boolean>;
     renew(ttl?: number): Promise<boolean>;
     isHeld(): boolean;

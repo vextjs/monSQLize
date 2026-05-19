@@ -192,7 +192,7 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
     findOneAndReplace(filter?: unknown, replacement?: unknown, options?: unknown): Promise<TDocument | null>;
     findOneAndDelete(filter?: unknown, options?: unknown): Promise<TDocument | null>;
     upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
-    incrementOne(filter?: unknown, field?: string, increment?: number, options?: unknown): Promise<unknown>;
+    incrementOne(filter?: unknown, field?: string | Record<string, number>, increment?: number, options?: unknown): Promise<unknown>;
     deleteOne(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     deleteMany(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     // soft-delete extended methods
@@ -203,6 +203,11 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
     restoreMany(filter?: unknown, options?: unknown): Promise<unknown>;
     forceDelete(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     forceDeleteMany(filter?: unknown, options?: unknown): Promise<DeleteResult>;
+    findOneOnlyDeleted(query?: unknown, options?: unknown): PopulateProxy<ModelDocument<TDocument> | null>;
+    countWithDeleted(query?: unknown, options?: unknown): Promise<number>;
+    countOnlyDeleted(query?: unknown, options?: unknown): Promise<number>;
+    insertBatch(docs: unknown[], options?: unknown): Promise<unknown>;
+    updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
     createIndex(keys: unknown, options?: unknown): Promise<IndexCreateResult>;
     createIndexes(specs: Array<{ key: unknown; } & Record<string, unknown>>): Promise<string[]>;
     listIndexes(): Promise<Record<string, unknown>[]>;
@@ -210,7 +215,7 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
     dropIndexes(): Promise<unknown>;
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]>;
-    watch(pipeline?: unknown[], options?: unknown): unknown;
+    watch(pipeline?: unknown[], options?: unknown): import('mongodb').ChangeStream;
     validate(document?: unknown): ValidationResult;
 }
 

@@ -310,13 +310,13 @@ compensate: async (ctx) => {
 }
 ```
 
-### ctx.sagaId
+### ctx.executionId
 
 获取 Saga 唯一标识。
 
 ```javascript
 execute: async (ctx) => {
-    console.log('Saga ID:', ctx.sagaId);
+    console.log('Saga ID:', ctx.executionId);
 }
 ```
 

@@ -58,10 +58,10 @@ async connect()
 
 ```javascript
 {
-  db: Function,              // 数据库访问函数
   collection: Function,      // 集合访问函数（当前数据库）
-  _client: MongoClient,      // 原生 MongoDB 客户端
-  _iid: String              // 实例 ID
+  db: Function,              // 跨库访问函数，db(name?) 返回 DbAccessor
+  use: Function,             // 切换数据库并返回 { collection, model }
+  instance: MonSQLize        // 当前 MonSQLize 实例
 }
 ```
 

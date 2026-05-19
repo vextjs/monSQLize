@@ -248,6 +248,11 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
     restoreMany(filter?: unknown, options?: unknown): Promise<unknown>;
     forceDelete(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     forceDeleteMany(filter?: unknown, options?: unknown): Promise<DeleteResult>;
+    findOneOnlyDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
+    countWithDeleted(query?: unknown, options?: unknown): Promise<number>;
+    countOnlyDeleted(query?: unknown, options?: unknown): Promise<number>;
+    insertBatch(docs: unknown[], options?: unknown): Promise<unknown>;
+    updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
 }
 
 export declare const expr: ExpressionFunction;
