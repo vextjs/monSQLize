@@ -15,7 +15,7 @@
 
 import { performance } from 'node:perf_hooks';
 import type { Db, MongoClient } from 'mongodb';
-import type { MemoryCache } from '../capabilities/cache';
+import type { CacheLike, MemoryCache } from '../capabilities/cache';
 import {
     SlowQueryLogManager,
     type SlowQueryLogEntry,
@@ -40,10 +40,10 @@ type AdapterBridgeConfig = {
     getDb: () => Db | null;
     /** Returns the current MongoClient (null when not connected). */
     getClient: () => MongoClient | null;
-    /** Returns the current MemoryCache instance (may be null). */
-    getCache: () => MemoryCache | null;
-    /** Replaces the current MemoryCache instance. */
-    setCache: (value: MemoryCache | null) => void;
+    /** Returns the current cache instance (may be null). */
+    getCache: () => CacheLike | null;
+    /** Replaces the current cache instance. */
+    setCache: (value: CacheLike | null) => void;
     /** Returns the current instance ID (from namespace.instanceId config). */
     getInstanceId: () => string | undefined;
     /** Tests MongoDB connection reachability. */
@@ -235,8 +235,8 @@ export type RuntimeAdapterBridgeHost = {
     _iidCache: MemoryCache | null;
     _runtimeDefaults: RuntimeDefaults;
     _slowQueryLogManager: SlowQueryLogManager | null;
-    resolveAdapterCache(): MemoryCache | null;
-    setAdapterCache(value: MemoryCache | null): void;
+    resolveAdapterCache(): CacheLike | null;
+    setAdapterCache(value: CacheLike | null): void;
     initializeSlowQueryLogManager(): SlowQueryLogManager | null;
     ensureConnected(): void;
     db(name?: string): DbFacade;

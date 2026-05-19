@@ -34,7 +34,7 @@ import type { MongoClient } from 'mongodb';
 type TransactionManagerConfig = {
     current: TransactionManager | null;
     client: MongoClient | null;
-    cache: import('../capabilities/cache').MemoryCache;
+    cache: import('../capabilities/cache').CacheLike;
     logger: LoggerLike | null;
     lockManager: CacheLockManager;
 };

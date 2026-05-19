@@ -8,6 +8,7 @@
 export { MemoryCache } from './memory-cache';
 export { createRedisCacheAdapter } from './redis-cache-adapter';
 export { DistributedCacheInvalidator } from './distributed-cache-invalidator';
+export { MultiLevelCache } from 'cache-hub';
 
 export type {
     CacheLike,

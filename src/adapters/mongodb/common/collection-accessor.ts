@@ -178,6 +178,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return this.collectionRef;
     }
 
+    /** Finds a single document matching the query, with optional cache support. */
     async findOne(
         query: Parameters<Collection<TSchema>['findOne']>[0],
         options?: Parameters<Collection<TSchema>['findOne']>[1],
@@ -212,6 +213,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return findOneDocument(this.collectionRef, normalizedQuery, driverOptions as Parameters<Collection<TSchema>['findOne']>[1]);
     }
 
+    /** Returns a find chain (or a readable stream when `options.stream` is true). */
     find(
         query?: Parameters<Collection<TSchema>['find']>[0],
         options?: Parameters<Collection<TSchema>['find']>[1] & { stream?: boolean },
@@ -222,28 +224,34 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return createFindChain(this.collectionRef, query, options, this.management.defaults, this.management.queryCache) as unknown as FindChain<TSchema>;
     }
 
+    /** Finds a single document by its `_id` field. */
     async findOneById(id: unknown, options?: Parameters<Collection<TSchema>['findOne']>[1]): Promise<TSchema | null> {
         const maxTimeMS = this.management.defaults?.maxTimeMS;
         return findOneByIdDocument(this.collectionRef, id, (maxTimeMS !== undefined ? { maxTimeMS, ...options } : options) as Parameters<Collection<TSchema>['findOne']>[1]);
     }
 
+    /** Finds multiple documents by an array of `_id` values. */
     async findByIds(ids: unknown[], options?: Parameters<Collection<TSchema>['find']>[1]): Promise<TSchema[]> {
         const { findLimit: _skip, ...noLimitDefaults } = this.management.defaults ?? {};
         return findByIdsDocuments(this.collectionRef, ids, options, noLimitDefaults);
     }
 
+    /** Returns `{ data, total }` — the matched documents together with the total count in a single round-trip. */
     async findAndCount(query?: Parameters<Collection<TSchema>['find']>[0], options?: Parameters<Collection<TSchema>['find']>[1]) {
         return findAndCountDocuments(this.collectionRef, query != null ? this._cvFilter(query) as typeof query : query, options, this.management.defaults);
     }
 
+    /** Returns a Node.js Readable stream of documents matching the query (object mode). */
     stream(query?: Parameters<Collection<TSchema>['find']>[0], options?: Parameters<Collection<TSchema>['find']>[1]): NodeJS.ReadableStream {
         return streamDocuments(this.collectionRef, query, options, this.management.defaults);
     }
 
+    /** Returns the MongoDB query plan for the given query (passes `explain` to the driver). */
     explain(query?: Parameters<Collection<TSchema>['find']>[0], options?: Parameters<Collection<TSchema>['find']>[1] & { explain?: boolean | string; }): Promise<unknown> {
         return explainDocuments(this.collectionRef, query, options, this.management.defaults);
     }
 
+    /** Counts documents matching the query, with optional cache and queue support. */
     async count(
         query?: Parameters<Collection<TSchema>['countDocuments']>[0],
         options?: Parameters<Collection<TSchema>['countDocuments']>[1],
@@ -271,6 +279,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return (countQueue ? countQueue.execute(executeCount) : executeCount()) as unknown as ReturnType<Collection<TSchema>['countDocuments']>;
     }
 
+    /** Runs an aggregation pipeline and returns a chainable aggregate cursor. */
     aggregate(
         pipeline: Document[] = [],
         options?: Parameters<Collection<TSchema>['aggregate']>[1],
@@ -281,6 +290,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return createAggregateChain(this.collectionRef, normalizedPipeline, options, this.management.defaults);
     }
 
+    /** Returns an array of distinct values for the given field key. */
     async distinct(
         key: string,
         query?: Document,
@@ -296,10 +306,12 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return findPageDocuments(this.collectionRef, resolvedOptions, this.management.defaults);
     }
 
+    /** Opens a change stream on the collection with an optional aggregation pipeline. */
     watch(pipeline: Document[] = [], options?: Parameters<Collection<TSchema>['watch']>[1]): ChangeStream<TSchema> {
         return watchDocuments(this.collectionRef, pipeline, options);
     }
 
+    /** Inserts a single document and invalidates read caches. */
     async insertOne(
         doc: Parameters<Collection<TSchema>['insertOne']>[0],
         options?: Parameters<Collection<TSchema>['insertOne']>[1],
@@ -307,6 +319,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return insertOneForAccessor(this.writeContext(), doc, options);
     }
 
+    /** Inserts multiple documents and invalidates read caches. */
     async insertMany(...args: Parameters<Collection<TSchema>['insertMany']>): ReturnType<Collection<TSchema>['insertMany']> {
         const [documents, options] = args;
         return insertManyForAccessor(this.writeContext(), documents, options);
@@ -324,11 +337,13 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return updateOneForAccessor(this.writeContext(), filter, update, options);
     }
 
+    /** Updates all documents matching the filter and invalidates read caches. */
     async updateMany(...args: Parameters<Collection<TSchema>['updateMany']>): ReturnType<Collection<TSchema>['updateMany']> {
         const [filter, update, options] = args;
         return updateManyForAccessor(this.writeContext(), filter, update, options);
     }
 
+    /** Replaces a single matching document and invalidates read caches. */
     async replaceOne(...args: Parameters<Collection<TSchema>['replaceOne']>): ReturnType<Collection<TSchema>['replaceOne']> {
         const [filter, replacement, options] = args;
         return replaceOneForAccessor(this.writeContext(), filter, replacement, options);
@@ -392,15 +407,18 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return deleteOneForAccessor(this.writeContext(), filter, options);
     }
 
+    /** Deletes all documents matching the filter and invalidates read caches. */
     async deleteMany(...args: Parameters<Collection<TSchema>['deleteMany']>): ReturnType<Collection<TSchema>['deleteMany']> {
         const [filter, options] = args;
         return deleteManyForAccessor(this.writeContext(), filter, options);
     }
 
+    /** Inserts documents in configurable batches to avoid exceeding driver limits. */
     async insertBatch(documents: TSchema[], options?: BatchWriteOptions & Parameters<Collection<TSchema>['insertMany']>[1]): Promise<InsertBatchResult> {
         return insertBatchForAccessor(this.batchContext(), documents, options);
     }
 
+    /** Applies an update to matching documents in configurable batches. */
     async updateBatch(
         filter: Parameters<Collection<TSchema>['find']>[0],
         update: Parameters<Collection<TSchema>['updateMany']>[1],
@@ -409,6 +427,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return updateBatchForAccessor(this.batchContext(), filter, update, options);
     }
 
+    /** Deletes matching documents in configurable batches. */
     async deleteBatch(
         filter: Parameters<Collection<TSchema>['find']>[0],
         options?: UpdateBatchOptions & Parameters<Collection<TSchema>['deleteMany']>[1],
@@ -416,6 +435,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return deleteBatchForAccessor(this.batchContext(), filter, options);
     }
 
+    /** Atomically increments one or more numeric fields on a matching document. */
     async incrementOne(
         filter: Parameters<Collection<TSchema>['findOneAndUpdate']>[0],
         field: string | Record<string, number>,
@@ -425,72 +445,92 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return incrementOneForAccessor(this.batchContext(), filter, field, incrementOrOptions, maybeOptions);
     }
 
+    /** Creates a single index on the collection. */
     async createIndex(keys: Document, options?: Parameters<Collection<TSchema>['createIndex']>[1]): Promise<IndexCreateResult> {
         return createIndexForAccessor(this.collectionRef, keys, options);
     }
 
+    /** Creates multiple indexes in a single command. */
     async createIndexes(specs: Array<{ key: Document; } & Record<string, unknown>>): Promise<string[]> { return createIndexesForAccessor(this.collectionRef, specs); }
 
+    /** Lists all indexes on the collection. */
     async listIndexes(): Promise<Record<string, unknown>[]> { return listIndexesForAccessor(this.collectionRef); }
 
+    /** Drops a named index from the collection. */
     async dropIndex(name: string): ReturnType<Collection<TSchema>['dropIndex']> { return dropIndexForAccessor(this.collectionRef, name); }
 
+    /** Drops all non-`_id` indexes from the collection. */
     async dropIndexes(): ReturnType<Collection<TSchema>['dropIndexes']> { return dropIndexesForAccessor(this.collectionRef); }
 
+    /** Pre-populates bookmark cache entries for the specified key dimensions and page numbers. */
     async prewarmBookmarks(keyDims: BookmarkKeyDims<TSchema> = {}, pages: number[] = []): Promise<BookmarkPrewarmResult> {
         return prewarmBookmarksForAccessor(this.bookmarkContext(), keyDims, pages);
     }
 
+    /** Lists cached bookmark entries, optionally filtered by key dimensions. */
     async listBookmarks(keyDims?: BookmarkKeyDims<TSchema>): Promise<BookmarkListResult> {
         return listBookmarksForAccessor(this.bookmarkContext(), keyDims);
     }
 
+    /** Removes cached bookmark entries, optionally scoped to specific key dimensions. */
     async clearBookmarks(keyDims?: BookmarkKeyDims<TSchema>): Promise<BookmarkClearResult> {
         return clearBookmarksForAccessor(this.bookmarkContext(), keyDims);
     }
 
     async invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string): Promise<number> { return this.invalidateReadCaches(op); }
 
+    /** Drops the collection from the database. */
     async dropCollection(): Promise<boolean> { return dropCollectionForAccessor(this.collectionRef); }
 
+    /** Creates a collection (or a named alternative) with the given options. */
     async createCollection(name?: string, options: Record<string, unknown> = {}): Promise<boolean> {
         return createCollectionForAccessor(this.collectionRef, this.collectionName, this.dbRef, name, options);
     }
 
+    /** Creates a MongoDB view backed by the given source collection and aggregation pipeline. */
     async createView(name: string, source: string, pipeline: unknown[] = []): Promise<boolean> {
         return createViewForAccessor(this.collectionRef, this.dbRef, name, source, pipeline);
     }
 
+    /** Returns usage statistics for each index on the collection. */
     async indexStats(): Promise<unknown[]> { return indexStatsForAccessor(this.collectionRef); }
 
+    /** Sets the JSON Schema validator and optional validation level/action for the collection. */
     async setValidator(validator: unknown, options: { validationLevel?: string; validationAction?: string } = {}): Promise<{ ok: number; collection: string }> {
         return setValidatorForAccessor(this.collectionRef, this.collectionName, this.dbRef, validator, options);
     }
 
+    /** Sets the validation level (`off`, `moderate`, or `strict`) for the collection. */
     async setValidationLevel(level: unknown): Promise<{ ok: number; validationLevel: string }> {
         return setValidationLevelForAccessor(this.collectionRef, this.collectionName, this.dbRef, level);
     }
 
+    /** Sets the validation action (`error` or `warn`) for the collection. */
     async setValidationAction(action: unknown): Promise<{ ok: number; validationAction: string }> {
         return setValidationActionForAccessor(this.collectionRef, this.collectionName, this.dbRef, action);
     }
 
+    /** Retrieves the current validator schema, validation level, and validation action. */
     async getValidator(): Promise<{ validator: Record<string, unknown> | null; validationLevel: string; validationAction: string; }> {
         return getValidatorForAccessor(this.collectionRef, this.collectionName, this.dbRef);
     }
 
+    /** Returns storage and document statistics for the collection. */
     async stats(options: { scale?: number } = {}): Promise<{ ns: string; count: number; size: number; storageSize: number; totalIndexSize: number; nindexes: number; avgObjSize?: number; scaleFactor?: number; }> {
         return statsForAccessor(this.collectionRef, this.dbName, this.collectionName, options);
     }
 
+    /** Renames the collection, optionally dropping an existing target collection. */
     async renameCollection(newName: unknown, options: { dropTarget?: boolean } = {}): Promise<{ renamed: boolean; from: string; to: string }> {
         return renameCollectionForAccessor(this.collectionRef, this.collectionName, newName, options);
     }
 
+    /** Runs a `collMod` command to modify collection options or validator settings. */
     async collMod(modifications: unknown): Promise<Record<string, unknown>> {
         return collModForAccessor(this.collectionRef, this.collectionName, this.dbRef, modifications);
     }
 
+    /** Converts the collection to a capped collection with the given maximum byte size. */
     async convertToCapped(size: unknown, options: { max?: number } = {}): Promise<{ ok: number; collection: string; capped: boolean; size: number }> {
         return convertToCappedForAccessor(this.collectionRef, this.collectionName, this.dbRef, size, options);
     }

@@ -27,6 +27,8 @@ import {
     createRedisCacheAdapter,
     DistributedCacheInvalidator,
     MemoryCache,
+    MultiLevelCache,
+    type CacheLike,
     type CacheStats,
 } from '../capabilities/cache';
 import {
@@ -189,8 +191,8 @@ type RuntimeAdapterSurface = LegacyAdapterBridgeLike;
  */
 export class MonSQLizeRuntime {
     private _connected = false;
-    private readonly _cache: MemoryCache;
-    private _adapterCacheOverride: MemoryCache | null | undefined;
+    private readonly _cache: CacheLike;
+    private _adapterCacheOverride: CacheLike | null | undefined;
     private readonly _adapterBridge: RuntimeAdapterSurface;
     private readonly _logger: Logger;
     private readonly _events = new EventEmitter();
@@ -244,7 +246,7 @@ export class MonSQLizeRuntime {
         this._cache = normalizeRuntimeCache(options.cache as Record<string, unknown> | MemoryCache | undefined);
         this._logger = Logger.create(options.logger ?? null);
         this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
-        this._cache.setLockManager(this._cacheLockManager);
+        this._cache.setLockManager?.(this._cacheLockManager);
         this._runtimeDefaults = buildRuntimeDefaults(options);
         this._adapterCacheOverride = undefined;
         this._adapterBridge = createRuntimeAdapterBridge(this.createAdapterBridgeHost());
@@ -313,7 +315,7 @@ export class MonSQLizeRuntime {
         }
     }
 
-    getCache(): MemoryCache { return this._cache; }
+    getCache(): CacheLike { return this._cache; }
 
     getDefaults(): Record<string, unknown> {
         const d = this.defaults as Record<string, unknown>;
@@ -383,7 +385,7 @@ export class MonSQLizeRuntime {
     }
 
     // v1 exposes cache / _adapter / dbInstance / _connecting directly; keep same-name bridges here.
-    get cache(): MemoryCache { return this._cache; }
+    get cache(): CacheLike { return this._cache; }
 
     get _adapter(): RuntimeAdapterSurface | null {
         if (this._client === null) return null;
@@ -435,11 +437,11 @@ export class MonSQLizeRuntime {
         return this.createDbFacade(databaseName);
     }
 
-    private resolveAdapterCache(): MemoryCache | null {
+    private resolveAdapterCache(): CacheLike | null {
         return this._adapterCacheOverride === undefined ? this._cache : this._adapterCacheOverride;
     }
 
-    private setAdapterCache(value: MemoryCache | null): void {
+    private setAdapterCache(value: CacheLike | null): void {
         this._adapterCacheOverride = value;
     }
 
@@ -772,15 +774,64 @@ export class MonSQLizeRuntime {
     }
 }
 
+function isCacheLike(value: unknown): value is CacheLike {
+    if (!value || typeof value !== 'object') return false;
+    const v = value as Record<string, unknown>;
+    return typeof v['get'] === 'function' && typeof v['set'] === 'function' && typeof v['del'] === 'function';
+}
+
 function normalizeRuntimeCache(
-    cache?: Record<string, unknown> | MemoryCache,
-): MemoryCache {
-    if (cache instanceof MemoryCache) {
-        return cache;
-    }
+    cache?: Record<string, unknown> | MemoryCache | CacheLike,
+): CacheLike {
+    // MemoryCache instance: use directly.
+    if (cache instanceof MemoryCache) return cache;
+
+    // Custom CacheLike instance (e.g. Redis adapter, v1 compat): use directly.
+    if (isCacheLike(cache)) return cache;
 
     const input = (cache ?? {}) as Record<string, unknown>;
 
+    // MultiLevel cache config (multiLevel: true) → build a two-tier cache.
+    if (input.multiLevel === true) {
+        const localOpts = (input.local ?? {}) as Record<string, unknown>;
+        const local = new MemoryCache({
+            maxEntries: toOptionalNumber(localOpts.maxEntries ?? localOpts.maxSize),
+            maxMemory: toOptionalNumber(localOpts.maxMemory),
+            defaultTtl: toOptionalNumber(localOpts.defaultTtl ?? localOpts.ttl),
+            enableStats: toOptionalBoolean(localOpts.enableStats),
+            enableTags: toOptionalBoolean(localOpts.enableTags),
+            cleanupInterval: toOptionalNumber(localOpts.cleanupInterval),
+            enabled: toOptionalBoolean(localOpts.enabled),
+        });
+        const remoteInput = input.remote;
+        const remote = isCacheLike(remoteInput)
+            ? remoteInput
+            : remoteInput
+                ? new MemoryCache({
+                    maxEntries: toOptionalNumber((remoteInput as Record<string, unknown>).maxEntries ?? (remoteInput as Record<string, unknown>).maxSize),
+                    maxMemory: toOptionalNumber((remoteInput as Record<string, unknown>).maxMemory),
+                    defaultTtl: toOptionalNumber((remoteInput as Record<string, unknown>).defaultTtl ?? (remoteInput as Record<string, unknown>).ttl),
+                    enableStats: toOptionalBoolean((remoteInput as Record<string, unknown>).enableStats),
+                    enableTags: toOptionalBoolean((remoteInput as Record<string, unknown>).enableTags),
+                    cleanupInterval: toOptionalNumber((remoteInput as Record<string, unknown>).cleanupInterval),
+                    enabled: toOptionalBoolean((remoteInput as Record<string, unknown>).enabled),
+                })
+                : undefined;
+        const policy = (input.policy ?? {}) as Record<string, unknown>;
+        return new MultiLevelCache({
+            local,
+            remote,
+            writePolicy: (policy.writePolicy as 'both' | 'local-first-async-remote') ?? 'both',
+            backfillOnRemoteHit: (policy.backfillLocalOnRemoteHit as boolean | undefined) ?? true,
+            remoteTimeoutMs: remoteInput && !isCacheLike(remoteInput)
+                ? toOptionalNumber((remoteInput as Record<string, unknown>).timeoutMs)
+                : undefined,
+            publish: input.publish as ((msg: { type: string; pattern: string; ts: number }) => void) | undefined,
+        });
+    }
+
+    // Plain config object → single-tier MemoryCache.
+    // maxSize (v1) → maxEntries (v2), ttl (v1) → defaultTtl (v2).
     return new MemoryCache({
         maxEntries: toOptionalNumber(input.maxEntries ?? input.maxSize),
         maxMemory: toOptionalNumber(input.maxMemory),

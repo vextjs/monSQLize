@@ -103,8 +103,37 @@ export declare class MemoryCache {
     destroy(): void;
 }
 
+export declare class MultiLevelCache {
+    constructor(options: {
+        local: CacheLike;
+        remote?: CacheLike;
+        writePolicy?: 'both' | 'local-first-async-remote';
+        backfillOnRemoteHit?: boolean;
+        remoteTimeoutMs?: number;
+        publish?: (msg: { type: string; pattern: string; ts: number }) => void;
+    });
+    get<T = unknown>(key: string): Promise<T | undefined>;
+    set(key: string, value: unknown, ttl?: number): Promise<void>;
+    del(key: string): Promise<boolean>;
+    exists(key: string): Promise<boolean>;
+    has(key: string): Promise<boolean>;
+    clear(): Promise<void>;
+    getMany(keys: string[]): Promise<Record<string, unknown>>;
+    setMany(values: Record<string, unknown>, ttl?: number): Promise<boolean>;
+    delMany(keys: string[]): Promise<number>;
+    delPattern(pattern: string): Promise<number>;
+    keys(pattern?: string): Promise<string[]>;
+    invalidateByTag(tag: string): void | Promise<void>;
+    getStats(): CacheStats;
+    resetStats(): void;
+    destroy(): void;
+}
+
 export type RedisCacheAdapterOptions = never;
 export type RedisLike = object;
+
+/** Re-exported alias so consumers can type the return value of `createRedisCacheAdapter`. */
+export type RedisCacheAdapter = HubRedisCacheAdapter;
 
 export declare function createRedisCacheAdapter(
     redisUrlOrInstance: string | object,

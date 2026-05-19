@@ -8,7 +8,7 @@
 
 import type { MongoClient } from 'mongodb';
 import type { Logger } from '../core/logger';
-import { MemoryCache } from '../capabilities/cache';
+import { MemoryCache, type CacheLike } from '../capabilities/cache';
 import {
     MongoDbAccessor as DbFacadeImpl,
     MongoCollectionAccessor as CollectionFacade,
@@ -27,7 +27,7 @@ export type RuntimeDbFacadeHost = {
     _client: MongoClient;
     _logger: Logger;
     _runtimeDefaults: RuntimeDefaults;
-    resolveAdapterCache(): MemoryCache | null;
+    resolveAdapterCache(): CacheLike | null;
 };
 
 type RuntimeAccessorConfig<TRuntime> = {
@@ -54,7 +54,8 @@ export function createRuntimeDbFacade(host: RuntimeDbFacadeHost, databaseName: s
             getQueryCache: () => host.resolveAdapterCache(),
             logger: host._logger,
             defaults: host._runtimeDefaults,
-            cacheAutoInvalidate: !!(host.options.cache as Record<string, unknown> | undefined)?.autoInvalidate,
+            // v2: cacheAutoInvalidate top-level option; v1 compat: cache.autoInvalidate nested field.
+            cacheAutoInvalidate: !!host.options.cacheAutoInvalidate || !!(host.options.cache as Record<string, unknown> | undefined)?.autoInvalidate,
         },
     ) as DbFacade;
 }

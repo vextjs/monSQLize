@@ -516,75 +516,353 @@ export interface DbStatsView {
 }
 
 export interface AdminAccessor {
+    /** Pings the MongoDB server and returns true when reachable. */
     ping(): Promise<boolean>;
+    /** Returns MongoDB server build information. */
     buildInfo(): Promise<AdminBuildInfoView>;
+    /**
+     * Returns current server status metrics.
+     * @param options - Optional scale factor for byte values.
+     * @returns Server status snapshot.
+     */
     serverStatus(options?: { scale?: number; }): Promise<ServerStatusView>;
+    /**
+     * Returns database storage statistics.
+     * @param options - Optional scale factor for byte values.
+     * @returns Database stats view.
+     */
     stats(options?: { scale?: number; }): Promise<DbStatsView>;
 }
 
 export interface Collection<TSchema = unknown> {
+    /** Returns the namespace descriptor (iid, db, collection) for this collection. */
     getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
+    /** Returns the underlying native MongoDB Collection object. */
     raw(): unknown;
+    /**
+     * Finds the first document matching the query.
+     * @param query - MongoDB filter query.
+     * @param options - MongoDB FindOptions.
+     * @returns The matched document, or null when not found.
+     */
     findOne(query?: unknown, options?: unknown): Promise<TSchema | null>;
+    /**
+     * Returns a chainable cursor over documents matching the query.
+     * @param query - MongoDB filter query.
+     * @param options - MongoDB FindOptions.
+     * @returns A chainable FindChain that resolves to an array.
+     */
     find(query?: unknown, options?: unknown): FindChain<TSchema>;
+    /**
+     * Finds a single document by its `_id` value.
+     * @param id - The `_id` value to look up.
+     * @param options - MongoDB FindOptions.
+     * @returns The matched document, or null when not found.
+     */
     findOneById(id: unknown, options?: unknown): Promise<TSchema | null>;
+    /**
+     * Fetches multiple documents by their `_id` values in a single query.
+     * @param ids - Array of `_id` values to look up.
+     * @param options - MongoDB FindOptions.
+     * @returns Array of matched documents (order not guaranteed).
+     */
     findByIds(ids: unknown[], options?: unknown): Promise<TSchema[]>;
+    /**
+     * Finds documents matching the query and returns both the data array and
+     * the total count unaffected by limit/skip.
+     * @param query - MongoDB filter query.
+     * @param options - MongoDB FindOptions.
+     * @returns Object with `data` array and `total` count.
+     */
     findAndCount(query?: unknown, options?: unknown): Promise<FindAndCountResult<TSchema>>;
+    /**
+     * Returns a Node.js ReadableStream of documents matching the query.
+     * @param query - MongoDB filter query.
+     * @param options - StreamOptions (projection, sort, limit, batchSize, …).
+     * @returns Readable object-mode stream emitting one document per chunk.
+     */
     stream(query?: unknown, options?: unknown): NodeJS.ReadableStream;
+    /**
+     * Returns the MongoDB query execution plan without running the full query.
+     * @param query - MongoDB filter query.
+     * @param options - ExplainOptions including verbosity level.
+     * @returns Raw explain output from MongoDB.
+     */
     explain(query?: unknown, options?: unknown): Promise<unknown>;
+    /**
+     * Counts documents matching the query.
+     * @param query - MongoDB filter query.
+     * @param options - MongoDB CountDocumentsOptions.
+     * @returns Number of matched documents.
+     */
     count(query?: unknown, options?: unknown): Promise<number>;
+    /**
+     * Inserts a single document into the collection.
+     * @param document - Document to insert.
+     * @param options - InsertOneSimplifiedOptions or InsertOneOptions.
+     * @returns Acknowledged result with the inserted `_id`.
+     * @since v1.0.0
+     */
     insertOne(document?: unknown, options?: unknown): Promise<InsertOneResult>;
+    /**
+     * Inserts multiple documents into the collection in a single operation.
+     * @param documents - Array of documents to insert.
+     * @param options - InsertManySimplifiedOptions or InsertManyOptions.
+     * @returns Acknowledged result with inserted count and `_id` map.
+     * @since v1.0.0
+     */
     insertMany(documents?: unknown[], options?: unknown): Promise<InsertManyResult>;
+    /**
+     * Updates the first document matching the filter.
+     * @param filter - MongoDB filter query.
+     * @param update - Update operators (e.g. `$set`, `$inc`).
+     * @param options - MongoDB UpdateOptions.
+     * @returns Update result with matched/modified counts.
+     * @since v1.0.0
+     */
     updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    /**
+     * Updates all documents matching the filter.
+     * @param filter - MongoDB filter query.
+     * @param update - Update operators.
+     * @param options - MongoDB UpdateOptions.
+     * @returns Update result with matched/modified counts.
+     * @since v1.0.0
+     */
     updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    /**
+     * Replaces the first document matching the filter with a new document.
+     * @param filter - MongoDB filter query.
+     * @param replacement - Full replacement document (no update operators).
+     * @param options - MongoDB ReplaceOptions.
+     * @returns Update result indicating match and modification.
+     * @since v1.0.0
+     */
     replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<UpdateResult>;
+    /**
+     * Atomically finds the first matching document, replaces it, and returns a document.
+     * @param filter - MongoDB filter query.
+     * @param replacement - Full replacement document.
+     * @param options - MongoDB FindOneAndReplaceOptions.
+     * @returns The document before or after replacement, or null when not found.
+     * @since v1.0.0
+     */
     findOneAndReplace(filter?: unknown, replacement?: unknown, options?: unknown): Promise<TSchema | null>;
+    /**
+     * Atomically finds the first matching document, applies an update, and returns a document.
+     * @param filter - MongoDB filter query.
+     * @param update - Update operators.
+     * @param options - MongoDB FindOneAndUpdateOptions.
+     * @returns The document before or after the update, or null when not found.
+     * @since v1.0.0
+     */
     findOneAndUpdate(filter?: unknown, update?: unknown, options?: unknown): Promise<TSchema | null>;
+    /**
+     * Atomically finds the first matching document, deletes it, and returns it.
+     * @param filter - MongoDB filter query.
+     * @param options - MongoDB FindOneAndDeleteOptions.
+     * @returns The deleted document, or null when not found.
+     * @since v1.0.0
+     */
     findOneAndDelete(filter?: unknown, options?: unknown): Promise<TSchema | null>;
+    /**
+     * Updates the first matching document or inserts it when no match exists.
+     * @param filter - MongoDB filter query.
+     * @param update - Update operators.
+     * @param options - MongoDB UpdateOptions (upsert is forced true).
+     * @returns Update result; `upsertedId` is set when a new document was inserted.
+     * @since v1.0.0
+     */
     upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    /**
+     * Deletes the first document matching the filter.
+     * @param filter - MongoDB filter query.
+     * @param options - MongoDB DeleteOptions.
+     * @returns Delete result with the deleted document count.
+     * @since v1.0.0
+     */
     deleteOne(filter?: unknown, options?: unknown): Promise<DeleteResult>;
+    /**
+     * Deletes all documents matching the filter.
+     * @param filter - MongoDB filter query.
+     * @param options - MongoDB DeleteOptions.
+     * @returns Delete result with the total deleted count.
+     * @since v1.0.0
+     */
     deleteMany(filter?: unknown, options?: unknown): Promise<DeleteResult>;
+    /**
+     * Inserts a large document array in configurable batches with progress and retry support.
+     * @param documents - Documents to insert.
+     * @param options - InsertBatchOptions (batchSize, concurrency, onProgress, …).
+     * @returns Aggregated insert result across all batches.
+     * @since v1.2.0
+     */
     insertBatch(documents?: unknown[], options?: unknown): Promise<InsertBatchResult>;
+    /**
+     * Updates matched documents in configurable batches, walking via a cursor.
+     * @param filter - MongoDB filter query.
+     * @param update - Update operators.
+     * @param options - UpdateBatchOptions (batchSize, upsert, onProgress, …).
+     * @returns Aggregated update result across all batches.
+     * @since v1.2.0
+     */
     updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateBatchResult>;
+    /**
+     * Deletes matched documents in configurable batches.
+     * @param filter - MongoDB filter query.
+     * @param options - DeleteBatchOptions (batchSize, onProgress, …).
+     * @returns Aggregated delete result across all batches.
+     * @since v1.2.0
+     */
     deleteBatch(filter?: unknown, options?: unknown): Promise<DeleteBatchResult>;
+    /**
+     * Atomically increments a numeric field on the first matching document.
+     * @param filter - MongoDB filter query.
+     * @param field - Field name (string) or a `{ field: delta }` map for multi-field increments.
+     * @param incrementOrOptions - Numeric delta when `field` is a string, or IncrementOneOptions.
+     * @param maybeOptions - IncrementOneOptions when the third argument is the delta.
+     * @returns Result containing matched/modified counts and the returned document value.
+     * @since v1.1.0
+     */
     incrementOne(filter?: unknown, field?: string | Record<string, number>, incrementOrOptions?: unknown, maybeOptions?: unknown): Promise<IncrementOneResult<TSchema>>;
+    /**
+     * Creates a single index on the collection.
+     * @param keys - Index key specification.
+     * @param options - MongoDB CreateIndexesOptions (name, unique, sparse, …).
+     * @returns Object containing the created index name.
+     * @since v1.0.0
+     */
     createIndex(keys: unknown, options?: unknown): Promise<IndexCreateResult>;
+    /**
+     * Creates multiple indexes on the collection in one operation.
+     * @param specs - Array of index specifications (each must include a `key` field).
+     * @returns Array of created index names.
+     * @since v1.0.0
+     */
     createIndexes(specs: Array<{ key: unknown; } & Record<string, unknown>>): Promise<string[]>;
+    /**
+     * Lists all indexes defined on the collection.
+     * @returns Array of index descriptor objects as returned by MongoDB.
+     */
     listIndexes(): Promise<Record<string, unknown>[]>;
+    /**
+     * Drops the named index from the collection.
+     * @param name - The index name to drop.
+     * @since v1.0.0
+     */
     dropIndex(name: string): Promise<unknown>;
+    /**
+     * Drops all non-`_id` indexes from the collection.
+     * @since v1.0.0
+     */
     dropIndexes(): Promise<unknown>;
     prewarmBookmarks(keyDims?: unknown, pages?: number[]): Promise<BookmarkPrewarmResult>;
     listBookmarks(keyDims?: unknown): Promise<BookmarkListResult>;
     clearBookmarks(keyDims?: unknown): Promise<BookmarkClearResult>;
+    /**
+     * Returns the distinct values for the specified field across matching documents.
+     * @param key - Field path to collect distinct values from.
+     * @param query - Optional MongoDB filter query.
+     * @param options - MongoDB DistinctOptions.
+     * @returns Array of unique field values.
+     */
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
+    /**
+     * Builds and executes an aggregation pipeline, returning a chainable object.
+     * @param pipeline - Array of aggregation stage documents.
+     * @param options - MongoDB AggregateOptions.
+     * @returns AggregateChain that resolves to the result array.
+     */
     aggregate<TResult = unknown>(pipeline?: unknown[], options?: unknown): AggregateChain<TResult>;
     /** Stream mode: returns a readable stream of page documents when `stream: true`. */
     findPage(options: FindPageOptions<TSchema> & { stream: true }): NodeJS.ReadableStream;
+    /** Returns a cursor-based paginated result set. */
     findPage(options?: FindPageOptions<TSchema>): Promise<FindPageResult<TSchema>>;
+    /**
+     * Opens a MongoDB change stream to listen for collection-level change events.
+     * @param pipeline - Optional aggregation pipeline to filter/transform events.
+     * @param options - MongoDB ChangeStreamOptions.
+     * @returns A ChangeStream instance emitting change event documents.
+     */
     watch(pipeline?: unknown[], options?: unknown): ChangeStream;
-    /** @since v1.3.0 */
+    /**
+     * Manually invalidates cached query results for the specified operation type.
+     * @param op - Operation whose cache entries to clear; omit to clear all.
+     * @returns Number of cache entries removed.
+     * @since v1.3.0
+     */
     invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
-    /** @since v1.3.0 */
+    /**
+     * Drops the entire collection from the database.
+     * @returns True when the collection was dropped successfully.
+     * @since v1.3.0
+     */
     dropCollection(): Promise<boolean>;
-    /** @since v1.3.0 */
+    /**
+     * Creates a new collection (or capped collection) in the database.
+     * @param name - Collection name; defaults to the current collection name when omitted.
+     * @param options - MongoDB CreateCollectionOptions (capped, size, validator, …).
+     * @returns True when the collection was created successfully.
+     * @since v1.3.0
+     */
     createCollection(name?: string, options?: Record<string, unknown>): Promise<boolean>;
-    /** @since v1.3.0 */
+    /**
+     * Creates a MongoDB view backed by an aggregation pipeline over a source collection.
+     * @param name - Name of the view to create.
+     * @param source - Name of the source collection.
+     * @param pipeline - Optional aggregation pipeline defining the view.
+     * @returns True when the view was created successfully.
+     * @since v1.3.0
+     */
     createView(name: string, source: string, pipeline?: unknown[]): Promise<boolean>;
-    /** @since v1.3.0 */
+    /**
+     * Returns index usage statistics for all indexes on the collection.
+     * @returns Array of `$indexStats` documents from MongoDB.
+     * @since v1.3.0
+     */
     indexStats(): Promise<unknown[]>;
 }
 
 export interface DbAccessor {
+    /**
+     * Returns a typed Collection accessor for the named collection.
+     * @param name - MongoDB collection name.
+     * @returns Collection instance bound to the specified collection.
+     */
     collection<TSchema = unknown>(name: string): Collection<TSchema>;
+    /** Returns the underlying native MongoDB Db object. */
     raw(): unknown;
+    /** Returns an AdminAccessor for server-level administrative operations. */
     admin(): AdminAccessor;
-    /** @since v1.3.0 */
+    /**
+     * Lists all databases available on the server.
+     * @param options - Pass `nameOnly: true` to return string names instead of full descriptors.
+     * @returns Array of database descriptor objects, or string names when `nameOnly` is true.
+     * @since v1.3.0
+     */
     listDatabases(options?: { nameOnly?: boolean }): Promise<Array<{ name: string; sizeOnDisk: number; empty: boolean }> | string[]>;
-    /** @since v1.3.0 */
+    /**
+     * Drops the current database; requires explicit confirmation to prevent accidental data loss.
+     * @param options - Must include `confirm: true`; optionally restrict to non-production environments.
+     * @returns Result object with the dropped database name and timestamp.
+     * @since v1.3.0
+     */
     dropDatabase(options?: { confirm: boolean; allowProduction?: boolean; user?: string }): Promise<{ dropped: boolean; database: string; timestamp: Date }>;
-    /** @since v1.3.0 */
+    /**
+     * Lists collections (and views) in the current database.
+     * @param filter - Optional MongoDB filter applied to the collection list.
+     * @param options - MongoDB ListCollectionsOptions.
+     * @returns Array of objects with `name` and `type` fields.
+     * @since v1.3.0
+     */
     listCollections(filter?: Record<string, unknown>, options?: Record<string, unknown>): Promise<Array<{ name: string; type: string }>>;
-    /** @since v1.3.0 */
+    /**
+     * Runs an arbitrary command against the current database.
+     * @param command - Command document (e.g. `{ ping: 1 }`).
+     * @param options - MongoDB RunCommandOptions.
+     * @returns Raw command result document from MongoDB.
+     * @since v1.3.0
+     */
     runCommand(command: Record<string, unknown>, options?: Record<string, unknown>): Promise<Record<string, unknown>>;
 }
 

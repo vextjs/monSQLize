@@ -10,6 +10,7 @@ import { createError, ErrorCodes } from '../../../core/errors';
 import type { IncrementOneOptions } from '../../../../types/collection';
 import { createIncrementUpdate } from './write-utils';
 
+/** Thin wrapper around `collection.insertOne`; delegates directly to the MongoDB driver. */
 export async function insertOneDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     ...args: Parameters<Collection<TSchema>['insertOne']>
@@ -17,6 +18,7 @@ export async function insertOneDocument<TSchema extends Document = Document>(
     return collection.insertOne(...args);
 }
 
+/** Thin wrapper around `collection.insertMany`; delegates directly to the MongoDB driver. */
 export async function insertManyDocuments<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     ...args: Parameters<Collection<TSchema>['insertMany']>
@@ -24,6 +26,7 @@ export async function insertManyDocuments<TSchema extends Document = Document>(
     return collection.insertMany(...args);
 }
 
+/** Thin wrapper around `collection.updateOne`; delegates directly to the MongoDB driver. */
 export async function updateOneDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     ...args: Parameters<Collection<TSchema>['updateOne']>
@@ -31,6 +34,7 @@ export async function updateOneDocument<TSchema extends Document = Document>(
     return collection.updateOne(...args);
 }
 
+/** Thin wrapper around `collection.updateMany`; delegates directly to the MongoDB driver. */
 export async function updateManyDocuments<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     ...args: Parameters<Collection<TSchema>['updateMany']>
@@ -38,6 +42,7 @@ export async function updateManyDocuments<TSchema extends Document = Document>(
     return collection.updateMany(...args);
 }
 
+/** Thin wrapper around `collection.replaceOne`; delegates directly to the MongoDB driver. */
 export async function replaceOneDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     ...args: Parameters<Collection<TSchema>['replaceOne']>
@@ -45,6 +50,7 @@ export async function replaceOneDocument<TSchema extends Document = Document>(
     return collection.replaceOne(...args);
 }
 
+/** Wraps `collection.findOneAndUpdate`; returns the document after/before modification. */
 export async function findOneAndUpdateDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     filter: Parameters<Collection<TSchema>['findOneAndUpdate']>[0],
@@ -57,6 +63,7 @@ export async function findOneAndUpdateDocument<TSchema extends Document = Docume
     return collection.findOneAndUpdate(filter, update);
 }
 
+/** Wraps `collection.findOneAndReplace`; returns the document after/before replacement. */
 export async function findOneAndReplaceDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     filter: Parameters<Collection<TSchema>['findOneAndReplace']>[0],
@@ -69,6 +76,7 @@ export async function findOneAndReplaceDocument<TSchema extends Document = Docum
     return collection.findOneAndReplace(filter, replacement);
 }
 
+/** Wraps `collection.findOneAndDelete`; returns the deleted document. */
 export async function findOneAndDeleteDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     filter: Parameters<Collection<TSchema>['findOneAndDelete']>[0],
@@ -80,6 +88,7 @@ export async function findOneAndDeleteDocument<TSchema extends Document = Docume
     return collection.findOneAndDelete(filter);
 }
 
+/** Performs an upsert (`updateOne` with `upsert: true`); inserts if no document matches the filter. */
 export async function upsertOneDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     filter: Parameters<Collection<TSchema>['updateOne']>[0],
@@ -92,6 +101,7 @@ export async function upsertOneDocument<TSchema extends Document = Document>(
     });
 }
 
+/** Thin wrapper around `collection.deleteOne`; delegates directly to the MongoDB driver. */
 export async function deleteOneDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     ...args: Parameters<Collection<TSchema>['deleteOne']>
@@ -99,6 +109,7 @@ export async function deleteOneDocument<TSchema extends Document = Document>(
     return collection.deleteOne(...args);
 }
 
+/** Thin wrapper around `collection.deleteMany`; delegates directly to the MongoDB driver. */
 export async function deleteManyDocuments<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     ...args: Parameters<Collection<TSchema>['deleteMany']>
@@ -113,6 +124,7 @@ export interface IncrementOneResult<TSchema extends Document = Document> {
     value: TSchema | null;
 }
 
+/** Atomically increments a numeric field (or map of fields) on the matched document; returns the updated document. */
 export async function incrementOneDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     filter: Parameters<Collection<TSchema>['findOneAndUpdate']>[0],

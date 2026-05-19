@@ -20,6 +20,7 @@ import type { CursorPayload, SortShape } from '../../../types/internal/query';
  * - Pave the way for further splitting find / findPage into thin modules.
  */
 
+/** Converts any MongoDB `Sort` input into a normalized `{ field: 1 | -1 }` map, always including `_id`. */
 export function normalizeSortShape(sort?: Sort): SortShape {
     const normalized: SortShape = {};
 
@@ -40,10 +41,12 @@ export function normalizeSortShape(sort?: Sort): SortShape {
     return normalized;
 }
 
+/** Returns `true` if the string is a valid 24-character hexadecimal ObjectId. */
 export function isHexObjectIdString(value: string): boolean {
     return /^[0-9a-fA-F]{24}$/.test(value);
 }
 
+/** Parses and validates an `id` value into an `ObjectId`, throwing `INVALID_ARGUMENT` on failure. */
 export function parseRequiredObjectId(id: unknown): ObjectId {
     if (!id) {
         throw createError(
@@ -99,6 +102,7 @@ export function parseRequiredObjectId(id: unknown): ObjectId {
     );
 }
 
+/** Converts a 24-char hex string to `ObjectId` when `autoConvert` is enabled; otherwise returns the value unchanged. */
 export function normalizeIdentifier(value: unknown, autoConvert = true): unknown {
     if (autoConvert && typeof value === 'string' && value.length === 24 && ObjectId.isValid(value)) {
         return new ObjectId(value);
@@ -168,6 +172,7 @@ export function normalizeQueryFilter(
     return result;
 }
 
+/** Encodes cursor values into a base64url token, optionally signing with an HMAC-SHA256 secret. */
 export function encodeCursor(values: unknown[], secret?: string): string {
     const payload: CursorPayload = { v: 1, values };
     const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
@@ -180,6 +185,7 @@ export function encodeCursor(values: unknown[], secret?: string): string {
     return `${encoded}.${sig}`;
 }
 
+/** Decodes and verifies a cursor token produced by `encodeCursor`; throws `INVALID_ARGUMENT` on tampering or malformed input. */
 export function decodeCursor(cursor: string, secret?: string): unknown[] {
     try {
         let raw = cursor;
@@ -211,6 +217,7 @@ export function decodeCursor(cursor: string, secret?: string): unknown[] {
     }
 }
 
+/** Inverts every sort direction in a `SortShape` (used to walk backward through a cursor page). */
 export function reverseSort(sort: SortShape): SortShape {
     return Object.fromEntries(Object.entries(sort).map(([field, direction]) => [field, direction === 1 ? -1 : 1]));
 }
@@ -232,6 +239,7 @@ export function normalizeCursorValue(value: unknown): unknown {
     return value;
 }
 
+/** Extracts known MongoDB driver `find` options from a raw options bag, discarding unknown keys. */
 export function buildFindDriverOptions<TSchema extends Document = Document>(
     options: Record<string, unknown> = {},
 ): Parameters<Collection<TSchema>['find']>[1] {
@@ -250,6 +258,7 @@ export function buildFindDriverOptions<TSchema extends Document = Document>(
     return driverOptions as Parameters<Collection<TSchema>['find']>[1];
 }
 
+/** Extracts known MongoDB driver `aggregate` options from a raw options bag, discarding unknown keys. */
 export function buildAggregateDriverOptions<TSchema extends Document = Document>(
     options: Record<string, unknown> = {},
 ): Parameters<Collection<TSchema>['aggregate']>[1] {
@@ -265,6 +274,7 @@ export function buildAggregateDriverOptions<TSchema extends Document = Document>
     return driverOptions as Parameters<Collection<TSchema>['aggregate']>[1];
 }
 
+/** Builds a MongoDB filter that selects documents strictly after or before the given cursor values. */
 export function buildCursorFilter(sort: SortShape, cursorValues: unknown[], direction: 'after' | 'before'): Document {
     const entries = Object.entries(sort);
     const clauses: Document[] = [];

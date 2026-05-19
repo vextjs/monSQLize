@@ -13,7 +13,7 @@ import {
     MongoCollectionAccessor as CollectionFacade,
     type MongoDbAccessor as DbFacade,
 } from '../adapters/mongodb/common/accessors';
-import type { MemoryCache } from '../capabilities/cache';
+import type { CacheLike } from '../capabilities/cache';
 import type { Logger } from '../core/logger';
 import type { ConnectionPoolManager } from '../capabilities/pool';
 import { ErrorCodes, createError } from '../core/errors';
@@ -35,7 +35,7 @@ type ResolveScopedCollectionConfig = {
     self: Record<string, unknown>;
     client: MongoClient | null;
     poolManager: ConnectionPoolManager | null;
-    cache: MemoryCache;
+    cache: CacheLike;
     logger: Logger;
     runtimeDefaults: RuntimeDefaults;
     db: (name?: string) => DbFacade;

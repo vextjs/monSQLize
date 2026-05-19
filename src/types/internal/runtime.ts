@@ -9,7 +9,7 @@
  */
 
 import type { Db, MongoClient, Collection } from 'mongodb';
-import type { MemoryCache } from '../../capabilities/cache';
+import type { CacheLike, MemoryCache } from '../../capabilities/cache';
 import type { ModelInstance } from '../../capabilities/model';
 import type {
     MongoCollectionAccessor as CollectionFacade,
@@ -35,8 +35,8 @@ export interface AdapterBridgeLike {
     readonly db: Db | null;
     /** Current MongoClient instance; null when not connected. */
     readonly client: MongoClient | null;
-    /** Current MemoryCache instance in use; can be replaced externally. */
-    cache: MemoryCache | null;
+    /** Current cache instance in use (MemoryCache, MultiLevelCache, or custom CacheLike). */
+    cache: CacheLike | null;
     /** Current instance ID (from namespace.instanceId config); undefined when not set. */
     readonly instanceId: string | undefined;
     /** Test MongoDB connection reachability. */
