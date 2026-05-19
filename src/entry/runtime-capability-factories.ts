@@ -1,11 +1,13 @@
 /**
- * runtime 能力层工厂函数集合。
+ * Runtime capability factory functions.
  *
- * 将 TransactionManager / LockManager / ChangeStreamSyncManager / SlowQueryLogManager
- * / SagaOrchestrator / ConnectionPoolManager 的初始化逻辑从 runtime-core 中提取出来，
- * 便于单独测试和维护，同时减少核心文件的复杂度。
+ * Extracts the initialisation logic for TransactionManager / LockManager /
+ * ChangeStreamSyncManager / SlowQueryLogManager / SagaOrchestrator /
+ * ConnectionPoolManager from runtime-core, making each easier to test and
+ * maintain independently while reducing core-file complexity.
  *
- * 每个工厂函数均遵循 "已存在则返回现有实例" 的幂等语义。
+ * Every factory function follows idempotent semantics: return the existing
+ * instance if one already exists.
  */
 
 import { LockManager } from '../capabilities/lock';
@@ -27,7 +29,7 @@ import type { MongoDbAccessor as DbFacade } from '../adapters/mongodb/common/acc
 import type { MongoClient } from 'mongodb';
 
 /**
- * TransactionManager 的初始化配置参数。
+ * Initialisation config for TransactionManager.
  */
 type TransactionManagerConfig = {
     current: TransactionManager | null;
@@ -38,9 +40,9 @@ type TransactionManagerConfig = {
 };
 
 /**
- * 获取或创建 `TransactionManager` 实例。
- * 若已存在当前实例则直接返回，否则按配置初始化新实例。
- * 未连接时抛出 `NOT_CONNECTED` 错误。
+ * Get or create a `TransactionManager` instance.
+ * Returns the existing instance if present; otherwise initialises a new one from the config.
+ * Throws `NOT_CONNECTED` when not yet connected.
  */
 export function getOrCreateTransactionManager(config: TransactionManagerConfig): TransactionManager {
     if (!config.client) {
@@ -58,14 +60,14 @@ export function getOrCreateTransactionManager(config: TransactionManagerConfig):
 }
 
 /**
- * 获取或创建 `LockManager` 实例（幂等语义）。
+ * Get or create a `LockManager` instance (idempotent).
  */
 export function getOrCreateLockManager(current: LockManager | null, logger: LoggerLike | null): LockManager {
     return current ?? new LockManager({ logger });
 }
 
 /**
- * ChangeStreamSyncManager 的初始化配置参数。
+ * Initialisation config for ChangeStreamSyncManager.
  */
 type SyncManagerConfig = {
     enabled: boolean;
@@ -78,9 +80,9 @@ type SyncManagerConfig = {
 };
 
 /**
- * 按需初始化 `ChangeStreamSyncManager` 并启动同步。
- * 若 sync 未启用或默认 db 不可用则返回 null。
- * 启动失败时调用 `onStartFailure` 回调，不中断 runtime 初始化。
+ * Lazily initialise `ChangeStreamSyncManager` and start sync.
+ * Returns null when sync is not enabled or the default db is unavailable.
+ * On start failure, calls the `onStartFailure` callback without interrupting runtime initialisation.
  */
 export async function initializeRuntimeSyncManager(config: SyncManagerConfig): Promise<ChangeStreamSyncManager | null> {
     if (!config.enabled || !config.defaultDb) {
@@ -104,7 +106,7 @@ export async function initializeRuntimeSyncManager(config: SyncManagerConfig): P
 }
 
 /**
- * SlowQueryLogManager 的初始化配置参数。
+ * Initialisation config for SlowQueryLogManager.
  */
 type SlowQueryManagerConfig = {
     current: SlowQueryLogManager | null;
@@ -115,9 +117,10 @@ type SlowQueryManagerConfig = {
 };
 
 /**
- * 按需初始化 `SlowQueryLogManager`。
- * 若未配置 slowQueryLog 或未连接则返回 null。
- * `slowQueryMs` 存在时将合并到 `filter.minExecutionTimeMs`，以选项配置为优先。
+ * Lazily initialise `SlowQueryLogManager`.
+ * Returns null when slowQueryLog is not configured or the client is not connected.
+ * When `slowQueryMs` is present it is merged into `filter.minExecutionTimeMs`,
+ * with the explicit option taking priority.
  */
 export function initializeRuntimeSlowQueryLogManager(config: SlowQueryManagerConfig): SlowQueryLogManager | null {
     if (!config.slowQueryLog || !config.client) {
@@ -152,8 +155,8 @@ export function initializeRuntimeSlowQueryLogManager(config: SlowQueryManagerCon
 }
 
 /**
- * 确保 `SlowQueryLogManager` 已启用并返回实例。
- * 若未启用则抛出 `INVALID_CONFIG` 错误。
+ * Assert that `SlowQueryLogManager` is enabled and return the instance.
+ * Throws `INVALID_CONFIG` when not enabled.
  */
 export function ensureRuntimeSlowQueryLogManager(manager: SlowQueryLogManager | null): SlowQueryLogManager {
     if (!manager) {
@@ -163,15 +166,15 @@ export function ensureRuntimeSlowQueryLogManager(manager: SlowQueryLogManager | 
 }
 
 /**
- * 获取或创建 `SagaOrchestrator` 实例（幂等语义）。
+ * Get or create a `SagaOrchestrator` instance (idempotent).
  */
 export function getOrCreateSagaOrchestrator(current: SagaOrchestrator | null, logger: LoggerLike | null): SagaOrchestrator {
     return current ?? new SagaOrchestrator({ logger });
 }
 
 /**
- * 断言连接池管理器已配置并返回实例。
- * 若未配置则抛出 `INVALID_CONFIG` 错误。
+ * Assert that the pool manager is configured and return the instance.
+ * Throws `INVALID_CONFIG` when not configured.
  */
 export function requireRuntimePoolManager(poolManager: ConnectionPoolManager | null): ConnectionPoolManager {
     if (!poolManager) {

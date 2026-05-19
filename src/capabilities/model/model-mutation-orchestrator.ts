@@ -1,8 +1,9 @@
 /**
- * Model 变更操作编排（ModelMutationOrchestrator）。
+ * Model mutation orchestration (ModelMutationOrchestrator).
  *
- * 统一处理写入前后的钩子（beforeSave/afterSave）、时间戳注入、
- * 版本控制（__v）和软删除标记，确保各写操作路径行为一致。
+ * Centralizes pre/post-write hooks (beforeSave/afterSave), timestamp injection,
+ * version control (__v), and soft-delete marking to ensure consistent behavior
+ * across all write operation paths.
  */
 import type { HookContext } from '../../../types/model';
 import type { ExtendedModelCollectionLike, ModelCollectionLike } from './populate-promise';

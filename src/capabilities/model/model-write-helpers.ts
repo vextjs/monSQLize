@@ -1,8 +1,8 @@
 /**
- * Model 写操作辅助函数。
+ * Model write operation helpers.
  *
- * 封装 insertOne、updateOne、replaceOne、deleteOne 等写路径中
- * 与 Model 语义相关的前置/后置处理逻辑。
+ * Encapsulates pre/post-processing logic related to model semantics for
+ * insertOne, updateOne, replaceOne, deleteOne, and other write paths.
  */
 import { ErrorCodes, createError } from '../../core/errors';
 

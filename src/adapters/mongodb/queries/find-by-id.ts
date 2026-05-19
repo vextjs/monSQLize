@@ -1,13 +1,13 @@
 /**
- * 按 _id 查询文档（findOneById / findByIds）。
+ * Document lookup by _id (findOneById / findByIds).
  *
- * 职责：
- * - 解析并校验 ObjectId（单条 / 批量）
- * - 执行 findOne / find $in 查询
- * - 支持 preserveOrder（按入参顺序返回）
+ * Responsibilities:
+ * - Parse and validate ObjectId values (single and batch).
+ * - Execute findOne / find $in queries.
+ * - Support preserveOrder to return results in input order.
  *
- * 依赖：query-helpers（parseRequiredObjectId、isHexObjectIdString）
- * 不依赖 FindChain，避免循环引用。
+ * Depends on query-helpers (parseRequiredObjectId, isHexObjectIdString).
+ * Does not depend on FindChain to avoid circular references.
  */
 
 import { Collection, Document, FindOptions, ObjectId } from 'mongodb';
@@ -18,12 +18,12 @@ import type { RuntimeDefaults } from '../../../types/internal/query';
 import { isHexObjectIdString, parseRequiredObjectId } from './query-helpers';
 
 /**
- * 按 `_id` 查询单条文档。
- * 接受 string / ObjectId / 或任何可转换为 ObjectId 的值。
- * @param collection - 目标集合。
- * @param id - 文档标识符。
- * @param options - 原生驱动 `findOne` 选项。
- * @returns 匹配的文档，未找到时返回 `null`。
+ * Finds a single document by `_id`.
+ * Accepts a string, ObjectId, or any value convertible to an ObjectId.
+ * @param collection - Target collection.
+ * @param id - Document identifier.
+ * @param options - Native driver `findOne` options.
+ * @returns The matching document, or `null` if not found.
  * @since v1.0.0
  */
 export async function findOneByIdDocument<TSchema extends Document = Document>(
@@ -47,12 +47,12 @@ export async function findOneByIdDocument<TSchema extends Document = Document>(
 }
 
 /**
- * 批量按 `_id` 查询文档。
- * @param collection - 目标集合。
- * @param ids - 文档标识符数组（支持 string / ObjectId 混合）。
- * @param options - 原生驱动 `find` 选项；`preserveOrder: true` 时按入参顺序返回。
- * @param defaults - 运行时默认值。
- * @returns 匹配文档数组（默认顺序不保证；开启 preserveOrder 时按 ids 顺序）。
+ * Finds multiple documents by `_id`.
+ * @param collection - Target collection.
+ * @param ids - Array of document identifiers (string and ObjectId may be mixed).
+ * @param options - Native driver `find` options; set `preserveOrder: true` to return results in input order.
+ * @param defaults - Runtime-level defaults.
+ * @returns Array of matching documents (order not guaranteed unless preserveOrder is enabled).
  * @since v1.0.0
  */
 export async function findByIdsDocuments<TSchema extends Document = Document>(

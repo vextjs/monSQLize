@@ -1,8 +1,9 @@
 /**
- * ModelInstance 配置解析辅助函数。
+ * ModelInstance configuration resolution helpers.
  *
- * 负责从注册模型定义与运行时选项中解析集合名称、
- * 数据库名称、连接池配置等 ModelInstance 初始化参数。
+ * Responsible for deriving collection name, database name, connection pool config,
+ * and other ModelInstance initialization parameters from the registered model definition
+ * and runtime options.
  */
 import type { ModelDefinition } from '../../../types/model';
 import type { ModelCollectionLike } from './populate-promise';

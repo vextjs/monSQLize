@@ -1,8 +1,8 @@
 /**
- * 连接池健康检查器（HealthChecker）。
+ * Connection pool health checker.
  *
- * 定时 ping 各连接池并维护 status / latency / lastCheck 状态，
- * 为 auto 选择策略提供降权与剔除依据。
+ * Periodically pings each pool and maintains status / latency / lastCheck state,
+ * providing demotion and exclusion signals for the auto selection strategy.
  */
 export interface HealthStatus {
     status: 'up' | 'down' | 'checking' | 'unknown';

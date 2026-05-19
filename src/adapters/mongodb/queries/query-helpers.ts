@@ -1,8 +1,8 @@
 /**
- * 查询操作辅助函数（游标构建、过滤条件、分页、流式读取等）。
+ * Query operation helpers (cursor building, filter normalization, pagination, streaming, etc.).
  *
- * 提取自 MongoCollectionAccessor 查询路径的底层实现，
- * 降低主文件复杂度并便于独立测试。
+ * Extracted from the MongoCollectionAccessor query path to reduce main-file
+ * complexity and enable independent testing.
  */
 import { createHmac } from 'node:crypto';
 
@@ -12,12 +12,12 @@ import { createError, ErrorCodes } from '../../../core/errors';
 import type { CursorPayload, SortShape } from '../../../types/internal/query';
 
 /**
- * 查询层内部 helper。
+ * Internal query-layer helpers.
  *
- * 设计目标：
- * - 收口 `queries/index.ts` 里的 ObjectId / cursor / sort / projection 等横切逻辑
- * - 保持行为与现有实现完全一致，只做结构性拆分
- * - 为后续继续把 find / findPage 拆成薄模块做准备
+ * Design goals:
+ * - Centralize ObjectId / cursor / sort / projection cross-cutting logic from `queries/index.ts`.
+ * - Preserve existing behavior exactly; structural refactor only.
+ * - Pave the way for further splitting find / findPage into thin modules.
  */
 
 export function normalizeSortShape(sort?: Sort): SortShape {
@@ -108,12 +108,12 @@ export function normalizeIdentifier(value: unknown, autoConvert = true): unknown
 }
 
 /**
- * 递归归一化查询条件，把应转换的 24 位十六进制字符串转成 ObjectId。
+ * Recursively normalizes a query filter, converting eligible 24-char hex strings to ObjectId.
  *
- * 说明：
- * - 这是查询路径专用的 filter normalizer
- * - 与 `utils/objectid-converter.ts` 面向通用对象遍历不同，这里保留了
- *   `$and/$or/$nor/$elemMatch/$in/$nin/$all/$eq/$ne` 这些查询语义
+ * Notes:
+ * - This is the query-path-specific filter normalizer.
+ * - Unlike `utils/objectid-converter.ts` (general object traversal), this one preserves
+ *   query operator semantics: $and/$or/$nor/$elemMatch/$in/$nin/$all/$eq/$ne.
  */
 export function normalizeQueryFilter(
     filter: Record<string, unknown>,
@@ -216,7 +216,8 @@ export function reverseSort(sort: SortShape): SortShape {
 }
 
 /**
- * JSON round-trip 会把 Date 变成 ISO string，这里在 cursor compare 前把它恢复回来。
+ * JSON round-tripping converts Date objects to ISO strings;
+ * this function restores them before cursor comparison.
  */
 export function normalizeCursorValue(value: unknown): unknown {
     if (typeof value === 'string') {
@@ -290,7 +291,7 @@ export function buildCursorFilter(sort: SortShape, cursorValues: unknown[], dire
 }
 
 /**
- * 自动保护排序字段，确保 cursor 锚点不会因为 projection 丢失。
+ * Ensures sort fields are always included in the projection so cursor anchors are not lost.
  */
 export function buildEffectiveProjection(
     projection: unknown,

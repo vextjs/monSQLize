@@ -1,14 +1,14 @@
 /**
  * definition-validator.ts
  *
- * Model 定义与关联关系的校验函数。
+ * Validation functions for model definitions and relation configs.
  *
- * 设计说明：
- * - 所有函数均为纯函数（或仅抛异常），无 I/O、无副作用。
- * - validateDefinition / validateRelationConfig 在 Model.define() 阶段调用。
- * - validateCollectionName 在 ModelInstance 构造器与集合操作入口处调用。
- * - processTimestamps 解析 options.timestamps，写入 _internalHooks。
- * - normalizePopulateConfig 统一化 populate 路径格式。
+ * Design notes:
+ * - All functions are pure (or throw only); no I/O or side effects.
+ * - validateDefinition / validateRelationConfig are called during Model.define().
+ * - validateCollectionName is called in the ModelInstance constructor and at collection operation entry points.
+ * - processTimestamps parses options.timestamps and writes the result to _internalHooks.
+ * - normalizePopulateConfig normalizes populate path formats.
  */
 
 import { ErrorCodes, createError } from '../../core/errors';
@@ -16,9 +16,9 @@ import type { ModelDefinition, RelationConfig, PopulateConfig } from '../../../t
 import type { PopulatePath } from './populate-promise';
 
 /**
- * 校验并规范化集合名称。
- * 名称不能为空，且不能包含 `$`、`.`、空白字符或空字节。
- * 符合条件时返回原始名称，否则抛出 INVALID_COLLECTION_NAME 错误。
+ * Validate and normalize a collection name.
+ * The name must be a non-empty string and must not contain `$`, `.`, whitespace, or null bytes.
+ * Returns the original name on success; throws INVALID_COLLECTION_NAME otherwise.
  */
 export function validateCollectionName(collectionName: string): string {
     if (!collectionName || typeof collectionName !== 'string' || collectionName.trim() === '') {
@@ -31,13 +31,13 @@ export function validateCollectionName(collectionName: string): string {
 }
 
 /**
- * 解析 options.timestamps 并写入 definition._internalHooks.timestamps。
+ * Parse options.timestamps and write the result to definition._internalHooks.timestamps.
  *
- * 渐进规则（与 v1 保持一致）：
+ * Resolution rules (v1-compatible):
  *  - true              → { createdAt: 'createdAt', updatedAt: 'updatedAt' }
  *  - false / undefined → _internalHooks.timestamps = undefined
- *  - { createdAt }     → 指定 createdAt 时，updatedAt 默认为 'updatedAt'（非对称）
- *  - { updatedAt }     → 仅指定 updatedAt；createdAt 不提供默认值
+ *  - { createdAt }     → when createdAt is specified, updatedAt defaults to 'updatedAt' (asymmetric)
+ *  - { updatedAt }     → only updatedAt is set; createdAt has no default
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function processTimestamps<TDocument>(definition: ModelDefinition<TDocument>): void {
@@ -47,9 +47,9 @@ export function processTimestamps<TDocument>(definition: ModelDefinition<TDocume
         | { createdAt?: string | boolean; updatedAt?: string | boolean }
         | undefined;
 
-    // v1-compat: null 与 false 等效（不添加时间戳）
+    // v1-compat: null is treated the same as false (no timestamps added)
     if (tsOpt === null) return;
-    // 校验类型（与 v1 行为一致）
+    // Validate type (consistent with v1 behavior)
     if (tsOpt !== undefined && typeof tsOpt !== 'boolean' && typeof tsOpt !== 'object') {
         throw createError(ErrorCodes.INVALID_MODEL_DEFINITION, 'options.timestamps must be boolean or object.');
     }
@@ -93,7 +93,7 @@ export function processTimestamps<TDocument>(definition: ModelDefinition<TDocume
     } else if (typeof ua === 'string') {
         result.updatedAt = ua;
     } else if (ua === undefined && createdAtAdded) {
-        // 非对称规则：指定 createdAt 时，updatedAt 默认为 'updatedAt'
+        // Asymmetric rule: when createdAt is specified, updatedAt defaults to 'updatedAt'
         result.updatedAt = 'updatedAt';
     }
 
@@ -101,11 +101,11 @@ export function processTimestamps<TDocument>(definition: ModelDefinition<TDocume
 }
 
 /**
- * 校验 ModelDefinition 对象的完整性：
- * - definition 必须是非空对象
- * - schema 字段必须存在，且为函数或对象
- * - connection.pool / connection.database（若提供）必须是非空字符串
- * - 每条 relations 配置调用 validateRelationConfig
+ * Validate the integrity of a ModelDefinition object:
+ * - definition must be a non-null object
+ * - schema must be present and be a function or object
+ * - connection.pool / connection.database (if provided) must be non-empty strings
+ * - each entry in relations is validated by validateRelationConfig
  */
 export function validateDefinition<TDocument>(definition: ModelDefinition<TDocument> | undefined): void {
     if (!definition || typeof definition !== 'object') {
@@ -131,9 +131,9 @@ export function validateDefinition<TDocument>(definition: ModelDefinition<TDocum
 }
 
 /**
- * 校验单条 RelationConfig 配置：
- * - from / localField / foreignField 必须为非空字符串
- * - single（若提供）必须为布尔值
+ * Validate a single RelationConfig entry:
+ * - from / localField / foreignField must be non-empty strings
+ * - single (if provided) must be a boolean
  */
 export function validateRelationConfig(name: string, config: RelationConfig): void {
     if (!name || typeof name !== 'string') {
@@ -157,8 +157,8 @@ export function validateRelationConfig(name: string, config: RelationConfig): vo
 }
 
 /**
- * 将 populate 路径规范化为 PopulateConfig 对象。
- * 字符串路径直接包装为 { path: ... }；PopulateConfig 对象原样返回。
+ * Normalize a populate path to a PopulateConfig object.
+ * String paths are wrapped as `{ path: ... }`; PopulateConfig objects are returned as-is.
  */
 export function normalizePopulateConfig(path: PopulatePath): PopulateConfig {
     return typeof path === 'string' ? { path } : path;

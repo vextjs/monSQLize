@@ -1,24 +1,25 @@
 /**
  * schema-dsl.ts
  *
- * schema-dsl 可选依赖的集成层。
+ * Integration layer for the optional schema-dsl dependency.
  *
- * 设计说明：
- * - schema-dsl 是可选 peer dependency，未安装时 Model.define() 仍可工作（跳过 schema 校验）。
- * - 此文件在模块加载时尝试 require('schema-dsl')，成功则启用 dsl 与 validate；失败则静默降级。
- * - 对外暴露两个变量（_schemaDslFn / _schemaValidateFn）及一个包装工厂（_makeValidatingDslFn）。
+ * Design notes:
+ * - schema-dsl is an optional peer dependency; Model.define() still works without it (schema validation is skipped).
+ * - This file attempts require('schema-dsl') at module load time; if successful, dsl and validate are enabled;
+ *   otherwise it silently degrades.
+ * - Exposes two variables (_schemaDslFn / _schemaValidateFn) and one wrapper factory (_makeValidatingDslFn).
  */
 
-// ── schema-dsl 类型声明 ───────────────────────────────────────────────────────
+// ── schema-dsl type declarations ────────────────────────────────────────────
 export type SchemaDslFn = (fn: (dslArg: unknown) => unknown) => unknown;
 export type SchemaValidateFn = (
     schema: unknown,
     data: unknown,
 ) => { valid: boolean; errors?: Array<{ field?: string; path?: string; message?: string; type?: string; expected?: string }> };
 
-/** schema-dsl 的 dsl() 函数；未安装时为 null。 */
+/** The dsl() function from schema-dsl; null when not installed. */
 export let _schemaDslFn: SchemaDslFn | null = null;
-/** schema-dsl 的 validate() 函数；未安装时为 null。 */
+/** The validate() function from schema-dsl; null when not installed. */
 export let _schemaValidateFn: SchemaValidateFn | null = null;
 
 try {
@@ -30,7 +31,7 @@ try {
     // schema-dsl not available – schema validation will be skipped
 }
 
-// ── 已知合法 base type 集合（与 v1 保持一致）────────────────────────────────
+// ── Known valid base types (consistent with v1) ──────────────────────────────
 const KNOWN_SCHEMA_BASE_TYPES = new Set([
     'string', 'number', 'boolean', 'integer', 'float', 'int', 'double', 'decimal',
     'date', 'objectid', 'uuid', 'email', 'url', 'buffer', 'binary',
@@ -38,9 +39,9 @@ const KNOWN_SCHEMA_BASE_TYPES = new Set([
 ]);
 
 /**
- * 从 schema-dsl 类型字符串中提取 base type 名称（去除修饰符如 ! ? [] :range）。
+ * Extract the base type name from a schema-dsl type string (strips modifiers like ! ? [] :range).
  *
- * 例：
+ * Examples:
  *   "string!"    → "string"
  *   "objectid!"  → "objectid"
  *   "invalid!"   → "invalid"
@@ -51,13 +52,14 @@ function _extractBaseType(typeStr: string): string {
 }
 
 /**
- * 包装 schema-dsl 的 dsl() 函数，在 Model.define() 阶段提前校验字段类型字符串的合法性。
+ * Wrap the schema-dsl dsl() function to eagerly validate field type strings during Model.define().
  *
- * 作用：
- * - 若字段类型字符串包含未知 base type，立即抛出 TypeError（不等到 validate 时才报错）。
- * - enum DSL（如 "admin|user"）跳过检查（含 | 的为字面量联合类型，不是 base type）。
+ * Behavior:
+ * - If a field type string contains an unknown base type, a TypeError is thrown immediately
+ *   (rather than silently failing at validation time).
+ * - Enum DSL strings (e.g. "admin|user") are skipped — pipe-separated values are literal unions, not base types.
  *
- * 这样可以在 Model.define() 时快速失败，而不是在运行时悄悄降级为 string。
+ * This enables fast-fail at Model.define() time instead of silent degradation at runtime.
  */
 export function _makeValidatingDslFn(realDsl: SchemaDslFn): SchemaDslFn {
     const validating = function validatingDsl(fields: unknown): unknown {

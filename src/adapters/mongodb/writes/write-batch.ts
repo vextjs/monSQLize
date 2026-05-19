@@ -1,7 +1,7 @@
 /**
- * 批量写操作底层实现（insertBatch、updateBatch、deleteBatch）。
+ * Low-level implementations of batch write operations (insertBatch, updateBatch, deleteBatch).
  *
- * 实现分批写入与进度上报逻辑，供集合访问器批量路径调用。
+ * Handles batched writes and progress reporting, called by the collection accessor's batch path.
  */
 import { Collection, Document, FindOptions } from 'mongodb';
 import { createError, ErrorCodes } from '../../../core/errors';

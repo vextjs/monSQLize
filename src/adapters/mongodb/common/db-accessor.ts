@@ -1,8 +1,8 @@
 /**
- * MongoDB 数据库访问器（MongoDbAccessor）。
+ * MongoDB database accessor (MongoDbAccessor).
  *
- * 基于 Db 实例封装数据库级别操作：Collection 工厂、Admin 访问、
- * 数据库统计与 Schema 验证等。
+ * Wraps a Db instance and provides database-level operations:
+ * collection factory, admin access, database stats, and schema validation.
  */
 import { Db, Document } from 'mongodb';
 import type { Logger } from '../../../core/logger';

@@ -1,22 +1,22 @@
 /**
- * 连接池管理能力（Connection Pool Management Capability）。
+ * Connection pool management capability.
  *
- * 设计说明：
- * - 负责连接池配置契约、连接池生命周期管理、选择策略与健康检查。
- * - 公开类型与共享接口统一由 `types/pool.d.ts` 管理；
- *   本文件只保留运行时实现与内部辅助逻辑。
- * - 内部数据结构（PoolStatsData / PoolBufferItem）抽离在
- *   `types/internal/pool.ts`，方便跨模块复用且不污染公开 API。
+ * Design notes:
+ * - Handles pool configuration contracts, lifecycle management, selection strategies, and health checks.
+ * - Public types and shared interfaces are managed by `types/pool.d.ts`;
+ *   this file contains only runtime implementation and internal helper logic.
+ * - Internal data structures (PoolStatsData / PoolBufferItem) are extracted into
+ *   `types/internal/pool.ts` for cross-module reuse without polluting the public API.
  *
- * 核心子系统：
- * 1. PoolStatsManager — 按 poolName 聚合统计数据，采用批量缓冲策略
- *    减少 Map 写入频率，通过定时 flush 完成合并。
- * 2. PoolSelector — 实现 auto / roundRobin / leastConnections /
- *    weighted / manual 五种选择策略，基于 role + tags + 权重动态路由。
- * 3. HealthChecker — 定时 ping 并维护 status / latency / lastCheck，
- *    为 auto 选择策略提供降权/剔除依据。
- * 4. ConnectionPoolManager — 对外入口，装配以上三个子系统并管理
- *    多 pool 配置的生命周期（start / shutdown / getPoolStats 等）。
+ * Core subsystems:
+ * 1. PoolStatsManager — aggregates stats per poolName using a batch-buffer strategy
+ *    to reduce Map write frequency, merged via periodic flush.
+ * 2. PoolSelector — implements five selection strategies: auto / roundRobin /
+ *    leastConnections / weighted / manual, with dynamic routing based on role + tags + weight.
+ * 3. HealthChecker — periodically pings pools and maintains status / latency / lastCheck,
+ *    providing demotion and exclusion signals for the auto strategy.
+ * 4. ConnectionPoolManager — public entry point that wires the three subsystems above
+ *    and manages multi-pool lifecycle (start / shutdown / getPoolStats, etc.).
  */
 
 import type { MongoClient } from 'mongodb';
@@ -83,17 +83,17 @@ const DEFAULT_HEALTH_CHECK = {
 };
 
 /**
- * 连接池管理器（Connection Pool Manager）。
+ * Manages a set of named MongoDB connection pools with health checks,
+ * statistics collection, and automatic failover.
  *
- * 设计说明：
- * - 管理一组具名 MongoDB 连接池，提供健康检查、统计采集与自动故障转移能力。
- * - 内部持有三个独立子系统（健康检查 / 统计 / 选择器），
- *   均通过 _healthChecker / _statsManager / _selector 访问，
- *   以保证关注点分离，可独立替换实现。
- * - 故障转移策略（fallback）配置于构造器，
- *   当首选 pool 不可用时按 fallbackStrategy 重路由。
- * - 支持测试注入：通过 clientFactory / healthCheckFn 选项
- *   替换真实 MongoClient 及 ping 逻辑，方便单测 mock。
+ * Design notes:
+ * - Three independent subsystems (health checker / stats / selector) are held internally,
+ *   accessed via _healthChecker / _statsManager / _selector to enforce separation of concerns
+ *   and allow independent replacement.
+ * - The fallback strategy is configured in the constructor; when the preferred pool
+ *   is unavailable, requests are re-routed according to fallbackStrategy.
+ * - Supports test injection: replace the real MongoClient and ping logic via
+ *   the clientFactory / healthCheckFn constructor options for unit-test mocking.
  * @since v1.5.0
  */
 export class ConnectionPoolManager {

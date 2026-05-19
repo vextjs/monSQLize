@@ -1,8 +1,9 @@
 /**
- * 运行时辅助函数集合桶（thin barrel）。
+ * Runtime helper function thin barrel.
  *
- * 将实现拆分到 runtime-defaults / runtime-db-facade / runtime-model
- * 三个专注模块后，此文件对外保持统一导出，消费者无感知。
+ * After splitting the implementations into three focused modules
+ * (runtime-defaults / runtime-db-facade / runtime-model), this file
+ * maintains a unified export so consumers are unaffected.
  */
 export { buildPublicDefaults } from './runtime-defaults';
 export {

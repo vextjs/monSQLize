@@ -1,33 +1,33 @@
 /**
  * populate-promise.ts
  *
- * PopulateProxy 实现：链式 populate API 的 Promise 包装。
+ * PopulateProxy implementation: a Promise wrapper for the chainable populate API.
  *
- * 设计说明：
- * - PopulatePromise<T> 实现了 PromiseLike<T>（then/catch/finally），
- *   可以被 await 直接使用，也可以通过 .populate().exec() 链式调用。
- * - paths 数组按调用顺序积累，最终由 exec() 一次性传给执行器。
+ * Design notes:
+ * - PopulatePromise<T> implements PromiseLike<T> (then/catch/finally), so it can
+ *   be directly awaited or called via .populate().exec() in a chain.
+ * - The paths array accumulates in call order and is passed to the executor all at once by exec().
  *
- * 内部接口：
- * - ModelRuntimeLike   — 运行时 scopedCollection/scopedModel 的最小接口（供 ModelInstance 注入）
- * - ModelCollectionLike — 集合操作接口（populate 路径解析时使用）
- * - PopulatePath        — string | PopulateConfig 的联合类型
+ * Internal interfaces:
+ * - ModelRuntimeLike    — minimal interface for the runtime's scopedCollection/scopedModel (injected by ModelInstance)
+ * - ModelCollectionLike — collection operation interface (used during populate path resolution)
+ * - PopulatePath        — union type of string | PopulateConfig
  */
 
 import type { ModelScopeOptions, PopulateConfig, PopulateProxy } from '../../../types/model';
 
-/** populate 路径：可以是字段名字符串，也可以是完整 PopulateConfig 对象。 */
+/** Populate path: either a field name string or a full PopulateConfig object. */
 export type PopulatePath = string | PopulateConfig;
 
-// ── 内部运行时接口（避免循环导入 runtime-core）────────────────────────────────
+// ── Internal runtime interfaces (avoids circular imports with runtime-core) ──────────────────────
 
-/** ModelInstance 所需的运行时最小接口，通过构造器注入。 */
+/** Minimal runtime interface required by ModelInstance, injected via the constructor. */
 export interface ModelRuntimeLike {
     scopedCollection<TDocument = Record<string, unknown>>(name: string, options?: ModelScopeOptions): ModelCollectionLike<TDocument>;
     scopedModel<TDocument = Record<string, unknown>>(name: string, options?: ModelScopeOptions): ModelInstance<TDocument>;
 }
 
-/** populate 解析时使用的集合操作接口（仅需子集方法）。 */
+/** Collection operation interface used during populate resolution (subset of methods required). */
 export interface ModelCollectionLike<TDocument = Record<string, unknown>> {
     getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
     raw(): unknown;
@@ -71,13 +71,13 @@ export interface ModelCollectionLike<TDocument = Record<string, unknown>> {
 }
 
 /**
- * ModelCollectionLike 的扩展版本，补充了批量写入和字段递增接口。
+ * Extended version of ModelCollectionLike with bulk-write and field-increment interfaces.
  *
- * 相比基础接口新增了：
- * - `incrementOne` 的 field 参数支持 `Record<string, number>`（多字段同时递增）
- * - `insertBatch` / `updateBatch` 批量操作方法
+ * Additions over the base interface:
+ * - `incrementOne` field parameter accepts `Record<string, number>` (multi-field increment)
+ * - `insertBatch` / `updateBatch` bulk operation methods
  *
- * orchestrateModel* 和 ModelInstance 共同使用此类型，避免重复定义。
+ * Shared by orchestrateModel* functions and ModelInstance to avoid duplicate definitions.
  */
 export type ExtendedModelCollectionLike<TDocument> = ModelCollectionLike<TDocument> & {
     incrementOne(
@@ -90,16 +90,16 @@ export type ExtendedModelCollectionLike<TDocument> = ModelCollectionLike<TDocume
     updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
 };
 
-// 前向类型声明，避免循环依赖（model-instance.ts 导入本文件，本文件需要引用 ModelInstance 类型）
+// Forward type declaration to avoid circular dependency (model-instance.ts imports this file, which needs the ModelInstance type)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ModelInstance<TDocument = Record<string, unknown>> = import('./index').ModelInstance<TDocument> & any;
 
 // ── PopulatePromise ───────────────────────────────────────────────────────────
 
 /**
- * 链式 populate API 的 Promise 包装器。
+ * Promise wrapper for the chainable populate API.
  *
- * 用法示例：
+ * Usage examples:
  *   const doc = await model.findOne(query).populate('author');
  *   const doc = await model.findOne(query)
  *     .populate('author')
@@ -114,7 +114,7 @@ export class PopulatePromise<T> implements PopulateProxy<T> {
     ) {}
 
     /**
-     * 追加一个 populate 路径，返回新的 PopulatePromise（链式调用）。
+     * Append a populate path and return a new PopulatePromise (chainable).
      */
     populate(path: string | PopulateConfig, options?: Partial<Omit<PopulateConfig, 'path'>>): PopulateProxy<T> {
         const config: PopulateConfig = typeof path === 'string'
@@ -124,7 +124,7 @@ export class PopulatePromise<T> implements PopulateProxy<T> {
     }
 
     /**
-     * 触发实际查询并填充关联文档，返回最终结果 Promise。
+     * Trigger the actual query, populate related documents, and return the final Promise.
      */
     exec(): Promise<T> {
         return this.executor(this.paths);

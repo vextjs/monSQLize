@@ -1,12 +1,13 @@
 /**
- * runtime 兼容层访问器工具集。
+ * Runtime compat-layer accessor utilities.
  *
- * 本文件封装了在 runtime-core 中通过 `unknown` cast 访问内部字段时所用的
- * 通用 accessor 函数，避免在核心文件中散落大量 `as Record<string, unknown>` 类型断言。
+ * Encapsulates the generic accessor functions used in runtime-core to access internal
+ * fields via `unknown` casts, avoiding scattered `as Record<string, unknown>` assertions
+ * throughout the core file.
  *
- * 说明：
- * - 所有函数均为纯工具函数，无副作用
- * - 仅供 entry 层内部使用，不对外暴露
+ * Notes:
+ * - All functions are pure utilities with no side effects
+ * - Internal to the entry layer; not exposed externally
  */
 
 import {
@@ -21,8 +22,8 @@ import {
 import type { ModelCollectionLike, ModelRuntimeLike } from '../capabilities/model/populate-promise';
 
 /**
- * 运行时 db 实例的最小鸭子类型约束。
- * 用于在连接状态下对 dbInstance 字段进行类型安全断言。
+ * Minimal duck-type constraint for a runtime db instance.
+ * Used for type-safe assertions on the dbInstance field when connected.
  */
 export type RuntimeDbInstanceLike = {
     collection: (name: string) => unknown;
@@ -30,8 +31,8 @@ export type RuntimeDbInstanceLike = {
 };
 
 /**
- * 连接池作用域访问器形状。
- * 由 `createPoolScope` 创建，通过 `pool(name)` 方法对外暴露。
+ * Pool-scoped accessor shape.
+ * Created by `createPoolScope` and exposed externally via the `pool(name)` method.
  */
 export type RuntimePoolScope = {
     collection: (name: string) => CollectionFacade;
@@ -43,8 +44,8 @@ export type RuntimePoolScope = {
 };
 
 /**
- * 创建 Pool 作用域所需的宿主契约。
- * 由 runtime-core 实现，向下传递给 `createPoolScope`。
+ * Host contract required to create a pool scope.
+ * Implemented by runtime-core and passed down to `createPoolScope`.
  */
 export type RuntimePoolScopeHost = {
     scopedCollection: (name: string, options?: { database?: string; pool?: string }) => CollectionFacade;
@@ -55,8 +56,8 @@ export type RuntimePoolScopeHost = {
 };
 
 /**
- * runtime 内部状态的宽松类型视图，用于 v1 兼容层的字段访问。
- * 只读取少量必要字段，不依赖具体实现类。
+ * Loose type view of runtime internal state, used for field access in the v1 compat layer.
+ * Only reads a small set of necessary fields; does not depend on the concrete implementation class.
  */
 export type RuntimeCompatRecord = Record<string, unknown> & {
     dbInstance?: RuntimeDbInstanceLike | null;
@@ -66,16 +67,16 @@ export type RuntimeCompatRecord = Record<string, unknown> & {
 };
 
 /**
- * 将 `unknown` 值安全 cast 为 `RuntimeCompatRecord` 视图。
- * 仅在 entry 层内部的 v1 兼容路径中使用，不做运行时校验。
+ * Safely cast an `unknown` value to a `RuntimeCompatRecord` view.
+ * Used only in v1 compat paths within the entry layer; no runtime validation is performed.
  */
 export function asRuntimeCompatRecord(value: unknown): RuntimeCompatRecord {
     return value as unknown as RuntimeCompatRecord;
 }
 
 /**
- * 断言 runtime 已完成连接并返回 dbInstance。
- * 若未连接则抛出 `NOT_CONNECTED` 错误。
+ * Assert that the runtime is connected and return the dbInstance.
+ * Throws `NOT_CONNECTED` when not connected.
  */
 export function requireCompatDbInstance(value: unknown): RuntimeDbInstanceLike {
     const dbInstance = asRuntimeCompatRecord(value).dbInstance;
@@ -86,8 +87,8 @@ export function requireCompatDbInstance(value: unknown): RuntimeDbInstanceLike {
 }
 
 /**
- * 断言连接池管理器已初始化并返回其原始记录对象。
- * 若未配置池管理器则抛出 `NO_POOL_MANAGER` 错误。
+ * Assert that the pool manager is initialised and return its raw record object.
+ * Throws `NO_POOL_MANAGER` when no pool manager is configured.
  */
 export function requireCompatPoolManagerRecord(value: unknown): Record<string, unknown> {
     const poolManager = asRuntimeCompatRecord(value)._poolManager;
@@ -98,9 +99,9 @@ export function requireCompatPoolManagerRecord(value: unknown): Record<string, u
 }
 
 /**
- * 从连接池管理器记录中解析指定连接池的 MongoClient。
- * 同时兼容 v1（`_getPool`）和 v2（`getPool`）两种获取接口。
- * 池不存在或调用失败时返回 null。
+ * Resolve the MongoClient for a named pool from the pool manager record.
+ * Compatible with both v1 (`_getPool`) and v2 (`getPool`) accessor interfaces.
+ * Returns null when the pool does not exist or the call fails.
  */
 export function resolvePoolClientFromRecord(poolManager: Record<string, unknown>, poolName: string): unknown {
     const getPoolV1 = poolManager['_getPool'] as ((name: string) => unknown) | undefined;
@@ -119,8 +120,8 @@ export function resolvePoolClientFromRecord(poolManager: Record<string, unknown>
 }
 
 /**
- * 断言指定连接池在池管理器中存在。
- * 若池不存在则抛出 `POOL_NOT_FOUND` 错误，并附带当前可用池名列表。
+ * Assert that the named pool exists in the pool manager.
+ * Throws `POOL_NOT_FOUND` with the list of available pool names when not found.
  */
 export function assertCompatPoolExists(poolManager: Record<string, unknown>, poolName: string): void {
     if (resolvePoolClientFromRecord(poolManager, poolName)) {
@@ -134,8 +135,8 @@ export function assertCompatPoolExists(poolManager: Record<string, unknown>, poo
 }
 
 /**
- * 在指定连接池上创建作用域访问器对象。
- * 返回的对象可以通过 `collection` / `model` / `use` 在该池中进行集合与模型操作。
+ * Create a scoped accessor object for the named pool.
+ * The returned object supports `collection` / `model` / `use` operations within that pool.
  */
 export function createPoolScope(runtime: RuntimePoolScopeHost, poolName: string): RuntimePoolScope {
     return {
@@ -149,8 +150,8 @@ export function createPoolScope(runtime: RuntimePoolScopeHost, poolName: string)
 }
 
 /**
- * 读取已注册 Model 的元数据（集合名、连接配置）。
- * 优先使用 `definition.collection`，再回退到 `definition.name`，最后使用 `collectionName`。
+ * Read the metadata (collection name, connection config) of a registered Model.
+ * Prefers `definition.collection`, then falls back to `definition.name`, then `collectionName`.
  */
 export function getRegisteredModelMetadata<TDocument>(registered: {
     collectionName: string;
@@ -171,15 +172,15 @@ export function getRegisteredModelMetadata<TDocument>(registered: {
 }
 
 /**
- * 读取 runtime 当前默认数据库名称，未设置时回退为 `'default'`。
+ * Read the runtime's current default database name, falling back to `'default'` when unset.
  */
 export function getRuntimeDatabaseName(value: unknown): string {
     return asRuntimeCompatRecord(value).databaseName ?? 'default';
 }
 
 /**
- * 获取 runtime 内部的 Model 实例缓存 Map。
- * 若缓存尚未初始化则自动创建空 Map 并写回。
+ * Get the runtime's internal Model instance cache.
+ * Auto-creates an empty cache and writes it back when not yet initialised.
  */
 export function getCompatModelInstanceCache(
     value: unknown,
@@ -195,8 +196,8 @@ export function getCompatModelInstanceCache(
 }
 
 /**
- * 创建具有完整上下文的 ModelInstance 实例。
- * 此函数将 collection / runtime / 元数据组合为标准 ModelInstance 对象。
+ * Create a fully contextualised ModelInstance.
+ * Combines collection / runtime / metadata into a standard ModelInstance object.
  */
 export function createCompatModelInstance<TDocument>(config: {
     collection: unknown;

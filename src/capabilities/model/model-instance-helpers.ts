@@ -1,8 +1,8 @@
 /**
- * ModelInstance 辅助操作函数。
+ * ModelInstance helper functions.
  *
- * 提供 populate 执行、populate 配置解析、关联关系辅助等
- * 与 ModelInstance 实例无关的纯函数，便于独立测试。
+ * Pure functions for populate execution, populate config resolution, and
+ * relation utilities — decoupled from the ModelInstance class to simplify testing.
  */
 import { ErrorCodes, createError } from '../../core/errors';
 import type {

@@ -1,7 +1,8 @@
 /**
- * 写操作通用工具函数。
+ * General-purpose write utility functions.
  *
- * 提供写入前置校验、批次切割、错误聚合等与具体操作类型无关的辅助函数。
+ * Provides operation-agnostic helpers for pre-write validation,
+ * batch splitting, and error aggregation.
  */
 import { createError, ErrorCodes } from '../../../core/errors';
 

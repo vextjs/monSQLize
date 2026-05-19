@@ -1,8 +1,9 @@
 /**
- * 集合访问器批量写操作辅助函数。
+ * Batch write helper functions for the collection accessor.
  *
- * 为 MongoCollectionAccessor 提供批量插入、批量更新、批量删除及
- * incrementOne 等操作的底层实现，通过函数拆分降低主文件行数。
+ * Provides the underlying implementations of insertBatch, updateBatch,
+ * deleteBatch, and incrementOne for MongoCollectionAccessor, keeping
+ * the main file size manageable.
  */
 import type { Collection, Document } from 'mongodb';
 import { createError, ErrorCodes } from '../../../core/errors';

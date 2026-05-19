@@ -1,8 +1,9 @@
 /**
- * runtime 数据库外观（DbFacade）工厂函数。
+ * Runtime database facade (DbFacade) factory functions.
  *
- * 封装 MongoDbAccessor 的实例化逻辑，并提供数据库名解析与 ConnectResult 构建工具，
- * 避免在 runtime-core 中直接处理构造参数组装的细节。
+ * Encapsulates MongoDbAccessor instantiation logic and provides database name
+ * resolution and ConnectResult construction utilities, keeping runtime-core
+ * free of constructor-argument assembly details.
  */
 
 import type { MongoClient } from 'mongodb';
@@ -18,8 +19,8 @@ import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type { MongoDbAccessor as DbFacade } from '../adapters/mongodb/common/accessors';
 
 /**
- * `createRuntimeDbFacade` 所需的宿主契约。
- * 宿主须提供 `_client` / `_logger` / `_runtimeDefaults` 及缓存解析方法。
+ * Host contract required by `createRuntimeDbFacade`.
+ * The host must provide `_client` / `_logger` / `_runtimeDefaults` and a cache resolver.
  */
 export type RuntimeDbFacadeHost = {
     options: MonSQLizeOptions;
@@ -39,8 +40,8 @@ type RuntimeAccessorConfig<TRuntime> = {
 };
 
 /**
- * 创建指定数据库的 `MongoDbAccessor`（DbFacade）实例，
- * 将缓存、查询缓存、日志器与默认查询参数一并注入。
+ * Create a `MongoDbAccessor` (DbFacade) instance for the given database,
+ * injecting cache, query cache, logger, and runtime defaults.
  */
 export function createRuntimeDbFacade(host: RuntimeDbFacadeHost, databaseName: string): DbFacade {
     return new DbFacadeImpl(
@@ -59,8 +60,8 @@ export function createRuntimeDbFacade(host: RuntimeDbFacadeHost, databaseName: s
 }
 
 /**
- * 解析 runtime 使用的默认数据库名称。
- * 按优先级：`options.database`（v1 兼容字段）> `options.databaseName` > `'default'`。
+ * Resolve the default database name used by the runtime.
+ * Priority: `options.database` (v1 compat field) > `options.databaseName` > `'default'`.
  */
 export function resolveDatabaseName(options: MonSQLizeOptions): string {
     return (options as Record<string, unknown>)['database'] as string | undefined
@@ -69,10 +70,10 @@ export function resolveDatabaseName(options: MonSQLizeOptions): string {
 }
 
 /**
- * 构建 `connect()` 返回的访问器对象（`ConnectResult<TRuntime>`）。
+ * Build the accessor object returned by `connect()` (`ConnectResult<TRuntime>`).
  *
- * 包含 `collection` / `db` / `use` / `instance` 四个字段，
- * 其中 `collection` 会在访问前进行名称合法性校验并初始化 IID 缓存。
+ * Contains `collection` / `db` / `use` / `instance` fields.
+ * The `collection` accessor validates the name before access and initialises the IID cache.
  */
 export function createRuntimeAccessors<TRuntime>(config: RuntimeAccessorConfig<TRuntime>): ConnectResult<TRuntime> {
     return {

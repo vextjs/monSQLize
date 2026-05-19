@@ -1,16 +1,16 @@
 /**
- * MongoDB 查询适配层——入口桶文件。
+ * MongoDB query adapter layer — barrel entry file.
  *
- * 职责边界：
- * - FindChain / AggregateChain：链式查询构建器
- * - findDocuments / findOneDocument / countDocuments / aggregateDocuments / distinctValues
- *   streamDocuments / explainDocuments / watchDocuments：基础查询函数
+ * Scope:
+ * - FindChain / AggregateChain: chainable query builders.
+ * - findDocuments / findOneDocument / countDocuments / aggregateDocuments / distinctValues /
+ *   streamDocuments / explainDocuments / watchDocuments: core query functions.
  *
- * 已拆出到独立模块（向后兼容 re-export）：
- * - `find-page.ts`    — executeFindPage / findPageDocuments
- * - `find-by-id.ts`   — findOneByIdDocument / findByIdsDocuments
+ * Extracted into separate modules (re-exported for backwards compatibility):
+ * - `find-page.ts`      — executeFindPage / findPageDocuments
+ * - `find-by-id.ts`     — findOneByIdDocument / findByIdsDocuments
  * - `find-and-count.ts` — findAndCountDocuments
- * - `query-helpers.ts` — cursor / ObjectId / sort / projection helpers
+ * - `query-helpers.ts`  — cursor / ObjectId / sort / projection helpers
  */
 
 import { ChangeStream, Collection, Document, FindOptions, Sort } from 'mongodb';
@@ -27,7 +27,7 @@ import {
     normalizeQueryFilter,
 } from './query-helpers';
 
-// ── 从拆出模块重新导出（保持向后兼容）──────────────────────────────────────
+// ── Re-exports from extracted modules (backwards compatibility) ───────────────
 export type {
     AggregateChain,
     FindAndCountResult,

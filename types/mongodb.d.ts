@@ -4,11 +4,11 @@ export interface MongoConnectConfig {
     uri?: string;
     options?: MongoClientOptions;
     /**
-     * v1 兼容：为 true 时自动启动 mongodb-memory-server，无需提供 uri。
-     * 仅用于测试。
+     * v1 compat: when true, automatically starts mongodb-memory-server without requiring a uri.
+     * For testing only.
      */
     useMemoryServer?: boolean;
-    /** mongodb-memory-server 的实例/二进制配置选项 */
+    /** Instance/binary configuration options for mongodb-memory-server. */
     memoryServerOptions?: {
         instance?: { port?: number; dbName?: string; storageEngine?: string; replSet?: string };
         binary?: { version?: string };

@@ -1,12 +1,13 @@
 /**
- * MongoDB runtime 核心装配层。
+ * MongoDB runtime core assembly layer.
  *
- * 说明：
- * - 这里负责 runtime 主类、能力装配、公共导出与默认配置收口。
- * - 查询 / 写入 / model / cache / transaction / pool 等具体语义由各自子模块实现，
- *   本文件只负责“装起来”和“对外暴露”，尽量不要继续堆具体业务逻辑。
- * - 维护边界：新增能力优先落在 capability / adapter 层，只有公共装配与主类 API
- *   才应该进入这里。
+ * Notes:
+ * - Owns the runtime main class, capability wiring, public exports, and default config consolidation.
+ * - Specific semantics for query / write / model / cache / transaction / pool are implemented
+ *   in their own sub-modules; this file only assembles and exposes them — avoid adding
+ *   further business logic here.
+ * - Maintenance boundary: new capabilities should land in the capability / adapter layer first;
+ *   only public wiring and main-class API surface belongs here.
  */
 
 import {
@@ -170,19 +171,19 @@ import {
 } from './runtime-capability-factories';
 import { resolveScopedCollection } from './runtime-scoped-collection';
 
-// 所有公共符号统一从桶形导出文件重新导出，保持公开 API 不变
+// All public symbols are re-exported from the barrel file to keep the public API unchanged
 export * from './runtime-exports';
 
 type RuntimeAdapterSurface = LegacyAdapterBridgeLike;
 
 /**
- * monSQLize TypeScript runtime 的核心入口。
+ * Core entry point for the monSQLize TypeScript runtime.
  *
- * 职责：
- * - 管理 MongoDB 连接生命周期
- * - 对外暴露 `collection()` / `db()` / `use()` / `pool()` 等运行时访问入口
- * - 装配 cache、function-cache、model、transaction、lock、pool、sync、slow-query-log、saga 等能力
- * - 作为包根导出与 `connect()` 返回的 runtime host
+ * Responsibilities:
+ * - Manage the MongoDB connection lifecycle
+ * - Expose runtime access points: `collection()` / `db()` / `use()` / `pool()`
+ * - Wire capabilities: cache, function-cache, model, transaction, lock, pool, sync, slow-query-log, saga
+ * - Serve as the package root export and the runtime host returned by `connect()`
  *
  * @since v1.3.0
  */
@@ -210,13 +211,13 @@ export class MonSQLizeRuntime {
     });
     private _connectionPromise: Promise<ConnectResult<MonSQLizeRuntime>> | null = null;
 
-    /** v1 兼容：以公开属性形式暴露 defaults（冻结对象）。 */
+    /** v1 compat: expose defaults as a public property (frozen object). */
     readonly defaults: Readonly<Record<string, unknown>>;
 
-    /** v1 兼容：以公开属性形式暴露 autoConvertConfig。 */
+    /** v1 compat: expose autoConvertConfig as a public property. */
     readonly autoConvertConfig: AutoConvertConfigPublic;
 
-    /** v1 兼容：公开 logger 访问入口（测试可能会 monkey-patch `.warn/.info`）。 */
+    /** v1 compat: expose logger as a public accessor (tests may monkey-patch `.warn/.info`). */
     get logger(): Logger {
         return this._logger;
     }
@@ -230,7 +231,7 @@ export class MonSQLizeRuntime {
             ...options,
             type,
         };
-        // v1 兼容：在构造阶段就校验关键参数。
+        // v1 compat: validate critical parameters at construction time.
         if (options.maxTimeMS !== undefined && options.maxTimeMS !== null) {
             validateRange(options.maxTimeMS, 1, 300000, 'maxTimeMS');
         }
@@ -248,7 +249,7 @@ export class MonSQLizeRuntime {
         this._adapterCacheOverride = undefined;
         this._adapterBridge = createRuntimeAdapterBridge(this.createAdapterBridgeHost());
         this.defaults = buildPublicDefaults(options);
-        // v1 兼容：初始化 autoConvertConfig（委托给 capability-wiring 纯函数）。
+        // v1 compat: initialise autoConvertConfig (delegates to the capability-wiring pure function).
         this.autoConvertConfig = initAutoConvertConfig(options.autoConvertObjectId, options.type);
     }
 
@@ -381,7 +382,7 @@ export class MonSQLizeRuntime {
         };
     }
 
-    // v1 直接暴露 cache / _adapter / dbInstance / _connecting，这里保持同名桥接。
+    // v1 exposes cache / _adapter / dbInstance / _connecting directly; keep same-name bridges here.
     get cache(): MemoryCache { return this._cache; }
 
     get _adapter(): RuntimeAdapterSurface | null {
@@ -399,7 +400,7 @@ export class MonSQLizeRuntime {
 
     get _connecting(): Promise<unknown> | null { return this._connectionPromise; }
 
-    // 根访问器 ----------------------------------------------------------
+    // Root accessors ----------------------------------------------------------
     collection(name: string): CollectionFacade {
         if (!name || typeof name !== 'string' || !name.trim()) {
             const err = new Error('Collection name must be a non-empty string') as Error & { code: string };
@@ -485,20 +486,20 @@ export class MonSQLizeRuntime {
         });
     }
 
-    // Model 访问器 ---------------------------------------------------------
+    // Model accessors ---------------------------------------------------------
     scopedModel<TDocument = Record<string, unknown>>(name: string, options: { database?: string; pool?: string; } = {}): ModelInstance<TDocument> {
         const dbInstance = requireCompatDbInstance(this);
-        // v2 路径：使用 createModelInstance（处理连接与缓存）
+        // v2 path: use createModelInstance (handles connection and caching)
         if (this._client) {
             return this.createModelInstance<TDocument>(name, options);
         }
-        // v1 兼容路径：v1 风格的实现（带连接合并）
+        // v1 compat path: v1-style implementation (with connection merging)
         const registered = Model.get<TDocument>(name);
         if (!registered) {
             throw createError(ErrorCodes.MODEL_NOT_DEFINED, `Model '${name}' is not defined. Call Model.define() first.`);
         }
         const { actualCollectionName, connection } = getRegisteredModelMetadata(registered);
-        // v1 连接合并：definition.connection 作为兜底，opts 优先级更高
+        // v1 connection merge: definition.connection as fallback, opts takes higher priority
         const merged: Record<string, unknown> = { ...(connection ?? {}), ...options };
         const { pool, database } = merged as { pool?: string; database?: string };
         const collection = (pool || database)
@@ -515,17 +516,17 @@ export class MonSQLizeRuntime {
     }
 
     model<TDocument = Record<string, unknown>>(name: string): ModelInstance<TDocument> {
-        // v2 路径
+        // v2 path
         if (this._client) {
             this.ensureConnected();
             return this.createModelInstance<TDocument>(name, {
                 database: resolveDatabaseName(this.options),
             });
         }
-        // v1 兼容路径：镜像 v1 model() — 检查 dbInstance，延迟初始化 _modelInstances 缓存
+        // v1 compat path: mirrors v1 model() — checks dbInstance, lazily initialises _modelInstances cache
         const dbInstance = requireCompatDbInstance(this);
 
-        // 缓存命中 + _redefinedNames 失效检查
+        // Cache hit + _redefinedNames invalidation check
         const cache = getCompatModelInstanceCache(this);
         if (cache.has(name)) {
             if (!Model._redefinedNames.has(name)) {
@@ -554,7 +555,7 @@ export class MonSQLizeRuntime {
         return instance;
     }
 
-    // 能力委托 ----------------------------------------------------
+    // Capability delegation ----------------------------------------------------
     async startSession(options: TransactionOptions = {}): Promise<Transaction> {
         this.ensureConnected();
         return this.getTransactionManager().startSession(options);

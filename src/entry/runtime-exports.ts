@@ -1,10 +1,10 @@
 /**
- * runtime-exports.ts — 公共符号桶形导出
+ * runtime-exports.ts — public symbol barrel
  *
- * 说明：
- * - 从各子模块直接重新导出供外部使用的类型和实现
- * - 保持与原 runtime-core.ts 内联导出完全兼容，不改变任何公开 API
- * - 当需要新增公共符号时，在此文件追加即可，无需动 runtime-core.ts 主体
+ * Notes:
+ * - Re-exports types and implementations from sub-modules for external consumption
+ * - Fully compatible with the original inline exports in runtime-core.ts; no public API is changed
+ * - Add new public symbols here rather than modifying the runtime-core.ts body
  */
 
 export {
@@ -12,14 +12,14 @@ export {
     MongoDbAccessor as DbFacade,
 } from '../adapters/mongodb/common/accessors';
 
-// 运行时与缓存能力
+// Runtime and cache capabilities
 export { Logger } from '../core/logger';
 export { MemoryCache, createRedisCacheAdapter, DistributedCacheInvalidator } from '../capabilities/cache';
 export type { CacheStats } from '../capabilities/cache';
 export { FunctionCache, withCache } from '../capabilities/function-cache';
 export type { CachedFunction, WithCacheOptions } from '../capabilities/function-cache';
 
-// Model / 表达式 / 连接池 / 同步等核心能力
+// Model / expression / pool / sync and other core capabilities
 export { Model } from '../capabilities/model';
 export type {
     ModelConnection,
@@ -83,7 +83,7 @@ export type {
     SagaStep,
 } from '../capabilities/saga';
 
-// 通用工具与错误能力
+// General utilities and error capabilities
 export { encodeCursor, decodeCursor } from '../utils/cursor';
 export {
     ErrorCodes,
@@ -97,7 +97,7 @@ export { normalizeProjection, normalizeSort } from '../utils/normalize';
 export { makePageResult } from '../utils/page-result';
 export { validateRange, validatePositiveInteger } from '../utils/validation';
 
-// 锁、事务与统计能力
+// Lock, transaction, and statistics capabilities
 export { DistributedCacheLockManager, Lock, LockAcquireError, LockTimeoutError, LockManager } from '../capabilities/lock';
 export type { LockOptions, LockStats } from '../capabilities/lock';
 export { Transaction, TransactionManager, CacheLockManager } from '../capabilities/transaction';
@@ -105,7 +105,7 @@ export type { MongoSession, TransactionOptions, TransactionStats } from '../capa
 export { CountQueue } from '../capabilities/count-queue';
 export type { CountQueueOptions, CountQueueStats } from '../capabilities/count-queue';
 
-// 根入口声明文件需要引用的公开类型
+// Public types referenced by the root declaration file
 export type { LoggerLike } from '../core/logger';
 export type { MultiLevelCacheOptions, MultiLevelCachePolicy, WritePolicy } from '../../types/runtime';
 export type { HealthView } from '../../types/collection';

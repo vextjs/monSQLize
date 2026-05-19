@@ -1,25 +1,27 @@
 /**
- * CountQueue — 计数操作并发队列控制器（Concurrent Queue Controller for Count Operations）。
+ * CountQueue — Concurrent Queue Controller for Count Operations.
  *
- * 设计说明：
- * - 限制 countDocuments 操作的最大并发数，防止高并发下数据库过载。
+ * Design notes:
+ * - Caps the maximum concurrency of countDocuments operations to prevent
+ *   database overload under high traffic.
  *
- * 核心特性：
- * 1. 并发控制 — concurrency 参数限制同时执行的 count 数量，
- *    默认取 max(4, min(cpuCount, 16))，自动适配 CPU 核数。
- * 2. 队列管理 — 超出并发限制的请求进入等待队列；
- *    队列满（maxQueueSize）时直接拒绝并记录统计。
- * 3. 超时保护 — timeout 限制单次请求的等待+执行总时长，
- *    超时后从队列移除并抛出 OPERATION_TIMEOUT 错误。
- * 4. 统计监控 — getStats() 返回实时队列状态（running / queuedNow）
- *    和累计统计（executed / queued / timeout / rejected / avgWaitTime / maxWaitTime）。
- * 5. 优雅清空 — clear() 将队列中所有等待请求以 'cleared' 原因 resolve，
- *    避免关闭时留下悬挂的 Promise。
+ * Key features:
+ * 1. Concurrency control — the `concurrency` option limits simultaneous count
+ *    operations; defaults to max(4, min(cpuCount, 16)).
+ * 2. Queue management — requests exceeding the concurrency cap are queued;
+ *    when the queue is full (maxQueueSize) new requests are rejected immediately.
+ * 3. Timeout protection — `timeout` caps the total wait + execution time per
+ *    request; timed-out requests are removed from the queue and throw OPERATION_TIMEOUT.
+ * 4. Stats monitoring — getStats() returns live state (running / queuedNow) plus
+ *    cumulative counters (executed / queued / timeout / rejected / avgWaitTime / maxWaitTime).
+ * 5. Graceful drain — clear() resolves all queued requests with reason 'cleared'
+ *    to avoid dangling Promises on shutdown.
  *
- * 使用模式：
- * - execute() 自动根据当前 running 数决定立即执行还是入队等待。
- * - 被包装的 fn 只在获得"执行令牌"后才运行，执行完成后自动释放令牌
- *   并唤醒下一个等待请求（_wakeNext）。
+ * Usage pattern:
+ * - execute() decides automatically whether to run immediately or enqueue based
+ *   on the current `running` count.
+ * - The wrapped `fn` only runs once it acquires an execution token; the token is
+ *   released automatically on completion, waking the next queued request (_wakeNext).
  *
  * @since v1.0.0
  */
@@ -101,19 +103,19 @@ export class CountQueue {
     }
 
 /**
- * 执行一个受队列控制的 count 操作。
+ * Execute a queue-controlled count operation.
  *
- * 执行逻辑：
- * - 若 running < concurrency：直接执行 fn（"快路径"）。
- * - 若 running >= concurrency：
- *   - 队列未满 → 入队等待，等待时长计入统计。
- *   - 队列已满 → 拒绝，rejected++ 并抛出 INVALID_OPERATION 错误。
- * - fn 执行完成（无论成功或异常）后自动 running--
- *   并调用 _wakeNext() 唤醒下一个等待请求。
+ * Execution logic:
+ * - If running < concurrency: execute fn immediately (fast path).
+ * - If running >= concurrency:
+ *   - Queue not full → enqueue and wait; wait time is recorded in stats.
+ *   - Queue full → reject, increment rejected counter, throw INVALID_OPERATION.
+ * - After fn completes (success or error), running is decremented and
+ *   _wakeNext() is called to unblock the next queued request.
  *
- * @param fn - 需要受并发保护的 count 函数（返回 Promise<T>）
- * @returns fn 的执行结果
- * @throws 队列满或等待超时时抛出受控错误
+ * @param fn - The count function to guard with concurrency control (returns Promise<T>)
+ * @returns The result of fn
+ * @throws A controlled error when the queue is full or the wait times out
  */
 async execute<T>(fn: () => Promise<T>): Promise<T> {
         const startTime = Date.now();

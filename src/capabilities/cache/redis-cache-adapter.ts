@@ -1,7 +1,8 @@
 /**
- * cache-hub Redis adapter 的薄转发模块。
+ * Thin re-export module for the cache-hub Redis adapter.
  *
- * monSQLize 不再维护 prefix / fake-redis 兼容包装，直接暴露原生工厂函数。
+ * monSQLize no longer maintains prefix/fake-redis compatibility wrappers;
+ * the native factory function is exposed directly.
  */
 
 export { createRedisCacheAdapter } from 'cache-hub/redis';

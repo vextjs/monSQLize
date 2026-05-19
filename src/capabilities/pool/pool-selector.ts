@@ -1,8 +1,8 @@
 /**
- * 连接池选择策略（PoolSelector）。
+ * Pool selection strategies (PoolSelector).
  *
- * 实现 auto / roundRobin / leastConnections / weighted / manual
- * 五种路由策略，基于 role + tags + 权重动态选择目标连接池。
+ * Implements five routing strategies — auto / roundRobin / leastConnections /
+ * weighted / manual — with dynamic target selection based on role, tags, and weight.
  */
 import type { LoggerLike } from '../../core/logger';
 
@@ -29,18 +29,18 @@ type PoolSelectorOptions = {
 };
 
 /**
- * 连接池路由选择器（Pool Routing Selector）。
+ * Pool routing selector.
  *
- * 设计说明：
- * - 实现五种选择策略，通过 setStrategy() 运行时切换，无需重建实例：
- *   · auto         — 读写分离优先（read→secondary / write→primary），
- *                    再按 role/tags 过滤候选集，最终按权重随机路由。
- *   · roundRobin   — 按 operation key 维护轮询游标，同时尊重 role 过滤。
- *   · leastConnections — 优先选择当前活跃连接数最少的 pool（需传入 stats）。
- *   · weighted     — 纯权重随机，不区分 role。
- *   · manual       — 始终返回第一个 pool（由调用方决定顺序）。
- * - tags 过滤：单 tag → some（任一匹配）；多 tags → every（全部匹配）。
- * - 策略降级：未知策略自动回退到 auto 并打印 warn 日志。
+ * Design notes:
+ * - Implements five strategies, switchable at runtime via setStrategy() without rebuilding the instance:
+ *   · auto             — read/write split first (read→secondary / write→primary),
+ *                        then filter candidates by role/tags, finally route by weighted random.
+ *   · roundRobin       — maintains a round-robin cursor per operation key, respecting role filters.
+ *   · leastConnections — prefers the pool with the fewest active connections (requires stats input).
+ *   · weighted         — pure weighted random, ignores role.
+ *   · manual           — always returns the first pool (caller controls ordering).
+ * - Tag filtering: single tag → some (any match); multiple tags → every (all must match).
+ * - Strategy fallback: unknown strategies silently fall back to auto with a warn log.
  * @since v1.5.0
  */
 export class PoolSelector {

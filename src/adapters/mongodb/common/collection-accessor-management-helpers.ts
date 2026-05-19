@@ -1,8 +1,8 @@
 /**
- * 集合访问器管理操作辅助函数。
+ * Management operation helper functions for the collection accessor.
  *
- * 为 MongoCollectionAccessor 提供书签（Bookmark）、索引、
- * 集合信息查询等管理类操作的底层实现。
+ * Provides the underlying implementations for bookmark, index,
+ * and collection info operations used by MongoCollectionAccessor.
  */
 import { Collection, Db, Document } from 'mongodb';
 import type { Logger } from '../../../core/logger';

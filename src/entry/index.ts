@@ -1,8 +1,8 @@
 /**
- * monSQLize 主入口（barrel）。
+ * monSQLize main entry point (barrel).
  *
- * 统一导出 MonSQLize 主类及所有能力子模块的公开 API，
- * 是消费者的唯一推荐导入入口。
+ * Re-exports the MonSQLize main class and all capability sub-module public APIs.
+ * This is the only recommended import entry point for consumers.
  */
 import {
     BatchQueue,

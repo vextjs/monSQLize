@@ -1,11 +1,13 @@
 /**
- * runtime Model 实例管理工具集。
+ * Runtime Model instance management utilities.
  *
- * 封装 Model 注册表查询、Model 实例缓存命中/失效检测与 ModelInstance 构建逻辑，
- * 使 runtime-core 专注于连接生命周期，不直接处理 Model 内部状态的组装细节。
+ * Encapsulates Model registry lookup, instance cache hit/invalidation detection,
+ * and ModelInstance construction, allowing runtime-core to focus on connection
+ * lifecycle without directly handling Model assembly details.
  *
- * 缓存 Key 格式：`<pool>:<database>:<collectionName>`，使用 Model.getRevision()
- * 检测 Model 定义变更，变更时自动使旧实例失效。
+ * Cache key format: `<pool>:<database>:<collectionName>`. Uses `Model.getRevision()`
+ * to detect schema changes; stale instances are automatically discarded when the
+ * revision changes.
  */
 
 import { Model, ModelInstance } from '../capabilities/model';
@@ -17,8 +19,8 @@ import type { ModelCollectionLike, ModelRuntimeLike } from '../capabilities/mode
 import { resolveDatabaseName } from './runtime-db-facade';
 
 /**
- * `createRuntimeModelHost` 的输入配置参数，
- * 使宿主与 Model 工厂之间保持解耦。
+ * Input config for `createRuntimeModelHost`,
+ * keeping the host and the Model factory decoupled.
  */
 export type RuntimeModelHost = {
     options: MonSQLizeOptions;
@@ -31,8 +33,8 @@ export type RuntimeModelHost = {
 };
 
 /**
- * 将松散的配置参数组装为标准的 `RuntimeModelHost` 对象。
- * 主要作用是统一泛型类型和字段名映射，简化调用处代码。
+ * Assemble loose config parameters into a standard `RuntimeModelHost` object.
+ * Primarily normalises generic types and field name mapping to simplify call sites.
  */
 export function createRuntimeModelHost(config: {
     options: MonSQLizeOptions;
@@ -53,15 +55,15 @@ export function createRuntimeModelHost(config: {
 }
 
 /**
- * 获取或创建指定名称的 `ModelInstance`。
+ * Get or create a `ModelInstance` for the given name.
  *
- * 命中缓存且版本号未变更时直接返回已有实例；
- * 版本号变更（Model 定义被更新）时丢弃旧实例并重新构建。
+ * Returns the cached instance directly when it exists and the revision is unchanged.
+ * Discards the stale instance and rebuilds when the revision changes (Model definition updated).
  *
- * @param host - runtime 宿主，提供 options / _modelInstances / scopedCollection / runtime
- * @param name - 已注册的 Model 名称
- * @param scope - 可选的数据库名与连接池名限定
- * @throws `MODEL_NOT_DEFINED` — 若指定名称的 Model 尚未注册
+ * @param host - Runtime host providing options / _modelInstances / scopedCollection / runtime
+ * @param name - Name of the registered Model
+ * @param scope - Optional database and pool scope
+ * @throws `MODEL_NOT_DEFINED` — when no Model with the given name has been registered
  */
 export function createRuntimeModelInstance<TDocument = Record<string, unknown>>(
     host: RuntimeModelHost,

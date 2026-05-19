@@ -1,16 +1,17 @@
 /**
  * Query adapter internal contracts.
  *
- * 说明：
- * - 这里存放查询层的内部运行时契约，避免这些类型继续散落在 `queries/index.ts`、
- *   `accessors.ts` 和 `runtime-core.ts` 中。
- * - 这些类型不是最终对外 API 的一部分，而是查询适配层、访问器层和 runtime 之间的
- *   共享“内部领域类型”。
+ * Notes:
+ * - Houses the query layer's internal runtime contracts, preventing them from
+ *   scattering across `queries/index.ts`, `accessors.ts`, and `runtime-core.ts`.
+ * - These types are not part of the public API; they are shared “internal domain types”
+ *   between the query adapter layer, the accessor layer, and the runtime.
  */
 
 /**
- * 支持 TTL 的最小查询结果缓存接口。
- * 由 MemoryCache 等实现满足，通过 runtime 注入以避免循环依赖。
+ * Minimal TTL-aware query result cache interface.
+ * Satisfied by MemoryCache and similar implementations; injected via the runtime
+ * to avoid circular dependencies.
  */
 export interface QueryCacheLike {
     get(key: string): unknown;
@@ -23,12 +24,12 @@ export interface CountQueueLike {
 }
 
 /**
- * 从 MonSQLizeOptions 逐层传递到
- * DbFacade → CollectionFacade → query functions 的 runtime 默认值。
+ * Runtime defaults propagated from MonSQLizeOptions down through
+ * DbFacade → CollectionFacade → query functions.
  *
- * 约束：
- * - 字段全部可选，缺失时回退到 v1 默认值
- * - 这是查询层使用的“裁剪后 defaults”，不是完整的 MonSQLizeOptions
+ * Constraints:
+ * - All fields are optional; fall back to v1 defaults when absent
+ * - This is the “trimmed defaults” used by the query layer, not the full MonSQLizeOptions
  */
 export interface RuntimeDefaults {
     maxTimeMS?: number;

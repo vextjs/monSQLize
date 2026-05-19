@@ -1,7 +1,8 @@
 /**
- * cache-hub `MemoryCache` 的薄转发模块。
+ * Thin re-export module for cache-hub `MemoryCache`.
  *
- * monSQLize 不再维护本地包装逻辑；对外与对内统一直连 `cache-hub` 原生实现。
+ * monSQLize no longer maintains local wrapper logic; both internal and external
+ * consumers connect directly to the native `cache-hub` implementation.
  */
 
 export { MemoryCache } from 'cache-hub';

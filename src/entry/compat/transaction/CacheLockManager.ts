@@ -1,8 +1,8 @@
 /**
- * CacheLockManager CJS 兼容再导出。
+ * CacheLockManager CJS compat re-export.
  *
- * 以 module.exports = CacheLockManager 形式提供 v1 风格的 require() 入口，
- * 保持对旧版消费者的向后兼容性。
+ * Exposes CacheLockManager via `module.exports = CacheLockManager` to provide
+ * a v1-style require() entry point for backward compatibility with legacy consumers.
  */
 import { CacheLockManager } from '../../../capabilities/transaction';
 

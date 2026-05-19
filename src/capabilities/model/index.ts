@@ -1,7 +1,7 @@
 /**
- * Model 能力模块主入口（barrel）。
+ * Main entry (barrel) for the Model capability module.
  *
- * 导出 ModelInstance、ModelMutationOrchestrator 及相关辅助函数和类型。
+ * Exports ModelInstance, ModelMutationOrchestrator, and related helpers and types.
  */
 
 import { ErrorCodes, createError } from '../../core/errors';
@@ -73,7 +73,7 @@ import {
     orchestrateModelUpsertOne,
 } from './model-mutation-orchestrator';
 
-// 公共类型重导出（供外部消费者使用）
+// Public type re-exports (for external consumers)
 export type {
     HookContext,
     ModelConnection,

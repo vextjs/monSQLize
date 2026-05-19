@@ -1,10 +1,11 @@
 /**
- * capability-wiring.ts — 能力初始化纯函数层
+ * capability-wiring.ts — pure-function capability initialisation layer
  *
- * 说明：
- * - 从 runtime-core.ts 提取的可独立调用的初始化辅助函数
- * - 这些函数接受参数并返回值，不依赖 this，便于单独测试和复用
- * - 覆盖：autoConvert 配置构建、运行时默认值、连接池创建、Model 文件自动加载
+ * Notes:
+ * - Standalone initialisation helpers extracted from runtime-core.ts
+ * - All functions accept parameters and return values with no `this` dependency,
+ *   making them easy to test and reuse in isolation
+ * - Covers: autoConvert config building, runtime defaults, pool creation, and Model file auto-loading
  */
 
 import type { MonSQLizeOptions } from '../../types/monsqlize';
@@ -16,12 +17,12 @@ import { CountQueue } from '../capabilities/count-queue';
 import { ConnectionPoolManager } from '../capabilities/pool';
 
 // ────────────────────────────────────────────────────────
-// AutoConvert 配置
+// AutoConvert config
 // ────────────────────────────────────────────────────────
 
 /**
- * 初始化 ObjectId 自动转换配置。
- * 仅 mongodb 类型时允许启用；其他类型强制返回 disabled。
+ * Initialise the ObjectId auto-convert configuration.
+ * Only enabled for the `mongodb` type; all other types always return disabled.
  */
 export function initAutoConvertConfig(
     config: boolean | { enabled?: boolean; excludeFields?: string[]; customFieldPatterns?: string[]; maxDepth?: number; logLevel?: string; } | undefined,
@@ -47,12 +48,12 @@ export function initAutoConvertConfig(
 }
 
 // ────────────────────────────────────────────────────────
-// 运行时默认值
+// Runtime defaults
 // ────────────────────────────────────────────────────────
 
 /**
- * 从 options 构建运行时默认值对象。
- * 包含 maxTimeMS、findLimit、autoConvertObjectId、countQueue 等字段。
+ * Build the runtime defaults object from options.
+ * Includes maxTimeMS, findLimit, autoConvertObjectId, countQueue, and related fields.
  */
 export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults {
     const o = options;
@@ -61,7 +62,7 @@ export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults
     if (o.findLimit !== undefined) defaults.findLimit = o.findLimit;
     if (o.findPageMaxLimit !== undefined) defaults.findPageMaxLimit = o.findPageMaxLimit;
     if (o.slowQueryMs !== undefined) defaults.slowQueryMs = o.slowQueryMs;
-    // v1-compat: autoConvertObjectId 在 MongoDB 类型下默认为 true（镜像 v1 行为）
+    // v1-compat: autoConvertObjectId defaults to true for MongoDB type (mirrors v1 behaviour)
     defaults.autoConvertObjectId = o.autoConvertObjectId !== undefined
         ? o.autoConvertObjectId
         : (o.type === 'mongodb' || !o.type ? true : false);
@@ -78,14 +79,14 @@ export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults
 }
 
 // ────────────────────────────────────────────────────────
-// 连接池管理器
+// Connection pool manager
 // ────────────────────────────────────────────────────────
 
 /**
- * 创建并启动连接池管理器。
- * - 若 options.pools 未配置则返回 null
- * - 创建新实例、注册所有池、启动健康检查后返回
- * - 调用方负责判断是否已存在，避免重复初始化
+ * Create and start the connection pool manager.
+ * - Returns null when options.pools is not configured
+ * - Creates a new instance, registers all pools, starts health checks, then returns
+ * - Callers are responsible for checking whether an instance already exists to avoid duplicate initialisation
  */
 export async function createAndStartPoolManager(
     options: MonSQLizeOptions,
@@ -108,17 +109,17 @@ export async function createAndStartPoolManager(
 }
 
 // ────────────────────────────────────────────────────────
-// Model 文件自动加载
+// Model file auto-loading
 // ────────────────────────────────────────────────────────
 
 /**
- * 自动从配置路径加载 Model 定义文件（镜像 v1 models 自动加载行为）。
+ * Auto-load Model definition files from the configured path (mirrors v1 models auto-load behaviour).
  *
- * 支持两种格式：
- * - 字符串：`models: './models'` → 扫描 `*.model.{js,ts,mjs,cjs}`，非递归
- * - 对象：`models: { path, pattern?, recursive? }` → 完整控制
+ * Supports two formats:
+ * - String: `models: './models'` — scans `*.model.{js,ts,mjs,cjs}`, non-recursive
+ * - Object: `models: { path, pattern?, recursive? }` — full control
  *
- * 每个文件必须导出包含 name 字段的对象（即 Model.define() 的参数）。
+ * Each file must export an object with a `name` field (i.e. the argument to Model.define()).
  */
 export async function loadModelFiles(
     options: MonSQLizeOptions,
@@ -148,7 +149,7 @@ export async function loadModelFiles(
         recursive = modelsConfig.recursive ?? false;
     }
 
-    // glob 模式转 RegExp（支持 {a,b} 变体和 * 通配符）
+    // Convert glob pattern to RegExp (supports {a,b} alternatives and * wildcard)
     const globToRegex = (glob: string): RegExp => {
         const escaped = glob
             .replace(/\./g, '\\.')

@@ -1,8 +1,8 @@
 /**
- * 缓存能力桶文件。
+ * Cache capability barrel file.
  *
- * 本轮改造后，缓存相关公开能力直接转向 `cache-hub` 原生实现，
- * 不再通过 monSQLize 本地包装层承载行为逻辑。
+ * After this refactor, all public cache capabilities delegate directly to
+ * the native `cache-hub` implementation without a monSQLize wrapper layer.
  */
 
 export { MemoryCache } from './memory-cache';

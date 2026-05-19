@@ -1,8 +1,8 @@
 /**
- * TransactionManager CJS 兼容再导出。
+ * TransactionManager CJS compat re-export.
  *
- * 以 module.exports = TransactionManager 形式提供 v1 风格的 require() 入口，
- * 保持对旧版消费者的向后兼容性。
+ * Exposes TransactionManager via `module.exports = TransactionManager` to provide
+ * a v1-style require() entry point for backward compatibility with legacy consumers.
  */
 import { TransactionManager } from '../../../capabilities/transaction';
 

@@ -1,8 +1,8 @@
 /**
- * 连接池统计数据管理器（PoolStatsManager）。
+ * Connection pool statistics manager.
  *
- * 按 poolName 聚合统计数据，采用批量缓冲策略减少 Map 写频率，
- * 通过定时 flush 完成合并写入。
+ * Aggregates stats per poolName using a batch-buffer strategy to reduce
+ * Map write frequency, merging data via periodic flush.
  */
 import type { PoolBufferItem, PoolStatsData } from '../../types/internal/pool';
 

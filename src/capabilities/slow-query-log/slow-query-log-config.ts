@@ -1,7 +1,8 @@
 /**
- * 慢查询日志配置管理（SlowQueryLogConfigManager）。
+ * Slow query log configuration management.
  *
- * 定义默认配置常量与配置解析逻辑，供 SlowQueryLogManager 及外部调用者使用。
+ * Defines default config constants and config-merging logic for use by
+ * SlowQueryLogManager and external callers.
  */
 import { ErrorCodes, createError } from '../../core/errors';
 import type {

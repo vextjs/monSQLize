@@ -47,31 +47,32 @@ export type CacheLike = HubCacheLike;
 export type MemoryCacheOptions = HubMemoryCacheOptions;
 
 /**
- * 多层缓存写策略
- * - `both`：本地 + 远端双写（等待远端完成）
- * - `local-first-async-remote`：本地先返回，远端异步写（降低尾延迟）
+ * Multi-level cache write policy.
+ * - `both`: write to both local and remote simultaneously (waits for remote to complete)
+ * - `local-first-async-remote`: return after local write; remote write is asynchronous (reduces tail latency)
  * @since v1.1.0
  */
 export type WritePolicy = 'both' | 'local-first-async-remote';
 
 /**
- * 多层缓存策略配置
+ * Multi-level cache policy configuration.
  * @since v1.1.0
  */
 export interface MultiLevelCachePolicy {
-    /** 写策略，默认 `both` */
+    /** Write policy; defaults to `both`. */
     writePolicy?: WritePolicy;
-    /** 远端命中后是否回填本地，默认 true */
+    /** Whether to backfill the local cache on a remote hit; defaults to true. */
     backfillLocalOnRemoteHit?: boolean;
 }
 
 /**
- * 多层缓存配置对象（配置式启用双层缓存）。
+ * Multi-level cache configuration object (declarative two-tier cache setup).
  *
- * 传给 `MonSQLizeOptions.cache` 时，框架会自动创建 MultiLevelCache：
- * - `local`：始终使用内置内存缓存（仅接受 MemoryCacheOptions）
- * - `remote`：可传 CacheLike 实例（推荐生产），或配置对象以退化为内存占位
- * - `policy`：写策略与回填策略配置
+ * When passed to `MonSQLizeOptions.cache`, the framework automatically creates a MultiLevelCache:
+ * - `local`: always uses the built-in memory cache (accepts MemoryCacheOptions only)
+ * - `remote`: accepts a CacheLike instance (recommended for production) or a config object
+ *             that degrades to an in-memory placeholder
+ * - `policy`: write policy and backfill policy configuration
  * @since v1.1.0
  */
 export interface MultiLevelCacheOptions {

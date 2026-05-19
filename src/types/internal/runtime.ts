@@ -1,10 +1,11 @@
 /**
- * runtime 核心层内部契约类型。
+ * Internal contract types for the runtime core layer.
  *
- * 将 entry/runtime-core.ts 中大块匿名 inline 接口抽离为具名接口，
- * 提升可读性，并为外部工具类（测试辅助、adapter bridge 扩展）提供稳定的类型锚点。
+ * Promotes large anonymous inline interfaces in entry/runtime-core.ts to named interfaces,
+ * improving readability and providing stable type anchors for external tooling
+ * (test helpers, adapter bridge extensions, etc.).
  *
- * 注意：所有导入均使用 `import type` 避免引入运行时循环依赖。
+ * Note: all imports use `import type` to avoid introducing runtime circular dependencies.
  */
 
 import type { Db, MongoClient, Collection } from 'mongodb';
@@ -18,54 +19,55 @@ import type {
 // ─── AdapterBridge ────────────────────────────────────────────────────────────
 
 /**
- * _adapterBridge 的内部接口定义。
+ * Internal interface definition for `_adapterBridge`.
  *
- * AdapterBridge 是 MonSQLizeRuntime 向下游 adapter / 能力层暴露 MongoDB
- * 底层句柄与管理操作的桥接对象，不对最终用户直接可见。
+ * AdapterBridge is the bridge object through which MonSQLizeRuntime exposes
+ * MongoDB low-level handles and admin operations to downstream adapter / capability
+ * layers; it is not directly visible to end users.
  *
- * 主要职责：
- * - 暴露 `db` / `client` / `cache` / `instanceId` 句柄
- * - 代理 admin 类操作（ping / buildInfo / serverStatus 等）
- * - 提供底层 `collection()` 访问器供 v1 兼容层使用
+ * Primary responsibilities:
+ * - Expose `db` / `client` / `cache` / `instanceId` handles
+ * - Proxy admin operations (ping / buildInfo / serverStatus, etc.)
+ * - Provide the low-level `collection()` accessor for the v1 compat layer
  */
 export interface AdapterBridgeLike {
-    /** 当前默认 MongoDB Db 实例，未连接时为 null。 */
+    /** Current default MongoDB Db instance; null when not connected. */
     readonly db: Db | null;
-    /** 当前 MongoClient 实例，未连接时为 null。 */
+    /** Current MongoClient instance; null when not connected. */
     readonly client: MongoClient | null;
-    /** 当前使用的 MemoryCache 实例，可被外部替换。 */
+    /** Current MemoryCache instance in use; can be replaced externally. */
     cache: MemoryCache | null;
-    /** 当前实例 ID（来自 namespace.instanceId 配置），未设置时为 undefined。 */
+    /** Current instance ID (from namespace.instanceId config); undefined when not set. */
     readonly instanceId: string | undefined;
-    /** 测试 MongoDB 连接可达性。 */
+    /** Test MongoDB connection reachability. */
     ping(): Promise<boolean>;
-    /** 返回 MongoDB 服务端 buildInfo 信息。 */
+    /** Return the MongoDB server buildInfo. */
     buildInfo(): Promise<Record<string, unknown>>;
-    /** 返回 MongoDB 服务端 serverStatus 报告。 */
+    /** Return the MongoDB server serverStatus report. */
     serverStatus(options?: { scale?: number }): Promise<Record<string, unknown>>;
-    /** 返回 MongoDB 服务端 stats 信息。 */
+    /** Return MongoDB server stats. */
     stats(options?: { scale?: number }): Promise<Record<string, unknown>>;
-    /** 列出所有数据库。 */
+    /** List all databases. */
     listDatabases(options?: { nameOnly?: boolean }): Promise<unknown[]>;
     /**
-     * 删除指定数据库（需要显式确认，生产环境需额外参数）。
-     * 安全保障：未传 `confirm: true` 时会抛出 CONFIRMATION_REQUIRED 错误。
+     * Drop the specified database (requires explicit confirmation; production requires extra params).
+     * Safety guard: throws CONFIRMATION_REQUIRED when `confirm: true` is not passed.
      */
     dropDatabase(
         name: string,
         options?: { confirm?: boolean; allowProduction?: boolean; user?: string },
     ): Promise<{ dropped: boolean; database: string; timestamp: Date }>;
-    /** 列出当前数据库中的集合。 */
+    /** List collections in the current database. */
     listCollections(options?: Record<string, unknown>): Promise<unknown>;
-    /** 向 MongoDB 发送任意管理命令。 */
+    /** Send an arbitrary admin command to MongoDB. */
     runCommand(
         command: Record<string, unknown>,
         options?: Record<string, unknown>,
     ): Promise<Record<string, unknown>>;
     /**
-     * 返回底层原生 MongoDB Collection 句柄（v1 兼容层使用）。
-     * @param dbName 数据库名
-     * @param collName 集合名
+     * Return the underlying native MongoDB Collection handle (used by the v1 compat layer).
+     * @param dbName Database name
+     * @param collName Collection name
      */
     collection(dbName: string, collName: string): Collection;
 }
@@ -77,53 +79,53 @@ export interface LegacyAdapterBridgeLike extends AdapterBridgeLike {
 // ─── Connect result ───────────────────────────────────────────────────────────
 
 /**
- * `use(dbName)` 返回的作用域访问器形状。
- * 通过这个对象可以在指定数据库下获取集合或 model 实例。
+ * Scoped accessor shape returned by `use(dbName)`.
+ * Used to obtain collection or model instances within the specified database.
  */
 export interface ScopedUseResult {
-    /** 按名称获取指定集合的访问器。 */
+    /** Get the accessor for the named collection. */
     collection(collectionName: string): CollectionFacade;
-    /** 按名称获取指定 model 的类型化实例。 */
+    /** Get the typed instance for the named model. */
     model<TDocument = Record<string, unknown>>(modelName: string): ModelInstance<TDocument>;
 }
 
 /**
- * `connect()` 方法解析后的访问器对象形状。
- * `TRuntime` 使用泛型参数，避免与 `MonSQLizeRuntime` 形成循环 import。
+ * Accessor object shape resolved by `connect()`.
+ * `TRuntime` is a generic parameter to avoid a circular import with `MonSQLizeRuntime`.
  *
- * 典型用法：
+ * Typical usage:
  * ```ts
  * const { collection, db, use, instance } = await client.connect();
  * ```
  */
 export interface ConnectResult<TRuntime = unknown> {
-    /** 获取默认数据库下的集合访问器。 */
+    /** Get a collection accessor for the default database. */
     collection(name: string): CollectionFacade;
-    /** 获取指定数据库的 DbFacade（不传名称则使用默认库）。 */
+    /** Get a DbFacade for the specified database (uses the default when no name is passed). */
     db(name?: string): DbFacade;
-    /** 切换到指定数据库，返回作用域化的 collection / model 访问器。 */
+    /** Switch to the specified database and return scoped collection / model accessors. */
     use(name: string): ScopedUseResult;
-    /** 当前 MonSQLizeRuntime 实例自身的引用（用于链式调用或事件监听）。 */
+    /** Reference to the current MonSQLizeRuntime instance itself (for chaining or event listeners). */
     instance: TRuntime;
 }
 
 // ─── AutoConvert config ───────────────────────────────────────────────────────
 
 /**
- * ObjectId 自动转换配置的公共属性形状（对应 runtime.autoConvertConfig）。
+ * Public property shape of the ObjectId auto-convert config (corresponds to runtime.autoConvertConfig).
  *
- * 当 `enabled = true` 时，MonSQLize 会在查询 / 写入时自动把符合条件的
- * 字符串字段转换为 MongoDB ObjectId，提升与 v1 的行为兼容性。
+ * When `enabled = true`, MonSQLize automatically converts qualifying string fields to
+ * MongoDB ObjectId on queries and writes, improving v1 behaviour compatibility.
  */
 export interface AutoConvertConfigPublic {
-    /** 是否启用 ObjectId 自动转换（默认 false）。 */
+    /** Whether ObjectId auto-conversion is enabled (default false). */
     enabled: boolean;
-    /** 排除不参与自动转换的字段名列表。 */
+    /** List of field names excluded from auto-conversion. */
     excludeFields?: string[];
-    /** 自定义字段名匹配模式列表（字符串包含匹配）。 */
+    /** List of custom field-name match patterns (substring match). */
     customFieldPatterns?: string[];
-    /** 递归扫描嵌套对象时的最大深度（默认 3）。 */
+    /** Maximum depth when recursively scanning nested objects (default 3). */
     maxDepth?: number;
-    /** 转换日志等级（'debug' | 'info' | 'none'）。 */
+    /** Conversion log level ('debug' | 'info' | 'none'). */
     logLevel?: string;
 }

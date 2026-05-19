@@ -1,10 +1,12 @@
 /**
- * MongoDB accessor 适配层。
+ * MongoDB accessor adapter layer.
  *
- * 说明：
- * - 提供 CollectionFacade / DbFacade，把 runtime 默认值、缓存和上下文接到具体实现上。
- * - query / write / management 仍由各自子模块负责，这里只做转接和轻量收口。
- * - 如果某个逻辑开始变复杂，应继续下沉到查询/写入/管理模块，而不是堆在 accessor 层。
+ * Notes:
+ * - Wires runtime defaults, cache, and context into the concrete implementations.
+ * - query / write / management logic remains in their respective sub-modules;
+ *   this layer only delegates and provides a thin façade.
+ * - Complex logic should continue to be pushed down into the query/write/management
+ *   modules rather than accumulating here.
  */
 
 import { ChangeStream, Collection, Db, Document } from 'mongodb';
@@ -93,8 +95,8 @@ import {
 } from './collection-accessor-write-helpers';
 
 /**
- * 底层 MongoDB collection 访问器。
- * 为单个集合提供 CRUD、查询和管理能力。
+ * Low-level MongoDB collection accessor.
+ * Provides CRUD, query, and management operations for a single collection.
  * @since v1.0.0
  */
 export class MongoCollectionAccessor<TSchema extends Document = Document> {
@@ -106,19 +108,19 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         private readonly dbRef?: Db,
     ) {}
 
-    /** 启用 autoConvertObjectId 时，自动转换 filter / query。 */
+    /** When autoConvertObjectId is enabled, auto-converts filter/query values. */
     private _cvFilter<T>(val: T): T {
         if (!this.management.defaults?.autoConvertObjectId) return val;
         return convertObjectIdStrings(val as unknown) as T;
     }
 
-    /** 启用 autoConvertObjectId 时，自动转换普通文档（insert / replace）。 */
+    /** When autoConvertObjectId is enabled, auto-converts plain documents (insert/replace). */
     private _cvDoc<T>(val: T): T {
         if (!this.management.defaults?.autoConvertObjectId) return val;
         return convertObjectIdStrings(val as unknown) as T;
     }
 
-    /** 启用 autoConvertObjectId 时，自动转换更新文档（$set / $push / ...）。 */
+    /** When autoConvertObjectId is enabled, auto-converts update documents ($set/$push/etc.). */
     private _cvUpdate<T>(val: T): T {
         if (!this.management.defaults?.autoConvertObjectId || Array.isArray(val)) return val;
         return convertUpdateDocument(val as unknown) as T;

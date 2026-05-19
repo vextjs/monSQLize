@@ -1,13 +1,13 @@
 /**
- * findPage 执行层。
+ * findPage execution layer.
  *
- * 职责：
- * - 游标分页 / 偏移分页 / After/Before 三种模式的核心逻辑
- * - totals 计算（sync / async / approx 三种模式）
- * - meta 性能追踪
+ * Responsibilities:
+ * - Core logic for cursor pagination, offset pagination, and after/before modes.
+ * - Totals calculation (sync / async / approx modes).
+ * - Meta performance tracking.
  *
- * 依赖：query-helpers（cursor 编解码、filter 构建）、types/internal/query
- * 不依赖 FindChain / AggregateChain，避免循环引用。
+ * Depends on query-helpers (cursor encode/decode, filter building) and types/internal/query.
+ * Does not depend on FindChain/AggregateChain to avoid circular references.
  */
 
 import { Collection, Document } from 'mongodb';
@@ -32,7 +32,7 @@ import {
     reverseSort,
 } from './query-helpers';
 
-// ── 内部工具函数 ──────────────────────────────────────────────────────────────
+// ── Internal utilities ────────────────────────────────────────────────────────
 
 function normalizePositiveInteger(value: number | undefined, fallback: number, field: string): number {
     if (value === undefined || value === null) {
@@ -54,7 +54,7 @@ function mergeFilters(base: Document, extra?: Document): Document {
     return { $and: [base, extra] };
 }
 
-// 异步 totals 结果缓存（按查询指纹索引，统一复用 cache-hub MemoryCache）
+// Async totals result cache (keyed by query fingerprint, backed by MemoryCache)
 const _asyncTotalsCache = new MemoryCache({
     maxEntries: 10_000,
     enableStats: false,
@@ -94,7 +94,7 @@ async function computeTotals<TSchema extends Document = Document>(
                     query as Parameters<Collection<TSchema>['countDocuments']>[0],
                 );
                 _asyncTotalsCache.set(cacheKey, n);
-            } catch { /* 忽略后台计数错误 */ }
+            } catch { /* ignore background count errors */ }
         });
         return { mode: 'async', total: null, token };
     }
@@ -109,15 +109,15 @@ async function computeTotals<TSchema extends Document = Document>(
         return { mode: 'approx', total, totalPages, ts: Date.now() };
     }
 
-    // 未知 mode — 返回最小 stub
+    // Unknown mode — return a minimal stub
     return { mode: mode ?? 'sync' };
 }
 
-// ── 核心 findPage 执行函数 ────────────────────────────────────────────────────
+// ── Core findPage execution ───────────────────────────────────────────────────
 
 /**
- * findPage 核心执行函数（供 findPageDocuments 调用）。
- * 不对外暴露，仅在本层使用。
+ * Core findPage execution function (called by findPageDocuments).
+ * Not exported; internal to this module.
  */
 export async function executeFindPage<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
@@ -209,12 +209,12 @@ export async function executeFindPage<TSchema extends Document = Document>(
         return result;
     };
 
-    // ── 校验 ──────────────────────────────────────────────────────────────────
+    // ── Validation ────────────────────────────────────────────────────────────
     if ((options.after || options.before) && Number.isInteger(options.page)) {
         throw createError(ErrorCodes.VALIDATION_ERROR, 'page cannot be used with after/before cursor.');
     }
 
-    // ── stream 冲突检查 ───────────────────────────────────────────────────────
+    // ── Stream conflict check ─────────────────────────────────────────────────
     if (options.stream === true) {
         if (options.explain !== undefined && options.explain !== false) {
             throw createError(ErrorCodes.STREAM_NO_EXPLAIN, 'stream and explain cannot be used together.');
@@ -227,16 +227,16 @@ export async function executeFindPage<TSchema extends Document = Document>(
         }
     }
 
-    // ── 跳跃检查 ──────────────────────────────────────────────────────────────
+    // ── Page jump validation ───────────────────────────────────────────────────
     if (jumpOpts && page > 1 && (page - 1) > jumpOpts.maxHops) {
         throw createError(ErrorCodes.JUMP_TOO_FAR, 'Page jump exceeds maxHops limit.', [
             { page, maxHops: jumpOpts.maxHops, requestedHops: page - 1 },
         ]);
     }
 
-    // ── 内部闭包（关联 sort / baseQuery / cursorSecret / driverOpts）──────────
+    // ── Internal closures (close over sort / baseQuery / cursorSecret / driverOpts) ──
 
-    /** 根据游标和方向构建查询 filter 和有效排序 */
+    /** Builds the query filter and effective sort from a cursor and direction. */
     const buildPageQuery = (cursor?: string, direction: 'after' | 'before' = 'after') => {
         const cursorFilter = cursor
             ? buildCursorFilter(sort, decodeCursor(cursor, cursorSecret), direction)
@@ -245,7 +245,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         return { queryFilter: mergeFilters(baseQuery, cursorFilter), effectiveSort };
     };
 
-    /** 获取一页数据；before 方向需要调用方自行翻转 */
+    /** Fetches one page of results; callers must reverse the array for the 'before' direction. */
     const fetchItems = async (
         queryFilter: Document,
         effectiveSort: SortShape,
@@ -305,7 +305,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         return result;
     };
 
-    /** 从结果集构建 pageInfo 块 */
+    /** Builds the pageInfo block from a result set. */
     const buildPageInfo = (
         items: TSchema[],
         hasMore: boolean,
@@ -329,7 +329,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         };
     };
 
-    // ── Stream 模式：直接返回 Node.js Readable ──────────────────────────────────
+    // ── Stream mode: return a Node.js Readable directly ──────────────────────
     if (options.stream === true) {
         const direction = options.before ? 'before' : 'after';
         const { queryFilter, effectiveSort } = buildPageQuery(options.after ?? options.before, direction);
@@ -343,7 +343,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
             .stream() as any;
     }
 
-    // ── Explain 模式：返回 MongoDB 原始 explain 文档 ─────────────────────────
+    // ── Explain mode: return the raw MongoDB explain document ────────────────
     if (options.explain !== undefined && options.explain !== false) {
         const verbosity = typeof options.explain === 'string' ? options.explain : 'queryPlanner';
         const offsetJumpOpts2 = ext.offsetJump as { enable?: boolean } | undefined;
@@ -371,7 +371,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
             .explain(verbosity) as any;
     }
 
-    // ── offsetJump 模式：skip-based 分页 ───────────────────────────────────────
+    // ── offsetJump mode: skip-based pagination ────────────────────────────────
     const offsetJumpOpts = ext.offsetJump as { enable?: boolean; maxSkip?: number } | undefined;
     if (offsetJumpOpts?.enable) {
         const skipCount = page > 1 ? (page - 1) * limit : 0;
@@ -387,7 +387,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         return finishResult(result);
     }
 
-    // ── After/Before 游标模式 ─────────────────────────────────────────────────
+    // ── After/Before cursor mode ──────────────────────────────────────────────
     if (options.after || options.before) {
         const direction = options.after ? 'after' : 'before';
         const { queryFilter, effectiveSort } = buildPageQuery(options.after ?? options.before, direction);
@@ -408,7 +408,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         });
     }
 
-    // ── 页面导航：游标步进 ────────────────────────────────────────────────────
+    // ── Page navigation: cursor stepping ─────────────────────────────────────
     const { queryFilter: q0, effectiveSort: es0 } = buildPageQuery();
     let { items, hasMore } = await timedFetchItems('initialFetch', page > 1 ? 'hop' : 'fetch', q0 as Document, es0, {}, 1);
 
@@ -451,14 +451,14 @@ export async function executeFindPage<TSchema extends Document = Document>(
     return finishResult(result);
 }
 
-// ── 公开 API ──────────────────────────────────────────────────────────────────
+// ── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * 游标 + 偏移双模式分页查询。
- * @param collection - MongoDB 集合。
- * @param options - 分页参数（limit / page / after / before / sort / query 等）。
- * @param defaults - 运行时默认值。
- * @returns `{ items, pageInfo, totals?, meta? }` — v1 兼容分页结果。
+ * Cursor and offset dual-mode pagination query.
+ * @param collection - MongoDB collection.
+ * @param options - Pagination options (limit / page / after / before / sort / query, etc.).
+ * @param defaults - Runtime-level defaults.
+ * @returns `{ items, pageInfo, totals?, meta? }` — v1-compatible paginated result.
  * @since v1.0.0
  */
 export async function findPageDocuments<TSchema extends Document = Document>(

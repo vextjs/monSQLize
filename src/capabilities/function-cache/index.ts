@@ -1,8 +1,9 @@
 /**
- * 函数缓存能力桶文件。
+ * Function cache capability barrel file.
  *
- * 本轮改造后，`withCache` / `FunctionCache` 直接转向 `cache-hub/function-cache`
- * 原生实现，仅保留 monSQLize 公开类型名的薄别名。
+ * After this refactor, `withCache` / `FunctionCache` delegate directly to the
+ * native `cache-hub/function-cache` implementation; only thin type aliases for
+ * monSQLize public names are retained.
  */
 
 export { withCache, FunctionCache } from 'cache-hub/function-cache';

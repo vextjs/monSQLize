@@ -1,10 +1,11 @@
 /**
- * accessor 层共享的内部契约类型。
+ * Shared internal contract types for the accessor layer.
  *
- * 说明：
- * - 这里集中 CollectionFacade / DbFacade 装配期共用的内部类型；
- * - 避免访问器层继续堆匿名 inline 类型，方便在 runtime / accessor / 测试辅助间复用；
- * - 仅服务内部实现，不属于公开 API。
+ * Notes:
+ * - Centralises the internal types shared during CollectionFacade / DbFacade assembly
+ * - Prevents accumulation of anonymous inline types in the accessor layer;
+ *   types here are reusable across runtime / accessor / test helpers
+ * - Internal only; not part of the public API
  */
 
 import type { Logger } from '../../core/logger';
@@ -12,7 +13,7 @@ import type { BookmarkCacheLike } from '../../adapters/mongodb/management';
 import type { QueryCacheLike, RuntimeDefaults } from './query';
 
 /**
- * Collection accessor 构造阶段使用的管理对象。
+ * Management options used during Collection accessor construction.
  */
 export interface CollectionAccessorManagementOptions {
     cache?: BookmarkCacheLike | null;
@@ -25,7 +26,7 @@ export interface CollectionAccessorManagementOptions {
 }
 
 /**
- * `getNamespace()` 返回的集合命名空间视图。
+ * Collection namespace view returned by `getNamespace()`.
  */
 export interface CollectionNamespaceView {
     iid: string;

@@ -1,8 +1,9 @@
 ﻿/**
- * 集合访问器单条写操作辅助函数。
+ * Single-document write helper functions for the collection accessor.
  *
- * 为 MongoCollectionAccessor 提供 insertOne、updateOne、deleteOne、
- * replaceOne、findOneAndUpdate 等单条写操作的底层实现。
+ * Provides the underlying implementations of insertOne, updateOne,
+ * deleteOne, replaceOne, findOneAndUpdate, and related operations
+ * for MongoCollectionAccessor.
  */
 import type { Collection, Document } from 'mongodb';
 import type { Logger } from '../../../core/logger';

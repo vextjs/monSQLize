@@ -1,13 +1,13 @@
 /**
  * model-utils.ts
  *
- * 模型层纯工具函数集合（无副作用，无外部依赖）。
- * 供 ModelInstance、populate 路径等内部逻辑共享，避免重复实现。
+ * Pure utility functions for the model layer (no side effects, no external dependencies).
+ * Shared by ModelInstance, populate path resolution, and other internals to avoid duplication.
  */
 
 /**
- * 对任意值生成稳定字符串 key，用于 Map 分组与去重。
- * 优先使用 ObjectId 的 toHexString()，其次 toString()，最后 String()。
+ * Generate a stable string key for any value, used for Map grouping and deduplication.
+ * Prefers ObjectId's toHexString(), then toString(), then String().
  */
 export function toKey(value: unknown): string {
     if (value instanceof Date) {
@@ -26,7 +26,7 @@ export function toKey(value: unknown): string {
 }
 
 /**
- * 去重数组（按 toKey 做唯一性判断），保留首次出现的值。
+ * Deduplicate an array using toKey for identity comparison, preserving first occurrences.
  */
 export function unique(values: unknown[]): unknown[] {
     const map = new Map<string, unknown>();
@@ -40,7 +40,7 @@ export function unique(values: unknown[]): unknown[] {
 }
 
 /**
- * 按 keySelector 分组，返回 Map<key, items[]>。
+ * Group values by keySelector, returning a Map<key, items[]>.
  */
 export function groupBy<T>(values: T[], keySelector: (value: T) => unknown): Map<string, T[]> {
     const map = new Map<string, T[]>();
@@ -57,8 +57,8 @@ export function groupBy<T>(values: T[], keySelector: (value: T) => unknown): Map
 }
 
 /**
- * 按点号路径读取嵌套字段（如 "a.b.c"）。
- * 路径不存在时返回 undefined。
+ * Read a nested field by dot-separated path (e.g. "a.b.c").
+ * Returns undefined if the path does not exist.
  */
 export function getByPath(source: Record<string, unknown>, path: string): unknown {
     return path.split('.').reduce<unknown>((current, key) => {
@@ -70,8 +70,8 @@ export function getByPath(source: Record<string, unknown>, path: string): unknow
 }
 
 /**
- * 按 select 字段列表裁剪文档，alwaysInclude 字段强制保留（如 foreignField）。
- * _id 字段始终保留。
+ * Project a document to the given select field list; alwaysInclude fields (e.g. foreignField) are always kept.
+ * The _id field is always retained.
  */
 export function pickFields(
     document: Record<string, unknown>,
@@ -92,8 +92,8 @@ export function pickFields(
 }
 
 /**
- * 对文档数组按 sort 规则排序（不修改原数组）。
- * sort 格式：{ field: 1 | -1 }，支持点号路径。
+ * Sort a document array by the given sort spec (does not mutate the original array).
+ * Sort format: `{ field: 1 | -1 }`; dot-path notation is supported.
  */
 export function applySort<T extends Record<string, unknown>>(
     values: T[],
@@ -117,8 +117,8 @@ export function applySort<T extends Record<string, unknown>>(
 }
 
 /**
- * 将含有 virtual / method 等不可枚举属性的水化文档转为纯数据对象。
- * 过滤掉所有 function 类型字段，用于 toObject() / toJSON() / save() 序列化。
+ * Convert a hydrated document (which may have non-enumerable virtual/method properties)
+ * to a plain data object. Strips all function-valued fields; used by toObject() / toJSON() / save().
  */
 export function serializeDocument(document: Record<string, unknown>): Record<string, unknown> {
     const plain: Record<string, unknown> = {};

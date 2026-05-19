@@ -1,8 +1,8 @@
 /**
- * Model 软删除辅助函数。
+ * Model soft-delete helper functions.
  *
- * 提供软删除过滤条件注入（添加 deletedAt: null 约束）、
- * 软删除标记写入与恢复操作的底层实现。
+ * Provides filter injection for soft-delete (appending a deletedAt: null constraint),
+ * soft-delete marking, and document restore operations.
  */
 import { PopulatePromise } from './populate-promise';
 import type { PopulatePath, ModelCollectionLike } from './populate-promise';

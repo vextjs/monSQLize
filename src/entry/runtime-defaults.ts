@@ -1,16 +1,17 @@
 /**
- * runtime 公开默认值构建工具。
+ * Runtime public defaults builder.
  *
- * 将 `MonSQLizeOptions` 中分散的可选参数合并为一个不可变的公开默认值对象，
- * 供 runtime 内部的各能力层（查询、慢日志、自动转换等）统一读取，
- * 避免各处重复编写 `options.X ?? defaultValue` 的兼容逻辑。
+ * Merges the scattered optional parameters from `MonSQLizeOptions` into a single
+ * immutable public defaults object, giving all capability layers (query, slow-log,
+ * auto-convert, etc.) a unified source of truth and eliminating repeated
+ * `options.X ?? defaultValue` compatibility logic throughout.
  */
 
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 
 /**
- * 深度合并两个对象，patch 的非 undefined 值会覆盖 base 中对应字段。
- * 对于嵌套对象执行递归合并，不影响 base 原始引用。
+ * Deep-merge two objects: non-undefined values from `patch` override the corresponding fields in `base`.
+ * Nested objects are merged recursively without mutating the original `base` reference.
  */
 function deepMerge(base: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
     const output: Record<string, unknown> = { ...base };
@@ -26,10 +27,10 @@ function deepMerge(base: Record<string, unknown>, patch: Record<string, unknown>
 }
 
 /**
- * 根据 `MonSQLizeOptions` 构建冻结的公开默认值对象。
+ * Build a frozen public defaults object from `MonSQLizeOptions`.
  *
- * 内置默认值（maxTimeMS: 2000 / findLimit: 10 / slowQueryMs: 500 等）
- * 会被 options 中的对应字段覆盖（undefined 时保留内置值）。
+ * Built-in defaults (maxTimeMS: 2000 / findLimit: 10 / slowQueryMs: 500, etc.)
+ * are overridden by the corresponding options fields (undefined preserves the built-in value).
  */
 export function buildPublicDefaults(options: MonSQLizeOptions): Readonly<Record<string, unknown>> {
     return Object.freeze(deepMerge({

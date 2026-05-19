@@ -1,7 +1,7 @@
 /**
- * 慢查询日志能力模块主入口（barrel）。
+ * Slow query log capability — barrel entry point.
  *
- * 导出 SlowQueryLogManager、配置类型及存储后端实现。
+ * Exports SlowQueryLogManager, config types, and storage backend implementations.
  */
 import {
     DEFAULT_SLOW_QUERY_LOG_CONFIG,

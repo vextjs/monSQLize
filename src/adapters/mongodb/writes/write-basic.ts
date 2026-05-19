@@ -1,7 +1,8 @@
 /**
- * 基础写操作底层实现（insertOne、insertMany、updateOne、deleteOne 等）。
+ * Low-level implementations of basic write operations (insertOne, insertMany, updateOne, deleteOne, etc.).
  *
- * 对应 MongoDB 驱动单条/多条写操作，供集合访问器调用。
+ * Thin wrappers around the MongoDB driver's single and multi-document write operations,
+ * called by the collection accessor.
  */
 import { Collection, Document, FindOneAndDeleteOptions, FindOneAndReplaceOptions, FindOneAndUpdateOptions } from 'mongodb';
 import { normalizeProjection } from '../../../utils/normalize';

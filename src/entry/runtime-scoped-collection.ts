@@ -1,11 +1,11 @@
 /**
- * 作用域集合解析工具（runtime-scoped-collection）。
+ * Scoped collection resolver (runtime-scoped-collection).
  *
- * 根据 Model 的连接配置（pool / database）确定最终使用的 MongoClient 与集合实例，
- * 支持以下三种路径：
- *   1. 指定 pool 且存在 CollectionFromClient adapter → 通过 adapter 路由
- *   2. 指定 pool 且存在 poolManager → 通过 poolManager.selectPool 路由
- *   3. 无 pool 配置 → 通过默认 MongoClient 路由
+ * Determines the MongoClient and collection instance to use based on the Model's
+ * connection config (pool / database). Supports three routing paths:
+ *   1. Pool specified + CollectionFromClient adapter present → route via adapter
+ *   2. Pool specified + poolManager present → route via poolManager.selectPool
+ *   3. No pool configured → route via the default MongoClient
  */
 
 import type { MongoClient } from 'mongodb';
@@ -22,10 +22,11 @@ import type { MonSQLizeOptions } from '../../types/monsqlize';
 import { resolvePoolClientFromRecord } from './runtime-compat-accessors';
 
 /**
- * `resolveScopedCollection` 所需的全量配置参数。
+ * Full configuration for `resolveScopedCollection`.
  *
- * 包含从 runtime-core 传入的 collectionName / connection scope / 内部状态引用等，
- * 以减少 scoped-collection 对 runtime-core 私有字段的直接依赖。
+ * Contains collectionName / connection scope / internal state references passed in
+ * from runtime-core, reducing the scoped-collection module's direct dependency on
+ * runtime-core private fields.
  */
 type ResolveScopedCollectionConfig = {
     collectionName: string;
@@ -41,15 +42,15 @@ type ResolveScopedCollectionConfig = {
 };
 
 /**
- * 解析并返回指定连接配置下的 MongoDB 集合实例。
+ * Resolve and return the MongoDB collection instance for the given connection config.
  *
- * 根据 `config.connection.pool` 是否存在走不同分支：
- * - 有 pool → 优先通过 adapter 或 poolManager 获取池中的 Collection
- * - 无 pool → 通过默认连接的 `db(databaseName).collection(collectionName)` 获取
+ * Branches on whether `config.connection.pool` is set:
+ * - Pool present → prefer the adapter or poolManager to obtain the pool's Collection
+ * - No pool → obtain via the default connection's `db(databaseName).collection(collectionName)`
  *
- * @throws `NO_POOL_MANAGER` — Model 指定了 pool 但未配置 pools 选项
- * @throws `POOL_NOT_FOUND` — 指定的 pool 名称不在池管理器中
- * @throws `NOT_CONNECTED` — 无 pool 且未连接时
+ * @throws `NO_POOL_MANAGER` — Model specifies a pool but no pools option is configured
+ * @throws `POOL_NOT_FOUND` — the specified pool name is not in the pool manager
+ * @throws `NOT_CONNECTED` — no pool and not yet connected
  */
 export function resolveScopedCollection(config: ResolveScopedCollectionConfig): unknown {
     const poolName = config.connection.pool;

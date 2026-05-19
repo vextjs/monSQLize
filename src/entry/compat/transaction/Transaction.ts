@@ -1,8 +1,8 @@
 /**
- * Transaction CJS 兼容再导出。
+ * Transaction CJS compat re-export.
  *
- * 以 module.exports = Transaction 形式提供 v1 风格的 require() 入口，
- * 保持对旧版消费者的向后兼容性。
+ * Exposes Transaction via `module.exports = Transaction` to provide
+ * a v1-style require() entry point for backward compatibility with legacy consumers.
  */
 import { Transaction } from '../../../capabilities/transaction';
 

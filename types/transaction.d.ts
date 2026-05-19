@@ -17,7 +17,7 @@ export interface TransactionOptions {
     readPreference?: 'primary' | 'primaryPreferred' | 'secondary' | 'secondaryPreferred' | 'nearest';
     causalConsistency?: boolean;
     maxDuration?: number;
-    /** @alias maxDuration — v1 兼容字段 */
+    /** @alias maxDuration — v1 compat field */
     timeout?: number;
     enableRetry?: boolean;
     maxRetries?: number;

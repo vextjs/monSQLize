@@ -1,7 +1,8 @@
 /**
- * cache-hub 分布式失效器的薄转发模块。
+ * Thin re-export module for the cache-hub distributed invalidator.
  *
- * monSQLize 不再维护 local/remote 双缓存兼容包装，直接暴露原生构造器。
+ * monSQLize no longer maintains a local/remote dual-cache compatibility wrapper;
+ * the native constructor is exposed directly.
  */
 
 export { DistributedCacheInvalidator } from 'cache-hub/distributed';
