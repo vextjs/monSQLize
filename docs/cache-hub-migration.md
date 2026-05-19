@@ -143,6 +143,84 @@ const fnCache = new MonSQLize.FunctionCache(runtime, {
 await fnCache.invalidate('getUser', 'u1');
 ```
 
+## Behavior Differences (v2)
+
+### Duck-typing detection priority in `cache` option
+
+When you pass an object as `MonSQLizeOptions.cache`, v2 uses duck-typing to decide how to handle it:
+
+```
+cache instanceof MemoryCache  →  use directly as MemoryCache
+has get + set + del methods   →  use directly as CacheLike (pass-through)
+has multiLevel: true          →  build MultiLevelCache
+plain object                  →  build MemoryCache from config fields
+```
+
+**Important**: if your plain config object happens to have `get`, `set`, and `del` fields for unrelated reasons, v2 will treat it as a custom `CacheLike` instance and skip the `MemoryCache` builder entirely.
+
+```ts
+// ❌ Ambiguous — get/set/del look like CacheLike methods
+const msq = new MonSQLize({
+  cache: {
+    maxEntries: 1000,
+    get: someOtherThing,   // triggers duck-typing → treated as CacheLike
+    set: someOtherThing,
+    del: someOtherThing,
+  },
+});
+
+// ✅ Safe — no get/set/del on the config object
+const msq = new MonSQLize({
+  cache: { maxEntries: 1000 },
+});
+```
+
+If you need to pass a pre-built `MemoryCache` instance, do so directly:
+
+```ts
+const msq = new MonSQLize({
+  cache: new MonSQLize.MemoryCache({ maxEntries: 1000 }),
+});
+```
+
+---
+
+### `MultiLevelCache.clear()` only clears L1 (local)
+
+This is an architectural constraint from cache-hub (design rule A07). Calling `clear()` on a multi-level cache **does not** flush the remote (L2) store.
+
+```ts
+// Given: cache is MultiLevelCache with Redis as L2
+await msq.getCache().clear();  // ✅ L1 (in-memory) cleared
+                               // ❌ L2 (Redis) NOT cleared
+```
+
+**Why**: clearing a shared remote store from one application node would affect all other nodes unexpectedly — this is intentionally disallowed.
+
+**If you need to flush Redis**, do it through the remote adapter directly:
+
+```ts
+// Access L2 via the remote adapter reference you constructed
+const remote = MonSQLize.createRedisCacheAdapter(redis);
+await remote.clear();  // Flushes the Redis keyspace
+
+// Then use it in multi-level config
+const msq = new MonSQLize({
+  cache: {
+    multiLevel: true,
+    remote,
+  },
+});
+```
+
+Alternatively, use `delPattern('*')` on the remote to scope the flush to your key namespace:
+
+```ts
+await remote.delPattern('myapp:*');
+```
+
+---
+
 ## 验证建议
 
 迁移后建议至少执行：

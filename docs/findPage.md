@@ -209,8 +209,23 @@ const page0 = await collection('orders').findPage({
 
 **注意**：
 - 游标包含排序字段的值，排序规则必须保持一致
-- `startCursor` / `endCursor` 是分页定位令牌，不是安全凭证；当前实现基于 Base64 编码而非签名校验，客户端传回时必须视为**不可信输入**
-- 不要在客户端自行拼接、修改或长期持久化游标；如需跨会话保存，建议配合服务端自己的签名/过期控制
+- 未配置 `cursorSecret` 时，游标为纯 Base64url 编码，客户端可解码内容；配置后附加 HMAC-SHA256 签名，篡改的游标会被服务端拒绝
+- 不要在客户端自行拼接或修改游标
+- 如需长期跨会话持久化游标，请同时配合服务端自己的过期控制
+
+**游标签名（推荐在生产环境启用）**：
+
+```ts
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  cursorSecret: process.env.CURSOR_SECRET,  // 32+ 字节随机字符串
+});
+```
+
+启用后，`endCursor` / `startCursor` 的格式变为 `<payload>.<signature>`，服务端在每次 `findPage` 调用时自动验签。签名不匹配时抛出 `INVALID_ARGUMENT` 错误。
+
+> **升级注意**：如果你在 v1 运行期间生成了游标 token 并持久化（如存入数据库），在 v2 中开启 `cursorSecret` 后，这些旧 token 将因缺少签名字段而失效。迁移方案见下方"游标令牌升级策略"章节。
 
 ### 2. 跳页模式
 
@@ -1281,10 +1296,105 @@ const exportStream = await collection('orders').findPage({
 
 ---
 
+## 游标令牌安全与升级策略
+
+### cursorSecret 的作用
+
+`cursorSecret` 是一个可选的实例级配置项。未设置时，游标令牌是纯 Base64url 编码，任何人都可以解码其内容（包含排序字段值）。设置后，每个令牌都会附加一个 HMAC-SHA256 签名：
+
+```
+token 格式（无签名）:  <base64url-payload>
+token 格式（有签名）:  <base64url-payload>.<base64url-signature>
+```
+
+服务端在每次 `findPage` 调用时自动验证签名。如果令牌被篡改（例如客户端手动修改了排序字段值来跳过数据），签名不匹配，服务端抛出 `INVALID_ARGUMENT` 错误。
+
+**推荐在生产环境始终配置 cursorSecret**：
+
+```ts
+const msq = new MonSQLize({
+  type: 'mongodb',
+  cursorSecret: process.env.CURSOR_SECRET,  // 随机字符串，建议 32+ 字节
+});
+```
+
+### 从 v1 升级时的游标令牌兼容问题
+
+**问题根源**：如果你在 v1 运行期间将 `endCursor` / `startCursor` 持久化存储（写入数据库、放入 Redis、编码在 URL 里），在 v2 开启 `cursorSecret` 后，这些旧令牌格式为 `<payload>`（无签名），v2 验证时会因找不到签名分隔符而解析失败。
+
+**是否会影响你**：
+
+| 场景 | 是否受影响 |
+|------|-----------|
+| 游标只在单次 HTTP 请求/响应周期内使用（前端拿到后立即翻页） | ❌ 不受影响（旧令牌在升级前已失效） |
+| 游标持久化到数据库，用于"继续上次浏览位置"类功能 | ✅ 受影响 |
+| 游标编码在分享链接 / 书签 URL 中 | ✅ 受影响 |
+| 游标存入 Redis 做分页缓存 | ✅ 受影响 |
+
+**迁移方案**
+
+**方案 A（推荐）：双阶段部署**
+
+1. v2 上线时**不设置** `cursorSecret`，保持与 v1 相同的无签名格式
+2. 等持久化游标的 TTL 自然过期（通常数小时到数天）
+3. 过期后，发布第二次部署，加入 `cursorSecret`
+4. 此时所有在途游标均已失效，不会有旧格式令牌流入
+
+```ts
+// 阶段 1：暂不启用签名
+const msq = new MonSQLize({ type: 'mongodb', /* cursorSecret 暂不设置 */ });
+
+// 阶段 2：TTL 过期后启用
+const msq = new MonSQLize({ type: 'mongodb', cursorSecret: process.env.CURSOR_SECRET });
+```
+
+**方案 B：主动清除持久化游标**
+
+在 v2 部署前，清空所有已持久化的游标数据（数据库字段置 null、Redis key 删除等），然后直接带 `cursorSecret` 上线。用户的分页状态会重置到第一页。
+
+```ts
+// 部署前清理（伪代码）
+await db.collection('user_states').updateMany({}, { $unset: { lastCursor: '' } });
+await redis.del('session:cursor:*');
+
+// 然后直接启用签名
+const msq = new MonSQLize({ type: 'mongodb', cursorSecret: process.env.CURSOR_SECRET });
+```
+
+**方案 C：自定义错误降级**
+
+在 API 层捕获 `INVALID_ARGUMENT` 错误，将游标重置为 null（即回到第一页）：
+
+```ts
+app.get('/api/orders', async (req, res) => {
+  let cursor = req.query.cursor ?? null;
+  try {
+    const result = await collection('orders').findPage({
+      sort: { createdAt: -1 },
+      limit: 20,
+      after: cursor,
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.code === 'INVALID_ARGUMENT' && cursor) {
+      // 旧格式游标，重置到首页
+      const result = await collection('orders').findPage({
+        sort: { createdAt: -1 },
+        limit: 20,
+      });
+      res.json(result);
+    } else {
+      throw err;
+    }
+  }
+});
+```
+
+---
+
 ## 相关文档
 
 - [find 方法文档](./find.md)
-- 游标编码规范
 - [缓存策略](./cache.md)
 - [性能优化指南](./count-queue.md)
 - [API 参考](./INDEX.md)
