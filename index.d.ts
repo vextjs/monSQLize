@@ -164,6 +164,7 @@ import {
     validateSyncConfig,
     withCache,
     adaptLegacyCacheLike,
+    MultiLevelCache,
 } from './types/runtime';
 
 export type {
@@ -322,6 +323,7 @@ export {
     withCache,
     FunctionCache,
     adaptLegacyCacheLike,
+    MultiLevelCache,
     ChangeStreamSyncManager,
     ResumeTokenStore,
     validateSyncConfig,
@@ -419,6 +421,8 @@ export default class MonSQLize implements MonSQLizeInstance {
     static createRedisCacheAdapter: typeof createRedisCacheAdapter;
     static withCache: typeof withCache;
     static FunctionCache: typeof FunctionCache;
+    static adaptLegacyCacheLike: typeof adaptLegacyCacheLike;
+    static MultiLevelCache: typeof MultiLevelCache;
     static ChangeStreamSyncManager: typeof ChangeStreamSyncManager;
     static ResumeTokenStore: typeof ResumeTokenStore;
     static validateSyncConfig: typeof validateSyncConfig;

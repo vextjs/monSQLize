@@ -24,19 +24,9 @@ import type {
 } from '../types/internal/runtime';
 import { EventEmitter } from 'node:events';
 import {
-    createRedisCacheAdapter,
-    DistributedCacheInvalidator,
     MemoryCache,
-    MultiLevelCache,
     type CacheLike,
-    type CacheStats,
 } from '../capabilities/cache';
-import {
-    CachedFunction,
-    FunctionCache,
-    withCache,
-    type WithCacheOptions,
-} from '../capabilities/function-cache';
 import {
     Lock,
     LockManager,
@@ -114,6 +104,7 @@ import {
     type MongoSession,
 } from '../capabilities/transaction';
 import { closeMongo, connectMongo } from '../adapters/mongodb/common/connect';
+import { SSHTunnelSSH2, parseHostFromUri, parsePortFromUri } from '../capabilities/ssh';
 import {
     createExpression,
     compilePipelineExpressions,
@@ -172,6 +163,7 @@ import {
     requireRuntimePoolManager,
 } from './runtime-capability-factories';
 import { resolveScopedCollection } from './runtime-scoped-collection';
+import { normalizeRuntimeCache } from './runtime-cache-normalizer';
 
 // All public symbols are re-exported from the barrel file to keep the public API unchanged
 export * from './runtime-exports';
@@ -212,6 +204,7 @@ export class MonSQLizeRuntime {
         enableStats: false,
     });
     private _connectionPromise: Promise<ConnectResult<MonSQLizeRuntime>> | null = null;
+    private _sshTunnel: SSHTunnelSSH2 | null = null;
 
     /** v1 compat: expose defaults as a public property (frozen object). */
     readonly defaults: Readonly<Record<string, unknown>>;
@@ -266,9 +259,26 @@ export class MonSQLizeRuntime {
 
         this._connectionPromise = (async () => {
             const databaseName = resolveDatabaseName(this.options);
+            let connectConfig = this.options.config;
+            const sshCfg = (connectConfig as Record<string, unknown> | undefined)?.['ssh'];
+            if (sshCfg && typeof sshCfg === 'object') {
+                const cfg = sshCfg as Record<string, unknown>;
+                const rawCfg = connectConfig as Record<string, unknown>;
+                const remoteHost = String(cfg['dstHost'] ?? rawCfg['remoteHost'] ?? parseHostFromUri(String(connectConfig?.uri ?? '')));
+                const remotePort = Number(cfg['dstPort'] ?? rawCfg['remotePort'] ?? parsePortFromUri(String(connectConfig?.uri ?? '')));
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const tunnel = new SSHTunnelSSH2(sshCfg as any, remoteHost, remotePort, { name: databaseName });
+                this._logger.info?.(`[SSH] Establishing tunnel to ${remoteHost}:${remotePort} via ${String(cfg['host'])}`);
+                await tunnel.connect();
+                this._sshTunnel = tunnel;
+                this._logger.info?.(`[SSH] Tunnel ready — local address: ${tunnel.getLocalAddress()}`);
+                if (connectConfig?.uri) {
+                    connectConfig = { ...connectConfig, uri: tunnel.getTunnelUri('mongodb', connectConfig.uri) };
+                }
+            }
             const { client } = await connectMongo({
                 databaseName,
-                config: this.options.config,
+                config: connectConfig,
                 logger: this._logger,
             });
             this._client = client;
@@ -298,11 +308,14 @@ export class MonSQLizeRuntime {
             if (!this._connected) {
                 const clientToClose = this._client;
                 const poolToClose = this._poolManager;
+                const tunnelToClose = this._sshTunnel;
                 this._client = null;
                 this._defaultDb = null;
                 this._poolManager = null;
+                this._sshTunnel = null;
                 clientToClose?.close().catch(() => {});
                 poolToClose?.close().catch(() => {});
+                tunnelToClose?.close().catch(() => {});
             }
             this.emit('error', {
                 type: this.options.type,
@@ -353,6 +366,12 @@ export class MonSQLizeRuntime {
         this._cacheLockManager.stop();
         this._lockManager?.close();
         await closeMongo(this._client, this._logger);
+        // Close SSH tunnel after MongoDB — the driver used the tunnel, so tear it down last.
+        if (this._sshTunnel) {
+            await this._sshTunnel.close().catch((err) => {
+                this._logger.warn('[SSH] Error closing SSH tunnel', err);
+            });
+        }
         // Reset all state references.
         this._client = null;
         this._defaultDb = null;
@@ -364,6 +383,7 @@ export class MonSQLizeRuntime {
         this._lockManager = null;
         this._sagaOrchestrator = null;
         this._iidCache = null;
+        this._sshTunnel = null;
         this._modelInstances.clear();
         this.emit('closed', {
             type: this.options.type,
@@ -774,81 +794,5 @@ export class MonSQLizeRuntime {
     }
 }
 
-function isCacheLike(value: unknown): value is CacheLike {
-    if (!value || typeof value !== 'object') return false;
-    const v = value as Record<string, unknown>;
-    return typeof v['get'] === 'function' && typeof v['set'] === 'function' && typeof v['del'] === 'function';
-}
-
-function normalizeRuntimeCache(
-    cache?: Record<string, unknown> | MemoryCache | CacheLike,
-): CacheLike {
-    // MemoryCache instance: use directly.
-    if (cache instanceof MemoryCache) return cache;
-
-    // Custom CacheLike instance (e.g. Redis adapter, v1 compat): use directly.
-    if (isCacheLike(cache)) return cache;
-
-    const input = (cache ?? {}) as Record<string, unknown>;
-
-    // MultiLevel cache config (multiLevel: true) → build a two-tier cache.
-    if (input.multiLevel === true) {
-        const localOpts = (input.local ?? {}) as Record<string, unknown>;
-        const local = new MemoryCache({
-            maxEntries: toOptionalNumber(localOpts.maxEntries ?? localOpts.maxSize),
-            maxMemory: toOptionalNumber(localOpts.maxMemory),
-            defaultTtl: toOptionalNumber(localOpts.defaultTtl ?? localOpts.ttl),
-            enableStats: toOptionalBoolean(localOpts.enableStats),
-            enableTags: toOptionalBoolean(localOpts.enableTags),
-            cleanupInterval: toOptionalNumber(localOpts.cleanupInterval),
-            enabled: toOptionalBoolean(localOpts.enabled),
-        });
-        const remoteInput = input.remote;
-        const remote = isCacheLike(remoteInput)
-            ? remoteInput
-            : remoteInput
-                ? new MemoryCache({
-                    maxEntries: toOptionalNumber((remoteInput as Record<string, unknown>).maxEntries ?? (remoteInput as Record<string, unknown>).maxSize),
-                    maxMemory: toOptionalNumber((remoteInput as Record<string, unknown>).maxMemory),
-                    defaultTtl: toOptionalNumber((remoteInput as Record<string, unknown>).defaultTtl ?? (remoteInput as Record<string, unknown>).ttl),
-                    enableStats: toOptionalBoolean((remoteInput as Record<string, unknown>).enableStats),
-                    enableTags: toOptionalBoolean((remoteInput as Record<string, unknown>).enableTags),
-                    cleanupInterval: toOptionalNumber((remoteInput as Record<string, unknown>).cleanupInterval),
-                    enabled: toOptionalBoolean((remoteInput as Record<string, unknown>).enabled),
-                })
-                : undefined;
-        const policy = (input.policy ?? {}) as Record<string, unknown>;
-        return new MultiLevelCache({
-            local,
-            remote,
-            writePolicy: (policy.writePolicy as 'both' | 'local-first-async-remote') ?? 'both',
-            backfillOnRemoteHit: (policy.backfillLocalOnRemoteHit as boolean | undefined) ?? true,
-            remoteTimeoutMs: remoteInput && !isCacheLike(remoteInput)
-                ? toOptionalNumber((remoteInput as Record<string, unknown>).timeoutMs)
-                : undefined,
-            publish: input.publish as ((msg: { type: string; pattern: string; ts: number }) => void) | undefined,
-        });
-    }
-
-    // Plain config object → single-tier MemoryCache.
-    // maxSize (v1) → maxEntries (v2), ttl (v1) → defaultTtl (v2).
-    return new MemoryCache({
-        maxEntries: toOptionalNumber(input.maxEntries ?? input.maxSize),
-        maxMemory: toOptionalNumber(input.maxMemory),
-        defaultTtl: toOptionalNumber(input.defaultTtl ?? input.ttl),
-        enableStats: toOptionalBoolean(input.enableStats),
-        enableTags: toOptionalBoolean(input.enableTags),
-        cleanupInterval: toOptionalNumber(input.cleanupInterval),
-        enabled: toOptionalBoolean(input.enabled),
-    });
-}
-
-function toOptionalNumber(value: unknown): number | undefined {
-    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-function toOptionalBoolean(value: unknown): boolean | undefined {
-    return typeof value === 'boolean' ? value : undefined;
-}
 
 

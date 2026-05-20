@@ -13,18 +13,22 @@ export interface SSHConfig {
     username: string;
     /** SSH password (mutually exclusive with privateKey). */
     password?: string;
-    /** SSH private key string or Buffer (mutually exclusive with password). */
+    /** SSH private key string or Buffer (mutually exclusive with password and privateKeyPath). */
     privateKey?: string | Buffer;
+    /** Path to an SSH private key file; supports ~ for home directory (mutually exclusive with password and privateKey). @since v1.3.0 */
+    privateKeyPath?: string;
     /** Passphrase for an encrypted private key. */
     passphrase?: string;
     /** Connection ready timeout in milliseconds (default: 30000). */
     readyTimeout?: number;
     /** Keep-alive interval in milliseconds (default: 10000). */
     keepaliveInterval?: number;
-    /** Target database host as seen from the SSH server (default: 'localhost'). */
+    /** Target database host as seen from the SSH server (default: auto-parsed from URI). */
     dstHost?: string;
-    /** Target database port as seen from the SSH server. */
+    /** Target database port as seen from the SSH server (default: auto-parsed from URI). */
     dstPort?: number;
+    /** Fixed local TCP port for the tunnel; omit for a random OS-assigned port. @since v1.3.0 */
+    localPort?: number;
 }
 
 import type { Collection, DbAccessor, HealthView } from './collection';

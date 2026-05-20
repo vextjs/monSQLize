@@ -14,7 +14,7 @@ export {
 
 // Runtime and cache capabilities
 export { Logger } from '../core/logger';
-export { MemoryCache, createRedisCacheAdapter, DistributedCacheInvalidator } from '../capabilities/cache';
+export { MemoryCache, createRedisCacheAdapter, DistributedCacheInvalidator, adaptLegacyCacheLike, MultiLevelCache } from '../capabilities/cache';
 export type { CacheStats } from '../capabilities/cache';
 export { FunctionCache, withCache } from '../capabilities/function-cache';
 export type { CachedFunction, WithCacheOptions } from '../capabilities/function-cache';

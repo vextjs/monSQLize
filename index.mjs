@@ -2020,6 +2020,154 @@ async function closeMongo(client, logger) {
   }
 }
 
+// src/capabilities/ssh/index.ts
+import * as net from "node:net";
+import * as fs from "node:fs";
+import * as os from "node:os";
+function loadSsh2Client() {
+  return __require("ssh2").Client;
+}
+var SSHTunnelSSH2 = class {
+  constructor(sshConfig, remoteHost, remotePort, opts) {
+    this.isConnected = false;
+    this.localPort = null;
+    this.sshClient = null;
+    this.server = null;
+    this._sshConfig = sshConfig;
+    this.remoteHost = remoteHost;
+    this.remotePort = remotePort;
+    this.name = opts?.name ?? "MongoDB";
+  }
+  _buildAuthConfig() {
+    const {
+      host,
+      username,
+      password,
+      privateKey,
+      privateKeyPath,
+      passphrase,
+      port = 22,
+      readyTimeout = 3e4,
+      keepaliveInterval = 1e4
+    } = this._sshConfig;
+    if (!host || !username) {
+      throw new Error("SSH config requires: host, username");
+    }
+    if (!password && !privateKey && !privateKeyPath) {
+      throw new Error("SSH authentication required: provide password, privateKey, or privateKeyPath");
+    }
+    const config = { host, port, username, readyTimeout, keepaliveInterval };
+    if (password) {
+      config.password = password;
+    } else if (privateKey) {
+      config.privateKey = privateKey;
+      if (passphrase) config.passphrase = passphrase;
+    } else {
+      const keyPath = privateKeyPath.replace(/^~/, os.homedir());
+      config.privateKey = fs.readFileSync(keyPath);
+      if (passphrase) config.passphrase = passphrase;
+    }
+    return config;
+  }
+  async connect() {
+    const authConfig = this._buildAuthConfig();
+    const SshClient = loadSsh2Client();
+    return new Promise((resolve, reject) => {
+      const ssh = new SshClient();
+      let settled = false;
+      const server = net.createServer((socket) => {
+        ssh.forwardOut(
+          "127.0.0.1",
+          0,
+          this.remoteHost,
+          this.remotePort,
+          (err, stream) => {
+            if (err) {
+              socket.destroy();
+              return;
+            }
+            socket.pipe(stream);
+            stream.pipe(socket);
+            stream.on("close", () => socket.destroy());
+            socket.on("close", () => {
+              try {
+                stream.close();
+              } catch {
+              }
+            });
+          }
+        );
+      });
+      server.on("error", (err) => {
+        if (!settled) {
+          settled = true;
+          reject(err);
+        }
+      });
+      server.listen(this._sshConfig.localPort ?? 0, "127.0.0.1", () => {
+        this.server = server;
+        const addr = server.address();
+        this.localPort = addr.port;
+        ssh.on("ready", () => {
+          if (!settled) {
+            settled = true;
+            this.sshClient = ssh;
+            this.isConnected = true;
+            resolve();
+          }
+        });
+        ssh.on("error", (err) => {
+          if (!settled) {
+            settled = true;
+            server.close();
+            reject(err);
+          }
+        });
+        ssh.connect(authConfig);
+      });
+    });
+  }
+  getTunnelUri(_protocol, originalUri) {
+    if (!this.isConnected || this.localPort === null) {
+      throw new Error(`SSH tunnel [${this.remoteHost}:${this.remotePort}] not connected`);
+    }
+    return originalUri.replace(
+      `${this.remoteHost}:${this.remotePort}`,
+      `localhost:${this.localPort}`
+    );
+  }
+  getLocalAddress() {
+    if (!this.isConnected || this.localPort === null) {
+      throw new Error(`SSH tunnel [${this.remoteHost}:${this.remotePort}] not connected`);
+    }
+    return `localhost:${this.localPort}`;
+  }
+  async close() {
+    const server = this.server;
+    const ssh = this.sshClient;
+    this.isConnected = false;
+    this.localPort = null;
+    this.sshClient = null;
+    this.server = null;
+    await new Promise((resolve) => {
+      if (server) {
+        server.close(() => resolve());
+      } else {
+        resolve();
+      }
+    });
+    ssh?.end();
+  }
+};
+function parseHostFromUri(uri) {
+  const m = uri.match(/mongodb(?:\+srv)?:\/\/(?:[^@]+@)?([^/:?,[\]]+)/);
+  return m?.[1] ?? "localhost";
+}
+function parsePortFromUri(uri) {
+  const m = uri.match(/mongodb(?:\+srv)?:\/\/(?:[^@]+@)?[^/:?[\]]+:(\d+)/);
+  return m ? parseInt(m[1], 10) : 27017;
+}
+
 // src/utils/validation.ts
 function validateRange(value, min, max, name) {
   if (typeof value !== "number" || isNaN(value)) {
@@ -8302,8 +8450,76 @@ function resolveScopedCollection(config) {
   return dbInstance.db(databaseName).collection(config.collectionName);
 }
 
+// src/entry/runtime-cache-normalizer.ts
+function isCacheLike(value) {
+  if (!value || typeof value !== "object") return false;
+  const v = value;
+  return typeof v["get"] === "function" && typeof v["set"] === "function" && typeof v["del"] === "function";
+}
+function toOptionalNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+}
+function toOptionalBoolean(value) {
+  return typeof value === "boolean" ? value : void 0;
+}
+function normalizeRuntimeCache(cache) {
+  if (cache instanceof MemoryCache) return cache;
+  if (isCacheLike(cache)) return cache;
+  const input = cache ?? {};
+  if (input.multiLevel === true) {
+    const localOpts = input.local ?? {};
+    const local = new MemoryCache({
+      maxEntries: toOptionalNumber(localOpts.maxEntries ?? localOpts.maxSize),
+      maxMemory: toOptionalNumber(localOpts.maxMemory),
+      defaultTtl: toOptionalNumber(localOpts.defaultTtl ?? localOpts.ttl),
+      enableStats: toOptionalBoolean(localOpts.enableStats),
+      enableTags: toOptionalBoolean(localOpts.enableTags),
+      cleanupInterval: toOptionalNumber(localOpts.cleanupInterval),
+      enabled: toOptionalBoolean(localOpts.enabled)
+    });
+    const remoteInput = input.remote;
+    const remote = isCacheLike(remoteInput) ? remoteInput : remoteInput ? new MemoryCache({
+      maxEntries: toOptionalNumber(remoteInput.maxEntries ?? remoteInput.maxSize),
+      maxMemory: toOptionalNumber(remoteInput.maxMemory),
+      defaultTtl: toOptionalNumber(remoteInput.defaultTtl ?? remoteInput.ttl),
+      enableStats: toOptionalBoolean(remoteInput.enableStats),
+      enableTags: toOptionalBoolean(remoteInput.enableTags),
+      cleanupInterval: toOptionalNumber(remoteInput.cleanupInterval),
+      enabled: toOptionalBoolean(remoteInput.enabled)
+    }) : void 0;
+    const policy = input.policy ?? {};
+    return new MultiLevelCache({
+      local,
+      remote,
+      writePolicy: policy.writePolicy ?? "both",
+      backfillOnRemoteHit: policy.backfillLocalOnRemoteHit ?? true,
+      remoteTimeoutMs: remoteInput && !isCacheLike(remoteInput) ? toOptionalNumber(remoteInput.timeoutMs) : void 0,
+      publish: input.publish
+    });
+  }
+  return new MemoryCache({
+    maxEntries: toOptionalNumber(input.maxEntries ?? input.maxSize),
+    maxMemory: toOptionalNumber(input.maxMemory),
+    defaultTtl: toOptionalNumber(input.defaultTtl ?? input.ttl),
+    enableStats: toOptionalBoolean(input.enableStats),
+    enableTags: toOptionalBoolean(input.enableTags),
+    cleanupInterval: toOptionalNumber(input.cleanupInterval),
+    enabled: toOptionalBoolean(input.enabled)
+  });
+}
+
 // src/capabilities/function-cache/index.ts
-import { withCache as hubWithCache, FunctionCache } from "cache-hub/function-cache";
+import { withCache as hubWithCache, FunctionCache as HubFunctionCache } from "cache-hub/function-cache";
+var FunctionCache = class extends HubFunctionCache {
+  constructor(cacheOrDb, options) {
+    let normalizedOptions = options;
+    if (options?.defaultTTL !== void 0 && options.ttl === void 0) {
+      const { defaultTTL, ...rest } = options;
+      normalizedOptions = { ...rest, ttl: defaultTTL };
+    }
+    super(cacheOrDb, normalizedOptions);
+  }
+};
 function withCache(fn, options) {
   const wrapped = hubWithCache(fn, options);
   wrapped.getCacheStats = () => wrapped.stats();
@@ -8330,6 +8546,7 @@ var MonSQLizeRuntime = class {
       enableStats: false
     });
     this._connectionPromise = null;
+    this._sshTunnel = null;
     const type = options.type;
     if (type !== "mongodb") {
       throw createError(ErrorCodes.UNSUPPORTED_DATABASE, "Invalid database type. Supported types are: mongodb");
@@ -8370,9 +8587,25 @@ var MonSQLizeRuntime = class {
     }
     this._connectionPromise = (async () => {
       const databaseName = resolveDatabaseName(this.options);
+      let connectConfig = this.options.config;
+      const sshCfg = connectConfig?.["ssh"];
+      if (sshCfg && typeof sshCfg === "object") {
+        const cfg = sshCfg;
+        const rawCfg = connectConfig;
+        const remoteHost = String(cfg["dstHost"] ?? rawCfg["remoteHost"] ?? parseHostFromUri(String(connectConfig?.uri ?? "")));
+        const remotePort = Number(cfg["dstPort"] ?? rawCfg["remotePort"] ?? parsePortFromUri(String(connectConfig?.uri ?? "")));
+        const tunnel = new SSHTunnelSSH2(sshCfg, remoteHost, remotePort, { name: databaseName });
+        this._logger.info?.(`[SSH] Establishing tunnel to ${remoteHost}:${remotePort} via ${String(cfg["host"])}`);
+        await tunnel.connect();
+        this._sshTunnel = tunnel;
+        this._logger.info?.(`[SSH] Tunnel ready \u2014 local address: ${tunnel.getLocalAddress()}`);
+        if (connectConfig?.uri) {
+          connectConfig = { ...connectConfig, uri: tunnel.getTunnelUri("mongodb", connectConfig.uri) };
+        }
+      }
       const { client } = await connectMongo({
         databaseName,
-        config: this.options.config,
+        config: connectConfig,
         logger: this._logger
       });
       this._client = client;
@@ -8397,12 +8630,16 @@ var MonSQLizeRuntime = class {
       if (!this._connected) {
         const clientToClose = this._client;
         const poolToClose = this._poolManager;
+        const tunnelToClose = this._sshTunnel;
         this._client = null;
         this._defaultDb = null;
         this._poolManager = null;
+        this._sshTunnel = null;
         clientToClose?.close().catch(() => {
         });
         poolToClose?.close().catch(() => {
+        });
+        tunnelToClose?.close().catch(() => {
         });
       }
       this.emit("error", {
@@ -8451,6 +8688,11 @@ var MonSQLizeRuntime = class {
     this._cacheLockManager.stop();
     this._lockManager?.close();
     await closeMongo(this._client, this._logger);
+    if (this._sshTunnel) {
+      await this._sshTunnel.close().catch((err) => {
+        this._logger.warn("[SSH] Error closing SSH tunnel", err);
+      });
+    }
     this._client = null;
     this._defaultDb = null;
     this._connected = false;
@@ -8461,6 +8703,7 @@ var MonSQLizeRuntime = class {
     this._lockManager = null;
     this._sagaOrchestrator = null;
     this._iidCache = null;
+    this._sshTunnel = null;
     this._modelInstances.clear();
     this.emit("closed", {
       type: this.options.type,
@@ -8870,62 +9113,6 @@ var MonSQLizeRuntime = class {
     });
   }
 };
-function isCacheLike(value) {
-  if (!value || typeof value !== "object") return false;
-  const v = value;
-  return typeof v["get"] === "function" && typeof v["set"] === "function" && typeof v["del"] === "function";
-}
-function normalizeRuntimeCache(cache) {
-  if (cache instanceof MemoryCache) return cache;
-  if (isCacheLike(cache)) return cache;
-  const input = cache ?? {};
-  if (input.multiLevel === true) {
-    const localOpts = input.local ?? {};
-    const local = new MemoryCache({
-      maxEntries: toOptionalNumber(localOpts.maxEntries ?? localOpts.maxSize),
-      maxMemory: toOptionalNumber(localOpts.maxMemory),
-      defaultTtl: toOptionalNumber(localOpts.defaultTtl ?? localOpts.ttl),
-      enableStats: toOptionalBoolean(localOpts.enableStats),
-      enableTags: toOptionalBoolean(localOpts.enableTags),
-      cleanupInterval: toOptionalNumber(localOpts.cleanupInterval),
-      enabled: toOptionalBoolean(localOpts.enabled)
-    });
-    const remoteInput = input.remote;
-    const remote = isCacheLike(remoteInput) ? remoteInput : remoteInput ? new MemoryCache({
-      maxEntries: toOptionalNumber(remoteInput.maxEntries ?? remoteInput.maxSize),
-      maxMemory: toOptionalNumber(remoteInput.maxMemory),
-      defaultTtl: toOptionalNumber(remoteInput.defaultTtl ?? remoteInput.ttl),
-      enableStats: toOptionalBoolean(remoteInput.enableStats),
-      enableTags: toOptionalBoolean(remoteInput.enableTags),
-      cleanupInterval: toOptionalNumber(remoteInput.cleanupInterval),
-      enabled: toOptionalBoolean(remoteInput.enabled)
-    }) : void 0;
-    const policy = input.policy ?? {};
-    return new MultiLevelCache({
-      local,
-      remote,
-      writePolicy: policy.writePolicy ?? "both",
-      backfillOnRemoteHit: policy.backfillLocalOnRemoteHit ?? true,
-      remoteTimeoutMs: remoteInput && !isCacheLike(remoteInput) ? toOptionalNumber(remoteInput.timeoutMs) : void 0,
-      publish: input.publish
-    });
-  }
-  return new MemoryCache({
-    maxEntries: toOptionalNumber(input.maxEntries ?? input.maxSize),
-    maxMemory: toOptionalNumber(input.maxMemory),
-    defaultTtl: toOptionalNumber(input.defaultTtl ?? input.ttl),
-    enableStats: toOptionalBoolean(input.enableStats),
-    enableTags: toOptionalBoolean(input.enableTags),
-    cleanupInterval: toOptionalNumber(input.cleanupInterval),
-    enabled: toOptionalBoolean(input.enabled)
-  });
-}
-function toOptionalNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
-}
-function toOptionalBoolean(value) {
-  return typeof value === "boolean" ? value : void 0;
-}
 
 // src/entry/index.mts
 var MonSQLize = MonSQLizeRuntime;

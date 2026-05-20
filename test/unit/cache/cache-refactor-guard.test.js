@@ -66,7 +66,7 @@ test('cache refactor-guard: function-cache uses cache-hub as backing (no standal
     assert.ok(!src.includes('const inflightFunctions = new Map'), 'must not define standalone inflight map');
     // v1 compat: withCache should expose getCacheStats shim
     const lib = require(LIB);
-    const wrapped = lib.withCache(async (x) => x, { ttl: 1000 });
+    const wrapped = lib.withCache((x) => Promise.resolve(x), { ttl: 1000 });
     assert.strictEqual(typeof wrapped.stats, 'function', 'stats() must exist');
     assert.strictEqual(typeof wrapped.getCacheStats, 'function', 'getCacheStats() v1 compat shim must exist');
 });

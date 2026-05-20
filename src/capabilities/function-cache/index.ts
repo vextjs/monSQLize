@@ -1,15 +1,15 @@
 /**
  * Function cache capability barrel file.
  *
- * `FunctionCache` is a thin re-export from cache-hub.
+ * `FunctionCache` wraps cache-hub's class to add v1 backward-compat:
+ *   - `defaultTTL` constructor option is mapped to `ttl`
  *
  * `withCache` is wrapped to add a v1 backward-compat `getCacheStats()` alias
  * that delegates to the native `stats()` method.
  */
 
-import { withCache as hubWithCache, FunctionCache } from 'cache-hub/function-cache';
-
-export { FunctionCache };
+import { withCache as hubWithCache, FunctionCache as HubFunctionCache } from 'cache-hub/function-cache';
+import type { CacheLike } from 'cache-hub';
 
 import type {
     FunctionCacheOptions as HubFunctionCacheOptions,
@@ -31,12 +31,30 @@ export type CachedFunction<
     getCacheStats(): WithCacheStats;
 };
 
-export type FunctionCacheOptions = HubFunctionCacheOptions;
+export interface FunctionCacheOptions extends HubFunctionCacheOptions {
+    /** @deprecated v1 alias for `ttl`. Use `ttl` instead. */
+    defaultTTL?: number;
+}
 
 export type {
     FunctionCacheStats,
     WithCacheStats,
 };
+
+/** v1-compat wrapper around HubFunctionCache that maps `defaultTTL` → `ttl`. */
+export class FunctionCache extends HubFunctionCache {
+    constructor(
+        cacheOrDb: CacheLike | { getCache(): CacheLike },
+        options?: FunctionCacheOptions,
+    ) {
+        let normalizedOptions: HubFunctionCacheOptions | undefined = options;
+        if (options?.defaultTTL !== undefined && options.ttl === undefined) {
+            const { defaultTTL, ...rest } = options;
+            normalizedOptions = { ...rest, ttl: defaultTTL };
+        }
+        super(cacheOrDb, normalizedOptions);
+    }
+}
 
 /**
  * Wraps an async function with a cache layer.

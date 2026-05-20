@@ -5,6 +5,7 @@
  * This is the only recommended import entry point for consumers.
  */
 import {
+    adaptLegacyCacheLike,
     BatchQueue,
     CountQueue,
     DEFAULT_SLOW_QUERY_LOG_CONFIG,
@@ -33,6 +34,7 @@ import {
     Logger,
     makePageResult,
     MemoryCache,
+    MultiLevelCache,
     Model,
     MonSQLizeRuntime,
     normalizeProjection,
@@ -111,6 +113,8 @@ MonSQLize.createError = createError;
 MonSQLize.createValidationError = createValidationError;
 MonSQLize.createCursorError = createCursorError;
 MonSQLize.createQueryTimeoutError = createQueryTimeoutError;
+MonSQLize.adaptLegacyCacheLike = adaptLegacyCacheLike;
+MonSQLize.MultiLevelCache = MultiLevelCache;
 
 export = MonSQLize;
 

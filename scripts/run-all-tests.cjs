@@ -112,7 +112,7 @@ function runCommand(label, args) {
 }
 
 async function runSuite(label, files) {
-    const result = await runCommand(label, ['--test', ...files]);
+    const result = await runCommand(label, ['--test', '--test-concurrency=1', ...files]);
     const stats = parseStats(result.stdout || '');
     return { ...stats, exitCode: result.exitCode };
 }

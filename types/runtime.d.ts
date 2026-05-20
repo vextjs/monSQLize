@@ -208,7 +208,10 @@ export type CachedFunction<TArgs extends unknown[] = unknown[], TResult = unknow
     getCacheStats(): HubWithCacheStats;
 };
 
-export type FunctionCacheOptions = HubFunctionCacheOptions;
+export interface FunctionCacheOptions extends HubFunctionCacheOptions {
+    /** @deprecated v1 alias for `ttl`. Use `ttl` instead. */
+    defaultTTL?: number;
+}
 
 export declare function withCache<TArgs extends unknown[], TResult>(
     fn: (...args: TArgs) => Promise<TResult>,

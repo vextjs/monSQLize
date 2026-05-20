@@ -1,4 +1,5 @@
 import type { Db, MongoClient, MongoClientOptions } from 'mongodb';
+import type { SSHConfig } from './monsqlize';
 
 export interface MongoConnectConfig {
     uri?: string;
@@ -14,6 +15,25 @@ export interface MongoConnectConfig {
         binary?: { version?: string };
         [key: string]: unknown;
     };
+    /**
+     * SSH tunnel configuration. When provided, monSQLize establishes an SSH port-forward
+     * through the specified bastion host before connecting to MongoDB.
+     * The remote host/port are auto-parsed from `uri` unless overridden by `remoteHost`/`remotePort`.
+     * @since v1.3.0
+     */
+    ssh?: SSHConfig;
+    /**
+     * Explicit remote MongoDB host visible from the SSH server.
+     * Overrides the host auto-parsed from `uri` when `ssh` is set.
+     * @since v1.3.0
+     */
+    remoteHost?: string;
+    /**
+     * Explicit remote MongoDB port visible from the SSH server.
+     * Overrides the port auto-parsed from `uri` when `ssh` is set.
+     * @since v1.3.0
+     */
+    remotePort?: number;
 }
 
 export interface MongoConnectionState {
