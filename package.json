@@ -78,10 +78,14 @@
   "peerDependenciesMeta": {
     "ioredis": {
       "optional": true
+    },
+    "ssh2": {
+      "optional": true
     }
   },
   "optionalDependencies": {
-    "ioredis": "^5.8.2"
+    "ioredis": "^5.8.2",
+    "ssh2": "^1.17.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -99,7 +103,6 @@
     "async-lock": "^1.4.1",
     "cache-hub": "^1.0.0",
     "mongodb": "^6.21.0",
-    "schema-dsl": "^1.2.5",
-    "ssh2": "^1.17.0"
+    "schema-dsl": "^1.2.5"
   }
 }

@@ -32,8 +32,15 @@ interface SshClientConstructor {
 
 // Loaded lazily inside connect() to avoid a top-level require() in the ESM bundle.
 function loadSsh2Client(): SshClientConstructor {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return (require('ssh2') as { Client: SshClientConstructor }).Client;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        return (require('ssh2') as { Client: SshClientConstructor }).Client;
+    } catch {
+        throw new Error(
+            'ssh2 is not installed. SSH tunnel support requires the optional "ssh2" package.\n' +
+            'Run: npm install ssh2',
+        );
+    }
 }
 
 export interface SSHConfigInput {

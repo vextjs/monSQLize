@@ -751,24 +751,32 @@ const msq = new MonSQLize({
   },
   
   // ========================================
-  // SSH 隧道配置（企业级功能）
+  // SSH 隧道配置（配置在 config.ssh 中）
   // ========================================
-  sshTunnel: {
-    enabled: true,                    // 启用 SSH 隧道【默认: false】
-    host: 'jump-server.example.com',  // SSH 服务器地址【必需】
-    port: 22,                         // SSH 端口【默认: 22】
-    username: 'user',                 // SSH 用户名【必需】
-    
-    // 认证方式 1: 密码【password 和 privateKey 二选一】
-    password: 'your-password',
-    
-    // 认证方式 2: 私钥（推荐）
-    privateKey: require('fs').readFileSync('/path/to/private-key'),
-    passphrase: 'key-passphrase',    // 私钥密码【默认: undefined】
-    
-    // 目标 MongoDB 服务器（隧道另一端）
-    dstHost: 'mongodb.internal',     // 内网 MongoDB 地址【必需】
-    dstPort: 27017                   // 内网 MongoDB 端口【默认: 27017】
+  config: {
+    uri: 'mongodb://mongouser:pass@mongodb.internal:27017/mydb',
+    ssh: {
+      host: 'jump-server.example.com',  // SSH 服务器地址【必需】
+      port: 22,                         // SSH 端口【默认: 22】
+      username: 'user',                 // SSH 用户名【必需】
+      
+      // 认证方式 1: 密码【password / privateKey / privateKeyPath 三选一】
+      password: 'your-password',
+      
+      // 认证方式 2: 私钥文件路径（推荐，支持 ~ 展开）
+      privateKeyPath: '~/.ssh/id_rsa',
+      
+      // 认证方式 3: 私钥内容
+      privateKey: '-----BEGIN RSA PRIVATE KEY-----...',
+      passphrase: 'key-passphrase',    // 私钥密码【默认: undefined】
+      
+      // 目标 MongoDB 服务器（可从 uri 自动解析，通常无需手动指定）
+      dstHost: 'mongodb.internal',     // 覆盖自动解析的 host
+      dstPort: 27017,                  // 覆盖自动解析的 port
+      localPort: 27018,                // 固定本地端口【默认: 随机】
+      readyTimeout: 20000,             // SSH 握手超时（毫秒）【默认: 20000】
+      keepaliveInterval: 30000,        // 心跳间隔（毫秒）【默认: 30000】
+    },
   },
   
   // ========================================
@@ -833,7 +841,7 @@ const msq = new MonSQLize({
 | `slowQueryLog` | object | - | 慢查询日志持久化 |
 | `models` | object | - | Model 自动加载 |
 | `sync` | object | - | Change Stream 同步 |
-| `sshTunnel` | object | - | SSH 隧道配置（企业级） |
+| `config.ssh` | object | - | SSH 隧道配置（需安装可选依赖 `ssh2`） |
 | `businessLock` | object | - | 业务级分布式锁（企业级） |
 
 ### 常用配置场景

@@ -2025,7 +2025,13 @@ import * as net from "node:net";
 import * as fs from "node:fs";
 import * as os from "node:os";
 function loadSsh2Client() {
-  return __require("ssh2").Client;
+  try {
+    return __require("ssh2").Client;
+  } catch {
+    throw new Error(
+      'ssh2 is not installed. SSH tunnel support requires the optional "ssh2" package.\nRun: npm install ssh2'
+    );
+  }
 }
 var SSHTunnelSSH2 = class {
   constructor(sshConfig, remoteHost, remotePort, opts) {
