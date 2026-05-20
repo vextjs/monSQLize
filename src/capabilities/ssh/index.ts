@@ -101,8 +101,8 @@ export class SSHTunnelSSH2 {
             privateKeyPath,
             passphrase,
             port = 22,
-            readyTimeout = 30000,
-            keepaliveInterval = 10000,
+            readyTimeout = 20000,
+            keepaliveInterval = 30000,
         } = this._sshConfig;
 
         if (!host || !username) {

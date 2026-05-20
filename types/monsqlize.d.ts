@@ -19,9 +19,9 @@ export interface SSHConfig {
     privateKeyPath?: string;
     /** Passphrase for an encrypted private key. */
     passphrase?: string;
-    /** Connection ready timeout in milliseconds (default: 30000). */
+    /** Connection ready timeout in milliseconds (default: 20000). */
     readyTimeout?: number;
-    /** Keep-alive interval in milliseconds (default: 10000). */
+    /** Keep-alive interval in milliseconds (default: 30000). */
     keepaliveInterval?: number;
     /** Target database host as seen from the SSH server (default: auto-parsed from URI). */
     dstHost?: string;

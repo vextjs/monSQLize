@@ -2047,8 +2047,8 @@ var SSHTunnelSSH2 = class {
       privateKeyPath,
       passphrase,
       port = 22,
-      readyTimeout = 3e4,
-      keepaliveInterval = 1e4
+      readyTimeout = 2e4,
+      keepaliveInterval = 3e4
     } = this._sshConfig;
     if (!host || !username) {
       throw new Error("SSH config requires: host, username");
