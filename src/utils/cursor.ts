@@ -21,7 +21,7 @@ function b64urlDecodeStr(s: string): string {
 }
 
 function makeInvalidCursorError(cause?: unknown): Error {
-    const err = new Error('游标无效') as Error & { code: string; cause?: unknown };
+    const err = new Error('Invalid cursor') as Error & { code: string; cause?: unknown };
     err.code = 'INVALID_CURSOR';
     if (cause !== undefined) err.cause = cause;
     return err;

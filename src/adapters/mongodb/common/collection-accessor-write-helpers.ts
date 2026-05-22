@@ -152,7 +152,7 @@ export async function insertOneForAccessor<TSchema extends Document = Document>(
     const threshold = context.defaults?.slowQueryMs ?? 500;
     if (elapsed > threshold && context.logger) {
         try {
-            context.logger.warn('[insertOne] slow operation warning', {
+            context.logger.warn('[insertOne] 慢操作警告', {
                 ns: `${context.dbName}.${context.collectionName}`,
                 threshold,
                 duration: elapsed,
@@ -204,7 +204,7 @@ export async function insertManyForAccessor<TSchema extends Document = Document>
     const elapsed = Date.now() - startedAt;
     const threshold = context.defaults?.slowQueryMs ?? 500;
     if (elapsed >= threshold && context.logger) {
-        context.logger.warn('[insertMany] slow operation warning', {
+        context.logger.warn('[insertMany] 慢操作警告', {
             ns: `${context.dbName}.${context.collectionName}`,
             threshold,
             duration: elapsed,

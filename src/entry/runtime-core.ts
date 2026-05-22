@@ -25,6 +25,7 @@ import type {
 import { EventEmitter } from 'node:events';
 import {
     MemoryCache,
+    DistributedCacheInvalidator,
     type CacheLike,
 } from '../capabilities/cache';
 import {
@@ -126,6 +127,7 @@ import {
     buildRuntimeDefaults,
     createAndStartPoolManager,
     initAutoConvertConfig,
+    initializeDistributedCacheInvalidator,
     loadModelFiles,
 } from './capability-wiring';
 import {
@@ -205,6 +207,7 @@ export class MonSQLizeRuntime {
     });
     private _connectionPromise: Promise<ConnectResult<MonSQLizeRuntime>> | null = null;
     private _sshTunnel: SSHTunnelSSH2 | null = null;
+    private _distributedInvalidator: DistributedCacheInvalidator | null = null;
 
     /** v1 compat: expose defaults as a public property (frozen object). */
     readonly defaults: Readonly<Record<string, unknown>>;
@@ -236,7 +239,24 @@ export class MonSQLizeRuntime {
         if (options.findPageMaxLimit !== undefined && options.findPageMaxLimit !== null) {
             validateRange(options.findPageMaxLimit, 1, 10000, 'findPageMaxLimit');
         }
-        this._cache = normalizeRuntimeCache(options.cache as Record<string, unknown> | MemoryCache | undefined);
+        // Inject a publish proxy before cache construction so MultiLevelCache can broadcast
+        // to the distributed invalidator once it is created in connect().
+        const rawCacheInput = options.cache as Record<string, unknown> | MemoryCache | CacheLike | undefined;
+        const hasDistributedCfg = rawCacheInput != null
+            && typeof rawCacheInput === 'object'
+            && !(rawCacheInput instanceof MemoryCache)
+            && typeof (rawCacheInput as Record<string, unknown>)['get'] !== 'function'
+            && typeof (rawCacheInput as Record<string, unknown>)['distributed'] === 'object'
+            && (rawCacheInput as Record<string, unknown>)['distributed'] !== null;
+        const cacheInput = hasDistributedCfg
+            ? {
+                ...(rawCacheInput as Record<string, unknown>),
+                publish: (msg: { type: string; pattern: string; ts: number }) => {
+                    void this._distributedInvalidator?.invalidate(msg.pattern);
+                },
+              }
+            : rawCacheInput;
+        this._cache = normalizeRuntimeCache(cacheInput as Record<string, unknown> | MemoryCache | undefined);
         this._logger = Logger.create(options.logger ?? null);
         this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
         this._cache.setLockManager?.(this._cacheLockManager);
@@ -289,6 +309,17 @@ export class MonSQLizeRuntime {
             this.initializeSagaOrchestrator();
             this.initializeSlowQueryLogManager();
             await this.initializeSyncManager();
+            if (!this._distributedInvalidator) {
+                this._distributedInvalidator = await initializeDistributedCacheInvalidator(
+                    this.options, this._cache, this._logger,
+                );
+                if (this._distributedInvalidator && this._cache instanceof MemoryCache) {
+                    this._logger.warn?.(
+                        '[Cache] distributed invalidator created but cache has no publish hook — ' +
+                        'broadcast path disabled. Use cache: { local, remote, distributed } for full cross-instance sync.',
+                    );
+                }
+            }
             this._connected = true;
             await this._loadModels();
             this.emit('connected', {
@@ -309,13 +340,16 @@ export class MonSQLizeRuntime {
                 const clientToClose = this._client;
                 const poolToClose = this._poolManager;
                 const tunnelToClose = this._sshTunnel;
+                const invalidatorToClose = this._distributedInvalidator;
                 this._client = null;
                 this._defaultDb = null;
                 this._poolManager = null;
                 this._sshTunnel = null;
+                this._distributedInvalidator = null;
                 clientToClose?.close().catch(() => {});
                 poolToClose?.close().catch(() => {});
                 tunnelToClose?.close().catch(() => {});
+                invalidatorToClose?.close().catch(() => {});
             }
             this.emit('error', {
                 type: this.options.type,
@@ -356,6 +390,7 @@ export class MonSQLizeRuntime {
             this._slowQueryLogManager?.close(),
             this._transactionManager?.abortAll(),
             this._poolManager?.close(),
+            this._distributedInvalidator?.close(),
         ]);
         for (const result of results) {
             if (result.status === 'rejected') {
@@ -384,6 +419,7 @@ export class MonSQLizeRuntime {
         this._sagaOrchestrator = null;
         this._iidCache = null;
         this._sshTunnel = null;
+        this._distributedInvalidator = null;
         this._modelInstances.clear();
         this.emit('closed', {
             type: this.options.type,
@@ -412,11 +448,26 @@ export class MonSQLizeRuntime {
         return this._adapterBridge;
     }
 
-    get dbInstance(): { collection: (name: string) => unknown; db: (name?: string) => unknown } | null {
+    get dbInstance(): {
+        collection: (name: string) => unknown;
+        db: (name?: string) => unknown;
+        /** @deprecated Access via `msq.withLock()` — v1 compatibility shim. */
+        withLock: <T>(key: string, callback: () => Promise<T>, options?: LockOptions) => Promise<T>;
+        /** @deprecated Access via `msq.acquireLock()` — v1 compatibility shim. */
+        acquireLock: (key: string, options?: LockOptions) => Promise<Lock>;
+        /** @deprecated Access via `msq.tryAcquireLock()` — v1 compatibility shim. */
+        tryAcquireLock: (key: string, options?: Omit<LockOptions, 'retryTimes'>) => Promise<Lock | null>;
+        /** @deprecated Access via `msq.getLockStats()` — v1 compatibility shim. */
+        getLockStats: () => LockStats | null;
+    } | null {
         if (this._client === null) return null;
         return {
             collection: (name: string) => this.collection(name),
             db: (name?: string) => this.db(name),
+            withLock: <T>(key: string, callback: () => Promise<T>, options?: LockOptions) => this.withLock(key, callback, options),
+            acquireLock: (key: string, options?: LockOptions) => this.acquireLock(key, options),
+            tryAcquireLock: (key: string, options?: Omit<LockOptions, 'retryTimes'>) => this.tryAcquireLock(key, options),
+            getLockStats: () => this.getLockStats(),
         };
     }
 

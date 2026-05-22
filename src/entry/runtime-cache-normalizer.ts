@@ -33,7 +33,8 @@ export function normalizeRuntimeCache(
 
     const input = (cache ?? {}) as Record<string, unknown>;
 
-    if (input.multiLevel === true) {
+    // v1 compat: `cache: { local, remote, policy }` without explicit `multiLevel: true`
+    if (input.multiLevel === true || (input.local !== undefined && typeof input.local === 'object')) {
         const localOpts = (input.local ?? {}) as Record<string, unknown>;
         const local = new MemoryCache({
             maxEntries: toOptionalNumber(localOpts.maxEntries ?? localOpts.maxSize),

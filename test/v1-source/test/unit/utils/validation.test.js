@@ -23,7 +23,7 @@ describe('Validation Utils', function() {
                 assert.fail('Should throw error');
             } catch (error) {
                 assert.strictEqual(error.code, ErrorCodes.INVALID_ARGUMENT);
-                assert.ok(error.message.includes('必须在 1 到 200 之间'));
+                assert.ok(error.message.includes('must be between 1 and 200'));
             }
         });
 
@@ -33,7 +33,7 @@ describe('Validation Utils', function() {
                 assert.fail('Should throw error');
             } catch (error) {
                 assert.strictEqual(error.code, ErrorCodes.INVALID_ARGUMENT);
-                assert.ok(error.message.includes('必须在 1 到 200 之间'));
+                assert.ok(error.message.includes('must be between 1 and 200'));
             }
         });
 
@@ -43,7 +43,7 @@ describe('Validation Utils', function() {
                 assert.fail('Should throw error');
             } catch (error) {
                 assert.strictEqual(error.code, ErrorCodes.INVALID_ARGUMENT);
-                assert.ok(error.message.includes('必须是一个有效的数字'));
+                assert.ok(error.message.includes('must be a valid number'));
             }
         });
 
@@ -53,7 +53,7 @@ describe('Validation Utils', function() {
                 assert.fail('Should throw error');
             } catch (error) {
                 assert.strictEqual(error.code, ErrorCodes.INVALID_ARGUMENT);
-                assert.ok(error.message.includes('必须是一个有效的数字'));
+                assert.ok(error.message.includes('must be a valid number'));
             }
         });
 
@@ -63,7 +63,7 @@ describe('Validation Utils', function() {
                 assert.fail('Should throw error');
             } catch (error) {
                 assert.strictEqual(error.code, ErrorCodes.INVALID_ARGUMENT);
-                assert.ok(error.message.includes('必须是有限数字'));
+                assert.ok(error.message.includes('must be a finite number'));
             }
         });
 
@@ -73,7 +73,7 @@ describe('Validation Utils', function() {
                 assert.fail('Should throw error');
             } catch (error) {
                 assert.strictEqual(error.code, ErrorCodes.INVALID_ARGUMENT);
-                assert.ok(error.message.includes('必须是有限数字'));
+                assert.ok(error.message.includes('must be a finite number'));
             }
         });
     });
@@ -92,7 +92,7 @@ describe('Validation Utils', function() {
                 assert.fail('Should throw error');
             } catch (error) {
                 assert.strictEqual(error.code, ErrorCodes.INVALID_ARGUMENT);
-                assert.ok(error.message.includes('必须是正整数'));
+                assert.ok(error.message.includes('must be a positive integer'));
             }
         });
 
@@ -102,7 +102,7 @@ describe('Validation Utils', function() {
                 assert.fail('Should throw error');
             } catch (error) {
                 assert.strictEqual(error.code, ErrorCodes.INVALID_ARGUMENT);
-                assert.ok(error.message.includes('必须是正整数'));
+                assert.ok(error.message.includes('must be a positive integer'));
             }
         });
 
@@ -112,7 +112,7 @@ describe('Validation Utils', function() {
                 assert.fail('Should throw error');
             } catch (error) {
                 assert.strictEqual(error.code, ErrorCodes.INVALID_ARGUMENT);
-                assert.ok(error.message.includes('必须是正整数'));
+                assert.ok(error.message.includes('must be a positive integer'));
             }
         });
     });

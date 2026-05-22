@@ -30,10 +30,18 @@ export type {
 class SagaExecutionContext implements SagaContext {
     private readonly values = new Map<string, unknown>();
 
+    // v1 compat: tracked separately so existing code that reads these fields still works.
+    /** @deprecated v1 compat — ordered list of completed step names. */
+    readonly completedSteps: string[] = [];
+    private readonly _stepResults = new Map<string, unknown>();
+
     constructor(
         public readonly executionId: string,
         public readonly data: unknown,
     ) {}
+
+    /** @deprecated Use `executionId` — v1 compatibility alias. */
+    get sagaId(): string { return this.executionId; }
 
     set(key: string, value: unknown): void {
         this.values.set(key, value);
@@ -49,6 +57,31 @@ class SagaExecutionContext implements SagaContext {
 
     getAll(): Record<string, unknown> {
         return Object.fromEntries(this.values.entries());
+    }
+
+    /**
+     * Mark a step as completed and record its result.
+     * @deprecated v1 compat — called automatically by the orchestrator. Use `ctx.get(stepName)` to retrieve step results.
+     */
+    markStepCompleted(stepName: string, result: unknown): void {
+        this.completedSteps.push(stepName);
+        this._stepResults.set(stepName, result);
+    }
+
+    /**
+     * Return the result of a previously completed step.
+     * @deprecated v1 compat — use `ctx.get(stepName)` instead.
+     */
+    getStepResult(stepName: string): unknown {
+        return this._stepResults.get(stepName);
+    }
+
+    /**
+     * Return an ordered copy of completed step names.
+     * @deprecated v1 compat — use `ctx.getAll()` instead.
+     */
+    getCompletedSteps(): string[] {
+        return [...this.completedSteps];
     }
 }
 
@@ -116,6 +149,7 @@ export class SagaOrchestrator {
                 if (result !== undefined) {
                     context.set(step.name, result);
                 }
+                context.markStepCompleted(step.name, result);
             }
 
             this._stats.successfulExecutions += 1;

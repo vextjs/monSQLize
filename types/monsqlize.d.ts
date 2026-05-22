@@ -79,6 +79,24 @@ export interface MonSQLizeOptions {
         enabled?: boolean;
         /** @deprecated Use top-level `cacheAutoInvalidate`. v1 alias: auto-invalidate on writes. */
         autoInvalidate?: boolean;
+        /**
+         * Distributed cache invalidation via Redis Pub/Sub.
+         * When configured, broadcasts `delPattern` events to all other connected instances.
+         * Requires `ioredis` to be installed separately.
+         * @since v2.0.0
+         */
+        distributed?: {
+            /** Redis URL for the Pub/Sub connection. Defaults to `"redis://localhost:6379"`. */
+            redisUrl?: string;
+            /** Existing ioredis `Redis` instance to use for publishing. */
+            redis?: unknown;
+            /** Pub/Sub channel name shared across instances. Default: `"cache-hub:invalidate"`. */
+            channel?: string;
+            /** Unique ID for this instance; used to filter self-published messages. Auto-generated if omitted. */
+            instanceId?: string;
+            /** Set to `false` to disable without removing the config block. Default: `true`. */
+            enabled?: boolean;
+        };
         [key: string]: unknown;
     };
     logger?: LoggerLike | null;

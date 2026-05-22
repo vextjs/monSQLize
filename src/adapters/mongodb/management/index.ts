@@ -236,9 +236,8 @@ export async function dropIndexDefinition<TSchema extends Document = Document>(
         return await collectionRef.dropIndex(name);
     } catch (err: unknown) {
         const mongoErr = err as { code?: number; codeName?: string };
-        // v1 compat: code=27 / 'IndexNotFound' → MONGODB_ERROR with Chinese message
         if (mongoErr?.code === 27 || mongoErr?.codeName === 'IndexNotFound') {
-            throw createError(ErrorCodes.MONGODB_ERROR, `索引不存在: ${name}`);
+            throw createError(ErrorCodes.MONGODB_ERROR, `Index does not exist: ${name}`);
         }
         throw err;
     }

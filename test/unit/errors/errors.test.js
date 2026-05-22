@@ -108,9 +108,9 @@ describe('Error system: createValidationError()', () => {
         assert.deepEqual(err.details, details);
     });
 
-    it('uses the v1-compat Chinese message', () => {
+    it('uses the default message', () => {
         const err = createValidationError([]);
-        assert.equal(err.message, '参数校验失败');
+        assert.equal(err.message, 'Validation failed');
     });
 });
 
@@ -118,7 +118,7 @@ describe('Error system: createCursorError()', () => {
     it('produces INVALID_CURSOR code with default message', () => {
         const err = createCursorError();
         assert.equal(err.code, 'INVALID_CURSOR');
-        assert.equal(err.message, '游标无效');
+        assert.equal(err.message, 'Invalid cursor');
     });
 
     it('accepts a custom message', () => {

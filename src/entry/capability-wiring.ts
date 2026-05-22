@@ -15,6 +15,8 @@ import type { ModelDefinition } from '../capabilities/model';
 import { Model } from '../capabilities/model';
 import { CountQueue } from '../capabilities/count-queue';
 import { ConnectionPoolManager } from '../capabilities/pool';
+import { DistributedCacheInvalidator } from '../capabilities/cache';
+import type { CacheLike } from '../capabilities/cache';
 
 // ────────────────────────────────────────────────────────
 // AutoConvert config
@@ -68,11 +70,13 @@ export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults
         : (o.type === 'mongodb' || !o.type ? true : false);
     if (o.cursorSecret !== undefined) defaults.cursorSecret = o.cursorSecret;
     if (o.namespace !== undefined) defaults.namespace = o.namespace;
-    if (o.countQueue?.enabled) {
+    // v1-compat: countQueue defaults to enabled when not explicitly configured.
+    const countQueueCfg = o.countQueue ?? { enabled: true, maxQueueSize: 10000, timeout: 60000 };
+    if (countQueueCfg.enabled) {
         defaults.countQueue = new CountQueue({
-            concurrency: o.countQueue.concurrency,
-            maxQueueSize: o.countQueue.maxQueueSize,
-            timeout: o.countQueue.timeout,
+            concurrency: countQueueCfg.concurrency,
+            maxQueueSize: countQueueCfg.maxQueueSize,
+            timeout: countQueueCfg.timeout,
         });
     }
     return defaults;
@@ -106,6 +110,47 @@ export async function createAndStartPoolManager(
     }
     pm.startHealthCheck();
     return pm;
+}
+
+// ────────────────────────────────────────────────────────
+// Distributed cache invalidator
+// ────────────────────────────────────────────────────────
+
+/**
+ * Auto-initialize the DistributedCacheInvalidator from `cache.distributed` config (v1 compat).
+ *
+ * Called from `connect()` after the cache is available. Returns null when:
+ * - `options.cache` is not a plain config object (already a MemoryCache or CacheLike)
+ * - No `distributed` field is present
+ * - `distributed.enabled === false`
+ * - Construction fails (error is logged, not thrown)
+ */
+export async function initializeDistributedCacheInvalidator(
+    options: MonSQLizeOptions,
+    cache: CacheLike,
+    logger: LoggerLike,
+): Promise<DistributedCacheInvalidator | null> {
+    const rawCache = options.cache as Record<string, unknown> | undefined;
+    if (!rawCache || typeof rawCache !== 'object' || Array.isArray(rawCache)) return null;
+    if (typeof rawCache['get'] === 'function') return null; // already a CacheLike instance
+
+    const distConfig = rawCache['distributed'] as Record<string, unknown> | undefined;
+    if (!distConfig || typeof distConfig !== 'object' || Array.isArray(distConfig)) return null;
+    if (distConfig['enabled'] === false) return null;
+
+    try {
+        return new DistributedCacheInvalidator({
+            redisUrl: distConfig['redisUrl'] as string | undefined,
+            redis: distConfig['redis'] as object | undefined,
+            channel: distConfig['channel'] as string | undefined,
+            instanceId: distConfig['instanceId'] as string | undefined,
+            cache,
+            logger,
+        });
+    } catch (err) {
+        logger.warn?.('[Cache] Failed to initialize distributed cache invalidator — is ioredis installed?', err);
+        return null;
+    }
 }
 
 // ────────────────────────────────────────────────────────

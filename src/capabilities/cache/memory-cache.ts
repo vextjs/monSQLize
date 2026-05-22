@@ -1,8 +1,17 @@
 /**
- * Thin re-export module for cache-hub `MemoryCache`.
+ * Re-export of cache-hub MemoryCache with v1-compat `size` field added to getStats().
  *
- * monSQLize no longer maintains local wrapper logic; both internal and external
- * consumers connect directly to the native `cache-hub` implementation.
+ * v1 tests access `cache.getStats().size`; cache-hub returns `entries` instead.
+ * This subclass adds `size` as an alias for `entries` to preserve the v1 API surface.
  */
 
-export { MemoryCache } from 'cache-hub';
+import { MemoryCache as BaseMemoryCache } from 'cache-hub';
+
+class MemoryCache extends BaseMemoryCache {
+    override getStats() {
+        const s = super.getStats();
+        return { ...s, size: s.entries };
+    }
+}
+
+export { MemoryCache };

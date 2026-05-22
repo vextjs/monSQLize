@@ -98,26 +98,26 @@ function testCreateValidationError() {
     const error = createValidationError(details);
 
     assert.strictEqual(error.code, ErrorCodes.VALIDATION_ERROR);
-    assert.strictEqual(error.message, '参数校验失败');
+    assert.strictEqual(error.message, 'Validation failed');
     assert.deepStrictEqual(error.details, details);
 }
 
 function testCreateCursorError() {
     console.log('  ✓ createCursorError');
 
-    const error = createCursorError('游标已过期');
+    const error = createCursorError('Cursor expired');
 
     assert.strictEqual(error.code, ErrorCodes.INVALID_CURSOR);
-    assert.strictEqual(error.message, '游标已过期');
+    assert.strictEqual(error.message, 'Cursor expired');
 }
 
 function testCreateCursorErrorDefault() {
-    console.log('  ✓ createCursorError 默认消息');
+    console.log('  ✓ createCursorError default message');
 
     const error = createCursorError();
 
     assert.strictEqual(error.code, ErrorCodes.INVALID_CURSOR);
-    assert.strictEqual(error.message, '游标无效');
+    assert.strictEqual(error.message, 'Invalid cursor');
 }
 
 function testCreateConnectionError() {

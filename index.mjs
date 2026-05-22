@@ -9,13 +9,102 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
 import { EventEmitter } from "node:events";
 
 // src/capabilities/cache/memory-cache.ts
-import { MemoryCache } from "cache-hub";
+import { MemoryCache as BaseMemoryCache } from "cache-hub";
+var MemoryCache = class extends BaseMemoryCache {
+  getStats() {
+    const s = super.getStats();
+    return { ...s, size: s.entries };
+  }
+};
 
 // src/capabilities/cache/redis-cache-adapter.ts
 import { createRedisCacheAdapter } from "cache-hub/redis";
 
 // src/capabilities/cache/distributed-cache-invalidator.ts
-import { DistributedCacheInvalidator } from "cache-hub/distributed";
+import { randomBytes } from "crypto";
+var DistributedCacheInvalidator = class {
+  constructor(options) {
+    if (!options.cache) {
+      throw new Error("DistributedCacheInvalidator requires a cache instance");
+    }
+    this._cache = options.cache;
+    this._logger = options.logger ?? null;
+    this.channel = options.channel ?? "monsqlize:cache:invalidate";
+    this.instanceId = options.instanceId ?? `instance-${Date.now()}-${randomBytes(4).toString("hex")}`;
+    this._stats = { messagesSent: 0, messagesReceived: 0, invalidationsTriggered: 0, errors: 0 };
+    if (options.redis) {
+      this.pub = options.redis;
+      this.sub = options.redis;
+    } else if (options.redisUrl) {
+      const Redis = __require("ioredis");
+      this.pub = new Redis(options.redisUrl);
+      this.sub = new Redis(options.redisUrl);
+    } else {
+      throw new Error("DistributedCacheInvalidator requires either redis or redisUrl");
+    }
+    this._setupSubscription();
+  }
+  _setupSubscription() {
+    this.sub.subscribe(this.channel, () => {
+    });
+    this.sub.on("message", async (channel, rawMessage) => {
+      if (channel !== this.channel) return;
+      let message;
+      try {
+        message = JSON.parse(rawMessage);
+      } catch {
+        this._stats.errors++;
+        return;
+      }
+      if (message.type !== "invalidate") return;
+      if (message.instanceId === this.instanceId) return;
+      this._stats.messagesReceived++;
+      try {
+        if (this._cache.local) {
+          await this._cache.local.delPattern(message.pattern);
+          this._logger?.debug(`[DistributedCacheInvalidator] Invalidated local cache: ${message.pattern}`);
+        }
+        if (this._cache.remote) {
+          await this._cache.remote.delPattern(message.pattern);
+          this._logger?.debug(`[DistributedCacheInvalidator] Invalidated remote cache: ${message.pattern}`);
+        }
+        this._stats.invalidationsTriggered++;
+      } catch (err) {
+        this._stats.errors++;
+        this._logger?.error(`[DistributedCacheInvalidator] Cache invalidation error: ${err.message}`);
+      }
+    });
+  }
+  async invalidate(pattern) {
+    if (!pattern) return;
+    const message = JSON.stringify({
+      type: "invalidate",
+      pattern,
+      instanceId: this.instanceId,
+      timestamp: Date.now()
+    });
+    try {
+      await this.pub.publish(this.channel, message);
+      this._stats.messagesSent++;
+      this._logger?.debug(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
+    } catch (err) {
+      this._stats.errors++;
+      throw err;
+    }
+  }
+  getStats() {
+    return { ...this._stats, instanceId: this.instanceId, channel: this.channel };
+  }
+  async close() {
+    try {
+      await this.sub.unsubscribe();
+      await this.sub.quit();
+      await this.pub.quit();
+    } catch (err) {
+      this._logger?.error(`[DistributedCacheInvalidator] Error closing connections: ${err.message}`);
+    }
+  }
+};
 
 // src/capabilities/cache/index.ts
 import { MultiLevelCache } from "cache-hub";
@@ -1569,7 +1658,7 @@ var ModelInstance = class {
 };
 
 // src/capabilities/transaction/index.ts
-import { randomBytes } from "node:crypto";
+import { randomBytes as randomBytes2 } from "node:crypto";
 var CacheLockManager = class {
   constructor(options = {}) {
     this.locks = /* @__PURE__ */ new Map();
@@ -1665,7 +1754,7 @@ var Transaction = class {
   constructor(session, options = {}) {
     this.session = session;
     this.options = options;
-    this.id = `tx_${randomBytes(8).toString("hex")}`;
+    this.id = `tx_${randomBytes2(8).toString("hex")}`;
     this.state = "pending";
     this.startedAt = null;
     this.timeoutTimer = null;
@@ -2177,15 +2266,15 @@ function parsePortFromUri(uri) {
 // src/utils/validation.ts
 function validateRange(value, min, max, name) {
   if (typeof value !== "number" || isNaN(value)) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, `${name} \u5FC5\u987B\u662F\u4E00\u4E2A\u6709\u6548\u7684\u6570\u5B57`);
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `${name} must be a valid number`);
   }
   if (!isFinite(value)) {
-    throw createError(ErrorCodes.INVALID_ARGUMENT, `${name} \u5FC5\u987B\u662F\u6709\u9650\u6570\u5B57`);
+    throw createError(ErrorCodes.INVALID_ARGUMENT, `${name} must be a finite number`);
   }
   if (value < min || value > max) {
     throw createError(
       ErrorCodes.INVALID_ARGUMENT,
-      `${name} \u5FC5\u987B\u5728 ${min} \u5230 ${max} \u4E4B\u95F4\uFF0C\u5F53\u524D\u503C: ${value}`
+      `${name} must be between ${min} and ${max}, current value: ${value}`
     );
   }
   return value;
@@ -3219,11 +3308,12 @@ function buildRuntimeDefaults(options) {
   defaults.autoConvertObjectId = o.autoConvertObjectId !== void 0 ? o.autoConvertObjectId : o.type === "mongodb" || !o.type ? true : false;
   if (o.cursorSecret !== void 0) defaults.cursorSecret = o.cursorSecret;
   if (o.namespace !== void 0) defaults.namespace = o.namespace;
-  if (o.countQueue?.enabled) {
+  const countQueueCfg = o.countQueue ?? { enabled: true, maxQueueSize: 1e4, timeout: 6e4 };
+  if (countQueueCfg.enabled) {
     defaults.countQueue = new CountQueue({
-      concurrency: o.countQueue.concurrency,
-      maxQueueSize: o.countQueue.maxQueueSize,
-      timeout: o.countQueue.timeout
+      concurrency: countQueueCfg.concurrency,
+      maxQueueSize: countQueueCfg.maxQueueSize,
+      timeout: countQueueCfg.timeout
     });
   }
   return defaults;
@@ -3244,6 +3334,27 @@ async function createAndStartPoolManager(options) {
   }
   pm.startHealthCheck();
   return pm;
+}
+async function initializeDistributedCacheInvalidator(options, cache, logger) {
+  const rawCache = options.cache;
+  if (!rawCache || typeof rawCache !== "object" || Array.isArray(rawCache)) return null;
+  if (typeof rawCache["get"] === "function") return null;
+  const distConfig = rawCache["distributed"];
+  if (!distConfig || typeof distConfig !== "object" || Array.isArray(distConfig)) return null;
+  if (distConfig["enabled"] === false) return null;
+  try {
+    return new DistributedCacheInvalidator({
+      redisUrl: distConfig["redisUrl"],
+      redis: distConfig["redis"],
+      channel: distConfig["channel"],
+      instanceId: distConfig["instanceId"],
+      cache,
+      logger
+    });
+  } catch (err) {
+    logger.warn?.("[Cache] Failed to initialize distributed cache invalidator \u2014 is ioredis installed?", err);
+    return null;
+  }
 }
 async function loadModelFiles(options, logger, opts = {}) {
   const modelsConfig = options.models;
@@ -3520,7 +3631,7 @@ async function dropIndexDefinition(collectionRef, name) {
   } catch (err) {
     const mongoErr = err;
     if (mongoErr?.code === 27 || mongoErr?.codeName === "IndexNotFound") {
-      throw createError(ErrorCodes.MONGODB_ERROR, `\u7D22\u5F15\u4E0D\u5B58\u5728: ${name}`);
+      throw createError(ErrorCodes.MONGODB_ERROR, `Index does not exist: ${name}`);
     }
     throw err;
   }
@@ -5968,7 +6079,7 @@ async function insertOneForAccessor(context, doc, options) {
   const threshold = context.defaults?.slowQueryMs ?? 500;
   if (elapsed > threshold && context.logger) {
     try {
-      context.logger.warn("[insertOne] slow operation warning", {
+      context.logger.warn("[insertOne] \u6162\u64CD\u4F5C\u8B66\u544A", {
         ns: `${context.dbName}.${context.collectionName}`,
         threshold,
         duration: elapsed,
@@ -6013,7 +6124,7 @@ async function insertManyForAccessor(context, documents, options) {
   const elapsed = Date.now() - startedAt;
   const threshold = context.defaults?.slowQueryMs ?? 500;
   if (elapsed >= threshold && context.logger) {
-    context.logger.warn("[insertMany] slow operation warning", {
+    context.logger.warn("[insertMany] \u6162\u64CD\u4F5C\u8B66\u544A", {
       ns: `${context.dbName}.${context.collectionName}`,
       threshold,
       duration: elapsed,
@@ -7147,12 +7258,20 @@ async function sleep3(ms) {
 }
 
 // src/capabilities/saga/index.ts
-import { randomBytes as randomBytes2 } from "node:crypto";
+import { randomBytes as randomBytes3 } from "node:crypto";
 var SagaExecutionContext = class {
   constructor(executionId, data) {
     this.executionId = executionId;
     this.data = data;
     this.values = /* @__PURE__ */ new Map();
+    // v1 compat: tracked separately so existing code that reads these fields still works.
+    /** @deprecated v1 compat — ordered list of completed step names. */
+    this.completedSteps = [];
+    this._stepResults = /* @__PURE__ */ new Map();
+  }
+  /** @deprecated Use `executionId` — v1 compatibility alias. */
+  get sagaId() {
+    return this.executionId;
   }
   set(key, value) {
     this.values.set(key, value);
@@ -7165,6 +7284,28 @@ var SagaExecutionContext = class {
   }
   getAll() {
     return Object.fromEntries(this.values.entries());
+  }
+  /**
+   * Mark a step as completed and record its result.
+   * @deprecated v1 compat — called automatically by the orchestrator. Use `ctx.get(stepName)` to retrieve step results.
+   */
+  markStepCompleted(stepName, result) {
+    this.completedSteps.push(stepName);
+    this._stepResults.set(stepName, result);
+  }
+  /**
+   * Return the result of a previously completed step.
+   * @deprecated v1 compat — use `ctx.get(stepName)` instead.
+   */
+  getStepResult(stepName) {
+    return this._stepResults.get(stepName);
+  }
+  /**
+   * Return an ordered copy of completed step names.
+   * @deprecated v1 compat — use `ctx.getAll()` instead.
+   */
+  getCompletedSteps() {
+    return [...this.completedSteps];
   }
 };
 var SagaOrchestrator = class {
@@ -7206,7 +7347,7 @@ var SagaOrchestrator = class {
     if (!definition) {
       throw createError(ErrorCodes.INVALID_ARGUMENT, `Saga '${name}' is not defined`);
     }
-    const sagaId = `saga_${randomBytes2(8).toString("hex")}`;
+    const sagaId = `saga_${randomBytes3(8).toString("hex")}`;
     const startedAt = Date.now();
     const context = new SagaExecutionContext(sagaId, data);
     const completedSteps = [];
@@ -7218,6 +7359,7 @@ var SagaOrchestrator = class {
         if (result !== void 0) {
           context.set(step.name, result);
         }
+        context.markStepCompleted(step.name, result);
       }
       this._stats.successfulExecutions += 1;
       const stepNames = completedSteps.map(({ step }) => step.name);
@@ -8472,7 +8614,7 @@ function normalizeRuntimeCache(cache) {
   if (cache instanceof MemoryCache) return cache;
   if (isCacheLike(cache)) return cache;
   const input = cache ?? {};
-  if (input.multiLevel === true) {
+  if (input.multiLevel === true || input.local !== void 0 && typeof input.local === "object") {
     const localOpts = input.local ?? {};
     const local = new MemoryCache({
       maxEntries: toOptionalNumber(localOpts.maxEntries ?? localOpts.maxSize),
@@ -8553,6 +8695,7 @@ var MonSQLizeRuntime = class {
     });
     this._connectionPromise = null;
     this._sshTunnel = null;
+    this._distributedInvalidator = null;
     const type = options.type;
     if (type !== "mongodb") {
       throw createError(ErrorCodes.UNSUPPORTED_DATABASE, "Invalid database type. Supported types are: mongodb");
@@ -8570,7 +8713,15 @@ var MonSQLizeRuntime = class {
     if (options.findPageMaxLimit !== void 0 && options.findPageMaxLimit !== null) {
       validateRange(options.findPageMaxLimit, 1, 1e4, "findPageMaxLimit");
     }
-    this._cache = normalizeRuntimeCache(options.cache);
+    const rawCacheInput = options.cache;
+    const hasDistributedCfg = rawCacheInput != null && typeof rawCacheInput === "object" && !(rawCacheInput instanceof MemoryCache) && typeof rawCacheInput["get"] !== "function" && typeof rawCacheInput["distributed"] === "object" && rawCacheInput["distributed"] !== null;
+    const cacheInput = hasDistributedCfg ? {
+      ...rawCacheInput,
+      publish: (msg) => {
+        void this._distributedInvalidator?.invalidate(msg.pattern);
+      }
+    } : rawCacheInput;
+    this._cache = normalizeRuntimeCache(cacheInput);
     this._logger = Logger.create(options.logger ?? null);
     this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
     this._cache.setLockManager?.(this._cacheLockManager);
@@ -8622,6 +8773,18 @@ var MonSQLizeRuntime = class {
       this.initializeSagaOrchestrator();
       this.initializeSlowQueryLogManager();
       await this.initializeSyncManager();
+      if (!this._distributedInvalidator) {
+        this._distributedInvalidator = await initializeDistributedCacheInvalidator(
+          this.options,
+          this._cache,
+          this._logger
+        );
+        if (this._distributedInvalidator && this._cache instanceof MemoryCache) {
+          this._logger.warn?.(
+            "[Cache] distributed invalidator created but cache has no publish hook \u2014 broadcast path disabled. Use cache: { local, remote, distributed } for full cross-instance sync."
+          );
+        }
+      }
       this._connected = true;
       await this._loadModels();
       this.emit("connected", {
@@ -8637,15 +8800,19 @@ var MonSQLizeRuntime = class {
         const clientToClose = this._client;
         const poolToClose = this._poolManager;
         const tunnelToClose = this._sshTunnel;
+        const invalidatorToClose = this._distributedInvalidator;
         this._client = null;
         this._defaultDb = null;
         this._poolManager = null;
         this._sshTunnel = null;
+        this._distributedInvalidator = null;
         clientToClose?.close().catch(() => {
         });
         poolToClose?.close().catch(() => {
         });
         tunnelToClose?.close().catch(() => {
+        });
+        invalidatorToClose?.close().catch(() => {
         });
       }
       this.emit("error", {
@@ -8684,7 +8851,8 @@ var MonSQLizeRuntime = class {
       this._syncManager?.stop(),
       this._slowQueryLogManager?.close(),
       this._transactionManager?.abortAll(),
-      this._poolManager?.close()
+      this._poolManager?.close(),
+      this._distributedInvalidator?.close()
     ]);
     for (const result of results) {
       if (result.status === "rejected") {
@@ -8710,6 +8878,7 @@ var MonSQLizeRuntime = class {
     this._sagaOrchestrator = null;
     this._iidCache = null;
     this._sshTunnel = null;
+    this._distributedInvalidator = null;
     this._modelInstances.clear();
     this.emit("closed", {
       type: this.options.type,
@@ -8740,7 +8909,11 @@ var MonSQLizeRuntime = class {
     if (this._client === null) return null;
     return {
       collection: (name) => this.collection(name),
-      db: (name) => this.db(name)
+      db: (name) => this.db(name),
+      withLock: (key, callback, options) => this.withLock(key, callback, options),
+      acquireLock: (key, options) => this.acquireLock(key, options),
+      tryAcquireLock: (key, options) => this.tryAcquireLock(key, options),
+      getLockStats: () => this.getLockStats()
     };
   }
   get _connecting() {

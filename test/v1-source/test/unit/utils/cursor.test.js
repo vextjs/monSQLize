@@ -83,19 +83,19 @@ describe('Cursor Utils', function() {
         it('should throw for invalid cursor', function() {
             assert.throws(() => {
                 decodeCursor('invalid-cursor-string');
-            }, /游标无效/);
+            }, /Invalid cursor/);
         });
 
         it('should throw for empty cursor', function() {
             assert.throws(() => {
                 decodeCursor('');
-            }, /游标无效/);
+            }, /Invalid cursor/);
         });
 
         it('should throw for non-base64 cursor', function() {
             assert.throws(() => {
                 decodeCursor('not!valid@base64#string');
-            }, /游标无效/);
+            }, /Invalid cursor/);
         });
 
         it('should handle cursor with Date objects', function() {

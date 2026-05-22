@@ -666,7 +666,7 @@ describe('findPage 补充测试套件', function() {
           error.message.includes('cursor') ||
           error.message.includes('invalid') ||
           error.message.includes('signature'),
-          '应该抛出游标无效错误'
+          'should throw invalid cursor error'
         );
         console.log('  ✓ 正确拒绝了被篡改的游标');
       }

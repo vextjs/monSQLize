@@ -19,7 +19,7 @@ const TEST_CONFIG = {
     type: 'mongodb',
     databaseName: 'test_indexes',
     config: {
-        uri: process.env.MONGODB_URI || 'mongodb://localhost:27017'
+        useMemoryServer: true
     }
 };
 
@@ -194,7 +194,7 @@ describe('🔑 索引管理测试套件', function() {
                 assert.fail('应该抛出参数错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'INVALID_ARGUMENT');
-                assert.ok(err.message.includes('索引键不能为空'));
+                assert.ok(err.message.includes('index keys must not be empty'));
             }
         });
 
@@ -315,15 +315,15 @@ describe('🔑 索引管理测试套件', function() {
             assert.ok(!indexes.some(idx => idx.name === 'email_1'));
         });
 
-        it('应该在索引不存在时抛出错误', async function() {
+        it('should throw when index does not exist', async function() {
             const testColl = collection(testCollName);
 
             try {
                 await testColl.dropIndex('nonexistent_index');
-                assert.fail('应该抛出索引不存在错误');
+                assert.fail('should throw index-not-found error');
             } catch (err) {
                 assert.strictEqual(err.code, 'MONGODB_ERROR');
-                assert.ok(err.message.includes('索引不存在'));
+                assert.ok(err.message.includes('Index does not exist'));
             }
         });
 
@@ -335,7 +335,7 @@ describe('🔑 索引管理测试套件', function() {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'INVALID_ARGUMENT');
-                assert.ok(err.message.includes('不允许删除 _id 索引'));
+                assert.ok(err.message.includes('dropping the _id index is not allowed'));
             }
         });
 

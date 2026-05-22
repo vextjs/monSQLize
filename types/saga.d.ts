@@ -4,6 +4,8 @@ import type { LoggerLike } from './base';
 export interface SagaContext {
     /** Unique ID for this Saga execution run. */
     readonly executionId: string;
+    /** @deprecated Use `executionId` — v1 compatibility alias. */
+    readonly sagaId?: string;
     /** Initial data passed to `executeSaga`. */
     readonly data: unknown;
     /** Store a value in the shared step context. */
@@ -14,6 +16,26 @@ export interface SagaContext {
     has(key: string): boolean;
     /** Return all stored key-value pairs. */
     getAll(): Record<string, unknown>;
+    /**
+     * Ordered list of completed step names.
+     * @deprecated v1 compat — populated automatically by the orchestrator.
+     */
+    readonly completedSteps: string[];
+    /**
+     * Mark a step as completed and record its result.
+     * @deprecated v1 compat — called automatically by the orchestrator. Use `ctx.get(stepName)` to retrieve step results.
+     */
+    markStepCompleted(stepName: string, result: unknown): void;
+    /**
+     * Return the result of a previously completed step.
+     * @deprecated v1 compat — use `ctx.get(stepName)` instead.
+     */
+    getStepResult(stepName: string): unknown;
+    /**
+     * Return an ordered copy of completed step names.
+     * @deprecated v1 compat — use `ctx.getAll()` instead.
+     */
+    getCompletedSteps(): string[];
 }
 
 /** A single step within a Saga, consisting of a forward action and an optional compensation handler. */

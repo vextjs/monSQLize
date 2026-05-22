@@ -152,7 +152,7 @@ describe('Model 热重载 - Hot Reload Support (v1.1.7)', function () {
             assert.ok(Model.get('newmodel'));
         });
 
-        it('参数校验失败时应该抛出错误（与 define 相同的校验）', function () {
+        it('should throw validation error (same checks as define)', function () {
             // 缺少 schema
             assert.throws(
                 () => Model.redefine('users', {}),

@@ -18,9 +18,7 @@ export type {
 } from 'cache-hub';
 
 
-export type {
-    DistributedInvalidatorOptions as DistributedCacheInvalidatorOptions,
-} from 'cache-hub/distributed';
+export type { DistributedCacheInvalidatorOptions } from './distributed-cache-invalidator';
 
 import type { CacheLike } from 'cache-hub';
 
