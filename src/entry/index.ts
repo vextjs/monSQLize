@@ -46,6 +46,8 @@ import {
     validateRange,
     validatePositiveInteger,
     validateSyncConfig,
+    validateTargetConfig,
+    validateResumeTokenConfig,
     withCache,
     withSlowQueryLog,
 } from './runtime-core';
@@ -90,6 +92,8 @@ MonSQLize.FunctionCache = FunctionCache;
 MonSQLize.ChangeStreamSyncManager = ChangeStreamSyncManager;
 MonSQLize.ResumeTokenStore = ResumeTokenStore;
 MonSQLize.validateSyncConfig = validateSyncConfig;
+MonSQLize.validateTargetConfig = validateTargetConfig;
+MonSQLize.validateResumeTokenConfig = validateResumeTokenConfig;
 MonSQLize.SlowQueryLogManager = SlowQueryLogManager;
 MonSQLize.SlowQueryLogConfigManager = SlowQueryLogConfigManager;
 MonSQLize.BatchQueue = BatchQueue;

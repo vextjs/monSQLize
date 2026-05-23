@@ -60,6 +60,65 @@ interface ChangeStreamSyncManagerOptions {
 }
 
 /**
+ * Validates a single sync target configuration entry.
+ * @param target - Target config to validate.
+ * @param index  - Position in the targets array (used in error messages).
+ * @throws {MonSQLizeError} When the target configuration is invalid.
+ * @since v1.7.0
+ */
+export function validateTargetConfig(target: SyncTargetConfig | null | undefined, index: number): void {
+    if (!target || typeof target !== 'object') {
+        throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}] must be an object.`);
+    }
+    if (typeof target.name !== 'string' || target.name.trim() === '') {
+        throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].name must be a non-empty string.`);
+    }
+    if (!target.apply && !target.uri && !target.pool) {
+        throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}] requires one of apply / uri / pool.`);
+    }
+    if (target.uri !== undefined && (typeof target.uri !== 'string' || target.uri.trim() === '')) {
+        throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].uri must be a non-empty string when provided.`);
+    }
+    if (target.pool !== undefined && (typeof target.pool !== 'string' || target.pool.trim() === '')) {
+        throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].pool must be a non-empty string when provided.`);
+    }
+    if (target.databaseName !== undefined && (typeof target.databaseName !== 'string' || target.databaseName.trim() === '')) {
+        throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].databaseName must be a non-empty string when provided.`);
+    }
+    if (target.collections !== undefined && (!Array.isArray(target.collections) || target.collections.length === 0)) {
+        throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].collections must be a non-empty array when provided.`);
+    }
+    if (target.apply !== undefined && typeof target.apply !== 'function') {
+        throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].apply must be a function when provided.`);
+    }
+}
+
+/**
+ * Validates a resume token configuration object.
+ * @param config - Resume token config to validate.
+ * @throws {MonSQLizeError} When the configuration is invalid.
+ * @since v1.7.0
+ */
+export function validateResumeTokenConfig(config: ResumeTokenConfig | null | undefined): void {
+    if (!config || typeof config !== 'object') {
+        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken must be an object.');
+    }
+    const storage = config.storage ?? 'file';
+    if (!['file', 'redis'].includes(storage)) {
+        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.storage must be file or redis.');
+    }
+    if (storage === 'file' && config.path !== undefined && typeof config.path !== 'string') {
+        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.path must be a string.');
+    }
+    if (storage === 'redis' && !config.redis) {
+        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.redis is required when storage is redis.');
+    }
+    if (storage === 'redis' && config.redis && typeof config.redis !== 'object') {
+        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.redis must be an object.');
+    }
+}
+
+/**
  * Validates a {@link SyncConfig} object and throws a descriptive error on failure.
  * @param config - Sync configuration to validate.
  * @throws {MonSQLizeError} When the configuration is invalid.
@@ -89,30 +148,7 @@ export function validateSyncConfig(config: SyncConfig): void {
     }
 
     config.targets.forEach((target, index) => {
-        if (!target || typeof target !== 'object') {
-            throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}] must be an object.`);
-        }
-        if (typeof target.name !== 'string' || target.name.trim() === '') {
-            throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].name must be a non-empty string.`);
-        }
-        if (!target.apply && !target.uri && !target.pool) {
-            throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}] requires one of apply / uri / pool.`);
-        }
-        if (target.uri !== undefined && (typeof target.uri !== 'string' || target.uri.trim() === '')) {
-            throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].uri must be a non-empty string when provided.`);
-        }
-        if (target.pool !== undefined && (typeof target.pool !== 'string' || target.pool.trim() === '')) {
-            throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].pool must be a non-empty string when provided.`);
-        }
-        if (target.databaseName !== undefined && (typeof target.databaseName !== 'string' || target.databaseName.trim() === '')) {
-            throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].databaseName must be a non-empty string when provided.`);
-        }
-        if (target.collections !== undefined && (!Array.isArray(target.collections) || target.collections.length === 0)) {
-            throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].collections must be a non-empty array when provided.`);
-        }
-        if (target.apply !== undefined && typeof target.apply !== 'function') {
-            throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].apply must be a function when provided.`);
-        }
+        validateTargetConfig(target as SyncTargetConfig | null, index);
     });
 
     if (config.resumeToken) {
@@ -426,15 +462,6 @@ export class ChangeStreamSyncManager {
     }
 }
 
-function validateResumeTokenConfig(config: ResumeTokenConfig): void {
-    const storage = config.storage ?? 'file';
-    if (!['file', 'redis'].includes(storage)) {
-        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.storage must be file or redis.');
-    }
-    if (storage === 'redis' && !config.redis) {
-        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.redis is required when storage is redis.');
-    }
-}
 
 function createMongoTarget(
     name: string,

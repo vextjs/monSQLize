@@ -121,18 +121,11 @@ const result = await msq.collection('orders').find({
 | bson@5.x  | mongoose@6.x | ✅ 完全支持     |
 | bson@6.x  | mongoose@7.x | ✅ 原生支持     |
 
-## 手动转换（可选）
+## 手动预处理（仅在应用层确有需要时）
 
-如果您需要手动控制转换过程：
+v2 当前对外承诺的是**自动跨版本 ObjectId 转换**。`monsqlize/lib/utils/objectid-converter` 属于迁移期 legacy helper 子路径，不再建议作为正式依赖入口。
 
-```javascript
-const { convertObjectIdStrings } = require('monsqlize/lib/utils/objectid-converter');
-
-// 手动转换
-const converted = convertObjectIdStrings(dataFromMongoose);
-
-await msq.collection('orders').insertOne(converted);
-```
+如果业务确实需要在进入 monSQLize 前显式归一化数据，请在应用层自行做预处理，再把结果交给 monSQLize；不要把旧 helper 子路径当作长期公开 API。
 
 ## 调试
 

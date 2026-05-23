@@ -1,10 +1,12 @@
 import { expectAssignable, expectType } from 'tsd';
 import MonSQLize, {
+    compilePipelineExpressions,
     type AdminAccessor,
     type CacheLike,
     type CacheLockLike,
     type LockOptions,
     type LockStats,
+    type SlowQueryLogConfig,
     type TransactionOptions,
     type TransactionContract,
     type DeleteBatchResult,
@@ -14,6 +16,9 @@ import MonSQLize, {
     type IncrementOneResult,
     expr,
     createExpression,
+    hasExpressionInObject,
+    hasExpressionInPipeline,
+    isExpressionObject,
     withCache,
     type Collection,
     type DeleteResult,
@@ -34,6 +39,13 @@ import MonSQLize, {
 const expression = expr('COUNT(*)');
 expectType<ExpressionObject>(expression);
 expectType<ExpressionObject>(createExpression('SUM(price)'));
+expectType<boolean>(isExpressionObject(expression));
+expectType<boolean>(hasExpressionInObject({ total: expression }));
+expectType<boolean>(hasExpressionInPipeline([{ $project: { total: expression } }]));
+expectType<Array<{ $project: { total: ExpressionObject } }>>(compilePipelineExpressions([{ $project: { total: expression } }]));
+expectType<boolean>(MonSQLize.isExpressionObject(expression));
+expectType<boolean>(MonSQLize.hasExpressionInObject({ total: expression }));
+expectType<boolean>(MonSQLize.hasExpressionInPipeline([{ $project: { total: expression } }]));
 
 const cacheable = withCache(async (userId: string) => ({ userId }));
 expectType<Promise<{ userId: string; }>>(cacheable('u_1'));
@@ -146,6 +158,22 @@ expectType<Promise<number>>(db.withLock('cron:job', async () => 1, lockOptions))
 expectType<Promise<import('../..').LockContract>>(db.acquireLock('cron:job', lockOptions));
 expectType<Promise<import('../..').LockContract | null>>(db.tryAcquireLock('cron:job', { ttl: 1000 }));
 expectType<LockStats>(new MonSQLize.LockManager().getStats());
+
+const slowQueryConfig = MonSQLize.SlowQueryLogConfigManager.mergeConfig({
+    storage: { type: 'memory' },
+    batch: { enabled: false, size: 1, interval: 100, maxBufferSize: 5 },
+});
+expectType<SlowQueryLogConfig>(slowQueryConfig);
+expectType<string>(MonSQLize.generateQueryHash({ collection: 'users', query: { id: 1 } }));
+const slowQueryQueue = new MonSQLize.BatchQueue({
+    saveBatch: async () => {},
+});
+expectType<Promise<void>>(slowQueryQueue.add({
+    database: 'app',
+    collection: 'users',
+    operation: 'find',
+    durationMs: 900,
+}));
 
 expectType<Promise<Array<{ name: string; sizeOnDisk: number; empty: boolean }> | string[]>>(db.db().listDatabases());
 

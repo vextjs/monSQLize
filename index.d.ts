@@ -148,6 +148,9 @@ import {
     compilePipelineExpressions,
     createRedisCacheAdapter,
     expr,
+    hasExpressionInObject,
+    hasExpressionInPipeline,
+    isExpressionObject,
     BatchQueue,
     ChangeStreamSyncManager,
     generateQueryHash,
@@ -319,6 +322,9 @@ export {
     expr,
     createExpression,
     compilePipelineExpressions,
+    isExpressionObject,
+    hasExpressionInObject,
+    hasExpressionInPipeline,
     createRedisCacheAdapter,
     withCache,
     FunctionCache,
@@ -418,6 +424,9 @@ export default class MonSQLize implements MonSQLizeInstance {
     static expr: typeof expr;
     static createExpression: typeof createExpression;
     static compilePipelineExpressions: typeof compilePipelineExpressions;
+    static isExpressionObject: typeof isExpressionObject;
+    static hasExpressionInObject: typeof hasExpressionInObject;
+    static hasExpressionInPipeline: typeof hasExpressionInPipeline;
     static createRedisCacheAdapter: typeof createRedisCacheAdapter;
     static withCache: typeof withCache;
     static FunctionCache: typeof FunctionCache;

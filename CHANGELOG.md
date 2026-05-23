@@ -1,7 +1,7 @@
 # CHANGELOG
 
 > Summary index — full details in [changelogs/](./changelogs/)  
-> **Last updated**: 2026-05-19
+> **Last updated**: 2026-05-23
 
 ---
 

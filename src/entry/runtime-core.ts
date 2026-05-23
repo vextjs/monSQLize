@@ -90,6 +90,8 @@ import {
     ChangeStreamSyncManager,
     ResumeTokenStore,
     validateSyncConfig,
+    validateTargetConfig,
+    validateResumeTokenConfig,
     type ResumeTokenConfig,
     type SyncChangeEvent,
     type SyncConfig,
@@ -133,13 +135,15 @@ import {
 import {
     buildPublicDefaults,
     createRuntimeDbFacade,
-    createRuntimeModelHost,
     createRuntimeModelInstance,
-    createRuntimeAccessors,
     resolveDatabaseName,
-    type RuntimeDbFacadeHost,
-    type RuntimeModelHost,
 } from './runtime-helpers';
+import {
+    createRuntimeCoreAccessors,
+    createRuntimeCoreAdapterBridgeHost,
+    createRuntimeCoreDbFacadeHost,
+    createRuntimeCoreModelHost,
+} from './runtime-core-hosts';
 import {
     asRuntimeCompatRecord,
     assertCompatPoolExists,
@@ -262,7 +266,7 @@ export class MonSQLizeRuntime {
         this._cache.setLockManager?.(this._cacheLockManager);
         this._runtimeDefaults = buildRuntimeDefaults(options);
         this._adapterCacheOverride = undefined;
-        this._adapterBridge = createRuntimeAdapterBridge(this.createAdapterBridgeHost());
+        this._adapterBridge = createRuntimeAdapterBridge(createRuntimeCoreAdapterBridgeHost(this));
         this.defaults = buildPublicDefaults(options);
         // v1 compat: initialise autoConvertConfig (delegates to the capability-wiring pure function).
         this.autoConvertConfig = initAutoConvertConfig(options.autoConvertObjectId, options.type);
@@ -270,7 +274,7 @@ export class MonSQLizeRuntime {
 
     async connect(): Promise<ConnectResult<MonSQLizeRuntime>> {
         if (this._connected) {
-            return this.createAccessors();
+            return createRuntimeCoreAccessors(this);
         }
 
         if (this._connectionPromise) {
@@ -326,7 +330,7 @@ export class MonSQLizeRuntime {
                 type: this.options.type,
                 db: databaseName,
             });
-            return this.createAccessors();
+            return createRuntimeCoreAccessors(this);
         })();
 
         try {
@@ -506,14 +510,6 @@ export class MonSQLizeRuntime {
             return this._defaultDb;
         }
         return this.createDbFacade(databaseName);
-    }
-
-    private resolveAdapterCache(): CacheLike | null {
-        return this._adapterCacheOverride === undefined ? this._cache : this._adapterCacheOverride;
-    }
-
-    private setAdapterCache(value: CacheLike | null): void {
-        this._adapterCacheOverride = value;
     }
 
     use(name: string): ScopedUseResult {
@@ -715,21 +711,8 @@ export class MonSQLizeRuntime {
         }
     }
 
-    private createAccessors(): ConnectResult<MonSQLizeRuntime> {
-        return createRuntimeAccessors({
-            defaultDb: this._defaultDb!,
-            runtime: this,
-            db: (name?: string) => this.db(name),
-            use: (name: string) => this.use(name),
-            getIidCache: () => this._iidCache,
-            setIidCache: (value) => {
-                this._iidCache = value;
-            },
-        });
-    }
-
     private createDbFacade(databaseName: string): DbFacade {
-        return createRuntimeDbFacade(this.createDbFacadeHost(), databaseName);
+        return createRuntimeDbFacade(createRuntimeCoreDbFacadeHost(this), databaseName);
     }
 
     private getTransactionManager(): TransactionManager {
@@ -800,48 +783,7 @@ export class MonSQLizeRuntime {
         name: string,
         scope: { database?: string; pool?: string; },
     ): ModelInstance<TDocument> {
-        return createRuntimeModelInstance(this.createModelHost(), name, scope);
-    }
-
-    private createAdapterBridgeHost(): RuntimeAdapterBridgeHost {
-        const self = this;
-        return {
-            options: self.options,
-            get _defaultDb() { return self._defaultDb; },
-            get _client() { return self._client; },
-            get _iidCache() { return self._iidCache; },
-            _runtimeDefaults: self._runtimeDefaults,
-            get _slowQueryLogManager() { return self._slowQueryLogManager; },
-            resolveAdapterCache: () => self.resolveAdapterCache(),
-            setAdapterCache: (value) => self.setAdapterCache(value),
-            initializeSlowQueryLogManager: () => self.initializeSlowQueryLogManager(),
-            ensureConnected: () => self.ensureConnected(),
-            db: (name?: string) => self.db(name),
-            emit: (event: string, payload: unknown) => self.emit(event, payload),
-        };
-    }
-
-    private createDbFacadeHost(): RuntimeDbFacadeHost {
-        if (!this._client) {
-            throw createError(ErrorCodes.NOT_CONNECTED, 'MonSQLize is not connected yet.');
-        }
-        return {
-            options: this.options,
-            _client: this._client,
-            _logger: this._logger,
-            _runtimeDefaults: this._runtimeDefaults,
-            resolveAdapterCache: () => this.resolveAdapterCache(),
-        };
-    }
-
-    private createModelHost(): RuntimeModelHost {
-        return createRuntimeModelHost({
-            options: this.options,
-            modelInstances: this._modelInstances,
-            runtime: this,
-            scopedCollection: <TDocument = Record<string, unknown>>(name: string, options?: { database?: string; pool?: string }) =>
-                this.scopedCollection(name, options),
-        });
+        return createRuntimeModelInstance(createRuntimeCoreModelHost(this), name, scope);
     }
 }
 

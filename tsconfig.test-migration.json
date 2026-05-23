@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".generated/test-dist",
+    "rootDir": ".",
+    "declaration": false,
+    "sourceMap": false,
+    "tsBuildInfoFile": ".generated/test-dist/.tsbuildinfo"
+  },
+  "include": [
+    "test-ts/**/*.ts"
+  ]
+}

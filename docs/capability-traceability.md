@@ -8,7 +8,7 @@
 |------|----------|----------|------------|
 | 连接 / 基础 CRUD | `getting-started.md` | `examples/quick-start/basic-connect.ts` | `test/integration/mongodb/connect.test.js` |
 | Query（find / findOne / count / distinct） | `find.md` / `findOne.md` / `count.md` / `distinct.md` | `examples/docs/find.ts` / `find-one.ts` / `count.ts` / `distinct.ts` | `test/integration/mongodb/queries.test.js` |
-| 分页 / 链式查询 | `findPage.md` / `chaining-api.md` | `examples/docs/find-page.ts` / `chaining-api.ts` | `test/v1-source` compat + `test/compatibility/matrix.test.js` |
+| 分页 / 链式查询 | `findPage.md` / `chaining-api.md` | `examples/docs/find-page.ts` / `chaining-api.ts` | `test-ts/v1-compat/model/populate-relations.test.ts` + `npm run test:examples` |
 | 聚合 / 表达式 | `aggregate.md` / `expression-functions.md` | `examples/docs/aggregate.ts` / `aggregate-advanced.ts` / `expression-functions.ts` | `test/unit/expression/*.test.js` |
 | 写入扩展 / Batch | `write-operations.md` / `updateBatch.md` / `deleteBatch.md` | `examples/docs/update.ts` / `batch-operations.ts` | `test/unit/writes/batch.test.js` + `test/integration/mongodb/writes-batch.test.js` |
 | Collection 管理能力 | `collection-management.md` / `create-index.md` / `database-ops.md` | `examples/docs/collection-management.ts` | `test/integration/mongodb/management.test.js` |
@@ -20,7 +20,7 @@
 | Sync / Resume Token | `sync-backup.md` / `watch.md` | `examples/docs/sync.ts` / `sync-target-failure.ts` | `test/unit/sync/sync.test.js` / `test/integration/sync/sync.test.js` |
 | Slow Query Log | `slow-query-log.md` | `examples/docs/slow-query-log.ts` | `test/unit/slow-query-log/slow-query-log.test.js` / `test/integration/slow-query-log/slow-query-log.test.js` |
 | Saga | `saga-transaction.md` / `saga-advanced.md` | `examples/docs/saga.ts` | `test/unit/saga/saga.test.js` |
-| ObjectId 自动转换 | `objectid-auto-convert.md` / `objectid-cross-version.md` | `examples/docs/objectid.ts` | `test/v1-source` compat + `test/compatibility/matrix.test.js` |
+| ObjectId 自动转换 | `objectid-auto-convert.md` / `objectid-cross-version.md` | `examples/docs/objectid.ts` | `npm run test:examples` |
 
 ## 使用建议
 

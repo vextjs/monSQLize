@@ -28,8 +28,22 @@ export function stableStringify(value: unknown): string {
     return JSON.stringify(value);
 }
 
+function normalizeHashInput(input: unknown): unknown {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        return input;
+    }
+
+    const record = input as Record<string, unknown>;
+    return {
+        db: typeof (record.db ?? record.database) === 'string' ? (record.db ?? record.database) : '',
+        collection: typeof (record.collection ?? record.coll) === 'string' ? (record.collection ?? record.coll) : '',
+        operation: typeof (record.operation ?? record.op) === 'string' ? (record.operation ?? record.op) : '',
+        queryShape: record.queryShape ?? record.query ?? {},
+    };
+}
+
 export function generateQueryHash(input: unknown): string {
-    return createHash('sha1').update(stableStringify(input)).digest('hex');
+    return createHash('sha256').update(stableStringify(normalizeHashInput(input))).digest('hex').slice(0, 16);
 }
 
 export function handleSlowQueryLogError(

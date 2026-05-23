@@ -1,13 +1,13 @@
-const { describe, it } = require('node:test');
-const assert = require('node:assert/strict');
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 
-const MonSQLize = require('../../../lib/index.js');
+import MonSQLize from 'monsqlize';
 
-describe('P3-B function-cache', () => {
+describe('Stage B function-cache TS migration', () => {
     it('withCache 应缓存结果并返回命中统计', async () => {
         let calls = 0;
         const cache = new MonSQLize.MemoryCache();
-        const cached = MonSQLize.withCache((userId) => Promise.resolve().then(() => {
+        const cached = MonSQLize.withCache((userId: string) => Promise.resolve().then(() => {
             calls += 1;
             return { userId, calls };
         }), {
@@ -32,14 +32,14 @@ describe('P3-B function-cache', () => {
 
     it('withCache 应支持 keyBuilder / condition / 并发去重', async () => {
         let calls = 0;
-        const cached = MonSQLize.withCache(async (payload) => {
+        const cached = MonSQLize.withCache(async (payload: { id: number; skip: boolean; }) => {
             calls += 1;
             await new Promise((resolve) => setTimeout(resolve, 20));
             return payload.skip ? null : { id: payload.id, calls };
         }, {
             namespace: 'custom',
-            keyBuilder: (payload) => `id:${payload.id}`,
-            condition: (result) => result !== null,
+            keyBuilder: (payload: { id: number; }) => `id:${payload.id}`,
+            condition: (result: { id: number; calls: number; } | null) => result !== null,
         });
 
         const [first, second] = await Promise.all([
@@ -64,7 +64,8 @@ describe('P3-B function-cache', () => {
         });
 
         let calls = 0;
-        functionCache.register('getUser', (userId) => Promise.resolve().then(() => {
+        functionCache.register('getUser', (...args: unknown[]) => Promise.resolve().then(() => {
+            const [userId] = args as [string];
             calls += 1;
             return { userId, calls };
         }));
@@ -86,5 +87,3 @@ describe('P3-B function-cache', () => {
         assert.deepEqual(functionCache.list(), []);
     });
 });
-
-

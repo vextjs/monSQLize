@@ -1540,16 +1540,22 @@ cd monSQLize
 # 安装依赖
 npm install
 
+# 默认统一门禁（smoke + compatibility + unit + integration + TS migration）
+npm test
+
 # 当前可执行校验
 npm run verify:fast
 npm run verify:full
 npm run release:preflight
 
+# 可选：单独聚焦 TS-native compat 承接
+npm run test:ts-migration
+
 # 可选：本地私有真实环境验证（需显式注入环境变量，不纳入默认 verify）
 npm run test:real-env:private
 ```
 
-> 当前仓库已恢复到 **P4-D compatibility / performance / validation / docs 收口** 级别的 `build` / `type-check` / `test` / `verify` 入口：默认公开验证链路由 `npm run verify:fast`、`npm run verify:full`、`npm run test:server-matrix` 和 `npm run release:preflight` 组成，全部以 memory-server 与仓库内可复现资产为闭环；真实 SSH / Mongo 环境验证保留为显式 opt-in 的 `npm run test:real-env:private`，仅接受环境变量注入，不进入默认 CI / verify。若需核对跨版本 / 实机矩阵，请继续参考 `monSQLize-v1` 的历史资产与 `test/validation/VERIFICATION-PROGRESS.md` 中的待补项。
+> 当前仓库已恢复到 **P4-D compatibility / performance / validation / docs 收口** 级别的 `build` / `type-check` / `test` / `verify` 入口：`npm test` 默认执行 smoke / compatibility / unit / integration / TS migration 五段统一门禁；`npm run verify:fast` 也已显式串联 `npm run test:ts-migration`。Stage D 已移除 legacy compat runner 与 vendored v1 测试入口，当前公开验证链路由 `npm test`、`npm run verify:fast`、`npm run verify:full`、`npm run test:server-matrix` 和 `npm run release:preflight` 组成，全部以 memory-server 与仓库内可复现资产为闭环；真实 SSH / Mongo 环境验证保留为显式 opt-in 的 `npm run test:real-env:private`，仅接受环境变量注入，不进入默认 CI / verify。若需核对历史兼容迁移背景，请继续参考 `monSQLize-v1` 与需求目录中的迁移报告。
 
 ---
 

@@ -65,16 +65,16 @@ describe('P3-A cache facade integration', () => {
         peers.push(connA, connB);
 
         const invalidator = new MonSQLize.DistributedCacheInvalidator({
-            cache,
+            cache: { local: cache },
             channel: 'cache-integration',
             instanceId: 'runtime-node',
-            _connections: { pub: connA, sub: connA },
+            redis: connA,
         });
         const remoteInvalidator = new MonSQLize.DistributedCacheInvalidator({
-            cache: remoteNodeCache,
+            cache: { local: remoteNodeCache },
             channel: 'cache-integration',
             instanceId: 'remote-node',
-            _connections: { pub: connB, sub: connB },
+            redis: connB,
         });
         invalidators.push(invalidator);
         invalidators.push(remoteInvalidator);

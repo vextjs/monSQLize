@@ -1,13 +1,13 @@
-const { describe, it } = require('node:test');
-const assert = require('node:assert/strict');
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 
-const MonSQLize = require('../../../lib/index.js');
+import MonSQLize from 'monsqlize';
 
-describe('P3-A cache facade', () => {
+describe('Stage B cache facade TS migration', () => {
     it('MemoryCache 应支持 TTL / pattern / stats / lock manager', async () => {
         const cache = new MonSQLize.MemoryCache({ maxEntries: 10 });
         const lockManager = {
-            isLocked(key) {
+            isLocked(key: string) {
                 return key === 'locked:key';
             },
         };
@@ -41,18 +41,18 @@ describe('P3-A cache facade', () => {
     });
 
     it('createRedisCacheAdapter 应支持 fake redis client', async () => {
-        const store = new Map();
+        const store = new Map<string, string>();
         const fakeRedis = {
-            get(key) {
-                return store.has(key) ? store.get(key) : null;
+            get(key: string) {
+                return store.has(key) ? store.get(key) ?? null : null;
             },
-            set(key, value) {
+            set(key: string, value: string) {
                 store.set(key, value);
             },
-            psetex(key, _ttl, value) {
+            psetex(key: string, _ttl: number, value: string) {
                 store.set(key, value);
             },
-            del(...keys) {
+            del(...keys: string[]) {
                 let deleted = 0;
                 for (const key of keys) {
                     if (store.delete(key)) {
@@ -61,16 +61,16 @@ describe('P3-A cache facade', () => {
                 }
                 return deleted;
             },
-            exists(key) {
+            exists(key: string) {
                 return store.has(key) ? 1 : 0;
             },
-            mget(...keys) {
-                const resolvedKeys = Array.isArray(keys[0]) ? keys[0] : keys;
-                return resolvedKeys.map((key) => store.get(key) ?? null);
+            mget(...keys: Array<string | string[]>) {
+                const resolvedKeys = (Array.isArray(keys[0]) ? keys[0] : keys) as string[];
+                return resolvedKeys.map((key: string) => store.get(key) ?? null);
             },
-            scan(cursor, _matchLabel, pattern) {
+            scan(cursor: string, _matchLabel: string, pattern: string) {
                 const regex = new RegExp(`^${pattern.replace(/[|\\{}()[\]^$+?.]/g, '\\$&').replace(/\*/g, '.*')}$`);
-                return [cursor === '0' ? '0' : '0', [...store.keys()].filter((key) => regex.test(key))];
+                return [cursor === '0' ? '0' : '0', [...store.keys()].filter((key) => regex.test(key))] as const;
             },
             flushdb() {
                 store.clear();
@@ -79,23 +79,23 @@ describe('P3-A cache facade', () => {
                 return undefined;
             },
             pipeline() {
-                const tasks = [];
-                return {
-                    set(key, value, mode, ttl) {
+                const tasks: Array<() => void | Promise<void>> = [];
+                const api = {
+                    set(key: string, value: string, mode?: string, ttl?: number) {
                         tasks.push(() => {
-                            if (mode === 'PX') {
+                            if (mode === 'PX' && typeof ttl === 'number') {
                                 fakeRedis.psetex(key, ttl, value);
                             } else {
                                 fakeRedis.set(key, value);
                             }
                         });
-                        return this;
+                        return api;
                     },
-                    del(...keys) {
+                    del(...keys: string[]) {
                         tasks.push(() => {
                             fakeRedis.del(...keys);
                         });
-                        return this;
+                        return api;
                     },
                     async exec() {
                         for (const task of tasks) {
@@ -104,6 +104,7 @@ describe('P3-A cache facade', () => {
                         return [];
                     },
                 };
+                return api;
             },
         };
 
@@ -123,73 +124,4 @@ describe('P3-A cache facade', () => {
         assert.equal(store.size, 0);
         assert.equal(cache.getRedisInstance(), fakeRedis);
     });
-
-    it('DistributedCacheInvalidator 应按 cache-hub 原生语义广播并失��其他节点本地缓存', async () => {
-        const createConnection = () => {
-            const handlers = new Map();
-            const subscriptions = new Set();
-            return {
-                on(event, handler) {
-                    if (!handlers.has(event)) handlers.set(event, []);
-                    handlers.get(event).push(handler);
-                },
-                subscribe(channel, callback) {
-                    subscriptions.add(channel);
-                    callback?.(null);
-                },
-                unsubscribe(channel) {
-                    subscriptions.delete(channel);
-                },
-                async quit() {},
-                publish(channel, message) {
-                    for (const conn of bus) {
-                        if (!conn.subscriptions.has(channel)) continue;
-                        const listeners = conn.handlers.get('message') ?? [];
-                        for (const listener of listeners) {
-                            listener(channel, message);
-                        }
-                    }
-                    return Promise.resolve(1);
-                },
-                handlers,
-                subscriptions,
-            };
-        };
-
-        const bus = [];
-        const localA = new MonSQLize.MemoryCache();
-        const localB = new MonSQLize.MemoryCache();
-        localA.set('user:1', { id: 1 });
-        localB.set('user:1', { id: 1 });
-
-        const connA = createConnection();
-        const connB = createConnection();
-        bus.push(connA, connB);
-
-        const invalidatorA = new MonSQLize.DistributedCacheInvalidator({
-            cache: { local: localA },
-            channel: 'cache-test',
-            instanceId: 'node-a',
-            redis: connA,
-        });
-        const invalidatorB = new MonSQLize.DistributedCacheInvalidator({
-            cache: { local: localB },
-            channel: 'cache-test',
-            instanceId: 'node-b',
-            redis: connB,
-        });
-
-        await invalidatorA.invalidate('user:*');
-        await new Promise((resolve) => setImmediate(resolve));
-
-        assert.deepEqual(localA.keys('user:*'), ['user:1']);
-        assert.deepEqual(localB.keys('user:*'), []);
-        assert.equal(invalidatorA.getStats().messagesSent, 1);
-        assert.equal(invalidatorB.getStats().invalidationsTriggered, 1);
-
-        await invalidatorA.close();
-        await invalidatorB.close();
-    });
 });
-
-

@@ -14,6 +14,8 @@
 
 | 命令 | 说明 |
 |------|------|
+| `npm test` | 默认统一门禁：smoke + compatibility + unit + integration + TS migration；不再隐式跑 legacy compat runner |
+| `npm run test:ts-migration` | TS-native compat 承接聚焦入口；当前已纳入默认 `npm test` 与 `verify:fast` |
 | `npm run test:refactor-guard` | 热点重构三联回归：exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server 默认矩阵（Node / Driver / MongoDB server） |
 | `npm run test:real-env:private` | 私有真实环境检查；默认不进入常规 verify / CI |
@@ -26,6 +28,8 @@
 ```bash
 npm run verify:fast
 ```
+
+说明：当前 `verify:fast` 已显式串联 `npm run test:ts-migration`。如果只想定位 TS-native compat 承接面，可单独执行 `npm run test:ts-migration`。
 
 适合：
 
@@ -67,7 +71,7 @@ npm run test:real-env:private
 
 ## 默认边界
 
-- **默认闭环**：`verify:fast` / `verify:full` / `test:server-matrix`
+- **默认闭环**：`npm test` / `verify:fast` / `verify:full` / `test:server-matrix`
 - **显式 opt-in**：`test:real-env:private`
 - **公开发布前门禁**：`release:preflight`
 - **本地私有发布前补充**：`verify:release`

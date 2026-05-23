@@ -7,7 +7,7 @@
 
 | 维度 | 当前范围 | 证据 |
 |------|----------|------|
-| Node.js | 18.x / 20.x / 22.x | `.github/workflows/test.yml` + `npm test` + `npm run verify:fast` |
+| Node.js | 18.x / 20.x / 22.x | `.github/workflows/test.yml` + `npm test`（smoke + compatibility + unit + integration + TS migration）+ `npm run verify:fast` |
 | Module | CJS / ESM | `test/smoke/root-cjs.test.js` / `root-esm.test.js` |
 
 ## 默认 server matrix
@@ -20,6 +20,7 @@
 
 ## 默认验证方式
 
+- **Default gate**：`npm test`
 - **Fast**：`npm run verify:fast`
 - **Full**：`npm run verify:full`
 - **Matrix**：`npm run test:server-matrix`
@@ -29,6 +30,7 @@
 ## 公开验证与私有验证边界
 
 - `verify:fast` / `verify:full` / `test:server-matrix` / `release:preflight` 都属于**公开可复现**验证入口。
+- `npm test` 现在默认覆盖 smoke / compatibility / unit / integration / TS migration，不再把 vendored v1 compat runner 算入公开默认门禁。
 - `test:real-env:private` 与 `verify:release` 属于**显式 opt-in** 的私有真实环境验证，需要操作者自行注入 SSH / Mongo 环境变量。
 - GitHub Actions 默认只运行公开门禁，不假设任何私有 SSH / Mongo 资源存在。
 
@@ -38,4 +40,5 @@
 |------|----------|
 | Node 18.x server matrix | 已进入公共 CI 基线，但未纳入当前 Driver / Server 正式矩阵 |
 | MongoDB Driver 4.x / 5.x | 仅保留历史兼容参考，未纳入当前正式矩阵 |
+| legacy `lib/**` compat 子路径 | 仅保留迁移期显式回归，不纳入默认门禁与正式支持矩阵 |
 | 非 MongoDB 数据库 | 路线图阶段，当前不支持 |

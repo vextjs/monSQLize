@@ -1,5 +1,5 @@
 import type { DeleteResult, IndexCreateResult, UpdateResult } from './collection';
-import type { LoggerLike, ExpressionFunction } from './base';
+import type { LoggerLike, ExpressionFunction, ExpressionObject } from './base';
 import type { ModelDefinition, ModelInstance as ModelInstanceContract, RegisteredModel } from './model';
 import type { LockOptions, LockStats } from './lock';
 import type { ConnectionPoolManagerOptions, FallbackStrategy, PoolConfig, PoolHealthStatus, PoolRole, PoolStats, PoolStrategy } from './pool';
@@ -309,6 +309,9 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
 
 export declare const expr: ExpressionFunction;
 export declare const createExpression: ExpressionFunction;
+export declare function isExpressionObject(value: unknown): value is ExpressionObject;
+export declare function hasExpressionInObject(value: unknown): boolean;
+export declare function hasExpressionInPipeline(pipeline: unknown): boolean;
 /** Compile expression objects in a MongoDB pipeline into real operators. */
 export declare function compilePipelineExpressions<TPipeline>(pipeline: TPipeline): TPipeline;
 

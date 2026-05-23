@@ -17,6 +17,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+const TSC_BIN = require.resolve('typescript/bin/tsc');
+const TS_MIGRATION_RUNNER = path.join(__dirname, 'run-ts-migration-tests.cjs');
 
 // ─── Ordered test suites (run sequentially inside one node --test call) ───────
 
@@ -74,9 +76,9 @@ function banner(label) {
 function parseStats(output) {
     let pass = 0, fail = 0, skip = 0;
     for (const line of output.split('\n')) {
-        const passMatch = line.match(/^# pass\s+(\d+)/);
-        const failMatch = line.match(/^# fail\s+(\d+)/);
-        const skipMatch = line.match(/^# skip\s+(\d+)/);
+        const passMatch = line.match(/^(?:#|ℹ)\s+pass(?:ed)?\s+(\d+)/i);
+        const failMatch = line.match(/^(?:#|ℹ)\s+fail(?:ed)?\s+(\d+)/i);
+        const skipMatch = line.match(/^(?:#|ℹ)\s+skip(?:ped)?\s+(\d+)/i);
         if (passMatch) pass += parseInt(passMatch[1], 10);
         if (failMatch) fail += parseInt(failMatch[1], 10);
         if (skipMatch) skip += parseInt(skipMatch[1], 10);
@@ -117,25 +119,20 @@ async function runSuite(label, files) {
     return { ...stats, exitCode: result.exitCode };
 }
 
-// ─── v1 Compat Runner (separate process, custom output format) ────────────────
-
-async function runV1Compat() {
-    const result = await runCommand('v1 Compatibility Tests (2500+ cases)', [
-        path.join(__dirname, 'v1-compat-runner.cjs'),
-        'all-v2',
+async function runTsMigration() {
+    const compile = await runCommand('Compile TS Migration Tests', [
+        TSC_BIN,
+        '-p',
+        'tsconfig.test-migration.json',
     ]);
 
-    const out = result.stdout || '';
-    let pass = 0, fail = 0, skip = 0;
+    if (compile.exitCode !== 0) {
+        return { pass: 0, fail: 1, skip: 0, exitCode: compile.exitCode };
+    }
 
-    // Use last match (per-file lines also have same pattern; summary is last)
-    const passMatches = [...out.matchAll(/通过[:：]\s*(\d+)/g)];
-    const failMatches = [...out.matchAll(/失败[:：]\s*(\d+)/g)];
-    const skipMatches = [...out.matchAll(/跳过[:：]\s*(\d+)/g)];
-    if (passMatches.length) pass = parseInt(passMatches[passMatches.length - 1][1], 10);
-    if (failMatches.length) fail = parseInt(failMatches[failMatches.length - 1][1], 10);
-    if (skipMatches.length) skip = parseInt(skipMatches[skipMatches.length - 1][1], 10);
-    return { pass, fail, skip, exitCode: result.exitCode };
+    const result = await runCommand('TS Migration Tests', [TS_MIGRATION_RUNNER]);
+    const stats = parseStats(result.stdout || '');
+    return { ...stats, exitCode: result.exitCode };
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -163,11 +160,11 @@ async function main() {
         }
     }
 
-    const v1Stats = await runV1Compat();
-    totalPass += v1Stats.pass;
-    totalFail += v1Stats.fail;
-    totalSkip += v1Stats.skip;
-    if (v1Stats.exitCode !== 0 || v1Stats.fail > 0) {
+    const tsMigrationStats = await runTsMigration();
+    totalPass += tsMigrationStats.pass;
+    totalFail += tsMigrationStats.fail;
+    totalSkip += tsMigrationStats.skip;
+    if (tsMigrationStats.exitCode !== 0 || tsMigrationStats.fail > 0) {
         anyFailed = true;
     }
 

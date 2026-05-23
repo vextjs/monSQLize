@@ -49,7 +49,7 @@ export type {
     PoolStats,
     PoolStrategy,
 } from '../capabilities/pool';
-export { ChangeStreamSyncManager, ResumeTokenStore, validateSyncConfig } from '../capabilities/sync';
+export { ChangeStreamSyncManager, ResumeTokenStore, validateSyncConfig, validateTargetConfig, validateResumeTokenConfig } from '../capabilities/sync';
 export type {
     ResumeTokenConfig,
     SyncChangeEvent,

@@ -19,6 +19,8 @@ import {
     SlowQueryLogManager,
     TransactionManager,
     validateSyncConfig,
+    validateTargetConfig,
+    validateResumeTokenConfig,
     withCache,
 } from './runtime-core.js';
 
@@ -43,6 +45,8 @@ export {
     ChangeStreamSyncManager,
     ResumeTokenStore,
     validateSyncConfig,
+    validateTargetConfig,
+    validateResumeTokenConfig,
     SlowQueryLogManager,
     SlowQueryLogConfigManager,
     BatchQueue,

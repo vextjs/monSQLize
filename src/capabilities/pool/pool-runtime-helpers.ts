@@ -10,6 +10,11 @@ import { MongoClient as MongoDriverClient } from 'mongodb';
 import type { MongoClient } from 'mongodb';
 import type { PoolConfig, PoolStats } from '../../../types/pool';
 
+const DEFAULT_POOL_CONNECT_OPTIONS = {
+    connectTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 5000,
+} as const;
+
 /**
  * Strictly validates a pool config, throwing immediately on any invalid field.
  * Intended for the initialization path to ensure the config is fully valid before proceeding.
@@ -149,7 +154,10 @@ export function createEmptyPoolStats(name: string): PoolStats {
  * Can be overridden via the `ConnectionPoolManager` constructor options.
  */
 export async function defaultClientFactory(config: PoolConfig): Promise<MongoClient> {
-    const client = new MongoDriverClient(config.uri, config.options);
+    const client = new MongoDriverClient(config.uri, {
+        ...DEFAULT_POOL_CONNECT_OPTIONS,
+        ...(config.options ?? {}),
+    });
     await client.connect();
     return client;
 }
