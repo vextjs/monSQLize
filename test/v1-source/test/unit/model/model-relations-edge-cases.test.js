@@ -55,7 +55,7 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
                         }
                     }
                 });
-            }).to.throw('relations 配置缺少必需字段: from');
+            }).to.throw('relations config is missing required field: from');
         });
 
         it('应该拒绝缺少 localField 字段的关系定义', () => {
@@ -70,7 +70,7 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
                         }
                     }
                 });
-            }).to.throw('relations 配置缺少必需字段: localField');
+            }).to.throw('relations config is missing required field: localField');
         });
 
         it('应该拒绝缺少 foreignField 字段的关系定义', () => {
@@ -85,7 +85,7 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
                         }
                     }
                 });
-            }).to.throw('relations 配置缺少必需字段: foreignField');
+            }).to.throw('relations config is missing required field: foreignField');
         });
 
         it('应该拒绝 from 不是字符串', () => {
@@ -100,7 +100,7 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
                         }
                     }
                 });
-            }).to.throw('relations.from 必须是字符串');
+            }).to.throw('relations.from must be a string');
         });
 
         it('应该拒绝 single 不是布尔值', () => {
@@ -116,7 +116,7 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
                         }
                     }
                 });
-            }).to.throw('relations.single 必须是布尔值');
+            }).to.throw('relations.single must be a boolean');
         });
     });
 
@@ -330,7 +330,7 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
                 throw new Error('Expected error was not thrown');
             } catch (err) {
                 // 验证是预期的错误
-                expect(err.message).to.include('未定义的关系: invalidPath');
+                expect(err.message).to.include('Undefined relation: invalidPath');
             }
         });
 
@@ -350,7 +350,7 @@ describe('Model Relations 验证和 Populate 边界测试', () => {
                 throw new Error('Expected error was not thrown');
             } catch (err) {
                 // 验证是预期的错误
-                expect(err.message).to.include('嵌套 populate 参数必须是字符串、数组或对象');
+                expect(err.message).to.include('nested populate must be a string, array, or object');
             }
         });
     });

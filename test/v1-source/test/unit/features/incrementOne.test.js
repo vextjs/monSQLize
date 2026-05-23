@@ -234,7 +234,7 @@ describe('incrementOne 方法测试套件', function () {
         await collection('test_users').incrementOne(null, 'count', 5);
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('filter 必须是非空对象'));
+        assert.ok(error.message.includes('filter must be a non-empty object'));
       }
     });
 
@@ -243,7 +243,7 @@ describe('incrementOne 方法测试套件', function () {
         await collection('test_users').incrementOne('invalid', 'count', 5);
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('filter 必须是非空对象'));
+        assert.ok(error.message.includes('filter must be a non-empty object'));
       }
     });
 
@@ -258,7 +258,7 @@ describe('incrementOne 方法测试套件', function () {
         );
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('increment 必须是数字'));
+        assert.ok(error.message.includes('increment must be a number'));
       }
     });
 
@@ -273,7 +273,7 @@ describe('incrementOne 方法测试套件', function () {
         );
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('increment 必须是数字'));
+        assert.ok(error.message.includes('increment must be a number'));
       }
     });
 
@@ -288,7 +288,7 @@ describe('incrementOne 方法测试套件', function () {
         );
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('field 必须是字符串或对象'));
+        assert.ok(error.message.includes('field must be a string or object'));
       }
     });
 
@@ -302,7 +302,7 @@ describe('incrementOne 方法测试套件', function () {
         );
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('增量必须是数字'));
+        assert.ok(error.message.includes('increment value must be a number'));
       }
     });
   });

@@ -59,7 +59,7 @@ describe('Update 聚合管道测试套件 (v1.0.8+)', function () {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'INVALID_ARGUMENT');
-                assert.ok(err.message.includes('必须是对象'));
+                assert.ok(err.message.includes('must be an object'));
             }
         });
 
@@ -77,7 +77,7 @@ describe('Update 聚合管道测试套件 (v1.0.8+)', function () {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'INVALID_ARGUMENT');
-                assert.ok(err.message.includes('空对象') || err.message.includes('不能为空'));
+                assert.ok(err.message.includes('empty'));
             }
         });
 
@@ -546,7 +546,7 @@ describe('Update 聚合管道测试套件 (v1.0.8+)', function () {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'INVALID_ARGUMENT');
-                assert.ok(err.message.includes('空对象') || err.message.includes('必须包含'));
+                assert.ok(err.message.includes('empty'));
             }
         });
 

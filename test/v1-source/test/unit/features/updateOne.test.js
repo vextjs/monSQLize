@@ -290,7 +290,7 @@ describe('updateOne 方法测试套件', function () {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'INVALID_ARGUMENT');
-                assert.ok(err.message.includes('更新操作符'));
+                assert.ok(err.message.includes('update operators'));
             }
         });
 
@@ -321,7 +321,7 @@ describe('updateOne 方法测试套件', function () {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'INVALID_ARGUMENT');
-                assert.ok(err.message.includes('空数组'));
+                assert.ok(err.message.includes('empty array'));
             }
         });
     });

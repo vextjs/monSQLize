@@ -114,7 +114,7 @@ describe('PopulateBuilder 单元测试', function() {
     it('应该在参数类型错误时抛出异常', function() {
       expect(() => {
         builder.populate(123); // 数字
-      }).to.throw('populate 参数必须是字符串、数组或对象');
+      }).to.throw('populate param must be a string or object');
     });
   });
 

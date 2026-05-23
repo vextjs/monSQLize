@@ -166,40 +166,6 @@ function _makeValidatingDslFn(realDsl) {
   return validating;
 }
 
-// src/capabilities/model/populate-promise.ts
-var _a;
-_a = Symbol.toStringTag;
-var _PopulatePromise = class _PopulatePromise {
-  constructor(executor, paths = []) {
-    this.executor = executor;
-    this.paths = paths;
-    this[_a] = "Promise";
-  }
-  /**
-   * Append a populate path and return a new PopulatePromise (chainable).
-   */
-  populate(path2, options) {
-    const config = typeof path2 === "string" ? { path: path2, ...options } : { ...path2, ...options };
-    return new _PopulatePromise(this.executor, [...this.paths, config]);
-  }
-  /**
-   * Trigger the actual query, populate related documents, and return the final Promise.
-   */
-  exec() {
-    return this.executor(this.paths);
-  }
-  then(onfulfilled, onrejected) {
-    return this.exec().then(onfulfilled ?? void 0, onrejected ?? void 0);
-  }
-  catch(onrejected) {
-    return this.exec().catch(onrejected ?? void 0);
-  }
-  finally(onfinally) {
-    return this.exec().finally(onfinally ?? void 0);
-  }
-};
-var PopulatePromise = _PopulatePromise;
-
 // src/core/errors/index.ts
 var ErrorCodes = {
   INVALID_ARGUMENT: "INVALID_ARGUMENT",
@@ -285,6 +251,43 @@ function createError(code, message, details, cause) {
 function createConnectionError(message, cause) {
   return createError(ErrorCodes.CONNECTION_FAILED, message, void 0, cause);
 }
+
+// src/capabilities/model/populate-promise.ts
+var _a;
+_a = Symbol.toStringTag;
+var _PopulatePromise = class _PopulatePromise {
+  constructor(executor, paths = []) {
+    this.executor = executor;
+    this.paths = paths;
+    this[_a] = "Promise";
+  }
+  /**
+   * Append a populate path and return a new PopulatePromise (chainable).
+   */
+  populate(path2, options) {
+    if (typeof path2 !== "string" && (typeof path2 !== "object" || path2 === null || Array.isArray(path2))) {
+      throw createError(ErrorCodes.INVALID_ARGUMENT, "populate param must be a string or object");
+    }
+    const config = typeof path2 === "string" ? { path: path2, ...options } : { ...path2, ...options };
+    return new _PopulatePromise(this.executor, [...this.paths, config]);
+  }
+  /**
+   * Trigger the actual query, populate related documents, and return the final Promise.
+   */
+  exec() {
+    return this.executor(this.paths);
+  }
+  then(onfulfilled, onrejected) {
+    return this.exec().then(onfulfilled ?? void 0, onrejected ?? void 0);
+  }
+  catch(onrejected) {
+    return this.exec().catch(onrejected ?? void 0);
+  }
+  finally(onfinally) {
+    return this.exec().finally(onfinally ?? void 0);
+  }
+};
+var PopulatePromise = _PopulatePromise;
 
 // src/capabilities/model/definition-validator.ts
 function validateCollectionName(collectionName) {

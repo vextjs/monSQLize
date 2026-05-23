@@ -151,7 +151,7 @@ describe('Model 集成 relations + populate 测试', function() {
             }
           }
         });
-      }).to.throw('relations 配置缺少必需字段: from');
+      }).to.throw('relations config is missing required field: from');
     });
   });
 });

@@ -15,6 +15,7 @@
  */
 
 import type { ModelScopeOptions, PopulateConfig, PopulateProxy } from '../../../types/model';
+import { createError, ErrorCodes } from '../../core/errors';
 
 /** Populate path: either a field name string or a full PopulateConfig object. */
 export type PopulatePath = string | PopulateConfig;
@@ -117,6 +118,9 @@ export class PopulatePromise<T> implements PopulateProxy<T> {
      * Append a populate path and return a new PopulatePromise (chainable).
      */
     populate(path: string | PopulateConfig, options?: Partial<Omit<PopulateConfig, 'path'>>): PopulateProxy<T> {
+        if (typeof path !== 'string' && (typeof path !== 'object' || path === null || Array.isArray(path))) {
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'populate param must be a string or object');
+        }
         const config: PopulateConfig = typeof path === 'string'
             ? { path, ...options }
             : { ...path, ...options };

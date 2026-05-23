@@ -167,7 +167,7 @@ describe('insertOne 方法测试套件', function () {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DUPLICATE_KEY');
-                assert.ok(err.message.includes('唯一性约束'));
+                assert.ok(err.message.includes('duplicate key'));
             }
         });
     });

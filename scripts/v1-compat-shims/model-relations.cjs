@@ -9,14 +9,14 @@ class RelationManager {
   define(name, config = {}) {
     for (const field of ['from', 'localField', 'foreignField']) {
       if (!(field in config)) {
-        throw new Error(`relations 配置缺少必需字段: ${field}`);
+        throw new Error(`relations config is missing required field: ${field}`);
       }
     }
     if (typeof config.from !== 'string') {
-      throw new Error('relations.from 必须是字符串');
+      throw new Error('relations.from must be a string');
     }
     if (config.single !== undefined && typeof config.single !== 'boolean') {
-      throw new Error('relations.single 必须是布尔值');
+      throw new Error('relations.single must be a boolean');
     }
 
     const relation = {

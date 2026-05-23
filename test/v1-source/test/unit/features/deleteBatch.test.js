@@ -191,14 +191,14 @@ describe('deleteBatch 方法测试套件', function () {
                 await collection('test_batch_delete').deleteBatch(null);
                 assert.fail('应该抛出错误');
             } catch (error) {
-                assert.ok(error.message.includes('filter 必须是对象类型'));
+                assert.ok(error.message.includes('filter must be'));
             }
 
             try {
                 await collection('test_batch_delete').deleteBatch([]);
                 assert.fail('应该抛出错误');
             } catch (error) {
-                assert.ok(error.message.includes('filter 必须是对象类型'));
+                assert.ok(error.message.includes('filter must be'));
             }
         });
     });

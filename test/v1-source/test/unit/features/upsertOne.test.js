@@ -181,7 +181,7 @@ describe('upsertOne 方法测试套件', function () {
         await collection('test_users').upsertOne(null, { name: 'Test' });
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('filter 必须是非空对象'));
+        assert.ok(error.message.includes('filter must be a non-empty object'));
       }
     });
 
@@ -190,7 +190,7 @@ describe('upsertOne 方法测试套件', function () {
         await collection('test_users').upsertOne('invalid', { name: 'Test' });
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('filter 必须是非空对象'));
+        assert.ok(error.message.includes('filter must be a non-empty object'));
       }
     });
 
@@ -199,7 +199,7 @@ describe('upsertOne 方法测试套件', function () {
         await collection('test_users').upsertOne([], { name: 'Test' });
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('filter 必须是非空对象'));
+        assert.ok(error.message.includes('filter must be a non-empty object'));
       }
     });
 
@@ -208,7 +208,7 @@ describe('upsertOne 方法测试套件', function () {
         await collection('test_users').upsertOne({ userId: 'test' }, null);
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('update 必须是非空对象'));
+        assert.ok(error.message.includes('update must be a non-empty object'));
       }
     });
 
@@ -217,7 +217,7 @@ describe('upsertOne 方法测试套件', function () {
         await collection('test_users').upsertOne({ userId: 'test' }, 'invalid');
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('update 必须是非空对象'));
+        assert.ok(error.message.includes('update must be a non-empty object'));
       }
     });
   });

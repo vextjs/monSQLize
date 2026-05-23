@@ -180,7 +180,7 @@ describe('findOneById 方法测试套件', function () {
         await collection('test_users').findOneById(null);
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('id 参数是必需的'), '错误信息应该正确');
+        assert.ok(error.message.includes('id is required'), '错误信息应该正确');
       }
     });
 
@@ -189,7 +189,7 @@ describe('findOneById 方法测试套件', function () {
         await collection('test_users').findOneById(undefined);
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('id 参数是必需的'), '错误信息应该正确');
+        assert.ok(error.message.includes('id is required'), '错误信息应该正确');
       }
     });
 
@@ -198,7 +198,7 @@ describe('findOneById 方法测试套件', function () {
         await collection('test_users').findOneById('invalid-id');
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('无效的 ObjectId 格式'), '错误信息应该正确');
+        assert.ok(error.message.includes('invalid ObjectId format'), '错误信息应该正确');
       }
     });
 
@@ -207,7 +207,7 @@ describe('findOneById 方法测试套件', function () {
         await collection('test_users').findOneById('123');
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('无效的 ObjectId 格式'), '错误信息应该正确');
+        assert.ok(error.message.includes('invalid ObjectId format'), '错误信息应该正确');
       }
     });
 
@@ -216,7 +216,7 @@ describe('findOneById 方法测试套件', function () {
         await collection('test_users').findOneById(12345);
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('id 必须是字符串或 ObjectId 实例'), '错误信息应该正确');
+        assert.ok(error.message.includes('id must be a string or ObjectId instance'), '错误信息应该正确');
       }
     });
 
@@ -225,7 +225,7 @@ describe('findOneById 方法测试套件', function () {
         await collection('test_users').findOneById({ _id: 'test' });
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('id 必须是字符串或 ObjectId 实例'), '错误信息应该正确');
+        assert.ok(error.message.includes('id must be a string or ObjectId instance'), '错误信息应该正确');
       }
     });
   });

@@ -95,7 +95,7 @@ describe('SagaOrchestrator', () => {
                     await orchestrator.execute('nonexistent', {});
                     throw new Error('Should have thrown');
                 } catch (error) {
-                    expect(error.message).to.include('未定义');
+                    expect(error.message).to.include('is not defined');
                 }
             });
 
@@ -105,7 +105,7 @@ describe('SagaOrchestrator', () => {
                 const stats = orchestrator.getStats();
                 expect(stats.totalExecutions).to.equal(1);
                 expect(stats.successfulExecutions).to.equal(1);
-                expect(stats.storageMode).to.equal('内存');
+                expect(stats.storageMode).to.equal('memory');
             });
         });
 
@@ -135,7 +135,7 @@ describe('SagaOrchestrator', () => {
                 expect(stats.successfulExecutions).to.equal(0);
                 expect(stats.failedExecutions).to.equal(0);
                 expect(stats.successRate).to.equal('0%');
-                expect(stats.storageMode).to.equal('内存');
+                expect(stats.storageMode).to.equal('memory');
             });
         });
     });

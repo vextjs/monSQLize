@@ -178,7 +178,7 @@ describe('findByIds 方法测试套件', function () {
         await collection('test_users').findByIds('invalid');
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('ids 必须是数组'));
+        assert.ok(error.message.includes('ids must be an array'));
       }
     });
 
@@ -187,7 +187,7 @@ describe('findByIds 方法测试套件', function () {
         await collection('test_users').findByIds(null);
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('ids 必须是数组'));
+        assert.ok(error.message.includes('ids must be an array'));
       }
     });
 
@@ -196,7 +196,7 @@ describe('findByIds 方法测试套件', function () {
         await collection('test_users').findByIds(['invalid-id', testIds[0].toString()]);
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('无效 ID'));
+        assert.ok(error.message.includes('invalid ID'));
       }
     });
 
@@ -205,7 +205,7 @@ describe('findByIds 方法测试套件', function () {
         await collection('test_users').findByIds([testIds[0], 123, testIds[1]]);
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('无效 ID'));
+        assert.ok(error.message.includes('invalid ID'));
       }
     });
 
@@ -214,7 +214,7 @@ describe('findByIds 方法测试套件', function () {
         await collection('test_users').findByIds([testIds[0], undefined, testIds[1]]);
         assert.fail('应该抛出错误');
       } catch (error) {
-        assert.ok(error.message.includes('无效 ID'));
+        assert.ok(error.message.includes('invalid ID'));
       }
     });
   });

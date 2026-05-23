@@ -88,7 +88,7 @@ describe('RelationManager 单元测试', function() {
           localField: 'profileId',
           foreignField: '_id'
         });
-      }).to.throw('relations 配置缺少必需字段: from');
+      }).to.throw('relations config is missing required field: from');
     });
 
     it('应该在缺少 localField 时抛出错误', function() {
@@ -97,7 +97,7 @@ describe('RelationManager 单元测试', function() {
           from: 'profiles',
           foreignField: '_id'
         });
-      }).to.throw('relations 配置缺少必需字段: localField');
+      }).to.throw('relations config is missing required field: localField');
     });
 
     it('应该在缺少 foreignField 时抛出错误', function() {
@@ -106,7 +106,7 @@ describe('RelationManager 单元测试', function() {
           from: 'profiles',
           localField: 'profileId'
         });
-      }).to.throw('relations 配置缺少必需字段: foreignField');
+      }).to.throw('relations config is missing required field: foreignField');
     });
   });
 
@@ -118,7 +118,7 @@ describe('RelationManager 单元测试', function() {
           localField: 'profileId',
           foreignField: '_id'
         });
-      }).to.throw('relations.from 必须是字符串');
+      }).to.throw('relations.from must be a string');
     });
 
     it('应该在 single 不是布尔值时抛出错误', function() {
@@ -129,7 +129,7 @@ describe('RelationManager 单元测试', function() {
           foreignField: '_id',
           single: 'true' // 字符串，不是布尔值
         });
-      }).to.throw('relations.single 必须是布尔值');
+      }).to.throw('relations.single must be a boolean');
     });
   });
 

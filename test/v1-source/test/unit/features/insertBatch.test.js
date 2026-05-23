@@ -80,7 +80,7 @@ describe('insertBatch 方法测试套件', function () {
                 await collection('users').insertBatch({ name: 'Invalid' });
                 assert.fail('应该抛出错误');
             } catch (err) {
-                assert.ok(err.message.includes('数组'), "错误信息应包含'数组'");
+                assert.ok(err.message.includes('array'), "错误信息应包含'array'");
             }
         });
 
@@ -89,7 +89,7 @@ describe('insertBatch 方法测试套件', function () {
                 await collection('users').insertBatch([]);
                 assert.fail('应该抛出错误');
             } catch (err) {
-                assert.ok(err.message.includes('不能为空'), "错误信息应包含'不能为空'");
+                assert.ok(err.message.includes('empty'), "错误信息应包含'empty'");
             }
         });
 

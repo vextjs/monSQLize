@@ -27,7 +27,7 @@ class PopulateBuilder {
       return this;
     }
 
-    throw new Error('populate 参数必须是字符串、数组或对象');
+    throw new Error('populate param must be a string or object');
   }
 
   _collectForeignIds(docs, relation) {

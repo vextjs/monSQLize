@@ -117,7 +117,7 @@ describe('insertMany 方法测试套件', function () {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DOCUMENTS_REQUIRED');
-                assert.ok(err.message.includes('数组'));
+                assert.ok(err.message.includes('array'));
             }
         });
 
@@ -127,7 +127,7 @@ describe('insertMany 方法测试套件', function () {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DOCUMENTS_REQUIRED');
-                assert.ok(err.message.includes('不能为空'));
+                assert.ok(err.message.includes('empty'));
             }
         });
 
@@ -141,7 +141,7 @@ describe('insertMany 方法测试套件', function () {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DOCUMENTS_REQUIRED');
-                assert.ok(err.message.includes('对象类型'));
+                assert.ok(err.message.includes('object'));
             }
         });
 
@@ -183,7 +183,7 @@ describe('insertMany 方法测试套件', function () {
                 assert.fail('应该抛出错误');
             } catch (err) {
                 assert.strictEqual(err.code, 'DUPLICATE_KEY');
-                assert.ok(err.message.includes('唯一性约束'));
+                assert.ok(err.message.includes('duplicate key'));
             }
         });
 

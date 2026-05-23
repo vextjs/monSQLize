@@ -176,7 +176,7 @@ describe('updateBatch 方法测试套件', function () {
                 );
                 assert.fail('应该抛出错误');
             } catch (error) {
-                assert.ok(error.message.includes('filter 必须是对象类型'));
+                assert.ok(error.message.includes('filter must be'));
             }
         });
 
@@ -188,7 +188,7 @@ describe('updateBatch 方法测试套件', function () {
                 );
                 assert.fail('应该抛出错误');
             } catch (error) {
-                assert.ok(error.message.includes('update 必须是对象') || error.message.includes('update 必须是更新操作符对象或聚合管道数组'));
+                assert.ok(error.message.includes('update must be'));
             }
         });
 
@@ -200,7 +200,7 @@ describe('updateBatch 方法测试套件', function () {
                 );
                 assert.fail('应该抛出错误');
             } catch (error) {
-                assert.ok(error.message.includes('update 必须使用更新操作符'));
+                assert.ok(error.message.includes('update must use update operators'));
             }
         });
     });
