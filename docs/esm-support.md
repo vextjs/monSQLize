@@ -67,14 +67,14 @@ monSQLize 的 package.json 已配置双模式支持：
 ```json
 {
   "name": "monsqlize",
-  "main": "lib/index.js",        // CommonJS 入口
-  "module": "index.mjs",          // ES Module 入口
+  "main": "dist/cjs/index.cjs",   // CommonJS 入口
+  "module": "dist/esm/index.mjs", // ES Module 入口
   "type": "commonjs",
   "exports": {
     ".": {
-      "require": "./lib/index.js",  // require() 使用此文件
-      "import": "./index.mjs",      // import 使用此文件
-      "types": "./index.d.ts"       // TypeScript 类型定义
+      "require": "./dist/cjs/index.cjs",
+      "import": "./dist/esm/index.mjs",
+      "types": "./dist/types/index.d.ts"
     }
   }
 }

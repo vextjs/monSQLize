@@ -1,4 +1,4 @@
-const MonSQLize = require('../../lib/index.js');
+const MonSQLize = require('../../dist/cjs/index.cjs');
 const { createMemoryServerBootstrap } = require('../../test/bootstrap/memory-server');
 
 async function main() {

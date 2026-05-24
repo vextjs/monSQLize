@@ -88,5 +88,5 @@ npm run test:examples
 
 1. `connect()` 前直接访问 `collection()` 会触发 `NOT_CONNECTED`。
 2. 缺少 `config.uri` 会触发 `INVALID_CONFIG`。
-3. 当前仓库是 TS 重写版本，但对外消费入口仍保持 CJS / ESM / `index.d.ts` 兼容。
+3. 当前仓库是 TS 重写版本，对外消费入口为 `dist/cjs/index.cjs`、`dist/esm/index.mjs` 和 `dist/types/index.d.ts`。
 

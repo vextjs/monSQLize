@@ -10,14 +10,16 @@ npm run release:preflight
 
 ## 它会做什么
 
-1. 检查当前 `package.json` 版本对应的 changelog 文件是否存在。
-2. 检查工程治理必需文档是否存在：
+1. 检查 `package-lock.json` 是否与当前 `package.json` 版本一致，且不包含 `file:` / `workspace:` / sibling 本地路径残留。
+2. 检查当前 `package.json` 版本对应的 changelog 文件是否存在。
+3. 检查工程治理必需文档是否存在：
    - `docs/support-matrix.md`
    - `docs/file-dependency-governance.md`
    - `docs/verification-entrypoints.md`
-3. 运行 `npm run verify:fast`
-4. 运行 `npm pack --dry-run`
-5. **不会**运行 `npm run verify:release`（后者依赖私有真实环境，属于操作者显式 opt-in 的补充复核）
+4. 运行 `npm run verify:fast`
+5. 运行 `npm pack --dry-run`
+6. `npm publish` 会先触发 `prepublishOnly`，从而执行同一套 `release:preflight`
+7. **不会**运行 `npm run verify:release`（后者依赖私有真实环境，属于操作者显式 opt-in 的补充复核）
 
 ## 为什么不是直接 publish
 
@@ -31,7 +33,7 @@ npm run release:preflight
 # npm run verify:release
 git status
 git tag vX.Y.Z
-npm publish
+npm run release:publish
 ```
 
 > 若走仓库自动化路径，可先手动运行 GitHub Actions 的 `Release Preflight`，确认通过后再执行 tag / publish。

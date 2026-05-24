@@ -2,7 +2,7 @@
 
 > **项目**: monSQLize
 > **阶段**: TypeScript 全量重写完成（2543/2543 v1 compat，40 个 TS 示例，100% 兼容率）
-> **更新日期**: 2026-05-17
+> **更新日期**: 2026-05-24
 > **当前原则**: 只把“本仓库当前已恢复且可执行”的资产标为 ✅；跨版本 / 实机矩阵未补齐前保持 ⚠️ 待验证。
 
 ---
@@ -35,7 +35,7 @@
 | V-09 | 官方示例入口（TypeScript） | `examples/README.md` + `npm run test:examples`（覆盖 quick-start / cache / docs 全量示例） | ✅ | 2026-05-18 |
 | V-10 | Node 20.x 当前环境实机回归 | `node -p "process.version"` + `npm run verify` | ✅ | 2026-05-11 |
 | V-11 | Node 22.x（Volta）实机回归 | `volta run --node 22 node -p "process.version"` + `volta run --node 22 npm run verify` | ✅ | 2026-05-11 |
-| V-12 | MongoDB Driver 7.x 扩展验证 | `npm install mongodb@7 --no-save --package-lock=false` + `node -p "require('mongodb/package.json').version"` + `volta run --node 22 npm run verify` + `npm install mongodb@6.21.0 --no-save --package-lock=false` | ✅ | 2026-05-11 |
+| V-12 | MongoDB Driver 7.x 扩展验证 | `npm install mongodb@7 --no-save --package-lock=false` + `npm run test:compatibility` + `npm run test:server-matrix` + `npm install mongodb@6.21.0 --no-save --package-lock=false`；状态仅允许 `verified` / `environment-unavailable` / `contract-regression` | ✅ | 2026-05-24 |
 | V-13 | 内存服务端矩阵探测与执行入口 | `npm run probe:server-matrix` + `npm run test:server-matrix`（Node 20/22 × Driver 6/7 × MongoDB 6/7） | ✅ | 2026-05-17 |
 | V-14 | v1 ↔ TS 完整功能兼容性对照表（Batch A/B/C 最终版）| `.devcodex/requirements/TypeScript全量重写兼容现有/FEATURE-PARITY.md`（237 项全量 API 覆盖，237 ✅ / 0 ❌；兼容率 100%）| ✅ | 2026-05-17 |
 | V-15 | v1 compat 全量断言套件 | `npm run test` → 2543/2543 v1 compat assertions pass（含 objectid-conversion 61 项） | ✅ | 2026-05-17 |

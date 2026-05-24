@@ -36,7 +36,32 @@ import type { Lock, LockOptions, LockStats } from './lock';
 import type { ModelInstance } from './model';
 import type { MongoConnectConfig } from './mongodb';
 import type { ConnectionPoolManagerOptions, PoolConfig, PoolHealthStatus, PoolStats, PoolStrategy } from './pool';
-import type { CacheLike, MemoryCache, MultiLevelCacheOptions } from './runtime';
+import type {
+    BatchQueue,
+    CacheLike,
+    CacheLockManager,
+    DistributedCacheInvalidator,
+    FunctionCache,
+    Logger,
+    MemoryCache,
+    MultiLevelCache,
+    MultiLevelCacheOptions,
+    SlowQueryLogConfigManager,
+    SlowQueryLogMemoryStorage,
+    MongoDBSlowQueryLogStorage,
+    TransactionManager,
+    createExpression,
+    compilePipelineExpressions,
+    createRedisCacheAdapter,
+    expr,
+    generateQueryHash,
+    hasExpressionInObject,
+    hasExpressionInPipeline,
+    isExpressionObject,
+    validateSyncConfig,
+    withCache,
+    adaptLegacyCacheLike,
+} from './runtime';
 import type { SagaDefinition, SagaOrchestrator, SagaResult, SagaStats } from './saga';
 import type { SlowQueryLogConfigInput, SlowQueryLogEntry, SlowQueryLogFilter, SlowQueryLogManager, SlowQueryLogQueryOptions, SlowQueryLogRecord } from './slow-query-log';
 import type { ChangeStreamSyncManager, SyncConfig, SyncStats } from './sync';
@@ -130,7 +155,7 @@ export interface MonSQLizeOptions {
     cacheAutoInvalidate?: boolean;
 }
 
-export interface MonSQLize {
+export interface MonSQLizeInstance {
     /**
      * Establish the database connection and return the top-level accessor bundle.
      * @returns Object containing `collection`, `db`, `use` shortcuts and the current instance reference.
@@ -348,19 +373,104 @@ export interface MonSQLize {
     runCommand(command: Record<string, unknown>, options?: Record<string, unknown>): Promise<Record<string, unknown>>;
 }
 
-import type { RedisCacheAdapter } from './runtime';
+export default class MonSQLize implements MonSQLizeInstance {
+    constructor(options?: MonSQLizeOptions);
+    connect(): Promise<{
+        collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
+        db: (name?: string) => DbAccessor;
+        use: (name: string) => {
+            collection: <TSchema = unknown>(collectionName: string) => Collection<TSchema>;
+            model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>;
+        };
+        instance: MonSQLize;
+    }>;
+    getCache(): CacheLike;
+    getDefaults(): Record<string, unknown>;
+    close(): Promise<void>;
+    health(): Promise<HealthView>;
+    collection<TSchema = unknown>(name: string): Collection<TSchema>;
+    db(name?: string): DbAccessor;
+    use(name: string): {
+        collection: <TSchema = unknown>(collectionName: string) => Collection<TSchema>;
+        model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>;
+    };
+    pool(poolName: string): {
+        collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
+        model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>;
+        use: (dbName: string) => {
+            collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
+            model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>;
+        };
+    };
+    scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; }): Collection<TSchema>;
+    scopedModel<TDocument = Record<string, unknown>>(name: string, options?: { database?: string; pool?: string; }): ModelInstance<TDocument>;
+    model<TDocument = Record<string, unknown>>(name: string): ModelInstance<TDocument>;
+    startSession(options?: TransactionOptions): Promise<Transaction>;
+    withTransaction<T>(callback: (transaction: Transaction) => Promise<T>, options?: TransactionOptions): Promise<T>;
+    withLock<T>(key: string, callback: () => Promise<T>, options?: LockOptions): Promise<T>;
+    acquireLock(key: string, options?: LockOptions): Promise<Lock>;
+    tryAcquireLock(key: string, options?: Omit<LockOptions, 'retryTimes'>): Promise<Lock | null>;
+    getSyncManager(): ChangeStreamSyncManager | null;
+    getSlowQueryLogManager(): SlowQueryLogManager | null;
+    getSagaOrchestrator(): SagaOrchestrator;
+    saga(): SagaOrchestrator;
+    defineSaga(definition: SagaDefinition): void;
+    executeSaga(name: string, data: unknown): Promise<SagaResult>;
+    listSagas(): Promise<string[]>;
+    getSagaStats(): SagaStats;
+    startSync(): Promise<void>;
+    stopSync(): Promise<void>;
+    getSyncStats(): SyncStats | null;
+    recordSlowQuery(log: SlowQueryLogEntry): Promise<void>;
+    getSlowQueryLogs(filter?: SlowQueryLogFilter, options?: SlowQueryLogQueryOptions): Promise<SlowQueryLogRecord[]>;
+    on(event: string, handler: (payload: unknown) => void): void;
+    once(event: string, handler: (payload: unknown) => void): void;
+    off(event: string, handler: (payload: unknown) => void): void;
+    emit(event: string, payload: unknown): void;
+    addPool(config: PoolConfig): Promise<void>;
+    removePool(name: string): Promise<void>;
+    getPoolNames(): string[];
+    getPoolStats(): Record<string, PoolStats>;
+    getPoolHealth(): Record<string, PoolHealthStatus>;
+    getLockStats(): LockStats | null;
+    listDatabases(options?: { nameOnly?: boolean }): Promise<Array<{ name: string; sizeOnDisk: number; empty: boolean }> | string[]>;
+    dropDatabase(options?: { confirm: boolean; allowProduction?: boolean; user?: string }): Promise<{ dropped: boolean; database: string; timestamp: Date }>;
+    listCollections(filter?: Record<string, unknown>, options?: Record<string, unknown>): Promise<Array<{ name: string; type: string }>>;
+    runCommand(command: Record<string, unknown>, options?: Record<string, unknown>): Promise<Record<string, unknown>>;
 
-/**
- * MonSQLize static/namespace members (v1 compat + v2 additions).
- */
-export declare namespace MonSQLize {
-    /**
-     * Create a Redis cache adapter wrapping an ioredis URL string or instance.
-     * Returned adapter implements `CacheLike` and can be passed as `MonSQLizeOptions.cache`.
-     *
-     * @param redisUrlOrInstance - Redis URL string (e.g. `'redis://localhost:6379'`) or an existing ioredis instance.
-     * @returns A `RedisCacheAdapter` implementing `CacheLike`.
-     * @since v1 (static method) / v2 (module-level + static)
-     */
-    function createRedisCacheAdapter(redisUrlOrInstance: string | object): RedisCacheAdapter;
+    static Logger: typeof Logger;
+    static MemoryCache: typeof MemoryCache;
+    static Transaction: typeof Transaction;
+    static TransactionManager: typeof TransactionManager;
+    static CacheLockManager: typeof CacheLockManager;
+    static Lock: typeof Lock;
+    static LockManager: typeof import('./lock').LockManager;
+    static LockAcquireError: typeof import('./lock').LockAcquireError;
+    static LockTimeoutError: typeof import('./lock').LockTimeoutError;
+    static DistributedCacheInvalidator: typeof DistributedCacheInvalidator;
+    static ConnectionPoolManager: typeof import('./pool').ConnectionPoolManager;
+    static Model: typeof import('./runtime').Model;
+    static expr: typeof expr;
+    static createExpression: typeof createExpression;
+    static compilePipelineExpressions: typeof compilePipelineExpressions;
+    static isExpressionObject: typeof isExpressionObject;
+    static hasExpressionInObject: typeof hasExpressionInObject;
+    static hasExpressionInPipeline: typeof hasExpressionInPipeline;
+    static createRedisCacheAdapter: typeof createRedisCacheAdapter;
+    static withCache: typeof withCache;
+    static FunctionCache: typeof FunctionCache;
+    static adaptLegacyCacheLike: typeof adaptLegacyCacheLike;
+    static MultiLevelCache: typeof MultiLevelCache;
+    static ChangeStreamSyncManager: typeof ChangeStreamSyncManager;
+    static ResumeTokenStore: typeof import('./sync').ResumeTokenStore;
+    static validateSyncConfig: typeof validateSyncConfig;
+    static SlowQueryLogManager: typeof SlowQueryLogManager;
+    static SlowQueryLogConfigManager: typeof SlowQueryLogConfigManager;
+    static SlowQueryLogMemoryStorage: typeof SlowQueryLogMemoryStorage;
+    static MongoDBSlowQueryLogStorage: typeof MongoDBSlowQueryLogStorage;
+    static BatchQueue: typeof BatchQueue;
+    static generateQueryHash: typeof generateQueryHash;
+    static SagaOrchestrator: typeof SagaOrchestrator;
 }
+
+export { MonSQLize };

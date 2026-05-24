@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 
 export interface DistributedCacheInvalidatorOptions {
     cache: any;
+    _connections?: { pub: any; sub: any };
     redis?: any;
     redisUrl?: string;
     channel?: string;
@@ -37,7 +38,10 @@ export class DistributedCacheInvalidator {
         this.instanceId = options.instanceId ?? `instance-${Date.now()}-${randomBytes(4).toString('hex')}`;
         this._stats = { messagesSent: 0, messagesReceived: 0, invalidationsTriggered: 0, errors: 0 };
 
-        if (options.redis) {
+        if (options._connections?.pub && options._connections?.sub) {
+            this.pub = options._connections.pub;
+            this.sub = options._connections.sub;
+        } else if (options.redis) {
             // v1 compat: pub === sub so close() calls quit twice on the same instance
             this.pub = options.redis;
             this.sub = options.redis;
@@ -73,20 +77,32 @@ export class DistributedCacheInvalidator {
             this._stats.messagesReceived++;
 
             try {
-                if (this._cache.local) {
-                    await this._cache.local.delPattern(message.pattern);
-                    this._logger?.debug(`[DistributedCacheInvalidator] Invalidated local cache: ${message.pattern}`);
+                for (const targetCache of this._getTargetCaches()) {
+                    await targetCache.delPattern(message.pattern);
                 }
-                if (this._cache.remote) {
-                    await this._cache.remote.delPattern(message.pattern);
-                    this._logger?.debug(`[DistributedCacheInvalidator] Invalidated remote cache: ${message.pattern}`);
-                }
+                this._logger?.debug(`[DistributedCacheInvalidator] Invalidated cache targets: ${message.pattern}`);
                 this._stats.invalidationsTriggered++;
             } catch (err: any) {
                 this._stats.errors++;
                 this._logger?.error(`[DistributedCacheInvalidator] Cache invalidation error: ${err.message}`);
             }
         });
+    }
+
+    private _getTargetCaches(): any[] {
+        const targets = new Set<any>();
+
+        if (typeof this._cache?.delPattern === 'function') {
+            targets.add(this._cache);
+        }
+        if (this._cache?.local && typeof this._cache.local.delPattern === 'function') {
+            targets.add(this._cache.local);
+        }
+        if (this._cache?.remote && typeof this._cache.remote.delPattern === 'function') {
+            targets.add(this._cache.remote);
+        }
+
+        return [...targets];
     }
 
     async invalidate(pattern: string): Promise<void> {

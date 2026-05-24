@@ -14,11 +14,11 @@
 'use strict';
 
 const { spawn } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const TSC_BIN = require.resolve('typescript/bin/tsc');
-const TS_MIGRATION_RUNNER = path.join(__dirname, 'run-ts-migration-tests.cjs');
+const TEST_DIST_ROOT = path.join(ROOT, '.generated', 'test-dist');
 
 // ─── Ordered test suites (run sequentially inside one node --test call) ───────
 
@@ -40,11 +40,13 @@ const UNIT = [
     'test/unit/management/management.test.js',
     'test/unit/writes/batch.test.js',
     'test/unit/cache/cache.test.js',
+    'test/unit/cache/cache-refactor-guard.test.js',
     'test/unit/function-cache/function-cache.test.js',
     'test/unit/model/model-registry.test.js',
     'test/unit/lock/lock.test.js',
     'test/unit/transaction/transaction.test.js',
     'test/unit/pool/pool.test.js',
+    'test/unit/runtime/runtime-compat.test.js',
     'test/unit/sync/sync.test.js',
     'test/unit/slow-query-log/slow-query-log.test.js',
     'test/unit/saga/saga.test.js',
@@ -113,24 +115,18 @@ function runCommand(label, args) {
     });
 }
 
-async function runSuite(label, files) {
-    const result = await runCommand(label, ['--test', '--test-concurrency=1', ...files]);
-    const stats = parseStats(result.stdout || '');
-    return { ...stats, exitCode: result.exitCode };
-}
-
-async function runTsMigration() {
-    const compile = await runCommand('Compile TS Migration Tests', [
-        TSC_BIN,
-        '-p',
-        'tsconfig.test-migration.json',
-    ]);
-
-    if (compile.exitCode !== 0) {
-        return { pass: 0, fail: 1, skip: 0, exitCode: compile.exitCode };
+function resolveTestFile(file) {
+    const testDistFile = path.join(TEST_DIST_ROOT, file).replace(/\.ts$/, '.js').replace(/\.js$/, '.js');
+    const sourceTsFile = path.join(ROOT, file).replace(/\.js$/, '.ts');
+    if (fs.existsSync(sourceTsFile) && fs.existsSync(testDistFile)) {
+        return path.relative(ROOT, testDistFile);
     }
 
-    const result = await runCommand('TS Migration Tests', [TS_MIGRATION_RUNNER]);
+    return file;
+}
+
+async function runSuite(label, files) {
+    const result = await runCommand(label, ['--test', '--test-concurrency=1', ...files.map(resolveTestFile)]);
     const stats = parseStats(result.stdout || '');
     return { ...stats, exitCode: result.exitCode };
 }
@@ -160,13 +156,6 @@ async function main() {
         }
     }
 
-    const tsMigrationStats = await runTsMigration();
-    totalPass += tsMigrationStats.pass;
-    totalFail += tsMigrationStats.fail;
-    totalSkip += tsMigrationStats.skip;
-    if (tsMigrationStats.exitCode !== 0 || tsMigrationStats.fail > 0) {
-        anyFailed = true;
-    }
 
     const total = totalPass + totalFail + totalSkip;
     const line = '─'.repeat(65);

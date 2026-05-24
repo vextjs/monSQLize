@@ -361,7 +361,7 @@ class MonSQLize {
 }
 ```
 
-详见 [index.d.ts](../index.d.ts)。
+详见 [types/index.d.ts](../types/index.d.ts)。
 
 ---
 

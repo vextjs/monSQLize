@@ -1,4 +1,4 @@
-const MonSQLize = require('../../lib/index.js');
+const MonSQLize = require('../../dist/cjs/index.cjs');
 
 async function main() {
     let originCalls = 0;

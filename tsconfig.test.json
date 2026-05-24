@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": ".",
+    "outDir": ".generated/test-dist",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true,
+    "strict": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
+  },
+  "include": [
+    "test/**/*.test.ts",
+    "test/**/*.benchmark.ts",
+    "test/bootstrap/**/*.ts",
+    "test/utils/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".generated",
+    "test/types/**/*.d.ts"
+  ]
+}

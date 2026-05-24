@@ -8,7 +8,7 @@
 |------|----------|----------|------------|
 | 连接 / 基础 CRUD | `getting-started.md` | `examples/quick-start/basic-connect.ts` | `test/integration/mongodb/connect.test.js` |
 | Query（find / findOne / count / distinct） | `find.md` / `findOne.md` / `count.md` / `distinct.md` | `examples/docs/find.ts` / `find-one.ts` / `count.ts` / `distinct.ts` | `test/integration/mongodb/queries.test.js` |
-| 分页 / 链式查询 | `findPage.md` / `chaining-api.md` | `examples/docs/find-page.ts` / `chaining-api.ts` | `test-ts/v1-compat/model/populate-relations.test.ts` + `npm run test:examples` |
+| 分页 / 链式查询 | `findPage.md` / `chaining-api.md` | `examples/docs/find-page.ts` / `chaining-api.ts` | `test/integration/model/model-features.test.js` + `npm run test:examples` |
 | 聚合 / 表达式 | `aggregate.md` / `expression-functions.md` | `examples/docs/aggregate.ts` / `aggregate-advanced.ts` / `expression-functions.ts` | `test/unit/expression/*.test.js` |
 | 写入扩展 / Batch | `write-operations.md` / `updateBatch.md` / `deleteBatch.md` | `examples/docs/update.ts` / `batch-operations.ts` | `test/unit/writes/batch.test.js` + `test/integration/mongodb/writes-batch.test.js` |
 | Collection 管理能力 | `collection-management.md` / `create-index.md` / `database-ops.md` | `examples/docs/collection-management.ts` | `test/integration/mongodb/management.test.js` |

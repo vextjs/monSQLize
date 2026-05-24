@@ -5,12 +5,12 @@ coverage:
   status:
     project:
       default:
-        target: 70%  # 目标覆盖率
-        threshold: 2%  # 允许下降2%
+        target: 95%
+        threshold: 0%
     patch:
       default:
-        target: 70%
-        threshold: 5%
+        target: 95%
+        threshold: 0%
 
 comment:
   layout: "header, diff, files"
@@ -23,4 +23,7 @@ ignore:
   - "scripts/**/*"
   - "reports/**/*"
   - "*.test.js"
+  - "*.test.ts"
+  - ".generated/**/*"
+  - "dist/**/*"
 

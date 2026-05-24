@@ -7,8 +7,8 @@
 
 | 维度 | 当前范围 | 证据 |
 |------|----------|------|
-| Node.js | 18.x / 20.x / 22.x | `.github/workflows/test.yml` + `npm test`（smoke + compatibility + unit + integration + TS migration）+ `npm run verify:fast` |
-| Module | CJS / ESM | `test/smoke/root-cjs.test.js` / `root-esm.test.js` |
+| Node.js | 18.x / 20.x / 22.x | `.github/workflows/test.yml` + `npm test`（smoke + compatibility + unit + integration）+ `npm run verify:fast` |
+| Module | CJS / ESM | `test/smoke/root-cjs.test.ts` / `root-esm.test.ts` 编译后的测试产物 |
 
 ## 默认 server matrix
 
@@ -30,7 +30,7 @@
 ## 公开验证与私有验证边界
 
 - `verify:fast` / `verify:full` / `test:server-matrix` / `release:preflight` 都属于**公开可复现**验证入口。
-- `npm test` 现在默认覆盖 smoke / compatibility / unit / integration / TS migration，不再把 vendored v1 compat runner 算入公开默认门禁。
+- `npm test` 现在默认覆盖 smoke / compatibility / unit / integration；已迁移的 TypeScript 测试先编译到 `.generated/test-dist/test/**` 再执行，不再保留独立迁移 runner。
 - `test:real-env:private` 与 `verify:release` 属于**显式 opt-in** 的私有真实环境验证，需要操作者自行注入 SSH / Mongo 环境变量。
 - GitHub Actions 默认只运行公开门禁，不假设任何私有 SSH / Mongo 资源存在。
 

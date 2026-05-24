@@ -121,7 +121,7 @@ const driverScenarios = [
             if (installResult.status !== 0) {
                 return {
                     skipped: true,
-                    reason: '临时安装 mongodb@7 失败，按不支持处理',
+                    reason: '临时安装 mongodb@7 失败，标记为 environment-unavailable，发布前需复验',
                 };
             }
             return { skipped: false, version: readInstalledDriverVersion() };
@@ -144,7 +144,7 @@ for (const driverScenario of driverScenarios) {
     if (driverSetup.skipped) {
         summary.push({
             driver: driverScenario.label,
-            status: 'skipped',
+            status: 'environment-unavailable',
             reason: driverSetup.reason,
             results: [],
         });
@@ -154,7 +154,7 @@ for (const driverScenario of driverScenarios) {
     const driverVersion = driverSetup.version;
     const driverSummary = {
         driver: `${driverScenario.label} -> ${driverVersion}`,
-        status: 'passed',
+        status: 'verified',
         results: [],
     };
 
@@ -178,8 +178,8 @@ for (const driverScenario of driverScenarios) {
                 driverSummary.results.push({
                     node: nodeScenario.label,
                     mongo: mongoVersion.label,
-                    status: 'skipped',
-                    reason: probe.unsupported ? 'memory-server 不支持该版本/平台组合' : 'memory-server 探测失败',
+                    status: 'environment-unavailable',
+                    reason: probe.unsupported ? 'memory-server 不支持该版本/平台组合，发布前需复验' : 'memory-server 探测失败，发布前需复验',
                     error: probe.error,
                 });
                 continue;
@@ -202,7 +202,7 @@ for (const driverScenario of driverScenarios) {
             driverSummary.results.push({
                 node: nodeScenario.label,
                 mongo: mongoVersion.label,
-                status: 'passed',
+                status: 'verified',
             });
         }
     }

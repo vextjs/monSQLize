@@ -1,15 +1,17 @@
-const { mkdirSync, rmSync } = require('node:fs');
+const { cpSync, mkdirSync, rmSync } = require('node:fs');
 const { build } = require('esbuild');
 
 async function main() {
     rmSync('lib', { recursive: true, force: true });
-    rmSync('index.mjs', { force: true });
+    rmSync('dist', { recursive: true, force: true });
 
-    mkdirSync('lib', { recursive: true });
+    mkdirSync('dist/cjs', { recursive: true });
+    mkdirSync('dist/esm', { recursive: true });
+    mkdirSync('dist/types', { recursive: true });
 
     await build({
         entryPoints: ['src/entry/index.ts'],
-        outfile: 'lib/index.js',
+        outfile: 'dist/cjs/index.cjs',
         bundle: true,
         packages: 'external',
         platform: 'node',
@@ -21,7 +23,7 @@ async function main() {
 
     await build({
         entryPoints: ['src/entry/index.mts'],
-        outfile: 'index.mjs',
+        outfile: 'dist/esm/index.mjs',
         bundle: true,
         packages: 'external',
         platform: 'node',
@@ -32,10 +34,10 @@ async function main() {
     });
 
     const cjsCompatEntries = [
-        ['src/entry/compat/transaction/Transaction.ts', 'lib/transaction/Transaction.js'],
-        ['src/entry/compat/transaction/TransactionManager.ts', 'lib/transaction/TransactionManager.js'],
-        ['src/entry/compat/transaction/CacheLockManager.ts', 'lib/transaction/CacheLockManager.js'],
-        ['src/entry/compat/mongodb/common/transaction-aware.ts', 'lib/mongodb/common/transaction-aware.js'],
+        ['src/entry/compat/transaction/Transaction.ts', 'dist/cjs/transaction/Transaction.cjs'],
+        ['src/entry/compat/transaction/TransactionManager.ts', 'dist/cjs/transaction/TransactionManager.cjs'],
+        ['src/entry/compat/transaction/CacheLockManager.ts', 'dist/cjs/transaction/CacheLockManager.cjs'],
+        ['src/entry/compat/mongodb/common/transaction-aware.ts', 'dist/cjs/mongodb/common/transaction-aware.cjs'],
     ];
 
     for (const [entryPoint, outfile] of cjsCompatEntries) {
@@ -51,6 +53,8 @@ async function main() {
             logLevel: 'info',
         });
     }
+
+    cpSync('types', 'dist/types', { recursive: true });
 }
 
 main().catch((error) => {

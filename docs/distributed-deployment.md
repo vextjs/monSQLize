@@ -516,7 +516,7 @@ await msq.close();
 #### 1. 初始化阶段（connect() 时）
 
 ```javascript
-// lib/index.js
+// dist/cjs/index.cjs
 async connect() {
   // 步骤1: 创建 DistributedCacheInvalidator
   this._cacheInvalidator = new DistributedCacheInvalidator({

@@ -503,7 +503,7 @@ const result = await collection('products').findPage<Product>(
 | **IDE 补全** | ⚠️ 基础补全 | ✅ 完整补全 |
 | **类型检查** | ⚠️ 部分检查 | ✅ 严格检查 |
 
-**类型声明文件**: [index.d.ts](../index.d.ts)
+**类型声明文件**: [types/index.d.ts](../types/index.d.ts)
 
 ---
 

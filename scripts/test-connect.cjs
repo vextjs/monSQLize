@@ -1,4 +1,4 @@
-const M = require('../lib/index.js');
+const M = require('../dist/cjs/index.cjs');
 const m = new M({type:'mongodb', databaseName:'test', config:{useMemoryServer:true}});
 m.connect().then(c=>{
   console.log('connected ok');

@@ -16,7 +16,7 @@
 npm install monsqlize
 ```
 
-> 当前仓库仍处于 TypeScript 全量重写后的持续治理阶段；当前工作区已完成 **P4-D compatibility / performance / validation / docs 收口**：除包根 `lib/index.js`、`index.mjs`、`index.d.ts` 与 `types/**` 外，已恢复真实 MongoDB `connect()` / `db()` / `collection()` 链路、`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch` query façade、完整 `writes-core convenience`、`namespace` / `index` / `bookmark` / `db.admin()` 管理能力、`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne` 批量写入扩展、`MemoryCache` / `createRedisCacheAdapter` / `DistributedCacheInvalidator`、`withCache()` / `FunctionCache`、`Model.define/get/list/undefine/redefine`、`startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()`、`ConnectionPoolManager` / `pool()`、`defineSaga()` / `executeSaga()` / `getSagaStats()`、`ChangeStreamSyncManager` / `ResumeTokenStore` / `startSync()` / `stopSync()` / `getSyncStats()`、`SlowQueryLogManager` / `recordSlowQuery()` / `getSlowQueryLogs()` 等公开面；同时验证资产已覆盖 `test/compatibility/matrix.json`、`test/compatibility/matrix.test.js`、`test/performance/baselines/function-cache.benchmark.js`、`test/validation/VERIFICATION-PROGRESS.md`、`test/validation/DOCS-EXAMPLES-MAPPING.md`。当前官方文档与示例已统一采用 TypeScript，并纳入持续验证链路：`npm run test:examples` 现覆盖 **43 个示例**；`npm run test:server-matrix` 已实跑 **Node 20 / 22 × Driver 6 / 7 × MongoDB 6 / 7（内存版单机 + 副本集）** 全矩阵。
+> 当前仓库仍处于 TypeScript 全量重写后的持续治理阶段；当前工作区已完成发布出口与测试入口治理：运行时、ESM 与类型发布入口统一为 `dist/cjs/index.cjs`、`dist/esm/index.mjs`、`dist/types/index.d.ts`，包根不再保留 `lib/index.js`、`index.mjs`、`index.d.ts` 发布产物；`test/**` 可执行测试源码已全量 TS 化并通过语言门禁，验证资产覆盖 `test/compatibility/matrix.json`、`test/compatibility/matrix.test.ts`、`test/performance/baselines/function-cache.benchmark.ts`、`test/validation/VERIFICATION-PROGRESS.md`、`test/validation/DOCS-EXAMPLES-MAPPING.md`。当前官方文档与示例已统一采用 TypeScript，并纳入持续验证链路：`npm run test:examples` 现覆盖 **43 个示例**；`npm run test:server-matrix` 已实跑 **Node 20 / 22 × Driver 6 / 7 × MongoDB 6 / 7（内存版单机 + 副本集）** 全矩阵。
 
 [快速开始](#-快速开始) · [TS 文档入口](./docs/README.md) · [支持矩阵](./docs/support-matrix.md) · [验证入口](./docs/verification-entrypoints.md) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
 
@@ -1348,7 +1348,7 @@ import MonSQLize from 'monsqlize';
 const db = new MonSQLize({ /* ... */ });
 await db.connect();
 
-// 🎯 TypeScript 消费以当前正式 `index.d.ts` 导出面为准
+// 🎯 TypeScript 消费以 `dist/types/index.d.ts` 发布入口和源码级 `types/index.d.ts` 导出面为准
 import type { Collection } from 'monsqlize';
 ```
 
