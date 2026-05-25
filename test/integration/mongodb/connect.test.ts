@@ -78,4 +78,60 @@ describe('P2-A MongoDB connect/common/accessor', () => {
             (error: unknown) => hasErrorCode(error, 'INVALID_CONFIG'),
         );
     });
+
+    it('returns INVALID_DATABASE_NAME when database name is blank', async () => {
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: '   ',
+            config: { uri },
+        });
+
+        await assert.rejects(
+            () => runtime.connect(),
+            (error: unknown) => hasErrorCode(error, 'INVALID_DATABASE_NAME'),
+        );
+    });
+
+    it('useMemoryServer=true can connect through MONSQLIZE_USE_SYSTEM_MONGO override', async () => {
+        const prevUseSystem = process.env.MONSQLIZE_USE_SYSTEM_MONGO;
+        const prevUri = process.env.MONSQLIZE_SYSTEM_MONGO_URI;
+        process.env.MONSQLIZE_USE_SYSTEM_MONGO = 'true';
+        process.env.MONSQLIZE_SYSTEM_MONGO_URI = uri;
+
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'p2a_system_override',
+            config: { useMemoryServer: true },
+        });
+
+        try {
+            await runtime.connect();
+            assert.equal((await runtime.health()).connected, true);
+        } finally {
+            await runtime.close();
+            if (prevUseSystem === undefined) delete process.env.MONSQLIZE_USE_SYSTEM_MONGO;
+            else process.env.MONSQLIZE_USE_SYSTEM_MONGO = prevUseSystem;
+            if (prevUri === undefined) delete process.env.MONSQLIZE_SYSTEM_MONGO_URI;
+            else process.env.MONSQLIZE_SYSTEM_MONGO_URI = prevUri;
+        }
+    });
+
+    it('runtime.close() swallows Mongo close errors and still resets health', async () => {
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'p2a_close_warn',
+            config: { uri },
+        });
+
+        runtime._connected = true;
+        runtime._client = {
+            close: async () => {
+                throw new Error('forced close failure');
+            },
+        };
+
+        await runtime.close();
+
+        assert.equal((await runtime.health()).connected, false);
+    });
 });

@@ -7,11 +7,9 @@
     "noEmit": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": false,
-    "ignoreDeprecations": "5.0",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "baseUrl": ".",
     "paths": {
       "monsqlize": [
         "./dist/types/index.d.ts"
@@ -23,7 +21,6 @@
     "src/**/*.ts",
     "src/**/*.mts",
     "examples/**/*.ts",
-    "index.d.ts",
     "dist/types/**/*.d.ts",
     "types/**/*.d.ts",
     "test/types/**/*.d.ts"

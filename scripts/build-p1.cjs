@@ -17,7 +17,7 @@ async function main() {
         platform: 'node',
         format: 'cjs',
         target: 'node18',
-        sourcemap: false,
+        sourcemap: true,
         logLevel: 'info',
     });
 
@@ -29,7 +29,7 @@ async function main() {
         platform: 'node',
         format: 'esm',
         target: 'node18',
-        sourcemap: false,
+        sourcemap: true,
         logLevel: 'info',
     });
 
@@ -49,7 +49,7 @@ async function main() {
             platform: 'node',
             format: 'cjs',
             target: 'node18',
-            sourcemap: false,
+            sourcemap: true,
             logLevel: 'info',
         });
     }

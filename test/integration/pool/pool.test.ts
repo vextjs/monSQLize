@@ -62,6 +62,11 @@ describe('P4-B pool integration', () => {
         const rows = await model.find({});
         assert.equal(rows.length >= 2, true);
 
+        // Cover createPoolScope.model() direct (FN:144, no .use() wrapper)
+        const modelDirect = runtime.pool('analytics').model('events');
+        assert.ok(modelDirect !== null);
+        assert.ok(typeof modelDirect.find === 'function');
+
         await runtime.close();
     });
 });

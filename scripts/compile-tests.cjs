@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-const { cpSync, existsSync, mkdirSync, rmSync } = require('node:fs');
+const { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
@@ -29,7 +29,21 @@ if (result.status !== 0) {
 }
 
 if (existsSync(path.join(root, 'dist'))) {
-    cpSync(path.join(root, 'dist'), path.join(outDir, 'dist'), { recursive: true });
+    const generatedDistDir = path.join(outDir, 'dist');
+    cpSync(path.join(root, 'dist'), generatedDistDir, { recursive: true });
+
+    for (const mapFile of [
+        path.join(generatedDistDir, 'cjs', 'index.cjs.map'),
+        path.join(generatedDistDir, 'esm', 'index.mjs.map'),
+    ]) {
+        if (!existsSync(mapFile)) {
+            continue;
+        }
+
+        const sourceMap = JSON.parse(readFileSync(mapFile, 'utf8'));
+        sourceMap.sources = sourceMap.sources.map((source) => source.replace(/^\.\.\/\.\.\/src\//, '../../../../src/'));
+        writeFileSync(mapFile, `${JSON.stringify(sourceMap)}\n`);
+    }
 }
 
 cpSync(path.join(root, 'package.json'), path.join(outDir, 'package.json'));
