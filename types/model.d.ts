@@ -1,4 +1,4 @@
-import type { DeleteResult, IndexCreateResult, InsertOneResult, UpdateResult } from './collection';
+import type { BookmarkClearResult, BookmarkListResult, BookmarkPrewarmResult, DeleteBatchResult, DeleteResult, IndexCreateResult, InsertOneResult, UpdateResult } from './collection';
 
 /**
  * Schema DSL transformer function.
@@ -21,6 +21,7 @@ export interface ValidationResult {
         message: string;
         value?: unknown;
     }>;
+    data?: unknown;
 }
 
 export interface HookContext {
@@ -92,7 +93,8 @@ export type V1MethodsFactory<TDocument = Record<string, unknown>> = (
 };
 
 export interface ModelDefinitionOptions {
-    timestamps?: boolean | { createdAt?: string; updatedAt?: string };
+    timestamps?: boolean | { createdAt?: string | boolean; updatedAt?: string | boolean };
+    validate?: boolean;
     softDelete?: boolean | {
         enabled?: boolean;
         field?: string;
@@ -107,7 +109,7 @@ export interface ModelDefinitionOptions {
 
 export interface ModelDefinition<TDocument = Record<string, unknown>> {
     enums?: Record<string, string>;
-    schema?: (dsl: unknown) => unknown;
+    schema?: ((dsl: unknown) => unknown) | Record<string, unknown>;
     defaults?: Record<string, unknown | ((context?: unknown, doc?: TDocument) => unknown)>;
     hooks?:
     | {
@@ -130,6 +132,7 @@ export interface ModelDefinition<TDocument = Record<string, unknown>> {
     relations?: Record<string, RelationConfig>;
     virtuals?: Record<string, VirtualConfig>;
     connection?: ModelConnection;
+    indexes?: Array<{ key: unknown } & Record<string, unknown>>;
     options?: ModelDefinitionOptions;
 }
 
@@ -144,7 +147,7 @@ export interface ModelScopeOptions {
 }
 
 export interface PopulateProxy<T = unknown> extends Promise<T> {
-    populate(path: string | PopulateConfig, options?: Partial<Omit<PopulateConfig, 'path'>>): PopulateProxy<T>;
+    populate(path: string | PopulateConfig | Array<string | PopulateConfig>, options?: Partial<Omit<PopulateConfig, 'path'>>): PopulateProxy<T>;
     exec(): Promise<T>;
 }
 
@@ -166,7 +169,7 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
     /** 返回当前模型声明的关系配置映射。 */
     getRelations(): Record<string, RelationConfig>;
     /** 返回当前模型声明的枚举字段值映射。 */
-    getEnums(): Record<string, string[]>;
+    getEnums(): Record<string, string>;
     /** 返回底层原生 MongoDB Collection 对象，用于执行框架未封装的原始操作。 */
     raw(): unknown;
     /**
@@ -403,6 +406,8 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
      * @param options 可选的批量写入选项。
      */
     updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
+    /** 批量删除符合条件的文档。 */
+    deleteBatch(filter?: unknown, options?: unknown): Promise<DeleteBatchResult>;
     /**
      * 在集合上创建单个索引。
      * @param keys 索引键规范对象。
@@ -425,6 +430,12 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
     dropIndex(name: string): Promise<unknown>;
     /** 删除集合上的所有非 `_id` 索引。 */
     dropIndexes(): Promise<unknown>;
+    /** 预热游标分页书签缓存。 */
+    prewarmBookmarks(keyDims?: unknown, pages?: number[]): Promise<BookmarkPrewarmResult>;
+    /** 列出游标分页书签缓存。 */
+    listBookmarks(keyDims?: unknown): Promise<BookmarkListResult>;
+    /** 清理游标分页书签缓存。 */
+    clearBookmarks(keyDims?: unknown): Promise<BookmarkClearResult>;
     /**
      * 获取指定字段在符合条件的文档中的所有唯一值。
      * @param key 目标字段名。
@@ -440,6 +451,36 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
      * @returns 聚合结果文档数组。
      */
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]>;
+    /** 返回匹配查询的可读流。 */
+    stream(query?: unknown, options?: unknown): NodeJS.ReadableStream;
+    /** 返回 MongoDB 查询执行计划。 */
+    explain(query?: unknown, options?: unknown): Promise<unknown>;
+    /** 手动失效当前 Model 对应集合的读缓存。 */
+    invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
+    /** 删除当前 Model 对应集合。 */
+    dropCollection(): Promise<boolean>;
+    /** 创建当前或指定名称的集合。 */
+    createCollection(name?: string, options?: Record<string, unknown>): Promise<boolean>;
+    /** 创建 MongoDB view。 */
+    createView(name: string, source: string, pipeline?: unknown[]): Promise<boolean>;
+    /** 返回索引使用统计。 */
+    indexStats(): Promise<unknown[]>;
+    /** 设置集合 JSON Schema validator。 */
+    setValidator(validator: unknown, options?: { validationLevel?: string; validationAction?: string }): Promise<{ ok: number; collection: string }>;
+    /** 设置集合 validation level。 */
+    setValidationLevel(level: 'off' | 'moderate' | 'strict' | string): Promise<{ ok: number; validationLevel: string }>;
+    /** 设置集合 validation action。 */
+    setValidationAction(action: 'error' | 'warn' | string): Promise<{ ok: number; validationAction: string }>;
+    /** 读取集合 validator 与校验设置。 */
+    getValidator(): Promise<{ validator: Record<string, unknown> | null; validationLevel: string; validationAction: string }>;
+    /** 返回集合存储与索引统计。 */
+    stats(options?: { scale?: number }): Promise<{ ns: string; count: number; size: number; storageSize: number; totalIndexSize: number; nindexes: number; avgObjSize?: number; scaleFactor?: number }>;
+    /** 重命名当前 Model 对应集合。 */
+    renameCollection(newName: string, options?: { dropTarget?: boolean }): Promise<{ renamed: boolean; from: string; to: string }>;
+    /** 执行 collMod 管理命令。 */
+    collMod(modifications: Record<string, unknown>): Promise<Record<string, unknown>>;
+    /** 将集合转换为 capped collection。 */
+    convertToCapped(size: number, options?: { max?: number }): Promise<{ ok: number; collection: string; capped: boolean; size: number }>;
     /**
      * 打开集合的 ChangeStream 以监听实时变更事件。
      * @param pipeline 可选的聚合过滤管道。

@@ -185,7 +185,7 @@ export function hydrateModelDocument<TDocument>(
 type ModelValidationRuntime = {
     schemaError: Error | null;
     schemaCache: unknown;
-    schemaValidateFn: ((schema: unknown, document: unknown) => { valid: boolean; errors?: Array<{ field?: string; path?: string; message?: string }> }) | null;
+    schemaValidateFn: ((schema: unknown, document: unknown) => { valid: boolean; errors?: Array<{ field?: string; path?: string; message?: string }>; data?: unknown }) | null;
 };
 
 export function validateModelDocument(
@@ -197,10 +197,11 @@ export function validateModelDocument(
             return {
                 valid: false,
                 errors: [{ field: '_schema', message: `Schema validation failed: ${runtime.schemaError.message}` }],
+                data: document,
             };
         }
         if (!runtime.schemaCache || !runtime.schemaValidateFn) {
-            return { valid: true, errors: [] };
+            return { valid: true, errors: [], data: document };
         }
         const result = runtime.schemaValidateFn(runtime.schemaCache, document ?? {});
         return {
@@ -209,11 +210,13 @@ export function validateModelDocument(
                 field: error.field ?? error.path ?? '',
                 message: error.message ?? '',
             })),
+            data: result.data ?? document,
         };
     } catch (error) {
         return {
             valid: false,
             errors: [{ field: '_schema', message: `Schema validation failed: ${error instanceof Error ? error.message : String(error)}` }],
+            data: document,
         };
     }
 }

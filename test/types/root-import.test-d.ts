@@ -177,7 +177,7 @@ expectType<FunctionCacheStats | Record<string, FunctionCacheStats> | null>(funct
 
 declare const modelInstance: ModelInstance<{ name: string }>;
 expectType<Record<string, RelationConfig>>(modelInstance.getRelations());
-expectType<Record<string, string[]>>(modelInstance.getEnums());
+expectType<Record<string, string>>(modelInstance.getEnums());
 
 const txOptions: TransactionOptions = { maxDuration: 1000, maxRetries: 1 };
 const lockOptions: LockOptions = { ttl: 1000, retryTimes: 1 };

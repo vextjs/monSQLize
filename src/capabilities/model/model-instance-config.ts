@@ -25,9 +25,9 @@ export type ModelSoftDeleteConfig = { enabled: boolean; field: string; type: str
 export type ModelVersionConfig = { enabled: boolean; field: string };
 
 type ModelDefinitionCompat<TDocument> = ModelDefinition<TDocument> & {
-    enums?: Record<string, string[]>;
+    enums?: Record<string, string>;
     statics?: Record<string, (...args: unknown[]) => unknown>;
-    schema?: (dslFn: unknown) => unknown;
+    schema?: ((dslFn: unknown) => unknown) | Record<string, unknown>;
     hooks?: ModelHooksFactory;
     methods?: ModelMethodsFactory;
     indexes?: Array<{ key: unknown } & Record<string, unknown>>;
@@ -54,7 +54,7 @@ function toCompatDefinition<TDocument>(definition: ModelDefinition<TDocument>): 
     return definition as ModelDefinitionCompat<TDocument>;
 }
 
-export function getModelEnums<TDocument>(definition: ModelDefinition<TDocument>): Record<string, string[]> {
+export function getModelEnums<TDocument>(definition: ModelDefinition<TDocument>): Record<string, string> {
     return toCompatDefinition(definition).enums ?? {};
 }
 
@@ -80,7 +80,14 @@ export function buildModelSchemaState<TDocument>(definition: ModelDefinition<TDo
     schemaError: Error | null;
 } {
     const compat = toCompatDefinition(definition);
-    if (_schemaDslFn === null || typeof compat.schema !== 'function') {
+    if (typeof compat.schema !== 'function') {
+        return {
+            schemaCache: compat.schema ?? null,
+            schemaError: null,
+        };
+    }
+
+    if (_schemaDslFn === null) {
         return {
             schemaCache: null,
             schemaError: null,
@@ -223,7 +230,7 @@ export function scheduleModelIndexes<TDocument>(
             collection.createIndex(
                 { [softDeleteIndex.field]: 1 },
                 { expireAfterSeconds: softDeleteIndex.ttl },
-            ).catch(() => {});
+            ).catch(() => { });
         });
     }
 
@@ -237,7 +244,7 @@ export function scheduleModelIndexes<TDocument>(
                 continue;
             }
             const { key, ...indexOptions } = indexSpec;
-            collection.createIndex(key, indexOptions).catch(() => {});
+            collection.createIndex(key, indexOptions).catch(() => { });
         }
     });
 }

@@ -81,7 +81,8 @@ export function validateModelSchemaPayload(
     options?: Record<string, unknown>,
     metadata: Record<string, unknown> = {},
 ): void {
-    if (!context.validateEnabled) {
+    const shouldValidate = context.validateEnabled || options?.validate === true;
+    if (!shouldValidate) {
         return;
     }
     if (options?.skipValidation) {

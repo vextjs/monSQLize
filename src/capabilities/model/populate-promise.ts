@@ -19,6 +19,7 @@ import { createError, ErrorCodes } from '../../core/errors';
 
 /** Populate path: either a field name string or a full PopulateConfig object. */
 export type PopulatePath = string | PopulateConfig;
+type PopulateInput = PopulatePath | PopulatePath[];
 
 // ── Internal runtime interfaces (avoids circular imports with runtime-core) ──────────────────────
 
@@ -55,8 +56,26 @@ export interface ModelCollectionLike<TDocument = Record<string, unknown>> {
     listIndexes(): Promise<Record<string, unknown>[]>;
     dropIndex(name: string): Promise<unknown>;
     dropIndexes(): Promise<unknown>;
+    prewarmBookmarks(keyDims?: unknown, pages?: number[]): Promise<unknown>;
+    listBookmarks(keyDims?: unknown): Promise<unknown>;
+    clearBookmarks(keyDims?: unknown): Promise<unknown>;
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]>;
+    stream(query?: unknown, options?: unknown): NodeJS.ReadableStream;
+    explain(query?: unknown, options?: unknown): Promise<unknown>;
+    invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
+    dropCollection(): Promise<boolean>;
+    createCollection(name?: string, options?: Record<string, unknown>): Promise<boolean>;
+    createView(name: string, source: string, pipeline?: unknown[]): Promise<boolean>;
+    indexStats(): Promise<unknown[]>;
+    setValidator(validator: unknown, options?: { validationLevel?: string; validationAction?: string }): Promise<{ ok: number; collection: string }>;
+    setValidationLevel(level: string): Promise<{ ok: number; validationLevel: string }>;
+    setValidationAction(action: string): Promise<{ ok: number; validationAction: string }>;
+    getValidator(): Promise<{ validator: Record<string, unknown> | null; validationLevel: string; validationAction: string }>;
+    stats(options?: { scale?: number }): Promise<{ ns: string; count: number; size: number; storageSize: number; totalIndexSize: number; nindexes: number; avgObjSize?: number; scaleFactor?: number }>;
+    renameCollection(newName: string, options?: { dropTarget?: boolean }): Promise<{ renamed: boolean; from: string; to: string }>;
+    collMod(modifications: Record<string, unknown>): Promise<Record<string, unknown>>;
+    convertToCapped(size: number, options?: { max?: number }): Promise<{ ok: number; collection: string; capped: boolean; size: number }>;
     findPage(options?: unknown): Promise<{
         items: TDocument[];
         pageInfo: {
@@ -89,6 +108,7 @@ export type ExtendedModelCollectionLike<TDocument> = ModelCollectionLike<TDocume
     ): Promise<unknown>;
     insertBatch(docs: unknown[], options?: unknown): Promise<unknown>;
     updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
+    deleteBatch(filter?: unknown, options?: unknown): Promise<unknown>;
 };
 
 // Forward type declaration to avoid circular dependency (model-instance.ts imports this file, which needs the ModelInstance type)
@@ -112,18 +132,25 @@ export class PopulatePromise<T> implements PopulateProxy<T> {
     constructor(
         private readonly executor: (paths: PopulatePath[]) => Promise<T>,
         private readonly paths: PopulatePath[] = [],
-    ) {}
+    ) { }
 
     /**
      * Append a populate path and return a new PopulatePromise (chainable).
      */
-    populate(path: string | PopulateConfig, options?: Partial<Omit<PopulateConfig, 'path'>>): PopulateProxy<T> {
-        if (typeof path !== 'string' && (typeof path !== 'object' || path === null || Array.isArray(path))) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, 'populate param must be a string or object');
+    populate(path: PopulateInput, options?: Partial<Omit<PopulateConfig, 'path'>>): PopulateProxy<T> {
+        const toConfig = (item: PopulatePath): PopulateConfig => {
+            if (typeof item !== 'string' && (typeof item !== 'object' || item === null || Array.isArray(item))) {
+                throw createError(ErrorCodes.INVALID_ARGUMENT, 'populate param must be a string, array, or object');
+            }
+            return typeof item === 'string'
+                ? { path: item, ...options }
+                : { ...item, ...options };
+        };
+
+        if (Array.isArray(path)) {
+            return new PopulatePromise(this.executor, [...this.paths, ...path.map(toConfig)]);
         }
-        const config: PopulateConfig = typeof path === 'string'
-            ? { path, ...options }
-            : { ...path, ...options };
+        const config = toConfig(path);
         return new PopulatePromise(this.executor, [...this.paths, config]);
     }
 

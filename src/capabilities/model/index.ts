@@ -109,7 +109,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     }
 
     /** v1 compat: get enums from definition */
-    getEnums(): Record<string, string[]> {
+    getEnums(): Record<string, string> {
         return getModelEnums(this.definition);
     }
 
@@ -175,30 +175,49 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         return new Date();
     }
 
+    private async runV1HookedOperation<TResult>(
+        operation: 'find' | 'insert' | 'update' | 'delete',
+        args: unknown[],
+        executor: (...resolvedArgs: unknown[]) => Promise<TResult> | TResult,
+    ): Promise<TResult> {
+        if (!this._v1HooksFactory) {
+            return executor(...args);
+        }
+        const hookContext: Record<string, unknown> = {};
+        let resolvedArgs = [...args];
+        const beforeResult = await runModelV1Hook(this._v1HooksFactory, this, operation, 'before', hookContext, ...resolvedArgs);
+        if (beforeResult !== undefined) {
+            resolvedArgs = Array.isArray(beforeResult)
+                ? beforeResult
+                : [beforeResult, ...resolvedArgs.slice(1)];
+        }
+        let result = await executor(...resolvedArgs) as Awaited<TResult>;
+        try {
+            const afterResult = await runModelV1Hook(this._v1HooksFactory, this, operation, 'after', hookContext, result);
+            if (afterResult !== undefined) {
+                result = afterResult as Awaited<TResult>;
+            }
+        } catch { /* after hooks don't affect operation */ }
+        return result as TResult;
+    }
+
     // ── public API ────────────────────────────────────────────────────────────────
 
     find(query?: unknown, options?: unknown): PopulateProxy<Array<TDocument & Record<string, unknown>>> {
         return new PopulatePromise(async (paths) => {
-            const ctx: Record<string, unknown> = {};
             const filteredQuery = applyModelSoftDeleteFilter(query, options, this._softDeleteConfig);
 
             if (this._v1HooksFactory) {
-                await runModelV1Hook(this._v1HooksFactory, this, 'find', 'before', ctx, options);
-            } else {
-                await this.runHook('beforeFind', { operation: 'find', collection: this.collectionName, filter: filteredQuery });
+                return this.runV1HookedOperation('find', [filteredQuery, options], async (nextQuery, nextOptions) => {
+                    const docs = await this.collection.find(nextQuery, nextOptions) as Array<TDocument | null | undefined>;
+                    return this.populateDocuments(this.hydrateDocuments(docs), paths);
+                });
             }
 
+            await this.runHook('beforeFind', { operation: 'find', collection: this.collectionName, filter: filteredQuery });
             const docs = await this.collection.find(filteredQuery, options) as Array<TDocument | null | undefined>;
-            let result = await this.populateDocuments(this.hydrateDocuments(docs), paths);
-
-            if (this._v1HooksFactory) {
-                try {
-                    const hookResult = await runModelV1Hook(this._v1HooksFactory, this, 'find', 'after', ctx, result);
-                    if (hookResult !== undefined) result = hookResult as typeof result;
-                } catch { /* after hooks don't affect operation */ }
-            } else {
-                await this.runHook('afterFind', { operation: 'find', collection: this.collectionName, filter: filteredQuery, result });
-            }
+            const result = await this.populateDocuments(this.hydrateDocuments(docs), paths);
+            await this.runHook('afterFind', { operation: 'find', collection: this.collectionName, filter: filteredQuery, result });
 
             return result;
         });
@@ -206,22 +225,19 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
 
     findOne(query?: unknown, options?: unknown): PopulateProxy<(TDocument & Record<string, unknown>) | null> {
         return new PopulatePromise(async (paths) => {
-            const ctx: Record<string, unknown> = {};
             const filteredQuery = applyModelSoftDeleteFilter(query, options, this._softDeleteConfig);
 
             if (this._v1HooksFactory) {
-                await runModelV1Hook(this._v1HooksFactory, this, 'find', 'before', ctx, options);
+                return this.runV1HookedOperation('find', [filteredQuery, options], async (nextQuery, nextOptions) => {
+                    const doc = await this.collection.findOne(nextQuery, nextOptions) as TDocument | null | undefined;
+                    return this.populateSingle(this.hydrateDocument(doc), paths);
+                });
             }
 
+            await this.runHook('beforeFind', { operation: 'findOne', collection: this.collectionName, filter: filteredQuery });
             const doc = await this.collection.findOne(filteredQuery, options) as TDocument | null | undefined;
-            let result = await this.populateSingle(this.hydrateDocument(doc), paths);
-
-            if (this._v1HooksFactory) {
-                try {
-                    const hookResult = await runModelV1Hook(this._v1HooksFactory, this, 'find', 'after', ctx, result);
-                    if (hookResult !== undefined) result = hookResult as typeof result;
-                } catch { /* after hooks don't affect operation */ }
-            }
+            const result = await this.populateSingle(this.hydrateDocument(doc), paths);
+            await this.runHook('afterFind', { operation: 'findOne', collection: this.collectionName, filter: filteredQuery, result });
 
             return result;
         });
@@ -229,7 +245,9 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
 
     findOneById(id: unknown, options?: unknown): PopulateProxy<(TDocument & Record<string, unknown>) | null> {
         return new PopulatePromise(async (paths) => {
-            const doc = await this.collection.findOneById(id, options) as TDocument | null | undefined;
+            const doc = this._v1HooksFactory
+                ? await this.runV1HookedOperation('find', [id, options], (nextId, nextOptions) => this.collection.findOneById(nextId, nextOptions) as Promise<TDocument | null | undefined>)
+                : await this.collection.findOneById(id, options) as TDocument | null | undefined;
             return this.populateSingle(this.hydrateDocument(doc), paths);
         });
     }
@@ -240,7 +258,9 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
 
     findByIds(ids: unknown[], options?: unknown): PopulateProxy<Array<TDocument & Record<string, unknown>>> {
         return new PopulatePromise(async (paths) => {
-            const docs = await this.collection.findByIds(ids, options) as Array<TDocument | null | undefined>;
+            const docs = this._v1HooksFactory
+                ? await this.runV1HookedOperation('find', [ids, options], (nextIds, nextOptions) => this.collection.findByIds(nextIds as unknown[], nextOptions) as Promise<Array<TDocument | null | undefined>>)
+                : await this.collection.findByIds(ids, options) as Array<TDocument | null | undefined>;
             return this.populateDocuments(this.hydrateDocuments(docs), paths);
         });
     }
@@ -257,7 +277,9 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         totals?: Record<string, unknown>;
     }> {
         return new PopulatePromise(async (paths) => {
-            const result = await this.collection.findPage(options);
+            const result = this._v1HooksFactory
+                ? await this.runV1HookedOperation('find', [options], (nextOptions) => this.collection.findPage(nextOptions))
+                : await this.collection.findPage(options);
             return {
                 ...result,
                 items: await this.populateDocuments(this.hydrateDocuments(result.items), paths),
@@ -271,7 +293,9 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     }> {
         return new PopulatePromise(async (paths) => {
             const filteredQuery = applyModelSoftDeleteFilter(query, options, this._softDeleteConfig);
-            const result = await this.collection.findAndCount(filteredQuery, options);
+            const result = this._v1HooksFactory
+                ? await this.runV1HookedOperation('find', [filteredQuery, options], (nextQuery, nextOptions) => this.collection.findAndCount(nextQuery, nextOptions))
+                : await this.collection.findAndCount(filteredQuery, options);
             return {
                 data: await this.populateDocuments(this.hydrateDocuments(result.data as Array<TDocument | null | undefined>), paths),
                 total: result.total,
@@ -281,7 +305,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
 
     count(query?: unknown, options?: unknown): Promise<number> {
         const filteredQuery = applyModelSoftDeleteFilter(query, options, this._softDeleteConfig);
-        return this.collection.count(filteredQuery, options);
+        return this.runV1HookedOperation('find', [filteredQuery, options], (nextQuery, nextOptions) => this.collection.count(nextQuery, nextOptions));
     }
 
     async insertOne(document?: unknown, options?: unknown): Promise<{ acknowledged: boolean; insertedId: unknown; }> {
@@ -330,6 +354,10 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
 
     async updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown> {
         return orchestrateModelUpdateBatch(this.mutationContext(), filter, update, options);
+    }
+
+    async deleteBatch(filter?: unknown, options?: unknown): Promise<unknown> {
+        return this.runV1HookedOperation('delete', [filter, options], (nextFilter, nextOptions) => this.extendedCollection().deleteBatch(nextFilter, nextOptions));
     }
 
     async deleteOne(filter?: unknown, options?: unknown): Promise<unknown> {
@@ -400,12 +428,84 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         return this.collection.dropIndexes();
     }
 
+    prewarmBookmarks(keyDims?: unknown, pages?: number[]): Promise<unknown> {
+        return this.extendedCollection().prewarmBookmarks(keyDims, pages);
+    }
+
+    listBookmarks(keyDims?: unknown): Promise<unknown> {
+        return this.extendedCollection().listBookmarks(keyDims);
+    }
+
+    clearBookmarks(keyDims?: unknown): Promise<unknown> {
+        return this.extendedCollection().clearBookmarks(keyDims);
+    }
+
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]> {
-        return this.collection.distinct(key, query, options);
+        return this.runV1HookedOperation('find', [key, query, options], (nextKey, nextQuery, nextOptions) => this.collection.distinct(nextKey as string, nextQuery, nextOptions));
     }
 
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]> {
-        return this.collection.aggregate(pipeline, options);
+        return this.runV1HookedOperation('find', [pipeline, options], (nextPipeline, nextOptions) => this.collection.aggregate(nextPipeline as unknown[] | undefined, nextOptions));
+    }
+
+    stream(query?: unknown, options?: unknown): NodeJS.ReadableStream {
+        return this.extendedCollection().stream(query, options);
+    }
+
+    explain(query?: unknown, options?: unknown): Promise<unknown> {
+        return this.extendedCollection().explain(query, options);
+    }
+
+    invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number> {
+        return this.extendedCollection().invalidate(op);
+    }
+
+    dropCollection(): Promise<boolean> {
+        return this.extendedCollection().dropCollection();
+    }
+
+    createCollection(name?: string, options?: Record<string, unknown>): Promise<boolean> {
+        return this.extendedCollection().createCollection(name, options);
+    }
+
+    createView(name: string, source: string, pipeline?: unknown[]): Promise<boolean> {
+        return this.extendedCollection().createView(name, source, pipeline);
+    }
+
+    indexStats(): Promise<unknown[]> {
+        return this.extendedCollection().indexStats();
+    }
+
+    setValidator(validator: unknown, options?: { validationLevel?: string; validationAction?: string }): Promise<{ ok: number; collection: string }> {
+        return this.extendedCollection().setValidator(validator, options);
+    }
+
+    setValidationLevel(level: string): Promise<{ ok: number; validationLevel: string }> {
+        return this.extendedCollection().setValidationLevel(level);
+    }
+
+    setValidationAction(action: string): Promise<{ ok: number; validationAction: string }> {
+        return this.extendedCollection().setValidationAction(action);
+    }
+
+    getValidator(): Promise<{ validator: Record<string, unknown> | null; validationLevel: string; validationAction: string }> {
+        return this.extendedCollection().getValidator();
+    }
+
+    stats(options?: { scale?: number }): Promise<{ ns: string; count: number; size: number; storageSize: number; totalIndexSize: number; nindexes: number; avgObjSize?: number; scaleFactor?: number }> {
+        return this.extendedCollection().stats(options);
+    }
+
+    renameCollection(newName: string, options?: { dropTarget?: boolean }): Promise<{ renamed: boolean; from: string; to: string }> {
+        return this.extendedCollection().renameCollection(newName, options);
+    }
+
+    collMod(modifications: Record<string, unknown>): Promise<Record<string, unknown>> {
+        return this.extendedCollection().collMod(modifications);
+    }
+
+    convertToCapped(size: number, options?: { max?: number }): Promise<{ ok: number; collection: string; capped: boolean; size: number }> {
+        return this.extendedCollection().convertToCapped(size, options);
     }
 
     watch(pipeline?: unknown[], options?: unknown): unknown {

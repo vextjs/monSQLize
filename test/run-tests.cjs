@@ -185,6 +185,7 @@ const INTEGRATION = [
     'test/unit/coverage/error-factories-direct.test.js',
     'test/integration/pool/pool-config-validation.test.js',
     'test/integration/model/populate-promise-coverage.test.js',
+    'test/integration/model/model-v1-compatibility-repair.test.js',
     'test/integration/runtime/adapter-bridge-coverage.test.js',
     'test/integration/mongodb/write-batch-sleep.test.js',
     // Coverage gap fill — Phase R
@@ -197,34 +198,34 @@ const INTEGRATION = [
 
 const SUITE_MAP = {
     // Groups
-    smoke:           SMOKE,
-    compat:          COMPAT,
-    compatibility:   COMPAT,
-    unit:            UNIT,
-    integration:     INTEGRATION,
+    smoke: SMOKE,
+    compat: COMPAT,
+    compatibility: COMPAT,
+    unit: UNIT,
+    integration: INTEGRATION,
     // Individual SMOKE
-    'root-cjs':      ['test/smoke/root-cjs.test.js'],
-    'root-esm':      ['test/smoke/root-esm.test.js'],
-    'pack-artifacts':['test/smoke/pack-artifacts.test.js'],
+    'root-cjs': ['test/smoke/root-cjs.test.js'],
+    'root-esm': ['test/smoke/root-esm.test.js'],
+    'pack-artifacts': ['test/smoke/pack-artifacts.test.js'],
     // Individual COMPAT
-    'exports':       ['test/compatibility/exports/exports.test.js'],
-    'matrix':        ['test/compatibility/matrix.test.js'],
+    'exports': ['test/compatibility/exports/exports.test.js'],
+    'matrix': ['test/compatibility/matrix.test.js'],
     // Individual UNIT
-    'expression':    ['test/unit/expression/expression.test.js', 'test/unit/expression/operators.test.js'],
-    'errors':        ['test/unit/errors/errors.test.js'],
-    'cache-unit':    ['test/unit/cache/cache.test.js'],
-    'cache-guard':   ['test/unit/cache/cache-refactor-guard.test.js'],
-    'core-helpers':  ['test/unit/coverage/core-helpers.test.js'],
-    'function-cache':['test/unit/function-cache/function-cache.test.js'],
-    'model-registry':['test/unit/model/model-registry.test.js'],
-    'lock':          ['test/unit/lock/lock.test.js'],
-    'transaction':   ['test/unit/transaction/transaction.test.js'],
-    'pool':          ['test/unit/pool/pool.test.js'],
-    'runtime-compat':['test/unit/runtime/runtime-compat.test.js'],
-    'sync':          ['test/unit/sync/sync.test.js'],
-    'slow-query-log':['test/unit/slow-query-log/slow-query-log.test.js'],
-    'saga':          ['test/unit/saga/saga.test.js'],
-    'count-queue':   ['test/unit/count-queue/count-queue.test.js'],
+    'expression': ['test/unit/expression/expression.test.js', 'test/unit/expression/operators.test.js'],
+    'errors': ['test/unit/errors/errors.test.js'],
+    'cache-unit': ['test/unit/cache/cache.test.js'],
+    'cache-guard': ['test/unit/cache/cache-refactor-guard.test.js'],
+    'core-helpers': ['test/unit/coverage/core-helpers.test.js'],
+    'function-cache': ['test/unit/function-cache/function-cache.test.js'],
+    'model-registry': ['test/unit/model/model-registry.test.js'],
+    'lock': ['test/unit/lock/lock.test.js'],
+    'transaction': ['test/unit/transaction/transaction.test.js'],
+    'pool': ['test/unit/pool/pool.test.js'],
+    'runtime-compat': ['test/unit/runtime/runtime-compat.test.js'],
+    'sync': ['test/unit/sync/sync.test.js'],
+    'slow-query-log': ['test/unit/slow-query-log/slow-query-log.test.js'],
+    'saga': ['test/unit/saga/saga.test.js'],
+    'count-queue': ['test/unit/count-queue/count-queue.test.js'],
     'slow-query-log-behavior': ['test/unit/slow-query-log/slow-query-log-behavior.test.js'],
     'model-softdelete': ['test/unit/model/model-softdelete-versioning.test.js'],
     'function-cache-behavior': ['test/unit/function-cache/function-cache-behavior.test.js'],
@@ -233,35 +234,35 @@ const SUITE_MAP = {
     'capability-wiring': ['test/unit/coverage/capability-wiring.test.js'],
     'pool-stats': ['test/unit/pool/pool-stats.test.js'],
     // Individual INTEGRATION
-    'cache':         ['test/integration/cache/cache.test.js'],
-    'connect':       ['test/integration/mongodb/connect.test.js'],
-    'queries':       ['test/integration/mongodb/queries.test.js'],
-    'management':    ['test/integration/mongodb/management.test.js'],
-    'writes-batch':  ['test/integration/mongodb/writes-batch.test.js'],
+    'cache': ['test/integration/cache/cache.test.js'],
+    'connect': ['test/integration/mongodb/connect.test.js'],
+    'queries': ['test/integration/mongodb/queries.test.js'],
+    'management': ['test/integration/mongodb/management.test.js'],
+    'writes-batch': ['test/integration/mongodb/writes-batch.test.js'],
     // Phase A: per-method mongodb tests
-    'find':          ['test/integration/mongodb/find.test.js'],
-    'find-one':      ['test/integration/mongodb/find-one.test.js'],
-    'find-page':     ['test/integration/mongodb/find-page.test.js'],
-    'aggregate':     ['test/integration/mongodb/aggregate.test.js'],
-    'chaining':      ['test/integration/mongodb/chaining.test.js'],
-    'insert':        ['test/integration/mongodb/insert.test.js'],
-    'update':        ['test/integration/mongodb/update.test.js'],
-    'delete':        ['test/integration/mongodb/delete.test.js'],
+    'find': ['test/integration/mongodb/find.test.js'],
+    'find-one': ['test/integration/mongodb/find-one.test.js'],
+    'find-page': ['test/integration/mongodb/find-page.test.js'],
+    'aggregate': ['test/integration/mongodb/aggregate.test.js'],
+    'chaining': ['test/integration/mongodb/chaining.test.js'],
+    'insert': ['test/integration/mongodb/insert.test.js'],
+    'update': ['test/integration/mongodb/update.test.js'],
+    'delete': ['test/integration/mongodb/delete.test.js'],
     // Phase B: capability layer
-    'cache-behavior':  ['test/integration/cache/cache-behavior.test.js'],
+    'cache-behavior': ['test/integration/cache/cache-behavior.test.js'],
     'update-pipeline': ['test/integration/mongodb/update-pipeline.test.js'],
     // 'chaining':      ['test/integration/mongodb/chaining.test.js'],
     // 'insert':        ['test/integration/mongodb/insert.test.js'],
     // 'update':        ['test/integration/mongodb/update.test.js'],
     // 'delete':        ['test/integration/mongodb/delete.test.js'],
-    'model-features':['test/integration/model/model-features.test.js'],
-    'transaction-int':['test/integration/transaction/transaction.test.js'],
-    'pool-int':      ['test/integration/pool/pool.test.js'],
+    'model-features': ['test/integration/model/model-features.test.js'],
+    'transaction-int': ['test/integration/transaction/transaction.test.js'],
+    'pool-int': ['test/integration/pool/pool.test.js'],
     'pool-behavior': ['test/integration/pool/pool-behavior.test.js'],
-    'watch-native':  ['test/integration/watch/watch-native.test.js'],
-    'runtime-regression':['test/integration/runtime/runtime-core-regression.test.js'],
-    'sync-int':      ['test/integration/sync/sync.test.js'],
-    'slow-query-log-int':['test/integration/slow-query-log/slow-query-log.test.js'],
+    'watch-native': ['test/integration/watch/watch-native.test.js'],
+    'runtime-regression': ['test/integration/runtime/runtime-core-regression.test.js'],
+    'sync-int': ['test/integration/sync/sync.test.js'],
+    'slow-query-log-int': ['test/integration/slow-query-log/slow-query-log.test.js'],
     // Coverage gap fill — Phase C
     'model-crud-extended': ['test/integration/model/model-crud-extended.test.js'],
     'management-complete': ['test/integration/mongodb/management-complete.test.js'],
@@ -338,6 +339,7 @@ const SUITE_MAP = {
     // Phase Q
     'pool-config-validation': ['test/integration/pool/pool-config-validation.test.js'],
     'populate-promise-coverage': ['test/integration/model/populate-promise-coverage.test.js'],
+    'model-v1-compatibility-repair': ['test/integration/model/model-v1-compatibility-repair.test.js'],
     'adapter-bridge-coverage': ['test/integration/runtime/adapter-bridge-coverage.test.js'],
     'write-batch-sleep': ['test/integration/mongodb/write-batch-sleep.test.js'],
     // Phase R
@@ -427,7 +429,7 @@ async function main() {
         const files = SUITE_MAP[arg];
         if (!files) {
             console.error(`\n❌ Unknown suite: "${arg}"`);
-            console.error(`Run "node test/run-tests.cjs --list" to see available suites.\n`);
+            console.error('Run "node test/run-tests.cjs --list" to see available suites.\n');
             process.exit(1);
         }
         const stats = await runSuite(`Suite: ${arg}`, files);
@@ -448,10 +450,10 @@ async function main() {
 
     // Full run: all groups in order
     const groups = [
-        { label: 'Smoke Tests',         files: SMOKE },
+        { label: 'Smoke Tests', files: SMOKE },
         { label: 'Compatibility Tests', files: COMPAT },
-        { label: 'Unit Tests',          files: UNIT },
-        { label: 'Integration Tests',   files: INTEGRATION },
+        { label: 'Unit Tests', files: UNIT },
+        { label: 'Integration Tests', files: INTEGRATION },
     ];
 
     let totalPass = 0, totalFail = 0, totalSkip = 0, anyFailed = false;

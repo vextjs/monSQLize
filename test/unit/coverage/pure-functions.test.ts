@@ -1000,8 +1000,9 @@ describe('model-instance helpers — direct branch coverage', () => {
         assert.deepEqual(validateModelDocument({ schemaError: new Error('broken'), schemaCache: null, schemaValidateFn: null }, {}), {
             valid: false,
             errors: [{ field: '_schema', message: 'Schema validation failed: broken' }],
+            data: {},
         });
-        assert.deepEqual(validateModelDocument({ schemaError: null, schemaCache: null, schemaValidateFn: null }, {}), { valid: true, errors: [] });
+        assert.deepEqual(validateModelDocument({ schemaError: null, schemaCache: null, schemaValidateFn: null }, {}), { valid: true, errors: [], data: {} });
         assert.deepEqual(validateModelDocument({
             schemaError: null,
             schemaCache: {},
@@ -1009,6 +1010,7 @@ describe('model-instance helpers — direct branch coverage', () => {
         }, undefined), {
             valid: false,
             errors: [{ field: 'name', message: 'required' }, { field: '', message: '' }],
+            data: undefined,
         });
         assert.deepEqual(validateModelDocument({
             schemaError: null,
@@ -1017,6 +1019,7 @@ describe('model-instance helpers — direct branch coverage', () => {
         }, {}), {
             valid: false,
             errors: [{ field: '_schema', message: 'Schema validation failed: bad' }],
+            data: {},
         });
     });
 

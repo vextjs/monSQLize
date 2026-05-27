@@ -1,4 +1,4 @@
-import type { DeleteResult, IndexCreateResult, UpdateResult } from './collection';
+import type { BookmarkClearResult, BookmarkListResult, BookmarkPrewarmResult, DeleteBatchResult, DeleteResult, IndexCreateResult, UpdateResult } from './collection';
 import type { LoggerLike, ExpressionFunction, ExpressionObject } from './base';
 import type { ModelDefinition, ModelInstance as ModelInstanceContract, RegisteredModel, RelationConfig } from './model';
 import type { LockOptions, LockStats } from './lock';
@@ -266,7 +266,7 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
     readonly definition: ModelDefinition<TDocument>;
     getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
     getRelations(): Record<string, RelationConfig>;
-    getEnums(): Record<string, string[]>;
+    getEnums(): Record<string, string>;
     raw(): unknown;
     find(query?: unknown, options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
     findOne(query?: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
@@ -302,8 +302,26 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
     listIndexes(): Promise<Record<string, unknown>[]>;
     dropIndex(name: string): Promise<unknown>;
     dropIndexes(): Promise<unknown>;
+    prewarmBookmarks(keyDims?: unknown, pages?: number[]): Promise<BookmarkPrewarmResult>;
+    listBookmarks(keyDims?: unknown): Promise<BookmarkListResult>;
+    clearBookmarks(keyDims?: unknown): Promise<BookmarkClearResult>;
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]>;
+    stream(query?: unknown, options?: unknown): NodeJS.ReadableStream;
+    explain(query?: unknown, options?: unknown): Promise<unknown>;
+    invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
+    dropCollection(): Promise<boolean>;
+    createCollection(name?: string, options?: Record<string, unknown>): Promise<boolean>;
+    createView(name: string, source: string, pipeline?: unknown[]): Promise<boolean>;
+    indexStats(): Promise<unknown[]>;
+    setValidator(validator: unknown, options?: { validationLevel?: string; validationAction?: string }): Promise<{ ok: number; collection: string }>;
+    setValidationLevel(level: 'off' | 'moderate' | 'strict' | string): Promise<{ ok: number; validationLevel: string }>;
+    setValidationAction(action: 'error' | 'warn' | string): Promise<{ ok: number; validationAction: string }>;
+    getValidator(): Promise<{ validator: Record<string, unknown> | null; validationLevel: string; validationAction: string }>;
+    stats(options?: { scale?: number }): Promise<{ ns: string; count: number; size: number; storageSize: number; totalIndexSize: number; nindexes: number; avgObjSize?: number; scaleFactor?: number }>;
+    renameCollection(newName: string, options?: { dropTarget?: boolean }): Promise<{ renamed: boolean; from: string; to: string }>;
+    collMod(modifications: Record<string, unknown>): Promise<Record<string, unknown>>;
+    convertToCapped(size: number, options?: { max?: number }): Promise<{ ok: number; collection: string; capped: boolean; size: number }>;
     watch(pipeline?: unknown[], options?: unknown): import('mongodb').ChangeStream;
     validate(document?: unknown): import('./model').ValidationResult;
     findOneAndReplace(filter?: unknown, replacement?: unknown, options?: unknown): Promise<TDocument | null>;
@@ -320,6 +338,7 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
     countOnlyDeleted(query?: unknown, options?: unknown): Promise<number>;
     insertBatch(docs: unknown[], options?: unknown): Promise<unknown>;
     updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
+    deleteBatch(filter?: unknown, options?: unknown): Promise<DeleteBatchResult>;
 }
 
 export declare const expr: ExpressionFunction;
