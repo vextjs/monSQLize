@@ -38,7 +38,11 @@ functionCache.register('double', async (...args: unknown[]) => Number(args[0]) *
 expectType<Promise<unknown>>(functionCache.execute('double', 2));
 expectType<Promise<void>>(functionCache.invalidate('double', 2));
 expectType<Promise<number>>(functionCache.invalidatePattern('double:*'));
-expectAssignable<{ hits: number; misses: number; errors: number; hitRate: number } | Record<string, { hits: number; misses: number; errors: number; hitRate: number }>>(functionCache.getStats());
+expectAssignable<
+    | { hits: number; misses: number; errors: number; calls: number; totalTime: number; avgTime: number; hitRate: number }
+    | Record<string, { hits: number; misses: number; errors: number; calls: number; totalTime: number; avgTime: number; hitRate: number }>
+    | null
+>(functionCache.getStats());
 expectType<string[]>(functionCache.list());
 functionCache.resetStats();
 functionCache.clear();

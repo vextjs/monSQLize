@@ -1,6 +1,6 @@
 import type { DeleteResult, IndexCreateResult, UpdateResult } from './collection';
 import type { LoggerLike, ExpressionFunction, ExpressionObject } from './base';
-import type { ModelDefinition, ModelInstance as ModelInstanceContract, RegisteredModel } from './model';
+import type { ModelDefinition, ModelInstance as ModelInstanceContract, RegisteredModel, RelationConfig } from './model';
 import type { LockOptions, LockStats } from './lock';
 import type { ConnectionPoolManagerOptions, FallbackStrategy, PoolConfig, PoolHealthStatus, PoolRole, PoolStats, PoolStrategy } from './pool';
 import type { SagaDefinition, SagaOrchestratorOptions, SagaResult, SagaStats, SagaStep } from './saga';
@@ -203,9 +203,22 @@ export type WithCacheOptions<
 
 export type CacheStats = HubCacheStats;
 
+export interface WithCacheStats extends HubWithCacheStats {
+    calls: number;
+    totalTime: number;
+    avgTime: number;
+}
+
+export interface FunctionCacheStats extends HubFunctionCacheStats {
+    calls: number;
+    totalTime: number;
+    avgTime: number;
+}
+
 export type CachedFunction<TArgs extends unknown[] = unknown[], TResult = unknown> = HubWrappedFunction<(...args: TArgs) => Promise<TResult>> & {
     /** @deprecated Use `stats()`. v1 backward-compat alias. */
-    getCacheStats(): HubWithCacheStats;
+    getCacheStats(): WithCacheStats;
+    stats(): WithCacheStats;
 };
 
 export interface FunctionCacheOptions extends HubFunctionCacheOptions {
@@ -219,17 +232,17 @@ export declare function withCache<TArgs extends unknown[], TResult>(
 ): CachedFunction<TArgs, TResult>;
 
 export declare class FunctionCache {
-    constructor(cacheOrDb: CacheLike | { getCache(): CacheLike; }, options?: FunctionCacheOptions);
+    constructor(cacheOrDb?: CacheLike | { getCache(): CacheLike; }, options?: FunctionCacheOptions);
     register(name: string, fn: (...args: unknown[]) => Promise<unknown>, options?: {
         ttl?: number;
         keyBuilder?: (...args: unknown[]) => string;
         namespace?: string;
         condition?: (result: unknown) => boolean;
-    }): void;
+    }): void | Promise<void>;
     execute(name: string, ...args: unknown[]): Promise<unknown>;
     invalidate(name: string, ...args: unknown[]): Promise<void>;
     invalidatePattern(pattern: string): Promise<number>;
-    getStats(name?: string): HubFunctionCacheStats | Record<string, HubFunctionCacheStats>;
+    getStats(name?: string): FunctionCacheStats | Record<string, FunctionCacheStats> | null;
     list(): string[];
     resetStats(name?: string): void;
     clear(): void;
@@ -252,6 +265,8 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
     readonly poolName?: string;
     readonly definition: ModelDefinition<TDocument>;
     getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
+    getRelations(): Record<string, RelationConfig>;
+    getEnums(): Record<string, string[]>;
     raw(): unknown;
     find(query?: unknown, options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
     findOne(query?: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;

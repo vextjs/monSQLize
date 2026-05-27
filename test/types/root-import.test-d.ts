@@ -28,9 +28,13 @@ import MonSQLize, {
     type InsertBatchResult,
     type InsertManyResult,
     type InsertOneResult,
+    type FunctionCacheStats,
     type LoggerLike,
     type ModelAccessor,
+    type ModelInstance,
     type MonSQLizeOptions,
+    type RelationConfig,
+    type ResultWithMeta,
     type UpdateBatchResult,
     type UpdateResult,
 } from '../..';
@@ -85,12 +89,12 @@ expectType<DbAccessor>(db.db());
 expectType<AdminAccessor>(db.db().admin());
 expectAssignable<CacheLike>(MonSQLize.createRedisCacheAdapter({
     get() { return null; },
-    set() {},
+    set() { },
     del() { return 0; },
     exists() { return false; },
     mget() { return []; },
     scan() { return ['0', []]; },
-    flushdb() {},
+    flushdb() { },
     pipeline() {
         return {
             set() { return this; },
@@ -102,6 +106,7 @@ expectAssignable<CacheLike>(MonSQLize.createRedisCacheAdapter({
 
 const users = db.collection<{ name: string; }>('users');
 expectType<Promise<number>>(users.count({}));
+expectType<Promise<ResultWithMeta<number>>>(users.count({}, { meta: true }));
 expectType<Promise<InsertOneResult>>(users.insertOne({ name: 'Ada' }));
 expectType<Promise<InsertManyResult>>(users.insertMany([{ name: 'Ada' }, { name: 'Grace' }]));
 expectType<Promise<InsertBatchResult>>(users.insertBatch([{ name: 'Ada' }, { name: 'Grace' }]));
@@ -125,6 +130,7 @@ expectType<Promise<BookmarkPrewarmResult>>(users.prewarmBookmarks({ query: { nam
 expectType<Promise<BookmarkListResult>>(users.listBookmarks({ query: { name: 'Ada' }, limit: 1 }));
 expectType<Promise<BookmarkClearResult>>(users.clearBookmarks({ query: { name: 'Ada' }, limit: 1 }));
 expectType<Promise<unknown[]>>(users.distinct('name'));
+expectType<Promise<ResultWithMeta<unknown[]>>>(users.distinct('name', {}, { meta: true }));
 const findChain = users.find({ name: 'Ada' });
 expectAssignable<Promise<{ name: string; }[]>>(findChain);
 findChain.limit(1);
@@ -132,12 +138,18 @@ findChain.skip(0);
 findChain.sort({ name: 1 });
 findChain.project({ name: 1 });
 expectType<Promise<unknown>>(findChain.explain());
+const metaFindChain = users.find({ name: 'Ada' }, { meta: true });
+expectAssignable<Promise<ResultWithMeta<{ name: string; }[]>>>(metaFindChain);
+metaFindChain.limit(1);
+expectType<Promise<ResultWithMeta<{ name: string; } | null>>>(users.findOne({ name: 'Ada' }, { meta: true }));
 
 const aggregateChain = users.aggregate([]);
 expectAssignable<Promise<unknown[]>>(aggregateChain);
 aggregateChain.allowDiskUse(true);
 aggregateChain.batchSize(100);
 expectType<Promise<unknown>>(aggregateChain.explain());
+const metaAggregateChain = users.aggregate<{ total: number }>([], { meta: true });
+expectAssignable<Promise<ResultWithMeta<Array<{ total: number }>>>>(metaAggregateChain);
 
 expectType<Promise<{ name: string; } | null>>(users.findOneById('507f1f77bcf86cd799439011'));
 expectType<Promise<{ name: string; }[]>>(users.findByIds(['507f1f77bcf86cd799439011']));
@@ -145,10 +157,27 @@ expectType<Promise<import('../..').FindAndCountResult<{ name: string; }>>>(users
 expectType<Promise<import('../..').FindPageResult<{ name: string; }>>>(users.findPage({ page: 1, limit: 10 }));
 expectType<Promise<{ name: string; } | null>>(users.findOneAndReplace({}, { name: 'Grace' }));
 expectType<Promise<boolean>>(db.db().admin().ping());
+expectType<Promise<{ ns: string; count: number; size: number; storageSize: number; totalIndexSize: number; nindexes: number; avgObjSize?: number; scaleFactor?: number }>>(users.stats());
+expectType<Promise<{ renamed: boolean; from: string; to: string }>>(users.renameCollection('users_archive'));
+expectType<Promise<Record<string, unknown>>>(users.collMod({ validationLevel: 'moderate' }));
+expectType<Promise<{ ok: number; collection: string; capped: boolean; size: number }>>(users.convertToCapped(1024));
+expectType<Promise<{ ok: number; collection: string }>>(users.setValidator({ $jsonSchema: { bsonType: 'object' } }));
+expectType<Promise<{ ok: number; validationLevel: string }>>(users.setValidationLevel('moderate'));
+expectType<Promise<{ ok: number; validationAction: string }>>(users.setValidationAction('warn'));
+expectType<Promise<{ validator: Record<string, unknown> | null; validationLevel: string; validationAction: string }>>(users.getValidator());
 
 const memoryCache = new MonSQLize.MemoryCache();
 memoryCache.setLockManager(lockManager);
 expectType<Record<string, unknown>>(memoryCache.getMany(['a']));
+
+const functionCache = new MonSQLize.FunctionCache();
+expectAssignable<void | Promise<void>>(functionCache.register('lookup', async () => 1));
+expectType<Promise<unknown>>(functionCache.execute('lookup'));
+expectType<FunctionCacheStats | Record<string, FunctionCacheStats> | null>(functionCache.getStats('lookup'));
+
+declare const modelInstance: ModelInstance<{ name: string }>;
+expectType<Record<string, RelationConfig>>(modelInstance.getRelations());
+expectType<Record<string, string[]>>(modelInstance.getEnums());
 
 const txOptions: TransactionOptions = { maxDuration: 1000, maxRetries: 1 };
 const lockOptions: LockOptions = { ttl: 1000, retryTimes: 1 };
@@ -166,7 +195,7 @@ const slowQueryConfig = MonSQLize.SlowQueryLogConfigManager.mergeConfig({
 expectType<SlowQueryLogConfig>(slowQueryConfig);
 expectType<string>(MonSQLize.generateQueryHash({ collection: 'users', query: { id: 1 } }));
 const slowQueryQueue = new MonSQLize.BatchQueue({
-    saveBatch: async () => {},
+    saveBatch: async () => { },
 });
 expectType<Promise<void>>(slowQueryQueue.add({
     database: 'app',

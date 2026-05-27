@@ -58,6 +58,7 @@ import {
     type FindChain,
     type FindPageOptions,
     type FindPageResult,
+    wrapQueryResultWithMeta,
     watchDocuments,
 } from '../queries';
 import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/query';
@@ -183,6 +184,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         query: Parameters<Collection<TSchema>['findOne']>[0],
         options?: Parameters<Collection<TSchema>['findOne']>[1],
     ): ReturnType<Collection<TSchema>['findOne']> {
+        const startTs = Date.now();
         const normalizedQuery = this._cvFilter(query);
         const maxTimeMS = this.management.defaults?.maxTimeMS;
         const rawOptions: Record<string, unknown> = { ...(maxTimeMS !== undefined ? { maxTimeMS } : {}), ...((options ?? {}) as Record<string, unknown>) };
@@ -203,14 +205,15 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             const cacheKey = `findOne:${this.collectionRef.namespace}:${JSON.stringify(normalizedQuery ?? {})}:${JSON.stringify({ ...keyOptions, projection })}`;
             const cached = this.management.queryCache.get(cacheKey) as TSchema | null | undefined;
             if (cached !== undefined) {
-                return Promise.resolve(cached) as ReturnType<Collection<TSchema>['findOne']>;
+                return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'findOne', rawOptions, startTs, cached) as never) as ReturnType<Collection<TSchema>['findOne']>;
             }
             const result = await findOneDocument(this.collectionRef, normalizedQuery, driverOptions as Parameters<Collection<TSchema>['findOne']>[1]);
             this.management.queryCache.set(cacheKey, result, cacheTTL);
-            return result as ReturnType<Collection<TSchema>['findOne']>;
+            return wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'findOne', rawOptions, startTs, result) as never;
         }
 
-        return findOneDocument(this.collectionRef, normalizedQuery, driverOptions as Parameters<Collection<TSchema>['findOne']>[1]);
+        const result = await findOneDocument(this.collectionRef, normalizedQuery, driverOptions as Parameters<Collection<TSchema>['findOne']>[1]);
+        return wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'findOne', rawOptions, startTs, result) as never;
     }
 
     /** Returns a find chain (or a readable stream when `options.stream` is true). */
@@ -255,6 +258,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         query?: Parameters<Collection<TSchema>['countDocuments']>[0],
         options?: Parameters<Collection<TSchema>['countDocuments']>[1],
     ): ReturnType<Collection<TSchema>['countDocuments']> {
+        const startTs = Date.now();
         const normalizedQuery = this._cvFilter(query);
         const maxTimeMS = this.management.defaults?.maxTimeMS;
         const merged: Record<string, unknown> = { ...(maxTimeMS !== undefined ? { maxTimeMS } : {}), ...((options ?? {}) as Record<string, unknown>) };
@@ -267,15 +271,16 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             const cacheKey = `count:${this.collectionRef.namespace}:${JSON.stringify(normalizedQuery ?? {})}:${JSON.stringify(keyOptions)}`;
             const cached = this.management.queryCache.get(cacheKey);
             if (cached !== undefined) {
-                return Promise.resolve(cached as never) as ReturnType<Collection<TSchema>['countDocuments']>;
+                return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'count', merged, startTs, cached as number) as never) as ReturnType<Collection<TSchema>['countDocuments']>;
             }
             const runner = countQueue ? countQueue.execute(executeCount) : executeCount();
             return runner.then((result) => {
                 this.management.queryCache?.set(cacheKey, result, cacheTTL);
-                return result;
+                return wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'count', merged, startTs, result) as number;
             }) as ReturnType<Collection<TSchema>['countDocuments']>;
         }
-        return (countQueue ? countQueue.execute(executeCount) : executeCount()) as unknown as ReturnType<Collection<TSchema>['countDocuments']>;
+        const runner = countQueue ? countQueue.execute(executeCount) : executeCount();
+        return runner.then((result) => wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'count', merged, startTs, result) as number) as ReturnType<Collection<TSchema>['countDocuments']>;
     }
 
     /** Runs an aggregation pipeline and returns a chainable aggregate cursor. */
@@ -295,7 +300,17 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         query?: Document,
         options?: Parameters<Collection<TSchema>['distinct']>[2],
     ): ReturnType<Collection<TSchema>['distinct']> {
-        return distinctValues(this.collectionRef, key, this._cvFilter(query), options);
+        const startTs = Date.now();
+        const rawOptions = (options ?? {}) as Record<string, unknown>;
+        const { meta: _meta, ...driverOptions } = rawOptions;
+        void _meta;
+        const result = await distinctValues(
+            this.collectionRef,
+            key,
+            this._cvFilter(query),
+            options === undefined ? undefined : driverOptions as Parameters<Collection<TSchema>['distinct']>[2],
+        );
+        return wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'distinct', rawOptions, startTs, result) as never;
     }
 
     async findPage(options: FindPageOptions<TSchema> = {}): Promise<FindPageResult<TSchema>> {

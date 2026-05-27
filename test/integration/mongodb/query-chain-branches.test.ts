@@ -56,6 +56,22 @@ describe('query-chain (FindChain/AggregateChain) — branch coverage', () => {
         assert.ok(results.length <= 3);
     });
 
+    it('find chain with meta option resolves to data and meta', async () => {
+        const result = await col.find({ score: { $gte: 10 } }, { meta: true }).limit(2);
+        assert.ok(Array.isArray(result.data));
+        assert.equal(result.meta.op, 'find');
+        assert.equal(result.meta.ns.db, 'test_query_chains');
+        assert.equal(result.meta.ns.coll, 'chain_items');
+        assert.equal(typeof result.meta.durationMs, 'number');
+    });
+
+    it('findOne with meta option resolves to data and meta', async () => {
+        const result = await col.findOne({ name: 'Alice' }, { meta: true });
+        assert.equal(result.data.name, 'Alice');
+        assert.equal(result.meta.op, 'findOne');
+        assert.equal(result.meta.ns.coll, 'chain_items');
+    });
+
     it('find chain: second toArray after execution throws', async () => {
         const chain = col.find({});
         await chain.toArray();
@@ -144,7 +160,7 @@ describe('query-chain (FindChain/AggregateChain) — branch coverage', () => {
             // tolerated in memory server
         } finally {
             if (changeStream && typeof changeStream.close === 'function') {
-                await changeStream.close().catch(() => {});
+                await changeStream.close().catch(() => { });
             }
         }
     });
@@ -160,7 +176,7 @@ describe('query-chain (FindChain/AggregateChain) — branch coverage', () => {
             // tolerated
         } finally {
             if (changeStream && typeof changeStream.close === 'function') {
-                await changeStream.close().catch(() => {});
+                await changeStream.close().catch(() => { });
             }
         }
     });
@@ -186,6 +202,13 @@ describe('query-chain (FindChain/AggregateChain) — branch coverage', () => {
         let called = false;
         await col.aggregate([{ $match: {} }]).finally(() => { called = true; });
         assert.equal(called, true);
+    });
+
+    it('aggregate chain with meta option resolves to data and meta', async () => {
+        const result = await col.aggregate([{ $match: { score: { $gte: 20 } } }], { meta: true });
+        assert.ok(Array.isArray(result.data));
+        assert.equal(result.meta.op, 'aggregate');
+        assert.equal(result.meta.ns.coll, 'chain_items');
     });
 
     it('aggregate chain: stream mode', async () => {
@@ -229,6 +252,13 @@ describe('query-chain (FindChain/AggregateChain) — branch coverage', () => {
         assert.ok(count >= 5);
     });
 
+    it('count with meta option resolves to data and meta', async () => {
+        const result = await col.count({}, { meta: true });
+        assert.ok(result.data >= 5);
+        assert.equal(result.meta.op, 'count');
+        assert.equal(result.meta.ns.coll, 'chain_items');
+    });
+
     // ── distinct ─────────────────────────────────────────────────────────────
 
     it('distinct with query filter', async () => {
@@ -240,5 +270,12 @@ describe('query-chain (FindChain/AggregateChain) — branch coverage', () => {
     it('distinct without query filter', async () => {
         const result = await col.distinct('name', {});
         assert.ok(Array.isArray(result));
+    });
+
+    it('distinct with meta option resolves to data and meta', async () => {
+        const result = await col.distinct('tags', {}, { meta: true });
+        assert.ok(Array.isArray(result.data));
+        assert.equal(result.meta.op, 'distinct');
+        assert.equal(result.meta.ns.coll, 'chain_items');
     });
 });

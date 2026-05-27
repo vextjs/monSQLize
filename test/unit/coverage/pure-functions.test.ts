@@ -79,6 +79,7 @@ import {
     loadModelFiles,
 } from '../../../src/entry/capability-wiring';
 import { findByIdsDocuments, findOneByIdDocument } from '../../../src/adapters/mongodb/queries/find-by-id';
+import { buildQueryMeta, wrapQueryResultWithMeta } from '../../../src/adapters/mongodb/queries';
 import { deleteBatchDocuments, insertBatchDocuments, updateBatchDocuments } from '../../../src/adapters/mongodb/writes/write-batch';
 import {
     orchestrateModelDeleteMany,
@@ -98,6 +99,40 @@ import {
 } from '../../../src/capabilities/model/model-mutation-orchestrator';
 
 const MonSQLize = require('../../../dist/cjs/index.cjs');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Query meta helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('query meta helpers', () => {
+    const collection = {
+        namespace: 'meta_db.meta_items',
+        dbName: 'meta_db',
+        collectionName: 'meta_items',
+    } as any;
+
+    it('buildQueryMeta includes maxTimeMS and normalized error info', () => {
+        const meta = buildQueryMeta(
+            collection,
+            { namespace: { instanceId: 'iid_1' } },
+            'find',
+            { maxTimeMS: 25 },
+            Date.now(),
+            Object.assign(new Error('boom'), { code: 'META_BOOM' }),
+        );
+
+        assert.equal(meta.maxTimeMS, 25);
+        assert.equal(meta.error?.code, 'META_BOOM');
+        assert.equal(meta.error?.message, 'boom');
+        assert.equal(meta.ns.iid, 'iid_1:meta_db:meta_items');
+    });
+
+    it('wrapQueryResultWithMeta returns raw data when meta is disabled', () => {
+        const data = [{ ok: true }];
+        const result = wrapQueryResultWithMeta(collection, {}, 'find', { meta: false }, Date.now(), data);
+        assert.equal(result, data);
+    });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // generateQueryHash / stableStringify (via generateQueryHash)
@@ -1448,7 +1483,7 @@ describe('public cache and lock APIs — additional branch coverage', () => {
 
         const cached = MonSQLize.withCache(async (value: number) => value + 1, { enableStats: false });
         assert.equal(await cached(1), 2);
-        assert.deepEqual(cached.stats(), { hits: 0, misses: 0, errors: 0, calls: 0, hitRate: 0 });
+        assert.deepEqual(cached.stats(), { hits: 0, misses: 0, errors: 0, calls: 0, totalTime: 0, avgTime: 0, hitRate: 0 });
 
         assert.throws(() => new MonSQLize.FunctionCache(new MonSQLize.MemoryCache(), [] as any), /options/);
         assert.throws(() => new MonSQLize.FunctionCache(new MonSQLize.MemoryCache(), { namespace: 1 } as any), /namespace/);

@@ -8,7 +8,7 @@
  *   - Strict param validation (fn, ttl, keyBuilder, condition, cache)
  *   - Graceful degradation when keyBuilder or cache.get throws
  *   - Undefined-safe value wrapping ({ v: result })
- *   - Stats.calls field (= hits + misses)
+ *   - Stats.calls/totalTime/avgTime fields for v1 response parity
  *   - getCacheStats() v1 backward-compat alias for stats()
  *   - FunctionCache param validation (constructor, register, invalidate, invalidatePattern)
  *   - FunctionCache.enableStats option
@@ -32,6 +32,8 @@ export interface WithCacheStats {
     misses: number;
     errors: number;
     calls: number;
+    totalTime: number;
+    avgTime: number;
     hitRate: number;
 }
 
@@ -40,6 +42,8 @@ export interface FunctionCacheStats {
     misses: number;
     errors: number;
     calls: number;
+    totalTime: number;
+    avgTime: number;
     hitRate: number;
 }
 
@@ -88,14 +92,35 @@ function isValidCache(cache: unknown): cache is CacheLike {
     );
 }
 
-function toWithCacheStats(stats: HubWithCacheStats): WithCacheStats {
-    const calls = stats.hits + stats.misses;
-    return { ...stats, calls };
+type FunctionCacheSource = CacheLike | { getCache(): CacheLike } | undefined;
+
+function resolveCacheSource(cacheOrDb: FunctionCacheSource): CacheLike {
+    if (cacheOrDb === undefined) {
+        return new MemoryCache();
+    }
+    if (isValidCache(cacheOrDb)) {
+        return cacheOrDb;
+    }
+
+    const getCache = (cacheOrDb as { getCache?: () => CacheLike }).getCache;
+    if (typeof getCache === 'function') {
+        const cache = getCache.call(cacheOrDb);
+        if (isValidCache(cache)) {
+            return cache;
+        }
+    }
+
+    throw new Error('Invalid cache instance from MonSQLize');
 }
 
-function toFunctionCacheStats(stats: HubFunctionCacheStats): FunctionCacheStats {
+function toWithCacheStats(stats: HubWithCacheStats, totalTime = 0): WithCacheStats {
     const calls = stats.hits + stats.misses;
-    return { ...stats, calls };
+    return { ...stats, calls, totalTime, avgTime: calls > 0 ? totalTime / calls : 0 };
+}
+
+function toFunctionCacheStats(stats: HubFunctionCacheStats, totalTime = 0): FunctionCacheStats {
+    const calls = stats.hits + stats.misses;
+    return { ...stats, calls, totalTime, avgTime: calls > 0 ? totalTime / calls : 0 };
 }
 
 function isHubFunctionCacheStats(
@@ -110,19 +135,22 @@ function isHubFunctionCacheStats(
 }
 
 function zeroWithCacheStats(): WithCacheStats {
-    return { hits: 0, misses: 0, errors: 0, calls: 0, hitRate: 0 };
+    return { hits: 0, misses: 0, errors: 0, calls: 0, totalTime: 0, avgTime: 0, hitRate: 0 };
 }
 
 function normalizeFunctionCacheStats(
     stats: HubFunctionCacheStats | Record<string, HubFunctionCacheStats>,
+    timings: ReadonlyMap<string, number>,
+    name?: string,
 ): FunctionCacheStats | Record<string, FunctionCacheStats> {
     if (isHubFunctionCacheStats(stats)) {
-        return toFunctionCacheStats(stats);
+        const totalTime = name ? timings.get(name) ?? 0 : Array.from(timings.values()).reduce((sum, value) => sum + value, 0);
+        return toFunctionCacheStats(stats, totalTime);
     }
 
     const normalized: Record<string, FunctionCacheStats> = {};
     for (const [name, value] of Object.entries(stats)) {
-        normalized[name] = toFunctionCacheStats(value);
+        normalized[name] = toFunctionCacheStats(value, timings.get(name) ?? 0);
     }
     return normalized;
 }
@@ -200,13 +228,24 @@ export function withCache<TArgs extends unknown[], TResult>(
         enableStats,
     }) as HubWrappedFunction<(...args: TArgs) => Promise<TResult>>;
     const baseStats = wrapped.stats.bind(wrapped);
+    let totalTime = 0;
+
+    const cachedFn = (async (...args: TArgs): Promise<TResult> => {
+        const startTime = Date.now();
+        try {
+            return await wrapped(...args);
+        } finally {
+            if (enableStats) {
+                totalTime += Date.now() - startTime;
+            }
+        }
+    }) as CachedFunction<TArgs, TResult>;
 
     const getCacheStats = (): WithCacheStats => {
         if (!enableStats) return zeroWithCacheStats();
-        return toWithCacheStats(baseStats());
+        return toWithCacheStats(baseStats(), totalTime);
     };
 
-    const cachedFn = wrapped as unknown as CachedFunction<TArgs, TResult>;
     cachedFn.getCacheStats = getCacheStats;
     cachedFn.stats = getCacheStats;
     return cachedFn;
@@ -217,17 +256,18 @@ export function withCache<TArgs extends unknown[], TResult>(
 export class FunctionCache {
     private readonly _inner: HubFunctionCache;
     private readonly _enableStats: boolean;
+    private readonly _totalTimes = new Map<string, number>();
 
     constructor(
-        cacheOrDb: CacheLike | { getCache(): CacheLike },
+        cacheOrDb?: FunctionCacheSource,
         options?: FunctionCacheOptions,
     ) {
         const opts = validateFunctionCacheOptions(options);
         const ttl = opts.ttl !== undefined ? opts.ttl : opts.defaultTTL;
 
         this._enableStats = opts.enableStats !== false;
-        this._inner = new HubFunctionCache(cacheOrDb ?? new MemoryCache(), {
-            namespace: opts.namespace ?? 'fn-cache',
+        this._inner = new HubFunctionCache(resolveCacheSource(cacheOrDb), {
+            namespace: opts.namespace ?? 'action',
             ttl: ttl !== undefined ? ttl : 60000,
         });
     }
@@ -250,10 +290,20 @@ export class FunctionCache {
             keyBuilder: opts.keyBuilder,
             condition: opts.condition,
         });
+        if (!this._totalTimes.has(name)) {
+            this._totalTimes.set(name, 0);
+        }
     }
 
     async execute(name: string, ...args: unknown[]): Promise<unknown> {
-        return this._inner.execute(name, ...args);
+        const startTime = Date.now();
+        try {
+            return await this._inner.execute(name, ...args);
+        } finally {
+            if (this._enableStats && this._totalTimes.has(name)) {
+                this._totalTimes.set(name, (this._totalTimes.get(name) ?? 0) + Date.now() - startTime);
+            }
+        }
     }
 
     async invalidate(name: string, ...args: unknown[]): Promise<void> {
@@ -275,14 +325,22 @@ export class FunctionCache {
 
     clear(): void {
         this._inner.clear();
+        this._totalTimes.clear();
     }
 
     getStats(name?: string): FunctionCacheStats | Record<string, FunctionCacheStats> | null {
         if (!this._enableStats) return null;
-        return normalizeFunctionCacheStats(this._inner.getStats(name));
+        return normalizeFunctionCacheStats(this._inner.getStats(name), this._totalTimes, name);
     }
 
     resetStats(name?: string): void {
         this._inner.resetStats(name);
+        if (name) {
+            this._totalTimes.set(name, 0);
+        } else {
+            for (const key of this._totalTimes.keys()) {
+                this._totalTimes.set(key, 0);
+            }
+        }
     }
 }

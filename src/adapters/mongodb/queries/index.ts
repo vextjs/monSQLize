@@ -20,6 +20,8 @@ import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/qu
 import type {
     AggregateChain as AggregateChainContract,
     FindChain as FindChainContract,
+    MetaInfo,
+    ResultWithMeta,
 } from '../../../../types/collection';
 import {
     buildAggregateDriverOptions,
@@ -38,6 +40,72 @@ export type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/qu
 export { findPageDocuments } from './find-page';
 export { findOneByIdDocument, findByIdsDocuments } from './find-by-id';
 export { findAndCountDocuments } from './find-and-count';
+
+function getQueryMetaNamespace<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    defaults: RuntimeDefaults = {},
+): MetaInfo['ns'] {
+    const collectionView = collection as unknown as { dbName?: string; collectionName?: string; namespace?: string };
+    const namespace = collectionView.namespace ?? '';
+    const [namespaceDb, ...namespaceCollectionParts] = namespace.split('.');
+    const db = collectionView.dbName ?? namespaceDb ?? '';
+    const coll = collectionView.collectionName ?? namespaceCollectionParts.join('.') ?? '';
+    const instanceId = defaults.namespace?.instanceId;
+    const iid = instanceId ? `${instanceId}:${db}:${coll}` : `${db}:${coll}`;
+    return { iid, type: 'mongodb', db, coll };
+}
+
+export function isQueryMetaEnabled(options?: Record<string, unknown>): boolean {
+    return options?.meta !== undefined && options.meta !== false;
+}
+
+export function buildQueryMeta<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    defaults: RuntimeDefaults | undefined,
+    op: string,
+    options: Record<string, unknown> | undefined,
+    startTs: number,
+    error?: unknown,
+): MetaInfo {
+    const endTs = Date.now();
+    const ns = getQueryMetaNamespace(collection, defaults ?? {});
+    const meta: MetaInfo = {
+        op,
+        ns,
+        db: ns.db,
+        collection: ns.coll,
+        timestamp: endTs,
+        startTs,
+        endTs,
+        durationMs: endTs - startTs,
+    };
+
+    if (typeof options?.maxTimeMS === 'number') {
+        meta.maxTimeMS = options.maxTimeMS;
+    }
+    if (error !== undefined) {
+        const err = error as { code?: string; message?: string };
+        meta.error = { code: err.code, message: String(err.message ?? error) };
+    }
+    return meta;
+}
+
+export function wrapQueryResultWithMeta<TData, TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    defaults: RuntimeDefaults | undefined,
+    op: string,
+    options: Record<string, unknown> | undefined,
+    startTs: number,
+    data: TData,
+): TData | ResultWithMeta<TData> {
+    if (!isQueryMetaEnabled(options)) {
+        return data;
+    }
+    return {
+        data,
+        meta: buildQueryMeta(collection, defaults, op, options, startTs),
+    };
+}
 
 
 /**
@@ -133,8 +201,12 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
 
     private buildCacheKey(): string {
         // Strip non-query options from cache key (mirrors v1's key generation)
-        const { cache: _c, explain: _e, stream: _s, ...keyOpts } = this.options;
+        const { cache: _c, explain: _e, stream: _s, meta: _m, ...keyOpts } = this.options;
         return `find:${this.collection.namespace}:${JSON.stringify(this.normalizedQuery)}:${JSON.stringify(keyOpts)}`;
+    }
+
+    private wrapResult<TResult>(op: string, startTs: number, result: TResult): TResult | ResultWithMeta<TResult> {
+        return wrapQueryResultWithMeta(this.collection, this.defaults, op, this.options, startTs, result);
     }
 
     explain(verbosity: boolean | string = 'queryPlanner'): Promise<unknown> {
@@ -153,14 +225,13 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
         return this.collection.find(this.normalizedQuery, buildFindDriverOptions<TSchema>(this.buildExecuteOptions())).toArray() as Promise<TSchema[]>;
     }
 
-    then<TResult1 = TSchema[], TResult2 = never>(
-        onfulfilled?: ((value: TSchema[]) => TResult1 | PromiseLike<TResult1>) | null,
-        onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
-    ): Promise<TResult1 | TResult2> {
+    private executeResult(): Promise<TSchema[] | ResultWithMeta<TSchema[]>> {
+        const startTs = Date.now();
+
         // v1 compat: explain option routes to .explain() instead of toArray()
         if (this.options.explain !== undefined && this.options.explain !== false) {
             const verbosity = typeof this.options.explain === 'string' ? this.options.explain : 'queryPlanner';
-            return this.explain(verbosity).then(onfulfilled as never, onrejected ?? undefined) as Promise<TResult1 | TResult2>;
+            return this.explain(verbosity).then((result) => this.wrapResult('find', startTs, result as TSchema[]) as TSchema[] | ResultWithMeta<TSchema[]>);
         }
 
         // v1 compat: cache option (TTL in ms) — read-through cache
@@ -169,24 +240,31 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
             const cacheKey = this.buildCacheKey();
             const cached = this.queryCache.get(cacheKey);
             if (cached !== undefined) {
-                return Promise.resolve(cached as TSchema[]).then(onfulfilled ?? undefined, onrejected ?? undefined);
+                return Promise.resolve(this.wrapResult('find', startTs, cached as TSchema[]) as TSchema[] | ResultWithMeta<TSchema[]>);
             }
             const qc = this.queryCache;
             return this.toArray().then((result) => {
-                const setResult = qc.set(cacheKey, result, cacheTTL);
-                return result;
-            }).then(onfulfilled ?? undefined, onrejected ?? undefined);
+                void qc.set(cacheKey, result, cacheTTL);
+                return this.wrapResult('find', startTs, result) as TSchema[] | ResultWithMeta<TSchema[]>;
+            });
         }
 
-        return this.toArray().then(onfulfilled ?? undefined, onrejected ?? undefined);
+        return this.toArray().then((result) => this.wrapResult('find', startTs, result) as TSchema[] | ResultWithMeta<TSchema[]>);
+    }
+
+    then<TResult1 = TSchema[], TResult2 = never>(
+        onfulfilled?: ((value: TSchema[]) => TResult1 | PromiseLike<TResult1>) | null,
+        onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+    ): Promise<TResult1 | TResult2> {
+        return this.executeResult().then(onfulfilled as never, onrejected ?? undefined) as Promise<TResult1 | TResult2>;
     }
 
     catch<TResult = never>(onrejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null): Promise<TSchema[] | TResult> {
-        return this.toArray().catch(onrejected ?? undefined);
+        return this.executeResult().catch(onrejected ?? undefined) as Promise<TSchema[] | TResult>;
     }
 
     finally(onfinally?: (() => void) | null): Promise<TSchema[]> {
-        return this.toArray().finally(onfinally ?? undefined);
+        return this.executeResult().finally(onfinally ?? undefined) as Promise<TSchema[]>;
     }
 }
 
@@ -250,6 +328,10 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
         return this.collection.aggregate(this.pipeline, buildAggregateDriverOptions<TSchema>(this.buildExecuteOptions())).stream();
     }
 
+    private wrapResult<TData>(op: string, startTs: number, result: TData): TData | ResultWithMeta<TData> {
+        return wrapQueryResultWithMeta(this.collection, this.defaults, op, this.options, startTs, result);
+    }
+
     toArray(): Promise<TResult[]> {
         if (this.executed) {
             throw new Error('Query already executed.');
@@ -258,28 +340,34 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
         return this.collection.aggregate(this.pipeline, buildAggregateDriverOptions<TSchema>(this.buildExecuteOptions())).toArray() as Promise<TResult[]>;
     }
 
+    private executeResult(): Promise<TResult[] | ResultWithMeta<TResult[]> | NodeJS.ReadableStream> {
+        const startTs = Date.now();
+
+        // v1 compat: explain option routes to .explain() instead of toArray()
+        if (this.options.explain !== undefined && this.options.explain !== false) {
+            const verbosity = typeof this.options.explain === 'string' ? this.options.explain : 'queryPlanner';
+            return this.explain(verbosity).then((result) => this.wrapResult('aggregate', startTs, result as TResult[]) as TResult[] | ResultWithMeta<TResult[]>);
+        }
+        // v1 compat: stream option routes to .stream() instead of toArray()
+        if (this.options.stream === true) {
+            return Promise.resolve(this.stream());
+        }
+        return this.toArray().then((result) => this.wrapResult('aggregate', startTs, result) as TResult[] | ResultWithMeta<TResult[]>);
+    }
+
     then<TResult1 = TResult[], TResult2 = never>(
         onfulfilled?: ((value: TResult[]) => TResult1 | PromiseLike<TResult1>) | null,
         onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ): Promise<TResult1 | TResult2> {
-        // v1 compat: explain option routes to .explain() instead of toArray()
-        if (this.options.explain !== undefined && this.options.explain !== false) {
-            const verbosity = typeof this.options.explain === 'string' ? this.options.explain : 'queryPlanner';
-            return this.explain(verbosity).then(onfulfilled as never, onrejected ?? undefined) as Promise<TResult1 | TResult2>;
-        }
-        // v1 compat: stream option routes to .stream() instead of toArray()
-        if (this.options.stream === true) {
-            return Promise.resolve(this.stream()).then(onfulfilled as never, onrejected ?? undefined) as Promise<TResult1 | TResult2>;
-        }
-        return this.toArray().then(onfulfilled ?? undefined, onrejected ?? undefined);
+        return this.executeResult().then(onfulfilled as never, onrejected ?? undefined) as Promise<TResult1 | TResult2>;
     }
 
     catch<TResultCatch = never>(onrejected?: ((reason: unknown) => TResultCatch | PromiseLike<TResultCatch>) | null): Promise<TResult[] | TResultCatch> {
-        return this.toArray().catch(onrejected ?? undefined);
+        return this.executeResult().catch(onrejected ?? undefined) as Promise<TResult[] | TResultCatch>;
     }
 
     finally(onfinally?: (() => void) | null): Promise<TResult[]> {
-        return this.toArray().finally(onfinally ?? undefined);
+        return this.executeResult().finally(onfinally ?? undefined) as Promise<TResult[]>;
     }
 }
 

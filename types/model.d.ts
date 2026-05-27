@@ -163,6 +163,10 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
     readonly definition: ModelDefinition<TDocument>;
     /** 返回当前模型的命名空间元数据，包含实例 ID、类型、数据库和集合名称。 */
     getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
+    /** 返回当前模型声明的关系配置映射。 */
+    getRelations(): Record<string, RelationConfig>;
+    /** 返回当前模型声明的枚举字段值映射。 */
+    getEnums(): Record<string, string[]>;
     /** 返回底层原生 MongoDB Collection 对象，用于执行框架未封装的原始操作。 */
     raw(): unknown;
     /**

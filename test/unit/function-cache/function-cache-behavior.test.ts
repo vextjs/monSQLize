@@ -49,6 +49,8 @@ describe('function-cache behavior', () => {
             const via_stats = cached.stats();
             const via_getCacheStats = cached.getCacheStats();
             assert.deepEqual(via_stats, via_getCacheStats);
+            assert.equal(typeof via_stats.totalTime, 'number');
+            assert.equal(typeof via_stats.avgTime, 'number');
         });
 
         it('getCacheStats() returns zeros when enableStats is false', async () => {
@@ -61,6 +63,35 @@ describe('function-cache behavior', () => {
             assert.equal(stats.hits, 0);
             assert.equal(stats.misses, 0);
             assert.equal(stats.calls, 0);
+            assert.equal(stats.totalTime, 0);
+            assert.equal(stats.avgTime, 0);
+        });
+    });
+
+    // ── FunctionCache: v1 constructor and namespace defaults ────────────────
+
+    describe('FunctionCache v1 constructor defaults', () => {
+        it('supports no-argument construction', async () => {
+            const fc = new MonSQLize.FunctionCache();
+            fc.register('fn', async () => 42);
+            assert.equal(await fc.execute('fn'), 42);
+        });
+
+        it('defaults namespace to action', async () => {
+            const memory = new MonSQLize.MemoryCache();
+            const fc = new MonSQLize.FunctionCache(memory, { ttl: 5000 });
+            fc.register('loadUser', async (id: string) => ({ id }));
+
+            await fc.execute('loadUser', 'u1');
+            const keys = memory.keys('*');
+            assert.ok(keys.some((key: string) => key.startsWith('action:loadUser:')));
+        });
+
+        it('accepts a MonSQLize-like getCache source', async () => {
+            const memory = new MonSQLize.MemoryCache();
+            const fc = new MonSQLize.FunctionCache({ getCache: () => memory }, { namespace: 'source-test' });
+            fc.register('fn', async () => 'ok');
+            assert.equal(await fc.execute('fn'), 'ok');
         });
     });
 
@@ -76,28 +107,28 @@ describe('function-cache behavior', () => {
 
         it('throws when ttl is negative', () => {
             assert.throws(
-                () => MonSQLize.withCache(async () => {}, { ttl: -1 }),
+                () => MonSQLize.withCache(async () => { }, { ttl: -1 }),
                 (e: unknown) => e instanceof Error && /ttl/.test((e as Error).message),
             );
         });
 
         it('throws when keyBuilder is not a function', () => {
             assert.throws(
-                () => MonSQLize.withCache(async () => {}, { keyBuilder: 'bad' as any }),
+                () => MonSQLize.withCache(async () => { }, { keyBuilder: 'bad' as any }),
                 (e: unknown) => e instanceof Error && /keyBuilder/.test((e as Error).message),
             );
         });
 
         it('throws when condition is not a function', () => {
             assert.throws(
-                () => MonSQLize.withCache(async () => {}, { condition: 'bad' as any }),
+                () => MonSQLize.withCache(async () => { }, { condition: 'bad' as any }),
                 (e: unknown) => e instanceof Error && /condition/.test((e as Error).message),
             );
         });
 
         it('throws when cache is invalid', () => {
             assert.throws(
-                () => MonSQLize.withCache(async () => {}, { cache: { notACache: true } as any }),
+                () => MonSQLize.withCache(async () => { }, { cache: { notACache: true } as any }),
                 (e: unknown) => e instanceof Error && /cache/.test((e as Error).message),
             );
         });
@@ -135,9 +166,11 @@ describe('function-cache behavior', () => {
             await fc.execute('fn', 'a');
             await fc.execute('fn', 'a');
 
-            const stats = fc.getStats('fn') as { hits: number; misses: number; calls: number };
+            const stats = fc.getStats('fn') as { hits: number; misses: number; calls: number; totalTime: number; avgTime: number };
             assert.ok(stats.hits >= 1);
             assert.ok(stats.calls >= 2);
+            assert.equal(typeof stats.totalTime, 'number');
+            assert.equal(typeof stats.avgTime, 'number');
         });
 
         it('getStats() returns null when enableStats is false', () => {
@@ -147,6 +180,16 @@ describe('function-cache behavior', () => {
             });
             fc.register('fn', async () => 1);
             assert.equal(fc.getStats(), null);
+        });
+
+        it('getStats(name) returns zero counters for an unknown function', () => {
+            const fc = new MonSQLize.FunctionCache(new MonSQLize.MemoryCache(), {
+                namespace: 'stats-missing',
+                enableStats: true,
+            });
+            const stats = fc.getStats('missing') as { calls: number; totalTime: number };
+            assert.equal(stats.calls, 0);
+            assert.equal(stats.totalTime, 0);
         });
 
         it('resetStats() clears per-function counters', async () => {
@@ -168,6 +211,41 @@ describe('function-cache behavior', () => {
     // ── FunctionCache: validation errors ─────────────────────────────────────
 
     describe('FunctionCache validation', () => {
+        it('throws when constructor options are not an object', () => {
+            assert.throws(
+                () => new MonSQLize.FunctionCache(new MonSQLize.MemoryCache(), 'bad' as any),
+                (e: unknown) => e instanceof Error && /options/.test((e as Error).message),
+            );
+        });
+
+        it('throws when cache source is invalid', () => {
+            assert.throws(
+                () => new MonSQLize.FunctionCache({} as any),
+                (e: unknown) => e instanceof Error && /Invalid cache/.test((e as Error).message),
+            );
+        });
+
+        it('throws when getCache returns an invalid cache', () => {
+            assert.throws(
+                () => new MonSQLize.FunctionCache({ getCache: () => ({}) } as any),
+                (e: unknown) => e instanceof Error && /Invalid cache/.test((e as Error).message),
+            );
+        });
+
+        it('throws when namespace is not a string', () => {
+            assert.throws(
+                () => new MonSQLize.FunctionCache(new MonSQLize.MemoryCache(), { namespace: 1 as any }),
+                (e: unknown) => e instanceof Error && /namespace/.test((e as Error).message),
+            );
+        });
+
+        it('throws when defaultTTL is NaN', () => {
+            assert.throws(
+                () => new MonSQLize.FunctionCache(new MonSQLize.MemoryCache(), { defaultTTL: Number.NaN }),
+                (e: unknown) => e instanceof Error && /defaultTTL/.test((e as Error).message),
+            );
+        });
+
         it('throws when registering with non-string name', () => {
             const fc = new MonSQLize.FunctionCache(new MonSQLize.MemoryCache());
             assert.throws(
@@ -198,6 +276,24 @@ describe('function-cache behavior', () => {
                 () => fc.invalidatePattern(''),
                 (e: unknown) => e instanceof Error && /[Pp]attern/.test((e as Error).message),
             );
+        });
+
+        it('resetStats() clears all registered function counters', async () => {
+            const fc = new MonSQLize.FunctionCache(new MonSQLize.MemoryCache(), {
+                namespace: 'reset-all-test',
+                ttl: 5000,
+            });
+            fc.register('one', async (x: unknown) => x);
+            fc.register('two', async (x: unknown) => x);
+            await fc.execute('one', 'a');
+            await fc.execute('two', 'b');
+
+            fc.resetStats();
+            const stats = fc.getStats() as Record<string, { calls: number; totalTime: number }>;
+            assert.equal(stats.one.calls, 0);
+            assert.equal(stats.two.calls, 0);
+            assert.equal(stats.one.totalTime, 0);
+            assert.equal(stats.two.totalTime, 0);
         });
     });
 });

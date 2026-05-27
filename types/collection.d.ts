@@ -8,6 +8,12 @@ export interface MetaOptions {
     includeCache?: boolean;
 }
 
+/** Query options that request the v1 `{ data, meta }` wrapper. */
+export interface QueryMetaOption extends Record<string, unknown> {
+    /** Include operation timing metadata in the resolved query result. */
+    meta: true | MetaOptions;
+}
+
 /** Cursor-based page navigation info returned by findPage. */
 export interface PageInfo {
     hasNext: boolean;
@@ -224,28 +230,28 @@ export interface FindAndCountResult<TSchema = unknown> {
     documents?: TSchema[];
 }
 
-export interface FindChain<TSchema = unknown> extends Promise<TSchema[]> {
-    limit(value: number): FindChain<TSchema>;
-    skip(value: number): FindChain<TSchema>;
-    sort(value: Sort | Record<string, 1 | -1>): FindChain<TSchema>;
-    project(value: Document): FindChain<TSchema>;
-    hint(value: unknown): FindChain<TSchema>;
-    collation(value: Record<string, unknown>): FindChain<TSchema>;
-    comment(value: string): FindChain<TSchema>;
-    maxTimeMS(value: number): FindChain<TSchema>;
-    batchSize(value: number): FindChain<TSchema>;
+export interface FindChain<TSchema = unknown, TPromise = TSchema[]> extends Promise<TPromise> {
+    limit(value: number): FindChain<TSchema, TPromise>;
+    skip(value: number): FindChain<TSchema, TPromise>;
+    sort(value: Sort | Record<string, 1 | -1>): FindChain<TSchema, TPromise>;
+    project(value: Document): FindChain<TSchema, TPromise>;
+    hint(value: unknown): FindChain<TSchema, TPromise>;
+    collation(value: Record<string, unknown>): FindChain<TSchema, TPromise>;
+    comment(value: string): FindChain<TSchema, TPromise>;
+    maxTimeMS(value: number): FindChain<TSchema, TPromise>;
+    batchSize(value: number): FindChain<TSchema, TPromise>;
     explain(verbosity?: boolean | string): Promise<unknown>;
     stream(): NodeJS.ReadableStream;
     toArray(): Promise<TSchema[]>;
 }
 
-export interface AggregateChain<TResult = unknown> extends Promise<TResult[]> {
-    hint(value: unknown): AggregateChain<TResult>;
-    collation(value: Record<string, unknown>): AggregateChain<TResult>;
-    comment(value: string): AggregateChain<TResult>;
-    maxTimeMS(value: number): AggregateChain<TResult>;
-    allowDiskUse(value: boolean): AggregateChain<TResult>;
-    batchSize(value: number): AggregateChain<TResult>;
+export interface AggregateChain<TResult = unknown, TPromise = TResult[]> extends Promise<TPromise> {
+    hint(value: unknown): AggregateChain<TResult, TPromise>;
+    collation(value: Record<string, unknown>): AggregateChain<TResult, TPromise>;
+    comment(value: string): AggregateChain<TResult, TPromise>;
+    maxTimeMS(value: number): AggregateChain<TResult, TPromise>;
+    allowDiskUse(value: boolean): AggregateChain<TResult, TPromise>;
+    batchSize(value: number): AggregateChain<TResult, TPromise>;
     explain(verbosity?: boolean | string): Promise<unknown>;
     stream(): NodeJS.ReadableStream;
     toArray(): Promise<TResult[]>;
@@ -555,6 +561,7 @@ export interface Collection<TSchema = unknown> {
      * @param options - MongoDB FindOptions.
      * @returns The matched document, or null when not found.
      */
+    findOne(query: unknown | undefined, options: QueryMetaOption): Promise<ResultWithMeta<TSchema | null>>;
     findOne(query?: unknown, options?: unknown): Promise<TSchema | null>;
     /**
      * Returns a chainable cursor over documents matching the query.
@@ -562,6 +569,7 @@ export interface Collection<TSchema = unknown> {
      * @param options - MongoDB FindOptions.
      * @returns A chainable FindChain that resolves to an array.
      */
+    find(query: unknown | undefined, options: QueryMetaOption): FindChain<TSchema, ResultWithMeta<TSchema[]>>;
     find(query?: unknown, options?: unknown): FindChain<TSchema>;
     /**
      * Finds a single document by its `_id` value.
@@ -605,6 +613,7 @@ export interface Collection<TSchema = unknown> {
      * @param options - MongoDB CountDocumentsOptions.
      * @returns Number of matched documents.
      */
+    count(query: unknown | undefined, options: QueryMetaOption): Promise<ResultWithMeta<number>>;
     count(query?: unknown, options?: unknown): Promise<number>;
     /**
      * Inserts a single document into the collection.
@@ -776,6 +785,7 @@ export interface Collection<TSchema = unknown> {
      * @param options - MongoDB DistinctOptions.
      * @returns Array of unique field values.
      */
+    distinct(key: string, query: unknown | undefined, options: QueryMetaOption): Promise<ResultWithMeta<unknown[]>>;
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
     /**
      * Builds and executes an aggregation pipeline, returning a chainable object.
@@ -783,6 +793,7 @@ export interface Collection<TSchema = unknown> {
      * @param options - MongoDB AggregateOptions.
      * @returns AggregateChain that resolves to the result array.
      */
+    aggregate<TResult = unknown>(pipeline: unknown[] | undefined, options: QueryMetaOption): AggregateChain<TResult, ResultWithMeta<TResult[]>>;
     aggregate<TResult = unknown>(pipeline?: unknown[], options?: unknown): AggregateChain<TResult>;
     /** Stream mode: returns a readable stream of page documents when `stream: true`. */
     findPage(options: FindPageOptions<TSchema> & { stream: true }): NodeJS.ReadableStream;
@@ -831,6 +842,25 @@ export interface Collection<TSchema = unknown> {
      * @since v1.3.0
      */
     indexStats(): Promise<unknown[]>;
+    /**
+     * Sets the JSON Schema validator and optional validation settings.
+     * @since v1.3.0
+     */
+    setValidator(validator: unknown, options?: { validationLevel?: string; validationAction?: string }): Promise<{ ok: number; collection: string }>;
+    /** Sets the collection validation level. @since v1.3.0 */
+    setValidationLevel(level: 'off' | 'moderate' | 'strict' | string): Promise<{ ok: number; validationLevel: string }>;
+    /** Sets the collection validation action. @since v1.3.0 */
+    setValidationAction(action: 'error' | 'warn' | string): Promise<{ ok: number; validationAction: string }>;
+    /** Reads the current collection validator and validation settings. @since v1.3.0 */
+    getValidator(): Promise<{ validator: Record<string, unknown> | null; validationLevel: string; validationAction: string }>;
+    /** Returns collection storage and index statistics. @since v1.3.0 */
+    stats(options?: { scale?: number }): Promise<{ ns: string; count: number; size: number; storageSize: number; totalIndexSize: number; nindexes: number; avgObjSize?: number; scaleFactor?: number }>;
+    /** Renames the collection, optionally dropping an existing target. @since v1.3.0 */
+    renameCollection(newName: string, options?: { dropTarget?: boolean }): Promise<{ renamed: boolean; from: string; to: string }>;
+    /** Runs a `collMod` command against the collection. @since v1.3.0 */
+    collMod(modifications: Record<string, unknown>): Promise<Record<string, unknown>>;
+    /** Converts the collection to capped storage. @since v1.3.0 */
+    convertToCapped(size: number, options?: { max?: number }): Promise<{ ok: number; collection: string; capped: boolean; size: number }>;
 }
 
 export interface DbAccessor {
