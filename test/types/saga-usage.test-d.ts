@@ -15,7 +15,7 @@ const definition: SagaDefinition = {
                 ctx.set('ok', true);
                 return 'done';
             },
-            compensate: async () => {},
+            compensate: async () => { },
             retries: 1,
             timeout: 1000,
         },
@@ -31,9 +31,9 @@ expectType<SagaStats>(orchestrator.getStats());
 
 const cachedOrchestrator = new SagaOrchestrator({
     cache: {
-        set() {},
+        set() { },
         keys() { return []; },
-        publish() {},
+        publish() { },
     },
 });
 expectType<SagaOrchestrator>(cachedOrchestrator);

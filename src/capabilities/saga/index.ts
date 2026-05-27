@@ -40,7 +40,7 @@ class SagaExecutionContext implements SagaContext {
     constructor(
         public readonly executionId: string,
         public readonly data: unknown,
-    ) {}
+    ) { }
 
     /** @deprecated Use `executionId` — v1 compatibility alias. */
     get sagaId(): string { return this.executionId; }

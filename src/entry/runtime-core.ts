@@ -258,7 +258,7 @@ export class MonSQLizeRuntime {
                 publish: (msg: { type: string; pattern: string; ts: number }) => {
                     void this._distributedInvalidator?.invalidate(msg.pattern);
                 },
-              }
+            }
             : rawCacheInput;
         this._cache = normalizeRuntimeCache(cacheInput as Record<string, unknown> | MemoryCache | undefined);
         this._logger = Logger.create(options.logger ?? null);
@@ -350,10 +350,10 @@ export class MonSQLizeRuntime {
                 this._poolManager = null;
                 this._sshTunnel = null;
                 this._distributedInvalidator = null;
-                clientToClose?.close().catch(() => {});
-                poolToClose?.close().catch(() => {});
-                tunnelToClose?.close().catch(() => {});
-                invalidatorToClose?.close().catch(() => {});
+                clientToClose?.close().catch(() => { });
+                poolToClose?.close().catch(() => { });
+                tunnelToClose?.close().catch(() => { });
+                invalidatorToClose?.close().catch(() => { });
             }
             this.emit('error', {
                 type: this.options.type,

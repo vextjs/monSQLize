@@ -58,7 +58,7 @@ function createConnection(bus: FakeConnection[]): FakeConnection {
         unsubscribe(channel: string) {
             subscriptions.delete(channel);
         },
-        async quit() {},
+        async quit() { },
         publish(channel: string, message: string) {
             for (const conn of bus) {
                 if (!conn.subscriptions.has(channel)) continue;

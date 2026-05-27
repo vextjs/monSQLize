@@ -307,7 +307,7 @@ describe('SagaOrchestrator behavior', () => {
             const cache = {
                 set(key: string, value: unknown) { records.set(key, value); },
                 keys() { return [...records.keys()]; },
-                publish() {},
+                publish() { },
             };
             const saga = new MonSQLize.SagaOrchestrator({ cache });
             const def = { name: 'cached-saga', steps: [{ name: 's', execute: () => Promise.resolve() }] };

@@ -53,7 +53,7 @@ memoryCache.setLockManager(lockManager);
 expectType<typeof lockManager | null>(memoryCache.getLockManager());
 
 const multiLevelCache = new MonSQLize.MultiLevelCache({ local: memoryCache });
-multiLevelCache.setPublish((_msg) => {});
+multiLevelCache.setPublish((_msg) => { });
 multiLevelCache.setLockManager(lockManager);
 
 
