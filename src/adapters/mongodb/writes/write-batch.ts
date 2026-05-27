@@ -39,8 +39,8 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
         ordered = false,
         concurrency,
         onError = 'stop',
-        retryAttempts = 0,
-        retryDelay = 0,
+        retryAttempts = 3,
+        retryDelay = 1000,
         onProgress,
         onRetry,
         ...driverOptions
@@ -109,6 +109,7 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
                         attempt: attempts,
                         maxAttempts: retryAttempts,
                         delay: retryDelay,
+                        error: cause instanceof Error ? cause : new Error(String(cause)),
                     };
                     result.retries.push(retryInfo);
                     onRetry?.(retryInfo);
@@ -158,9 +159,29 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
         }
     }
 
-    const { batchSize = 1000, sort = { _id: 1 }, onProgress, ...driverOptions } = options as UpdateBatchOptions & Parameters<Collection<TSchema>['updateMany']>[2] & {
+    const rawOptions = options as UpdateBatchOptions & Parameters<Collection<TSchema>['updateMany']>[2] & {
+        onError?: 'stop' | 'skip' | 'collect' | 'retry';
+        retryAttempts?: number;
+        retryDelay?: number;
         onProgress?: (progress: Record<string, unknown>) => void;
+        onRetry?: (retryInfo: Record<string, unknown>) => void;
     };
+    const {
+        batchSize = 1000,
+        sort = { _id: 1 },
+        onProgress,
+        onError = 'stop',
+        retryAttempts = 3,
+        retryDelay = 1000,
+        onRetry,
+        ...driverOptions
+    } = rawOptions;
+    if (!['stop', 'skip', 'collect', 'retry'].includes(onError)) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'onError must be one of: stop/skip/collect/retry');
+    }
+    if (!Number.isInteger(retryAttempts) || retryAttempts < 0) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'retryAttempts must be a non-negative integer');
+    }
     const ids = await collection.find(filter, {
         projection: { _id: 1 },
         sort,
@@ -178,28 +199,55 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
     };
 
     for (const [batchIndex, batch] of batches.entries()) {
-        try {
-            const batchResult = await collection.updateMany(
-                { _id: { $in: batch } } as Parameters<Collection<TSchema>['updateMany']>[0],
-                update,
-                driverOptions,
-            );
-            result.matchedCount += batchResult.matchedCount;
-            result.modifiedCount += batchResult.modifiedCount;
-            result.upsertedCount += (batchResult.upsertedCount ?? 0);
-            onProgress?.({
-                currentBatch: batchIndex + 1,
-                totalBatches: batches.length,
-                modified: result.modifiedCount,
-                matched: result.matchedCount,
-                percentage: ids.length === 0 ? 100 : Math.round((result.modifiedCount / ids.length) * 100),
-            });
-        } catch (cause) {
-            result.errors.push({
-                batchIndex,
-                message: cause instanceof Error ? cause.message : String(cause),
-            });
-            throw cause;
+        let attempts = 0;
+        while (true) {
+            try {
+                const batchResult = await collection.updateMany(
+                    { _id: { $in: batch } } as Parameters<Collection<TSchema>['updateMany']>[0],
+                    update,
+                    driverOptions,
+                );
+                result.matchedCount += batchResult.matchedCount;
+                result.modifiedCount += batchResult.modifiedCount;
+                result.upsertedCount += (batchResult.upsertedCount ?? 0);
+                onProgress?.({
+                    currentBatch: batchIndex + 1,
+                    totalBatches: batches.length,
+                    modified: result.modifiedCount,
+                    matched: result.matchedCount,
+                    percentage: ids.length === 0 ? 100 : Math.round((result.modifiedCount / ids.length) * 100),
+                    retries: result.retries.length,
+                });
+                break;
+            } catch (cause) {
+                const errorRecord = {
+                    batchIndex,
+                    message: cause instanceof Error ? cause.message : String(cause),
+                    error: cause,
+                    attempts: attempts + 1,
+                };
+                if (onError === 'retry' && attempts < retryAttempts) {
+                    attempts += 1;
+                    const retryInfo = {
+                        batchIndex,
+                        attempt: attempts,
+                        maxAttempts: retryAttempts,
+                        delay: retryDelay,
+                        error: cause instanceof Error ? cause : new Error(String(cause)),
+                    };
+                    result.retries.push(retryInfo);
+                    onRetry?.(retryInfo);
+                    if (retryDelay > 0) {
+                        await sleep(retryDelay);
+                    }
+                    continue;
+                }
+                result.errors.push(errorRecord);
+                if (onError === 'stop') {
+                    throw createError(ErrorCodes.WRITE_ERROR, errorRecord.message, undefined, cause as Error);
+                }
+                break;
+            }
         }
     }
 
@@ -229,8 +277,8 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
         estimateProgress = true,
         onProgress,
         onError = 'stop',
-        retryAttempts = 0,
-        retryDelay = 0,
+        retryAttempts = 3,
+        retryDelay = 1000,
         onRetry,
         ...driverOptions
     } = rawOptions;
@@ -288,6 +336,7 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
                         attempt: attempts,
                         maxAttempts: retryAttempts,
                         delay: retryDelay,
+                        error: cause instanceof Error ? cause : new Error(String(cause)),
                     };
                     result.retries.push(retryInfo);
                     onRetry?.(retryInfo);

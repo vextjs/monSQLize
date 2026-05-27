@@ -180,7 +180,7 @@ export function withCache<TArgs extends unknown[], TResult>(
 ): CachedFunction<TArgs, TResult> {
     if (typeof fn !== 'function') throw new Error('fn must be a function');
 
-    const { ttl = 0, namespace, keyBuilder, condition, cache: externalCache, enableStats = false } = options;
+    const { ttl = 60000, namespace, keyBuilder, condition, cache: externalCache, enableStats = true } = options;
 
     if (typeof ttl !== 'number' || Number.isNaN(ttl) || ttl < 0)
         throw new Error('ttl must be a non-negative number');
@@ -193,7 +193,7 @@ export function withCache<TArgs extends unknown[], TResult>(
 
     const wrapped = hubWithCache(fn, {
         ttl,
-        namespace: namespace ?? `_wc_${fn.name || 'fn'}_${Math.random().toString(36).slice(2)}`,
+        namespace: namespace ?? 'fn',
         keyBuilder,
         condition,
         cache: externalCache ?? new MemoryCache(),
@@ -228,7 +228,7 @@ export class FunctionCache {
         this._enableStats = opts.enableStats !== false;
         this._inner = new HubFunctionCache(cacheOrDb ?? new MemoryCache(), {
             namespace: opts.namespace ?? 'fn-cache',
-            ttl: ttl !== undefined ? ttl : 0,
+            ttl: ttl !== undefined ? ttl : 60000,
         });
     }
 

@@ -80,7 +80,7 @@ export class Lock {
             renewLock: (key: string, lockId: string, ttl: number) => Promise<boolean>;
         },
         readonly ttl: number,
-    ) {}
+    ) { }
 
     /**
      * Release the lock.
@@ -194,7 +194,7 @@ export class LockManager {
      */
     async tryAcquireLock(key: string, options: Omit<LockOptions, 'retryTimes'> = {}): Promise<Lock | null> {
         const normalizedKey = this.normalizeKey(key);
-        const ttl = Math.min(options.ttl ?? 10000, this.maxDuration);
+        const ttl = options.ttl ?? 10000;
         this.cleanupExpiredLocks();
         this.stats.lockChecks += 1;
 
@@ -251,7 +251,7 @@ export class LockManager {
         if (!current || current.lockId !== lockId) {
             return false;
         }
-        current.expiresAt = Date.now() + Math.min(ttl, this.maxDuration);
+        current.expiresAt = Date.now() + ttl;
         return true;
     }
 
@@ -430,7 +430,7 @@ export class DistributedCacheLockManager {
             try {
                 return await callback();
             } finally {
-                await lock.release().catch(() => {});
+                await lock.release().catch(() => { });
             }
         } catch (error) {
             if (this._isRedisConnectionError(error as Error) && options.fallbackToNoLock) {
@@ -527,9 +527,9 @@ export class DistributedCacheLockManager {
         return { ...this.stats, lockKeyPrefix: this.lockKeyPrefix, maxDuration: this.maxDuration };
     }
 
-    stop(): void {}
+    stop(): void { }
 
-    async cleanup(): Promise<void> {}
+    async cleanup(): Promise<void> { }
 
     _generateLockId(): string {
         return `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -544,6 +544,6 @@ export class DistributedCacheLockManager {
     private _isRedisConnectionError(error: Error): boolean {
         const msg = error.message || '';
         return msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT') ||
-               msg.includes('ENOTFOUND') || msg.includes('Connection is closed');
+            msg.includes('ENOTFOUND') || msg.includes('Connection is closed');
     }
 }

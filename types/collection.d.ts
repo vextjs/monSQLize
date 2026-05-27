@@ -264,8 +264,10 @@ export interface WriteConcern {
 /** Per-batch retry record appended to batch result `retries` arrays. */
 export interface BatchRetryRecord {
     batchIndex: number;
-    attempts: number;
-    success: boolean;
+    attempt: number;
+    maxAttempts: number;
+    delay: number;
+    error?: Error;
 }
 
 /** Progress callback payload delivered for each completed batch. */
@@ -384,6 +386,12 @@ export interface DeleteBatchResult {
 export interface BatchWriteOptions {
     batchSize?: number;
     ordered?: boolean;
+    concurrency?: number;
+    onProgress?: (progress: BatchProgress) => void;
+    onError?: 'stop' | 'skip' | 'collect' | 'retry';
+    retryAttempts?: number;
+    retryDelay?: number;
+    onRetry?: (retryInfo: RetryInfo) => void;
 }
 
 /** Options for updateBatch operations. */
@@ -454,7 +462,7 @@ export interface BookmarkClearResult {
     keysBefore: number;
 }
 
-export interface BookmarkKeyDims<TSchema = unknown> extends Omit<FindPageOptions<TSchema>, 'page'> {}
+export interface BookmarkKeyDims<TSchema = unknown> extends Omit<FindPageOptions<TSchema>, 'page'> { }
 
 export interface BookmarkCacheLike {
     set(key: string, value: unknown): void | boolean | Promise<void> | Promise<boolean>;

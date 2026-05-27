@@ -131,9 +131,9 @@ export interface MonSQLizeOptions {
     maxPoolsCount?: number;
     sync?: SyncConfig;
     slowQueryLog?: SlowQueryLogConfigInput;
-    /** Global query timeout in milliseconds applied to all find/aggregate operations. Default: undefined (no timeout). @since v1.3.0 */
+    /** Global query timeout in milliseconds applied to all find/aggregate operations. Default: 2000. @since v1.3.0 */
     maxTimeMS?: number;
-    /** Default limit for find() when caller does not specify one. Default: undefined (no limit). @since v1.3.0 */
+    /** Default limit for find() when caller does not specify one. Default: 10. @since v1.3.0 */
     findLimit?: number;
     /** Slow query threshold in milliseconds; populates slowQueryLog.filter.minExecutionTimeMs when slowQueryLog is enabled. Default: 500. @since v1.3.0 */
     slowQueryMs?: number;

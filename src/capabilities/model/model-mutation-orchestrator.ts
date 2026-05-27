@@ -63,6 +63,25 @@ async function invokeStandardHook<TDocument>(
     await context.runHook(hookName, payload);
 }
 
+async function invokeStandardOperationHook<TDocument>(
+    context: ModelMutationContext<TDocument>,
+    operation: HookOperation,
+    phase: HookPhase,
+    payload: HookContext,
+): Promise<void> {
+    if (context.hooksFactory) {
+        return;
+    }
+    const canonical = operation === 'insert'
+        ? phase === 'before' ? 'beforeCreate' : 'afterCreate'
+        : `${phase}${operation[0].toUpperCase()}${operation.slice(1)}`;
+    const alias = `${phase}${operation[0].toUpperCase()}${operation.slice(1)}`;
+    await invokeStandardHook(context, canonical, payload);
+    if (alias !== canonical) {
+        await invokeStandardHook(context, alias, payload);
+    }
+}
+
 export async function orchestrateModelInsertOne<TDocument = Record<string, unknown>>(
     context: ModelMutationContext<TDocument>,
     document?: unknown,
@@ -77,7 +96,7 @@ export async function orchestrateModelInsertOne<TDocument = Record<string, unkno
             payload = hookResult as Record<string, unknown>;
         }
     } else {
-        await invokeStandardHook(context, 'beforeCreate', { operation: 'insertOne', collection: context.collectionName, data: payload });
+        await invokeStandardOperationHook(context, 'insert', 'before', { operation: 'insertOne', collection: context.collectionName, data: payload });
     }
 
     validateModelSchemaPayload({
@@ -96,7 +115,7 @@ export async function orchestrateModelInsertOne<TDocument = Record<string, unkno
             await invokeV1Hook(context, 'insert', 'after', hookContext, result);
         } catch { /* after hooks don't affect operation */ }
     } else {
-        await invokeStandardHook(context, 'afterCreate', {
+        await invokeStandardOperationHook(context, 'insert', 'after', {
             operation: 'insertOne',
             collection: context.collectionName,
             data: payload,
@@ -112,6 +131,12 @@ export async function orchestrateModelInsertMany<TDocument = Record<string, unkn
     documents?: unknown[],
     options?: unknown,
 ): Promise<unknown> {
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'insert', 'before', hookContext, documents);
+    } else {
+        await invokeStandardOperationHook(context, 'insert', 'before', { operation: 'insertMany', collection: context.collectionName, data: documents });
+    }
     const resolvedOptions = (options ?? {}) as Record<string, unknown>;
     const docs: Record<string, unknown>[] = [];
     for (let index = 0; index < (documents ?? []).length; index++) {
@@ -125,7 +150,13 @@ export async function orchestrateModelInsertMany<TDocument = Record<string, unkn
         doc = applyModelInsertVersion(doc, context.versionConfig);
         docs.push(doc);
     }
-    return context.collection.insertMany(docs, options);
+    const result = await context.collection.insertMany(docs, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'insert', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'insert', 'after', { operation: 'insertMany', collection: context.collectionName, data: docs, result });
+    }
+    return result;
 }
 
 export async function orchestrateModelUpdateOne<TDocument = Record<string, unknown>>(
@@ -140,7 +171,7 @@ export async function orchestrateModelUpdateOne<TDocument = Record<string, unkno
     if (context.hooksFactory) {
         await invokeV1Hook(context, 'update', 'before', hookContext, filter, nextUpdate);
     } else {
-        await invokeStandardHook(context, 'beforeUpdate', {
+        await invokeStandardOperationHook(context, 'update', 'before', {
             operation: 'updateOne',
             collection: context.collectionName,
             filter,
@@ -159,7 +190,7 @@ export async function orchestrateModelUpdateOne<TDocument = Record<string, unkno
             await invokeV1Hook(context, 'update', 'after', hookContext, result);
         } catch { /* after hooks don't affect operation */ }
     } else {
-        await invokeStandardHook(context, 'afterUpdate', {
+        await invokeStandardOperationHook(context, 'update', 'after', {
             operation: 'updateOne',
             collection: context.collectionName,
             filter,
@@ -177,11 +208,24 @@ export async function orchestrateModelUpdateMany<TDocument = Record<string, unkn
     update?: unknown,
     options?: unknown,
 ): Promise<unknown> {
-    const nextUpdate = applyModelVersionIncrement(
+    const hookContext: Record<string, unknown> = {};
+    let nextUpdate = update;
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'update', 'before', hookContext, filter, nextUpdate);
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'before', { operation: 'updateMany', collection: context.collectionName, filter, update: nextUpdate });
+    }
+    nextUpdate = applyModelVersionIncrement(
         applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate()),
         context.versionConfig,
     );
-    return context.collection.updateMany(filter, nextUpdate, options);
+    const result = await context.collection.updateMany(filter, nextUpdate, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'after', { operation: 'updateMany', collection: context.collectionName, filter, update: nextUpdate, result });
+    }
+    return result;
 }
 
 export async function orchestrateModelReplaceOne<TDocument = Record<string, unknown>>(
@@ -190,8 +234,20 @@ export async function orchestrateModelReplaceOne<TDocument = Record<string, unkn
     replacement?: unknown,
     options?: unknown,
 ): Promise<unknown> {
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'update', 'before', hookContext, filter, replacement);
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'before', { operation: 'replaceOne', collection: context.collectionName, filter, update: replacement });
+    }
     const nextReplacement = applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate());
-    return context.collection.replaceOne(filter, nextReplacement, options);
+    const result = await context.collection.replaceOne(filter, nextReplacement, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'after', { operation: 'replaceOne', collection: context.collectionName, filter, update: nextReplacement, result });
+    }
+    return result;
 }
 
 export async function orchestrateModelFindOneAndUpdate<TDocument = Record<string, unknown>>(
@@ -200,8 +256,20 @@ export async function orchestrateModelFindOneAndUpdate<TDocument = Record<string
     update?: unknown,
     options?: unknown,
 ): Promise<TDocument | null> {
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'update', 'before', hookContext, filter, update);
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'before', { operation: 'findOneAndUpdate', collection: context.collectionName, filter, update });
+    }
     const nextUpdate = applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate());
-    return context.collection.findOneAndUpdate(filter, nextUpdate, options);
+    const result = await context.collection.findOneAndUpdate(filter, nextUpdate, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'after', { operation: 'findOneAndUpdate', collection: context.collectionName, filter, update: nextUpdate, result });
+    }
+    return result;
 }
 
 export async function orchestrateModelFindOneAndReplace<TDocument = Record<string, unknown>>(
@@ -210,8 +278,20 @@ export async function orchestrateModelFindOneAndReplace<TDocument = Record<strin
     replacement?: unknown,
     options?: unknown,
 ): Promise<TDocument | null> {
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'update', 'before', hookContext, filter, replacement);
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'before', { operation: 'findOneAndReplace', collection: context.collectionName, filter, update: replacement });
+    }
     const nextReplacement = applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate());
-    return context.extendedCollection().findOneAndReplace(filter, nextReplacement, options);
+    const result = await context.extendedCollection().findOneAndReplace(filter, nextReplacement, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'after', { operation: 'findOneAndReplace', collection: context.collectionName, filter, update: nextReplacement, result });
+    }
+    return result;
 }
 
 export async function orchestrateModelFindOneAndDelete<TDocument = Record<string, unknown>>(
@@ -219,7 +299,19 @@ export async function orchestrateModelFindOneAndDelete<TDocument = Record<string
     filter?: unknown,
     options?: unknown,
 ): Promise<TDocument | null> {
-    return context.collection.findOneAndDelete(filter, options);
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'delete', 'before', hookContext, filter);
+    } else {
+        await invokeStandardOperationHook(context, 'delete', 'before', { operation: 'findOneAndDelete', collection: context.collectionName, filter });
+    }
+    const result = await context.collection.findOneAndDelete(filter, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'delete', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'delete', 'after', { operation: 'findOneAndDelete', collection: context.collectionName, filter, result });
+    }
+    return result;
 }
 
 export async function orchestrateModelUpsertOne<TDocument = Record<string, unknown>>(
@@ -228,8 +320,20 @@ export async function orchestrateModelUpsertOne<TDocument = Record<string, unkno
     update?: unknown,
     options?: unknown,
 ): Promise<unknown> {
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'update', 'before', hookContext, filter, update);
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'before', { operation: 'upsertOne', collection: context.collectionName, filter, update });
+    }
     const nextUpdate = applyModelUpsertTimestamps(update, context.timestampsConfig, () => context.nowDate());
-    return context.collection.upsertOne(filter, nextUpdate, options);
+    const result = await context.collection.upsertOne(filter, nextUpdate, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'after', { operation: 'upsertOne', collection: context.collectionName, filter, update: nextUpdate, result });
+    }
+    return result;
 }
 
 export async function orchestrateModelIncrementOne<TDocument = Record<string, unknown>>(
@@ -239,16 +343,30 @@ export async function orchestrateModelIncrementOne<TDocument = Record<string, un
     increment?: number,
     options?: unknown,
 ): Promise<unknown> {
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'update', 'before', hookContext, filter, field, increment);
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'before', { operation: 'incrementOne', collection: context.collectionName, filter, update: field });
+    }
     const timestamps = context.timestampsConfig;
+    let result: unknown;
     if (timestamps && timestamps.updatedAt !== false) {
         const resolvedOptions = (options ?? {}) as Record<string, unknown>;
         const $set = {
             ...((resolvedOptions.$set ?? {}) as Record<string, unknown>),
             [timestamps.updatedAt]: context.nowDate(),
         };
-        return context.extendedCollection().incrementOne(filter, field, increment, { ...resolvedOptions, $set });
+        result = await context.extendedCollection().incrementOne(filter, field, increment, { ...resolvedOptions, $set });
+    } else {
+        result = await context.extendedCollection().incrementOne(filter, field, increment, options);
     }
-    return context.extendedCollection().incrementOne(filter, field, increment, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'after', { operation: 'incrementOne', collection: context.collectionName, filter, update: field, result });
+    }
+    return result;
 }
 
 export async function orchestrateModelInsertBatch<TDocument = Record<string, unknown>>(
@@ -256,13 +374,25 @@ export async function orchestrateModelInsertBatch<TDocument = Record<string, unk
     docs: unknown[],
     options?: unknown,
 ): Promise<unknown> {
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'insert', 'before', hookContext, docs);
+    } else {
+        await invokeStandardOperationHook(context, 'insert', 'before', { operation: 'insertBatch', collection: context.collectionName, data: docs });
+    }
     const docsToInsert = docs.map((doc) => {
         let record = doc as Record<string, unknown>;
         record = applyModelInsertTimestamps(record, context.timestampsConfig, () => context.nowDate());
         record = applyModelInsertVersion(record, context.versionConfig) as Record<string, unknown>;
         return record;
     });
-    return context.extendedCollection().insertBatch(docsToInsert, options);
+    const result = await context.extendedCollection().insertBatch(docsToInsert, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'insert', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'insert', 'after', { operation: 'insertBatch', collection: context.collectionName, data: docsToInsert, result });
+    }
+    return result;
 }
 
 export async function orchestrateModelUpdateBatch<TDocument = Record<string, unknown>>(
@@ -271,8 +401,20 @@ export async function orchestrateModelUpdateBatch<TDocument = Record<string, unk
     update?: unknown,
     options?: unknown,
 ): Promise<unknown> {
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'update', 'before', hookContext, filter, update);
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'before', { operation: 'updateBatch', collection: context.collectionName, filter, update });
+    }
     const nextUpdate = applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate());
-    return context.extendedCollection().updateBatch(filter, nextUpdate, options);
+    const result = await context.extendedCollection().updateBatch(filter, nextUpdate, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'update', 'after', { operation: 'updateBatch', collection: context.collectionName, filter, update: nextUpdate, result });
+    }
+    return result;
 }
 
 export async function orchestrateModelDeleteOne<TDocument = Record<string, unknown>>(
@@ -287,7 +429,7 @@ export async function orchestrateModelDeleteOne<TDocument = Record<string, unkno
     if (context.hooksFactory) {
         await invokeV1Hook(context, 'delete', 'before', hookContext, filter);
     } else {
-        await invokeStandardHook(context, 'beforeDelete', {
+        await invokeStandardOperationHook(context, 'delete', 'before', {
             operation: 'deleteOne',
             collection: context.collectionName,
             filter,
@@ -310,7 +452,7 @@ export async function orchestrateModelDeleteOne<TDocument = Record<string, unkno
             await invokeV1Hook(context, 'delete', 'after', hookContext, result);
         } catch { /* after hooks don't affect operation */ }
     } else {
-        await invokeStandardHook(context, 'afterDelete', {
+        await invokeStandardOperationHook(context, 'delete', 'after', {
             operation: 'deleteOne',
             collection: context.collectionName,
             filter,
@@ -328,12 +470,26 @@ export async function orchestrateModelDeleteMany<TDocument = Record<string, unkn
 ): Promise<unknown> {
     const softDeleteConfig = context.softDeleteConfig;
     const resolvedOptions = (options ?? {}) as Record<string, unknown>;
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'delete', 'before', hookContext, filter);
+    } else {
+        await invokeStandardOperationHook(context, 'delete', 'before', { operation: 'deleteMany', collection: context.collectionName, filter });
+    }
+    let result: unknown;
     if (softDeleteConfig?.enabled && !resolvedOptions._forceDelete) {
-        return context.collection.updateMany(
+        result = await context.collection.updateMany(
             { ...((filter as Record<string, unknown>) ?? {}), [softDeleteConfig.field]: null },
             { $set: { [softDeleteConfig.field]: softDeleteConfig.type === 'boolean' ? true : context.nowDate() } },
             options,
         );
+    } else {
+        result = await context.collection.deleteMany(filter, options);
     }
-    return context.collection.deleteMany(filter, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'delete', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'delete', 'after', { operation: 'deleteMany', collection: context.collectionName, filter, result });
+    }
+    return result;
 }

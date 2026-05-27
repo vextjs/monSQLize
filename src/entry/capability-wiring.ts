@@ -59,17 +59,18 @@ export function initAutoConvertConfig(
  */
 export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults {
     const o = options;
-    const defaults: RuntimeDefaults = {};
-    if (o.maxTimeMS !== undefined) defaults.maxTimeMS = o.maxTimeMS;
-    if (o.findLimit !== undefined) defaults.findLimit = o.findLimit;
-    if (o.findPageMaxLimit !== undefined) defaults.findPageMaxLimit = o.findPageMaxLimit;
-    if (o.slowQueryMs !== undefined) defaults.slowQueryMs = o.slowQueryMs;
+    const defaults: RuntimeDefaults = {
+        maxTimeMS: o.maxTimeMS ?? 2000,
+        findLimit: o.findLimit ?? 10,
+        findPageMaxLimit: o.findPageMaxLimit ?? 500,
+        slowQueryMs: o.slowQueryMs ?? 500,
+        namespace: o.namespace ?? { scope: 'database' },
+    };
     // v1-compat: autoConvertObjectId defaults to true for MongoDB type (mirrors v1 behaviour)
     defaults.autoConvertObjectId = o.autoConvertObjectId !== undefined
         ? o.autoConvertObjectId
         : (o.type === 'mongodb' || !o.type ? true : false);
     if (o.cursorSecret !== undefined) defaults.cursorSecret = o.cursorSecret;
-    if (o.namespace !== undefined) defaults.namespace = o.namespace;
     // v1-compat: countQueue defaults to enabled when not explicitly configured.
     const countQueueCfg = o.countQueue ?? { enabled: true, maxQueueSize: 10000, timeout: 60000 };
     if (countQueueCfg.enabled) {
@@ -233,7 +234,7 @@ export async function loadModelFiles(
             delete req.cache[req.resolve(file)];
             // eslint-disable-next-line @typescript-eslint/no-require-imports
             const mod = req(file) as Record<string, unknown>;
-            const definition = (mod.default ?? mod) as { name?: string; [key: string]: unknown };
+            const definition = (mod.default ?? mod) as { name?: string;[key: string]: unknown };
             if (!definition?.name) {
                 logger.warn?.(`[Models] ${file}: exported object must have a 'name' field`);
                 continue;

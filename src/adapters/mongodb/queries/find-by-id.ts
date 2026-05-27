@@ -14,8 +14,12 @@ import { Collection, Document, FindOptions, ObjectId } from 'mongodb';
 
 import { createError, ErrorCodes } from '../../../core/errors';
 import { normalizeProjection } from '../../../utils/normalize';
-import type { RuntimeDefaults } from '../../../types/internal/query';
+import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/query';
 import { isHexObjectIdString, parseRequiredObjectId } from './query-helpers';
+
+function getCacheTtl(rawOptions: Record<string, unknown>): number {
+    return typeof rawOptions.cache === 'number' && rawOptions.cache > 0 ? rawOptions.cache : 0;
+}
 
 /**
  * Finds a single document by `_id`.
@@ -30,6 +34,8 @@ export async function findOneByIdDocument<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     id: unknown,
     options?: Parameters<Collection<TSchema>['findOne']>[1],
+    defaults: RuntimeDefaults = {},
+    queryCache?: QueryCacheLike | null,
 ): Promise<TSchema | null> {
     const objectId = parseRequiredObjectId(id);
     const rawOptions = (options ?? {}) as Record<string, unknown>;
@@ -38,7 +44,25 @@ export async function findOneByIdDocument<TSchema extends Document = Document>(
     const projection = normalizeProjection(rawOptions.projection as string[] | Record<string, unknown> | null | undefined);
     if (projection) findOptions.projection = projection;
     if (rawOptions.maxTimeMS !== undefined) findOptions.maxTimeMS = rawOptions.maxTimeMS as number;
+    else if (defaults.maxTimeMS !== undefined) findOptions.maxTimeMS = defaults.maxTimeMS;
     if (rawOptions.comment !== undefined) findOptions.comment = rawOptions.comment as string;
+
+    const cacheTTL = getCacheTtl(rawOptions);
+    if (cacheTTL > 0 && queryCache) {
+        const { cache: _cache, ...keyOptions } = rawOptions;
+        void _cache;
+        const cacheKey = `findOneById:${collection.namespace}:${objectId.toString()}:${JSON.stringify({ ...keyOptions, projection })}`;
+        const cached = queryCache.get(cacheKey) as TSchema | null | undefined;
+        if (cached !== undefined) {
+            return cached;
+        }
+        const result = await collection.findOne(
+            { _id: objectId } as Parameters<Collection<TSchema>['findOne']>[0],
+            findOptions as Parameters<Collection<TSchema>['findOne']>[1],
+        ) as unknown as TSchema | null;
+        void queryCache.set(cacheKey, result, cacheTTL);
+        return result;
+    }
 
     return collection.findOne(
         { _id: objectId } as Parameters<Collection<TSchema>['findOne']>[0],
@@ -60,6 +84,7 @@ export async function findByIdsDocuments<TSchema extends Document = Document>(
     ids: unknown[],
     options?: Parameters<Collection<TSchema>['find']>[1],
     defaults: RuntimeDefaults = {},
+    queryCache?: QueryCacheLike | null,
 ): Promise<TSchema[]> {
     if (!Array.isArray(ids)) {
         throw createError(
@@ -125,9 +150,27 @@ export async function findByIdsDocuments<TSchema extends Document = Document>(
         driverOptions.maxTimeMS = defaults.maxTimeMS;
     }
 
-    const results = await collection.find({
-        _id: { $in: uniqueIds },
-    } as Parameters<Collection<TSchema>['find']>[0], driverOptions as Parameters<Collection<TSchema>['find']>[1]).toArray() as TSchema[];
+    const cacheTTL = getCacheTtl(rawOptions);
+    const cacheKey = cacheTTL > 0 && queryCache
+        ? `findByIds:${collection.namespace}:${JSON.stringify({ ids: uniqueIds.map((item) => item.toString()), projection, sort: rawOptions.sort })}`
+        : null;
+
+    let results: TSchema[];
+    if (cacheKey && queryCache) {
+        const cached = queryCache.get(cacheKey) as TSchema[] | undefined;
+        if (cached !== undefined) {
+            results = cached;
+        } else {
+            results = await collection.find({
+                _id: { $in: uniqueIds },
+            } as Parameters<Collection<TSchema>['find']>[0], driverOptions as Parameters<Collection<TSchema>['find']>[1]).toArray() as TSchema[];
+            void queryCache.set(cacheKey, results, cacheTTL);
+        }
+    } else {
+        results = await collection.find({
+            _id: { $in: uniqueIds },
+        } as Parameters<Collection<TSchema>['find']>[0], driverOptions as Parameters<Collection<TSchema>['find']>[1]).toArray() as TSchema[];
+    }
 
     if (rawOptions.preserveOrder === true) {
         const resultMap = new Map<string, TSchema>();

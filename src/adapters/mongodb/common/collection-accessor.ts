@@ -106,7 +106,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         private readonly collectionRef: Collection<TSchema>,
         private readonly management: CollectionAccessorManagementOptions = {},
         private readonly dbRef?: Db,
-    ) {}
+    ) { }
 
     /** When autoConvertObjectId is enabled, auto-converts filter/query values. */
     private _cvFilter<T>(val: T): T {
@@ -226,14 +226,13 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
 
     /** Finds a single document by its `_id` field. */
     async findOneById(id: unknown, options?: Parameters<Collection<TSchema>['findOne']>[1]): Promise<TSchema | null> {
-        const maxTimeMS = this.management.defaults?.maxTimeMS;
-        return findOneByIdDocument(this.collectionRef, id, (maxTimeMS !== undefined ? { maxTimeMS, ...options } : options) as Parameters<Collection<TSchema>['findOne']>[1]);
+        return findOneByIdDocument(this.collectionRef, id, options, this.management.defaults, this.management.queryCache);
     }
 
     /** Finds multiple documents by an array of `_id` values. */
     async findByIds(ids: unknown[], options?: Parameters<Collection<TSchema>['find']>[1]): Promise<TSchema[]> {
         const { findLimit: _skip, ...noLimitDefaults } = this.management.defaults ?? {};
-        return findByIdsDocuments(this.collectionRef, ids, options, noLimitDefaults);
+        return findByIdsDocuments(this.collectionRef, ids, options, noLimitDefaults, this.management.queryCache);
     }
 
     /** Returns `{ data, total }` — the matched documents together with the total count in a single round-trip. */

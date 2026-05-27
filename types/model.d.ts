@@ -110,20 +110,22 @@ export interface ModelDefinition<TDocument = Record<string, unknown>> {
     schema?: (dsl: unknown) => unknown;
     defaults?: Record<string, unknown | ((context?: unknown, doc?: TDocument) => unknown)>;
     hooks?:
-        | {
-              beforeCreate?: (context: HookContext) => Promise<void> | void;
-              afterCreate?: (context: HookContext) => Promise<void> | void;
-              beforeUpdate?: (context: HookContext) => Promise<void> | void;
-              afterUpdate?: (context: HookContext) => Promise<void> | void;
-              beforeDelete?: (context: HookContext) => Promise<void> | void;
-              afterDelete?: (context: HookContext) => Promise<void> | void;
-              beforeFind?: (context: HookContext) => Promise<void> | void;
-              afterFind?: (context: HookContext) => Promise<void> | void;
-          }
-        | V1HooksFactory<TDocument>;
+    | {
+        beforeCreate?: (context: HookContext) => Promise<void> | void;
+        afterCreate?: (context: HookContext) => Promise<void> | void;
+        beforeInsert?: (context: HookContext) => Promise<void> | void;
+        afterInsert?: (context: HookContext) => Promise<void> | void;
+        beforeUpdate?: (context: HookContext) => Promise<void> | void;
+        afterUpdate?: (context: HookContext) => Promise<void> | void;
+        beforeDelete?: (context: HookContext) => Promise<void> | void;
+        afterDelete?: (context: HookContext) => Promise<void> | void;
+        beforeFind?: (context: HookContext) => Promise<void> | void;
+        afterFind?: (context: HookContext) => Promise<void> | void;
+    }
+    | V1HooksFactory<TDocument>;
     methods?:
-        | Record<string, (this: TDocument & Record<string, unknown>, ...args: unknown[]) => unknown>
-        | V1MethodsFactory<TDocument>;
+    | Record<string, (this: TDocument & Record<string, unknown>, ...args: unknown[]) => unknown>
+    | V1MethodsFactory<TDocument>;
     statics?: Record<string, (...args: unknown[]) => unknown>;
     relations?: Record<string, RelationConfig>;
     virtuals?: Record<string, VirtualConfig>;
