@@ -73,6 +73,10 @@ expectAssignable<MonSQLizeOptions>({
     databaseName: 'p1_types',
     logger,
     cache: new MonSQLize.MemoryCache(),
+    config: { uri: 'mongodb://localhost', readPreference: 'secondaryPreferred', mongoHost: 'mongo.internal', mongoPort: 27018 },
+    autoConvertObjectId: { enabled: true, excludeFields: ['legacyId'], maxDepth: 5, logLevel: 'warn' },
+    countQueue: true,
+    log: { formatSlowQuery: (meta) => ({ meta }) },
 });
 
 expectType<Promise<{
@@ -168,10 +172,11 @@ expectType<Promise<{ validator: Record<string, unknown> | null; validationLevel:
 
 const memoryCache = new MonSQLize.MemoryCache();
 memoryCache.setLockManager(lockManager);
+expectType<CacheLockLike | null>(memoryCache.getLockManager());
 expectType<Record<string, unknown>>(memoryCache.getMany(['a']));
 
 const functionCache = new MonSQLize.FunctionCache();
-expectAssignable<void | Promise<void>>(functionCache.register('lookup', async () => 1));
+expectType<Promise<void>>(functionCache.register('lookup', async () => 1));
 expectType<Promise<unknown>>(functionCache.execute('lookup'));
 expectType<FunctionCacheStats | Record<string, FunctionCacheStats> | null>(functionCache.getStats('lookup'));
 
@@ -203,6 +208,8 @@ expectType<Promise<void>>(slowQueryQueue.add({
     operation: 'find',
     durationMs: 900,
 }));
+expectAssignable<object>(new MonSQLize.SlowQueryLogMemoryStorage());
+expectAssignable<object>(MonSQLize.MongoDBSlowQueryLogStorage);
 
 expectType<Promise<Array<{ name: string; sizeOnDisk: number; empty: boolean }> | string[]>>(db.db().listDatabases());
 

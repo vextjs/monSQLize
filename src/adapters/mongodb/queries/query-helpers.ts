@@ -121,7 +121,7 @@ export function normalizeIdentifier(value: unknown, autoConvert = true): unknown
  */
 export function normalizeQueryFilter(
     filter: Record<string, unknown>,
-    autoConvert: boolean | Record<string, boolean>,
+    autoConvert: boolean | Record<string, unknown>,
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 

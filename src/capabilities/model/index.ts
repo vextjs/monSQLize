@@ -565,6 +565,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
             saveDocument: (document) => this.saveDocument(document),
             removeDocument: (document) => this.removeDocument(document),
             validateDocument: (document) => this.validate(document),
+            populateDocument: (document, paths) => this.populateSingle(document, paths),
         }, doc);
     }
     private softDeleteContext() {

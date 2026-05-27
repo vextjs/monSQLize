@@ -4,6 +4,8 @@ import type { SSHConfig } from './monsqlize';
 export interface MongoConnectConfig {
     uri?: string;
     options?: MongoClientOptions;
+    /** v1 compat: read preference shortcut merged into MongoClient options. */
+    readPreference?: MongoClientOptions['readPreference'];
     /**
      * v1 compat: when true, automatically starts mongodb-memory-server without requiring a uri.
      * For testing only.
@@ -34,6 +36,10 @@ export interface MongoConnectConfig {
      * @since v1.3.0
      */
     remotePort?: number;
+    /** @alias remoteHost — v1 SSH config field */
+    mongoHost?: string;
+    /** @alias remotePort — v1 SSH config field */
+    mongoPort?: number;
 }
 
 export interface MongoConnectionState {

@@ -6,7 +6,7 @@
  * - When useMemoryServer is true, mongodb-memory-server starts automatically; no URI is required.
  */
 
-import { MongoClient } from 'mongodb';
+import { MongoClient, type MongoClientOptions } from 'mongodb';
 
 import { createConnectionError, createError, ErrorCodes, type MonSQLizeError } from '../../../core/errors';
 import type { Logger } from '../../../core/logger';
@@ -94,7 +94,11 @@ export async function connectMongo(params: {
         throw createError(ErrorCodes.INVALID_CONFIG, 'MongoDB connect requires config.uri.');
     }
 
-    const client = new MongoClient(effectiveUri, params.config?.options);
+    const clientOptions: MongoClientOptions = { ...(params.config?.options ?? {}) };
+    if (params.config?.readPreference !== undefined) {
+        clientOptions.readPreference = params.config.readPreference;
+    }
+    const client = new MongoClient(effectiveUri, clientOptions);
 
     try {
         await client.connect();

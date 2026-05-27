@@ -288,8 +288,8 @@ export class MonSQLizeRuntime {
             if (sshCfg && typeof sshCfg === 'object') {
                 const cfg = sshCfg as Record<string, unknown>;
                 const rawCfg = connectConfig as Record<string, unknown>;
-                const remoteHost = String(cfg['dstHost'] ?? rawCfg['remoteHost'] ?? parseHostFromUri(String(connectConfig?.uri ?? '')));
-                const remotePort = Number(cfg['dstPort'] ?? rawCfg['remotePort'] ?? parsePortFromUri(String(connectConfig?.uri ?? '')));
+                const remoteHost = String(cfg['dstHost'] ?? rawCfg['remoteHost'] ?? rawCfg['mongoHost'] ?? parseHostFromUri(String(connectConfig?.uri ?? '')));
+                const remotePort = Number(cfg['dstPort'] ?? rawCfg['remotePort'] ?? rawCfg['mongoPort'] ?? parsePortFromUri(String(connectConfig?.uri ?? '')));
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const tunnel = new SSHTunnelSSH2(sshCfg as any, remoteHost, remotePort, { name: databaseName });
                 this._logger.info?.(`[SSH] Establishing tunnel to ${remoteHost}:${remotePort} via ${String(cfg['host'])}`);
@@ -668,7 +668,7 @@ export class MonSQLizeRuntime {
         return manager.query(filter, options);
     }
 
-    defineSaga(definition: SagaDefinition): void { this.initializeSagaOrchestrator().define(definition); }
+    defineSaga(definition: SagaDefinition): Promise<SagaDefinition> { return this.initializeSagaOrchestrator().defineSaga(definition); }
     async executeSaga(name: string, data: unknown): Promise<SagaResult> { return this.initializeSagaOrchestrator().execute(name, data); }
     async listSagas(): Promise<string[]> { return this.initializeSagaOrchestrator().listSagas(); }
     getSagaStats(): SagaStats { return this.initializeSagaOrchestrator().getStats(); }
@@ -771,7 +771,7 @@ export class MonSQLizeRuntime {
     }
 
     private initializeSagaOrchestrator(): SagaOrchestrator {
-        this._sagaOrchestrator = getOrCreateSagaOrchestrator(this._sagaOrchestrator, this.options.logger ?? null);
+        this._sagaOrchestrator = getOrCreateSagaOrchestrator(this._sagaOrchestrator, this.options.logger ?? null, this._cache);
         return this._sagaOrchestrator;
     }
 

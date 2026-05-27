@@ -27,7 +27,7 @@ import type { CacheLike } from '../capabilities/cache';
  * Only enabled for the `mongodb` type; all other types always return disabled.
  */
 export function initAutoConvertConfig(
-    config: boolean | { enabled?: boolean; excludeFields?: string[]; customFieldPatterns?: string[]; maxDepth?: number; logLevel?: string; } | undefined,
+    config: boolean | { enabled?: boolean; excludeFields?: string[]; customFieldPatterns?: string[]; maxDepth?: number; logLevel?: string; } | Record<string, boolean> | undefined,
     type: string | undefined,
 ): { enabled: boolean; excludeFields?: string[]; customFieldPatterns?: string[]; maxDepth?: number; logLevel?: string; } {
     if (type !== 'mongodb') {
@@ -44,7 +44,13 @@ export function initAutoConvertConfig(
         if (config.enabled === false) {
             return { enabled: false };
         }
-        return { ...defaults, ...config, enabled: true };
+        return {
+            enabled: true,
+            excludeFields: Array.isArray(config.excludeFields) ? config.excludeFields : defaults.excludeFields,
+            customFieldPatterns: Array.isArray(config.customFieldPatterns) ? config.customFieldPatterns : defaults.customFieldPatterns,
+            maxDepth: typeof config.maxDepth === 'number' ? config.maxDepth : defaults.maxDepth,
+            logLevel: typeof config.logLevel === 'string' ? config.logLevel : defaults.logLevel,
+        };
     }
     return defaults;
 }
@@ -72,7 +78,11 @@ export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults
         : (o.type === 'mongodb' || !o.type ? true : false);
     if (o.cursorSecret !== undefined) defaults.cursorSecret = o.cursorSecret;
     // v1-compat: countQueue defaults to enabled when not explicitly configured.
-    const countQueueCfg = o.countQueue ?? { enabled: true, maxQueueSize: 10000, timeout: 60000 };
+    const countQueueCfg = o.countQueue === false
+        ? { enabled: false }
+        : o.countQueue === true || o.countQueue === undefined
+            ? { enabled: true, maxQueueSize: 10000, timeout: 60000 }
+            : { enabled: true, ...o.countQueue };
     if (countQueueCfg.enabled) {
         defaults.countQueue = new CountQueue({
             concurrency: countQueueCfg.concurrency,

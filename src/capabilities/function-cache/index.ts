@@ -276,7 +276,7 @@ export class FunctionCache {
         name: string,
         fn: (...args: unknown[]) => Promise<unknown>,
         options?: FunctionCachePerFnOptions,
-    ): void {
+    ): Promise<void> {
         if (!name || typeof name !== 'string')
             throw new Error('Function name must be a non-empty string');
         if (typeof fn !== 'function')
@@ -293,6 +293,7 @@ export class FunctionCache {
         if (!this._totalTimes.has(name)) {
             this._totalTimes.set(name, 0);
         }
+        return Promise.resolve();
     }
 
     async execute(name: string, ...args: unknown[]): Promise<unknown> {

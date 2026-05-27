@@ -30,10 +30,10 @@ const functionCache = new MonSQLize.FunctionCache(runtime, {
     ttl: 10_000,
 });
 
-functionCache.register('double', async (...args: unknown[]) => Number(args[0]) * 2, {
+expectType<Promise<void>>(functionCache.register('double', async (...args: unknown[]) => Number(args[0]) * 2, {
     ttl: 1_000,
     keyBuilder: (...args: unknown[]) => `double:${String(args[0])}`,
-});
+}));
 
 expectType<Promise<unknown>>(functionCache.execute('double', 2));
 expectType<Promise<void>>(functionCache.invalidate('double', 2));
@@ -46,5 +46,14 @@ expectAssignable<
 expectType<string[]>(functionCache.list());
 functionCache.resetStats();
 functionCache.clear();
+
+const memoryCache = new MonSQLize.MemoryCache();
+const lockManager = { isLocked: (_key: string) => false };
+memoryCache.setLockManager(lockManager);
+expectType<typeof lockManager | null>(memoryCache.getLockManager());
+
+const multiLevelCache = new MonSQLize.MultiLevelCache({ local: memoryCache });
+multiLevelCache.setPublish((_msg) => {});
+multiLevelCache.setLockManager(lockManager);
 
 

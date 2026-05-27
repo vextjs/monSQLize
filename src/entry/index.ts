@@ -9,6 +9,7 @@ import {
     BatchQueue,
     CountQueue,
     DEFAULT_SLOW_QUERY_LOG_CONFIG,
+    MongoDBSlowQueryLogStorage,
     ChangeStreamSyncManager,
     compilePipelineExpressions,
     ConnectionPoolManager,
@@ -42,6 +43,7 @@ import {
     ResumeTokenStore,
     SagaOrchestrator,
     SlowQueryLogConfigManager,
+    SlowQueryLogMemoryStorage,
     SlowQueryLogManager,
     validateRange,
     validatePositiveInteger,
@@ -96,6 +98,8 @@ MonSQLize.validateTargetConfig = validateTargetConfig;
 MonSQLize.validateResumeTokenConfig = validateResumeTokenConfig;
 MonSQLize.SlowQueryLogManager = SlowQueryLogManager;
 MonSQLize.SlowQueryLogConfigManager = SlowQueryLogConfigManager;
+MonSQLize.SlowQueryLogMemoryStorage = SlowQueryLogMemoryStorage;
+MonSQLize.MongoDBSlowQueryLogStorage = MongoDBSlowQueryLogStorage;
 MonSQLize.BatchQueue = BatchQueue;
 MonSQLize.generateQueryHash = generateQueryHash;
 MonSQLize.SagaOrchestrator = SagaOrchestrator;

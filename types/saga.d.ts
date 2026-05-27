@@ -1,5 +1,11 @@
 import type { LoggerLike } from './base';
 
+export interface SagaMetadataCache {
+    set(key: string, value: unknown, ttl?: number): void | Promise<void>;
+    keys?(pattern?: string): string[] | Promise<string[]>;
+    publish?(channel: string, message: string): void | Promise<unknown>;
+}
+
 /** Execution context passed to each Saga step; provides data sharing between steps. */
 export interface SagaContext {
     /** Unique ID for this Saga execution run. */
@@ -90,6 +96,7 @@ export interface SagaResult {
 /** Options for constructing a `SagaOrchestrator`. */
 export interface SagaOrchestratorOptions {
     logger?: LoggerLike | null;
+    cache?: SagaMetadataCache | null;
 }
 
 /** Aggregate statistics for a `SagaOrchestrator` instance. */
@@ -116,8 +123,8 @@ export declare class SagaOrchestrator {
     constructor(options?: SagaOrchestratorOptions);
     /** Register a Saga definition (sync). */
     define(definition: SagaDefinition): void;
-    /** Register a Saga definition (async; returns a confirmation object). */
-    defineSaga(definition: SagaDefinition): Promise<{ name: string }>;
+    /** Register a Saga definition (async; returns the registered definition). */
+    defineSaga(definition: SagaDefinition): Promise<SagaDefinition>;
     /** Execute the named Saga with the given initial data. */
     execute(name: string, data: unknown): Promise<SagaResult>;
     /** Return the definition for a registered Saga by name. */

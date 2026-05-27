@@ -154,7 +154,8 @@ export interface PopulateProxy<T = unknown> extends Promise<T> {
 export type ModelDocument<TDocument = Record<string, unknown>> = TDocument & Record<string, unknown> & {
     save(): Promise<ModelDocument<TDocument>>;
     remove(): Promise<boolean>;
-    validate(): ValidationResult;
+    validate(): Promise<ValidationResult>;
+    populate(path: string | PopulateConfig | Array<string | PopulateConfig>): Promise<ModelDocument<TDocument> | null>;
     toObject(): TDocument & Record<string, unknown>;
     toJSON(): TDocument & Record<string, unknown>;
 };

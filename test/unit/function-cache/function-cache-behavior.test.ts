@@ -73,14 +73,14 @@ describe('function-cache behavior', () => {
     describe('FunctionCache v1 constructor defaults', () => {
         it('supports no-argument construction', async () => {
             const fc = new MonSQLize.FunctionCache();
-            fc.register('fn', async () => 42);
+            assert.equal(typeof fc.register('fn', async () => 42).then, 'function');
             assert.equal(await fc.execute('fn'), 42);
         });
 
         it('defaults namespace to action', async () => {
             const memory = new MonSQLize.MemoryCache();
             const fc = new MonSQLize.FunctionCache(memory, { ttl: 5000 });
-            fc.register('loadUser', async (id: string) => ({ id }));
+            await fc.register('loadUser', async (id: string) => ({ id }));
 
             await fc.execute('loadUser', 'u1');
             const keys = memory.keys('*');
@@ -90,7 +90,7 @@ describe('function-cache behavior', () => {
         it('accepts a MonSQLize-like getCache source', async () => {
             const memory = new MonSQLize.MemoryCache();
             const fc = new MonSQLize.FunctionCache({ getCache: () => memory }, { namespace: 'source-test' });
-            fc.register('fn', async () => 'ok');
+            await fc.register('fn', async () => 'ok');
             assert.equal(await fc.execute('fn'), 'ok');
         });
     });

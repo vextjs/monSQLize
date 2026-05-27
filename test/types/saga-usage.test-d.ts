@@ -24,12 +24,22 @@ const definition: SagaDefinition = {
 
 const orchestrator = new SagaOrchestrator();
 orchestrator.define(definition);
+expectType<Promise<SagaDefinition>>(orchestrator.defineSaga(definition));
 expectType<Promise<SagaResult>>(orchestrator.execute('create-order', { id: 1 }));
 expectType<Promise<string[]>>(orchestrator.listSagas());
 expectType<SagaStats>(orchestrator.getStats());
 
+const cachedOrchestrator = new SagaOrchestrator({
+    cache: {
+        set() {},
+        keys() { return []; },
+        publish() {},
+    },
+});
+expectType<SagaOrchestrator>(cachedOrchestrator);
+
 const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'app' });
-runtime.defineSaga(definition);
+expectType<Promise<SagaDefinition>>(runtime.defineSaga(definition));
 expectType<Promise<SagaResult>>(runtime.executeSaga('create-order', { id: 1 }));
 expectType<SagaStats>(runtime.getSagaStats());
 expectType<SagaOrchestrator>(runtime.saga());

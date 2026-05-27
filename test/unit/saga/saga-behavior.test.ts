@@ -292,13 +292,29 @@ describe('SagaOrchestrator behavior', () => {
     // ── defineSaga async alias ────────────────────────────────────────────────
 
     describe('defineSaga() async alias', () => {
-        it('defineSaga() returns { name } and registers the saga', async () => {
+        it('defineSaga() returns the registered definition and registers the saga', async () => {
             const saga = new MonSQLize.SagaOrchestrator();
             const def = { name: 'async-saga', steps: [{ name: 's', execute: () => Promise.resolve() }] };
 
             const registered = await saga.defineSaga(def);
             assert.equal(registered.name, 'async-saga');
+            assert.equal(Array.isArray(registered.steps), true);
             assert.ok(saga.getSaga('async-saga') !== undefined);
+        });
+
+        it('persists saga metadata when a Redis-like cache is provided', async () => {
+            const records = new Map<string, unknown>();
+            const cache = {
+                set(key: string, value: unknown) { records.set(key, value); },
+                keys() { return [...records.keys()]; },
+                publish() {},
+            };
+            const saga = new MonSQLize.SagaOrchestrator({ cache });
+            const def = { name: 'cached-saga', steps: [{ name: 's', execute: () => Promise.resolve() }] };
+
+            assert.equal(saga.useRedis, true);
+            await saga.defineSaga(def);
+            assert.ok(records.has('monsqlize:saga:def:cached-saga'));
         });
     });
 

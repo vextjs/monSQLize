@@ -265,6 +265,28 @@ export class Transaction {
         };
     }
 
+    /**
+     * Get v1-compatible transaction statistics for this transaction instance.
+     * @since v1.4.0
+     */
+    getStats(): {
+        id: string;
+        state: Transaction['state'];
+        duration: number;
+        hasWriteOperation: boolean;
+        operationCount: number;
+        lockedKeysCount: number;
+    } {
+        return {
+            id: this.id,
+            state: this.state,
+            duration: this.getDuration(),
+            hasWriteOperation: this.pendingInvalidations.size > 0,
+            operationCount: this.pendingInvalidations.size,
+            lockedKeysCount: this.pendingInvalidations.size,
+        };
+    }
+
     private clearTimeout(): void {
         if (this.timeoutTimer) {
             clearTimeout(this.timeoutTimer);

@@ -15,6 +15,8 @@ const EXPECTED_ESM_EXPORTS = [
     'createExpression',
     'withCache',
     'FunctionCache',
+    'SlowQueryLogMemoryStorage',
+    'MongoDBSlowQueryLogStorage',
 ];
 
 const EXPECTED_CJS_STATICS = [
@@ -26,6 +28,8 @@ const EXPECTED_CJS_STATICS = [
     'createExpression',
     'withCache',
     'FunctionCache',
+    'SlowQueryLogMemoryStorage',
+    'MongoDBSlowQueryLogStorage',
 ];
 
 test('compatibility(exports): ESM export matrix is complete', async () => {
@@ -43,4 +47,9 @@ test('compatibility(exports): CJS static export matrix is complete', () => {
     for (const name of EXPECTED_CJS_STATICS) {
         assert.ok(name in MonSQLize, `Missing CJS static export: ${name}`);
     }
+});
+
+test('compatibility(exports): package metadata subpath remains published', () => {
+    const packageJson = require('../../../../../package.json');
+    assert.equal(packageJson.exports['./package.json'], './package.json');
 });

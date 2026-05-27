@@ -59,6 +59,17 @@ describe('P4-A transaction', () => {
         assert.equal(cacheLockManager.isLocked('users:1'), true);
         assert.equal(cache.get('users:1'), undefined);
         assert.equal(transaction.getInfo().status, 'active');
+        assert.deepEqual({
+            state: transaction.getStats().state,
+            hasWriteOperation: transaction.getStats().hasWriteOperation,
+            operationCount: transaction.getStats().operationCount,
+            lockedKeysCount: transaction.getStats().lockedKeysCount,
+        }, {
+            state: 'active',
+            hasWriteOperation: true,
+            operationCount: 1,
+            lockedKeysCount: 1,
+        });
 
         await transaction.commit();
         assert.equal(transaction.getInfo().status, 'committed');

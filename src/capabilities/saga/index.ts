@@ -12,6 +12,7 @@ import type { LoggerLike } from '../../core/logger';
 import type {
     SagaContext,
     SagaDefinition,
+    SagaMetadataCache,
     SagaOrchestratorOptions,
     SagaResult,
     SagaStats,
@@ -21,6 +22,7 @@ import type {
 export type {
     SagaContext,
     SagaDefinition,
+    SagaMetadataCache,
     SagaOrchestratorOptions,
     SagaResult,
     SagaStats,
@@ -91,11 +93,12 @@ class SagaExecutionContext implements SagaContext {
  * @since v1.8.0
  */
 export class SagaOrchestrator {
-    /** Whether Redis storage is used (always false in memory mode). */
-    public readonly useRedis = false;
+    /** Whether Redis-style metadata storage is used. */
+    public readonly useRedis: boolean;
     /** Map of registered Saga definitions. */
     public readonly sagas = new Map<string, SagaDefinition>();
     private readonly logger: LoggerLike | null;
+    private readonly cache: SagaMetadataCache | null;
     private readonly _stats = {
         totalExecutions: 0,
         successfulExecutions: 0,
@@ -105,6 +108,12 @@ export class SagaOrchestrator {
 
     constructor(options: SagaOrchestratorOptions = {}) {
         this.logger = options.logger ?? null;
+        this.cache = options.cache ?? null;
+        this.useRedis = Boolean(
+            this.cache &&
+            typeof this.cache.keys === 'function' &&
+            typeof this.cache.publish === 'function',
+        );
     }
 
     /**
@@ -113,16 +122,21 @@ export class SagaOrchestrator {
      */
     define(definition: SagaDefinition): void {
         validateSagaDefinition(definition);
-        this.sagas.set(definition.name, normalizeSagaDefinition(definition));
+        const normalized = normalizeSagaDefinition(definition);
+        this.sagas.set(definition.name, normalized);
+        void this.persistSagaMetadata(normalized);
     }
 
     /**
      * Compatibility alias for `define()` — async and returns the registered Saga definition object.
      * @since v1.1.0
      */
-    async defineSaga(definition: SagaDefinition): Promise<{ name: string }> {
-        this.define(definition);
-        return { name: definition.name };
+    async defineSaga(definition: SagaDefinition): Promise<SagaDefinition> {
+        validateSagaDefinition(definition);
+        const normalized = normalizeSagaDefinition(definition);
+        this.sagas.set(definition.name, normalized);
+        await this.persistSagaMetadata(normalized);
+        return normalized;
     }
 
     /**
@@ -263,6 +277,20 @@ export class SagaOrchestrator {
             failureCount: failedExecutions,
             compensationCount: compensatedExecutions,
         } as unknown as SagaStats;
+    }
+
+    private async persistSagaMetadata(definition: SagaDefinition): Promise<void> {
+        if (!this.useRedis || !this.cache) {
+            return;
+        }
+        try {
+            await this.cache.set(`monsqlize:saga:def:${definition.name}`, definition);
+        } catch (error) {
+            this.logger?.warn?.('[Saga] failed to persist saga metadata', {
+                saga: definition.name,
+                error,
+            });
+        }
     }
 }
 

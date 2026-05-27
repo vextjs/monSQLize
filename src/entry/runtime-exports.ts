@@ -60,7 +60,9 @@ export type {
 export {
     BatchQueue,
     DEFAULT_SLOW_QUERY_LOG_CONFIG,
+    MongoDBSlowQueryLogStorage,
     SlowQueryLogConfigManager,
+    SlowQueryLogMemoryStorage,
     SlowQueryLogManager,
     generateQueryHash,
     getSlowQueryThreshold,

@@ -45,9 +45,12 @@ expectAssignable<ModelDefinition<UserDoc>>({
 
 const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'types_model' });
 const users = runtime.model<UserDoc>('users');
+declare const userDocument: ModelDocument<UserDoc>;
 expectType<ModelAccessor<UserDoc>>(users);
 expectType<PopulateProxy<ModelDocument<UserDoc> | null>>(users.findOne({ firstName: 'Ada' }));
 expectType<PopulateProxy<ModelDocument<UserDoc> | null>>(users.findOneById('id').populate('posts'));
+expectType<Promise<ModelDocument<UserDoc> | null>>(userDocument.populate('posts'));
+expectType<Promise<{ valid: boolean; errors?: Array<{ field: string; message: string; value?: unknown }>; data?: unknown }>>(userDocument.validate());
 expectType<PopulateProxy<Array<ModelDocument<UserDoc>>>>(users.find({}).populate([{ path: 'posts' }]));
 expectType<PopulateProxy<{ data: Array<ModelDocument<UserDoc>>; total: number }>>(users.findAndCount({}));
 expectType<PopulateProxy<{

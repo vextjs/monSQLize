@@ -35,7 +35,7 @@ export interface RuntimeDefaults {
     maxTimeMS?: number;
     findLimit?: number;
     findPageMaxLimit?: number;
-    autoConvertObjectId?: boolean | Record<string, boolean>;
+    autoConvertObjectId?: boolean | Record<string, unknown>;
     cursorSecret?: string;
     slowQueryMs?: number;
     namespace?: { scope?: 'database' | 'connection'; instanceId?: string };

@@ -86,6 +86,7 @@ export interface MultiLevelCacheOptions {
 export declare class MemoryCache {
     constructor(options?: MemoryCacheOptions);
     setLockManager(lockManager: CacheLockLike): void;
+    getLockManager(): CacheLockLike | null;
     get<T = unknown>(key: string): T | undefined;
     set(key: string, value: unknown, ttl?: number): void;
     del(key: string): boolean;
@@ -124,6 +125,8 @@ export declare class MultiLevelCache {
     delPattern(pattern: string): Promise<number>;
     keys(pattern?: string): Promise<string[]>;
     invalidateByTag(tag: string): void | Promise<void>;
+    setPublish(publish: (msg: { type: string; pattern: string; ts: number }) => void): void;
+    setLockManager(lockManager: CacheLockLike): void;
     getStats(): CacheStats;
     resetStats(): void;
     destroy(): void;
@@ -238,7 +241,7 @@ export declare class FunctionCache {
         keyBuilder?: (...args: unknown[]) => string;
         namespace?: string;
         condition?: (result: unknown) => boolean;
-    }): void | Promise<void>;
+    }): Promise<void>;
     execute(name: string, ...args: unknown[]): Promise<unknown>;
     invalidate(name: string, ...args: unknown[]): Promise<void>;
     invalidatePattern(pattern: string): Promise<number>;

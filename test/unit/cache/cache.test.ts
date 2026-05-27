@@ -84,6 +84,7 @@ describe('P3-A cache facade', () => {
         };
 
         cache.setLockManager(lockManager);
+        assert.equal(cache.getLockManager(), lockManager);
 
         cache.set('user:1', { id: 1 }, 20);
         cache.set('user:2', { id: 2 });
@@ -109,6 +110,25 @@ describe('P3-A cache facade', () => {
         assert.equal(typeof stats.entries, 'number');
         cache.resetStats();
         assert.equal(cache.getStats().hits, 0);
+    });
+
+    it('MultiLevelCache exposes v1 publish and lock-manager mutators', async () => {
+        const local = new MonSQLize.MemoryCache();
+        const remote = new MonSQLize.MemoryCache();
+        const cache = new MonSQLize.MultiLevelCache({ local, remote });
+        const published: unknown[] = [];
+        const lockManager: LockManager = { isLocked: () => false };
+
+        cache.setPublish((message: unknown) => published.push(message));
+        cache.setLockManager(lockManager);
+        assert.equal(local.getLockManager(), lockManager);
+        assert.equal(remote.getLockManager(), lockManager);
+
+        await cache.set('user:1', { id: 1 });
+        assert.deepEqual(await cache.get('user:1'), { id: 1 });
+        await cache.delPattern('user:*');
+        assert.equal(published.length, 1);
+        assert.deepEqual((published[0] as Record<string, unknown>).pattern, 'user:*');
     });
 
     it('createRedisCacheAdapter supports a fake redis client', async () => {

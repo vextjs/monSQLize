@@ -168,8 +168,12 @@ export function ensureRuntimeSlowQueryLogManager(manager: SlowQueryLogManager | 
 /**
  * Get or create a `SagaOrchestrator` instance (idempotent).
  */
-export function getOrCreateSagaOrchestrator(current: SagaOrchestrator | null, logger: LoggerLike | null): SagaOrchestrator {
-    return current ?? new SagaOrchestrator({ logger });
+export function getOrCreateSagaOrchestrator(
+    current: SagaOrchestrator | null,
+    logger: LoggerLike | null,
+    cache?: import('../capabilities/cache').CacheLike | null,
+): SagaOrchestrator {
+    return current ?? new SagaOrchestrator({ logger, cache });
 }
 
 /**

@@ -144,11 +144,17 @@ export interface MonSQLizeOptions {
     /** HMAC-SHA256 secret used to sign and verify cursor tokens returned by findPage(). @since v1.3.0 */
     cursorSecret?: string;
     /** Logging tag configuration applied to slow-query event payloads. @since v1.3.0 */
-    log?: { slowQueryTag?: { event?: string; code?: string; }; };
+    log?: { slowQueryTag?: { event?: string; code?: string; [key: string]: unknown }; formatSlowQuery?: (meta: unknown) => unknown; };
     /** Auto-convert 24-character hex strings to ObjectId in query filters. Pass a field map to selectively enable per field. Default: true for mongodb type (pass `false` to disable). @since v1.3.0 */
-    autoConvertObjectId?: boolean | Record<string, boolean>;
+    autoConvertObjectId?: boolean | {
+        enabled?: boolean;
+        excludeFields?: string[];
+        customFieldPatterns?: string[];
+        maxDepth?: number;
+        logLevel?: 'info' | 'warn' | 'error' | string;
+    } | Record<string, boolean>;
     /** Batch count operations to reduce server round-trips. @since v1.3.0 */
-    countQueue?: { enabled: boolean; concurrency?: number; maxQueueSize?: number; timeout?: number; };
+    countQueue?: boolean | { enabled?: boolean; concurrency?: number; maxQueueSize?: number; timeout?: number; };
     /** Model definitions to auto-register on connect. Accepts a file path (string) or an object with { path, pattern?, recursive? }. @since v1.3.0 */
     models?: string | { path: string; pattern?: string; recursive?: boolean; };
     /** Auto-invalidate cache on write operations. @since v1.3.0 */
@@ -272,7 +278,7 @@ export interface MonSQLizeInstance {
      * Register a Saga definition.
      * @param definition Saga definition object containing steps and compensation logic.
      */
-    defineSaga(definition: SagaDefinition): void;
+    defineSaga(definition: SagaDefinition): Promise<SagaDefinition>;
     /**
      * Execute the named registered Saga.
      * @param name Saga name.
@@ -414,7 +420,7 @@ export default class MonSQLize implements MonSQLizeInstance {
     getSlowQueryLogManager(): SlowQueryLogManager | null;
     getSagaOrchestrator(): SagaOrchestrator;
     saga(): SagaOrchestrator;
-    defineSaga(definition: SagaDefinition): void;
+    defineSaga(definition: SagaDefinition): Promise<SagaDefinition>;
     executeSaga(name: string, data: unknown): Promise<SagaResult>;
     listSagas(): Promise<string[]>;
     getSagaStats(): SagaStats;

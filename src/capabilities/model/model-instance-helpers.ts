@@ -112,6 +112,10 @@ type HydrateContext<TDocument> = {
     saveDocument: (document: TDocument & Record<string, unknown>) => Promise<TDocument & Record<string, unknown>>;
     removeDocument: (document: TDocument & Record<string, unknown>) => Promise<boolean>;
     validateDocument: (document?: unknown) => ValidationResult;
+    populateDocument: (
+        document: TDocument & Record<string, unknown>,
+        paths: PopulatePath[],
+    ) => Promise<(TDocument & Record<string, unknown>) | null>;
 };
 
 export function hydrateModelDocument<TDocument>(
@@ -167,6 +171,14 @@ export function hydrateModelDocument<TDocument>(
             configurable: true,
             enumerable: false,
             value: async () => context.validateDocument(hydrated),
+        },
+        populate: {
+            configurable: true,
+            enumerable: false,
+            value: async (path: PopulatePath | PopulatePath[]) => {
+                const paths = Array.isArray(path) ? path : [path];
+                return context.populateDocument(hydrated, paths);
+            },
         },
         toObject: {
             configurable: true,

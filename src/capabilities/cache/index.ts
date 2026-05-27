@@ -8,7 +8,7 @@
 export { MemoryCache } from './memory-cache';
 export { createRedisCacheAdapter } from './redis-cache-adapter';
 export { DistributedCacheInvalidator } from './distributed-cache-invalidator';
-export { MultiLevelCache } from 'cache-hub';
+import { MultiLevelCache as BaseMultiLevelCache } from 'cache-hub';
 
 export type {
     CacheLike,
@@ -20,7 +20,37 @@ export type {
 
 export type { DistributedCacheInvalidatorOptions } from './distributed-cache-invalidator';
 
-import type { CacheLike } from 'cache-hub';
+import type { CacheLike, LockManager as CacheLockLike } from 'cache-hub';
+
+type PublishMessage = { type: string; pattern: string; ts: number };
+type PublishFn = (msg: PublishMessage) => void;
+type MultiLevelCacheOptions = ConstructorParameters<typeof BaseMultiLevelCache>[0];
+
+export class MultiLevelCache extends BaseMultiLevelCache {
+    private readonly _localCompat: CacheLike;
+    private readonly _remoteCompat: CacheLike | undefined;
+    private readonly _publishRef: { current?: PublishFn };
+
+    constructor(options: MultiLevelCacheOptions) {
+        const publishRef: { current?: PublishFn } = { current: options.publish };
+        super({
+            ...options,
+            publish: (msg: PublishMessage) => publishRef.current?.(msg),
+        });
+        this._localCompat = options.local;
+        this._remoteCompat = options.remote;
+        this._publishRef = publishRef;
+    }
+
+    setPublish(publish: PublishFn): void {
+        this._publishRef.current = publish;
+    }
+
+    setLockManager(lockManager: CacheLockLike): void {
+        this._localCompat.setLockManager?.(lockManager);
+        this._remoteCompat?.setLockManager?.(lockManager);
+    }
+}
 
 /**
  * Adapts a v1-style CacheLike object to the v2 CacheLike interface.

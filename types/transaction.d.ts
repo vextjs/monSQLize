@@ -93,6 +93,15 @@ export declare class Transaction {
     getDuration(): number;
     /** Return a snapshot of the transaction's current state and metadata. */
     getInfo(): TransactionInfo;
+    /** Return v1-compatible per-transaction statistics. */
+    getStats(): {
+        id: string;
+        state: 'pending' | 'active' | 'committed' | 'aborted';
+        duration: number;
+        hasWriteOperation: boolean;
+        operationCount: number;
+        lockedKeysCount: number;
+    };
 }
 
 /** Manages the lifecycle of MongoDB transactions, including retry and session pooling. */
