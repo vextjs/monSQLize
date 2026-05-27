@@ -20,7 +20,7 @@ export { FunctionCache, withCache } from '../capabilities/function-cache';
 export type { CachedFunction, WithCacheOptions } from '../capabilities/function-cache';
 
 // Model / expression / pool / sync and other core capabilities
-export { Model } from '../capabilities/model';
+export { Model, ModelInstance } from '../capabilities/model';
 export type {
     ModelConnection,
     ModelDefinition,

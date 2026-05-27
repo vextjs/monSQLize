@@ -144,7 +144,7 @@ export interface MonSQLizeOptions {
     /** HMAC-SHA256 secret used to sign and verify cursor tokens returned by findPage(). @since v1.3.0 */
     cursorSecret?: string;
     /** Logging tag configuration applied to slow-query event payloads. @since v1.3.0 */
-    log?: { slowQueryTag?: { event?: string; code?: string; [key: string]: unknown }; formatSlowQuery?: (meta: unknown) => unknown; };
+    log?: { slowQueryTag?: { event?: string; code?: string;[key: string]: unknown }; formatSlowQuery?: (meta: unknown) => unknown; };
     /** Auto-convert 24-character hex strings to ObjectId in query filters. Pass a field map to selectively enable per field. Default: true for mongodb type (pass `false` to disable). @since v1.3.0 */
     autoConvertObjectId?: boolean | {
         enabled?: boolean;
@@ -456,6 +456,7 @@ export default class MonSQLize implements MonSQLizeInstance {
     static DistributedCacheInvalidator: typeof DistributedCacheInvalidator;
     static ConnectionPoolManager: typeof import('./pool').ConnectionPoolManager;
     static Model: typeof import('./runtime').Model;
+    static ModelInstance: typeof import('./runtime').ModelInstance;
     static expr: typeof expr;
     static createExpression: typeof createExpression;
     static compilePipelineExpressions: typeof compilePipelineExpressions;

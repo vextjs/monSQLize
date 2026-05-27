@@ -2091,7 +2091,7 @@ describe('public saga and transaction APIs — additional branch coverage', () =
         const client = { startSession: () => sessions.shift() ?? makeSession('fallback-session') };
         const invalidations: string[] = [];
         const cache = { delPattern: async (pattern: string) => { invalidations.push(pattern); } };
-        const lockManager = new MonSQLize.CacheLockManager({ maxDuration: 1, cleanupInterval: 100000 });
+        const lockManager = new MonSQLize.CacheLockManager({ maxDuration: 1000, cleanupInterval: 100000 });
         const manager = new MonSQLize.TransactionManager({
             client,
             cache,

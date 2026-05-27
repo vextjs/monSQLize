@@ -31,4 +31,8 @@ test('compatibility(matrix): ESM advanced named export matrix is complete', asyn
     for (const name of matrix.entryContracts.esmNamed) {
         assert.ok(name in mod, `Missing ESM named export: ${name}`);
     }
+
+    for (const name of matrix.entryContracts.esmDefaultStatics) {
+        assert.ok(name in mod.default, `Missing ESM default static export: ${name}`);
+    }
 });

@@ -19,7 +19,7 @@
 | `npm run test:refactor-guard` | 热点重构三联回归：exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server 默认矩阵（Node / Driver / MongoDB server） |
 | `npm run test:real-env:private` | 私有真实环境检查；默认不进入常规 verify / CI |
-| `npm run release:preflight` | 公开发布前门禁：检查 lockfile 发布态、changelog / 支持矩阵 / 依赖治理文档，并串联 `verify:fast` + `npm pack --dry-run` |
+| `npm run release:preflight` | 公开发布前门禁：检查 lockfile 发布态、changelog / 支持矩阵 / 依赖治理文档，并串联 `verify:fast` + `npm test` + `npm pack --dry-run` |
 
 ## 运行策略
 
@@ -29,7 +29,7 @@
 npm run verify:fast
 ```
 
-说明：当前 `verify:fast` 不再串联迁移专用 runner；默认 runner 已覆盖 smoke、compatibility、unit、integration、runtime compat 与 cache refactor guard。
+说明：当前 `verify:fast` 不再串联迁移专用 runner；它覆盖 lint、type-check、size strict、runtime smoke、compatibility、runtime/model/sync refactor guard 与 cache refactor guard。完整 unit / integration 默认门禁由 `npm test` 覆盖，发布预检会在 `verify:fast` 后继续执行 `npm test`。
 
 适合：
 

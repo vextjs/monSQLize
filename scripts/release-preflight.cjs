@@ -99,6 +99,7 @@ ensureLockfileIsReleaseReady();
 
 console.log(`[release-preflight] validating release assets for v${version}`);
 run('npm', ['run', 'verify:fast']);
+run('npm', ['test']);
 run('npm', ['pack', '--dry-run']);
 
 console.log('[release-preflight] ✅ preflight passed');
