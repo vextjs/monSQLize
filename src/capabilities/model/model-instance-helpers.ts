@@ -11,7 +11,7 @@ import type {
     RelationConfig,
     ValidationResult,
 } from '../../../types/model';
-import type { ModelCollectionLike, ModelRuntimeLike, PopulatePath } from './populate-promise';
+import { PopulatePromise, type ModelCollectionLike, type ModelRuntimeLike, type PopulatePath } from './populate-promise';
 import { normalizePopulateConfig } from './definition-validator';
 import { Model } from './model-registry';
 import { applySort, getByPath, groupBy, pickFields, serializeDocument, toKey, unique } from './model-utils';
@@ -175,9 +175,12 @@ export function hydrateModelDocument<TDocument>(
         populate: {
             configurable: true,
             enumerable: false,
-            value: async (path: PopulatePath | PopulatePath[]) => {
+            value: (path: PopulatePath | PopulatePath[]) => {
                 const paths = Array.isArray(path) ? path : [path];
-                return context.populateDocument(hydrated, paths);
+                return new PopulatePromise(
+                    (resolvedPaths) => context.populateDocument(hydrated, resolvedPaths),
+                    paths,
+                );
             },
         },
         toObject: {

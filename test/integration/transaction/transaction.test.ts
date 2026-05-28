@@ -44,7 +44,7 @@ describe('P4-A transaction integration', () => {
             return tx.getInfo().status;
         });
 
-        assert.equal(committed, 'active');
+        assert.equal(committed, 'started');
         assert.equal((await runtime.collection('accounts').findOne({ _id: 'A' })).balance, 900);
         assert.equal((await runtime.collection('accounts').findOne({ _id: 'B' })).balance, 600);
 

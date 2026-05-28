@@ -8,7 +8,7 @@ export interface SSHConfig {
     /** SSH server hostname or IP. */
     host: string;
     /** SSH server port (default: 22). */
-    port?: number;
+    scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; pool?: string; }): Collection<TSchema>;
     /** SSH login username. */
     username: string;
     /** SSH password (mutually exclusive with privateKey). */
@@ -221,7 +221,7 @@ export interface MonSQLizeInstance {
      * @param name Collection name.
      * @param options Optional database scope options.
      */
-    scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; }): Collection<TSchema>;
+    scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; pool?: string; }): Collection<TSchema>;
     /**
      * Return a model instance scoped to the given database or connection pool.
      * @param name Model name.
@@ -287,7 +287,7 @@ export interface MonSQLizeInstance {
      */
     executeSaga(name: string, data: unknown): Promise<SagaResult>;
     /** List all registered Saga names. */
-    listSagas(): Promise<string[]>;
+    listSagas(): string[];
     /** Return Saga execution statistics (success / failure / compensation counts, etc.). */
     getSagaStats(): SagaStats;
     /** Start ChangeStream data synchronisation. */
@@ -408,7 +408,7 @@ export default class MonSQLize implements MonSQLizeInstance {
             model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>;
         };
     };
-    scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; }): Collection<TSchema>;
+    scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; pool?: string; }): Collection<TSchema>;
     scopedModel<TDocument = Record<string, unknown>>(name: string, options?: { database?: string; pool?: string; }): ModelInstance<TDocument>;
     model<TDocument = Record<string, unknown>>(name: string): ModelInstance<TDocument>;
     startSession(options?: TransactionOptions): Promise<Transaction>;
@@ -422,7 +422,7 @@ export default class MonSQLize implements MonSQLizeInstance {
     saga(): SagaOrchestrator;
     defineSaga(definition: SagaDefinition): Promise<SagaDefinition>;
     executeSaga(name: string, data: unknown): Promise<SagaResult>;
-    listSagas(): Promise<string[]>;
+    listSagas(): string[];
     getSagaStats(): SagaStats;
     startSync(): Promise<void>;
     stopSync(): Promise<void>;

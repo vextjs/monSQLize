@@ -70,15 +70,20 @@ export interface SagaDefinition {
 export interface SagaResult {
     sagaId: string;
     /** @alias sagaId — v1 compatibility */
-    executionId?: string;
+    executionId: string;
     sagaName: string;
     success: boolean;
     /** The return value of the last completed step (success path). */
     result?: unknown;
-    /** Error message string (set when success is false). */
-    error?: string;
-    completedSteps: number;
-    /** @deprecated Use `completedSteps` (count). v1 backward-compat: ordered list of executed step names. */
+    /** v1-compatible Error object (set when success is false). */
+    error?: Error;
+    /** v2 compatibility alias for message-only consumers. */
+    errorMessage?: string;
+    /** Ordered list of completed step names. */
+    completedSteps: string[];
+    /** v2 compatibility alias for count-only consumers. */
+    completedStepCount?: number;
+    /** @deprecated Alias of `completedSteps` retained for v2 callers. */
     completedStepNames?: string[];
     /** Names of steps whose compensation handlers were invoked. */
     compensatedSteps?: string[];
@@ -130,7 +135,7 @@ export declare class SagaOrchestrator {
     /** Return the definition for a registered Saga by name. */
     getSaga(name: string): SagaDefinition | undefined;
     /** Return the names of all registered Sagas. */
-    listSagas(): Promise<string[]>;
+    listSagas(): string[];
     /** Return aggregate execution statistics. */
     getStats(): SagaStats;
 }

@@ -162,7 +162,7 @@ export class ConnectionPoolManager {
         try {
             const client = await this.clientFactory(config);
             if (this.pools.has(config.name)) {
-                await client.close().catch(() => {});
+                await client.close().catch(() => { });
                 throw new Error(`Pool '${config.name}' already exists`);
             }
             this.pools.set(config.name, {
@@ -233,7 +233,7 @@ export class ConnectionPoolManager {
      * @since v1.0.8
      */
     selectPool(
-        operation: 'read' | 'write',
+        operation: string,
         options: { pool?: string; tags?: string[]; databaseName?: string; poolPreference?: { role?: string; tags?: string[] }; } = {},
     ): {
         name: string;

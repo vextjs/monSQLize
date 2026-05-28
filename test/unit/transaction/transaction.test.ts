@@ -58,7 +58,7 @@ describe('P4-A transaction', () => {
         await transaction.recordInvalidation('users:*');
         assert.equal(cacheLockManager.isLocked('users:1'), true);
         assert.equal(cache.get('users:1'), undefined);
-        assert.equal(transaction.getInfo().status, 'active');
+        assert.equal(transaction.getInfo().status, 'started');
         assert.deepEqual({
             state: transaction.getStats().state,
             hasWriteOperation: transaction.getStats().hasWriteOperation,
@@ -90,7 +90,7 @@ describe('P4-A transaction', () => {
 
         const session = await manager.startSession();
         await session.start();
-        assert.equal(session.getInfo().status, 'active');
+        assert.equal(session.getInfo().status, 'started');
         await session.abort();
         await session.end();
 

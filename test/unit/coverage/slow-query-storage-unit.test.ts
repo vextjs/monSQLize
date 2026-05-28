@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 
 const { SlowQueryLogManager } = require('../../../dist/cjs/index.cjs');
 
-// SlowQueryLogMemoryStorage is not exported directly; test through SlowQueryLogManager
-// which uses memory storage internally when storage.type === 'memory'
+// 当前根导出已经公开 SlowQueryLogMemoryStorage；这里仍通过 SlowQueryLogManager
+// 覆盖 manager 在 storage.type === 'memory' 时走内存存储的真实装配路径。
 
 const NO_BATCH = { enabled: false };
 

@@ -155,7 +155,7 @@ export type ModelDocument<TDocument = Record<string, unknown>> = TDocument & Rec
     save(): Promise<ModelDocument<TDocument>>;
     remove(): Promise<boolean>;
     validate(): Promise<ValidationResult>;
-    populate(path: string | PopulateConfig | Array<string | PopulateConfig>): Promise<ModelDocument<TDocument> | null>;
+    populate(path: string | PopulateConfig | Array<string | PopulateConfig>): PopulateProxy<ModelDocument<TDocument> | null>;
     toObject(): TDocument & Record<string, unknown>;
     toJSON(): TDocument & Record<string, unknown>;
 };

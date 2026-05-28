@@ -97,9 +97,17 @@ describe('model — v1 compatibility repair coverage', () => {
         const doc = await users.findOne({ name: 'ada' });
         const validation = await doc.validate();
         assert.equal(validation.valid, true);
-        const populatedDoc = await doc.populate('posts');
+        const populateProxy = doc.populate('posts');
+        assert.equal(typeof populateProxy.populate, 'function');
+        assert.equal(typeof populateProxy.exec, 'function');
+
+        const populatedDoc = await populateProxy;
         assert.equal(populatedDoc.posts.length, 1);
         assert.equal(populatedDoc.posts[0].title, 'notes');
+
+        const chainedDoc = await doc.populate('posts').populate('posts').exec();
+        assert.equal(chainedDoc.posts.length, 1);
+        assert.equal(chainedDoc.posts[0].title, 'notes');
 
         assert.throws(() => users.find({}).populate([123 as any]), /populate param must be a string, array, or object/);
     });

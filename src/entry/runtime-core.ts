@@ -670,7 +670,7 @@ export class MonSQLizeRuntime {
 
     defineSaga(definition: SagaDefinition): Promise<SagaDefinition> { return this.initializeSagaOrchestrator().defineSaga(definition); }
     async executeSaga(name: string, data: unknown): Promise<SagaResult> { return this.initializeSagaOrchestrator().execute(name, data); }
-    async listSagas(): Promise<string[]> { return this.initializeSagaOrchestrator().listSagas(); }
+    listSagas(): string[] { return this.initializeSagaOrchestrator().listSagas(); }
     getSagaStats(): SagaStats { return this.initializeSagaOrchestrator().getStats(); }
     async startSync(): Promise<void> {
         this.ensureConnected();

@@ -34,7 +34,7 @@ export interface TransactionOptions {
 /** Snapshot of a transaction's current state. */
 export interface TransactionInfo {
     id: string;
-    status: 'pending' | 'active' | 'committed' | 'aborted';
+    status: 'pending' | 'started' | 'committed' | 'aborted';
     duration: number;
     sessionId: string;
 }

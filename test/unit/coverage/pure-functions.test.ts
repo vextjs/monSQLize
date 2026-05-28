@@ -2053,7 +2053,7 @@ describe('public saga and transaction APIs — additional branch coverage', () =
         try {
             const timeout = await saga.execute('timeout-fail', {});
             assert.equal(timeout.success, false);
-            assert.match(timeout.error, /timed out/);
+            assert.match(timeout.error?.message ?? '', /timed out/);
         } finally {
             clearTimeout(keepAlive);
         }

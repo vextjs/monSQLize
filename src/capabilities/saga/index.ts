@@ -173,14 +173,16 @@ export class SagaOrchestrator {
                 executionId: sagaId,
                 sagaName: name,
                 success: true,
-                completedSteps: completedSteps.length,
+                completedSteps: stepNames,
+                completedStepCount: stepNames.length,
                 completedStepNames: stepNames,
                 compensatedSteps: [],
                 result: completedSteps[completedSteps.length - 1]?.result,
                 duration: Date.now() - startedAt,
             } as SagaResult;
         } catch (cause) {
-            const errorMessage = cause instanceof Error ? cause.message : String(cause);
+            const publicError = cause instanceof Error ? cause : new Error(String(cause));
+            const completedStepNames = completedSteps.map(({ step }) => step.name);
             this._stats.failedExecutions += 1;
 
             const compensationResults: Array<{
@@ -225,13 +227,15 @@ export class SagaOrchestrator {
                 executionId: sagaId,
                 sagaName: name,
                 success: false,
-                completedSteps: completedSteps.length,
-                completedStepNames: completedSteps.map(({ step }) => step.name),
+                completedSteps: completedStepNames,
+                completedStepCount: completedStepNames.length,
+                completedStepNames,
                 compensatedSteps: compensationResults
                     .filter(r => r.reason !== 'no-compensate-defined')
                     .map(r => r.stepName),
                 duration: Date.now() - startedAt,
-                error: errorMessage,
+                error: publicError,
+                errorMessage: publicError.message,
                 errorCause: cause instanceof Error ? cause : undefined,
                 compensation: {
                     success: compensationSuccess,
@@ -253,7 +257,7 @@ export class SagaOrchestrator {
      * Get all registered Saga names.
      * @since v1.1.0
      */
-    async listSagas(): Promise<string[]> {
+    listSagas(): string[] {
         return [...this.sagas.keys()];
     }
 

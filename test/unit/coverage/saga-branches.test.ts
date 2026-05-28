@@ -20,7 +20,8 @@ describe('SagaOrchestrator — branch coverage', () => {
         });
         const result = await orch.execute('simple', { data: 1 });
         assert.equal(result.success, true);
-        assert.equal(result.completedSteps, 2);
+        assert.deepEqual(result.completedSteps, ['s1', 's2']);
+        assert.equal(result.completedStepCount, 2);
     });
 
     it('step returning undefined does not set context value (undefined branch)', async () => {
@@ -58,7 +59,7 @@ describe('SagaOrchestrator — branch coverage', () => {
     });
 
     it('compensation that throws is caught and recorded as failed', async () => {
-        const orch = new SagaOrchestrator({ logger: { error: () => {}, warn: () => {}, info: () => {}, debug: () => {} } });
+        const orch = new SagaOrchestrator({ logger: { error: () => { }, warn: () => { }, info: () => { }, debug: () => { } } });
         orch.define({
             name: 'comp-throw',
             steps: [
@@ -117,17 +118,28 @@ describe('SagaOrchestrator — branch coverage', () => {
 
     it('listSagas returns registered saga names', async () => {
         const orch = new SagaOrchestrator();
-        orch.define({ name: 'saga1', steps: [{ name: 's1', execute: async () => {} }] });
-        orch.define({ name: 'saga2', steps: [{ name: 's1', execute: async () => {} }] });
+        orch.define({ name: 'saga1', steps: [{ name: 's1', execute: async () => { } }] });
+        orch.define({ name: 'saga2', steps: [{ name: 's1', execute: async () => { } }] });
         const list = await orch.listSagas();
         assert.ok(list.includes('saga1'));
         assert.ok(list.includes('saga2'));
     });
 
-    it('defineSaga (async compat) returns name object', async () => {
+    it('defineSaga (async compat) returns full saga definition', async () => {
         const orch = new SagaOrchestrator();
-        const result = await orch.defineSaga({ name: 'ds1', steps: [{ name: 's1', execute: async () => {} }] });
+        const execute = async () => { };
+        const result = await orch.defineSaga({
+            name: 'ds1',
+            timeout: 123,
+            logging: true,
+            steps: [{ name: 's1', execute }],
+        });
         assert.equal(result.name, 'ds1');
+        assert.equal(result.timeout, 123);
+        assert.equal(result.logging, true);
+        assert.equal(result.steps.length, 1);
+        assert.equal(result.steps[0].name, 's1');
+        assert.equal(result.steps[0].execute, execute);
     });
 
     it('compensation success is false when compensation step fails', async () => {
@@ -158,7 +170,8 @@ describe('SagaOrchestrator — branch coverage', () => {
         });
         const result = await orch.execute('non-error', {});
         assert.equal(result.success, false);
-        assert.equal(result.error, 'string error');
+        assert.equal(result.error?.message, 'string error');
+        assert.equal(result.errorMessage, 'string error');
     });
 
     it('compensatedSteps only includes steps with compensate function', async () => {
@@ -170,7 +183,7 @@ describe('SagaOrchestrator — branch coverage', () => {
                 {
                     name: 's2',
                     execute: async () => 'ok',
-                    compensate: async () => {},
+                    compensate: async () => { },
                 },
                 { name: 's3', execute: async () => { throw new Error('fail'); } },
             ],

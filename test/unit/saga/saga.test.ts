@@ -40,7 +40,8 @@ describe('P4-C saga', () => {
 
         const result = await saga.execute('create-order', { orderId: 'o_1' });
         assert.equal(result.success, false);
-        assert.equal(result.completedSteps, 1);
+        assert.deepEqual(result.completedSteps, ['reserve-inventory']);
+        assert.equal(result.completedStepCount, 1);
         assert.deepEqual(result.compensatedSteps, ['reserve-inventory']);
         assert.deepEqual(calls, ['reserve', 'charge', 'compensate:true']);
         assert.deepEqual(await saga.listSagas(), ['create-order']);

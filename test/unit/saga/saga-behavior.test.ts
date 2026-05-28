@@ -29,7 +29,8 @@ describe('SagaOrchestrator behavior', () => {
             assert.equal(result.success, true);
             assert.equal(result.result, 'result-c');
             assert.deepEqual(order, ['a', 'b', 'c']);
-            assert.equal(result.completedSteps, 3);
+            assert.deepEqual(result.completedSteps, ['step-a', 'step-b', 'step-c']);
+            assert.equal(result.completedStepCount, 3);
         });
 
         it('step results are stored in context and accessible by later steps', async () => {
@@ -188,7 +189,7 @@ describe('SagaOrchestrator behavior', () => {
 
             const result = await saga.execute('always-fail', {});
             assert.equal(result.success, false);
-            assert.ok(/permanent/.test(result.error ?? ''));
+            assert.match(result.error?.message ?? '', /permanent/);
         });
     });
 
@@ -213,7 +214,7 @@ describe('SagaOrchestrator behavior', () => {
 
             const result = await saga.execute('timeout-test', {});
             assert.equal(result.success, false);
-            assert.ok(/timed out/.test(result.error ?? ''));
+            assert.match(result.error?.message ?? '', /timed out/);
         });
     });
 

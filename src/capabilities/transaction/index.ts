@@ -24,6 +24,10 @@ export type {
     TransactionStats,
 } from '../../../types/transaction';
 
+function toPublicTransactionStatus(state: Transaction['state']): TransactionInfo['status'] {
+    return state === 'active' ? 'started' : state;
+}
+
 interface CacheLockRecord {
     ownerId: string;
     expiresAt: number;
@@ -259,7 +263,7 @@ export class Transaction {
     getInfo(): TransactionInfo {
         return {
             id: this.id,
-            status: this.state,
+            status: toPublicTransactionStatus(this.state),
             duration: this.getDuration(),
             sessionId: stringifySessionId(this.session.id),
         };
