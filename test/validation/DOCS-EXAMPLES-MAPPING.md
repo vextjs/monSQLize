@@ -1,7 +1,7 @@
 # docs/examples 承接映射
 
 > **目标**: 说明 `monSQLize-v1` 中旧 `docs/examples/test/validation` 资产，在当前 TypeScript 重写仓库中的承接位置。
-> **状态**: post-P4-D 收尾阶段；当前 `docs/**` / `examples/**` 已从”最小承接”升级为”正式入口 + 43 个可执行 TS 示例”。
+> **状态**: post-P4-D 收尾阶段；当前 `docs/**` / `examples/**` 已从”最小承接”升级为”正式入口 + 44 个可执行 TS 示例”。
 
 ## 1. 映射原则
 
@@ -21,7 +21,7 @@
 | 旧高级能力综述 / 目录页 | `docs/capability-index.md` + `docs/examples.md` | ✅ 已承接 | 当前既有能力索引，也有文档到示例的 Gallery 映射 |
 | `test/compatibility/README.md` | `test/compatibility/README.md` | ✅ 已承接 | 当前改为“声明式矩阵 + 内存服务端矩阵”模式 |
 | `test/compatibility/node-versions.test.js` / `driver-versions.test.js` / `server-versions.test.js` | `test/compatibility/matrix.json` + `test/compatibility/matrix.test.js` + `npm run test:server-matrix` | ✅ 已承接 | 当前默认矩阵已覆盖 Node 20/22、Driver 6/7、MongoDB 6/7 |
-| `test/performance/function-cache-performance.test.js` | `test/performance/baselines/function-cache.benchmark.js` | ✅ 已承接 | 当前聚焦 `withCache()` 热路径与并发去重回归守卫 |
+| `test/performance/function-cache-performance.test.js` | `test/performance/baselines/function-cache.benchmark.js` | ✅ 已承接 | 当前聚焦 `withCache()` 热路径与并发去重回归守卫；v1 的 `test:performance` 另指向 `transaction-benchmark.js`，两者职责不同，不做原始数值横比 |
 | `validation/VERIFICATION-PROGRESS.md` | `test/validation/VERIFICATION-PROGRESS.md` | ✅ 已承接 | 当前明确区分“已验证”与“待补项” |
 | `examples/basic-*` / 最小连接示例 | `examples/quick-start/basic-connect.ts` | ✅ 已承接 | 当前正式示例统一采用 TypeScript，并纳入编译后执行验证 |
 | 旧 CRUD / Query examples | `examples/docs/*.ts` + `examples/README.md` | ✅ 已承接 | 当前 query / write / pagination / chaining / explain / aggregate 等核心 API 已全部有官方 TS 示例 |

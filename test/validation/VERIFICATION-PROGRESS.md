@@ -1,8 +1,8 @@
 ﻿# monSQLize TypeScript 重写验证进度
 
 > **项目**: monSQLize
-> **阶段**: TypeScript 全量重写完成后的持续治理阶段（历史 compat 断言全通过，但当前 v1 parity 台账已记录 9 条差异）
-> **更新日期**: 2026-05-24
+> **阶段**: TypeScript 全量重写完成后的持续治理阶段（历史 compat 主链已收口，当前进入 `withCache()` 性能基线与 v1 对比口径收口）
+> **更新日期**: 2026-05-28
 > **当前原则**: 只把“本仓库当前已恢复且可执行”的资产标为 ✅；跨版本 / 实机矩阵未补齐前保持 ⚠️ 待验证。
 
 ---
@@ -27,8 +27,8 @@
 | V-01 | 根导出基础矩阵 | `npm run test:compatibility`（含 `exports.test.js`） | ✅ | 2026-05-10 |
 | V-02 | P4-A ~ P4-C 高级能力导出矩阵 | `npm run test:compatibility`（含 `matrix.test.js`） | ✅ | 2026-05-10 |
 | V-03 | Node / Driver 当前声明式矩阵 | `test/compatibility/matrix.json` + `package.json` 对齐 | ✅ | 2026-05-11 |
-| V-04 | `withCache()` 热路径性能基线 | `npm run test:performance` | ✅ | 2026-05-10 |
-| V-05 | `withCache()` 并发去重回归守卫 | `npm run test:performance` | ✅ | 2026-05-10 |
+| V-04 | `withCache()` 热路径性能基线 | `npm run test:performance` | ✅ | 2026-05-28 |
+| V-05 | `withCache()` 并发去重回归守卫 | `npm run test:performance` | ✅ | 2026-05-28 |
 | V-06 | docs/examples 承接映射 | `test/validation/DOCS-EXAMPLES-MAPPING.md` | ✅ | 2026-05-10 |
 | V-07 | README 当前事实与验证资产入口 | `README.md` | ✅ | 2026-05-10 |
 | V-08 | TS 文档入口 | `docs/README.md`、`docs/getting-started.md`、`docs/cache-and-function-cache.md`、`docs/capability-index.md`、`docs/examples.md` | ✅ | 2026-05-17 |
@@ -40,7 +40,7 @@
 | V-14 | v1 ↔ TS 完整功能兼容性对照表（历史批次基线）| `.devcodex/requirements/TypeScript全量重写兼容现有/FEATURE-PARITY.md`（历史批次记录 237 项 API 覆盖）| ✅ | 2026-05-17 |
 | V-15 | v1 compat 全量断言套件（历史批次基线） | `npm run test` → 历史批次记录 2543/2543 v1 compat assertions pass（含 objectid-conversion 61 项） | ✅ | 2026-05-17 |
 | V-16 | TS 文档示例套件（44 个）| `npm run test:examples` → 所有示例编译并执行通过（新增 transaction-rollback / lock-timeout / pool-fallback / sync-target-failure 失败恢复路径） | ✅ | 2026-05-18 |
-| V-17 | 当前 v1 parity 差异台账 | `test/regression/v1-parity-issues.md`（当前记录 9 条差异：5 条合理演进、4 条待修复） | ✅ | 2026-05-24 |
+| V-17 | 当前 v1 parity 差异台账 | `test/regression/v1-parity-issues.md`（当前保留 9 条历史修复记录 + 2 条撤销误记，用于追溯，不再表示存在主链待修复差异） | ✅ | 2026-05-28 |
 | V-18 | 当前 coverage 补测主链 | `npm run test:coverage` → 916 passed / 0 failed，coverage 为 lines/statements 91.53%、functions 90.61%、branches 84.13% | ⚠️ | 2026-05-24 |
 
 ---
@@ -51,7 +51,7 @@
 |------|--------|------|---------|
 | P-01 | 历史 4.x / 5.x 差异回归 | 当前默认矩阵已覆盖 Node 20/22、Driver 6/7、MongoDB 6/7；更早历史版本仍仅保留 v1 参考资料 | ⚠️ 待验证 |
 | P-02 | 文档主题继续细化 | 当前正式入口已齐，但仍可继续把 API 主题文档从“索引 + 示例”深化为更细粒度专题 | ⚠️ 进行中 |
-| P-03 | 当前 v1 parity 中优先级差异 | `findOneById/findByIds` cache 选项缺失、`findOneAndUpdate/findOneAndReplace` 默认 `returnDocument` 与 v1 不一致 | ⚠️ 待确认是否修复 |
+| P-03 | `withCache()` 性能收口口径 | 当前行为兼容已补齐；仍需持续保持“v1 事务 benchmark”与“v2 `withCache()` baseline”不做原始数值横比的文档口径一致性 | ⚠️ 进行中 |
 | P-04 | coverage 95% 门禁 | 当前测试全绿，但四项 coverage 仍未全部达到 95% | ⚠️ 进行中 |
 
 ---
@@ -62,7 +62,7 @@
 - 当前仓库已不再只有“README + mapping + v1 参考”三层承接；正式 TS 文档入口与官方示例入口已经落盘并完成本地验证。
 - 当前仓库已经不再需要依赖“口头说明 P4-D 还没做”；相应资产已正式落盘。
 - 当前 Node 20.x、Node 22.x、MongoDB Driver 6.x / 7.x 与 MongoDB Server 6.x / 7.x 的默认内存矩阵都已入账；`npm run test:server-matrix` 已可作为日常可复用验证入口。
-- 历史 `FEATURE-PARITY.md` 与 2543/2543 compat 断言仍可作为“上一轮迁移批次已收口”的基线证据，但它们不再等同于“当前仓库 0 差异”。
-- 截至 `2026-05-24`，当前仓库已额外记录 9 条 v1 parity 差异：5 条为已确认合理演进，4 条为已确认待修复；因此不再使用“100% 兼容率、0 行为差异”描述当前状态。
+- 历史 `FEATURE-PARITY.md` 与 2543/2543 compat 断言仍可作为“上一轮迁移批次已收口”的基线证据，但它们不再等同于“当前仓库所有验证资产都无需持续治理”。
+- 截至 `2026-05-28`，当前 v1 parity 台账主要承担历史修复追溯用途：此前记录的主链差异已完成修复或撤销误记，当前未发现新的 v1 运行时/类型兼容阻断；本轮继续收口的是 `withCache()` 性能验证口径，而不是重新打开新的 API parity 修复批次。
 - 当前 coverage 补测已把主链提升到 916 passed / 0 failed，但 coverage 95% 门禁尚未完成，仓库仍处于持续治理中。
 
