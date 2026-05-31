@@ -107,8 +107,12 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
                     const retryInfo = {
                         batchIndex,
                         attempt: attempts,
+                        // v1 alias — v1 runtime emitted `attempts` (plural); kept for backward consumers
+                        attempts,
                         maxAttempts: retryAttempts,
                         delay: retryDelay,
+                        // v1 alias — v1 retry records included `success: false` on each retry entry
+                        success: false,
                         error: cause instanceof Error ? cause : new Error(String(cause)),
                     };
                     result.retries.push(retryInfo);
@@ -231,8 +235,12 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
                     const retryInfo = {
                         batchIndex,
                         attempt: attempts,
+                        // v1 alias — v1 runtime emitted `attempts` (plural)
+                        attempts,
                         maxAttempts: retryAttempts,
                         delay: retryDelay,
+                        // v1 alias — v1 retry records included `success: false`
+                        success: false,
                         error: cause instanceof Error ? cause : new Error(String(cause)),
                     };
                     result.retries.push(retryInfo);
@@ -334,8 +342,12 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
                     const retryInfo = {
                         batchIndex,
                         attempt: attempts,
+                        // v1 alias — v1 runtime emitted `attempts` (plural)
+                        attempts,
                         maxAttempts: retryAttempts,
                         delay: retryDelay,
+                        // v1 alias — v1 retry records included `success: false`
+                        success: false,
                         error: cause instanceof Error ? cause : new Error(String(cause)),
                     };
                     result.retries.push(retryInfo);

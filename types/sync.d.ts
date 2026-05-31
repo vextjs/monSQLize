@@ -55,7 +55,12 @@ export interface SyncConfig {
     collections?: string[];
     resumeToken?: ResumeTokenConfig;
     filter?: (event: SyncChangeEvent) => boolean;
-    transform?: (document: Record<string, unknown> | undefined, event: SyncChangeEvent) => Record<string, unknown> | undefined;
+    /**
+     * Transform a change-stream document before forwarding to sync targets.
+     * v1 form took a single argument (`doc => ...`); v2 added a second `event` argument.
+     * Signature is permissive (`any`) to accept both forms — v1 was never typed.
+     */
+    transform?: (document: any, event?: SyncChangeEvent) => any;
 }
 
 export interface SyncStats {

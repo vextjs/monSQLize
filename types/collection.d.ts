@@ -200,6 +200,8 @@ export interface FindPageOptions<TSchema = unknown> {
     totals?: TotalsOptions;
     stream?: boolean;
     explain?: boolean | string;
+    /** Query comment for server-side profiling. v1 compat — top-level shortcut for `options.comment`. */
+    comment?: string;
     options?: FindOptions;
     /** Cursor-walking bookmark jump configuration */
     jump?: JumpOptions;
@@ -271,8 +273,12 @@ export interface WriteConcern {
 export interface BatchRetryRecord {
     batchIndex: number;
     attempt: number;
+    /** @alias attempt — v1 compat: v1 runtime emitted `attempts` (plural). */
+    attempts?: number;
     maxAttempts: number;
     delay: number;
+    /** @since v1 — always `false` on retry records (the attempt that triggered the retry failed). */
+    success?: boolean;
     error?: Error;
 }
 

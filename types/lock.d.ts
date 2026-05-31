@@ -38,8 +38,8 @@ export declare class Lock {
     readonly key: string;
     readonly lockId: string;
     readonly ttl: number;
-    /** `true` after the lock has been released. */
-    released: boolean;
+    /** `true` after the lock has been released. v1 compat — exposed as readonly to prevent external mutation. */
+    readonly released: boolean;
     /** Release the lock; returns `true` on success. */
     release(): Promise<boolean>;
     /** Extend the lock's TTL; returns `true` on success. */

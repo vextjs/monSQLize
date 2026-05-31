@@ -33,6 +33,7 @@ expectType<SagaStats>(orchestrator.getStats());
 
 declare const sagaResult: SagaResult;
 expectType<string[]>(sagaResult.completedSteps);
+expectType<string[]>(sagaResult.compensatedSteps);
 expectType<number | undefined>(sagaResult.completedStepCount);
 expectType<Error | undefined>(sagaResult.error);
 

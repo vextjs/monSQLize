@@ -16,8 +16,8 @@ export interface SagaContext {
     readonly data: unknown;
     /** Store a value in the shared step context. */
     set(key: string, value: unknown): void;
-    /** Retrieve a previously stored value. */
-    get<T = unknown>(key: string): T | undefined;
+    /** Retrieve a previously stored value. v1 compat — default generic is `any` to match v1 callers that did not annotate. */
+    get<T = any>(key: string): T | undefined;
     /** Return `true` if a value exists for `key`. */
     has(key: string): boolean;
     /** Return all stored key-value pairs. */
@@ -48,8 +48,8 @@ export interface SagaContext {
 export interface SagaStep {
     name: string;
     execute: (context: SagaContext) => Promise<unknown>;
-    /** Compensation handler — receives the context and the step's own execute result. */
-    compensate?: (context: SagaContext, result?: unknown) => Promise<void>;
+    /** Compensation handler — receives the context and the step's own execute result. v1 compat — required so callers may invoke `step.compensate(ctx)` without optional-chaining. */
+    compensate: (context: SagaContext, result?: unknown) => Promise<void>;
     /** Per-step timeout in milliseconds (overrides Saga-level timeout). */
     timeout?: number;
     /** Number of retry attempts on step failure. */
@@ -68,10 +68,12 @@ export interface SagaDefinition {
 
 /** Result returned after a Saga execution (success or failure). */
 export interface SagaResult {
-    sagaId: string;
-    /** @alias sagaId — v1 compatibility */
+    /** v2 field — present when emitted by v2 runtime; v1 fixtures may omit. */
+    sagaId?: string;
+    /** Primary v1 field — always present in both v1 and v2 runtime output. */
     executionId: string;
-    sagaName: string;
+    /** v2 field — present when emitted by v2 runtime; v1 fixtures may omit. */
+    sagaName?: string;
     success: boolean;
     /** The return value of the last completed step (success path). */
     result?: unknown;
@@ -85,8 +87,8 @@ export interface SagaResult {
     completedStepCount?: number;
     /** @deprecated Alias of `completedSteps` retained for v2 callers. */
     completedStepNames?: string[];
-    /** Names of steps whose compensation handlers were invoked. */
-    compensatedSteps?: string[];
+    /** Names of steps whose compensation handlers were invoked. v1 compat — runtime always populates an array (empty on success). */
+    compensatedSteps: string[];
     /** Total execution duration in milliseconds. */
     duration: number;
     /** Original Error object (failure path only). v1 compat — `error` field is a string in v2. */
@@ -107,19 +109,19 @@ export interface SagaOrchestratorOptions {
 /** Aggregate statistics for a `SagaOrchestrator` instance. */
 export interface SagaStats {
     totalExecutions: number;
-    /** @since v1.0.8 — primary v1 field name */
-    successfulExecutions: number;
-    /** @since v1.0.8 — primary v1 field name */
-    failedExecutions: number;
-    /** @since v1.0.8 — primary v1 field name */
-    compensatedExecutions: number;
+    /** @since v1.0.8 — v2 extension; v1 fixtures may omit. */
+    successfulExecutions?: number;
+    /** @since v1.0.8 — v2 extension; v1 fixtures may omit. */
+    failedExecutions?: number;
+    /** @since v1.0.8 — v2 extension; v1 fixtures may omit. */
+    compensatedExecutions?: number;
     successRate?: string;
     storageMode?: string;
-    /** @alias successfulExecutions */
+    /** Primary v1 field — always present in both v1 and v2 runtime output. */
     successCount: number;
-    /** @alias failedExecutions */
+    /** Primary v1 field — always present in both v1 and v2 runtime output. */
     failureCount: number;
-    /** @alias compensatedExecutions */
+    /** Primary v1 field — always present in both v1 and v2 runtime output. */
     compensationCount: number;
 }
 

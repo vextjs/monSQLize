@@ -9,6 +9,8 @@ export interface MongoSession {
     commitTransaction(): Promise<void>;
     abortTransaction(): Promise<void>;
     endSession(): Promise<void>;
+    /** v1 compat — v1 callers read `session.transaction?.state`; populated by the underlying driver. */
+    transaction?: { state?: string;[key: string]: unknown };
 }
 
 /** Options forwarded to the MongoDB driver when starting a transaction session. */
