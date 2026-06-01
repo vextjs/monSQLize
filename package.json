@@ -46,7 +46,8 @@
   },
   "homepage": "https://vextjs.github.io/monSQLize/",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "engines": {
     "node": ">=18.0.0"

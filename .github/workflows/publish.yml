@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish. Must match package.json."
+        required: true
+        default: "2.0.0"
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -29,10 +35,14 @@ jobs:
 
       - name: Verify tag matches package.json version
         run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_VERSION="${{ inputs.version }}"
+          else
+            TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
           PKG_VERSION=$(node -p "require('./package.json').version")
           if [ "${TAG_VERSION}" != "${PKG_VERSION}" ]; then
-            echo "Tag v${TAG_VERSION} does not match package.json version ${PKG_VERSION}"
+            echo "Requested version ${TAG_VERSION} does not match package.json version ${PKG_VERSION}"
             exit 1
           fi
 
@@ -44,6 +54,16 @@ jobs:
 
       - name: Preview package contents
         run: npm pack --dry-run
+
+      - name: Verify npm publish authentication
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is not configured or is not available to this repository. Grant the same npm publish secret used by schema-dsl to vextjs/monSQLize, or configure npm trusted publishing and adjust this workflow."
+            exit 2
+          fi
+          npm whoami --registry=https://registry.npmjs.org/
 
       - name: Publish to npm
         run: npm publish --provenance --access public
