@@ -18,7 +18,7 @@ npm install monsqlize
 
 > 当前仓库仍处于 TypeScript 全量重写后的持续治理阶段；当前工作区已完成发布出口与测试入口治理：运行时、ESM 与类型发布入口统一为 `dist/cjs/index.cjs`、`dist/esm/index.mjs`、`dist/types/index.d.ts`，包根不再保留 `lib/index.js`、`index.mjs`、`index.d.ts` 发布产物；`test/**` 可执行测试源码已全量 TS 化并通过语言门禁，验证资产覆盖 `test/compatibility/matrix.json`、`test/compatibility/matrix.test.ts`、`test/performance/baselines/function-cache.benchmark.ts`、`test/validation/VERIFICATION-PROGRESS.md`、`test/validation/DOCS-EXAMPLES-MAPPING.md`。当前官方文档与示例已统一采用 TypeScript，并纳入持续验证链路：`npm run test:examples` 现覆盖 **43 个示例**；`npm run test:server-matrix` 已实跑 **Node 20 / 22 × Driver 6 / 7 × MongoDB 6 / 7（内存版单机 + 副本集）** 全矩阵。
 
-[快速开始](#-快速开始) · [TS 文档入口](./docs/README.md) · [支持矩阵](./docs/support-matrix.md) · [验证入口](./docs/verification-entrypoints.md) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
+[快速开始](#-快速开始) · [TS 文档入口](https://github.com/vextjs/monSQLize/blob/main/docs/README.md) · [支持矩阵](https://github.com/vextjs/monSQLize/blob/main/docs/support-matrix.md) · [验证入口](https://github.com/vextjs/monSQLize/blob/main/docs/verification-entrypoints.md) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
 
 ---
 
@@ -33,7 +33,7 @@ npm install monsqlize
 - [📊 性能测试报告](#-性能测试报告)
 - [🎨 能力概览](#-能力概览)
 - [🆚 与 MongoDB 原生驱动对比](#-与-mongodb-原生驱动对比)
-- [📚 TS 文档入口](./docs/README.md)
+- [📚 TS 文档入口](https://github.com/vextjs/monSQLize/blob/main/docs/README.md)
 - [🧭 文档现状](#文档现状)
 - [🌍 兼容性](#-兼容性)
 - [🗺️ 产品路线图](#产品路线图)
@@ -223,7 +223,7 @@ const users = await collection.find({
 
 ## 文档现状
 
-- 当前仓库旧的 `docs/`、`examples/` 与 v1 时代的历史 `test/` 资产已从现行长期资产中移除；当前新增的 `docs/**`、`examples/**` 是面向 TS 版本的**新入口**，不是旧目录的原样回滚。
+- 当前仓库已用 TypeScript 版 `docs/**`、`examples/**` 与 `test/**` 承接正式文档、示例和验证入口；v1 时代的历史资产仅作为迁移参考，不再作为当前发布真相源。
 - 这里保留产品定位、适用场景、快速开始和核心能力概览，帮助你先判断 monSQLize 是否适合当前业务。
 - 当前正式文档入口位于：`docs/README.md`、`docs/getting-started.md`、`docs/cache-and-function-cache.md`、`docs/capability-index.md`。
 - 当前官方示例入口位于：`examples/README.md`、`docs/examples.md`、`examples/quick-start/basic-connect.ts`、`examples/cache/with-cache.ts` 与 `examples/docs/*.ts`。
@@ -505,7 +505,7 @@ const user = await users.findOne({ email: 'test@example.com' });
 
 **52个测试（100% 通过）**，为任意异步函数添加缓存能力，性能提升**50000x**！
 
-> 若你正在从旧的 monSQLize 缓存包装接口迁移到当前版本，请参考 [`docs/cache-hub-migration.md`](./docs/cache-hub-migration.md)。
+> 若你正在从旧的 monSQLize 缓存包装接口迁移到当前版本，请参考 [`docs/cache-hub-migration.md`](https://github.com/vextjs/monSQLize/blob/main/docs/cache-hub-migration.md)。
 
 #### 🆕 装饰器模式
 
@@ -1400,7 +1400,7 @@ import type { Collection } from 'monsqlize';
 
 | 特性 | MongoDB 原生 | monSQLize |
 |------|---------------|------------|
-| **API 兼容性** | ✅ 原生 | 🎯 兼容目标以需求文档与最终公开导出矩阵为准；当前重写阶段尚未完成该目标 |
+| **API 兼容性** | ✅ 原生 | ✅ 当前 v2.0.0 发布候选已通过 v1 平滑升级兼容矩阵与七个工作区目标消费者验证 |
 | **智能缓存** | ❌ 需要自己实现 | ✅ 内置 TTL/LRU，开箱即用，10~100 倍提升 |
 | **性能** | ⭐⭐⭐ 基准性能 | ⭐⭐⭐⭐⭐ 缓存命中时性能提升 10~100 倍 |
 | **事务支持** | ⭐⭐ 需要手动管理 | ⭐⭐⭐⭐⭐ 自动管理生命周期，优化只读操作 |
@@ -1468,7 +1468,7 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 
 ## 📖 文档参考说明
 
-当前仓库正在进行 TypeScript 重写。旧 `docs/`、`examples/` 与 v1 时代的历史 `test/` 资产已从现行长期资产中移除；当前 `docs/**` 与 `examples/**` 是新的 TS 版正式入口，而不是旧目录的原样回滚。
+当前仓库已完成 TypeScript 重写的发布出口治理。当前 `docs/**`、`examples/**` 与 `test/**` 是 v2.0.0 发布候选的正式入口，v1 时代的历史资产仅用于追溯旧行为，不再覆盖当前实现事实。
 
 当前建议的参考顺序：
 
@@ -1489,30 +1489,29 @@ const coldData = await nativeClient.db('mydb').collection('logs').find({});
 | **MongoDB Server** | 默认公开验证以 `mongodb-memory-server` single / replica set 为主 | ✅ 6.x / 7.x 已进入默认 matrix；真实环境检查保留为私有 opt-in |
 | **模块系统** | CommonJS、ESM | ✅ 已由根入口与 compatibility tests 验证 |
 
-当前兼容矩阵清单见 `test/compatibility/matrix.json`，当前验证说明见 `test/compatibility/README.md`、`test/validation/VERIFICATION-PROGRESS.md`、[`docs/support-matrix.md`](./docs/support-matrix.md) 与 [`docs/verification-entrypoints.md`](./docs/verification-entrypoints.md)。
+当前兼容矩阵清单见 `test/compatibility/matrix.json`，当前验证说明见 `test/compatibility/README.md`、`test/validation/VERIFICATION-PROGRESS.md`、[`docs/support-matrix.md`](https://github.com/vextjs/monSQLize/blob/main/docs/support-matrix.md) 与 [`docs/verification-entrypoints.md`](https://github.com/vextjs/monSQLize/blob/main/docs/verification-entrypoints.md)。
 
 ---
 
 ## 产品路线图
 
-### ✅ v1.4 (当前版本)
+### ✅ v2.0.0（当前发布候选）
 
-- ✅ 业务级分布式锁
-- ✅ 智能缓存系统
-- ✅ 事务优化
-- ✅ 便利方法
-- ✅ 分布式支持
-- ✅ Model 层（v1.0.3）- Schema 验证、自定义方法、生命周期钩子
+- ✅ TypeScript 全量重写，发布入口统一为 `dist/cjs`、`dist/esm`、`dist/types`
+- ✅ v1 平滑升级兼容桥，已验证 `chat/payment/user/admin/search/vext/permission-core` 零业务源码改动升级
+- ✅ cache-hub 缓存底座、Redis 兼容入口、FunctionCache、多级缓存
+- ✅ 事务、业务锁、Saga、连接池、Change Stream 同步、慢查询日志
+- ✅ Model 层、schema-dsl 验证、Relations / Populate、ObjectId 自动转换
 
-### 🚧 v1.5 (计划中)
+### 🚧 v2.x（近期演进）
 
 - 🔄 查询分析器
 - 🔄 自动索引建议
 - 🔄 数据迁移工具
 - 🔄 GraphQL 支持
-- 🔄 Model 关系（relations）完善
+- 🔄 真实环境矩阵与文档站体验持续增强
 
-### 🔮 v2.0 (未来)
+### 🔮 v3.0+（长期愿景）
 
 - 🔮 统一 API 支持 MySQL
 - 🔮 统一 API 支持 PostgreSQL

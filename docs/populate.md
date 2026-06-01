@@ -450,19 +450,11 @@ const users = await User.find().populate('posts');
 
 ### Q3: 能不能嵌套 populate？
 
-**A**: 当前版本需要手动处理，v1.2.0 将支持。
+**A**: 当前版本已支持嵌套 populate，可直接在 populate 配置中声明下一层关系。
 
 ```javascript
-// 当前方式（v1.0.6）
-const students = await Student.find().populate('enrollments');
-for (const student of students) {
-    const courseIds = student.enrollments.map(e => e.courseId);
-    student.courses = await Course.findByIds(courseIds);
-}
-
-// 计划支持（v1.2.0）
 const students = await Student.find()
-    .populate('enrollments.course');
+    .populate({ path: 'enrollments', populate: 'course' });
 ```
 
 ### Q4: populate 会影响性能吗？
@@ -489,10 +481,9 @@ const users = await User.find().populate('posts');
 
 ### Q6: populate 支持条件过滤吗？
 
-**A**: 当前版本不支持，v1.2.0 计划支持。
+**A**: 支持。使用 `match`、`limit` 等选项即可约束被填充的数据。
 
 ```javascript
-// 计划支持（v1.2.0）
 const users = await User.find()
     .populate('posts', {
         match: { status: 'published' },  // 只 populate 已发布的文章
@@ -707,8 +698,8 @@ const users = await User.find()
 
 ---
 
-**文档版本**: v1.0.6  
-**最后更新**: 2026-01-08  
+**文档版本**: v2.0.0
+**最后更新**: 2026-06-01
 **维护者**: monSQLize Team
 
 

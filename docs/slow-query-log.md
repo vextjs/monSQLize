@@ -1103,7 +1103,7 @@ db.slow_query_logs.createIndex({ count: -1 });
 ### C. 相关链接
 
 - [需求方案文档]
-- [使用示例](../../../examples/slow-query-log.examples.js)
+- [使用示例](../examples/docs/slow-query-log.ts)
 - [配置设计说明]
 
 ---

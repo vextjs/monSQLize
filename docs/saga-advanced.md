@@ -572,12 +572,17 @@ class SagaOrchestrator {
 try {
     // 正向执行
     const results = await this._executeForward(steps, context);
+    const completedStepNames = results.map(r => r.stepName);
     
     return {
         success: true,
+        executionId: context.sagaId,
         sagaId: context.sagaId,
-        completedSteps: results.length,
-        results
+        completedSteps: completedStepNames,
+        completedStepCount: completedStepNames.length,
+        completedStepNames,
+        compensatedSteps: [],
+        result: results[results.length - 1]?.result
     };
     
 } catch (error) {
@@ -588,13 +593,26 @@ try {
         context.results.filter(r => r.success),  // 只补偿成功的步骤
         context
     );
+    const completedStepNames = context.results
+        .filter(r => r.success)
+        .map(r => r.stepName);
     
     return {
         success: false,
+        executionId: context.sagaId,
         sagaId: context.sagaId,
-        failedStep: context.results[context.results.length - 1]?.stepName,
-        error: error.message,
-        compensationResults
+        completedSteps: completedStepNames,
+        completedStepCount: completedStepNames.length,
+        completedStepNames,
+        compensatedSteps: compensationResults
+            .filter(r => r.reason !== 'no-compensate-defined')
+            .map(r => r.stepName),
+        error,
+        errorMessage: error.message,
+        compensation: {
+            success: compensationResults.every(r => r.success || r.reason === 'no-compensate-defined'),
+            results: compensationResults
+        }
     };
 }
 ```
@@ -843,8 +861,14 @@ class SagaExecutor {
             
             return {
                 success: true,
+                executionId: context.sagaId,
                 sagaId: context.sagaId,
-                results
+                sagaName: this.definition.name,
+                completedSteps: results.map(r => r.stepName),
+                completedStepCount: results.length,
+                completedStepNames: results.map(r => r.stepName),
+                compensatedSteps: [],
+                result: results[results.length - 1]?.result
             };
             
         } catch (error) {
@@ -856,9 +880,21 @@ class SagaExecutor {
             
             return {
                 success: false,
+                executionId: context.sagaId,
                 sagaId: context.sagaId,
-                error: error.message,
-                compensationResults
+                sagaName: this.definition.name,
+                completedSteps: context.results.filter(r => r.success).map(r => r.stepName),
+                completedStepCount: context.results.filter(r => r.success).length,
+                completedStepNames: context.results.filter(r => r.success).map(r => r.stepName),
+                compensatedSteps: compensationResults
+                    .filter(r => r.reason !== 'no-compensate-defined')
+                    .map(r => r.stepName),
+                error,
+                errorMessage: error.message,
+                compensation: {
+                    success: compensationResults.every(r => r.success || r.reason === 'no-compensate-defined'),
+                    results: compensationResults
+                }
             };
         }
     }

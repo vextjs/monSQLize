@@ -389,7 +389,8 @@ await User.find().populate({
 ## 🧪 测试用例
 
 完整测试用例请参考：
-- `test/unit/model/model-nested-populate.test.js`
+- `test/integration/model/model-features.test.ts`
+- `test/integration/model/model-schema-and-hooks.test.ts`
 
 测试覆盖：
 - ✅ 基本嵌套 populate

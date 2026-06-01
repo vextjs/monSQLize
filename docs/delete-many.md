@@ -565,7 +565,7 @@ await safeDeleteMany("logs",
 
 ## 示例代码
 
-完整的示例代码请参考 [examples/delete-operations.examples.js](../examples/delete-operations.examples.js)
+完整的示例代码请参考 [examples/docs/delete-many.ts](../examples/docs/delete-many.ts)
 
 ## MongoDB 文档
 

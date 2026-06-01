@@ -559,7 +559,7 @@ if (result.success) {
 ## 示例代码
 
 完整的示例代码请参考：
-- [examples/insertOne.examples.js](../examples/insertOne.examples.js)
+- [examples/docs/insert.ts](../examples/docs/insert.ts)
 - [examples/write-operations.md](../docs/write-operations.md)
 
 ## MongoDB 文档

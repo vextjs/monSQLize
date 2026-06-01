@@ -186,9 +186,14 @@ msq.defineSaga({
 ```javascript
 {
     success: true,
+    executionId: 'saga_xxx',
     sagaId: 'saga_xxx',
     sagaName: 'my-saga',
-    completedSteps: 3,
+    completedSteps: ['reserve-inventory', 'create-payment', 'create-order'],
+    completedStepCount: 3,
+    completedStepNames: ['reserve-inventory', 'create-payment', 'create-order'],
+    compensatedSteps: [],
+    result: { orderId: 'order_123' },
     duration: 123  // 毫秒
 }
 ```
@@ -197,11 +202,15 @@ msq.defineSaga({
 ```javascript
 {
     success: false,
+    executionId: 'saga_xxx',
     sagaId: 'saga_xxx',
     sagaName: 'my-saga',
-    completedSteps: 2,
-    failedStep: 2,
-    error: 'Error message',
+    completedSteps: ['reserve-inventory', 'create-payment'],
+    completedStepCount: 2,
+    completedStepNames: ['reserve-inventory', 'create-payment'],
+    compensatedSteps: ['create-payment', 'reserve-inventory'],
+    error: new Error('Error message'),
+    errorMessage: 'Error message',
     duration: 123,
     compensation: {
         success: true,
@@ -216,10 +225,10 @@ msq.defineSaga({
 
 列出所有已定义的 Saga。
 
-**返回值**：Promise<string[]>
+**返回值**：string[]
 
 ```javascript
-const sagas = await msq.listSagas();
+const sagas = msq.listSagas();
 console.log('已定义的 Saga:', sagas);
 // ['create-order', 'update-inventory', ...]
 ```
@@ -456,12 +465,12 @@ const msq = new MonSQLize({
 **Redis 模式**（多进程）：
 
 ```javascript
-const { createRedisCacheAdapter } = require('monsqlize/lib/redis-cache-adapter');
+const MonSQLize = require('monsqlize');
 
 const msq = new MonSQLize({
     type: 'mongodb',
     config: { uri: '...' },
-    cache: createRedisCacheAdapter('redis://localhost:6379')
+    cache: MonSQLize.createRedisCacheAdapter('redis://localhost:6379')
 });
 
 // ⚠️ 重要：每个进程启动时都需要调用 defineSaga()
@@ -559,7 +568,7 @@ assert(result.success === true);
 ## 示例
 
 完整示例请参考：
-- [examples/saga-transaction.examples.js](../examples/saga-transaction.examples.js)
+- [examples/docs/saga.ts](../examples/docs/saga.ts)
 
 ---
 

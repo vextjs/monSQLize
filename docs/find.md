@@ -683,8 +683,8 @@ try {
 
 - [MongoDB find 文档](https://docs.mongodb.com/manual/reference/method/db.collection.find/)
 - [findPage 方法文档](./findPage.md)
-- [find 方法示例](../examples/find.examples.js)
-- [find 方法测试](../test/find.test.js)
+- [find 方法示例](../examples/docs/find.ts)
+- [find 方法测试](../test/integration/mongodb/find.test.ts)
 
 ## 常见问题 FAQ
 

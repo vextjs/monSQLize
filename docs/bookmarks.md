@@ -535,5 +535,5 @@ try {
 
 - [findPage 方法文档](./findPage.md)
 - [缓存策略文档](./cache.md)
-- [bookmarks 示例代码](../examples/bookmarks.examples.js)
+- [bookmarks 示例代码](../examples/docs/bookmarks.ts)
 - 性能优化指南

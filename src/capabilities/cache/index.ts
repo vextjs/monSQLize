@@ -1,8 +1,8 @@
 /**
  * Cache capability barrel file.
  *
- * After this refactor, all public cache capabilities delegate directly to
- * the native `cache-hub` implementation without a monSQLize wrapper layer.
+ * Public cache capabilities are backed by `cache-hub`; selected root-entry
+ * shims preserve published v1/v1.3 compatibility at the package boundary.
  */
 
 export { MemoryCache } from './memory-cache';

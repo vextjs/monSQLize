@@ -382,7 +382,7 @@ await collection("users").deleteOne({ userId: "user123" });
 
 ## 示例代码
 
-完整的示例代码请参考 [examples/delete-operations.examples.js](../examples/delete-operations.examples.js)
+完整的示例代码请参考 [examples/docs/delete.ts](../examples/docs/delete.ts)
 
 ## MongoDB 文档
 

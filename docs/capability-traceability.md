@@ -6,20 +6,20 @@
 
 | 能力 | 文档入口 | 官方示例 | 自动化验证 |
 |------|----------|----------|------------|
-| 连接 / 基础 CRUD | `getting-started.md` | `examples/quick-start/basic-connect.ts` | `test/integration/mongodb/connect.test.js` |
-| Query（find / findOne / count / distinct） | `find.md` / `findOne.md` / `count.md` / `distinct.md` | `examples/docs/find.ts` / `find-one.ts` / `count.ts` / `distinct.ts` | `test/integration/mongodb/queries.test.js` |
-| 分页 / 链式查询 | `findPage.md` / `chaining-api.md` | `examples/docs/find-page.ts` / `chaining-api.ts` | `test/integration/model/model-features.test.js` + `npm run test:examples` |
-| 聚合 / 表达式 | `aggregate.md` / `expression-functions.md` | `examples/docs/aggregate.ts` / `aggregate-advanced.ts` / `expression-functions.ts` | `test/unit/expression/*.test.js` |
-| 写入扩展 / Batch | `write-operations.md` / `updateBatch.md` / `deleteBatch.md` | `examples/docs/update.ts` / `batch-operations.ts` | `test/unit/writes/batch.test.js` + `test/integration/mongodb/writes-batch.test.js` |
-| Collection 管理能力 | `collection-management.md` / `create-index.md` / `database-ops.md` | `examples/docs/collection-management.ts` | `test/integration/mongodb/management.test.js` |
-| Cache / Function Cache | `cache.md` / `function-cache.md` / `cache-and-function-cache.md` | `examples/cache/with-cache.ts` / `examples/docs/cache-multilevel.ts` | `test/unit/cache/cache.test.js` / `test/unit/function-cache/function-cache.test.js` |
-| Model / Populate / Hooks | `model.md` / `populate.md` / `hooks.md` / `relations.md` | `examples/docs/model.ts` / `populate-relations.ts` | `test/integration/model/model-features.test.js` |
-| Transaction | `transaction.md` / `transaction-optimizations.md` | `examples/docs/transaction.ts` / `transaction-rollback.ts` | `test/integration/transaction/transaction.test.js` |
-| Lock | `business-lock.md` | `examples/docs/lock.ts` / `lock-timeout.ts` | `test/unit/lock/lock.test.js` |
-| Pool / 多连接池 | `multi-pool.md` / `multi-pool-health-check.md` / `pool-chain-api.md` | `examples/docs/pool.ts` / `pool-fallback.ts` | `test/unit/pool/pool.test.js` / `test/integration/pool/pool.test.js` |
-| Sync / Resume Token | `sync-backup.md` / `watch.md` | `examples/docs/sync.ts` / `sync-target-failure.ts` | `test/unit/sync/sync.test.js` / `test/integration/sync/sync.test.js` |
-| Slow Query Log | `slow-query-log.md` | `examples/docs/slow-query-log.ts` | `test/unit/slow-query-log/slow-query-log.test.js` / `test/integration/slow-query-log/slow-query-log.test.js` |
-| Saga | `saga-transaction.md` / `saga-advanced.md` | `examples/docs/saga.ts` | `test/unit/saga/saga.test.js` |
+| 连接 / 基础 CRUD | `getting-started.md` | `examples/quick-start/basic-connect.ts` | `test/integration/mongodb/connect.test.ts` |
+| Query（find / findOne / count / distinct） | `find.md` / `findOne.md` / `count.md` / `distinct.md` | `examples/docs/find.ts` / `find-one.ts` / `count.ts` / `distinct.ts` | `test/integration/mongodb/queries.test.ts` |
+| 分页 / 链式查询 | `findPage.md` / `chaining-api.md` | `examples/docs/find-page.ts` / `chaining-api.ts` | `test/integration/model/model-features.test.ts` + `npm run test:examples` |
+| 聚合 / 表达式 | `aggregate.md` / `expression-functions.md` | `examples/docs/aggregate.ts` / `aggregate-advanced.ts` / `expression-functions.ts` | `test/unit/expression/*.test.ts` |
+| 写入扩展 / Batch | `write-operations.md` / `updateBatch.md` / `deleteBatch.md` | `examples/docs/update.ts` / `batch-operations.ts` | `test/unit/writes/batch.test.ts` + `test/integration/mongodb/writes-batch.test.ts` |
+| Collection 管理能力 | `collection-management.md` / `create-index.md` / `database-ops.md` | `examples/docs/collection-management.ts` | `test/integration/mongodb/management.test.ts` |
+| Cache / Function Cache | `cache.md` / `function-cache.md` / `cache-and-function-cache.md` | `examples/cache/with-cache.ts` / `examples/docs/cache-multilevel.ts` | `test/unit/cache/cache.test.ts` / `test/unit/function-cache/function-cache.test.ts` |
+| Model / Populate / Hooks | `model.md` / `populate.md` / `hooks.md` / `relations.md` | `examples/docs/model.ts` / `populate-relations.ts` | `test/integration/model/model-features.test.ts` |
+| Transaction | `transaction.md` / `transaction-optimizations.md` | `examples/docs/transaction.ts` / `transaction-rollback.ts` | `test/integration/transaction/transaction.test.ts` |
+| Lock | `business-lock.md` | `examples/docs/lock.ts` / `lock-timeout.ts` | `test/unit/lock/lock.test.ts` |
+| Pool / 多连接池 | `multi-pool.md` / `multi-pool-health-check.md` / `pool-chain-api.md` | `examples/docs/pool.ts` / `pool-fallback.ts` | `test/unit/pool/pool.test.ts` / `test/integration/pool/pool.test.ts` |
+| Sync / Resume Token | `sync-backup.md` / `watch.md` | `examples/docs/sync.ts` / `sync-target-failure.ts` | `test/unit/sync/sync.test.ts` / `test/integration/sync/sync.test.ts` |
+| Slow Query Log | `slow-query-log.md` | `examples/docs/slow-query-log.ts` | `test/unit/slow-query-log/slow-query-log.test.ts` / `test/integration/slow-query-log/slow-query-log.test.ts` |
+| Saga | `saga-transaction.md` / `saga-advanced.md` | `examples/docs/saga.ts` | `test/unit/saga/saga.test.ts` |
 | ObjectId 自动转换 | `objectid-auto-convert.md` / `objectid-cross-version.md` | `examples/docs/objectid.ts` | `npm run test:examples` |
 
 ## 使用建议

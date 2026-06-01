@@ -468,9 +468,9 @@ const sampleCount = await collection('orders').count(
 
 ## 示例代码
 
-完整的使用示例请参考：`examples/count.examples.js`
+完整的使用示例请参考：`examples/docs/count.ts`
 
 ## 测试用例
 
-完整的测试用例请参考：`test/count.test.js`
+完整的测试用例请参考：`test/integration/mongodb/queries.test.ts`
 

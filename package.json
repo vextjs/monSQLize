@@ -16,7 +16,7 @@
   },
   "files": [
     "dist/",
-    "changelogs/",
+    "changelogs/v2.0.0.md",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"

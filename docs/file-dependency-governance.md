@@ -47,7 +47,7 @@ npm run release:preflight
 
 | 场景 | 必做验证 |
 |------|----------|
-| 调整 `cache-hub` 相关能力 | `npm run type-check` + `test/unit/cache/cache.test.js` + exports / smoke |
+| 调整 `cache-hub` 相关能力 | `npm run type-check` + `test/unit/cache/cache.test.ts` + exports / smoke |
 | 调整 `schema-dsl` 相关能力 | `npm run type-check` + model 相关单测 / 集成测试 + `npm run test:examples` |
 | 准备发版 | `npm run release:preflight` |
 

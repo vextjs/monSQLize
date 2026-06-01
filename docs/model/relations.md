@@ -1,7 +1,7 @@
 ﻿# Relations 和 Populate API 文档
 
-**版本**: v1.2.0+  
-**最后更新**: 2026-01-07
+**版本**: v2.0.0
+**最后更新**: 2026-06-01
 
 Model 层提供 relations 和 populate 功能，让你轻松处理集合之间的关联关系。
 
@@ -551,7 +551,12 @@ A: 对于 N 个文档 + 1 个关系，执行 2 次查询：
 2. 批量查询关联文档（使用 `$in`，1 次）
 
 **Q: 如何实现嵌套 populate？**  
-A: v1.2.0 暂不支持嵌套 populate，计划在 v1.3.0 实现。
+A: 当前版本已支持嵌套 populate，推荐使用对象配置来表达下一层关系：
+
+```javascript
+const user = await User.findOne({ username: 'john' })
+    .populate({ path: 'posts', populate: 'comments' });
+```
 
 **Q: populate 会影响性能吗？**  
 A: 使用 `$in` 批量查询，性能影响较小。建议：
@@ -742,11 +747,11 @@ interface PopulateOptions {
 ## 更多资源
 
 - [Model API 文档](../model.md)
-- [示例代码](../examples/model/relations.js)
+- [示例代码](../../examples/docs/populate-relations.ts)
 - [GitHub Issues](https://github.com/vextjs/monSQLize/issues)
 
 ---
 
-**最后更新**: 2026-01-07  
-**版本**: v1.2.0
+**最后更新**: 2026-06-01
+**版本**: v2.0.0
 

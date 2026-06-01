@@ -942,7 +942,7 @@ const msq = new MonSQLize({
 - [缓存策略文档](./cache.md)
 - [缓存一致性说明](./cache.md)
 - [事务功能文档](./transaction.md)
-- [Redis 缓存适配器](../lib/redis-cache-adapter.js)
+- [Redis 缓存适配器](../src/capabilities/cache/redis-cache-adapter.ts)
 
 ---
 

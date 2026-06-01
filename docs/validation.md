@@ -294,7 +294,7 @@ setupValidation().catch(console.error);
 ## 相关文档
 
 - [集合管理](./collection-management.md) - collMod, stats
-- [示例代码](../examples/admin.examples.js)
+- [集合管理示例](../examples/docs/collection-management.ts)
 
 ---
 

@@ -2,9 +2,9 @@
 
 ## 背景
 
-从本轮开始，`monSQLize` 的缓存公开能力不再维持本地兼容包装层，而是直接转向 `cache-hub` 原生实现。
+从本轮开始，`monSQLize` 的缓存公开能力底层转向 `cache-hub` 原生实现；同时，根入口会保留已经发布过的 v1 / v1.3.x 平滑升级兼容包装，避免旧消费方只升级依赖时被迫改业务源码。
 
-这意味着以下公开能力已经统一到 `cache-hub` 语义：
+这意味着以下公开能力的核心语义已经统一到 `cache-hub`：
 
 - `MemoryCache`
 - `createRedisCacheAdapter()`
@@ -18,7 +18,8 @@
 |------|------|------|
 | `new MemoryCache({ maxSize: 1000 })` | `new MemoryCache({ maxEntries: 1000 })` | `cache-hub` 使用 `maxEntries` |
 | `new MemoryCache({ defaultTTL: 60000 })` | `new MemoryCache({ defaultTtl: 60000 })` | TTL 字段名改为 `defaultTtl` |
-| `createRedisCacheAdapter({ client, prefix })` | `createRedisCacheAdapter(client)` | 不再支持 monSQLize 自定义 `prefix` 包装 |
+| `createRedisCacheAdapter('redis://...')` / `createRedisCacheAdapter(redis)` | 保持可用 | monSQLize 根入口保留旧参数校验和错误语义，底层委托 `cache-hub/redis` |
+| `createRedisCacheAdapter({ client, prefix })` | `createRedisCacheAdapter(client)` | `{ client, prefix }` 对象不属于本轮平滑升级承诺；若依赖 `prefix`，需要在调用方自行处理 key 命名空间 |
 | `new DistributedCacheInvalidator({ cache: { local, remote } })` | `new DistributedCacheInvalidator({ cache: localCache, ...pubsub })` | 改为单节点本地 cache + Pub/Sub 广播模型 |
 | `cached.getCacheStats()` | `cached.stats()` | `withCache()` 返回的包装函数改用原生统计接口 |
 | `await cached.invalidate()` 返回 `boolean` | `await cached.invalidate()` 返回 `void` | 失效语义改为原生 `Promise<void>` |
@@ -60,10 +61,14 @@ const cache = MonSQLize.createRedisCacheAdapter({
 #### 新写法
 
 ```ts
+const cache = MonSQLize.createRedisCacheAdapter('redis://localhost:6379');
+// 或
 const cache = MonSQLize.createRedisCacheAdapter(redis);
 ```
 
-> 若你依赖 `prefix`，需要在调用方自行封装 key 命名空间，而不是继续依赖 monSQLize 包装层。
+> `createRedisCacheAdapter('redis://...')` 与 `createRedisCacheAdapter(redis)` 是平滑升级保留入口；`undefined`、空字符串和缺少 `ioredis` 时仍保持旧版错误语义，不会静默降级成内存缓存。
+
+> 若你依赖 `{ client, prefix }` 对象写法中的 `prefix`，需要在调用方自行封装 key 命名空间，而不是继续依赖 monSQLize 提供 prefix 包装。
 
 ### 3. `DistributedCacheInvalidator`
 

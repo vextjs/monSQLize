@@ -669,7 +669,7 @@ console.log('事务统计:', {
 
 - [MongoDB 事务官方文档](https://docs.mongodb.com/manual/core/transactions/)
 - [设计文档]
-- [示例代码](../examples/transaction.examples.js)
+- [示例代码](../examples/docs/transaction.ts)
 
 ---
 

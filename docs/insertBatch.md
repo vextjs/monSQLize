@@ -405,8 +405,8 @@ for (const err of result.errors) {
 
 ## 参考资料
 
-- [examples/insertBatch.examples.js](../examples/insertBatch.examples.js) - 完整示例
-- [test/unit/features/insertBatch.test.js](../test/unit/features/insertBatch.test.js) - 测试用例
+- [examples/docs/batch-operations.ts](../examples/docs/batch-operations.ts) - 当前 TypeScript 示例
+- [test/unit/writes/batch.test.ts](../test/unit/writes/batch.test.ts) - 测试用例
 - [docs/write-operations.md](./write-operations.md) - 写入操作总览
 - [docs/cache.md](./cache.md) - 缓存失效机制
 - [docs/insertBatch-improvements.md](./insertBatch.md) - 进一步改进建议

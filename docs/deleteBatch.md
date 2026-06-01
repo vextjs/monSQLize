@@ -424,8 +424,8 @@ console.log(`预计耗时: ${Math.ceil(estimatedTime)} 秒`);
 - [insertBatch - 批量插入文档](./insertBatch.md)
 - [find - 流式查询](./find.md)
 - [deleteMany - 批量删除（小数据量）](./delete-many.md)
-- [使用示例](../examples/batch-operations.examples.js)
-- [性能测试](../test/performance/batch-operations-performance.test.js)
+- [使用示例](../examples/docs/batch-operations.ts)
+- [Batch 写入测试](../test/unit/writes/batch.test.ts)
 
 ---
 

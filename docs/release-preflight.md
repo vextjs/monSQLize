@@ -17,9 +17,10 @@ npm run release:preflight
    - `docs/file-dependency-governance.md`
    - `docs/verification-entrypoints.md`
 4. 运行 `npm run verify:fast`
-5. 运行 `npm pack --dry-run`
-6. `npm publish` 会先触发 `prepublishOnly`，从而执行同一套 `release:preflight`
-7. **不会**运行 `npm run verify:release`（后者依赖私有真实环境，属于操作者显式 opt-in 的补充复核）
+5. 运行 `npm test`
+6. 运行 `npm pack --dry-run`
+7. `npm publish` 会先触发 `prepublishOnly`，从而执行同一套 `release:preflight`
+8. **不会**运行 `npm run verify:release`（后者依赖私有真实环境，属于操作者显式 opt-in 的补充复核）
 
 ## 为什么不是直接 publish
 
@@ -32,6 +33,7 @@ npm run release:preflight
 # 如需补充私有实机复核，再显式执行：
 # npm run verify:release
 git status
+# tag / publish 需要人工确认，不由 preflight 自动执行
 git tag vX.Y.Z
 npm run release:publish
 ```

@@ -44,12 +44,12 @@ export default defineConfig({
         text: 'Versions',
         items: [
           {
-            text: 'v1.3.x (Current TS)',
+            text: 'v2.0.0 (Current TS)',
             link: '/getting-started'
           },
           {
             text: '更新日志',
-            link: 'https://github.com/vextjs/monsqlize/blob/main/CHANGELOG.md'
+            link: 'https://github.com/vextjs/monSQLize/blob/main/CHANGELOG.md'
           },
           {
             text: 'GitHub Pages',
@@ -221,7 +221,7 @@ export default defineConfig({
       {
         icon: 'github',
         mode: 'link',
-        content: 'https://github.com/vextjs/monsqlize'
+        content: 'https://github.com/vextjs/monSQLize'
       }
     ],
     footer: {

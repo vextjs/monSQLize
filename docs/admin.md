@@ -471,7 +471,7 @@ async function generateDatabaseReport() {
 
 - [数据库操作](./database-ops.md) - listDatabases, dropDatabase
 - [集合管理](./collection-management.md) - 集合统计和管理
-- [示例代码](../examples/admin.examples.js) - 完整示例
+- [集合管理示例](../examples/docs/collection-management.ts) - 当前 TypeScript 示例
 
 ---
 

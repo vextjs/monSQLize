@@ -576,8 +576,8 @@ for (let i = 0; i < allData.length; i += BATCH_SIZE) {
 
 ## 参考资料
 
-- [examples/insertOne.examples.js](../examples/insertOne.examples.js) - 8 个完整示例
-- [examples/insertMany.examples.js](../examples/insertMany.examples.js) - 8 个完整示例（含性能测试）
+- [examples/docs/insert.ts](../examples/docs/insert.ts) - 当前 TypeScript 单条插入示例
+- [examples/docs/insert-many.ts](../examples/docs/insert-many.ts) - 当前 TypeScript 批量插入示例
 - [docs/cache.md](./cache.md) - 缓存失效机制
 - [docs/events.md](./events.md) - 慢查询监听
 - [MongoDB writeConcern 文档](https://www.mongodb.com/docs/manual/reference/write-concern/)

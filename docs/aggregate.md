@@ -816,8 +816,8 @@ try {
 ## 参考资料
 
 - [MongoDB Aggregation 文档](https://docs.mongodb.com/manual/aggregation/)
-- [aggregate 方法示例](../examples/aggregate.examples.js)
-- [aggregate 方法测试](../test/aggregate.test.js)
+- [aggregate 方法示例](../examples/docs/aggregate.ts)
+- [aggregate 方法测试](../test/integration/mongodb/aggregate.test.ts)
 - [find 方法文档](./find.md)
 
 ## 常见问题 FAQ
@@ -1332,5 +1332,5 @@ expr("FILTER(items, item, item.price > 100 && item.stock > 0)")
 
 - [CHANGELOG v1.0.9](../changelogs/v1.0.9.md) - 详细变更日志
 - [测试用例](../test/unit/expression/) - 107个测试示例
-- [实施报告](../reports/monSQLize/implementation/) - 完整开发过程
+- [验证进度](../test/validation/VERIFICATION-PROGRESS.md) - 当前发布验证入口
 

@@ -39,7 +39,7 @@ features:
     details: Schema validation, lifecycle hooks, and Populate associations (6 methods). Progressive adoption — drop in without touching existing code.
     link: /model
   - title: 🔷 Full TypeScript
-    details: Complete type declarations, 100% v1 API compatible, 2543/2543 assertions pass. Works side-by-side with Mongoose or native driver projects.
+    details: Complete type declarations, 100% v1 API compatible, 2284/2284 assertions pass in the current release preflight. Works side-by-side with Mongoose or native driver projects.
     link: /getting-started
   - title: 🔄 Saga Transactions
     details: Distributed saga orchestration with automatic compensation. Define multi-step workflows with rollback semantics across services.

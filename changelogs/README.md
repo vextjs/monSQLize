@@ -10,9 +10,8 @@
 changelogs/
 ├── README.md           # 本说明文档
 ├── TEMPLATE.md         # 变更文档模板
-├── v1.1.0.md          # v1.1.0 详细变更
-├── v1.0.0.md          # v1.0.0 详细变更
-└── v0.3.0.md          # v0.3.0 详细变更
+├── v2.0.0.md          # v2.0.0 详细变更
+└── v1.x.y.md          # 历史版本详细变更（仓库归档）
 ```
 
 ---
@@ -44,21 +43,20 @@ changelogs/
 
 ### 按版本类型
 
-- **正式发布**: v1.0.0
-- **功能版本**: v1.1.0, v0.3.0
-- **修复版本**: （暂无）
+- **正式发布**: v2.0.0, v1.0.0
+- **功能版本**: v1.x
+- **修复版本**: v1.x.y
 
 ### 按功能领域
 
-- **实时监听**: v1.1.0
-- **管理功能**: v0.3.0
-- **核心功能**: v1.0.0
+- **TypeScript 重构与 v1 平滑升级**: v2.0.0
+- **实时监听 / 管理功能 / 核心功能**: v1.x 历史版本
 
 ### 按风险级别
 
-- **P0 (Critical)**: （暂无）
-- **P1 (High)**: v0.3.0
-- **P2 (Low)**: v1.1.0, v1.0.0
+- **P0 (Critical)**: v2.0.0
+- **P1 (High)**: v1.x 破坏性或高风险历史版本
+- **P2 (Low)**: v1.x 修复版本
 
 ---
 
@@ -85,7 +83,7 @@ cp TEMPLATE.md v{版本号}.md
 
 在项目根目录的 `CHANGELOG.md` 中：
 - 在"版本概览"表格最上方添加新行
-- 格式：`| v{版本号} | {日期} | {摘要} | [详细](changelogs/v{版本号}.md) |`
+- 格式：版本列和详情列指向当前发布版本的 `changelogs/v{版本号}.md`
 
 ### 步骤4: 提交变更
 
@@ -140,9 +138,9 @@ git push origin main --tags
 ## 🔗 相关资源
 
 - **主 CHANGELOG**: [../CHANGELOG.md](../CHANGELOG.md)
-- **项目文档**: [../docs/](../docs/)
-- **使用示例**: [../examples/](../examples/)
-- **测试用例**: [../test/](../test/)
+- **项目文档**: [GitHub docs](https://github.com/vextjs/monSQLize/tree/main/docs)
+- **使用示例**: [GitHub examples](https://github.com/vextjs/monSQLize/tree/main/examples)
+- **测试用例**: [GitHub test](https://github.com/vextjs/monSQLize/tree/main/test)
 - **语义化版本**: https://semver.org/lang/zh-CN/
 
 ---
@@ -151,13 +149,12 @@ git push origin main --tags
 
 | 版本 | 文件 | 状态 | 发布日期 |
 |------|------|------|---------|
-| v1.1.0 | v1.1.0.md | ✅ 已发布 | 2025-12-03 |
-| v1.0.0 | v1.0.0.md | ✅ 已发布 | 2025-12-03 |
-| v0.3.0 | v0.3.0.md | ✅ 已发布 | 2025-12-02 |
+| v2.0.0 | v2.0.0.md | ✅ 待发布候选 | 2026-06-01 |
+| v1.x | 仓库历史归档 | ✅ 已发布 | 2025-12-03 起 |
 
 ---
 
-**目录版本**: 1.0  
-**最后更新**: 2025-12-03  
+**目录版本**: 2.0
+**最后更新**: 2026-06-01
 **维护者**: monSQLize Team
 

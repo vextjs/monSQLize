@@ -401,9 +401,9 @@ for (const student of students) {
     });
 }
 
-// 注：嵌套 populate 将在 v1.2.0 支持
-// const students = await Student.find()
-//     .populate('enrollments.course');
+// 当前版本也支持嵌套 populate：
+const studentsWithCourses = await Student.find()
+    .populate({ path: 'enrollments', populate: 'course' });
 ```
 
 ### 场景5: 自引用（树形结构）
@@ -601,16 +601,9 @@ Model.define('comments', {
 
 ### Q3: 能不能条件过滤？
 
-**A**: v1.0.6 不支持，v1.2.0 计划支持。
+**A**: 支持。当前版本可以在 populate 选项中使用 `match` 过滤关联数据。
 
 ```javascript
-// 当前方式（v1.0.6）
-const users = await User.find().populate('posts');
-users.forEach(user => {
-    user.posts = user.posts.filter(p => p.status === 'published');
-});
-
-// 计划支持（v1.2.0）
 const users = await User.find().populate('posts', {
     match: { status: 'published' }
 });
@@ -925,8 +918,8 @@ Order { items: [ { productId, quantity }, ... ] }
 
 ---
 
-**文档版本**: v1.0.6  
-**最后更新**: 2026-01-08  
+**文档版本**: v2.0.0
+**最后更新**: 2026-06-01
 **维护者**: monSQLize Team
 
 

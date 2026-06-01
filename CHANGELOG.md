@@ -1,6 +1,6 @@
 # CHANGELOG
 
-> Summary index — full details in [changelogs/](./changelogs/)  
+> Summary index — current release details are packaged in [changelogs/v2.0.0.md](./changelogs/v2.0.0.md); historical details live in the repository changelog archive.
 > **Last updated**: 2026-06-01
 
 ---
@@ -9,30 +9,30 @@
 
 | Version | Date | Summary | Details |
 |---------|------|---------|---------|
-| [v2.0.0](./changelogs/v2.0.0.md) | 2026-05-19 | 🎉 **v2.0.0 — TypeScript rewrite**: full TypeScript source, cache-hub integration, MultiLevel cache support, v1 API compat preserved, JSDoc coverage complete, `getPoolStats/getPoolHealth` keyed by pool name, v1 compat fixes included, workspace smooth-upgrade bridge validated for downstream consumers | [View](./changelogs/v2.0.0.md) |
-| [v1.3.0](./changelogs/v1.3.0.md) | 2026-04-27 | 🆕 **新功能**：链式池访问 API — `pool(name)` / `use(dbName)` / `scopedCollection()` / `scopedModel()` 四个公开方法，支持多连接池多数据库路由，connection 合并语义，TypeScript 类型签名完整覆盖 | [查看](./changelogs/v1.3.0.md) |
-| [v1.2.3](./changelogs/v1.2.3.md) | 2026-04-26 | 🐛 **Bug Fix**：`model()` 方法修复注册 key 直接作为 MongoDB 集合名的问题，优先读 `definition.collection > definition.name`，注册 key 仅作 fallback，向后兼容 | [查看](./changelogs/v1.2.3.md) |
-| [v1.2.2](./changelogs/v1.2.2.md) | 2026-04-24 | 🆕 **新功能**：Model 数据源绑定 — `connection: { pool?, database? }` 支持 Model 绑定指定连接池和/或数据库，四种组合路由，向后兼容；🐛 **Bug Fix**：修复 `Model._clear()` 导致 `msq.model()` 实例缓存失效失效，populate 关系丢失问题 | [查看](./changelogs/v1.2.2.md) |
-| [v1.2.1](./changelogs/v1.2.1.md) | 2026-04-13 | 🐛 **Bug 修复**：`msq.model()` 实例缓存 + 索引去重 + 死代码清理 + `types/monsqlize.ts` 补全 `model()` / `collection()` 类型 | [查看](./changelogs/v1.2.1.md) |
-| [v1.2.0](./changelogs/v1.2.0.md) | 2026-04-13 | 🐛 **Bug 修复 + 新功能**：`findPage` 正式支持 `projection` 投影参数（修复静默忽略问题）+ 有效投影策略自动保护游标排序字段 + 8 个测试用例 | [查看](./changelogs/v1.2.0.md) |
-| [v1.1.9](./changelogs/v1.1.9.md) | 2026-04-02 | 🚨 **P1 Bug 修复**：MultiLevelCache L2→L1 回填 TTL 缺失（null 永久驻留 L1）+ 新增 `backfillLocalTTL` 配置 + Redis `getWithTTL` 方法 + 14 个回归测试 | [查看](./changelogs/v1.1.9.md) |
-| [v1.1.8](./changelogs/v1.1.8.md) | 2026-03-16 | 🆕 **新功能**：Model 热重载支持（`undefine()` + `redefine()` + `_loadModels` reload 模式）+ 22个测试 (100%通过) | [查看](./changelogs/v1.1.8.md) |
-| [v1.1.6](./changelogs/v1.1.6.md) | 2026-02-11 | 🎉 **重大功能**：精准缓存失效机制 + 🚨 upsert 缓存失效 Bug 修复 + 36个测试 (100%通过) | [查看](./changelogs/v1.1.6.md) |
-| [v1.1.4](./changelogs/v1.1.4.md) | 2026-02-09 | 🎉 重大功能：通用函数缓存 - 52个测试 (100%通过) + 多层缓存 delPattern 修复 | [查看](./changelogs/v1.1.4.md) |
-| [v1.1.3](./changelogs/v1.1.3.md) | 2026-02-03 | 📚 文档完善：多连接池文档优化 + 健康检查详解 + 验证体系规范 | [查看](./changelogs/v1.1.3.md) |
+| [v2.0.0](./changelogs/v2.0.0.md) | 2026-06-01 | 🎉 **v2.0.0 — TypeScript rewrite**: full TypeScript source, cache-hub integration, MultiLevel cache support, v1 API compat preserved, JSDoc coverage complete, `getPoolStats/getPoolHealth` keyed by pool name, v1 compat fixes included, workspace smooth-upgrade bridge validated for downstream consumers | [View](./changelogs/v2.0.0.md) |
+| [v1.3.0](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.3.0.md) | 2026-04-27 | 🆕 **新功能**：链式池访问 API — `pool(name)` / `use(dbName)` / `scopedCollection()` / `scopedModel()` 四个公开方法，支持多连接池多数据库路由，connection 合并语义，TypeScript 类型签名完整覆盖 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.3.0.md) |
+| [v1.2.3](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.2.3.md) | 2026-04-26 | 🐛 **Bug Fix**：`model()` 方法修复注册 key 直接作为 MongoDB 集合名的问题，优先读 `definition.collection > definition.name`，注册 key 仅作 fallback，向后兼容 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.2.3.md) |
+| [v1.2.2](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.2.2.md) | 2026-04-24 | 🆕 **新功能**：Model 数据源绑定 — `connection: { pool?, database? }` 支持 Model 绑定指定连接池和/或数据库，四种组合路由，向后兼容；🐛 **Bug Fix**：修复 `Model._clear()` 导致 `msq.model()` 实例缓存失效失效，populate 关系丢失问题 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.2.2.md) |
+| [v1.2.1](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.2.1.md) | 2026-04-13 | 🐛 **Bug 修复**：`msq.model()` 实例缓存 + 索引去重 + 死代码清理 + `types/monsqlize.ts` 补全 `model()` / `collection()` 类型 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.2.1.md) |
+| [v1.2.0](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.2.0.md) | 2026-04-13 | 🐛 **Bug 修复 + 新功能**：`findPage` 正式支持 `projection` 投影参数（修复静默忽略问题）+ 有效投影策略自动保护游标排序字段 + 8 个测试用例 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.2.0.md) |
+| [v1.1.9](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.9.md) | 2026-04-02 | 🚨 **P1 Bug 修复**：MultiLevelCache L2→L1 回填 TTL 缺失（null 永久驻留 L1）+ 新增 `backfillLocalTTL` 配置 + Redis `getWithTTL` 方法 + 14 个回归测试 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.9.md) |
+| [v1.1.8](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.8.md) | 2026-03-16 | 🆕 **新功能**：Model 热重载支持（`undefine()` + `redefine()` + `_loadModels` reload 模式）+ 22个测试 (100%通过) | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.8.md) |
+| [v1.1.6](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.6.md) | 2026-02-11 | 🎉 **重大功能**：精准缓存失效机制 + 🚨 upsert 缓存失效 Bug 修复 + 36个测试 (100%通过) | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.6.md) |
+| [v1.1.4](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.4.md) | 2026-02-09 | 🎉 重大功能：通用函数缓存 - 52个测试 (100%通过) + 多层缓存 delPattern 修复 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.4.md) |
+| [v1.1.3](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.3.md) | 2026-02-03 | 📚 文档完善：多连接池文档优化 + 健康检查详解 + 验证体系规范 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.3.md) |
 | [v1.1.2](#v112---日志优化) | 2026-01-27 | 🔧 优化：ObjectId 转换日志默认静默 + Saga 日志修复 | [查看](#v112---日志优化) |
 | [v1.1.1](#v111---objectid-跨版本兼容) | 2026-01-27 | 🔧 Bug修复：新增跨版本 ObjectId 兼容性（支持 mongoose bson@4.x/5.x）| [查看](#v111---objectid-跨版本兼容) |
-| [v1.1.0](./changelogs/v1.1.0.md) | 2026-01-21 | 🎉 重大更新：新增49个操作符，实现100% MongoDB操作符支持（122/122）| [查看](./changelogs/v1.1.0.md) |
-| [v1.0.9](./changelogs/v1.0.9.md) | 2026-01-19 | 🎉 重大功能：统一表达式系统 - 67个操作符 + 107个测试 (100%通过) | [查看](./changelogs/v1.0.9.md) |
-| [v1.0.8](./changelogs/v1.0.8.md) | 2026-01-17 | 🎉 重大功能：多连接池 + Update 聚合管道 + Saga 事务 + Change Stream 同步 | [查看](./changelogs/v1.0.8.md) |
-| [v1.0.7](./changelogs/v1.0.7.md) | 2026-01-09 | 🔧 依赖更新：schema-dsl@1.1.3 修复类型错误消息 + 测试用例 Schema 语法修复 | [查看](./changelogs/v1.0.7.md) |
-| [v1.0.6](./changelogs/v1.0.6.md) | 2026-01-08 | 文档完善：新增 ObjectId 自动转换文档 + 验证所有 v1.3.0+ 功能文档 | [查看](./changelogs/v1.0.6.md) |
-| [v1.0.5](./changelogs/v1.0.5.md) | 2026-01-08 | Schema 验证默认启用 + Model 自动加载机制 + 类型定义完善 | [查看](./changelogs/v1.0.5.md) |
-| [v1.0.4](./changelogs/v1.0.4.md) | 2026-01-07 | 新功能：虚拟字段、默认值 + Bug 修复：嵌套 Populate + 测试改进 | [查看](./changelogs/v1.0.4.md) |
-| [v1.0.3](STATUS.md#v103) | 2025-12-31 | 新增 Model 层（Schema 验证、自定义方法、生命周期钩子、自动时间戳） | [查看](STATUS.md#v103) |
-| [v1.0.2](STATUS.md#v102) | 2025-12-30 | 新增批量操作方法（deleteBatch/updateBatch） | [查看](STATUS.md#v102) |
-| [v1.0.1](STATUS.md#v101) | 2025-12-29 | 稳定版本，生产就绪 | [查看](STATUS.md#v101) |
-| [v1.0.0](./changelogs/v1.0.0.md) | 2025-12-03 | 正式发布，生产就绪，已发布到 npm | [查看](./changelogs/v1.0.0.md) |
+| [v1.1.0](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.0.md) | 2026-01-21 | 🎉 重大更新：新增49个操作符，实现100% MongoDB操作符支持（122/122）| [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.0.md) |
+| [v1.0.9](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.9.md) | 2026-01-19 | 🎉 重大功能：统一表达式系统 - 67个操作符 + 107个测试 (100%通过) | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.9.md) |
+| [v1.0.8](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.8.md) | 2026-01-17 | 🎉 重大功能：多连接池 + Update 聚合管道 + Saga 事务 + Change Stream 同步 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.8.md) |
+| [v1.0.7](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.7.md) | 2026-01-09 | 🔧 依赖更新：schema-dsl@1.1.3 修复类型错误消息 + 测试用例 Schema 语法修复 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.7.md) |
+| [v1.0.6](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.6.md) | 2026-01-08 | 文档完善：新增 ObjectId 自动转换文档 + 验证所有 v1.3.0+ 功能文档 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.6.md) |
+| [v1.0.5](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.5.md) | 2026-01-08 | Schema 验证默认启用 + Model 自动加载机制 + 类型定义完善 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.5.md) |
+| [v1.0.4](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.4.md) | 2026-01-07 | 新功能：虚拟字段、默认值 + Bug 修复：嵌套 Populate + 测试改进 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.4.md) |
+| v1.0.3 | 2025-12-31 | 新增 Model 层（Schema 验证、自定义方法、生命周期钩子、自动时间戳） | 早期状态归档未随当前仓库保留 |
+| v1.0.2 | 2025-12-30 | 新增批量操作方法（deleteBatch/updateBatch） | 早期状态归档未随当前仓库保留 |
+| v1.0.1 | 2025-12-29 | 稳定版本，生产就绪 | 早期状态归档未随当前仓库保留 |
+| [v1.0.0](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.0.md) | 2025-12-03 | 正式发布，生产就绪，已发布到 npm | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.0.md) |
 
 ---
 
@@ -115,10 +115,7 @@ await collection('users').find(
 npm update monsqlize
 ```
 
-📖 **详细分析**: 
-- [三轮验证报告](./reports/upsert-缓存失效-三轮验证报告.md)
-- [问题深度分析](./reports/upsert-缓存失效机制分析报告.md)
-- [完整修复总结](./reports/upsert-缓存失效-完整修复总结.md)
+📖 **详细分析**: 历史验证报告未作为当前 npm 包资产发布；如需追溯，请以仓库归档或项目内部报告为准。
 
 #### 其他改进
 
@@ -182,7 +179,7 @@ npm update monsqlize
 npm update monsqlize
 ```
 
-📖 **详细变更**: [查看完整变更日志](./changelogs/v1.1.3.md)
+📖 **详细变更**: [查看完整变更日志](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.1.3.md)
 
 ---
 
@@ -251,8 +248,8 @@ const msq = new MonSQLize({
 - `lib/saga/SagaOrchestrator.js`: 修复 Redis 识别逻辑
 
 **详细文档**: 
-- [ObjectId 日志配置](./docs/objectid-logging-optimization.md)
-- [FAQ - Q3: 如何关闭日志](./docs/objectid-cross-version-faq.md#q3)
+- [ObjectId 日志配置](https://github.com/vextjs/monSQLize/blob/main/docs/objectid-logging-optimization.md)
+- [FAQ - Q3: 如何关闭日志](https://github.com/vextjs/monSQLize/blob/main/docs/objectid-cross-version-faq.md#q3)
 
 ---
 
@@ -295,7 +292,7 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
 // ✅ 成功：自动将旧版本 ObjectId 转换为 bson@6.x 版本
 ```
 
-**详细文档**: [查看 docs/objectid-cross-version.md](./docs/objectid-cross-version.md)
+**详细文档**: [查看 docs/objectid-cross-version.md](https://github.com/vextjs/monSQLize/blob/main/docs/objectid-cross-version.md)
 
 ---
 
@@ -361,7 +358,7 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
    - 支持超时和重试
    - 完整的错误处理
 
-**详细信息**: [查看 changelogs/v1.0.8.md](./changelogs/v1.0.8.md)
+**详细信息**: [查看 changelogs/v1.0.8.md](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.8.md)
 
 ---
 
@@ -376,7 +373,7 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
 - ✅ 所有测试通过（38/38 测试套件，100%）
 - ✅ 将 schema-dsl 从 devDependencies 移至 dependencies（Model 层运行时依赖）
 
-**详细信息**: [查看 changelogs/v1.0.7.md](./changelogs/v1.0.7.md)
+**详细信息**: [查看 changelogs/v1.0.7.md](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.7.md)
 
 ---
 
@@ -390,7 +387,7 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
 - ✅ 新增 ObjectId 自动转换完整文档（600行）
 - ✅ 验证所有 v1.3.0+ 功能都有文档
 
-**详细信息**: [查看 changelogs/v1.0.6.md](./changelogs/v1.0.6.md)
+**详细信息**: [查看 changelogs/v1.0.6.md](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.6.md)
 
 ---
 
@@ -404,7 +401,7 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
 - ✅ Model 自动加载机制（减少样板代码）
 - ✅ 类型定义完善
 
-**详细信息**: [查看 changelogs/v1.0.5.md](./changelogs/v1.0.5.md)
+**详细信息**: [查看 changelogs/v1.0.5.md](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.5.md)
 
 ---
 
@@ -418,7 +415,7 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
 - ✅ 默认值（插入时自动填充）
 - ✅ 嵌套 Populate Bug 修复
 
-**详细信息**: [查看 changelogs/v1.0.4.md](./changelogs/v1.0.4.md)
+**详细信息**: [查看 changelogs/v1.0.4.md](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.4.md)
 
 ---
 
@@ -434,7 +431,7 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
 - ✅ 1000+ 测试用例
 - ✅ 77%+ 测试覆盖率
 
-**详细信息**: [查看 changelogs/v1.0.0.md](./changelogs/v1.0.0.md)
+**详细信息**: [查看 changelogs/v1.0.0.md](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.0.0.md)
 
 ---
 
@@ -446,15 +443,14 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
 changelogs/
 ├── README.md          # 变更文档说明
 ├── TEMPLATE.md        # 变更文档模板
-├── v1.0.0.md         # v1.0.0 详细变更
-├── v1.0.4.md         # v1.0.4 详细变更
-└── v1.0.5.md         # v1.0.5 详细变更
+├── v2.0.0.md         # 当前发布详细变更
+└── v1.x.y.md         # 历史版本详细变更（仓库归档）
 ```
 
 **注意**: 
 - `changelogs/` 目录包含所有版本的详细变更文档
 - 本文件（CHANGELOG.md）仅提供版本概览和里程碑摘要
-- 需求状态追踪见 [STATUS.md](./STATUS.md)
+- 早期 `STATUS.md` 状态看板已不再作为当前仓库和 npm 包资产保留。
 
 ---
 
@@ -470,14 +466,14 @@ changelogs/
 
 2. **更新 CHANGELOG.md**（本文件）
    - 在"版本概览"表格最上方添加新行
-   - 格式：`| [vX.Y.Z](./changelogs/vX.Y.Z.md) | 日期 | 摘要 | [查看](./changelogs/vX.Y.Z.md) |`
+   - 格式：版本列和详情列都指向 `./changelogs/vX.Y.Z.md`，当前 npm 包默认只随带当前发布版本的详细文档。
 
-3. **更新 STATUS.md**（如需要）
-   - 添加版本章节和需求状态
+3. **更新状态看板**（如项目重新启用）
+   - 当前仓库未保留 `STATUS.md` 作为发布资产；如后续恢复状态看板，再同步版本章节和需求状态。
 
 4. **提交变更**
    ```bash
-   git add CHANGELOG.md changelogs/vX.Y.Z.md STATUS.md
+   git add CHANGELOG.md changelogs/vX.Y.Z.md
    git commit -m "docs: 发布 vX.Y.Z"
    ```
 
@@ -498,12 +494,11 @@ changelogs/
 
 ## 相关文档
 
-- [STATUS.md](./STATUS.md) - 需求状态追踪
-- [changelogs/](./changelogs/README.md) - 详细变更文档目录
+- [changelogs/v2.0.0.md](./changelogs/v2.0.0.md) - 当前发布详细变更文档
 - [README.md](./README.md) - 项目说明
-- [docs/](./docs/INDEX.md) - API 文档
+- [docs/](https://github.com/vextjs/monSQLize/blob/main/docs/index.md) - API 文档
 
 ---
 
-**最后更新**: 2026-01-08
+**最后更新**: 2026-06-01
 

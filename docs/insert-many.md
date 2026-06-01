@@ -584,7 +584,7 @@ try {
 ## 示例代码
 
 完整的示例代码请参考：
-- [examples/insertMany.examples.js](../examples/insertMany.examples.js)
+- [examples/docs/insert-many.ts](../examples/docs/insert-many.ts)
 - [examples/write-operations.md](../docs/write-operations.md)
 
 ## MongoDB 文档

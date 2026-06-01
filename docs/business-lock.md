@@ -637,6 +637,6 @@ try {
 ## 参考
 
 - [方案文档]
-- [示例代码](../../examples/business-lock.examples.js)
-- [单元测试](../../test/unit/lock/business-lock.test.js)
+- [示例代码](../examples/docs/lock.ts)
+- [单元测试](../test/unit/lock/lock.test.ts)
 

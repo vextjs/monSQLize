@@ -349,7 +349,7 @@ process.on('SIGTERM', async () => {
 
 ## 📚 更多资源
 
-- [示例代码](../examples/sync-backup.examples.js)
+- [示例代码](../examples/docs/sync.ts)
 - [MongoDB Change Streams 官方文档](https://www.mongodb.com/docs/manual/changeStreams/)
 - [ConnectionPoolManager 文档](./multi-pool.md)
 

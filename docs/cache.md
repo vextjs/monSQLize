@@ -1372,19 +1372,20 @@ await clearAllCache();
 
 ### 使用说明
 
-**重要提示**：monSQLize 当前版本**不支持写操作**（insertOne/updateOne/deleteOne 等），因此：
+**重要提示**：monSQLize 当前版本已经支持 `insertOne` / `updateOne` / `deleteOne` 等写操作；通过 monSQLize 写入时，相关缓存会按当前失效策略处理。`invalidate()` 仍然用于以下场景：
 
-1. **`invalidate()` 是唯一的缓存清理方式**
-2. **必须在以下场景手动调用**：
-   - 使用外部工具修改数据后（MongoDB Shell、Compass、其他应用）
-   - 定时刷新缓存
-   - 批量数据更新后
-3. **未来版本计划**：
-   - 添加写操作 API（insertOne/updateOne/deleteOne）
-   - 写操作将自动调用 `invalidate()` 清理缓存
+1. **外部写入后的显式清理**：
+   - 使用 MongoDB Shell、Compass 或其他应用直接修改数据后
+   - 旁路批量导入、迁移脚本或手工修复数据后
+2. **主动刷新策略**：
+   - 定时刷新热点集合缓存
+   - 临时强制清理某个集合的查询缓存
+3. **自定义缓存边界**：
+   - 使用自定义 cache adapter 或业务侧额外缓存时，需要自行决定清理范围
 
 **当前最佳实践**：
-- 使用外部工具修改数据后，立即调用 `invalidate()`
+- 业务写入优先通过 monSQLize 执行，避免绕过缓存失效链路
+- 外部工具或旁路脚本修改数据后，立即调用 `invalidate()`
 - 定期监控缓存命中率，决定是否需要定时刷新
 - 避免过度使用，仅在必要时清除缓存
 
@@ -1464,7 +1465,7 @@ setInterval(async () => {
 1. **清除范围**：`invalidate()` 只清除指定集合的查询缓存，不影响其他集合
 2. **性能影响**：清除缓存后，下次查询需要访问数据库，会有性能损耗
 3. **不清除 Bookmarks**：`invalidate()` 不清除 findPage 的 Bookmark 缓存，需要使用 `clearBookmarks()`
-4. **只读 API 限制**：monSQLize 当前版本不支持写操作，必须手动调用 `invalidate()` 清理缓存
+4. **旁路写入限制**：通过外部工具或其他服务绕过 monSQLize 写入时，必须手动调用 `invalidate()` 或执行等效的业务清理动作
 
 ---
 
