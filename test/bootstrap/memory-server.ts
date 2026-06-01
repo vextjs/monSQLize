@@ -1,3 +1,5 @@
+import { ensureWebCryptoGlobal } from './webcrypto';
+
 type MemoryServerOptions = {
     uri?: string;
     binaryVersion?: string;
@@ -33,6 +35,7 @@ export function createMemoryServerBootstrap(options: MemoryServerOptions = {}): 
 
         if (!memoryServerPromise) {
             memoryServerPromise = (async () => {
+                ensureWebCryptoGlobal();
                 const { MongoMemoryServer } = require('mongodb-memory-server');
                 memoryServerInstance = await MongoMemoryServer.create({
                     ...(binaryVersion ? { binary: { version: binaryVersion } } : {}),

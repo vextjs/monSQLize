@@ -1,3 +1,5 @@
+import { ensureWebCryptoGlobal } from './webcrypto';
+
 type ReplSetOptions = {
     uri?: string;
     binaryVersion?: string;
@@ -33,6 +35,7 @@ export function createReplSetBootstrap(options: ReplSetOptions = {}): ReplSetBoo
 
         if (!replSetPromise) {
             replSetPromise = (async () => {
+                ensureWebCryptoGlobal();
                 const { MongoMemoryReplSet } = require('mongodb-memory-server');
                 replSetInstance = await MongoMemoryReplSet.create({
                     ...(binaryVersion ? { binary: { version: binaryVersion } } : {}),
