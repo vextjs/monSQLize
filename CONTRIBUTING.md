@@ -234,7 +234,7 @@ async function findOne(filter, options = {}) {
 
 ## 📄 许可
 
-通过贡献代码，您同意您的贡献将以 MIT 许可证发布。
+By contributing code, you agree that your contribution will be released under the Apache License 2.0.
 
 ---
 

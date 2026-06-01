@@ -1,1591 +1,535 @@
-# 🚀 monSQLize
+# monSQLize
 
-### 🎯 统一数据库查询语法框架
-
-**当前**: MongoDB增强层（10~100倍性能 · 企业特性 · 零学习成本）  
-**未来**: 让MySQL/PostgreSQL也能用MongoDB语法查询
-
-**mon**SQLize = **Mon**goDB + **SQL** = 一套语法，多种数据库
+TypeScript-native MongoDB ODM and enhancement layer with v1-compatible APIs, multi-level caching, distributed locks, transactions, Saga orchestration, model validation, connection pools, Change Stream sync, slow-query logging, and CommonJS / ESM / TypeScript declaration outputs.
 
 [![npm version](https://img.shields.io/npm/v/monsqlize.svg)](https://www.npmjs.com/package/monsqlize)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![MongoDB](https://img.shields.io/badge/MongoDB-4.4%2B-green.svg)](https://www.mongodb.com/)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![MongoDB](https://img.shields.io/badge/MongoDB-6.x%20%2F%207.x-green.svg)](https://www.mongodb.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-brightgreen)](https://nodejs.org/)
 
 ```bash
 npm install monsqlize
 ```
 
-> 当前仓库仍处于 TypeScript 全量重写后的持续治理阶段；当前工作区已完成发布出口与测试入口治理：运行时、ESM 与类型发布入口统一为 `dist/cjs/index.cjs`、`dist/esm/index.mjs`、`dist/types/index.d.ts`，包根不再保留 `lib/index.js`、`index.mjs`、`index.d.ts` 发布产物；`test/**` 可执行测试源码已全量 TS 化并通过语言门禁，验证资产覆盖 `test/compatibility/matrix.json`、`test/compatibility/matrix.test.ts`、`test/performance/baselines/function-cache.benchmark.ts`、`test/validation/VERIFICATION-PROGRESS.md`、`test/validation/DOCS-EXAMPLES-MAPPING.md`。当前官方文档与示例已统一采用 TypeScript，并纳入持续验证链路：`npm run test:examples` 现覆盖 **43 个示例**；`npm run test:server-matrix` 已实跑 **Node 20 / 22 × Driver 6 / 7 × MongoDB 6 / 7（内存版单机 + 副本集）** 全矩阵。
+monSQLize is currently a MongoDB-focused package. The long-term product direction is to keep the MongoDB-style query experience while gradually extending the same high-level API shape to additional database backends.
 
-[快速开始](#-快速开始) · [TS 文档入口](https://github.com/vextjs/monSQLize/blob/main/docs/README.md) · [支持矩阵](https://github.com/vextjs/monSQLize/blob/main/docs/support-matrix.md) · [验证入口](https://github.com/vextjs/monSQLize/blob/main/docs/verification-entrypoints.md) · [项目愿景](#-项目愿景) · [核心特性](#-核心特性) · [文档现状](#文档现状) · [贡献指南](#-贡献指南)
+## Table of Contents
 
----
+- [Why monSQLize](#why-monsqlize)
+- [When to Use It](#when-to-use-it)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Model Layer](#model-layer)
+- [Caching and Performance](#caching-and-performance)
+- [Advanced Capabilities](#advanced-capabilities)
+- [Migration from the MongoDB Driver](#migration-from-the-mongodb-driver)
+- [Compatibility](#compatibility)
+- [Documentation](#documentation)
+- [Development](#development)
+- [Release Status](#release-status)
+- [Roadmap](#roadmap)
+- [License](#license)
+- [Support](#support)
 
-## 📑 目录
+## Why monSQLize
 
-- [⚡ 性能对比](#-性能对比)
-- [🎯 项目愿景](#-项目愿景)
-- [💡 为什么选择 monSQLize？](#-为什么选择-monsqlize)
-- [🎯 何时使用 monSQLize？](#-何时使用-monsqlize)
-- [🚀 快速开始](#-快速开始)
-- [🌟 核心特性](#-核心特性)
-- [📊 性能测试报告](#-性能测试报告)
-- [🎨 能力概览](#-能力概览)
-- [🆚 与 MongoDB 原生驱动对比](#-与-mongodb-原生驱动对比)
-- [📚 TS 文档入口](https://github.com/vextjs/monSQLize/blob/main/docs/README.md)
-- [🧭 文档现状](#文档现状)
-- [🌍 兼容性](#-兼容性)
-- [🗺️ 产品路线图](#产品路线图)
-- [🤝 贡献指南](#-贡献指南)
-- [📄 许可证](#-许可证)
-- [💬 社区与支持](#-社区与支持)
+monSQLize keeps the MongoDB driver mental model while adding the production features most teams end up building around it:
 
----
+- Drop-in collection helpers that preserve MongoDB-style CRUD, aggregation, indexes, transactions, and Change Streams.
+- Smart caching through `cache-hub`, including local memory caching, optional Redis-backed L2 caching, automatic invalidation, and function-level caching.
+- A lightweight Model layer with `schema-dsl` validation, hooks, relations, populate, custom methods, timestamps, soft delete, and optimistic locking.
+- Multi-connection-pool support, pool health checks, pool-scoped collections/models, and fallback strategies.
+- Business locks and distributed locks for multi-instance deployments.
+- Saga orchestration for multi-step business workflows.
+- Change Stream sync helpers with resume token storage.
+- Slow-query logging and query diagnostics.
+- CommonJS, ESM, and TypeScript declaration outputs from `dist/**`.
 
-## ⚡ 性能对比
+## When to Use It
 
-```javascript
-// ❌ MongoDB 原生驱动
-const users = await collection.find({ status: 'active' }).toArray();  // 50ms
-const product = await products.findOne({ _id: productId });           // 10ms
+monSQLize is a good fit when you need:
 
-// ✅ monSQLize（启用缓存）
-const users = await collection.find({ status: 'active' }, { cache: 60000 });  // 0.5ms  ⚡ 100x faster
-const product = await products.findOne({ _id: productId }, { cache: 60000 }); // 0.1ms  ⚡ 100x faster
-```
+| Scenario | Benefit |
+|---|---|
+| High-concurrency reads | Cache hot data and reduce repeated database work. |
+| MongoDB API compatibility | Keep familiar query syntax while adding higher-level helpers. |
+| Multi-instance services | Use Redis invalidation and distributed locks to keep instances coordinated. |
+| Transaction-heavy flows | Use `withTransaction()` and transaction-aware helpers instead of hand-rolled lifecycle code. |
+| Model-level ergonomics | Add schema validation, hooks, populate, and custom methods only where needed. |
+| Smooth upgrade from v1 | Keep legacy application source stable while adopting the TypeScript rewrite. |
 
-**只需在初始化时配置缓存，业务代码一行不改，性能立即提升！**
+monSQLize is usually not the best first choice for pure write-heavy workloads, extremely strict real-time reads where every query must bypass cache, or very small applications that do not need the extra operational layer.
 
----
-
-## 🎯 项目愿景
-
-**用MongoDB语法统一所有数据库查询**
-
-**mon**SQLize = **Mon**goDB + **SQL** = 统一查询语法
-
-### v2.0.0：MongoDB增强层（TypeScript 全量重写）
-
-为MongoDB应用提供：
-
-- ⚡ **10~100倍性能提升** - L1（内存）+ L2（Redis）智能缓存，业界最完善
-- 🏢 **企业级特性** - 分布式锁、SSH隧道、慢查询监控（内置，零配置）
-- 🛠️ **56+增强方法** - 业界最完整，代码减少60~80%
-- 🎯 **可选Model层** - Schema验证、Hooks、Populate（6个方法支持）
-- ✅ **100% API兼容** - 零学习成本，渐进式采用
-
-#### ⚡ 智能缓存
-
-- L1：内存缓存（LRU）
-- L2：Redis 缓存
-- 自动失效
-- 10~100 倍性能提升
-
-#### 🏢 企业特性
-
-- 分布式锁
-- SSH 隧道
-- 慢查询监控
-- 事务优化
-- 批量操作
-
-#### 🛠️ 增强方法
-
-- 56+ 个方法
-- 代码减少 60~80%
-- ObjectId 自动转换
-- 语义化 API
-
-### 未来愿景（v3.0+）：统一查询语法
-
-**革命性目标**: 让MySQL/PostgreSQL也能用MongoDB语法
-
-```javascript
-// 同一套代码，支持多种数据库
-const users = await collection.find({ 
-    age: { $gte: 18 },
-    status: 'active'
-});
-
-// MongoDB - ✅ 当前已支持
-// MySQL - 🎯 未来自动转换为: SELECT * FROM users WHERE age >= 18 AND status = 'active'
-// PostgreSQL - 🎯 未来自动转换为: SELECT * FROM users WHERE age >= 18 AND status = 'active'
-```
-
-**解决的核心痛点**:
-- ❌ 切换数据库需要重写所有查询代码
-- ❌ 团队需要学习多种查询语法
-- ❌ 跨数据库迁移成本极高
-- ❌ 多数据库项目维护复杂
-
-**monSQLize方案**:
-- ✅ 统一使用MongoDB查询语法（最直观、最灵活）
-- ✅ 底层自动适配不同数据库
-- ✅ 一套代码，多种数据库
-- ✅ 零迁移成本
-
----
-
-## 💡 为什么选择 monSQLize？
-
-### 你遇到的问题
-
-#### 😫 你现在可能会遇到的问题
-
-**数据库性能瓶颈**
-
-- 高并发时查询变慢
-- 热点数据重复查询数据库
-- 聚合统计拖慢响应速度
-- 用户抱怨页面加载慢
-
-**代码重复繁琐**
-
-- ObjectId 转换到处都是
-- 批量查询要写很多代码
-- Upsert 操作不够直观
-- 事务代码复杂易错
-
-**多实例部署问题**
-
-- 缓存不一致导致脏读
-- 定时任务重复执行
-- 库存扣减并发冲突
-- 需要额外的锁机制
-
-#### ✅ monSQLize 对应的解决方案
-
-**针对性能瓶颈**
-
-- **智能缓存系统**：热点数据走缓存，10~100 倍性能提升
-- **自动失效机制**：写操作自动清理，保证数据一致性
-- **缓存命中率 70~90%**：真实业务场景验证
-- **响应时间 < 1ms**：从 10~50ms 降至毫秒级
-
-**针对代码重复**
-
-- **便利方法**：`findOneById`、`findByIds`、`upsertOne`
-- **自动转换 ObjectId**：无需手动处理
-- **语义化 API**：代码更清晰易读
-- **事务自动管理**：`withTransaction` 简化事务代码
-
-**针对多实例部署**
-
-- **Redis 广播**：多实例缓存自动同步
-- **分布式锁**：解决并发控制问题
-- **定时任务防重**：`tryAcquireLock` 机制
-- **开箱即用**：配置简单，无需额外组件
-
-### 真实效果
-
-| 场景 | 优化前 | 优化后 | 提升 |
-|------|--------|--------|------|
-| **商品详情页** | 50ms/次 | 0.5ms/次 | **100x** ⚡ |
-| **用户列表** | 80ms/次 | 0.8ms/次 | **100x** ⚡ |
-| **订单统计** | 200ms/次 | 2ms/次 | **100x** ⚡ |
-| **批量插入 10万条** | 30s | 1.2s | **25x** ⚡ |
-
-**缓存命中率**：电商 85% · 内容平台 75% · 社交应用 80%
-
----
-
-## 🎯 何时使用 monSQLize？
-
-### ✅ 适合的场景
-
-| 场景 | 说明 | 预期效果 |
-|------|------|---------|
-| **高并发读取** | 商品详情、用户信息等热点数据 | 缓存命中率 70~90%，响应时间从 10~50ms 降至 < 1ms |
-| **复杂查询** | 聚合统计、关联查询 | 重复查询直接走缓存，避免重复计算 |
-| **多实例部署** | 负载均衡、水平扩展 | Redis 广播保证缓存一致性 |
-| **事务密集** | 订单、支付等业务 | 自动管理事务，优化只读操作 |
-| **并发控制** | 库存扣减、定时任务 | 分布式锁解决复杂并发场景 |
-
-### ⚠️ 不适合的场景
-
-| 场景 | 原因 | 建议 |
-|------|------|------|
-| **纯写入应用** | 大量写入，很少查询 | 缓存作用有限，使用原生驱动即可 |
-| **实时性要求极高** | 必须每次查询最新数据 | 不启用缓存，或使用极短 TTL |
-| **简单 CRUD** | 简单应用，流量不大 | 原生驱动足够，无需引入复杂度 |
-| **内存受限** | 服务器内存紧张 | 缓存会占用额外内存 |
-
-### 💡 使用建议
-
-- **渐进式采用**：先在热点查询启用缓存，观察效果后逐步扩展
-- **监控指标**：关注缓存命中率、内存使用、慢查询日志
-- **合理配置**：根据业务特点调整 TTL、缓存大小
-- **混合使用**：可与原生驱动混用，性能敏感用 monSQLize，简单查询用原生
-
----
-
-
-## 文档现状
-
-- 当前仓库已用 TypeScript 版 `docs/**`、`examples/**` 与 `test/**` 承接正式文档、示例和验证入口；v1 时代的历史资产仅作为迁移参考，不再作为当前发布真相源。
-- 这里保留产品定位、适用场景、快速开始和核心能力概览，帮助你先判断 monSQLize 是否适合当前业务。
-- 当前正式文档入口位于：`docs/README.md`、`docs/getting-started.md`、`docs/cache-and-function-cache.md`、`docs/capability-index.md`。
-- 当前官方示例入口位于：`examples/README.md`、`docs/examples.md`、`examples/quick-start/basic-connect.ts`、`examples/cache/with-cache.ts` 与 `examples/docs/*.ts`。
-- 当前已恢复的验证入口位于：`test/compatibility/**`、`test/performance/baselines/**`、`test/validation/**`。
-- 尚未迁移到当前 `docs/**` 的详细 API 语义、历史行为说明和旧示例，当前继续以 `monSQLize-v1` 的对应实现资产为参考；映射关系见 `test/validation/DOCS-EXAMPLES-MAPPING.md`。
-
----
-
-## 🚀 快速开始
-
-### 安装
+## Installation
 
 ```bash
 npm install monsqlize
 ```
 
-**自动安装的依赖**：
-- ✅ `mongodb` - MongoDB 官方驱动
-- ✅ `schema-dsl` - Schema 验证库（Model 层必需）
+Runtime dependencies installed with the package:
 
-**可选依赖**（按需安装）：
-- ⚠️ `ioredis` - Redis 多层缓存（启用 L2 缓存需要）
-- ⚠️ `ssh2` - SSH 隧道支持（通过跳板机连接时需要）：`npm install ssh2`
+- `mongodb` - official MongoDB driver.
+- `schema-dsl` - model schema validation runtime dependency.
+- `cache-hub` - cache and function-cache foundation.
+- `async-lock` - local concurrency lock support.
 
-### 基础使用
+Optional dependencies:
 
-```javascript
-const MonSQLize = require('monsqlize');
+- `ioredis` - required only when you enable Redis / L2 cache features.
+- `ssh2` - required only when you connect through an SSH tunnel.
 
-// 1. 初始化并连接
-const msq = new MonSQLize({
-    type: 'mongodb',
-    databaseName: 'mydb',
-    config: { uri: 'mongodb://localhost:27017' },
-    cache: { enabled: true, ttl: 60000 }  // 启用缓存，60秒过期
-});
-
-await msq.connect();
-
-// 2. 获取集合
-const users = msq.collection('users');
-
-// 3. 基础查询（自动缓存）
-const user = await users.findOne({ email: 'test@example.com' });
-
-// 4. 插入数据
-await users.insertOne({
-    username: 'john',
-    email: 'john@example.com',
-    createdAt: new Date()
-});
-
-// 5. 更新数据（自动清除缓存）
-await users.updateOne(
-    { email: 'test@example.com' },
-    { $set: { lastLogin: new Date() } }
-);
-
-// 6. 便利方法（自动转换ObjectId）
-const userById = await users.findOneById('507f1f77bcf86cd799439011');
-
-// 7. 关闭连接
-await msq.close();
+```bash
+npm install ioredis ssh2
 ```
 
-**就这么简单！** 完全兼容MongoDB原生API，只需初始化时启用缓存，业务代码零改动。
+## Quick Start
 
-### 使用 Model 层（可选）
+### CommonJS
 
-如果需要 **Schema验证**、**Populate关联查询**、**Hooks生命周期** 等 ORM 特性，可以使用 Model 层。
+```js
+const MonSQLize = require('monsqlize');
 
-> **📦 依赖说明**: Model 层需要 `schema-dsl` 包支持（已随 monsqlize 自动安装，无需额外操作）
+const db = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: {
+    uri: 'mongodb://localhost:27017'
+  },
+  cache: {
+    enabled: true,
+    ttl: 60_000
+  }
+});
 
-Model 层有两种使用方式，二者**互斥**，选其一即可：
+await db.connect();
 
-| 方式 | 适合场景 |
-|------|---------|
-| **手动注册**（`Model.define()`）| 少量 Model、测试环境、需要精确控制加载顺序 |
-| **自动加载**（`models:` 配置项）| 生产环境，Model 文件统一放在一个目录下 |
+const users = db.collection('users');
 
-#### 方式一：手动注册
+await users.insertOne({
+  username: 'john',
+  email: 'john@example.com',
+  createdAt: new Date()
+});
 
-```javascript
+const user = await users.findOne({ email: 'john@example.com' });
+const userById = await users.findOneById('507f1f77bcf86cd799439011');
+
+await users.updateOne(
+  { email: 'john@example.com' },
+  { $set: { lastLoginAt: new Date() } }
+);
+
+await db.close();
+```
+
+### ESM and TypeScript
+
+```ts
+import MonSQLize from 'monsqlize';
+import type { Collection } from 'monsqlize';
+
+const db = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: {
+    uri: 'mongodb://localhost:27017'
+  }
+});
+
+await db.connect();
+
+const users: Collection = db.collection('users');
+const activeUsers = await users.find({ status: 'active' }).toArray();
+
+await db.close();
+```
+
+Published entry points:
+
+| Format | Entry |
+|---|---|
+| CommonJS | `dist/cjs/index.cjs` |
+| ESM | `dist/esm/index.mjs` |
+| Types | `dist/types/index.d.ts` |
+
+The package root exports only the public package contract. Deep imports into historical `lib/**` files are not part of the v2 publishing surface.
+
+## Model Layer
+
+The Model layer is optional. Use it when you want schema validation, hooks, relations, populate, custom methods, timestamps, soft delete, or optimistic locking.
+
+`schema-dsl` is installed automatically as a runtime dependency of monSQLize. You only need to declare `schema-dsl` in your own app if your application imports it directly.
+
+### Manual Model Registration
+
+```js
 const MonSQLize = require('monsqlize');
 const { Model } = MonSQLize;
 
-// 1. 先在 connect() 之前调用 Model.define() 注册所有 Model
 Model.define('users', {
-    schema: (dsl) => dsl({
-        username: 'string:3-32!',
-        email: 'email!',
-        password: 'string:6-!',
-        age: 'number:0-120'
-    }),
-    relations: {
-        posts: { from: 'posts', localField: '_id', foreignField: 'userId', single: false }
-    },
-    hooks: (model) => ({
-        insert: { before: async (ctx, doc) => { doc.createdAt = new Date(); return doc; } }
-    }),
-    methods: (model) => ({
-        instance: { checkPassword(password) { return this.password === password; } },
-        static: { async findByUsername(username) { return await model.findOne({ username }); } }
-    })
-});
-
-Model.define('posts', {
-    schema: (dsl) => dsl({ title: 'string:1-200!', content: 'string!', userId: 'string!' })
-});
-
-// 2. 创建实例并连接
-const msq = new MonSQLize({
-    type: 'mongodb',
-    databaseName: 'mydb',
-    config: { uri: 'mongodb://localhost:27017' },
-    cache: { enabled: true }
-});
-await msq.connect();
-
-// 3. 获取 Model 并使用
-const User = msq.model('users');
-```
-
-#### 方式二：自动加载（推荐用于生产环境）
-
-将每个 Model 单独放在一个文件里，`connect()` 时自动扫描目录加载，无需手动 `Model.define()`：
-
-```javascript
-// app.js
-const path = require('path');
-
-const msq = new MonSQLize({
-    type: 'mongodb',
-    databaseName: 'mydb',
-    config: { uri: 'mongodb://localhost:27017' },
-    // 推荐用绝对路径，避免受 process.cwd() 影响
-    models: path.join(__dirname, 'models')
-    // 或完整配置：
-    // models: { path: path.join(__dirname, 'models'), pattern: '*.model.js', recursive: true }
-});
-
-await msq.connect();            // ← 自动扫描 models/*.model.{js,ts,mjs,cjs}
-
-const User = msq.model('users'); // 直接使用，无需 Model.define()
-```
-
-> 相对路径（如 `'./models'`）以 `process.cwd()` 为基准，即 Node.js 进程的启动目录。为避免歧义，推荐始终使用 `path.join(__dirname, 'models')` 这样的绝对路径。
-
-```javascript
-// models/user.model.js  ← 每个 Model 独立一个文件
-module.exports = {
-    name: 'users',              // 集合名称（必需）
-    schema: (dsl) => dsl({
-        username: 'string:3-32!',
-        email: 'email!'
-    }),
-    methods: (model) => ({
-        static: {
-            async findByUsername(username) { return await model.findOne({ username }); }
-        }
-    })
-};
-```
-
-> 完整配置项、文件格式和错误处理的历史说明，当前请以 `monSQLize-v1` 中的 Model 文档与实现为参考；本仓库不再保留对应本地深链。
-
-#### 两种方式共同的后续操作
-
-```javascript
-
-// ✅ Schema 验证自动生效
-try {
-    await User.insertOne({
-        username: 'jo',  // ❌ 太短，验证失败
-        email: 'invalid-email',  // ❌ 邮箱格式错误
-        age: 25
-    });
-} catch (err) {
-    console.error(err.code);  // 'VALIDATION_ERROR'
-    console.error(err.errors);  // 详细的验证错误
-}
-
-// ✅ 正确的数据
-const user = await User.insertOne({
-    username: 'john',
-    email: 'john@example.com',
-    password: 'secret123',
-    age: 25
-    // createdAt 由 hook 自动添加
-});
-
-// 使用自定义方法
-const foundUser = await User.findByUsername('john');
-if (foundUser.checkPassword('secret123')) {
-    console.log('登录成功');
-}
-
-// Populate 关联查询（自动填充用户的文章）
-const userWithPosts = await User.findOne({ username: 'john' })
-    .populate('posts');
-
-console.log(userWithPosts.posts);  // [{ title: '...', content: '...' }, ...]
-
-// 禁用验证（特殊场景）
-await User.insertOne(doc, { skipValidation: true });
-```
-
-**Model 层特性**：
-- ✅ **Schema 验证** - 自动验证数据格式（基于 `schema-dsl` 库，v1.0.7 默认启用）
-- ✅ **自动加载** - 扫描目录自动加载 Model 文件（v1.0.7+）
-- ✅ **Populate** - 关联查询，支持 6 个方法（业界领先）
-- ✅ **Hooks** - 生命周期钩子（insert/update/delete/find）
-- ✅ **Relations** - 定义表关系（hasOne/hasMany/belongsTo）
-- ✅ **自定义方法** - instance 方法注入到文档，static 方法挂载到 Model
-- ✅ **自动缓存** - Populate 查询结果也会缓存
-- ✅ **数据源绑定** - `connection: { pool?, database? }` 绑定指定连接池和/或数据库（v1.2.2+）
-
-**数据源绑定示例（v1.2.2+）**：
-
-```js
-// 在多连接池场景中，将 Model 绑定到指定的连接池 + 数据库
-const msq = new MonSQLize({
-  uri: 'mongodb://localhost:27017',
-  databaseName: 'main_db',
-  pools: [{ name: 'analytics', uri: 'mongodb://analytics-host:27017' }]
-});
-
-// 绑定到不同数据库（使用默认连接池）
-Model.define('AuditLog', {
-  schema: (dsl) => dsl({ action: 'string!', userId: 'string!' }),
-  connection: { database: 'audit_db' }
-});
-
-// 绑定到不同连接池 + 不同数据库
-Model.define('AnalyticsReport', {
-  schema: (dsl) => dsl({ reportId: 'string!', data: 'object' }),
-  connection: { pool: 'analytics', database: 'reports_db' }
-});
-
-// 调用时自动路由，无需手动切换
-const AuditLogModel  = msq.model('AuditLog');       // → audit_db（默认池）
-const ReportModel    = msq.model('AnalyticsReport'); // → reports_db（analytics 池）
-const UserModel      = msq.model('users');           // → main_db（原逻辑，向后兼容）
-```
-
-参考说明：Model / Populate / Hooks / Schema 验证的详细语义，当前请以 `monSQLize-v1` 的对应文档和实现为准。
-
----
-
-### 从原生驱动迁移
-
-```javascript
-// 原来的代码
-const { MongoClient } = require('mongodb');
-const client = await MongoClient.connect('mongodb://localhost:27017');
-const db = client.db('mydb');
-const users = db.collection('users');
-
-// 迁移后（只需改初始化）
-const MonSQLize = require('monsqlize');
-const msq = new MonSQLize({
-    type: 'mongodb',
-    databaseName: 'mydb',  // 数据库名称
-    config: { uri: 'mongodb://localhost:27017' },
-    cache: { enabled: true }  // 启用缓存
-});
-await msq.connect();
-const users = msq.collection('users');
-
-// ✅ 后续代码完全不变
-const user = await users.findOne({ email: 'test@example.com' });
-```
-
----
-
-## 🌟 核心特性
-
-### 0. 🎨 通用函数缓存 🆕 v1.1.4 - 为任意函数添加缓存
-
-**52个测试（100% 通过）**，为任意异步函数添加缓存能力，性能提升**50000x**！
-
-> 若你正在从旧的 monSQLize 缓存包装接口迁移到当前版本，请参考 [`docs/cache-hub-migration.md`](https://github.com/vextjs/monSQLize/blob/main/docs/cache-hub-migration.md)。
-
-#### 🆕 装饰器模式
-
-```javascript
-const { withCache } = require('monsqlize');
-
-// 业务函数
-async function getUserProfile(userId) {
-    const user = await msq.collection('users')
-        .findOne({ _id: userId });
-    const orders = await msq.collection('orders')
-        .find({ userId }).toArray();
-    return { user, orders };
-}
-
-// 添加缓存（零侵入）
-const cached = withCache(getUserProfile, {
-    ttl: 300000,  // 5分钟
-    cache: msq.getCache()
-});
-
-// 使用
-await cached('user123');  // 首次：查询数据库
-await cached('user123');  // 再次：从缓存读取 ⚡
-```
-
-#### 核心优势
-
-- ✅ **零侵入** - 装饰器模式，不修改原函数
-- ✅ **自动序列化** - 支持复杂参数（对象、Date 等）
-- ✅ **并发控制** - 防止缓存击穿
-- ✅ **双层缓存** - 本地 + Redis，最佳性能
-- ✅ **条件缓存** - 基于返回值决定是否缓存
-- ✅ **统计监控** - 命中率、调用次数等
-- ✅ **命名空间** - 多模块缓存隔离
-- ✅ **TypeScript** - 完整类型支持
-
-**性能提升**：
-
-- 🚀 复杂业务函数：50000x
-- 🚀 外部 API 调用：200000x
-- 🚀 复杂计算：100000x
-
-**FunctionCache 类管理**:
-
-```javascript
-const { FunctionCache } = require('monsqlize');
-
-const fnCache = new FunctionCache(msq, {
-    namespace: 'myApp',
-    ttl: 60000
-});
-
-// 注册多个函数
-fnCache.register('getUserProfile', getUserProfileFn);
-fnCache.register('getOrderStats', getOrderStatsFn);
-
-// 执行
-await fnCache.execute('getUserProfile', 'user123');
-
-// 失效缓存
-await fnCache.invalidate('getUserProfile', 'user123');
-
-// 查看统计
-const stats = fnCache.getStats('getUserProfile');
-console.log('命中率:', stats.hitRate);
-```
-
-参考说明：Function Cache 的完整行为与键生成机制，当前请以 `monSQLize-v1` 的对应文档和实现为准。
-
----
-
-### 1. 🎯 统一表达式系统 🆕 v1.1.0 - 让聚合查询像SQL一样简单
-
-**122个操作符（100% MongoDB支持！新增49个函数）**，让MongoDB聚合查询**像写SQL一样简单**！
-
-#### 🆕 统一表达式语法
-
-```javascript
-const { expr } = require('monsqlize');
-
-// ❌ MongoDB原生（繁琐）
-await users.aggregate([
-  {
-    $project: {
-      fullName: {
-        $concat: ['$firstName', ' ', '$lastName']
-      },
-      age: {
-        $subtract: [
-          { $year: new Date() },
-          { $year: '$birthDate' }
-        ]
-      }
-    }
-  }
-]);
-
-// ✅ 统一表达式（简洁）
-await users.aggregate([
-  {
-    $project: {
-      fullName: expr("CONCAT(firstName, ' ', lastName)"),
-      age: expr("YEAR(CURRENT_DATE) - YEAR(birthDate)")
-    }
-  }
-]);
-```
-
-#### 核心优势
-
-- ✅ **67 个操作符** - 覆盖 95% 使用场景
-- ✅ **类 SQL 语法** - 易读易写，降低学习成本
-- ✅ **上下文感知** - 自动适配 `$match` / `$project` / `$group`
-- ✅ **Lambda 表达式** - `FILTER` / `MAP` 完整支持
-- ✅ **高性能** - LRU 缓存，>90% 命中率
-- ✅ **100% 兼容** - 可与原生语法混用
-
-**支持的操作符分类**：
-
-- 🔹 条件判断（三元、`SWITCH`）
-- 🔹 数学计算（`ABS`、`ROUND`、`POW` 等）
-- 🔹 字符串处理（`CONCAT`、`SPLIT`、`REPLACE` 等）
-- 🔹 数组操作（`FILTER`、`MAP`、`SIZE` 等）
-- 🔹 日期处理（`YEAR`、`MONTH`、`DAY` 等）
-- 🔹 类型转换（`TO_INT`、`TO_STRING` 等）
-
-**更多示例**：
-
-```javascript
-// 条件判断 - 三元运算符
-expr("score >= 90 ? 'A' : 'B'")
-
-// 多分支条件 - SWITCH
-expr("SWITCH(score >= 90, 'A', score >= 80, 'B', score >= 60, 'C', 'F')")
-
-// 字符串处理
-expr("UPPER(TRIM(email))")
-expr("SPLIT(tags, ',')")
-
-// 数组过滤（Lambda表达式）
-expr("FILTER(items, item, item.price > 100)")
-
-// 日期计算
-expr("YEAR(createdAt) === 2024 && MONTH(createdAt) === 12")
-
-// 完整聚合查询示例
-await orders.aggregate([
-  {
-    $project: {
-      // 价格计算
-      finalPrice: expr("price * (1 - discount / 100)"),
-      
-      // 日期提取
-      year: expr("YEAR(createdAt)"),
-      month: expr("MONTH(createdAt)"),
-      
-      // 状态分类
-      statusLabel: expr("SWITCH(status === 'paid', 'Paid', status === 'pending', 'Pending', 'Cancelled')")
+  schema: (dsl) => dsl({
+    username: 'string:3-32!',
+    email: 'email!',
+    password: 'string:6-!',
+    age: 'number:0-120'
+  }),
+  relations: {
+    posts: {
+      from: 'posts',
+      localField: '_id',
+      foreignField: 'userId',
+      single: false
     }
   },
-  {
-    $group: {
-      _id: { year: '$year', month: '$month' },
-      totalOrders: expr("COUNT()"),
-      totalRevenue: expr("SUM(finalPrice)")
+  hooks: (model) => ({
+    insert: {
+      before: async (ctx, doc) => {
+        doc.createdAt = new Date();
+        return doc;
+      }
     }
-  }
-]);
-```
-
-参考说明：统一表达式系统和操作符明细，当前请以 `monSQLize-v1` 的对应文档和实现为准。
-
----
-
-### 2. ⚡ 智能缓存系统 - 性能提升 10~100 倍
-
-#### 特性
-
-- ✅ **TTL 过期策略** - 指定缓存时间
-- ✅ **LRU 淘汰策略** - 自动淘汰旧数据
-- ✅ **精准失效 🆕** - 只清除受影响的缓存
-- ✅ **自动失效** - 写操作自动清理缓存
-- ✅ **并发去重** - 相同查询只执行一次
-- ✅ **多层缓存** - 内存 + Redis
-- ✅ **命名空间隔离** - 按集合独立管理
-
-#### 性能提升
-
-| 操作 | 原生驱动 | monSQLize | 提升 |
-|------|---------|-----------|------|
-| 热点查询 | 50ms | 0.5ms | **100x** ⚡ |
-| 复杂聚合 | 200ms | 2ms | **100x** ⚡ |
-| 列表查询 | 30ms | 0.3ms | **100x** ⚡ |
-
-```javascript
-// 一行代码启用缓存
-const users = await collection.find({ status: 'active' }, { cache: 60000 });
-```
-
-### 2. 🔄 事务管理优化 - 减少 30% 数据库访问
-
-```javascript
-// 自动管理事务生命周期
-await db.withTransaction(async (tx) => {
-    // 只读操作会被优化（不加锁，减少 30% 访问）
-    const user = await users.findOne({ _id: userId }, { session: tx.session });
-    
-    // 写操作自动加锁
-    await users.updateOne({ _id: userId }, { $inc: { balance: -100 } }, { session: tx.session });
-    
-    // 自动提交 or 回滚
-});
-```
-
-### 2.5 🔀 Saga 分布式事务 - 跨服务事务协调 🆕
-
-```javascript
-// 定义 Saga（跨服务事务）
-msq.defineSaga({
-    name: 'create-order-with-payment',
-    steps: [
-        {
-            name: 'create-order',
-            execute: async (ctx) => {
-                const order = await createOrder(ctx.data);
-                // ✅ 可以保存字符串、对象、数组等任何类型
-                ctx.set('order', order);  // 保存完整对象
-                return order;
-            },
-            compensate: async (ctx) => {
-                const order = ctx.get('order');
-                await cancelOrder(order.id);
-            }
-        },
-        {
-            name: 'charge-payment',
-            execute: async (ctx) => {
-                const charge = await stripe.charges.create({...});
-                ctx.set('charge', charge);  // 保存完整对象
-                return charge;
-            },
-            compensate: async (ctx) => {
-                const charge = ctx.get('charge');
-                await stripe.refunds.create({ charge: charge.id });
-            }
-        }
-    ]
-});
-
-// 执行 Saga（失败自动补偿）
-const result = await msq.executeSaga('create-order-with-payment', data);
-```
-
-**Saga 特性**：
-- ✅ 跨服务事务协调
-- ✅ 失败自动补偿（逆序执行）
-- ✅ 支持 Redis 分布式（多进程共享）
-- ✅ 无时间限制（突破 60秒限制）
-- ✅ 详细日志（完整执行追踪）
-
-说明：当前仓库已恢复最小 Saga orchestrator / runtime façade 闭环；更完整的跨进程共享、长事务恢复与高级编排细节仍以 `monSQLize-v1` 的对应文档和实现为参考。
-
----
-
-#### 🆕 Change Stream 数据同步 (v1.0.9)
-
-**实时同步数据到备份库，基于 MongoDB Change Stream**
-
-```javascript
-const msq = new MonSQLize({
-    type: 'mongodb',
-    config: {
-        uri: 'mongodb://localhost:27017/main?replicaSet=rs0'  // 🔴 必须：Change Stream 需要 Replica Set
+  }),
+  methods: (model) => ({
+    instance: {
+      checkPassword(password) {
+        return this.password === password;
+      }
     },
-    
-    // 🆕 同步配置
-    sync: {
-        enabled: true,
-        targets: [
-            {
-                name: 'backup-main',
-                uri: 'mongodb://backup:27017/backup',
-                collections: ['users', 'orders']
-            }
-        ]
+    static: {
+      async findByUsername(username) {
+        return model.findOne({ username });
+      }
     }
+  })
 });
 
-await msq.connect();
-
-// 正常使用，自动同步
-await msq.collection('users').insertOne({ name: 'Alice' });
-// ✅ 自动通过 Change Stream 同步到 backup-main
-```
-
-**Change Stream 特性**：
-- ✅ 实时同步（延迟 10-500ms）
-- ✅ 断点续传（Resume Token）
-- ✅ 多目标支持（多地容灾）
-- ✅ 数据过滤和转换
-- ✅ 自动重连和健康检查
-- ✅ 主库影响 <2%（异步处理）
-
-说明：当前仓库已恢复最小 sync contract / manager / runtime lifecycle；更完整的多目标容灾策略、自动重连细节与旧示例仍以 `monSQLize-v1` 的对应文档和实现为参考。
-
-### 4. 📦 便利方法 - 减少 60~80% 代码
-
-#### ❌ 原生驱动
-
-```javascript
-// 查询单个文档（需要手动转换 ObjectId）
-const { ObjectId } = require('mongodb');
-const user = await users.findOne({ 
-    _id: new ObjectId(userId) 
-});
-
-// 批量查询（需要手动构建 $in）
-const userList = await users.find({
-    _id: { $in: ids.map(id => new ObjectId(id)) }
-}).toArray();
-
-// Upsert（需要手动设置选项）
-await users.updateOne(
-    { email: 'alice@example.com' },
-    { $set: { name: 'Alice', age: 30 } },
-    { upsert: true }
-);
-```
-
-#### ✅ monSQLize
-
-```javascript
-// 查询单个文档（自动转换）
-const user = await users.findOneById(userId);
-
-// 批量查询（一行搞定）
-const userList = await users.findByIds(ids);
-
-// Upsert（语义化）
-await users.upsertOne(
-    { email: 'alice@example.com' },
-    { name: 'Alice', age: 30 }
-);
-```
-
-**代码减少 60~80%！**
-
-**🔥 ObjectId 自动转换** - 告别手动转换
-
-```javascript
-// ❌ 原生驱动 - 每次都要转换
-const { ObjectId } = require('mongodb');
-await users.findOne({ _id: new ObjectId(userId) });
-await users.find({ _id: { $in: ids.map(id => new ObjectId(id)) } }).toArray();
-
-// ✅ monSQLize - 自动识别并转换
-await users.findOneById(userId);       // 自动转换字符串
-await users.findByIds([id1, id2, id3]); // 批量自动转换
-await users.findOne({ _id: userId });   // 查询时也自动转换
-```
-
-### 4. 🌐 分布式部署支持
-
-```javascript
-// 多实例部署，Redis 自动同步缓存
 const db = new MonSQLize({
-    cache: {
-        distributed: {
-            enabled: true,
-            redis: redisInstance  // 使用 Redis 广播缓存失效
-        }
-    }
-});
-
-// 实例 A 更新数据
-await users.updateOne({ _id: userId }, { $set: { name: 'Bob' } });
-// ⚡ 实例 B/C/D 的缓存自动失效
-```
-
-### 5. 🆕 业务级分布式锁（v1.4.0）
-
-```javascript
-// 🔥 解决复杂业务场景的并发问题
-
-// 场景1：库存扣减
-await db.withLock(`inventory:${sku}`, async () => {
-    const product = await inventory.findOne({ sku });
-    const price = calculatePrice(product, user, coupon);  // 复杂计算
-    if (user.balance < price) throw new Error('余额不足');
-    
-    await inventory.updateOne({ sku }, { $inc: { stock: -1 } });
-    await users.updateOne({ userId }, { $inc: { balance: -price } });
-    await orders.insertOne({ userId, sku, price });
-});
-
-// 场景2：定时任务防重（多实例环境）
-const lock = await db.tryAcquireLock('cron:daily-report');
-if (lock) {
-    try {
-        await generateDailyReport();  // 只有一个实例执行
-    } finally {
-        await lock.release();
-    }
-}
-```
-
-**特性**：基于 Redis · 自动重试 · TTL 防死锁 · 支持续期 · 降级策略
-
-参考说明：业务级分布式锁的详细行为，当前请以 `monSQLize-v1` 的对应文档和实现为准。
-
-### 6. 🚀 高性能批量插入
-
-```javascript
-// 批量插入 10 万条数据
-await users.insertBatch(documents, {
-    batchSize: 1000,     // 每批 1000 条
-    retryTimes: 3,       // 失败重试 3 次
-    onProgress: (stats) => {
-        console.log(`进度: ${stats.inserted}/${stats.total}`);
-    }
-});
-```
-
-**性能**: 比原生 `insertMany` 快 **10~50 倍** ⚡
-
-### 7. 📊 深度分页 - 支持千万级数据
-
-```javascript
-// 千万级数据分页（游标分页，性能稳定）
-const result = await users.findPage({
-    query: { status: 'active' },
-    page: 1000,          // 第 1000 页
-    limit: 20,
-    totals: {
-        mode: 'async',   // 异步统计总数
-        ttl: 300000      // 缓存 5 分钟
-    }
-});
-
-console.log(`总计: ${result.totals.total}, 共 ${result.totals.totalPages} 页`);
-```
-
-### 8. 🛠️ 运维监控（开箱即用）
-
-```javascript
-// 🆕 慢查询日志持久化存储（v1.3+）
-const msq = new MonSQLize({
   type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017/mydb' },
-  slowQueryMs: 500,
-  slowQueryLog: true  // ✅ 零配置启用，自动存储到 admin.slow_query_logs
+  databaseName: 'mydb',
+  config: { uri: 'mongodb://localhost:27017' }
 });
 
-await msq.connect();
-
-// 查询慢查询日志（支持去重聚合）
-const logs = await msq.getSlowQueryLogs(
-  { collection: 'users' },
-  { sort: { count: -1 }, limit: 10 }  // 查询高频慢查询Top10
-);
-// [{ queryHash: 'abc123', count: 2400, avgTimeMs: 520, maxTimeMs: 1200, ... }]
-
-// 自动记录慢查询（原有功能）
-// [WARN] Slow query { ns: 'mydb.users', duration: 1200ms, query: {...} }
-
-// 健康检查
-const health = await db.health();
-// { status: 'ok', uptime: 3600, connections: 10 }
-
-// 性能指标
-const stats = await db.getStats();
-// { queries: 10000, cacheHits: 9000, hitRate: 0.9 }
-```
-
-### 9. 🔐 SSH隧道 - 安全连接内网数据库（v1.3+）
-
-```javascript
-// 场景：数据库位于防火墙后，无法直接访问
-const db = new MonSQLize({
-    type: 'mongodb',
-    config: {
-        // SSH隧道配置
-        ssh: {
-            host: 'bastion.example.com',  // SSH服务器（跳板机）
-            port: 22,
-            username: 'deploy',
-            password: 'your-password',     // ✅ 支持密码认证
-            // 或使用私钥认证（推荐）
-            // privateKeyPath: '~/.ssh/id_rsa',
-        },
-        // MongoDB连接配置（内网地址，自动从URI解析remoteHost和remotePort）
-        uri: 'mongodb://user:pass@internal-mongo:27017/mydb'
-    }
-});
-
-await db.connect();  // 自动建立SSH隧道
-// 正常使用MongoDB，无需关心隧道细节
-const users = db.collection('users');
-const data = await users.findOne({});
-await db.close();    // 自动关闭SSH隧道
-```
-
-**特性**：
-- ✅ 支持密码和私钥认证
-- ✅ 自动管理隧道生命周期
-- ✅ 完美跨平台（基于ssh2库）
-- ✅ 开箱即用，零额外配置
-
-参考说明：SSH 隧道的详细配置与错误处理，当前请以 `monSQLize-v1` 的对应文档和实现为准。
-
----
-
-### 10. 🔄 ObjectId 跨版本兼容（v1.1.1+）🆕
-
-解决混用 mongoose 和 monSQLize 时的 BSON 版本冲突问题。
-
-```javascript
-// ❌ 问题场景：mongoose (bson@4.x/5.x) + monSQLize (bson@6.x)
-const dataFromMongoose = await MongooseModel.findOne({ ... }).lean();
-await msq.collection('orders').insertOne(dataFromMongoose);
-// 错误：Unsupported BSON version, bson types must be from bson 6.x.x
-
-// ✅ monSQLize v1.1.1+ 自动处理
-const dataFromMongoose = await MongooseModel.findOne({ ... }).lean();
-await msq.collection('orders').insertOne(dataFromMongoose);
-// 成功：自动将旧版本 ObjectId 转换为 bson@6.x
-```
-
-**特性**：
-- ✅ 自动检测并转换来自其他 BSON 版本的 ObjectId
-- ✅ 递归处理嵌套对象和数组
-- ✅ 性能优化：无需转换时零拷贝
-- ✅ 错误降级：转换失败不影响其他字段
-- ✅ 完全透明：无需修改业务代码
-
-**兼容性**：
-
-| BSON 版本 | mongoose 版本 | 支持状态 |
-|-----------|--------------|---------|
-| bson@4.x  | mongoose@5.x | ✅ 完全支持 |
-| bson@5.x  | mongoose@6.x | ✅ 完全支持 |
-| bson@6.x  | mongoose@7.x | ✅ 原生支持 |
-
-参考说明：ObjectId 跨版本兼容的详细行为，当前请以 `monSQLize-v1` 的对应文档和实现为准。
-
----
-
-### 11. 🎯 Model 层 - 像 ORM 一样使用（v1.0.3+）
-
-monSQLize 提供了一个轻量级的 Model 层，让你可以像使用 ORM 一样定义数据模型，同时保持 MongoDB 的灵活性。
-
-> **📦 依赖说明**: Model 层基于 `schema-dsl` 库实现 Schema 验证，已随 monsqlize 自动安装。
-
-```javascript
-const { Model } = require('monsqlize');
-
-// 1. 定义 Model（集成 schema-dsl 验证）
-Model.define('users', {
-    enums: {
-        role: 'admin|user|guest'
-    },
-    schema: function(dsl) {
-        return dsl({
-            username: 'string:3-32!',
-            email: 'email!',
-            role: this.enums.role.default('user'),
-            age: 'number:1-150'
-        });
-    },
-    options: {
-        timestamps: true,  // 🆕 v1.0.3: 自动管理 createdAt/updatedAt
-        softDelete: true   // 🆕 v1.0.3: 软删除（标记删除，支持恢复）
-    },
-    methods: (model) => ({
-        // 实例方法 - 注入到查询返回的文档对象
-        instance: {
-            isAdmin() {
-                return this.role === 'admin';
-            }
-        },
-        // 静态方法 - 挂载到 Model 实例
-        static: {
-            async findByEmail(email) {
-                return await model.findOne({ email });
-            }
-        }
-    }),
-    hooks: (model) => ({
-        // 生命周期钩子
-        insert: {
-            before: (ctx, docs) => {
-                // 自动添加时间戳
-                return { ...docs, createdAt: new Date() };
-            }
-        }
-    }),
-    indexes: [
-        { key: { username: 1 }, unique: true },
-        { key: { email: 1 }, unique: true }
-    ]
-});
-
-// 2. 使用 Model
-const db = new MonSQLize({ /* ... */ });
 await db.connect();
 
 const User = db.model('users');
-
-// 自动 Schema 验证
 const user = await User.insertOne({
-    username: 'john',
-    email: 'john@example.com',
-    age: 25
-}); // ✅ 验证通过
-
-// 使用实例方法
-const admin = await User.findOne({ username: 'admin' });
-console.log(admin.isAdmin()); // true
-
-// 使用静态方法
-const user = await User.findByEmail('john@example.com');
-
-// 软删除（标记删除，可恢复）
-await User.deleteOne({ _id: user._id });
-
-// 查询（自动过滤已删除）
-const users = await User.find({}); // 不包含已删除用户
-
-// 查询包含已删除
-const allUsers = await User.findWithDeleted({});
-
-// 恢复已删除
-await User.restore({ _id: user._id });
+  username: 'john',
+  email: 'john@example.com',
+  password: 'secret123',
+  age: 25
+});
 ```
 
-**特性**：
-- ✅ Schema 验证（集成 schema-dsl）
-- ✅ 自定义方法（instance + static）
-- ✅ 生命周期钩子（before/after）
-- ✅ 索引自动创建
-- ✅ 自动时间戳（v1.0.3+）
-- ✅ 软删除（v1.0.3+）
-- ✅ 乐观锁版本控制（v1.0.3+）
-- ✅ **关系定义和 populate（v1.2.0+）** 🆕
-- ✅ TypeScript 类型支持
+### Automatic Model Loading
 
-#### 关系定义和 populate（v1.2.0+）🆕
+```js
+const path = require('path');
+const MonSQLize = require('monsqlize');
 
-轻松处理集合之间的关联关系，支持 one-to-one 和 one-to-many。
+const db = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: { uri: 'mongodb://localhost:27017' },
+  models: path.join(__dirname, 'models')
+});
 
-```javascript
-// 1. 定义关系
-Model.define('users', {
-    schema: (dsl) => dsl({
-        username: 'string!',
-        profileId: 'objectId'
-    }),
-    relations: {
-        // one-to-one: 用户 → 个人资料
-        profile: {
-            from: 'profiles',         // 集合名
-            localField: 'profileId',  // 本地字段
-            foreignField: '_id',      // 外部字段
-            single: true              // 返回类型
-        },
-        // one-to-many: 用户 → 文章列表
-        posts: {
-            from: 'posts',
-            localField: '_id',
-            foreignField: 'authorId',
-            single: false             // 返回数组
-        }
+await db.connect();
+
+const User = db.model('users');
+```
+
+```js
+// models/user.model.js
+module.exports = {
+  name: 'users',
+  schema: (dsl) => dsl({
+    username: 'string:3-32!',
+    email: 'email!'
+  }),
+  methods: (model) => ({
+    static: {
+      async findByUsername(username) {
+        return model.findOne({ username });
+      }
     }
+  })
+};
+```
+
+Relative model paths are resolved from `process.cwd()`. In production services, prefer absolute paths such as `path.join(__dirname, 'models')`.
+
+### Populate
+
+```js
+Model.define('posts', {
+  schema: (dsl) => dsl({
+    title: 'string:1-200!',
+    content: 'string!',
+    userId: 'objectId!'
+  })
 });
 
-// 2. 使用 populate
-const user = await User.findOne({ username: 'john' })
-    .populate('profile')                    // 填充 profile
-    .populate('posts', {                    // 填充 posts
-        select: 'title content',            // 只选择部分字段
-        match: { status: 'published' },     // 额外查询条件
-        sort: { createdAt: -1 },            // 排序
-        limit: 10                           // 限制数量
-    });
+const userWithPosts = await User.findOne({ username: 'john' })
+  .populate('posts', {
+    select: 'title content',
+    match: { status: 'published' },
+    sort: { createdAt: -1 },
+    limit: 10
+  });
 ```
 
-**返回结果示意**：
+Populate is supported by `find()`, `findOne()`, `findByIds()`, `findOneById()`, `findAndCount()`, and `findPage()`.
 
-- `_id`: `...`
-- `username`: `john`
-- `profileId`: `...`
-- `profile`：自动填充后的对象，例如包含 `_id`、`bio`、`avatar`
-- `posts`：自动填充后的数组，例如包含 `title`、`content` 等字段
+## Caching and Performance
 
-**支持的查询方法**（全部 6 个）:
-- ✅ `find().populate()` - 批量查询
-- ✅ `findOne().populate()` - 单文档查询
-- ✅ `findByIds().populate()` - 批量 ID 查询
-- ✅ `findOneById().populate()` - 单 ID 查询
-- ✅ `findAndCount().populate()` - 带计数查询
-- ✅ `findPage().populate()` - 分页查询
+monSQLize can cache collection queries and arbitrary async functions.
 
-**特点**:
-- ✅ 极简配置（只需 4 个字段）
-- ✅ 接近 MongoDB 原生（直接对应 `$lookup`）
-- ✅ 批量查询优化（避免 N+1 问题）
-- ✅ 支持链式调用
-- ✅ 丰富的 populate 选项（select/sort/limit/skip/match）
+```js
+const users = db.collection('users');
 
-参考说明：Relations / populate 的详细语义，当前请以 `monSQLize-v1` 的对应文档和实现为准。
-
-**注意**：需要安装 `schema-dsl` 依赖：
-```bash
-npm install schema-dsl
+const hotUser = await users.findOne(
+  { email: 'john@example.com' },
+  { cache: 60_000 }
+);
 ```
 
-#### 热重载支持（v1.1.7+）🆕
+```js
+const { withCache } = require('monsqlize');
 
-在开发模式下，无需重启进程即可更新 Model 定义。
+async function getUserProfile(userId) {
+  const user = await db.collection('users').findOneById(userId);
+  const orders = await db.collection('orders').find({ userId }).toArray();
+  return { user, orders };
+}
 
-```javascript
-const { Model } = require('monsqlize');
-
-// 注销 Model 定义（返回 boolean）
-Model.undefine('users');         // true  — 成功注销
-Model.undefine('nonexistent');   // false — 不存在时不抛错
-
-// 替换 Model 定义（undefine + define 的组合）
-Model.redefine('users', {
-    schema: (dsl) => dsl({ username: 'string!', email: 'email!' })
+const cachedGetUserProfile = withCache(getUserProfile, {
+  ttl: 300_000,
+  cache: db.getCache()
 });
 
-// 批量热重载（重新加载所有 model 文件）
-await msq._loadModels({ reload: true });
+await cachedGetUserProfile('user-1');
 ```
 
-**注意事项**：
-- `redefine()` 若新定义校验失败，旧定义**已被移除**（不会回滚），调用方需 try/catch
-- 已实例化的 `ModelInstance` 不受影响，热重载后应通过 `db.model()` 重新获取实例
+Cache capabilities include:
 
-参考说明：Model 热重载与完整 API 说明，当前请以 `monSQLize-v1` 的对应文档和实现为准。
+- In-memory L1 cache.
+- Optional Redis-backed L2 cache.
+- Automatic invalidation after writes.
+- Function-level caching through `withCache()`.
+- In-flight request deduplication.
+- Namespaces, TTLs, statistics, and conditional caching.
 
----
+## Advanced Capabilities
 
-## � 进阶功能
+### Transactions
 
-### 1. Change Streams - 实时监听数据变更 ⭐
+```js
+await db.withTransaction(async (session) => {
+  await db.collection('orders').insertOne({ userId, status: 'pending' }, { session });
+  await db.collection('users').updateOne(
+    { _id: userId },
+    { $inc: { orderCount: 1 } },
+    { session }
+  );
+});
+```
 
-```javascript
-// 实时监听订单变化
-const watcher = orders.watch([
-    { $match: { 'fullDocument.status': 'pending' } }
+### Connection Pools
+
+```js
+const db = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'main',
+  config: { uri: 'mongodb://primary:27017' },
+  pools: [
+    { name: 'analytics', uri: 'mongodb://analytics:27017' }
+  ]
+});
+
+const reports = db.pool('analytics').collection('reports');
+```
+
+### Distributed Locks
+
+```js
+await db.withLock('inventory:sku-1', async () => {
+  await db.collection('inventory').updateOne(
+    { sku: 'sku-1' },
+    { $inc: { stock: -1 } }
+  );
+});
+```
+
+### Change Streams
+
+```js
+const watcher = db.collection('orders').watch([
+  { $match: { 'fullDocument.status': 'pending' } }
 ]);
 
 watcher.on('change', (change) => {
-    console.log('新订单:', change.fullDocument);
-    // 触发通知、更新统计、失效缓存等
-});
-
-// ✅ 自动处理：重连、错误恢复、缓存失效
-```
-
-**特性**: 支持聚合管道过滤 · 断点续传 · 自动失效相关缓存
-
-参考说明：Change Streams 的详细用法与旧示例，当前请以 `monSQLize-v1` 的对应文档和实现为准。
-
----
-
-### 2. Count 队列控制 - 高并发优化 ⭐
-
-```javascript
-// 高并发场景：100 个用户同时请求分页
-const db = new MonSQLize({
-    countQueue: {
-        enabled: true,       // 默认启用
-        concurrency: 8       // 同时最多 8 个 count
-    }
-});
-
-// ✅ 自动队列控制，防止 count 拖垮数据库
-const result = await users.findPage({
-    query: { status: 'active' },
-    totals: { mode: 'async' }  // 自动应用队列
+  console.log('Order changed:', change.fullDocument);
 });
 ```
 
-**效果**: 数据库 CPU 从 100% → 30% · 其他查询不再超时
+### Saga Orchestration
 
-参考说明：Count 队列控制的详细行为，当前请以 `monSQLize-v1` 的对应文档和实现为准。
+```js
+db.defineSaga('checkout', [
+  {
+    name: 'reserveInventory',
+    execute: async (ctx) => reserveInventory(ctx),
+    compensate: async (ctx) => releaseInventory(ctx)
+  },
+  {
+    name: 'chargePayment',
+    execute: async (ctx) => chargePayment(ctx),
+    compensate: async (ctx) => refundPayment(ctx)
+  }
+]);
 
----
-
-### 3. 链式调用 API - 优雅的查询构建 ⭐
-
-```javascript
-// jQuery 风格的链式调用
-const result = await users
-    .find()
-    .filter({ age: { $gte: 18 } })
-    .sort({ createdAt: -1 })
-    .limit(10)
-    .cache(60000)
-    .exec();
-
-// ✅ 代码更清晰、可读性更强
+await db.executeSaga('checkout', { orderId });
 ```
 
-参考说明：链式调用 API 与方法明细，当前请以 `monSQLize-v1` 的对应文档和实现为准。
+## Migration from the MongoDB Driver
 
----
+The smallest migration is usually to replace only initialization:
 
-### 4. Model 层乐观锁 - 防止并发修改冲突
-
-```javascript
-// 启用版本控制
-Model.define('products', {
-    schema: (dsl) => dsl({ name: 'string!', stock: 'number!' }),
-    options: { optimisticLock: true }
-});
-
-// 自动版本检查和更新
-await Product.updateOne(
-    { _id: productId, __v: 1 },           // 要求版本为 1
-    { $inc: { stock: -1 }, $inc: { __v: 1 } }  // 自动递增版本
-);
-// ❌ 如果版本不匹配（被其他请求修改），更新失败
-```
-
-参考说明：Model 层乐观锁的完整行为，当前请以 `monSQLize-v1` 的对应文档和实现为准。
-
----
-
-### 5. ES Module 支持 - 现代 JavaScript
-
-```typescript
-// ✅ 支持 import/export
-import MonSQLize from 'monsqlize';
-
-const db = new MonSQLize({ /* ... */ });
-await db.connect();
-
-// 🎯 TypeScript 消费以 `dist/types/index.d.ts` 发布入口和源码级 `types/index.d.ts` 导出面为准
-import type { Collection } from 'monsqlize';
-```
-
-参考说明：ESM 支持的详细兼容语义，当前请以 `monSQLize-v1` 的对应文档和实现为准。
-
----
-
-## �📊 性能测试报告
-
-### 测试环境
-
-- **CPU**: Intel i7-9700K
-- **内存**: 16GB
-- **数据库**: MongoDB 5.0
-- **数据量**: 100 万条
-
-### 查询性能对比
-
-| 场景 | 原生驱动 | monSQLize (缓存) | 提升倍数 |
-|------|---------|------------------|---------|
-| 热点查询 (findOne) | 10ms | 0.1ms | **100x** ⚡ |
-| 列表查询 (find) | 50ms | 0.5ms | **100x** ⚡ |
-| 复杂聚合 (aggregate) | 200ms | 2ms | **100x** ⚡ |
-| 批量插入 (10万条) | 30s | 1.2s | **25x** ⚡ |
-
-### 缓存命中率
-
-- **电商场景**: 85% (商品/用户查询)
-- **内容平台**: 75% (文章/评论查询)
-- **社交应用**: 80% (个人资料/动态)
-
-**结论**: 在真实业务场景中，缓存命中率通常在 **70~90%**，性能提升 **10~100 倍**。
-
----
-
-## 🎨 能力概览
-
-当前 README 不再维护逐文件级的 API 文档导航，避免继续指向已删除的本地 `docs/`、`examples/` 资产。若你只需要快速判断 monSQLize 的能力边界，可以先看这份压缩版概览：
-
-- **MongoDB 原生兼容面**：CRUD、聚合、索引、Explain、事务、Change Streams。
-- **性能与缓存**：TTL/LRU、多层缓存、并发去重、批量操作、Count 队列、分页优化、慢查询日志。
-- **企业能力**：多连接池、分布式缓存失效、业务锁、SSH 隧道、Saga、Change Stream 同步。
-- **开发体验**：Model 层、`schema-dsl` 验证、Populate / Relations、ObjectId 自动转换、ESM/CommonJS 双模式。
-- **长期方向**：在保持 MongoDB 兼容语义的前提下，逐步扩展到 MySQL / PostgreSQL 的统一查询接口。
-
----
-
-## 🆚 与 MongoDB 原生驱动对比
-
-| 特性 | MongoDB 原生 | monSQLize |
-|------|---------------|------------|
-| **API 兼容性** | ✅ 原生 | ✅ 当前 v2.0.0 发布候选已通过 v1 平滑升级兼容矩阵与七个工作区目标消费者验证 |
-| **智能缓存** | ❌ 需要自己实现 | ✅ 内置 TTL/LRU，开箱即用，10~100 倍提升 |
-| **性能** | ⭐⭐⭐ 基准性能 | ⭐⭐⭐⭐⭐ 缓存命中时性能提升 10~100 倍 |
-| **事务支持** | ⭐⭐ 需要手动管理 | ⭐⭐⭐⭐⭐ 自动管理生命周期，优化只读操作 |
-| **分布式部署** | ❌ 缓存不一致 | ✅ Redis 广播自动同步，保证一致性 |
-| **便利方法** | ❌ 需要自己封装 | ✅ `findOneById`、`findByIds`、`upsertOne` 等 |
-| **运维监控** | ⚠️ 需要额外配置 | ✅ 慢查询日志、性能统计，开箱即用 |
-| **学习成本** | ⭐⭐⭐ MongoDB 语法 | ⭐ 零学习成本，API 完全一致 |
-| **迁移成本** | - | ⭐ 只需修改初始化代码，业务代码不变 |
-
-### 📌 何时选择 monSQLize
-
-✅ **适合场景**：
-- 高并发读取场景（商品详情、用户信息）
-- 需要缓存但不想自己实现
-- 多实例部署需要缓存一致性
-- 希望零学习成本提升性能
-
-⚠️ **不适合场景**：
-- 纯写入应用（缓存作用有限）
-- 实时性要求极高（每次必查最新）
-- 简单应用，流量不大（原生驱动足够）
-
----
-
-## 🚀 快速迁移指南
-
-### 从 MongoDB 原生驱动迁移
-
-```javascript
-// ❌ 原来的代码
+```js
 const { MongoClient } = require('mongodb');
-const client = await MongoClient.connect('mongodb://localhost:27017');
-const db = client.db('mydb');
-const users = db.collection('users');
 
-// ✅ 迁移后的代码（只需改 3 行）
-const MonSQLize = require('monsqlize');  // 1. 引入 monSQLize
-const db = new MonSQLize({               // 2. 修改初始化
-    type: 'mongodb',
-    config: { uri: 'mongodb://localhost:27017/mydb' },
-    cache: { enabled: true }             // 3. 启用缓存
+const nativeClient = await MongoClient.connect('mongodb://localhost:27017');
+const nativeUsers = nativeClient.db('mydb').collection('users');
+```
+
+```js
+const MonSQLize = require('monsqlize');
+
+const db = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: { uri: 'mongodb://localhost:27017' },
+  cache: { enabled: true }
 });
+
 await db.connect();
 const users = db.collection('users');
-
-// 🎉 后续所有代码不需要改动，性能提升 10~100 倍！
-const user = await users.findOne({ email });  // 完全一样的 API
 ```
 
-### 渐进式迁移
+MongoDB-style collection calls can remain unchanged in most cases:
 
-```javascript
-// ✅ 可以混用原生驱动和 monSQLize
-const nativeClient = await MongoClient.connect('...');
-const monsqlize = new MonSQLize({ cache: { enabled: true } });
-
-// 性能敏感的查询用 monSQLize（启用缓存）
-const hotData = await monsqlize.collection('products').find({}, { cache: 60000 });
-
-// 简单查询用原生驱动
-const coldData = await nativeClient.db('mydb').collection('logs').find({});
+```js
+const user = await users.findOne({ email });
+const list = await users.find({ status: 'active' }).toArray();
 ```
 
----
+The current v2.0.0 release candidate has been validated against the workspace consumers `chat`, `payment`, `user`, `admin`, `search`, `vext`, and `permission-core` without requiring business-source changes in those projects.
 
-## 📖 文档参考说明
+## Compatibility
 
-当前仓库已完成 TypeScript 重写的发布出口治理。当前 `docs/**`、`examples/**` 与 `test/**` 是 v2.0.0 发布候选的正式入口，v1 时代的历史资产仅用于追溯旧行为，不再覆盖当前实现事实。
+| Surface | Current Support |
+|---|---|
+| Node.js | `>=18.0.0`; CI covers Node 18 / 20 / 22. |
+| MongoDB driver | `mongodb@^6.21.0` baseline; driver 7 has additional compatibility coverage. |
+| MongoDB server | Memory-server based 6.x / 7.x validation is covered by the project test matrix. |
+| Module systems | CommonJS and ESM are both validated. |
+| TypeScript | Public declarations are published from `dist/types/index.d.ts`. |
+| Package license | Apache-2.0. |
 
-当前建议的参考顺序：
+See the current support and verification documents:
 
-1. 本 README：用于快速理解 monSQLize 的定位、适用场景、核心能力与迁移方式。
-2. `docs/**`、`examples/**`：用于查看当前 TS 版已正式承接的文档主题与最小示例入口。
-3. `test/compatibility/**`、`test/performance/baselines/**`、`test/validation/**`：用于查看当前已恢复的验证资产与 docs/examples 承接映射。
-4. `monSQLize-v1`：用于核对当前 `docs/**` 尚未展开的历史 API 语义、详细功能说明和旧示例。
-5. 当前源码与需求产物：用于确认正在进行中的重写边界和最新兼容约束。
+- [docs/README.md](https://github.com/vextjs/monSQLize/blob/main/docs/README.md)
+- [docs/support-matrix.md](https://github.com/vextjs/monSQLize/blob/main/docs/support-matrix.md)
+- [docs/verification-entrypoints.md](https://github.com/vextjs/monSQLize/blob/main/docs/verification-entrypoints.md)
+- [test/compatibility/README.md](https://github.com/vextjs/monSQLize/blob/main/test/compatibility/README.md)
+- [test/validation/VERIFICATION-PROGRESS.md](https://github.com/vextjs/monSQLize/blob/main/test/validation/VERIFICATION-PROGRESS.md)
 
----
+## Documentation
 
-## 🌍 兼容性
+Current TypeScript documentation and examples are the source of truth for the v2 package:
 
-| 维度 | 当前口径 | 状态 |
-|------|---------|------|
-| **Node.js** | `>=18.0.0` | ✅ 当前公共 CI 已覆盖 18.x / 20.x / 22.x；正式 server matrix 维持 20.x / 22.x |
-| **MongoDB Driver** | 当前依赖为 `mongodb@^6.21.0` | ✅ 6.x 当前基线 + 7.x 扩展验证已完成；4.x / 5.x 仍未在本轮虚标为已验证 |
-| **MongoDB Server** | 默认公开验证以 `mongodb-memory-server` single / replica set 为主 | ✅ 6.x / 7.x 已进入默认 matrix；真实环境检查保留为私有 opt-in |
-| **模块系统** | CommonJS、ESM | ✅ 已由根入口与 compatibility tests 验证 |
+- `docs/**` - current documentation.
+- `examples/**` - TypeScript examples.
+- `test/compatibility/**` - package exports and compatibility guards.
+- `test/validation/**` - verification ledgers and mapping notes.
 
-当前兼容矩阵清单见 `test/compatibility/matrix.json`，当前验证说明见 `test/compatibility/README.md`、`test/validation/VERIFICATION-PROGRESS.md`、[`docs/support-matrix.md`](https://github.com/vextjs/monSQLize/blob/main/docs/support-matrix.md) 与 [`docs/verification-entrypoints.md`](https://github.com/vextjs/monSQLize/blob/main/docs/verification-entrypoints.md)。
+Historical v1 assets are useful for tracing old behavior, but they are not the current publishing surface for v2.
 
----
-
-## 产品路线图
-
-### ✅ v2.0.0（当前发布候选）
-
-- ✅ TypeScript 全量重写，发布入口统一为 `dist/cjs`、`dist/esm`、`dist/types`
-- ✅ v1 平滑升级兼容桥，已验证 `chat/payment/user/admin/search/vext/permission-core` 零业务源码改动升级
-- ✅ cache-hub 缓存底座、Redis 兼容入口、FunctionCache、多级缓存
-- ✅ 事务、业务锁、Saga、连接池、Change Stream 同步、慢查询日志
-- ✅ Model 层、schema-dsl 验证、Relations / Populate、ObjectId 自动转换
-
-### 🚧 v2.x（近期演进）
-
-- 🔄 查询分析器
-- 🔄 自动索引建议
-- 🔄 数据迁移工具
-- 🔄 GraphQL 支持
-- 🔄 真实环境矩阵与文档站体验持续增强
-
-### 🔮 v3.0+（长期愿景）
-
-- 🔮 统一 API 支持 MySQL
-- 🔮 统一 API 支持 PostgreSQL
-- 🔮 完整 ORM 功能
-- 🔮 数据同步中间件
-
----
-
-## 🤝 贡献指南
-
-我们欢迎所有形式的贡献！
-
-- 🐛 [提交 Bug](https://github.com/vextjs/monSQLize/issues)
-- 💡 [提出新功能](https://github.com/vextjs/monSQLize/issues)
-- 📖 [改进文档](https://github.com/vextjs/monSQLize/pulls)
-- 💻 [提交代码](https://github.com/vextjs/monSQLize/pulls)
-
-### 开发
+## Development
 
 ```bash
-# 克隆仓库
 git clone https://github.com/vextjs/monSQLize.git
 cd monSQLize
-
-# 安装依赖
 npm install
+```
 
-# 默认统一门禁（smoke + compatibility + unit + integration）
+Common commands:
+
+```bash
+npm run build
+npm run type-check
 npm test
-
-# 当前可执行校验
 npm run verify:fast
-npm run verify:full
 npm run release:preflight
+```
 
-# 可选：本地私有真实环境验证（需显式注入环境变量，不纳入默认 verify）
+Release preflight runs linting, type checks, size guards, runtime checks, compatibility checks, refactor guards, the default test suite, and `npm pack --dry-run`.
+
+Optional commands:
+
+```bash
+npm run test:examples
+npm run test:coverage
+npm run test:server-matrix
 npm run test:real-env:private
 ```
 
-> 当前仓库已恢复到 **P4-D compatibility / performance / validation / docs 收口** 级别的 `build` / `type-check` / `test` / `verify` 入口：`npm test` 默认执行 smoke / compatibility / unit / integration 四段统一门禁，并由 `test/run-tests.cjs` 统一调度；`npm run verify:fast` 当前串联 lint / type-check / size strict / runtime / compatibility / refactor guard / cache guard，不再依赖 `test:ts-migration`。`npm run release:preflight` 会在 `verify:fast` 后继续执行 `npm test` 与 `npm pack --dry-run`，避免发布预检漏掉完整默认门禁。Stage D 已移除 legacy compat runner 与 vendored v1 测试入口，当前公开验证链路由 `npm test`、`npm run verify:fast`、`npm run verify:full`、`npm run test:server-matrix` 和 `npm run release:preflight` 组成，全部以 memory-server 与仓库内可复现资产为闭环；真实 SSH / Mongo 环境验证保留为显式 opt-in 的 `npm run test:real-env:private`，仅接受环境变量注入，不进入默认 CI / verify。若需核对历史兼容迁移背景，请继续参考 `monSQLize-v1` 与需求目录中的迁移报告。
+`test:real-env:private` is intentionally opt-in and expects private environment variables. It is not part of the default CI or release gate.
 
----
+## Release Status
 
-## 📄 许可证
+The current release candidate is `v2.0.0`.
 
-[MIT License](./LICENSE)
+Key release-readiness points:
 
----
+- TypeScript rewrite completed for the current runtime and test entry points.
+- Package exports are consolidated under `dist/cjs`, `dist/esm`, and `dist/types`.
+- v1 smooth-upgrade compatibility has been validated against the target workspace consumers.
+- `schema-dsl` follows the npm `latest` TypeScript line `^2.0.3`; deprecated `2.3.x` mistake releases are intentionally excluded.
+- GitHub Actions publishes to npm from `v*` tags after running `npm run release:preflight`.
 
-## 💬 社区与支持
+## Roadmap
 
-- 📧 **Email**: support@monsqlize.dev
-- 💬 **Issues**: [GitHub Issues](https://github.com/vextjs/monSQLize/issues)
-- 🌟 **Star**: 如果觉得有用，请给我们一个 Star ⭐
+### v2.0.0
 
----
+- TypeScript-native runtime and declarations.
+- v1 smooth-upgrade compatibility bridge.
+- Multi-level cache and function-cache support through `cache-hub`.
+- Transactions, business locks, distributed locks, Saga orchestration, connection pools, Change Stream sync, and slow-query logging.
+- Model layer with `schema-dsl` validation, relations, populate, hooks, and custom methods.
 
-## 🎉 快速链接
+### v2.x
 
-**[🚀 快速开始](#-快速开始)** ·
-**[🧭 文档现状](#文档现状)** ·
-**[🐛 报告问题](https://github.com/vextjs/monSQLize/issues)** ·
-**[⭐ Star 项目](https://github.com/vextjs/monSQLize)**
+- Query analyzer improvements.
+- Automatic index suggestions.
+- Migration tooling.
+- GraphQL integration experiments.
+- More real-environment validation coverage.
 
----
+### v3.0+
 
-### 让 MongoDB 快 10~100 倍，从现在开始 🚀
+- Unified API experiments for MySQL.
+- Unified API experiments for PostgreSQL.
+- Broader ORM capabilities.
+- Cross-database sync middleware.
 
-```bash
-npm install monsqlize
-```
+## License
 
----
+monSQLize is released under the [Apache License 2.0](./LICENSE).
 
-Made with ❤️ by monSQLize Team
+## Support
 
+- Issues: [GitHub Issues](https://github.com/vextjs/monSQLize/issues)
+- npm: [monsqlize](https://www.npmjs.com/package/monsqlize)
+- Website: [https://vextjs.github.io/monSQLize/](https://vextjs.github.io/monSQLize/)
 

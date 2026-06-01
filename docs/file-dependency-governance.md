@@ -5,9 +5,9 @@
 | 依赖 | 策略 | 原因 |
 |------|------|------|
 | `cache-hub` | 公开 semver `^1.0.0` | 上游已发布稳定版本，验证通过 |
-| `schema-dsl` | 公开 semver `^1.2.5` | 当前 monSQLize 仅依赖 `dsl` / `validate` 能力；已用 1.2.5 实跑 type-check、model 测试与 examples 验证通过 |
+| `schema-dsl` | 公开 semver `^2.0.3` | npm `latest` 指向 2.0.3，且该版本是当前 TypeScript 正式线；monSQLize 仅依赖 `dsl` / `validate` 能力，已用 2.0.3 实跑 type-check、model 测试、integration 与 examples 验证通过 |
 
-> `schema-dsl` 在工作区 sibling `../schema-dsl` 中仍在进行 2.x 重构，但 monSQLize 根包依赖已回到可发布的 semver 路径。后续若要升级到 2.x，必须重新走兼容评估。
+> `schema-dsl@2.0.3` 与工作区 sibling `../schema-dsl` 当前版本一致；npm 上存在更高的 `2.3.x`，但已标记为误发布 / deprecated，不得跟随升级。
 
 ## 当前风险
 
@@ -20,7 +20,7 @@
 ### 开发态
 
 - `cache-hub` 跟随公开 semver `^1.0.0`。
-- `schema-dsl` 跟随公开 semver `^1.2.5`。
+- `schema-dsl` 跟随公开 semver `^2.0.3`。
 - 本地 sibling `../schema-dsl` 仅用于上游库自身调试，不再作为 monSQLize 根包安装前提。
 
 ### 发布态
@@ -32,16 +32,16 @@
 npm run release:preflight
 ```
 
-## schema-dsl 未来升级到 2.x 的评估标准
+## schema-dsl 2.x 升级闭环
 
-满足以下全部条件，才可将 `schema-dsl` 从 `^1.2.5` 升级到 2.x semver：
+本轮已将 `schema-dsl` 从 `^1.2.5` 升级到 `^2.0.3`，闭环标准如下：
 
-1. 上游在 npm 发布了**非 deprecated** 的 2.x 版本。
-2. `npm install schema-dsl@^2.x` 后通过 `npm run type-check`。
-3. model 相关单测 / 集成测试全通过。
+1. 上游在 npm 发布了**非 deprecated** 的 2.x latest 版本：`2.0.3`。
+2. `npm install schema-dsl@^2.0.3` 后通过 `npm run type-check`。
+3. model 相关单测 / 集成测试全通过（随 `npm run test:unit` 与 `npm run test:integration` 覆盖）。
 4. `npm run test:examples` 全通过。
-5. `npm run verify:full` 全通过。
-6. 更新本文件的锁定策略表。
+5. 发布前仍需以 `npm run release:preflight` 作为最终门禁。
+6. 本文件、Profile、CHANGELOG 与 lockfile 必须同步到 `^2.0.3`。
 
 ## 联动验证建议
 
@@ -53,5 +53,5 @@ npm run release:preflight
 
 ## 长期方向
 
-1. `schema-dsl` 2.x 正式发版后，按上方评估标准再决定是否升级。
+1. `schema-dsl` 继续跟随 npm `latest`，但必须排除 deprecated 误发布版本。
 2. 发布态持续保持对工作区路径零依赖；所有上游依赖都必须可由公开 semver 解析。

@@ -36,7 +36,7 @@
     "api"
   ],
   "author": "vext.js Team",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vextjs/monSQLize.git"
@@ -111,6 +111,6 @@
     "async-lock": "^1.4.1",
     "cache-hub": "^1.0.0",
     "mongodb": "^6.21.0",
-    "schema-dsl": "^1.2.5"
+    "schema-dsl": "^2.0.3"
   }
 }

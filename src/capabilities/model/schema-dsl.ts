@@ -4,7 +4,8 @@
  * Integration layer for the optional schema-dsl dependency.
  *
  * Design notes:
- * - schema-dsl is an optional peer dependency; Model.define() still works without it (schema validation is skipped).
+ * - schema-dsl is a runtime dependency of the published package; Model.define() still degrades gracefully
+ *   if a non-standard install omits it (schema validation is skipped).
  * - This file attempts require('schema-dsl') at module load time; if successful, dsl and validate are enabled;
  *   otherwise it silently degrades.
  * - Exposes two variables (_schemaDslFn / _schemaValidateFn) and one wrapper factory (_makeValidatingDslFn).
