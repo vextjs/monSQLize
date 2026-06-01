@@ -33,7 +33,7 @@ const runtime = new MonSQLize({
     maxPoolsCount: 5,
 });
 
-expectType<{ collection: <TSchema = unknown>(name: string) => import('monsqlize').Collection<TSchema>; model: <TDocument = Record<string, unknown>>(name: string) => import('monsqlize').ModelAccessor<TDocument>; use: (dbName: string) => { collection: <TSchema = unknown>(name: string) => import('monsqlize').Collection<TSchema>; model: <TDocument = Record<string, unknown>>(name: string) => import('monsqlize').ModelAccessor<TDocument>; }; }>(runtime.pool('analytics'));
+expectType<{ collection: <TSchema = any>(name: string) => import('monsqlize').Collection<TSchema>; model: <TDocument = any>(name: string) => import('monsqlize').ModelAccessor<TDocument>; use: (dbName: string) => { collection: <TSchema = any>(name: string) => import('monsqlize').Collection<TSchema>; model: <TDocument = any>(name: string) => import('monsqlize').ModelAccessor<TDocument>; }; }>(runtime.pool('analytics'));
 expectType<import('monsqlize').Collection<{ tag: string }>>(runtime.scopedCollection<{ tag: string }>('users', { pool: 'analytics' }));
 
 const manager = new MonSQLize.ConnectionPoolManager({ pools: [poolConfig] });

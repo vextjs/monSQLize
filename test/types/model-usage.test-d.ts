@@ -63,11 +63,36 @@ expectType<PopulateProxy<{
         endCursor: string | null;
         currentPage?: number;
     };
-    totals?: Record<string, unknown>;
+    totals?: import('monsqlize').TotalsInfo;
     meta?: import('monsqlize').MetaInfo;
 }>>(users.findPage({ page: 1, limit: 10 }));
+expectType<PopulateProxy<{
+    items: Array<ModelDocument<UserDoc>>;
+    pageInfo: {
+        hasNext: boolean;
+        hasPrev: boolean;
+        startCursor: string | null;
+        endCursor: string | null;
+        currentPage?: number;
+    };
+    totals: import('monsqlize').TotalsInfo & {
+        mode: 'sync';
+        total: number;
+        totalPages: number;
+    };
+    meta?: import('monsqlize').MetaInfo;
+}>>(users.findPage({ page: 1, limit: 10, totals: { mode: 'sync' } }));
 expectType<{ valid: boolean; errors?: Array<{ field: string; message: string; value?: unknown }>; data?: unknown }>(users.validate({ firstName: 'Ada', lastName: 'Lovelace' }));
 expectType<Record<string, string>>(users.getEnums());
+expectType<Promise<import('monsqlize').InsertManyResult>>(users.insertMany([{ firstName: 'Ada', lastName: 'Lovelace' }]));
+expectType<Promise<import('monsqlize').UpdateResult>>(users.updateOne({ firstName: 'Ada' }, { $set: { nickname: 'Countess' } }));
+expectType<Promise<import('monsqlize').UpdateResult>>(users.updateMany({}, { $set: { nickname: 'Analyst' } }));
+expectType<Promise<import('monsqlize').UpdateResult>>(users.replaceOne({ firstName: 'Ada' }, { firstName: 'Ada', lastName: 'Byron' }));
+expectType<Promise<import('monsqlize').IncrementOneResult<UserDoc>>>(users.incrementOne({ firstName: 'Ada' }, 'visits', 1));
+expectType<Promise<import('monsqlize').RestoreResult>>(users.restore({ firstName: 'Ada' }));
+expectType<Promise<import('monsqlize').RestoreResult>>(users.restoreMany({ firstName: 'Ada' }));
+expectType<Promise<import('monsqlize').InsertBatchResult>>(users.insertBatch([{ firstName: 'Ada', lastName: 'Lovelace' }]));
+expectType<Promise<import('monsqlize').UpdateBatchResult>>(users.updateBatch({}, { $set: { nickname: 'Analyst' } }));
 expectType<Promise<import('monsqlize').DeleteBatchResult>>(users.deleteBatch({ firstName: 'Ada' }));
 expectType<Promise<import('monsqlize').BookmarkPrewarmResult>>(users.prewarmBookmarks({ limit: 10 }, [1, 2]));
 expectType<Promise<import('monsqlize').BookmarkListResult>>(users.listBookmarks({ limit: 10 }));

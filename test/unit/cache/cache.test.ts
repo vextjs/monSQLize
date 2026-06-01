@@ -216,6 +216,27 @@ describe('P3-A cache facade', () => {
         assert.equal(cache.getRedisInstance(), fakeRedis);
     });
 
+    it('createRedisCacheAdapter keeps the legacy invalid-argument error semantics', () => {
+        assert.throws(
+            () => MonSQLize.createRedisCacheAdapter(undefined),
+            (error: unknown) => {
+                assert.ok(error instanceof Error);
+                assert.equal((error as { code?: string }).code, 'INVALID_ARGUMENT');
+                assert.match(error.message, /redisUrlOrInstance 必须是 Redis URL 字符串或 ioredis 实例/);
+                return true;
+            },
+        );
+        assert.throws(
+            () => MonSQLize.createRedisCacheAdapter('   '),
+            (error: unknown) => {
+                assert.ok(error instanceof Error);
+                assert.equal((error as { code?: string }).code, 'INVALID_ARGUMENT');
+                assert.match(error.message, /redisUrlOrInstance 必须是 Redis URL 字符串或 ioredis 实例/);
+                return true;
+            },
+        );
+    });
+
     it('DistributedCacheInvalidator broadcasts with cache-hub semantics and invalidates peer local cache', async () => {
         const bus: FakeConnection[] = [];
         const localA = new MonSQLize.MemoryCache();

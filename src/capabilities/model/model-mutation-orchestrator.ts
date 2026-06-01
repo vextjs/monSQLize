@@ -6,6 +6,7 @@
  * across all write operation paths.
  */
 import type { HookContext } from '../../../types/model';
+import type { IncrementOneResult, InsertBatchResult, InsertManyResult, UpdateBatchResult, UpdateResult } from '../../../types/collection';
 import type { ExtendedModelCollectionLike, ModelCollectionLike } from './populate-promise';
 import {
     applyModelInsertTimestamps,
@@ -130,7 +131,7 @@ export async function orchestrateModelInsertMany<TDocument = Record<string, unkn
     context: ModelMutationContext<TDocument>,
     documents?: unknown[],
     options?: unknown,
-): Promise<unknown> {
+): Promise<InsertManyResult> {
     const hookContext: Record<string, unknown> = {};
     if (context.hooksFactory) {
         await invokeV1Hook(context, 'insert', 'before', hookContext, documents);
@@ -164,7 +165,7 @@ export async function orchestrateModelUpdateOne<TDocument = Record<string, unkno
     filter?: unknown,
     update?: unknown,
     options?: unknown,
-): Promise<unknown> {
+): Promise<UpdateResult> {
     const hookContext: Record<string, unknown> = {};
     let nextUpdate = update;
 
@@ -207,7 +208,7 @@ export async function orchestrateModelUpdateMany<TDocument = Record<string, unkn
     filter?: unknown,
     update?: unknown,
     options?: unknown,
-): Promise<unknown> {
+): Promise<UpdateResult> {
     const hookContext: Record<string, unknown> = {};
     let nextUpdate = update;
     if (context.hooksFactory) {
@@ -233,7 +234,7 @@ export async function orchestrateModelReplaceOne<TDocument = Record<string, unkn
     filter?: unknown,
     replacement?: unknown,
     options?: unknown,
-): Promise<unknown> {
+): Promise<UpdateResult> {
     const hookContext: Record<string, unknown> = {};
     if (context.hooksFactory) {
         await invokeV1Hook(context, 'update', 'before', hookContext, filter, replacement);
@@ -319,7 +320,7 @@ export async function orchestrateModelUpsertOne<TDocument = Record<string, unkno
     filter?: unknown,
     update?: unknown,
     options?: unknown,
-): Promise<unknown> {
+): Promise<UpdateResult> {
     const hookContext: Record<string, unknown> = {};
     if (context.hooksFactory) {
         await invokeV1Hook(context, 'update', 'before', hookContext, filter, update);
@@ -342,7 +343,7 @@ export async function orchestrateModelIncrementOne<TDocument = Record<string, un
     field?: string | Record<string, number>,
     increment?: number,
     options?: unknown,
-): Promise<unknown> {
+): Promise<IncrementOneResult<TDocument>> {
     const hookContext: Record<string, unknown> = {};
     if (context.hooksFactory) {
         await invokeV1Hook(context, 'update', 'before', hookContext, filter, field, increment);
@@ -350,7 +351,7 @@ export async function orchestrateModelIncrementOne<TDocument = Record<string, un
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'incrementOne', collection: context.collectionName, filter, update: field });
     }
     const timestamps = context.timestampsConfig;
-    let result: unknown;
+    let result: IncrementOneResult<TDocument>;
     if (timestamps && timestamps.updatedAt !== false) {
         const resolvedOptions = (options ?? {}) as Record<string, unknown>;
         const $set = {
@@ -373,7 +374,7 @@ export async function orchestrateModelInsertBatch<TDocument = Record<string, unk
     context: ModelMutationContext<TDocument>,
     docs: unknown[],
     options?: unknown,
-): Promise<unknown> {
+): Promise<InsertBatchResult> {
     const hookContext: Record<string, unknown> = {};
     if (context.hooksFactory) {
         await invokeV1Hook(context, 'insert', 'before', hookContext, docs);
@@ -400,7 +401,7 @@ export async function orchestrateModelUpdateBatch<TDocument = Record<string, unk
     filter?: unknown,
     update?: unknown,
     options?: unknown,
-): Promise<unknown> {
+): Promise<UpdateBatchResult> {
     const hookContext: Record<string, unknown> = {};
     if (context.hooksFactory) {
         await invokeV1Hook(context, 'update', 'before', hookContext, filter, update);

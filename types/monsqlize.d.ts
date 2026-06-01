@@ -167,11 +167,11 @@ export interface MonSQLizeInstance {
      * @returns Object containing `collection`, `db`, `use` shortcuts and the current instance reference.
      */
     connect(): Promise<{
-        collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
+        collection: <TSchema = any>(name: string) => Collection<TSchema>;
         db: (name?: string) => DbAccessor;
         use: (name: string) => {
-            collection: <TSchema = unknown>(collectionName: string) => Collection<TSchema>;
-            model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>;
+            collection: <TSchema = any>(collectionName: string) => Collection<TSchema>;
+            model: <TDocument = any>(modelName: string) => ModelInstance<TDocument>;
         };
         instance: MonSQLize;
     }>;
@@ -190,7 +190,8 @@ export interface MonSQLizeInstance {
      * Return a collection accessor for the given collection name.
      * @param name Collection name.
      */
-    collection<TSchema = unknown>(name: string): Collection<TSchema>;
+    collection<TSchema = any>(name: string): Collection<TSchema>;
+    collection(name: string): Collection<any>;
     /**
      * Return a database accessor, optionally scoped to a specific database.
      * @param name Target database name; omit to use the default database.
@@ -201,19 +202,19 @@ export interface MonSQLizeInstance {
      * @param name Target database name.
      */
     use(name: string): {
-        collection: <TSchema = unknown>(collectionName: string) => Collection<TSchema>;
-        model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>;
+        collection: <TSchema = any>(collectionName: string) => Collection<TSchema>;
+        model: <TDocument = any>(modelName: string) => ModelInstance<TDocument>;
     };
     /**
      * Return collection and model accessors for the named connection pool.
      * @param poolName Connection pool name.
      */
     pool(poolName: string): {
-        collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
-        model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>;
+        collection: <TSchema = any>(name: string) => Collection<TSchema>;
+        model: <TDocument = any>(name: string) => ModelInstance<TDocument>;
         use: (dbName: string) => {
-            collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
-            model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>;
+            collection: <TSchema = any>(name: string) => Collection<TSchema>;
+            model: <TDocument = any>(name: string) => ModelInstance<TDocument>;
         };
     };
     /**
@@ -221,18 +222,21 @@ export interface MonSQLizeInstance {
      * @param name Collection name.
      * @param options Optional database scope options.
      */
-    scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; pool?: string; }): Collection<TSchema>;
+    scopedCollection<TSchema = any>(name: string, options?: { database?: string; pool?: string; }): Collection<TSchema>;
+    scopedCollection(name: string, options?: { database?: string; pool?: string; }): Collection<any>;
     /**
      * Return a model instance scoped to the given database or connection pool.
      * @param name Model name.
      * @param options Optional database or pool scope options.
      */
-    scopedModel<TDocument = Record<string, unknown>>(name: string, options?: { database?: string; pool?: string; }): ModelInstance<TDocument>;
+    scopedModel<TDocument = any>(name: string, options?: { database?: string; pool?: string; }): ModelInstance<TDocument>;
+    scopedModel(name: string, options?: { database?: string; pool?: string; }): ModelInstance<any>;
     /**
      * Return the registered model instance for the given model name.
      * @param name Model name used during registration.
      */
-    model<TDocument = Record<string, unknown>>(name: string): ModelInstance<TDocument>;
+    model<TDocument = any>(name: string): ModelInstance<TDocument>;
+    model(name: string): ModelInstance<any>;
     /**
      * Start a MongoDB transaction session.
      * @param options Optional transaction options.
@@ -382,11 +386,11 @@ export interface MonSQLizeInstance {
 export default class MonSQLize implements MonSQLizeInstance {
     constructor(options?: MonSQLizeOptions);
     connect(): Promise<{
-        collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
+        collection: <TSchema = any>(name: string) => Collection<TSchema>;
         db: (name?: string) => DbAccessor;
         use: (name: string) => {
-            collection: <TSchema = unknown>(collectionName: string) => Collection<TSchema>;
-            model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>;
+            collection: <TSchema = any>(collectionName: string) => Collection<TSchema>;
+            model: <TDocument = any>(modelName: string) => ModelInstance<TDocument>;
         };
         instance: MonSQLize;
     }>;
@@ -394,23 +398,27 @@ export default class MonSQLize implements MonSQLizeInstance {
     getDefaults(): Record<string, unknown>;
     close(): Promise<void>;
     health(): Promise<HealthView>;
-    collection<TSchema = unknown>(name: string): Collection<TSchema>;
+    collection<TSchema = any>(name: string): Collection<TSchema>;
+    collection(name: string): Collection<any>;
     db(name?: string): DbAccessor;
     use(name: string): {
-        collection: <TSchema = unknown>(collectionName: string) => Collection<TSchema>;
-        model: <TDocument = Record<string, unknown>>(modelName: string) => ModelInstance<TDocument>;
+        collection: <TSchema = any>(collectionName: string) => Collection<TSchema>;
+        model: <TDocument = any>(modelName: string) => ModelInstance<TDocument>;
     };
     pool(poolName: string): {
-        collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
-        model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>;
+        collection: <TSchema = any>(name: string) => Collection<TSchema>;
+        model: <TDocument = any>(name: string) => ModelInstance<TDocument>;
         use: (dbName: string) => {
-            collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
-            model: <TDocument = Record<string, unknown>>(name: string) => ModelInstance<TDocument>;
+            collection: <TSchema = any>(name: string) => Collection<TSchema>;
+            model: <TDocument = any>(name: string) => ModelInstance<TDocument>;
         };
     };
-    scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; pool?: string; }): Collection<TSchema>;
-    scopedModel<TDocument = Record<string, unknown>>(name: string, options?: { database?: string; pool?: string; }): ModelInstance<TDocument>;
-    model<TDocument = Record<string, unknown>>(name: string): ModelInstance<TDocument>;
+    scopedCollection<TSchema = any>(name: string, options?: { database?: string; pool?: string; }): Collection<TSchema>;
+    scopedCollection(name: string, options?: { database?: string; pool?: string; }): Collection<any>;
+    scopedModel<TDocument = any>(name: string, options?: { database?: string; pool?: string; }): ModelInstance<TDocument>;
+    scopedModel(name: string, options?: { database?: string; pool?: string; }): ModelInstance<any>;
+    model<TDocument = any>(name: string): ModelInstance<TDocument>;
+    model(name: string): ModelInstance<any>;
     startSession(options?: TransactionOptions): Promise<Transaction>;
     withTransaction<T>(callback: (transaction: Transaction) => Promise<T>, options?: TransactionOptions): Promise<T>;
     withLock<T>(key: string, callback: () => Promise<T>, options?: LockOptions): Promise<T>;

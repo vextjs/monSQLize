@@ -6,8 +6,10 @@
  */
 import { PopulatePromise } from './populate-promise';
 import type { PopulatePath, ModelCollectionLike } from './populate-promise';
+import type { UpdateResult } from '../../../types/collection';
 
 type SoftDeleteConfig = { enabled: boolean; field: string; type: string; ttl: number | null } | null;
+type RestoreResult = Pick<UpdateResult, 'modifiedCount'> & Partial<UpdateResult>;
 
 type SoftDeleteContext<TDocument> = {
     collection: ModelCollectionLike<TDocument>;
@@ -94,7 +96,7 @@ export function restoreSoftDeletedDocuments<TDocument>(
     context: SoftDeleteContext<TDocument>,
     filter?: unknown,
     options?: unknown,
-): Promise<unknown> {
+): Promise<RestoreResult> {
     const softDeleteConfig = context.softDeleteConfig;
     if (!softDeleteConfig?.enabled) {
         return Promise.resolve({ modifiedCount: 0 });
@@ -110,7 +112,7 @@ export function restoreManySoftDeletedDocuments<TDocument>(
     context: SoftDeleteContext<TDocument>,
     filter?: unknown,
     options?: unknown,
-): Promise<unknown> {
+): Promise<RestoreResult> {
     const softDeleteConfig = context.softDeleteConfig;
     if (!softDeleteConfig?.enabled) {
         return Promise.resolve({ modifiedCount: 0 });

@@ -1,7 +1,7 @@
 import type { LoggerLike } from './base';
 
 export interface SagaMetadataCache {
-    set(key: string, value: unknown, ttl?: number): void | Promise<void>;
+    set(key: string, value: any, ttl?: number): void | Promise<void>;
     keys?(pattern?: string): string[] | Promise<string[]>;
     publish?(channel: string, message: string): void | Promise<unknown>;
 }
@@ -13,15 +13,15 @@ export interface SagaContext {
     /** @deprecated Use `executionId` — v1 compatibility alias. */
     readonly sagaId?: string;
     /** Initial data passed to `executeSaga`. */
-    readonly data: unknown;
+    readonly data: any;
     /** Store a value in the shared step context. */
-    set(key: string, value: unknown): void;
+    set(key: string, value: any): void;
     /** Retrieve a previously stored value. v1 compat — default generic is `any` to match v1 callers that did not annotate. */
     get<T = any>(key: string): T | undefined;
     /** Return `true` if a value exists for `key`. */
     has(key: string): boolean;
     /** Return all stored key-value pairs. */
-    getAll(): Record<string, unknown>;
+    getAll(): Record<string, any>;
     /**
      * Ordered list of completed step names.
      * @deprecated v1 compat — populated automatically by the orchestrator.
@@ -47,9 +47,9 @@ export interface SagaContext {
 /** A single step within a Saga, consisting of a forward action and an optional compensation handler. */
 export interface SagaStep {
     name: string;
-    execute: (context: SagaContext) => Promise<unknown>;
+    execute: (context: SagaContext) => Promise<any>;
     /** Compensation handler — receives the context and the step's own execute result. v1 compat — required so callers may invoke `step.compensate(ctx)` without optional-chaining. */
-    compensate: (context: SagaContext, result?: unknown) => Promise<void>;
+    compensate: (context: SagaContext, result?: any) => Promise<void>;
     /** Per-step timeout in milliseconds (overrides Saga-level timeout). */
     timeout?: number;
     /** Number of retry attempts on step failure. */
@@ -76,7 +76,7 @@ export interface SagaResult {
     sagaName?: string;
     success: boolean;
     /** The return value of the last completed step (success path). */
-    result?: unknown;
+    result?: any;
     /** v1-compatible Error object (set when success is false). */
     error?: Error;
     /** v2 compatibility alias for message-only consumers. */
@@ -92,7 +92,7 @@ export interface SagaResult {
     /** Total execution duration in milliseconds. */
     duration: number;
     /** Original Error object (failure path only). v1 compat — `error` field is a string in v2. */
-    errorCause?: unknown;
+    errorCause?: any;
     /** Present on the failure path when at least one completed step has a compensate function. */
     compensation?: {
         success: boolean;
@@ -133,7 +133,7 @@ export declare class SagaOrchestrator {
     /** Register a Saga definition (async; returns the registered definition). */
     defineSaga(definition: SagaDefinition): Promise<SagaDefinition>;
     /** Execute the named Saga with the given initial data. */
-    execute(name: string, data: unknown): Promise<SagaResult>;
+    execute(name: string, data: any): Promise<SagaResult>;
     /** Return the definition for a registered Saga by name. */
     getSaga(name: string): SagaDefinition | undefined;
     /** Return the names of all registered Sagas. */

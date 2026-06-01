@@ -38,6 +38,15 @@ export interface TotalsInfo {
     error?: string;
 }
 
+type LegacyPageInfo<TSchema = any> = unknown extends TSchema ? any : PageInfo;
+type LegacyTotalsInfo<TSchema = any> = unknown extends TSchema ? any : TotalsInfo;
+type SyncTotalsInfo = TotalsInfo & {
+    mode: 'sync';
+    total: number;
+    totalPages: number;
+};
+type LegacySyncTotalsInfo<TSchema = any> = unknown extends TSchema ? any : SyncTotalsInfo;
+
 /** Timing/meta info returned by findPage when the meta option is enabled. */
 export interface MetaInfo {
     op: string;
@@ -165,13 +174,13 @@ export interface HealthView {
 
 export interface InsertOneResult {
     acknowledged: boolean;
-    insertedId: unknown;
+    insertedId: any;
 }
 
 export interface InsertManyResult {
     acknowledged: boolean;
     insertedCount: number;
-    insertedIds: Record<number, unknown>;
+    insertedIds: Record<number, any>;
 }
 
 export interface UpdateResult {
@@ -179,7 +188,7 @@ export interface UpdateResult {
     matchedCount: number;
     modifiedCount: number;
     upsertedCount: number;
-    upsertedId: unknown | null;
+    upsertedId: any;
 }
 
 export interface DeleteResult {
@@ -187,7 +196,7 @@ export interface DeleteResult {
     deletedCount: number;
 }
 
-export interface FindPageOptions<TSchema = unknown> {
+export interface FindPageOptions<TSchema = any> {
     query?: Document;
     page?: number;
     limit?: number;
@@ -217,22 +226,22 @@ export interface FindPageOptions<TSchema = unknown> {
     meta?: boolean | MetaOptions;
 }
 
-export interface FindPageResult<TSchema = unknown> {
+export interface FindPageResult<TSchema = any> {
     items: TSchema[];
-    pageInfo: PageInfo;
-    totals?: TotalsInfo;
+    pageInfo: LegacyPageInfo<TSchema>;
+    totals?: LegacyTotalsInfo<TSchema>;
     /** Timing/meta info — present when meta option was passed */
     meta?: MetaInfo;
 }
 
-export interface FindAndCountResult<TSchema = unknown> {
+export interface FindAndCountResult<TSchema = any> {
     data: TSchema[];
     total: number;
     /** @deprecated Use `data`. v1 backward-compat alias — will be removed in a future major. */
     documents?: TSchema[];
 }
 
-export interface FindChain<TSchema = unknown, TPromise = TSchema[]> extends Promise<TPromise> {
+export interface FindChain<TSchema = any, TPromise = TSchema[]> extends Promise<TPromise> {
     limit(value: number): FindChain<TSchema, TPromise>;
     skip(value: number): FindChain<TSchema, TPromise>;
     sort(value: Sort | Record<string, 1 | -1>): FindChain<TSchema, TPromise>;
@@ -556,7 +565,7 @@ export interface AdminAccessor {
     stats(options?: { scale?: number; }): Promise<DbStatsView>;
 }
 
-export interface Collection<TSchema = unknown> {
+export interface Collection<TSchema = any> {
     /** Returns the namespace descriptor (iid, db, collection) for this collection. */
     getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
     /** Returns the underlying native MongoDB Collection object. */
@@ -576,6 +585,7 @@ export interface Collection<TSchema = unknown> {
      * @returns A chainable FindChain that resolves to an array.
      */
     find(query: unknown | undefined, options: QueryMetaOption): FindChain<TSchema, ResultWithMeta<TSchema[]>>;
+    find(query: unknown | undefined, projection: unknown, options?: unknown): FindChain<TSchema>;
     find(query?: unknown, options?: unknown): FindChain<TSchema>;
     /**
      * Finds a single document by its `_id` value.
@@ -803,6 +813,8 @@ export interface Collection<TSchema = unknown> {
     aggregate<TResult = unknown>(pipeline?: unknown[], options?: unknown): AggregateChain<TResult>;
     /** Stream mode: returns a readable stream of page documents when `stream: true`. */
     findPage(options: FindPageOptions<TSchema> & { stream: true }): NodeJS.ReadableStream;
+    /** Sync totals mode guarantees `totals.total` and `totals.totalPages` are immediately available. */
+    findPage(options: FindPageOptions<TSchema> & { totals: { mode: 'sync'; } & Record<string, unknown> }): Promise<Omit<FindPageResult<TSchema>, 'totals'> & { totals: LegacySyncTotalsInfo<TSchema> }>;
     /** Returns a cursor-based paginated result set. */
     findPage(options?: FindPageOptions<TSchema>): Promise<FindPageResult<TSchema>>;
     /**
@@ -875,7 +887,7 @@ export interface DbAccessor {
      * @param name - MongoDB collection name.
      * @returns Collection instance bound to the specified collection.
      */
-    collection<TSchema = unknown>(name: string): Collection<TSchema>;
+    collection<TSchema = any>(name: string): Collection<TSchema>;
     /** Returns the underlying native MongoDB Db object. */
     raw(): unknown;
     /** Returns an AdminAccessor for server-level administrative operations. */
@@ -917,7 +929,7 @@ export interface DbAccessor {
 // ---------------------------------------------------------------------------
 
 /** @alias FindPageResult — v1 called the findPage result PageResult */
-export type PageResult<T = unknown> = FindPageResult<T>;
+export type PageResult<T = any> = FindPageResult<T>;
 
 /** @alias BookmarkPrewarmResult — v1 name */
 export type PrewarmBookmarksResult = BookmarkPrewarmResult;
@@ -1015,5 +1027,5 @@ export interface ResultWithMeta<T = unknown> {
 // ---------------------------------------------------------------------------
 
 /** @alias Collection — v1 called the collection accessor CollectionAccessor */
-export type CollectionAccessor<TSchema = unknown> = Collection<TSchema>;
+export type CollectionAccessor<TSchema = any> = Collection<TSchema>;
 

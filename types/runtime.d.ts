@@ -1,4 +1,4 @@
-import type { BookmarkClearResult, BookmarkListResult, BookmarkPrewarmResult, DeleteBatchResult, DeleteResult, IndexCreateResult, UpdateResult } from './collection';
+import type { BookmarkClearResult, BookmarkListResult, BookmarkPrewarmResult, DeleteBatchResult, DeleteResult, IncrementOneResult, IndexCreateResult, InsertBatchResult, InsertManyResult, UpdateBatchResult, UpdateResult } from './collection';
 import type { LoggerLike, ExpressionFunction, ExpressionObject } from './base';
 import type { ModelDefinition, ModelInstance as ModelInstanceContract, RegisteredModel, RelationConfig } from './model';
 import type { LockOptions, LockStats } from './lock';
@@ -155,7 +155,7 @@ export declare function adaptLegacyCacheLike(v1Cache: Omit<CacheLike, 'has'>): C
 export type RedisCacheAdapter = HubRedisCacheAdapter;
 
 export declare function createRedisCacheAdapter(
-    redisUrlOrInstance: string | object,
+    redisUrlOrInstance: string | object | undefined,
 ): HubRedisCacheAdapter;
 
 export type { LockOptions, LockStats, MongoSession, TransactionOptions, TransactionStats };
@@ -252,16 +252,16 @@ export declare class FunctionCache {
 }
 
 export declare class Model {
-    static define<TDocument = Record<string, unknown>>(name: string, definition: ModelDefinition<TDocument>): void;
-    static get<TDocument = Record<string, unknown>>(name: string): RegisteredModel<TDocument> | undefined;
+    static define<TDocument = any>(name: string, definition: ModelDefinition<TDocument>): void;
+    static get<TDocument = any>(name: string): RegisteredModel<TDocument> | undefined;
     static has(name: string): boolean;
     static list(): string[];
     static undefine(name: string): boolean;
-    static redefine<TDocument = Record<string, unknown>>(name: string, definition: ModelDefinition<TDocument>): void;
+    static redefine<TDocument = any>(name: string, definition: ModelDefinition<TDocument>): void;
     static _clear(): void;
 }
 
-export declare class ModelInstance<TDocument = Record<string, unknown>> implements ModelInstanceContract<TDocument> {
+export declare class ModelInstance<TDocument = any> implements ModelInstanceContract<TDocument> {
     private constructor(...args: unknown[]);
     readonly collectionName: string;
     readonly dbName: string;
@@ -276,25 +276,33 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
     findOneById(id: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
     findById(id: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
     findByIds(ids: unknown[], options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
+    findPage(options: { totals: { mode: 'sync'; } & Record<string, unknown>; } & Record<string, unknown>): import('./model').PopulateProxy<{
+        items: Array<import('./model').ModelDocument<TDocument>>;
+        pageInfo: import('./model').ModelInstance<TDocument> extends {
+            findPage(options?: unknown): import('./model').PopulateProxy<infer TResult>;
+        } ? TResult extends { pageInfo: infer TPageInfo } ? TPageInfo : never : never;
+        totals: import('./model').ModelInstance<TDocument> extends {
+            findPage(options: { totals: { mode: 'sync'; } & Record<string, unknown>; } & Record<string, unknown>): import('./model').PopulateProxy<infer TResult>;
+        } ? TResult extends { totals: infer TTotals } ? TTotals : never : never;
+        meta?: import('./collection').MetaInfo;
+    }>;
     findPage(options?: unknown): import('./model').PopulateProxy<{
         items: Array<import('./model').ModelDocument<TDocument>>;
-        pageInfo: {
-            hasNext: boolean;
-            hasPrev: boolean;
-            startCursor: string | null;
-            endCursor: string | null;
-            currentPage?: number;
-        };
-        totals?: Record<string, unknown>;
+        pageInfo: import('./model').ModelInstance<TDocument> extends {
+            findPage(options?: unknown): import('./model').PopulateProxy<infer TResult>;
+        } ? TResult extends { pageInfo: infer TPageInfo } ? TPageInfo : never : never;
+        totals?: import('./model').ModelInstance<TDocument> extends {
+            findPage(options?: unknown): import('./model').PopulateProxy<infer TResult>;
+        } ? TResult extends { totals?: infer TTotals } ? TTotals : never : never;
         meta?: import('./collection').MetaInfo;
     }>;
     findAndCount(query?: unknown, options?: unknown): import('./model').PopulateProxy<{ data: Array<import('./model').ModelDocument<TDocument>>; total: number; }>;
     count(query?: unknown, options?: unknown): Promise<number>;
-    insertOne(document?: unknown, options?: unknown): Promise<{ acknowledged: boolean; insertedId: unknown; }>;
-    insertMany(documents?: unknown[], options?: unknown): Promise<unknown>;
-    updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
-    updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
-    replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<unknown>;
+    insertOne(document?: unknown, options?: unknown): Promise<{ acknowledged: boolean; insertedId: any; }>;
+    insertMany(documents?: unknown[], options?: unknown): Promise<InsertManyResult>;
+    updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<UpdateResult>;
     findOneAndUpdate(filter?: unknown, update?: unknown, options?: unknown): Promise<TDocument | null>;
     findOneAndDelete(filter?: unknown, options?: unknown): Promise<TDocument | null>;
     upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
@@ -328,19 +336,19 @@ export declare class ModelInstance<TDocument = Record<string, unknown>> implemen
     watch(pipeline?: unknown[], options?: unknown): import('mongodb').ChangeStream;
     validate(document?: unknown): import('./model').ValidationResult;
     findOneAndReplace(filter?: unknown, replacement?: unknown, options?: unknown): Promise<TDocument | null>;
-    incrementOne(filter?: unknown, field?: string | Record<string, number>, increment?: number, options?: unknown): Promise<import('./collection').IncrementOneResult<TDocument>>;
+    incrementOne(filter?: unknown, field?: string | Record<string, number>, increment?: number, options?: unknown): Promise<IncrementOneResult<TDocument>>;
     findWithDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
     findOnlyDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<Array<import('./model').ModelDocument<TDocument>>>;
     findOneWithDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
-    restore(filter?: unknown, options?: unknown): Promise<unknown>;
-    restoreMany(filter?: unknown, options?: unknown): Promise<unknown>;
+    restore(filter?: unknown, options?: unknown): Promise<import('./model').RestoreResult>;
+    restoreMany(filter?: unknown, options?: unknown): Promise<import('./model').RestoreResult>;
     forceDelete(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     forceDeleteMany(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     findOneOnlyDeleted(query?: unknown, options?: unknown): import('./model').PopulateProxy<import('./model').ModelDocument<TDocument> | null>;
     countWithDeleted(query?: unknown, options?: unknown): Promise<number>;
     countOnlyDeleted(query?: unknown, options?: unknown): Promise<number>;
-    insertBatch(docs: unknown[], options?: unknown): Promise<unknown>;
-    updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
+    insertBatch(docs: unknown[], options?: unknown): Promise<InsertBatchResult>;
+    updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateBatchResult>;
     deleteBatch(filter?: unknown, options?: unknown): Promise<DeleteBatchResult>;
 }
 

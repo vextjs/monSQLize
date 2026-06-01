@@ -1,6 +1,7 @@
 import { expectType } from 'tsd';
 import MonSQLize, {
     SagaOrchestrator,
+    type SagaContext,
     type SagaDefinition,
     type SagaResult,
     type SagaStats,
@@ -14,6 +15,7 @@ const definition: SagaDefinition = {
         {
             name: 'step-1',
             execute: async (ctx) => {
+                expectType<any>(ctx.data);
                 ctx.set('ok', true);
                 return 'done';
             },
@@ -23,6 +25,9 @@ const definition: SagaDefinition = {
         },
     ],
 };
+
+declare const sagaContext: SagaContext;
+expectType<any>(sagaContext.data);
 
 const orchestrator = new SagaOrchestrator();
 orchestrator.define(definition);

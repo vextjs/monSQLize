@@ -16,6 +16,7 @@
   },
   "files": [
     "dist/",
+    "changelogs/",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
@@ -38,12 +39,15 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vextjs/monSQLize.git"
+    "url": "git+https://github.com/vextjs/monSQLize.git"
   },
   "bugs": {
     "url": "https://github.com/vextjs/monSQLize/issues"
   },
   "homepage": "https://vextjs.github.io/monSQLize/",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18.0.0"
   },

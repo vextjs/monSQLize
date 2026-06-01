@@ -1,4 +1,4 @@
-import type { BookmarkClearResult, BookmarkListResult, BookmarkPrewarmResult, DeleteBatchResult, DeleteResult, IndexCreateResult, InsertOneResult, UpdateResult } from './collection';
+import type { BookmarkClearResult, BookmarkListResult, BookmarkPrewarmResult, DeleteBatchResult, DeleteResult, IncrementOneResult, IndexCreateResult, InsertBatchResult, InsertManyResult, InsertOneResult, UpdateBatchResult, UpdateResult } from './collection';
 
 /**
  * Schema DSL transformer function.
@@ -151,7 +151,22 @@ export interface PopulateProxy<T = unknown> extends Promise<T> {
     exec(): Promise<T>;
 }
 
-export type ModelDocument<TDocument = Record<string, unknown>> = TDocument & Record<string, unknown> & {
+type LegacyModelPageInfo<TDocument = any> = unknown extends TDocument ? any : {
+    hasNext: boolean;
+    hasPrev: boolean;
+    startCursor: string | null;
+    endCursor: string | null;
+    currentPage?: number;
+};
+type LegacyModelTotalsInfo<TDocument = any> = unknown extends TDocument ? any : import('./collection').TotalsInfo;
+type LegacyModelSyncTotalsInfo<TDocument = any> = unknown extends TDocument ? any : (import('./collection').TotalsInfo & {
+    mode: 'sync';
+    total: number;
+    totalPages: number;
+});
+export type RestoreResult = Pick<UpdateResult, 'modifiedCount'> & Partial<UpdateResult>;
+
+export type ModelDocument<TDocument = any> = TDocument & Record<string, unknown> & {
     save(): Promise<ModelDocument<TDocument>>;
     remove(): Promise<boolean>;
     validate(): Promise<ValidationResult>;
@@ -160,7 +175,7 @@ export type ModelDocument<TDocument = Record<string, unknown>> = TDocument & Rec
     toJSON(): TDocument & Record<string, unknown>;
 };
 
-export interface ModelInstance<TDocument = Record<string, unknown>> {
+export interface ModelInstance<TDocument = any> {
     readonly collectionName: string;
     readonly dbName: string;
     readonly poolName?: string;
@@ -213,16 +228,16 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
      * @param options 分页选项，包含 `limit`、`cursor`/`page`、`filter`、`sort` 等字段。
      * @returns 包含文档列表、分页信息及可选汇总数据的结果对象。
      */
+    findPage(options: { totals: { mode: 'sync'; } & Record<string, unknown>; } & Record<string, unknown>): PopulateProxy<{
+        items: Array<ModelDocument<TDocument>>;
+        pageInfo: LegacyModelPageInfo<TDocument>;
+        totals: LegacyModelSyncTotalsInfo<TDocument>;
+        meta?: import('./collection').MetaInfo;
+    }>;
     findPage(options?: unknown): PopulateProxy<{
         items: Array<ModelDocument<TDocument>>;
-        pageInfo: {
-            hasNext: boolean;
-            hasPrev: boolean;
-            startCursor: string | null;
-            endCursor: string | null;
-            currentPage?: number;
-        };
-        totals?: Record<string, unknown>;
+        pageInfo: LegacyModelPageInfo<TDocument>;
+        totals?: LegacyModelTotalsInfo<TDocument>;
         meta?: import('./collection').MetaInfo;
     }>;
     /**
@@ -254,28 +269,28 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
      * @param documents 要插入的文档数组。
      * @param options 可选的写入选项。
      */
-    insertMany(documents?: unknown[], options?: unknown): Promise<unknown>;
+    insertMany(documents?: unknown[], options?: unknown): Promise<InsertManyResult>;
     /**
      * 更新第一条符合条件的文档。
      * @param filter 过滤条件。
      * @param update 更新操作符文档（如 `$set`、`$inc`）。
      * @param options 可选的更新选项。
      */
-    updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
+    updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
     /**
      * 更新所有符合条件的文档。
      * @param filter 过滤条件。
      * @param update 更新操作符文档。
      * @param options 可选的更新选项。
      */
-    updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
+    updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
     /**
      * 替换第一条符合条件的文档（整体替换，不使用更新操作符）。
      * @param filter 过滤条件。
      * @param replacement 替换后的完整文档。
      * @param options 可选的替换选项。
      */
-    replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<unknown>;
+    replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<UpdateResult>;
     /**
      * 原子地查找并更新单条文档，返回更新后的文档。
      * @param filter 过滤条件。
@@ -314,7 +329,7 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
      * @param increment 增量值（`field` 为字符串时使用）。
      * @param options 可选的更新选项。
      */
-    incrementOne(filter?: unknown, field?: string | Record<string, number>, increment?: number, options?: unknown): Promise<unknown>;
+    incrementOne(filter?: unknown, field?: string | Record<string, number>, increment?: number, options?: unknown): Promise<IncrementOneResult<TDocument>>;
     /**
      * 删除第一条符合条件的文档。
      * @param filter 过滤条件。
@@ -354,13 +369,13 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
      * @param filter 过滤条件。
      * @param options 可选的更新选项。
      */
-    restore(filter?: unknown, options?: unknown): Promise<unknown>;
+    restore(filter?: unknown, options?: unknown): Promise<RestoreResult>;
     /**
      * 批量恢复所有符合条件的软删除文档。
      * @param filter 过滤条件。
      * @param options 可选的更新选项。
      */
-    restoreMany(filter?: unknown, options?: unknown): Promise<unknown>;
+    restoreMany(filter?: unknown, options?: unknown): Promise<RestoreResult>;
     /**
      * 物理删除第一条符合条件的文档（绕过软删除机制）。
      * @param filter 过滤条件。
@@ -399,14 +414,14 @@ export interface ModelInstance<TDocument = Record<string, unknown>> {
      * @param docs 要插入的文档数组。
      * @param options 可选的批量写入选项。
      */
-    insertBatch(docs: unknown[], options?: unknown): Promise<unknown>;
+    insertBatch(docs: unknown[], options?: unknown): Promise<InsertBatchResult>;
     /**
      * 批量更新符合条件的文档（底层使用 `bulkWrite`）。
      * @param filter 过滤条件。
      * @param update 更新操作符文档。
      * @param options 可选的批量写入选项。
      */
-    updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
+    updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateBatchResult>;
     /** 批量删除符合条件的文档。 */
     deleteBatch(filter?: unknown, options?: unknown): Promise<DeleteBatchResult>;
     /**

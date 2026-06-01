@@ -14,6 +14,7 @@
  * - PopulatePath        — union type of string | PopulateConfig
  */
 
+import type { DeleteBatchResult, IncrementOneResult, InsertBatchResult, InsertManyResult, UpdateBatchResult, UpdateResult } from '../../../types/collection';
 import type { ModelScopeOptions, PopulateConfig, PopulateProxy } from '../../../types/model';
 import { createError, ErrorCodes } from '../../core/errors';
 
@@ -40,15 +41,15 @@ export interface ModelCollectionLike<TDocument = Record<string, unknown>> {
     findAndCount(query?: unknown, options?: unknown): Promise<{ data: TDocument[]; total: number; }>;
     count(query?: unknown, options?: unknown): Promise<number>;
     insertOne(document?: unknown, options?: unknown): Promise<{ acknowledged: boolean; insertedId: unknown; }>;
-    insertMany(documents?: unknown[], options?: unknown): Promise<unknown>;
-    updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
-    updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
-    replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<unknown>;
+    insertMany(documents?: unknown[], options?: unknown): Promise<InsertManyResult>;
+    updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<UpdateResult>;
     findOneAndUpdate(filter?: unknown, update?: unknown, options?: unknown): Promise<TDocument | null>;
     findOneAndReplace(filter?: unknown, replacement?: unknown, options?: unknown): Promise<TDocument | null>;
     findOneAndDelete(filter?: unknown, options?: unknown): Promise<TDocument | null>;
-    upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
-    incrementOne(filter?: unknown, field?: string, increment?: number, options?: unknown): Promise<unknown>;
+    upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    incrementOne(filter?: unknown, field?: string, increment?: number, options?: unknown): Promise<IncrementOneResult<TDocument>>;
     deleteOne(filter?: unknown, options?: unknown): Promise<unknown>;
     deleteMany(filter?: unknown, options?: unknown): Promise<unknown>;
     createIndex(keys: unknown, options?: unknown): Promise<unknown>;
@@ -105,10 +106,10 @@ export type ExtendedModelCollectionLike<TDocument> = ModelCollectionLike<TDocume
         field?: string | Record<string, number>,
         increment?: number,
         options?: unknown,
-    ): Promise<unknown>;
-    insertBatch(docs: unknown[], options?: unknown): Promise<unknown>;
-    updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown>;
-    deleteBatch(filter?: unknown, options?: unknown): Promise<unknown>;
+    ): Promise<IncrementOneResult<TDocument>>;
+    insertBatch(docs: unknown[], options?: unknown): Promise<InsertBatchResult>;
+    updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateBatchResult>;
+    deleteBatch(filter?: unknown, options?: unknown): Promise<DeleteBatchResult>;
 };
 
 // Forward type declaration to avoid circular dependency (model-instance.ts imports this file, which needs the ModelInstance type)

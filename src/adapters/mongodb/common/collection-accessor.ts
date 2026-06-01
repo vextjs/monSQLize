@@ -219,8 +219,10 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
     /** Returns a find chain (or a readable stream when `options.stream` is true). */
     find(
         query?: Parameters<Collection<TSchema>['find']>[0],
-        options?: Parameters<Collection<TSchema>['find']>[1] & { stream?: boolean },
+        optionsOrProjection?: (Parameters<Collection<TSchema>['find']>[1] & { stream?: boolean }) | string[] | Record<string, unknown>,
+        maybeOptions?: Parameters<Collection<TSchema>['find']>[1] & { stream?: boolean },
     ): FindChain<TSchema> | NodeJS.ReadableStream {
+        const options = this.resolveFindOptions(optionsOrProjection, maybeOptions);
         if ((options as Record<string, unknown> | undefined)?.stream) {
             return streamDocuments(this.collectionRef, query, options, this.management.defaults);
         }
@@ -581,6 +583,22 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             logger: this.management.logger,
             findPage: (options: FindPageOptions<TSchema>) => this.findPage(options),
         };
+    }
+
+    private resolveFindOptions(
+        optionsOrProjection?: (Parameters<Collection<TSchema>['find']>[1] & { stream?: boolean }) | string[] | Record<string, unknown>,
+        maybeOptions?: Parameters<Collection<TSchema>['find']>[1] & { stream?: boolean },
+    ): (Parameters<Collection<TSchema>['find']>[1] & { stream?: boolean }) | undefined {
+        if (maybeOptions === undefined) {
+            return optionsOrProjection as (Parameters<Collection<TSchema>['find']>[1] & { stream?: boolean }) | undefined;
+        }
+
+        const projection = normalizeProjection(optionsOrProjection as string[] | Record<string, unknown> | null | undefined);
+        const resolvedOptions = { ...(maybeOptions as Record<string, unknown>) };
+        if (projection !== undefined) {
+            resolvedOptions.projection = projection;
+        }
+        return resolvedOptions as Parameters<Collection<TSchema>['find']>[1] & { stream?: boolean };
     }
 }
 

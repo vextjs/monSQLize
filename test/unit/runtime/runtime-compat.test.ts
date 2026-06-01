@@ -1,5 +1,6 @@
 import { beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { MongoCollectionAccessor } from '../../../src/adapters/mongodb/common/collection-accessor';
 
 const MonSQLize = require('../../../dist/cjs/index.cjs');
 
@@ -96,5 +97,40 @@ describe('P6 runtime compat mock path', () => {
         const scopedViaApi = runtime.scopedModel('users');
         assert.equal(scopedViaApi.collectionName, 'users');
         assert.equal(scopedViaApi.getNamespace().collection, 'users');
+    });
+
+    it('supports the v1 find(query, projection, options) overload at runtime', async () => {
+        let capturedQuery: unknown;
+        let capturedOptions: Record<string, unknown> | undefined;
+
+        const nativeCollection = {
+            namespace: 'compat_db.users',
+            find(query: unknown, options?: Record<string, unknown>) {
+                capturedQuery = query;
+                capturedOptions = options;
+                return {
+                    toArray: () => resolved([{ name: 'Ada' }]),
+                };
+            },
+        };
+
+        const accessor = new MongoCollectionAccessor(
+            'compat_db',
+            'users',
+            nativeCollection as never,
+        );
+
+        const result = await accessor.find(
+            { active: true },
+            ['name', 'email'],
+            { limit: 2 },
+        );
+
+        assert.deepEqual(result, [{ name: 'Ada' }]);
+        assert.deepEqual(capturedQuery, { active: true });
+        assert.deepEqual(capturedOptions, {
+            limit: 2,
+            projection: { name: 1, email: 1 },
+        });
     });
 });

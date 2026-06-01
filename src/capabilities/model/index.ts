@@ -11,8 +11,10 @@ import type {
     PopulateConfig,
     PopulateProxy,
     RelationConfig,
+    RestoreResult,
     ValidationResult,
 } from '../../../types/model';
+import type { IncrementOneResult, InsertBatchResult, InsertManyResult, UpdateBatchResult, UpdateResult } from '../../../types/collection';
 import { _schemaValidateFn } from './schema-dsl';
 import { PopulatePromise } from './populate-promise';
 import type { ExtendedModelCollectionLike, PopulatePath, ModelCollectionLike, ModelRuntimeLike } from './populate-promise';
@@ -312,19 +314,19 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         return orchestrateModelInsertOne(this.mutationContext(), document, options);
     }
 
-    async insertMany(documents?: unknown[], options?: unknown): Promise<unknown> {
+    async insertMany(documents?: unknown[], options?: unknown): Promise<InsertManyResult> {
         return orchestrateModelInsertMany(this.mutationContext(), documents, options);
     }
 
-    async updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown> {
+    async updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult> {
         return orchestrateModelUpdateOne(this.mutationContext(), filter, update, options);
     }
 
-    async updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown> {
+    async updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult> {
         return orchestrateModelUpdateMany(this.mutationContext(), filter, update, options);
     }
 
-    async replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<unknown> {
+    async replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<UpdateResult> {
         return orchestrateModelReplaceOne(this.mutationContext(), filter, replacement, options);
     }
 
@@ -340,19 +342,19 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         return orchestrateModelFindOneAndDelete(this.mutationContext(), filter, options);
     }
 
-    async upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown> {
+    async upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult> {
         return orchestrateModelUpsertOne(this.mutationContext(), filter, update, options);
     }
 
-    async incrementOne(filter?: unknown, field?: string | Record<string, number>, increment?: number, options?: unknown): Promise<unknown> {
+    async incrementOne(filter?: unknown, field?: string | Record<string, number>, increment?: number, options?: unknown): Promise<IncrementOneResult<TDocument>> {
         return orchestrateModelIncrementOne(this.mutationContext(), filter, field, increment, options);
     }
 
-    async insertBatch(docs: unknown[], options?: unknown): Promise<unknown> {
+    async insertBatch(docs: unknown[], options?: unknown): Promise<InsertBatchResult> {
         return orchestrateModelInsertBatch(this.mutationContext(), docs, options);
     }
 
-    async updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<unknown> {
+    async updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateBatchResult> {
         return orchestrateModelUpdateBatch(this.mutationContext(), filter, update, options);
     }
 
@@ -393,11 +395,11 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         return countOnlyDeletedDocuments(this.softDeleteContext(), query, options);
     }
 
-    async restore(filter?: unknown, options?: unknown): Promise<unknown> {
+    async restore(filter?: unknown, options?: unknown): Promise<RestoreResult> {
         return restoreSoftDeletedDocuments(this.softDeleteContext(), filter, options);
     }
 
-    async restoreMany(filter?: unknown, options?: unknown): Promise<unknown> {
+    async restoreMany(filter?: unknown, options?: unknown): Promise<RestoreResult> {
         return restoreManySoftDeletedDocuments(this.softDeleteContext(), filter, options);
     }
 

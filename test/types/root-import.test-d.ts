@@ -29,12 +29,15 @@ import MonSQLize, {
     type InsertManyResult,
     type InsertOneResult,
     type FunctionCacheStats,
+    type FunctionCache,
     type LoggerLike,
     type ModelAccessor,
     type ModelInstance,
     type MonSQLizeOptions,
+    type PageResult,
     type RelationConfig,
     type ResultWithMeta,
+    type TotalsInfo,
     type UpdateBatchResult,
     type UpdateResult,
 } from '../..';
@@ -80,11 +83,11 @@ expectAssignable<MonSQLizeOptions>({
 });
 
 expectType<Promise<{
-    collection: <TSchema = unknown>(name: string) => Collection<TSchema>;
+    collection: <TSchema = any>(name: string) => Collection<TSchema>;
     db: (name?: string) => DbAccessor;
     use: (name: string) => {
-        collection: <TSchema = unknown>(collectionName: string) => Collection<TSchema>;
-        model: <TDocument = Record<string, unknown>>(modelName: string) => ModelAccessor<TDocument>;
+        collection: <TSchema = any>(collectionName: string) => Collection<TSchema>;
+        model: <TDocument = any>(modelName: string) => ModelAccessor<TDocument>;
     };
     instance: MonSQLize;
 }>>(db.connect());
@@ -159,6 +162,17 @@ expectType<Promise<{ name: string; } | null>>(users.findOneById('507f1f77bcf86cd
 expectType<Promise<{ name: string; }[]>>(users.findByIds(['507f1f77bcf86cd799439011']));
 expectType<Promise<import('../..').FindAndCountResult<{ name: string; }>>>(users.findAndCount({ name: 'Ada' }));
 expectType<Promise<import('../..').FindPageResult<{ name: string; }>>>(users.findPage({ page: 1, limit: 10 }));
+expectType<Promise<PageResult<{ name: string; }>>>(users.findPage({ page: 1, limit: 10 }));
+const syncTotalsPage = users.findPage({ page: 1, limit: 10, totals: { mode: 'sync' } });
+expectAssignable<Promise<Omit<PageResult<{ name: string; }>, 'totals'> & {
+    totals: TotalsInfo & {
+        mode: 'sync';
+        total: number;
+        totalPages: number;
+    };
+}>>(syncTotalsPage);
+expectType<Promise<number>>(syncTotalsPage.then((page) => page.totals.total));
+expectType<Promise<number>>(syncTotalsPage.then((page) => page.totals.totalPages));
 expectType<Promise<{ name: string; } | null>>(users.findOneAndReplace({}, { name: 'Grace' }));
 expectType<Promise<boolean>>(db.db().admin().ping());
 expectType<Promise<{ ns: string; count: number; size: number; storageSize: number; totalIndexSize: number; nindexes: number; avgObjSize?: number; scaleFactor?: number }>>(users.stats());
@@ -176,13 +190,18 @@ expectType<CacheLockLike | null>(memoryCache.getLockManager());
 expectType<Record<string, unknown>>(memoryCache.getMany(['a']));
 
 const functionCache = new MonSQLize.FunctionCache();
+expectType<FunctionCache>(functionCache);
 expectType<Promise<void>>(functionCache.register('lookup', async () => 1));
 expectType<Promise<unknown>>(functionCache.execute('lookup'));
 expectType<FunctionCacheStats | Record<string, FunctionCacheStats> | null>(functionCache.getStats('lookup'));
 
 declare const modelInstance: ModelInstance<{ name: string }>;
+declare const inferredModelAccessor: ReturnType<MonSQLize['model']>;
+declare const inferredCollectionAccessor: ReturnType<MonSQLize['collection']>;
 expectType<Record<string, RelationConfig>>(modelInstance.getRelations());
 expectType<Record<string, string>>(modelInstance.getEnums());
+expectAssignable<ModelAccessor<any>>(inferredModelAccessor);
+expectAssignable<Collection<any>>(inferredCollectionAccessor);
 
 const txOptions: TransactionOptions = { maxDuration: 1000, maxRetries: 1 };
 const lockOptions: LockOptions = { ttl: 1000, retryTimes: 1 };
