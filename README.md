@@ -475,6 +475,8 @@ npm run release:preflight
 
 Release preflight runs linting, type checks, size guards, runtime checks, compatibility checks, refactor guards, the default test suite, and `npm pack --dry-run`.
 
+`npm run release:publish` runs the preflight gate once and then calls `npm publish --ignore-scripts` so the final publish step does not repeat the full lifecycle gate. Raw `npm publish` is still guarded by `prepublishOnly`.
+
 Optional commands:
 
 ```bash
@@ -494,9 +496,10 @@ Key release-readiness points:
 
 - TypeScript rewrite completed for the current runtime and test entry points.
 - Package exports are consolidated under `dist/cjs`, `dist/esm`, and `dist/types`.
+- npm packages include the runtime bundles and declaration files only; source maps are disabled by default and can be generated locally with `MONSQLIZE_BUILD_SOURCEMAPS=1 npm run build`.
 - v1 smooth-upgrade compatibility has been validated against the target workspace consumers.
 - `schema-dsl` follows the npm `latest` TypeScript line `^2.0.3`; deprecated `2.3.x` mistake releases are intentionally excluded.
-- GitHub Actions publishes to npm from `v*` tags after running `npm run release:preflight`.
+- GitHub Actions publishes to npm from `v*` tags after running `npm run release:preflight`; the publish step skips duplicate lifecycle scripts because the gate already ran in the same job.
 
 ## Roadmap
 
@@ -532,4 +535,3 @@ monSQLize is released under the [Apache License 2.0](./LICENSE).
 - Issues: [GitHub Issues](https://github.com/vextjs/monSQLize/issues)
 - npm: [monsqlize](https://www.npmjs.com/package/monsqlize)
 - Website: [https://vextjs.github.io/monSQLize/](https://vextjs.github.io/monSQLize/)
-

@@ -15,7 +15,9 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist/",
+    "dist/**/*.cjs",
+    "dist/**/*.mjs",
+    "dist/**/*.d.ts",
     "changelogs/v2.0.0.md",
     "README.md",
     "LICENSE",
@@ -80,7 +82,7 @@
     "verify": "npm run verify:full",
     "release:preflight": "node scripts/release-preflight.cjs",
     "prepublishOnly": "npm run release:preflight",
-    "release:publish": "npm publish",
+    "release:publish": "npm run release:preflight && npm publish --ignore-scripts",
     "postpublish": "echo '✅ 发布成功！请创建 GitHub Release: https://github.com/vextjs/monSQLize/releases/new?tag=v'$npm_package_version"
   },
   "peerDependenciesMeta": {

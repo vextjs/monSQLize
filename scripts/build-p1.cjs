@@ -1,6 +1,8 @@
 const { cpSync, mkdirSync, rmSync } = require('node:fs');
 const { build } = require('esbuild');
 
+const emitSourceMaps = process.env.MONSQLIZE_BUILD_SOURCEMAPS === '1';
+
 async function main() {
     rmSync('lib', { recursive: true, force: true });
     rmSync('dist', { recursive: true, force: true });
@@ -17,7 +19,7 @@ async function main() {
         platform: 'node',
         format: 'cjs',
         target: 'node18',
-        sourcemap: true,
+        sourcemap: emitSourceMaps,
         logLevel: 'info',
     });
 
@@ -29,7 +31,7 @@ async function main() {
         platform: 'node',
         format: 'esm',
         target: 'node18',
-        sourcemap: true,
+        sourcemap: emitSourceMaps,
         logLevel: 'info',
     });
 
@@ -49,7 +51,7 @@ async function main() {
             platform: 'node',
             format: 'cjs',
             target: 'node18',
-            sourcemap: true,
+            sourcemap: emitSourceMaps,
             logLevel: 'info',
         });
     }

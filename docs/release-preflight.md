@@ -19,8 +19,9 @@ npm run release:preflight
 4. 运行 `npm run verify:fast`
 5. 运行 `npm test`
 6. 运行 `npm pack --dry-run`
-7. `npm publish` 会先触发 `prepublishOnly`，从而执行同一套 `release:preflight`
-8. **不会**运行 `npm run verify:release`（后者依赖私有真实环境，属于操作者显式 opt-in 的补充复核）
+7. 原始 `npm publish` 仍会通过 `prepublishOnly` 触发同一套 `release:preflight`，防止绕过门禁
+8. 仓库发布 workflow 和 `npm run release:publish` 会先显式执行 `release:preflight`，再用 `npm publish --ignore-scripts` 发布，避免在发布动作内重复执行完整门禁
+9. **不会**运行 `npm run verify:release`（后者依赖私有真实环境，属于操作者显式 opt-in 的补充复核）
 
 ## 为什么不是直接 publish
 
@@ -38,4 +39,4 @@ git tag vX.Y.Z
 npm run release:publish
 ```
 
-> 若走仓库自动化路径，可先手动运行 GitHub Actions 的 `Release Preflight`，确认通过后再执行 tag / publish。
+> 若走仓库自动化路径，可先手动运行 GitHub Actions 的 `Release Preflight`，确认通过后再推送 `v*` tag 或手动运行 `Publish to npm` workflow。真实 publish step 已跳过重复 lifecycle scripts，因为同一 job 前置步骤已经完成 `release:preflight`。
