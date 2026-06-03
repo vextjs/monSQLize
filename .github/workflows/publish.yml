@@ -9,7 +9,7 @@ on:
       version:
         description: "Version to publish. Must match package.json."
         required: true
-        default: "2.0.0"
+        default: "2.0.1"
 
 concurrency:
   group: publish-${{ github.ref }}

@@ -50,8 +50,117 @@ type ModelDefinitionCompat<TDocument> = ModelDefinition<TDocument> & {
     };
 };
 
+type ModelIndexTask = {
+    status: 'pending' | 'fulfilled' | 'failed';
+    promise: Promise<void>;
+    error?: unknown;
+};
+
+type ModelIndexScheduleOptions = {
+    runtime?: object;
+    dbName?: string;
+    poolName?: string;
+    collectionName?: string;
+};
+
+const runtimeModelIndexTasks = new WeakMap<object, Map<string, ModelIndexTask>>();
+const fallbackModelIndexTasks = new Map<string, ModelIndexTask>();
+
 function toCompatDefinition<TDocument>(definition: ModelDefinition<TDocument>): ModelDefinitionCompat<TDocument> {
     return definition as ModelDefinitionCompat<TDocument>;
+}
+
+function stableIndexStringify(value: unknown): string {
+    if (value instanceof Date) {
+        return JSON.stringify(value.toISOString());
+    }
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableIndexStringify(item)).join(',')}]`;
+    }
+    if (value && typeof value === 'object') {
+        const entries = Object.entries(value as Record<string, unknown>)
+            .filter(([, current]) => current !== undefined)
+            .sort(([left], [right]) => left.localeCompare(right));
+        return `{${entries.map(([key, current]) => `${JSON.stringify(key)}:${stableIndexStringify(current)}`).join(',')}}`;
+    }
+    return JSON.stringify(value) ?? 'undefined';
+}
+
+function getIndexTaskRegistry(runtime: object | undefined): Map<string, ModelIndexTask> {
+    if (!runtime) {
+        return fallbackModelIndexTasks;
+    }
+    let registry = runtimeModelIndexTasks.get(runtime);
+    if (!registry) {
+        registry = new Map<string, ModelIndexTask>();
+        runtimeModelIndexTasks.set(runtime, registry);
+    }
+    return registry;
+}
+
+function resolveIndexTaskScope<TDocument>(
+    collection: ModelCollectionLike<TDocument>,
+    options: ModelIndexScheduleOptions | undefined,
+): { dbName: string; poolName: string; collectionName: string } {
+    try {
+        const namespace = collection.getNamespace();
+        return {
+            dbName: options?.dbName ?? namespace.db,
+            poolName: options?.poolName ?? 'default',
+            collectionName: options?.collectionName ?? namespace.collection,
+        };
+    } catch {
+        return {
+            dbName: options?.dbName ?? 'default',
+            poolName: options?.poolName ?? 'default',
+            collectionName: options?.collectionName ?? 'unknown',
+        };
+    }
+}
+
+function warnIndexFailure(runtime: object | undefined, taskKey: string, error: unknown): void {
+    const logger = runtime as { logger?: { warn?: (...args: unknown[]) => void } } | undefined;
+    logger?.logger?.warn?.('[MonSQLize] model index creation failed', {
+        taskKey,
+        error: error instanceof Error ? error.message : String(error),
+    });
+}
+
+function scheduleIndexTask<TDocument>(
+    collection: ModelCollectionLike<TDocument>,
+    key: unknown,
+    indexOptions: Record<string, unknown>,
+    options?: ModelIndexScheduleOptions,
+): void {
+    const scope = resolveIndexTaskScope(collection, options);
+    const indexFingerprint = stableIndexStringify({ key, options: indexOptions });
+    const taskKey = `${scope.poolName}:${scope.dbName}:${scope.collectionName}:${indexFingerprint}`;
+    const registry = getIndexTaskRegistry(options?.runtime);
+    const existing = registry.get(taskKey);
+    if (existing && existing.status !== 'failed') {
+        return;
+    }
+
+    const task: ModelIndexTask = {
+        status: 'pending',
+        promise: new Promise((resolve) => {
+            setImmediate(() => {
+                Promise.resolve()
+                    .then(() => collection.createIndex(key, indexOptions))
+                    .then(() => {
+                        task.status = 'fulfilled';
+                        resolve();
+                    })
+                    .catch((error: unknown) => {
+                        task.status = 'failed';
+                        task.error = error;
+                        warnIndexFailure(options?.runtime, taskKey, error);
+                        resolve();
+                    });
+            });
+        }),
+    };
+    registry.set(taskKey, task);
 }
 
 export function getModelEnums<TDocument>(definition: ModelDefinition<TDocument>): Record<string, string> {
@@ -223,28 +332,27 @@ export function scheduleModelIndexes<TDocument>(
     collection: ModelCollectionLike<TDocument>,
     definition: ModelDefinition<TDocument>,
     softDeleteConfig: ModelSoftDeleteConfig | null,
+    options?: ModelIndexScheduleOptions,
 ): void {
     if (softDeleteConfig?.enabled && softDeleteConfig.type === 'timestamp' && softDeleteConfig.ttl) {
         const softDeleteIndex = softDeleteConfig;
-        setImmediate(() => {
-            collection.createIndex(
-                { [softDeleteIndex.field]: 1 },
-                { expireAfterSeconds: softDeleteIndex.ttl },
-            ).catch(() => { });
-        });
+        scheduleIndexTask(
+            collection,
+            { [softDeleteIndex.field]: 1 },
+            { expireAfterSeconds: softDeleteIndex.ttl },
+            options,
+        );
     }
 
     const indexes = toCompatDefinition(definition).indexes;
     if (!Array.isArray(indexes) || indexes.length === 0) {
         return;
     }
-    setImmediate(() => {
-        for (const indexSpec of indexes) {
-            if (!indexSpec?.key) {
-                continue;
-            }
-            const { key, ...indexOptions } = indexSpec;
-            collection.createIndex(key, indexOptions).catch(() => { });
+    for (const indexSpec of indexes) {
+        if (!indexSpec?.key) {
+            continue;
         }
-    });
+        const { key, ...indexOptions } = indexSpec;
+        scheduleIndexTask(collection, key, indexOptions, options);
+    }
 }

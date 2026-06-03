@@ -157,7 +157,12 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         this.softDeleteConfig = this._softDeleteConfig;
         this._versionConfig = resolveModelVersionConfig(options.definition);
         this._v1HooksFactory = resolveModelHooksFactory(options.definition);
-        scheduleModelIndexes(this.collection, options.definition, this._softDeleteConfig);
+        scheduleModelIndexes(this.collection, options.definition, this._softDeleteConfig, {
+            runtime: this.runtime as object,
+            dbName: options.dbName,
+            poolName: options.poolName,
+            collectionName: options.collectionName,
+        });
         this._v1InstanceMethods = initializeModelV1Methods(this, options.definition);
     }
 

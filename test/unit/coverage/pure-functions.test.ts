@@ -62,6 +62,11 @@ import {
 } from '../../../src/capabilities/slow-query-log/slow-query-log-records';
 import { _makeValidatingDslFn } from '../../../src/capabilities/model/schema-dsl';
 import { Model } from '../../../src/capabilities/model';
+import { MemoryCache } from '../../../src/capabilities/cache';
+import {
+    createRuntimeModelHost,
+    createRuntimeModelInstance,
+} from '../../../src/entry/runtime-model';
 import {
     assertCompatPoolExists,
     createPoolScope,
@@ -1252,6 +1257,103 @@ describe('source error factories and model config helpers — function coverage'
         assert.equal(createdIndexes.length, 2);
 
         scheduleModelIndexes({ createIndex: async () => undefined } as any, {} as any, null);
+    });
+
+    it('scheduleModelIndexes deduplicates pending and fulfilled tasks per runtime but retries failures', async () => {
+        const runtime = {};
+        const dedupedIndexes: unknown[] = [];
+        const collection = {
+            getNamespace: () => ({ iid: 'db:users', type: 'mongodb', db: 'db', collection: 'users' }),
+            createIndex: async (...args: unknown[]) => { dedupedIndexes.push(args); },
+        };
+        const definition = { indexes: [{ key: { email: 1 }, unique: true }] };
+
+        scheduleModelIndexes(collection as any, definition as any, null, { runtime, dbName: 'db', collectionName: 'users' });
+        scheduleModelIndexes(collection as any, definition as any, null, { runtime, dbName: 'db', collectionName: 'users' });
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(dedupedIndexes.length, 1);
+
+        scheduleModelIndexes(collection as any, definition as any, null, { runtime, dbName: 'db', collectionName: 'users' });
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(dedupedIndexes.length, 1);
+
+        let attempts = 0;
+        const warnings: unknown[] = [];
+        const retryRuntime = { logger: { warn: (...args: unknown[]) => warnings.push(args) } };
+        const retryCollection = {
+            getNamespace: () => ({ iid: 'db:retry_users', type: 'mongodb', db: 'db', collection: 'retry_users' }),
+            createIndex: async () => {
+                attempts += 1;
+                if (attempts === 1) throw new Error('index failed once');
+            },
+        };
+
+        scheduleModelIndexes(retryCollection as any, definition as any, null, { runtime: retryRuntime, dbName: 'db', collectionName: 'retry_users' });
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(attempts, 1);
+        assert.equal(warnings.length, 1);
+
+        scheduleModelIndexes(retryCollection as any, definition as any, null, { runtime: retryRuntime, dbName: 'db', collectionName: 'retry_users' });
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(attempts, 2);
+
+        let syncAttempts = 0;
+        const syncRuntime = { logger: { warn: (...args: unknown[]) => warnings.push(args) } };
+        const syncFailCollection = {
+            getNamespace: () => ({ iid: 'db:sync_fail_users', type: 'mongodb', db: 'db', collection: 'sync_fail_users' }),
+            createIndex: () => {
+                syncAttempts += 1;
+                if (syncAttempts === 1) throw new Error('sync index failure');
+                return Promise.resolve(undefined);
+            },
+        };
+        scheduleModelIndexes(syncFailCollection as any, definition as any, null, { runtime: syncRuntime, dbName: 'db', collectionName: 'sync_fail_users' });
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(syncAttempts, 1);
+
+        scheduleModelIndexes(syncFailCollection as any, definition as any, null, { runtime: syncRuntime, dbName: 'db', collectionName: 'sync_fail_users' });
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(syncAttempts, 2);
+    });
+
+    it('createRuntimeModelInstance honors definition collection and pool scope in the v2 path', async () => {
+        const modelName = `RegistryKey${Date.now()}`;
+        if (Model.has(modelName)) Model.undefine(modelName);
+        Model.define(modelName, {
+            collection: 'actual_items',
+            schema: {},
+            connection: { pool: 'analytics', database: 'reporting' },
+            indexes: [{ key: { sku: 1 }, unique: true }],
+        } as any);
+
+        const scopedCollections: unknown[] = [];
+        const createdIndexes: unknown[] = [];
+        const collection = {
+            getNamespace: () => ({ iid: 'reporting:actual_items', type: 'mongodb', db: 'reporting', collection: 'actual_items' }),
+            createIndex: async (...args: unknown[]) => { createdIndexes.push(args); },
+        };
+        const host = createRuntimeModelHost({
+            options: { type: 'mongodb', databaseName: 'default_db' } as any,
+            modelInstances: new MemoryCache({ maxEntries: 10 }),
+            runtime: { scopedCollection: () => collection, scopedModel: () => null } as any,
+            scopedCollection: (collectionName, options) => {
+                scopedCollections.push({ collectionName, options });
+                return collection;
+            },
+        });
+
+        const first = createRuntimeModelInstance(host, modelName, {});
+        const second = createRuntimeModelInstance(host, modelName, {});
+        await new Promise((resolve) => setImmediate(resolve));
+
+        assert.strictEqual(first, second);
+        assert.equal(first.collectionName, 'actual_items');
+        assert.equal(first.dbName, 'reporting');
+        assert.equal(first.poolName, 'analytics');
+        assert.deepEqual(scopedCollections, [
+            { collectionName: 'actual_items', options: { database: 'reporting', pool: 'analytics' } },
+        ]);
+        assert.equal(createdIndexes.length, 1);
     });
 });
 

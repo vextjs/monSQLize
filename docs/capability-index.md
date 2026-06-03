@@ -69,7 +69,13 @@
 - slow-query-log：manager / queue / runtime façade
 - saga：orchestrator / runtime façade
 
-当前 `docs/**` 先只提供能力索引，不在本轮把这三类能力全部展开成独立专题。
+当前仓库已提供这些能力的专题入口与可执行示例：
+
+- sync：`docs/sync-backup.md`，示例 `examples/docs/sync.ts`、`examples/docs/sync-target-failure.ts`
+- slow-query-log：`docs/slow-query-log.md`，示例 `examples/docs/slow-query-log.ts`
+- saga：`docs/saga-transaction.md`、`docs/saga-advanced.md`，示例 `examples/docs/saga.ts`
+
+后续扩展重点是继续补充运行时故障注入、真实部署拓扑与性能边界，而不是补缺基础入口。
 
 ## 5. 当前仓库内的推荐入口
 

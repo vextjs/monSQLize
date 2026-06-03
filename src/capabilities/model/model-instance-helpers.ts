@@ -23,6 +23,20 @@ type PopulateContext<TDocument> = {
     poolName?: string;
 };
 
+function resolveRegisteredCollectionName<TDocument>(
+    registered: { collectionName: string; definition: ModelDefinition<TDocument> } | undefined,
+    fallback: string,
+): string {
+    if (!registered) {
+        return fallback;
+    }
+    const definition = registered.definition as ModelDefinition<TDocument> & {
+        collection?: string;
+        name?: string;
+    };
+    return definition.collection ?? definition.name ?? registered.collectionName;
+}
+
 export async function populateModelPath<TDocument>(
     context: PopulateContext<TDocument>,
     docs: Array<TDocument & Record<string, unknown>>,
@@ -55,7 +69,8 @@ export async function populateModelPath<TDocument>(
         database: registered?.definition.connection?.database ?? context.dbName,
         pool: registered?.definition.connection?.pool ?? context.poolName,
     };
-    const relatedCollection = context.runtime.scopedCollection(relation.from, scope);
+    const relatedCollectionName = resolveRegisteredCollectionName(registered, relation.from);
+    const relatedCollection = context.runtime.scopedCollection(relatedCollectionName, scope);
     const relatedModel = Model.has(relation.from) ? context.runtime.scopedModel(relation.from, scope) : null;
     const relatedDocs = await relatedCollection.find({
         [relation.foreignField]: { $in: keys },

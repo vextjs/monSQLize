@@ -2,7 +2,7 @@
 
 文档站中的每个核心 API，都应尽量对应到**当前仓库内可直接运行的示例**。
 
-> 当前官方示例总览见 [`../examples/README.md`](../examples/README.md)，其中 `npm run test:examples` 会统一编译并执行当前 **44 个** TypeScript 示例。
+> 当前官方示例总览见 [`../examples/README.md`](../examples/README.md)，其中 `npm run test:examples` 会统一编译并执行当前 **43 个** TypeScript 示例；`examples/helpers/bootstrap.ts` 是辅助模块，不单独执行。
 
 ## 运行方式
 

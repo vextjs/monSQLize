@@ -423,7 +423,7 @@ const user = await users.findOne({ email });
 const list = await users.find({ status: 'active' }).toArray();
 ```
 
-The current v2.0.0 release candidate has been validated against the workspace consumers `chat`, `payment`, `user`, `admin`, `search`, `vext`, and `permission-core` without requiring business-source changes in those projects.
+The current v2.0.1 release has been validated against the workspace consumers `chat`, `payment`, `user`, `admin`, `search`, `vext`, and `permission-core` without requiring business-source changes in those projects.
 
 ## Compatibility
 
@@ -490,7 +490,7 @@ npm run test:real-env:private
 
 ## Release Status
 
-The current release candidate is `v2.0.0`.
+The current published release is `v2.0.1`.
 
 Key release-readiness points:
 
@@ -502,6 +502,11 @@ Key release-readiness points:
 - GitHub Actions publishes to npm from `v*` tags after running `npm run release:preflight`; the publish step skips duplicate lifecycle scripts because the gate already ran in the same job.
 
 ## Roadmap
+
+### v2.0.1
+
+- v1 smooth-upgrade compatibility patch for Model actual collection names, scoped pools/databases, automatic-index dedupe, and cache/pool option aliases.
+- Documentation and public types aligned with the current runtime behavior.
 
 ### v2.0.0
 

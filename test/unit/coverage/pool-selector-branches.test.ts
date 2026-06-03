@@ -99,6 +99,12 @@ describe('PoolSelector — branch coverage', () => {
         assert.notEqual(first, second);
     });
 
+    it('strategy aliases: accepts vext kebab-case names', () => {
+        assert.equal(new PoolSelector({ strategy: 'round-robin' }).getStrategy(), 'roundRobin');
+        assert.equal(new PoolSelector({ strategy: 'least-connections' }).getStrategy(), 'leastConnections');
+        assert.equal(new PoolSelector({ strategy: 'random' }).getStrategy(), 'weighted');
+    });
+
     it('strategy roundRobin: read prefers secondary/analytics', () => {
         const sel = new PoolSelector({ strategy: 'roundRobin' });
         const pools: Pool[] = [
@@ -171,8 +177,8 @@ describe('PoolSelector — branch coverage', () => {
         const logged: unknown[] = [];
         const logger = { warn: () => {}, info: (...args: unknown[]) => logged.push(args) };
         const sel = new PoolSelector({ strategy: 'auto', logger });
-        sel.setStrategy('manual');
-        assert.equal(sel.getStrategy(), 'manual');
+        sel.setStrategy('least-connections');
+        assert.equal(sel.getStrategy(), 'leastConnections');
         assert.ok(logged.length > 0);
     });
 

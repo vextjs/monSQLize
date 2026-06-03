@@ -1,7 +1,7 @@
 # docs/examples 承接映射
 
 > **目标**: 说明 `monSQLize-v1` 中旧 `docs/examples/test/validation` 资产，在当前 TypeScript 重写仓库中的承接位置。
-> **状态**: post-P4-D 收尾阶段；当前 `docs/**` / `examples/**` 已从”最小承接”升级为”正式入口 + 44 个可执行 TS 示例”。
+> **状态**: post-P4-D 收尾阶段；当前 `docs/**` / `examples/**` 已从”最小承接”升级为”正式入口 + 43 个可执行 TS 示例 + 1 个 helper 模块”。
 
 ## 1. 映射原则
 

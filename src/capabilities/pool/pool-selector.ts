@@ -28,6 +28,17 @@ type PoolSelectorOptions = {
     logger?: Pick<LoggerLike, 'warn' | 'info'>;
 };
 
+const POOL_STRATEGY_ALIASES: Record<string, string> = {
+    'round-robin': 'roundRobin',
+    'least-connections': 'leastConnections',
+    random: 'weighted',
+};
+
+function normalizePoolStrategy(strategy: string | undefined): string {
+    const value = strategy ?? 'auto';
+    return POOL_STRATEGY_ALIASES[value] ?? value;
+}
+
 /**
  * Pool routing selector.
  *
@@ -49,7 +60,7 @@ export class PoolSelector {
     private readonly _roundRobinIndex = new Map<string, number>();
 
     constructor(options: PoolSelectorOptions = {}) {
-        this._strategy = options.strategy ?? 'auto';
+        this._strategy = normalizePoolStrategy(options.strategy);
         this._logger = options.logger ?? console;
     }
 
@@ -176,8 +187,8 @@ export class PoolSelector {
     }
 
     setStrategy(strategy: string): void {
-        this._strategy = strategy;
-        this._logger.info?.(`[PoolSelector] Strategy changed: ${strategy}`);
+        this._strategy = normalizePoolStrategy(strategy);
+        this._logger.info?.(`[PoolSelector] Strategy changed: ${this._strategy}`);
     }
 
     getStrategy(): string {

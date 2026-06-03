@@ -108,6 +108,10 @@ export interface ModelDefinitionOptions {
 }
 
 export interface ModelDefinition<TDocument = Record<string, unknown>> {
+    /** 实际 MongoDB 集合名；不填时依次回退到 `name` 与 `Model.define()` 的注册名。 */
+    collection?: string;
+    /** Model 自动加载文件中的兼容集合名；`collection` 优先级更高。 */
+    name?: string;
     enums?: Record<string, string>;
     schema?: ((dsl: unknown) => unknown) | Record<string, unknown>;
     defaults?: Record<string, unknown | ((context?: unknown, doc?: TDocument) => unknown)>;

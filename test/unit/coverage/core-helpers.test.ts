@@ -390,6 +390,42 @@ describe('coverage core helpers', () => {
         const multi = normalizeRuntimeCache({ local: { maxSize: 10, ttl: 100 }, remote: { maxEntries: 10, ttl: 100 }, policy: { writePolicy: 'both', backfillLocalOnRemoteHit: false } });
         await multi.set('multi-key', 'multi-value');
         assert.equal(await multi.get('multi-key'), 'multi-value');
+        const vextMemory = normalizeRuntimeCache({ memory: { maxSize: 10, ttl: 20 }, redis: { enabled: false } });
+        await vextMemory.set('ttl-key', 'value');
+        assert.equal(await vextMemory.get('ttl-key'), 'value');
+        await new Promise((resolve) => setTimeout(resolve, 35));
+        assert.equal(await vextMemory.get('ttl-key'), undefined);
+
+        const remoteStore = new Map<string, unknown>();
+        const remoteCalls: Array<{ method: string; key: string; ttl?: number }> = [];
+        const vextRemote = {
+            prefix: 'vext:',
+            ttl: 1234,
+            get: async (key: string) => remoteStore.get(key),
+            set: async (key: string, value: unknown, ttl?: number) => {
+                remoteCalls.push({ method: 'set', key, ttl });
+                remoteStore.set(key, value);
+            },
+            del: async (key: string) => remoteStore.delete(key),
+            exists: async (key: string) => remoteStore.has(key),
+            has: async (key: string) => remoteStore.has(key),
+            clear: async () => remoteStore.clear(),
+            getMany: async (keys: string[]) => Object.fromEntries(keys.filter((key) => remoteStore.has(key)).map((key) => [key, remoteStore.get(key)])),
+            setMany: async (entries: Record<string, unknown>, ttl?: number) => {
+                for (const [key, value] of Object.entries(entries)) {
+                    remoteCalls.push({ method: 'setMany', key, ttl });
+                    remoteStore.set(key, value);
+                }
+                return true;
+            },
+            delMany: async (keys: string[]) => keys.filter((key) => remoteStore.delete(key)).length,
+            delPattern: async () => 0,
+            keys: async () => Array.from(remoteStore.keys()),
+        };
+        const vextRemoteCache = normalizeRuntimeCache({ memory: { enabled: false }, redis: vextRemote });
+        await vextRemoteCache.set('remote-key', 'remote-value');
+        assert.deepEqual(remoteCalls[0], { method: 'set', key: 'vext:remote-key', ttl: 1234 });
+        assert.equal(await vextRemoteCache.get('remote-key'), 'remote-value');
 
         assert.equal(parseHostFromUri('mongodb://user:pass@example.com:27018/db'), 'example.com');
         assert.equal(parseHostFromUri('mongodb+srv://cluster.example.com/db'), 'cluster.example.com');

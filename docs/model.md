@@ -65,6 +65,8 @@ if (user.checkPassword('secret123')) {
 **参数**：
 - `collectionName` - 集合名称
 - `definition` - Model 定义
+  - `collection` - 实际 MongoDB 集合名；不填时依次回退到 `name` 与 `collectionName`
+  - `name` - Model 自动加载文件中的兼容集合名；`collection` 优先级更高
   - `schema` (必需) - Schema 定义
   - `enums` - 枚举配置
   - `methods` - 自定义方法
@@ -76,6 +78,8 @@ if (user.checkPassword('secret123')) {
 
 ```javascript
 Model.define('users', {
+    // 可选：把注册名与实际 MongoDB 集合名分开
+    // collection: 'app_users',
     enums: {
         role: 'admin|user|guest'
     },
@@ -253,7 +257,11 @@ Model.define('users', newDefinition);
 
 获取 Model 实例。
 
-> **缓存行为**（v1.2.1+）：同一 `collectionName` 多次调用 `msq.model()` 返回**同一 ModelInstance 实例**。索引仅在首次创建实例时触发一次 `createIndexes` 命令。
+> **缓存行为**（v1.2.1+）：同一 runtime / pool / database / 注册名 / 实际集合名 / 定义版本下，多次调用 `msq.model()` 返回同一 `ModelInstance` 实例。
+> - 首次创建实例时会调度 Model 自动索引；每个索引实际调用一次 `createIndex()`，同一进程内 pending / fulfilled 的索引任务会去重
+> - `connect()` 只加载与注册 Model 定义，不会单独创建 `ModelInstance`，也不会单独触发索引创建
+> - 进程重启后内存任务表清空，首次使用对应 Model 时会再次发送 `createIndex()` ensure 命令；相同索引定义由 MongoDB 驱动/服务端按幂等语义处理
+> - 自动索引不会先调用 `listIndexes()` 预检；索引定义冲突时由 MongoDB 抛错
 > - `Model.redefine()` 或 `Model.undefine()` 后，下次调用 `msq.model()` 自动获取新定义的实例
 > - `Model._clear()` 后（v1.2.2 修复），所有已注册 Model 的缓存均自动失效，下次调用 `msq.model()` 重建实例
 > - `msq.close()` 后全部缓存清空
@@ -285,6 +293,32 @@ if (!result.valid) {
     console.error('验证失败:', result.errors);
 }
 ```
+
+---
+
+## 注册名与实际集合名
+
+`Model.define(collectionName, definition)` 的第一个参数是注册名，也是调用 `msq.model(collectionName)` 时使用的名称。运行时访问 MongoDB 时会按以下顺序解析实际集合名：
+
+1. `definition.collection`
+2. `definition.name`
+3. `Model.define()` 的 `collectionName`
+
+```javascript
+Model.define('UserModel', {
+    collection: 'users',
+    schema: (dsl) => dsl({
+        username: 'string!'
+    })
+});
+
+const User = msq.model('UserModel'); // 使用注册名获取 Model
+await User.insertOne({ username: 'alice' }); // 实际写入 MongoDB users 集合
+```
+
+`definition.name` 主要兼容自动加载文件格式；在手动注册时优先使用 `collection` 表达实际集合名。Model 实例缓存键同时包含 pool、database、注册名和实际集合名，避免不同路由或不同实际集合复用同一个实例。
+
+如果 `relations.from` 指向一个已注册 Model，populate 会使用该 Model 的实际集合名；如果没有同名 Model，则把 `from` 当作原始集合名使用。这样既兼容 v1 常见的“按 Model 名引用关系”，也保留直接写 MongoDB 集合名的方式。
 
 ---
 
@@ -830,6 +864,14 @@ indexes: [
     { key: { expireAt: 1 }, expireAfterSeconds: 0 }  // TTL 索引
 ]
 ```
+
+自动索引只在 `ModelInstance` 创建时调度，不会在每次查询或每次请求时重复创建。同一进程内，monSQLize 会按 runtime / pool / database / collection / index 指纹记录索引任务：任务处于 pending 或 fulfilled 状态时会跳过重复调度；失败任务允许下次重新调度。
+
+该流程不会先读取 `listIndexes()` 做数据库预检，而是直接调用 MongoDB `createIndex()`。因此：
+
+- 相同索引定义通常会被 MongoDB 幂等处理
+- 索引选项冲突、同名冲突等问题会由 MongoDB 返回错误
+- 如果业务需要在手动索引管理前做差异化判断，可先调用 `listIndexes()` 再决定是否调用 `createIndex()` / `createIndexes()`
 
 ---
 

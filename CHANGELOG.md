@@ -1,7 +1,7 @@
 # CHANGELOG
 
-> Summary index — current release details are packaged in [changelogs/v2.0.0.md](./changelogs/v2.0.0.md); historical details live in the repository changelog archive.
-> **Last updated**: 2026-06-01
+> Summary index — current release details are packaged in [changelogs/v2.0.1.md](./changelogs/v2.0.1.md); historical details live in the repository changelog archive.
+> **Last updated**: 2026-06-03
 
 ---
 
@@ -9,6 +9,7 @@
 
 | Version | Date | Summary | Details |
 |---------|------|---------|---------|
+| [v2.0.1](./changelogs/v2.0.1.md) | 2026-06-03 | Patch: model collection/pool compatibility, automatic-index task dedupe, runtime cache/pool v1 smooth-upgrade fixes, and current docs/types alignment | [View](./changelogs/v2.0.1.md) |
 | [v2.0.0](./changelogs/v2.0.0.md) | 2026-06-01 | 🎉 **v2.0.0 — TypeScript rewrite**: full TypeScript source, cache-hub integration, schema-dsl `^2.0.3` TS dependency, Apache-2.0 licensing, English README, MultiLevel cache support, v1 API compat preserved, optimized npm artifact boundary without default sourcemaps, JSDoc coverage complete, `getPoolStats/getPoolHealth` keyed by pool name, v1 compat fixes included, workspace smooth-upgrade bridge validated for downstream consumers | [View](./changelogs/v2.0.0.md) |
 | [v1.3.0](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.3.0.md) | 2026-04-27 | 🆕 **新功能**：链式池访问 API — `pool(name)` / `use(dbName)` / `scopedCollection()` / `scopedModel()` 四个公开方法，支持多连接池多数据库路由，connection 合并语义，TypeScript 类型签名完整覆盖 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.3.0.md) |
 | [v1.2.3](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.2.3.md) | 2026-04-26 | 🐛 **Bug Fix**：`model()` 方法修复注册 key 直接作为 MongoDB 集合名的问题，优先读 `definition.collection > definition.name`，注册 key 仅作 fallback，向后兼容 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.2.3.md) |
@@ -443,7 +444,8 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
 changelogs/
 ├── README.md          # 变更文档说明
 ├── TEMPLATE.md        # 变更文档模板
-├── v2.0.0.md         # 当前发布详细变更
+├── v2.0.1.md         # 当前发布详细变更
+├── v2.0.0.md         # v2 TypeScript 重写发布详细变更
 └── v1.x.y.md         # 历史版本详细变更（仓库归档）
 ```
 
@@ -494,11 +496,11 @@ changelogs/
 
 ## 相关文档
 
-- [changelogs/v2.0.0.md](./changelogs/v2.0.0.md) - 当前发布详细变更文档
+- [changelogs/v2.0.1.md](./changelogs/v2.0.1.md) - 当前发布详细变更文档
 - [README.md](./README.md) - 项目说明
 - [docs/](https://github.com/vextjs/monSQLize/blob/main/docs/index.md) - API 文档
 
 ---
 
-**最后更新**: 2026-06-01
+**最后更新**: 2026-06-03
 

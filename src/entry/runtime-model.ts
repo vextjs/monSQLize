@@ -5,7 +5,7 @@
  * and ModelInstance construction, allowing runtime-core to focus on connection
  * lifecycle without directly handling Model assembly details.
  *
- * Cache key format: `<pool>:<database>:<collectionName>`. Uses `Model.getRevision()`
+ * Cache key format: `<pool>:<database>:<registryName>:<actualCollectionName>`. Uses `Model.getRevision()`
  * to detect schema changes; stale instances are automatically discarded when the
  * revision changes.
  */
@@ -17,6 +17,7 @@ import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type { ModelInstanceCacheEntry } from '../types/internal/model';
 import type { ModelCollectionLike, ModelRuntimeLike } from '../capabilities/model/populate-promise';
 import { resolveDatabaseName } from './runtime-db-facade';
+import { getRegisteredModelMetadata } from './runtime-compat-accessors';
 
 /**
  * Input config for `createRuntimeModelHost`,
@@ -75,9 +76,10 @@ export function createRuntimeModelInstance<TDocument = Record<string, unknown>>(
         throw createError(ErrorCodes.MODEL_NOT_DEFINED, `Model '${name}' is not defined.`);
     }
 
-    const databaseName = registered.definition.connection?.database ?? scope.database ?? resolveDatabaseName(host.options);
-    const poolName = registered.definition.connection?.pool ?? scope.pool;
-    const cacheKey = `${poolName ?? 'default'}:${databaseName}:${registered.collectionName}`;
+    const { actualCollectionName, connection } = getRegisteredModelMetadata(registered);
+    const databaseName = connection?.database ?? scope.database ?? resolveDatabaseName(host.options);
+    const poolName = connection?.pool ?? scope.pool;
+    const cacheKey = `${poolName ?? 'default'}:${databaseName}:${registered.collectionName}:${actualCollectionName}`;
     const revision = Model.getRevision(registered.collectionName);
     const cached = host._modelInstances.get(cacheKey) as ModelInstanceCacheEntry | undefined;
     if (cached && cached.revision === revision) {
@@ -85,10 +87,10 @@ export function createRuntimeModelInstance<TDocument = Record<string, unknown>>(
     }
 
     const instance = new ModelInstance<TDocument>(
-        host.scopedCollection(registered.collectionName, { database: databaseName }),
+        host.scopedCollection(actualCollectionName, { database: databaseName, pool: poolName }),
         host.runtime,
         {
-            collectionName: registered.collectionName,
+            collectionName: actualCollectionName,
             dbName: databaseName,
             poolName,
             definition: registered.definition,

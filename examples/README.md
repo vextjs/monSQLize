@@ -3,7 +3,7 @@
 Runnable TypeScript examples for every major monSQLize API.
 Each file uses an in-memory MongoDB server (`mongodb-memory-server`) — no real database needed.
 
-> 当前共 **44 个**可执行 TypeScript 示例，统一由 `npm run test:examples` 编译并执行。
+> 当前共 **43 个**可执行 TypeScript 示例，另有 `examples/helpers/bootstrap.ts` 作为示例辅助模块；可执行示例统一由 `npm run test:examples` 编译并执行。
 
 ## Prerequisites
 
