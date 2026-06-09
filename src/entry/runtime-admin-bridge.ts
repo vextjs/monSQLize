@@ -282,7 +282,7 @@ export function createRuntimeAdapterBridge(host: RuntimeAdapterBridgeHost): Lega
         dropDatabase: async (name, adminOptions) => {
             host.ensureConnected();
             if (!name || typeof name !== 'string') {
-                throw new Error('Database name is required and must be a non-empty string');
+                throw createError(ErrorCodes.INVALID_DATABASE_NAME, 'Database name is required and must be a non-empty string');
             }
             if (!adminOptions?.confirm) {
                 const error = new Error(
@@ -320,7 +320,7 @@ export function createRuntimeAdapterBridge(host: RuntimeAdapterBridgeHost): Lega
         runCommand: async (command, adminOptions) => {
             host.ensureConnected();
             if (command === null || typeof command !== 'object') {
-                throw new Error('Command must be a non-null object');
+                throw createError(ErrorCodes.INVALID_ARGUMENT, 'Command must be a non-null object');
             }
             return host.db().runCommand(command, adminOptions ?? {});
         },

@@ -72,15 +72,8 @@ Runtime dependencies installed with the package:
 - `schema-dsl` - model schema validation runtime dependency.
 - `cache-hub` - cache and function-cache foundation.
 - `async-lock` - local concurrency lock support.
-
-Optional dependencies:
-
-- `ioredis` - required only when you enable Redis / L2 cache features.
-- `ssh2` - required only when you connect through an SSH tunnel.
-
-```bash
-npm install ioredis ssh2
-```
+- `ioredis` - Redis-backed L2 cache, distributed invalidation, and distributed lock support.
+- `ssh2` - SSH tunnel support for restricted/private network deployment.
 
 ## Quick Start
 
@@ -423,7 +416,7 @@ const user = await users.findOne({ email });
 const list = await users.find({ status: 'active' }).toArray();
 ```
 
-The current v2.0.1 release has been validated against the workspace consumers `chat`, `payment`, `user`, `admin`, `search`, `vext`, and `permission-core` without requiring business-source changes in those projects.
+The v2 line has been validated against the workspace consumers `chat`, `payment`, `user`, `admin`, `search`, `vext`, and `permission-core` without requiring business-source changes in those projects.
 
 ## Compatibility
 
@@ -439,6 +432,7 @@ The current v2.0.1 release has been validated against the workspace consumers `c
 See the current support and verification documents:
 
 - [docs/README.md](https://github.com/vextjs/monSQLize/blob/main/docs/README.md)
+- [docs/recipes.md](https://github.com/vextjs/monSQLize/blob/main/docs/recipes.md)
 - [docs/support-matrix.md](https://github.com/vextjs/monSQLize/blob/main/docs/support-matrix.md)
 - [docs/verification-entrypoints.md](https://github.com/vextjs/monSQLize/blob/main/docs/verification-entrypoints.md)
 - [test/compatibility/README.md](https://github.com/vextjs/monSQLize/blob/main/test/compatibility/README.md)
@@ -449,6 +443,7 @@ See the current support and verification documents:
 Current TypeScript documentation and examples are the source of truth for the v2 package:
 
 - `docs/**` - current documentation.
+- `docs/recipes.md` - shortest copy-ready paths for common setup scenarios.
 - `examples/**` - TypeScript examples.
 - `test/compatibility/**` - package exports and compatibility guards.
 - `test/validation/**` - verification ledgers and mapping notes.
@@ -490,7 +485,7 @@ npm run test:real-env:private
 
 ## Release Status
 
-The current published release is `v2.0.1`.
+The current published release is `v2.0.2`.
 
 Key release-readiness points:
 
@@ -502,6 +497,11 @@ Key release-readiness points:
 - GitHub Actions publishes to npm from `v*` tags after running `npm run release:preflight`; the publish step skips duplicate lifecycle scripts because the gate already ran in the same job.
 
 ## Roadmap
+
+### v2.0.2
+
+- Deterministic dependency metadata patch.
+- `ioredis` and `ssh2` are installed with monSQLize by default, so Redis-backed cache/locks and SSH tunnels no longer require a separate dependency install step.
 
 ### v2.0.1
 

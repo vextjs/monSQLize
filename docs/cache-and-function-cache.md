@@ -99,7 +99,7 @@ npm run test:examples
 但本轮首批示例**不依赖 Redis**，原因是：
 
 1. 首批目标是建立最小可执行示例闭环
-2. Redis 依赖属于 optional dependency
+2. Redis 相关能力需要运行时显式配置（`ioredis` 已随 monsqlize 安装）
 3. 不应把“当前正式文档入口建立”与“分布式缓存环境搭建”强耦合
 
 Redis / 多级缓存的进阶部署建议会继续在当前文档站内补齐；当前仓库已提供可执行起点：

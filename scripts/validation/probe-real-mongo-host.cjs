@@ -41,8 +41,8 @@ function buildSummary() {
         env,
         ready,
         nextAction: ready
-            ? '可直接执行 npm run test:server-matrix'
-            : '当前主机缺少外部 Mongo 服务条件或必要 URI；请准备真实 Mongo 6.x / 7.x 服务后再执行 npm run test:server-matrix',
+            ? 'Run npm run test:server-matrix'
+            : 'This host is missing external Mongo service requirements or required URIs; prepare real MongoDB 6.x / 7.x services before running npm run test:server-matrix',
     };
 }
 

@@ -25,7 +25,7 @@
         }
       ],
       "verified": [
-        "Node 20.x 当前环境 + npm run verify + npm run test:server-matrix",
+        "Node 20.x current environment + npm run verify + npm run test:server-matrix",
         "Node 22.x（Volta） + npm run test:server-matrix"
       ],
       "pending": []
@@ -46,8 +46,8 @@
         }
       ],
       "verified": [
-        "当前依赖树的 6.x 基线（Node 20.x / 22.x）",
-        "Driver 7.x（临时安装 7.2.0 + 内存矩阵回归）"
+        "6.x baseline from the current dependency tree (Node 20.x / 22.x)",
+        "Driver 7.x (temporary 7.2.0 install + memory-matrix regression)"
       ],
       "statusVocabulary": [
         "verified",
@@ -55,7 +55,7 @@
         "contract-regression"
       ],
       "pending": [
-        "历史 4.x/5.x 差异回归（以 monSQLize-v1 为参考）"
+        "Historical 4.x/5.x difference regression, using monSQLize-v1 as reference"
       ]
     },
     "mongodbServer": {

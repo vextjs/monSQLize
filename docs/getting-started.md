@@ -19,9 +19,10 @@ npm install monsqlize
 
 ### 当前依赖边界
 
-- 必需运行时依赖：`mongodb`、`schema-dsl`、`ssh2`
-- 可选缓存依赖：`ioredis`
+- 运行时依赖：`mongodb`、`schema-dsl`、`ssh2`、`ioredis`
 - 当前 Node.js 基线：`>=18.0.0`
+
+说明：`ssh2` 用于 SSH 隧道能力，`ioredis` 用于 Redis 缓存与分布式能力；两者均随 `npm install monsqlize` 一并安装，按功能启用开关直接使用。
 
 ## 最小连接示例
 

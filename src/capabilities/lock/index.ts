@@ -7,6 +7,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { createError, ErrorCodes } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
 import type { LockOptions, LockStats } from '../../../types/lock';
 
@@ -337,7 +338,7 @@ export class DistributedCacheLockManager {
         logger?: LoggerLike | null;
     }) {
         if (!options.redis) {
-            throw new Error('DistributedCacheLockManager requires a Redis instance');
+            throw createError(ErrorCodes.INVALID_CONFIG, 'DistributedCacheLockManager requires a Redis instance');
         }
         this.redis = options.redis as typeof this.redis;
         this.lockKeyPrefix = options.lockKeyPrefix ?? 'monsqlize:cache:lock:';

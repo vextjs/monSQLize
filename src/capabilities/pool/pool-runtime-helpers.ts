@@ -8,6 +8,7 @@
 
 import { MongoClient as MongoDriverClient } from 'mongodb';
 import type { MongoClient } from 'mongodb';
+import { createError, ErrorCodes } from '../../core/errors';
 import type { PoolConfig, PoolStats } from '../../../types/pool';
 
 const DEFAULT_POOL_CONNECT_OPTIONS = {
@@ -20,43 +21,43 @@ const DEFAULT_POOL_CONNECT_OPTIONS = {
  * Intended for the initialization path to ensure the config is fully valid before proceeding.
  */
 export function validatePoolConfig(config: Record<string, unknown>): void {
-    if (!config || typeof config !== 'object') throw new Error('Pool config must be an object');
-    if (!config.name || typeof config.name !== 'string') throw new Error('Pool config.name is required and must be a string');
-    if (!config.uri || typeof config.uri !== 'string') throw new Error('Pool config.uri is required and must be a string');
+    if (!config || typeof config !== 'object') throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config must be an object');
+    if (!config.name || typeof config.name !== 'string') throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config.name is required and must be a string');
+    if (!config.uri || typeof config.uri !== 'string') throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config.uri is required and must be a string');
     if (!(config.uri as string).startsWith('mongodb://') && !(config.uri as string).startsWith('mongodb+srv://')) {
-        throw new Error('Pool config.uri must start with mongodb:// or mongodb+srv://');
+        throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config.uri must start with mongodb:// or mongodb+srv://');
     }
     if (config.role) {
         const validRoles = ['primary', 'secondary', 'analytics', 'custom'];
-        if (!validRoles.includes(config.role as string)) throw new Error(`Pool config.role must be one of: ${validRoles.join(', ')}`);
+        if (!validRoles.includes(config.role as string)) throw createError(ErrorCodes.INVALID_CONFIG, `Pool config.role must be one of: ${validRoles.join(', ')}`);
     }
     if (config.weight !== undefined) {
-        if (typeof config.weight !== 'number') throw new Error('Pool config.weight must be a number');
-        if ((config.weight as number) < 0) throw new Error('Pool config.weight must be a non-negative number');
+        if (typeof config.weight !== 'number') throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config.weight must be a number');
+        if ((config.weight as number) < 0) throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config.weight must be a non-negative number');
     }
     if (config.options !== undefined) {
-        if (typeof config.options !== 'object' || Array.isArray(config.options)) throw new Error('Pool config.options must be an object');
+        if (typeof config.options !== 'object' || Array.isArray(config.options)) throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config.options must be an object');
         const opts = config.options as Record<string, unknown>;
         for (const key of ['maxPoolSize', 'minPoolSize', 'maxIdleTimeMS', 'waitQueueTimeoutMS', 'connectTimeoutMS', 'serverSelectionTimeoutMS']) {
             if (opts[key] !== undefined && (typeof opts[key] !== 'number' || (opts[key] as number) < 0)) {
-                throw new Error(`Pool config.options.${key} must be a non-negative number`);
+                throw createError(ErrorCodes.INVALID_CONFIG, `Pool config.options.${key} must be a non-negative number`);
             }
         }
     }
     if (config.healthCheck !== undefined) {
-        if (typeof config.healthCheck !== 'object' || Array.isArray(config.healthCheck)) throw new Error('Pool config.healthCheck must be an object');
+        if (typeof config.healthCheck !== 'object' || Array.isArray(config.healthCheck)) throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config.healthCheck must be an object');
         const hc = config.healthCheck as Record<string, unknown>;
-        if (hc.enabled !== undefined && typeof hc.enabled !== 'boolean') throw new Error('Pool config.healthCheck.enabled must be a boolean');
+        if (hc.enabled !== undefined && typeof hc.enabled !== 'boolean') throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config.healthCheck.enabled must be a boolean');
         for (const key of ['interval', 'timeout', 'retries']) {
             if (hc[key] !== undefined && (typeof hc[key] !== 'number' || (hc[key] as number) < 0)) {
-                throw new Error(`Pool config.healthCheck.${key} must be a non-negative number`);
+                throw createError(ErrorCodes.INVALID_CONFIG, `Pool config.healthCheck.${key} must be a non-negative number`);
             }
         }
     }
     if (config.tags !== undefined) {
-        if (!Array.isArray(config.tags)) throw new Error('Pool config.tags must be an array');
+        if (!Array.isArray(config.tags)) throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config.tags must be an array');
         for (const tag of config.tags as unknown[]) {
-            if (typeof tag !== 'string') throw new Error('Pool config.tags must be an array of strings');
+            if (typeof tag !== 'string') throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config.tags must be an array of strings');
         }
     }
 }
@@ -121,10 +122,10 @@ export function validatePoolConfigSafe(config: Record<string, unknown>): string[
  */
 export function validatePoolConfigInternal(config: PoolConfig): void {
     if (!config.name?.trim()) {
-        throw new Error('Pool config requires a non-empty name');
+        throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config requires a non-empty name');
     }
     if (!config.uri?.trim()) {
-        throw new Error('Pool config requires a non-empty uri');
+        throw createError(ErrorCodes.INVALID_CONFIG, 'Pool config requires a non-empty uri');
     }
 }
 

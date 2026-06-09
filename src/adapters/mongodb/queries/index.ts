@@ -15,6 +15,7 @@
 
 import { ChangeStream, Collection, Document, FindOptions, Sort } from 'mongodb';
 
+import { createError, ErrorCodes } from '../../../core/errors';
 import { compilePipelineExpressions, hasExpressionInPipeline } from '../../../core/expression';
 import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/query';
 import type {
@@ -147,7 +148,7 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
 
     limit(value: number): FindChain<TSchema> {
         if (typeof value !== 'number' || value < 0) {
-            throw new Error(`limit() requires a non-negative number, got: ${typeof value} (${value})`);
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `limit() requires a non-negative number, got: ${typeof value} (${value})`);
         }
         this.options.limit = value;
         return this;
@@ -155,7 +156,7 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
 
     skip(value: number): FindChain<TSchema> {
         if (typeof value !== 'number' || value < 0) {
-            throw new Error(`skip() requires a non-negative number, got: ${typeof value} (${value})`);
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `skip() requires a non-negative number, got: ${typeof value} (${value})`);
         }
         this.options.skip = value;
         return this;
@@ -163,7 +164,7 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
 
     sort(value: Sort | Record<string, 1 | -1>): FindChain<TSchema> {
         if (!value || typeof value !== 'object') {
-            throw new Error(`sort() requires an object or array, got: ${typeof value}`);
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `sort() requires an object or array, got: ${typeof value}`);
         }
         this.options.sort = value;
         return this;
@@ -219,7 +220,7 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
 
     toArray(): Promise<TSchema[]> {
         if (this.executed) {
-            throw new Error('Query already executed.');
+            throw createError(ErrorCodes.INVALID_OPERATION, 'Query already executed.');
         }
         this.executed = true;
         return this.collection.find(this.normalizedQuery, buildFindDriverOptions<TSchema>(this.buildExecuteOptions())).toArray() as Promise<TSchema[]>;
@@ -334,7 +335,7 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
 
     toArray(): Promise<TResult[]> {
         if (this.executed) {
-            throw new Error('Query already executed.');
+            throw createError(ErrorCodes.INVALID_OPERATION, 'Query already executed.');
         }
         this.executed = true;
         return this.collection.aggregate(this.pipeline, buildAggregateDriverOptions<TSchema>(this.buildExecuteOptions())).toArray() as Promise<TResult[]>;

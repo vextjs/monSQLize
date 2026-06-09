@@ -1,4 +1,4 @@
-import { expectAssignable, expectType } from 'tsd';
+import { expectAssignable, expectNotAssignable, expectType } from 'tsd';
 import MonSQLize, {
     compilePipelineExpressions,
     type AdminAccessor,
@@ -37,6 +37,7 @@ import MonSQLize, {
     type PageResult,
     type RelationConfig,
     type ResultWithMeta,
+    type SSHConfig,
     type TotalsInfo,
     type UpdateBatchResult,
     type UpdateResult,
@@ -80,6 +81,18 @@ expectAssignable<MonSQLizeOptions>({
     autoConvertObjectId: { enabled: true, excludeFields: ['legacyId'], maxDepth: 5, logLevel: 'warn' },
     countQueue: true,
     log: { formatSlowQuery: (meta) => ({ meta }) },
+});
+
+expectAssignable<SSHConfig>({
+    host: 'bastion.example.com',
+    port: 22,
+    username: 'deploy',
+    privateKeyPath: '~/.ssh/id_rsa',
+});
+expectNotAssignable<SSHConfig>({
+    host: 'bastion.example.com',
+    username: 'deploy',
+    scopedCollection: (_name: string) => null,
 });
 
 expectType<Promise<{

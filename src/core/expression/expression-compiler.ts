@@ -171,7 +171,7 @@ function dispatchFunction(name: string, argsStr: string): unknown {
         }
         case 'REDUCE': {
             const lambdaMatch = /\((\w+),\s*(\w+)\)\s*=>\s*(.+)/.exec(args[2]);
-            if (!lambdaMatch) throw new Error('REDUCE requires a lambda: (acc, item) => expr');
+            if (!lambdaMatch) throw createError(ErrorCodes.INVALID_EXPRESSION, 'REDUCE requires a lambda: (acc, item) => expr');
             const [, accVar, itemVar, lambdaExpr] = lambdaMatch;
             const compiledExpr = lambdaExpr
                 .replace(new RegExp(`\\b${accVar}\\b`, 'g'), '$$value')
@@ -269,7 +269,7 @@ function dispatchFunction(name: string, argsStr: string): unknown {
             return { $setUnion: unionArgs };
         }
         case 'SWITCH': {
-            if (args.length < 2) throw new Error('SWITCH requires at least 2 arguments');
+            if (args.length < 2) throw createError(ErrorCodes.INVALID_EXPRESSION, 'SWITCH requires at least 2 arguments');
             const branches: Array<{ case: unknown; then: unknown }> = [];
             let defaultValue: unknown = null;
             for (let index = 0; index < args.length - 1; index += 2) {
@@ -285,15 +285,15 @@ function dispatchFunction(name: string, argsStr: string): unknown {
         case 'ALL_ELEMENTS_TRUE': return { $allElementsTrue: [parseValue(args[0])] };
         case 'ANY_ELEMENT_TRUE': return { $anyElementTrue: [parseValue(args[0])] };
         case 'COND': {
-            if (args.length !== 3) throw new Error('COND requires 3 arguments');
+            if (args.length !== 3) throw createError(ErrorCodes.INVALID_EXPRESSION, 'COND requires 3 arguments');
             return { $cond: { if: compileInnerExpression(args[0]), then: parseValue(args[1]), else: parseValue(args[2]) } };
         }
         case 'IF_NULL': {
-            if (args.length !== 2) throw new Error('IF_NULL requires 2 arguments');
+            if (args.length !== 2) throw createError(ErrorCodes.INVALID_EXPRESSION, 'IF_NULL requires 2 arguments');
             return { $ifNull: [parseValue(args[0]), parseValue(args[1])] };
         }
         case 'SET_FIELD': {
-            if (args.length !== 3) throw new Error('SET_FIELD requires 3 arguments: (field, value, input)');
+            if (args.length !== 3) throw createError(ErrorCodes.INVALID_EXPRESSION, 'SET_FIELD requires 3 arguments: (field, value, input)');
             return { $setField: { field: parseValue(args[0]), input: parseValue(args[2]), value: parseValue(args[1]) } };
         }
         case 'UNSET_FIELD': return { $unsetField: { field: parseValue(args[0]), input: parseValue(args[1]) } };
@@ -306,7 +306,7 @@ function dispatchFunction(name: string, argsStr: string): unknown {
         case 'SET_IS_SUBSET': return { $setIsSubset: [parseValue(args[0]), parseValue(args[1])] };
         case 'LET': {
             const varsMatch = /\{(.+)\}/.exec(args[0]);
-            if (!varsMatch) throw new Error('LET requires an object literal for variables');
+            if (!varsMatch) throw createError(ErrorCodes.INVALID_EXPRESSION, 'LET requires an object literal for variables');
             const varPairs = varsMatch[1].split(',').map((pair) => {
                 const [key, ...rest] = pair.split(':');
                 return [key.trim(), rest.join(':').trim()] as [string, string];
@@ -321,7 +321,7 @@ function dispatchFunction(name: string, argsStr: string): unknown {
         case 'RAND': return { $rand: {} };
         case 'SAMPLE_RATE': return { $sampleRate: parseValue(args[0]) };
         default:
-            throw new Error(`Unsupported function: ${name}`);
+            throw createError(ErrorCodes.INVALID_EXPRESSION, `Unsupported function: ${name}`);
     }
 }
 

@@ -108,9 +108,9 @@ export interface ModelDefinitionOptions {
 }
 
 export interface ModelDefinition<TDocument = Record<string, unknown>> {
-    /** 实际 MongoDB 集合名；不填时依次回退到 `name` 与 `Model.define()` 的注册名。 */
+    /** Actual MongoDB collection name; falls back to `name` and then the `Model.define()` registration name. */
     collection?: string;
-    /** Model 自动加载文件中的兼容集合名；`collection` 优先级更高。 */
+    /** Compatibility collection name used by model auto-loading files; `collection` has higher priority. */
     name?: string;
     enums?: Record<string, string>;
     schema?: ((dsl: unknown) => unknown) | Record<string, unknown>;
@@ -184,53 +184,53 @@ export interface ModelInstance<TDocument = any> {
     readonly dbName: string;
     readonly poolName?: string;
     readonly definition: ModelDefinition<TDocument>;
-    /** 返回当前模型的命名空间元数据，包含实例 ID、类型、数据库和集合名称。 */
+    /** Returns namespace metadata for the current model, including instance ID, type, database, and collection. */
     getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
-    /** 返回当前模型声明的关系配置映射。 */
+    /** Returns the relation config map declared by the current model. */
     getRelations(): Record<string, RelationConfig>;
-    /** 返回当前模型声明的枚举字段值映射。 */
+    /** Returns the enum value map declared by the current model. */
     getEnums(): Record<string, string>;
-    /** 返回底层原生 MongoDB Collection 对象，用于执行框架未封装的原始操作。 */
+    /** Returns the underlying native MongoDB Collection for raw operations not wrapped by the framework. */
     raw(): unknown;
     /**
-     * 查询符合条件的文档列表。
-     * @param query 可选的过滤条件。
-     * @param options 可选的查询选项（projection、sort、limit 等）。
-     * @returns 文档数组，支持链式 `.populate()` 调用。
+     * Finds documents matching the query.
+     * @param query Optional filter.
+     * @param options Optional query options such as projection, sort, and limit.
+     * @returns Document array with chainable `.populate()` support.
      */
     find(query?: unknown, options?: unknown): PopulateProxy<Array<ModelDocument<TDocument>>>;
     /**
-     * 查询第一条符合条件的文档。
-     * @param query 可选的过滤条件。
-     * @param options 可选的查询选项。
-     * @returns 匹配的文档，未找到时返回 `null`。
+     * Finds the first document matching the query.
+     * @param query Optional filter.
+     * @param options Optional query options.
+     * @returns The matching document, or `null` when none is found.
      */
     findOne(query?: unknown, options?: unknown): PopulateProxy<ModelDocument<TDocument> | null>;
     /**
-     * 按主键 ID 查询单条文档（`findOne` 的 ID 快捷方式）。
-     * @param id 文档主键值。
-     * @param options 可选的查询选项。
-     * @returns 匹配的文档，未找到时返回 `null`。
+     * Finds a single document by primary ID, as an ID shortcut for `findOne`.
+     * @param id Document primary key value.
+     * @param options Optional query options.
+     * @returns The matching document, or `null` when none is found.
      */
     findOneById(id: unknown, options?: unknown): PopulateProxy<ModelDocument<TDocument> | null>;
     /**
-     * 按主键 ID 查询单条文档（`findOneById` 的别名）。
-     * @param id 文档主键值。
-     * @param options 可选的查询选项。
-     * @returns 匹配的文档，未找到时返回 `null`。
+     * Finds a single document by primary ID; alias of `findOneById`.
+     * @param id Document primary key value.
+     * @param options Optional query options.
+     * @returns The matching document, or `null` when none is found.
      */
     findById(id: unknown, options?: unknown): PopulateProxy<ModelDocument<TDocument> | null>;
     /**
-     * 按多个主键 ID 批量查询文档。
-     * @param ids 主键值数组。
-     * @param options 可选的查询选项。
-     * @returns 匹配的文档数组。
+     * Finds documents by multiple primary IDs.
+     * @param ids Primary key values.
+     * @param options Optional query options.
+     * @returns Matching documents.
      */
     findByIds(ids: unknown[], options?: unknown): PopulateProxy<Array<ModelDocument<TDocument>>>;
     /**
-     * 分页查询文档，支持基于游标或页码两种分页模式。
-     * @param options 分页选项，包含 `limit`、`cursor`/`page`、`filter`、`sort` 等字段。
-     * @returns 包含文档列表、分页信息及可选汇总数据的结果对象。
+     * Finds documents with cursor-based or page-number pagination.
+     * @param options Pagination options including `limit`, `cursor`/`page`, `filter`, and `sort`.
+     * @returns Result object containing items, page information, and optional totals.
      */
     findPage(options: { totals: { mode: 'sync'; } & Record<string, unknown>; } & Record<string, unknown>): PopulateProxy<{
         items: Array<ModelDocument<TDocument>>;
@@ -245,273 +245,273 @@ export interface ModelInstance<TDocument = any> {
         meta?: import('./collection').MetaInfo;
     }>;
     /**
-     * 查询符合条件的文档列表，同时返回未分页的总数。
-     * @param query 可选的过滤条件。
-     * @param options 可选的查询选项。
-     * @returns 包含文档数组和总数的对象。
+     * Finds documents and returns the unpaginated total count.
+     * @param query Optional filter.
+     * @param options Optional query options.
+     * @returns Object containing documents and total count.
      */
     findAndCount(query?: unknown, options?: unknown): PopulateProxy<{
         data: Array<ModelDocument<TDocument>>;
         total: number;
     }>;
     /**
-     * 统计符合条件的文档数量。
-     * @param query 可选的过滤条件。
-     * @param options 可选的统计选项。
-     * @returns 匹配的文档数量。
+     * Counts documents matching the query.
+     * @param query Optional filter.
+     * @param options Optional count options.
+     * @returns Number of matching documents.
      */
     count(query?: unknown, options?: unknown): Promise<number>;
     /**
-     * 插入单条文档。
-     * @param document 要插入的文档数据。
-     * @param options 可选的写入选项。
-     * @returns 包含插入 ID 的结果对象。
+     * Inserts a single document.
+     * @param document Document data to insert.
+     * @param options Optional write options.
+     * @returns Result object containing the inserted ID.
      */
     insertOne(document?: unknown, options?: unknown): Promise<InsertOneResult>;
     /**
-     * 批量插入多条文档（有序插入，遇错即停）。
-     * @param documents 要插入的文档数组。
-     * @param options 可选的写入选项。
+     * Inserts multiple documents in order, stopping on the first error.
+     * @param documents Documents to insert.
+     * @param options Optional write options.
      */
     insertMany(documents?: unknown[], options?: unknown): Promise<InsertManyResult>;
     /**
-     * 更新第一条符合条件的文档。
-     * @param filter 过滤条件。
-     * @param update 更新操作符文档（如 `$set`、`$inc`）。
-     * @param options 可选的更新选项。
+     * Updates the first document matching the filter.
+     * @param filter Filter.
+     * @param update Update operator document, such as `$set` or `$inc`.
+     * @param options Optional update options.
      */
     updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
     /**
-     * 更新所有符合条件的文档。
-     * @param filter 过滤条件。
-     * @param update 更新操作符文档。
-     * @param options 可选的更新选项。
+     * Updates all documents matching the filter.
+     * @param filter Filter.
+     * @param update Update operator document.
+     * @param options Optional update options.
      */
     updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
     /**
-     * 替换第一条符合条件的文档（整体替换，不使用更新操作符）。
-     * @param filter 过滤条件。
-     * @param replacement 替换后的完整文档。
-     * @param options 可选的替换选项。
+     * Replaces the first document matching the filter with a full replacement document.
+     * @param filter Filter.
+     * @param replacement Full replacement document.
+     * @param options Optional replacement options.
      */
     replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<UpdateResult>;
     /**
-     * 原子地查找并更新单条文档，返回更新后的文档。
-     * @param filter 过滤条件。
-     * @param update 更新操作符文档。
-     * @param options 可选的选项（如 `returnDocument: 'after'`）。
-     * @returns 更新后的文档，未找到时返回 `null`。
+     * Atomically finds and updates one document.
+     * @param filter Filter.
+     * @param update Update operator document.
+     * @param options Optional options such as `returnDocument: 'after'`.
+     * @returns Updated document, or `null` when none is found.
      */
     findOneAndUpdate(filter?: unknown, update?: unknown, options?: unknown): Promise<TDocument | null>;
     /**
-     * 原子地查找并替换单条文档，返回替换后的文档。
-     * @param filter 过滤条件。
-     * @param replacement 替换后的完整文档。
-     * @param options 可选的选项。
-     * @returns 替换后的文档，未找到时返回 `null`。
+     * Atomically finds and replaces one document.
+     * @param filter Filter.
+     * @param replacement Full replacement document.
+     * @param options Optional options.
+     * @returns Replaced document, or `null` when none is found.
      */
     findOneAndReplace(filter?: unknown, replacement?: unknown, options?: unknown): Promise<TDocument | null>;
     /**
-     * 原子地查找并删除单条文档，返回被删除的文档。
-     * @param filter 过滤条件。
-     * @param options 可选的选项。
-     * @returns 被删除的文档，未找到时返回 `null`。
+     * Atomically finds and deletes one document.
+     * @param filter Filter.
+     * @param options Optional options.
+     * @returns Deleted document, or `null` when none is found.
      */
     findOneAndDelete(filter?: unknown, options?: unknown): Promise<TDocument | null>;
     /**
-     * 若文档存在则更新，否则插入（upsert 语义）。
-     * @param filter 过滤条件。
-     * @param update 更新操作符文档。
-     * @param options 可选的更新选项。
-     * @returns 标准 `UpdateResult` 对象。
+     * Updates an existing document or inserts one when none matches.
+     * @param filter Filter.
+     * @param update Update operator document.
+     * @param options Optional update options.
+     * @returns Standard `UpdateResult` object.
      */
     upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
     /**
-     * 对符合条件的单条文档的指定字段执行原子自增操作。
-     * @param filter 过滤条件。
-     * @param field 字段名或字段-增量映射对象。
-     * @param increment 增量值（`field` 为字符串时使用）。
-     * @param options 可选的更新选项。
+     * Atomically increments a field on one matching document.
+     * @param filter Filter.
+     * @param field Field name or field-increment map.
+     * @param increment Increment value used when `field` is a string.
+     * @param options Optional update options.
      */
     incrementOne(filter?: unknown, field?: string | Record<string, number>, increment?: number, options?: unknown): Promise<IncrementOneResult<TDocument>>;
     /**
-     * 删除第一条符合条件的文档。
-     * @param filter 过滤条件。
-     * @param options 可选的删除选项。
-     * @returns 标准 `DeleteResult` 对象。
+     * Deletes the first document matching the filter.
+     * @param filter Filter.
+     * @param options Optional delete options.
+     * @returns Standard `DeleteResult` object.
      */
     deleteOne(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     /**
-     * 删除所有符合条件的文档。
-     * @param filter 过滤条件。
-     * @param options 可选的删除选项。
-     * @returns 标准 `DeleteResult` 对象。
+     * Deletes all documents matching the filter.
+     * @param filter Filter.
+     * @param options Optional delete options.
+     * @returns Standard `DeleteResult` object.
      */
     deleteMany(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     // soft-delete extended methods
     /**
-     * 查询包含软删除文档在内的所有匹配文档。
-     * @param query 可选的过滤条件。
-     * @param options 可选的查询选项。
+     * Finds matching documents, including soft-deleted documents.
+     * @param query Optional filter.
+     * @param options Optional query options.
      */
     findWithDeleted(query?: unknown, options?: unknown): PopulateProxy<Array<ModelDocument<TDocument>>>;
     /**
-     * 仅查询已被软删除的文档。
-     * @param query 可选的过滤条件。
-     * @param options 可选的查询选项。
+     * Finds only soft-deleted documents.
+     * @param query Optional filter.
+     * @param options Optional query options.
      */
     findOnlyDeleted(query?: unknown, options?: unknown): PopulateProxy<Array<ModelDocument<TDocument>>>;
     /**
-     * 查询第一条符合条件的文档（包含软删除文档）。
-     * @param query 可选的过滤条件。
-     * @param options 可选的查询选项。
-     * @returns 匹配的文档，未找到时返回 `null`。
+     * Finds the first matching document, including soft-deleted documents.
+     * @param query Optional filter.
+     * @param options Optional query options.
+     * @returns Matching document, or `null` when none is found.
      */
     findOneWithDeleted(query?: unknown, options?: unknown): PopulateProxy<ModelDocument<TDocument> | null>;
     /**
-     * 恢复第一条符合条件的软删除文档。
-     * @param filter 过滤条件。
-     * @param options 可选的更新选项。
+     * Restores the first soft-deleted document matching the filter.
+     * @param filter Filter.
+     * @param options Optional update options.
      */
     restore(filter?: unknown, options?: unknown): Promise<RestoreResult>;
     /**
-     * 批量恢复所有符合条件的软删除文档。
-     * @param filter 过滤条件。
-     * @param options 可选的更新选项。
+     * Restores all soft-deleted documents matching the filter.
+     * @param filter Filter.
+     * @param options Optional update options.
      */
     restoreMany(filter?: unknown, options?: unknown): Promise<RestoreResult>;
     /**
-     * 物理删除第一条符合条件的文档（绕过软删除机制）。
-     * @param filter 过滤条件。
-     * @param options 可选的删除选项。
-     * @returns 标准 `DeleteResult` 对象。
+     * Physically deletes the first matching document, bypassing soft-delete.
+     * @param filter Filter.
+     * @param options Optional delete options.
+     * @returns Standard `DeleteResult` object.
      */
     forceDelete(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     /**
-     * 物理删除所有符合条件的文档（绕过软删除机制）。
-     * @param filter 过滤条件。
-     * @param options 可选的删除选项。
-     * @returns 标准 `DeleteResult` 对象。
+     * Physically deletes all matching documents, bypassing soft-delete.
+     * @param filter Filter.
+     * @param options Optional delete options.
+     * @returns Standard `DeleteResult` object.
      */
     forceDeleteMany(filter?: unknown, options?: unknown): Promise<DeleteResult>;
     /**
-     * 查询第一条仅在软删除范围内匹配的文档。
-     * @param query 可选的过滤条件。
-     * @param options 可选的查询选项。
-     * @returns 匹配的已删除文档，未找到时返回 `null`。
+     * Finds the first matching document from only the soft-deleted set.
+     * @param query Optional filter.
+     * @param options Optional query options.
+     * @returns Matching deleted document, or `null` when none is found.
      */
     findOneOnlyDeleted(query?: unknown, options?: unknown): PopulateProxy<ModelDocument<TDocument> | null>;
     /**
-     * 统计包含软删除文档在内的匹配数量。
-     * @param query 可选的过滤条件。
-     * @param options 可选的统计选项。
+     * Counts matching documents, including soft-deleted documents.
+     * @param query Optional filter.
+     * @param options Optional count options.
      */
     countWithDeleted(query?: unknown, options?: unknown): Promise<number>;
     /**
-     * 统计已被软删除的文档数量。
-     * @param query 可选的过滤条件。
-     * @param options 可选的统计选项。
+     * Counts soft-deleted documents matching the query.
+     * @param query Optional filter.
+     * @param options Optional count options.
      */
     countOnlyDeleted(query?: unknown, options?: unknown): Promise<number>;
     /**
-     * 使用写队列批量插入大量文档，适合高吞吐写入场景。
-     * @param docs 要插入的文档数组。
-     * @param options 可选的批量写入选项。
+     * Inserts a large document batch through the write queue.
+     * @param docs Documents to insert.
+     * @param options Optional batch write options.
      */
     insertBatch(docs: unknown[], options?: unknown): Promise<InsertBatchResult>;
     /**
-     * 批量更新符合条件的文档（底层使用 `bulkWrite`）。
-     * @param filter 过滤条件。
-     * @param update 更新操作符文档。
-     * @param options 可选的批量写入选项。
+     * Batch-updates matching documents using `bulkWrite`.
+     * @param filter Filter.
+     * @param update Update operator document.
+     * @param options Optional batch write options.
      */
     updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateBatchResult>;
-    /** 批量删除符合条件的文档。 */
+    /** Batch-deletes matching documents. */
     deleteBatch(filter?: unknown, options?: unknown): Promise<DeleteBatchResult>;
     /**
-     * 在集合上创建单个索引。
-     * @param keys 索引键规范对象。
-     * @param options 可选的索引选项（如 `unique`、`sparse`）。
-     * @returns 索引创建结果。
+     * Creates a single index on the collection.
+     * @param keys Index key specification.
+     * @param options Optional index options such as `unique` or `sparse`.
+     * @returns Index creation result.
      */
     createIndex(keys: unknown, options?: unknown): Promise<IndexCreateResult>;
     /**
-     * 批量创建多个索引。
-     * @param specs 索引规范数组，每项包含 `key` 及可选的索引选项。
-     * @returns 已创建索引的名称数组。
+     * Creates multiple indexes.
+     * @param specs Index specifications, each containing `key` and optional index options.
+     * @returns Names of created indexes.
      */
     createIndexes(specs: Array<{ key: unknown; } & Record<string, unknown>>): Promise<string[]>;
-    /** 列出集合上所有现有索引的定义信息。 */
+    /** Lists all existing index definitions on the collection. */
     listIndexes(): Promise<Record<string, unknown>[]>;
     /**
-     * 按名称删除指定索引。
-     * @param name 索引名称。
+     * Drops the specified index by name.
+     * @param name Index name.
      */
     dropIndex(name: string): Promise<unknown>;
-    /** 删除集合上的所有非 `_id` 索引。 */
+    /** Drops all non-`_id` indexes on the collection. */
     dropIndexes(): Promise<unknown>;
-    /** 预热游标分页书签缓存。 */
+    /** Prewarms cursor pagination bookmark cache. */
     prewarmBookmarks(keyDims?: unknown, pages?: number[]): Promise<BookmarkPrewarmResult>;
-    /** 列出游标分页书签缓存。 */
+    /** Lists cursor pagination bookmark cache entries. */
     listBookmarks(keyDims?: unknown): Promise<BookmarkListResult>;
-    /** 清理游标分页书签缓存。 */
+    /** Clears cursor pagination bookmark cache entries. */
     clearBookmarks(keyDims?: unknown): Promise<BookmarkClearResult>;
     /**
-     * 获取指定字段在符合条件的文档中的所有唯一值。
-     * @param key 目标字段名。
-     * @param query 可选的过滤条件。
-     * @param options 可选的驱动级选项。
-     * @returns 唯一值数组。
+     * Gets distinct values for a field from matching documents.
+     * @param key Target field name.
+     * @param query Optional filter.
+     * @param options Optional driver-level options.
+     * @returns Distinct values.
      */
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]>;
     /**
-     * 执行聚合管道并返回结果数组。
-     * @param pipeline 聚合阶段数组。
-     * @param options 可选的聚合选项（如 `allowDiskUse`）。
-     * @returns 聚合结果文档数组。
+     * Executes an aggregation pipeline and returns result documents.
+     * @param pipeline Aggregation stages.
+     * @param options Optional aggregation options such as `allowDiskUse`.
+     * @returns Aggregation result documents.
      */
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]>;
-    /** 返回匹配查询的可读流。 */
+    /** Returns a readable stream for matching query results. */
     stream(query?: unknown, options?: unknown): NodeJS.ReadableStream;
-    /** 返回 MongoDB 查询执行计划。 */
+    /** Returns the MongoDB query execution plan. */
     explain(query?: unknown, options?: unknown): Promise<unknown>;
-    /** 手动失效当前 Model 对应集合的读缓存。 */
+    /** Manually invalidates read cache for the current model collection. */
     invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number>;
-    /** 删除当前 Model 对应集合。 */
+    /** Drops the collection for the current model. */
     dropCollection(): Promise<boolean>;
-    /** 创建当前或指定名称的集合。 */
+    /** Creates the current collection or a collection with the specified name. */
     createCollection(name?: string, options?: Record<string, unknown>): Promise<boolean>;
-    /** 创建 MongoDB view。 */
+    /** Creates a MongoDB view. */
     createView(name: string, source: string, pipeline?: unknown[]): Promise<boolean>;
-    /** 返回索引使用统计。 */
+    /** Returns index usage statistics. */
     indexStats(): Promise<unknown[]>;
-    /** 设置集合 JSON Schema validator。 */
+    /** Sets the collection JSON Schema validator. */
     setValidator(validator: unknown, options?: { validationLevel?: string; validationAction?: string }): Promise<{ ok: number; collection: string }>;
-    /** 设置集合 validation level。 */
+    /** Sets the collection validation level. */
     setValidationLevel(level: 'off' | 'moderate' | 'strict' | string): Promise<{ ok: number; validationLevel: string }>;
-    /** 设置集合 validation action。 */
+    /** Sets the collection validation action. */
     setValidationAction(action: 'error' | 'warn' | string): Promise<{ ok: number; validationAction: string }>;
-    /** 读取集合 validator 与校验设置。 */
+    /** Reads the collection validator and validation settings. */
     getValidator(): Promise<{ validator: Record<string, unknown> | null; validationLevel: string; validationAction: string }>;
-    /** 返回集合存储与索引统计。 */
+    /** Returns collection storage and index statistics. */
     stats(options?: { scale?: number }): Promise<{ ns: string; count: number; size: number; storageSize: number; totalIndexSize: number; nindexes: number; avgObjSize?: number; scaleFactor?: number }>;
-    /** 重命名当前 Model 对应集合。 */
+    /** Renames the collection for the current model. */
     renameCollection(newName: string, options?: { dropTarget?: boolean }): Promise<{ renamed: boolean; from: string; to: string }>;
-    /** 执行 collMod 管理命令。 */
+    /** Executes a collMod management command. */
     collMod(modifications: Record<string, unknown>): Promise<Record<string, unknown>>;
-    /** 将集合转换为 capped collection。 */
+    /** Converts the collection to a capped collection. */
     convertToCapped(size: number, options?: { max?: number }): Promise<{ ok: number; collection: string; capped: boolean; size: number }>;
     /**
-     * 打开集合的 ChangeStream 以监听实时变更事件。
-     * @param pipeline 可选的聚合过滤管道。
-     * @param options 可选的 ChangeStream 选项。
-     * @returns MongoDB 原生 ChangeStream 对象。
+     * Opens a ChangeStream on the collection.
+     * @param pipeline Optional aggregation filter pipeline.
+     * @param options Optional ChangeStream options.
+     * @returns Native MongoDB ChangeStream object.
      */
     watch(pipeline?: unknown[], options?: unknown): import('mongodb').ChangeStream;
     /**
-     * 根据模型 schema 定义验证文档数据的合法性。
-     * @param document 要验证的文档对象。
-     * @returns 包含 `valid` 标志和错误详情的验证结果对象。
+     * Validates document data against the model schema definition.
+     * @param document Document to validate.
+     * @returns Validation result containing the `valid` flag and error details.
      */
     validate(document?: unknown): ValidationResult;
 }

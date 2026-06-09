@@ -58,7 +58,10 @@ async function startMemoryServer(
         return uri;
     } catch (err) {
         logger?.error?.('❌ Failed to start MongoDB Memory ReplSet', err);
-        throw new Error(`Failed to start MongoDB Memory ReplSet: ${(err as Error).message}`);
+        throw createConnectionError(
+            `Failed to start MongoDB Memory ReplSet: ${(err as Error).message}`,
+            err instanceof Error ? err : undefined,
+        );
     }
 }
 

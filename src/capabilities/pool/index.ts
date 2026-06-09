@@ -20,6 +20,7 @@
  */
 
 import type { MongoClient } from 'mongodb';
+import { createError, ErrorCodes } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
 import type {
     ConnectionPoolManagerOptions,
@@ -153,17 +154,17 @@ export class ConnectionPoolManager {
     async addPool(config: PoolConfig): Promise<void> {
         validatePoolConfigInternal(config);
         if (this.pools.has(config.name) || this._pendingAdds.has(config.name)) {
-            throw new Error(`Pool '${config.name}' already exists`);
+            throw createError(ErrorCodes.INVALID_CONFIG, `Pool '${config.name}' already exists`);
         }
         if (this.maxPoolsCount > 0 && this.pools.size >= this.maxPoolsCount) {
-            throw new Error(`Maximum pool count (${this.maxPoolsCount}) reached`);
+            throw createError(ErrorCodes.INVALID_CONFIG, `Maximum pool count (${this.maxPoolsCount}) reached`);
         }
         this._pendingAdds.add(config.name);
         try {
             const client = await this.clientFactory(config);
             if (this.pools.has(config.name)) {
                 await client.close().catch(() => { });
-                throw new Error(`Pool '${config.name}' already exists`);
+                throw createError(ErrorCodes.INVALID_CONFIG, `Pool '${config.name}' already exists`);
             }
             this.pools.set(config.name, {
                 client,
@@ -208,7 +209,7 @@ export class ConnectionPoolManager {
     async removePool(name: string): Promise<void> {
         const pool = this.pools.get(name);
         if (!pool) {
-            throw new Error(`Pool '${name}' not found`);
+            throw createError(ErrorCodes.POOL_NOT_FOUND, `Pool '${name}' not found`);
         }
         this.stopHealthCheck(name);
         await pool.client.close();
@@ -244,7 +245,7 @@ export class ConnectionPoolManager {
         // manually specified pool
         if (options.pool) {
             const poolData = this.pools.get(options.pool);
-            if (!poolData) throw new Error(`Pool '${options.pool}' not found`);
+            if (!poolData) throw createError(ErrorCodes.POOL_NOT_FOUND, `Pool '${options.pool}' not found`);
             return this._createPoolResult(options.pool, poolData.client);
         }
 
@@ -254,11 +255,11 @@ export class ConnectionPoolManager {
         // all pools unavailable — use fallback strategy
         if (candidates.length === 0) {
             if (!this.fallback.enabled) {
-                throw new Error('No available connection pool');
+                throw createError(ErrorCodes.INVALID_OPERATION, 'No available connection pool');
             }
             candidates = this._handleAllPoolsDown(operation);
             if (candidates.length === 0) {
-                throw new Error('No available connection pool');
+                throw createError(ErrorCodes.INVALID_OPERATION, 'No available connection pool');
             }
         }
 
@@ -271,7 +272,7 @@ export class ConnectionPoolManager {
 
         const poolData = this.pools.get(poolName);
         if (!poolData) {
-            throw new Error(`Selected pool '${poolName}' not available`);
+            throw createError(ErrorCodes.INVALID_OPERATION, `Selected pool '${poolName}' not available`);
         }
 
         this._stats.recordSelection(poolName, operation);

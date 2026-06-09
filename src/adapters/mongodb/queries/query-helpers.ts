@@ -206,7 +206,7 @@ export function decodeCursor(cursor: string, secret?: string): unknown[] {
 
         const payload = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as CursorPayload;
         if (payload?.v !== 1 || !Array.isArray(payload.values)) {
-            throw new Error('Invalid cursor payload.');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'Invalid cursor payload.');
         }
         return payload.values;
     } catch (cause) {

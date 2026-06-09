@@ -222,7 +222,7 @@ describe('P3-A cache facade', () => {
             (error: unknown) => {
                 assert.ok(error instanceof Error);
                 assert.equal((error as { code?: string }).code, 'INVALID_ARGUMENT');
-                assert.match(error.message, /redisUrlOrInstance 必须是 Redis URL 字符串或 ioredis 实例/);
+                assert.match(error.message, /redisUrlOrInstance must be a Redis URL string or an ioredis instance/);
                 return true;
             },
         );
@@ -231,7 +231,7 @@ describe('P3-A cache facade', () => {
             (error: unknown) => {
                 assert.ok(error instanceof Error);
                 assert.equal((error as { code?: string }).code, 'INVALID_ARGUMENT');
-                assert.match(error.message, /redisUrlOrInstance 必须是 Redis URL 字符串或 ioredis 实例/);
+                assert.match(error.message, /redisUrlOrInstance must be a Redis URL string or an ioredis instance/);
                 return true;
             },
         );

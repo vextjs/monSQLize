@@ -16,8 +16,8 @@
     }
   },
   "notes": [
-    "该基线用于回归守卫，不用于营销口径。",
-    "指标基于受控人工延迟，重点验证缓存命中路径与并发去重是否回退。"
+    "This baseline is a regression guard, not a marketing benchmark.",
+    "Metrics use controlled artificial latency to detect cache-hit or in-flight dedupe regressions."
   ]
 }
 

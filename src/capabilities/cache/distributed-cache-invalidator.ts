@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto';
+import { createError, ErrorCodes } from '../../core/errors';
 
 export interface DistributedCacheInvalidatorOptions {
     cache: any;
@@ -29,7 +30,7 @@ export class DistributedCacheInvalidator {
 
     constructor(options: DistributedCacheInvalidatorOptions) {
         if (!options.cache) {
-            throw new Error('DistributedCacheInvalidator requires a cache instance');
+            throw createError(ErrorCodes.CACHE_UNAVAILABLE, 'DistributedCacheInvalidator requires a cache instance');
         }
 
         this._cache = options.cache;
@@ -52,7 +53,7 @@ export class DistributedCacheInvalidator {
             this.pub = new Redis(options.redisUrl);
             this.sub = new Redis(options.redisUrl);
         } else {
-            throw new Error('DistributedCacheInvalidator requires either redis or redisUrl');
+            throw createError(ErrorCodes.INVALID_CONFIG, 'DistributedCacheInvalidator requires either redis or redisUrl');
         }
 
         this._setupSubscription();

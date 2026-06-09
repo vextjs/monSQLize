@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
- * 文件大小治理检查脚本（scripts/check-file-sizes.cjs）
+ * File size governance check script (scripts/check-file-sizes.cjs).
  *
- * 功能说明：
- * - 扫描 src/ 目录下所有 .ts 文件（排除 .d.ts）
- * - 超过 WARN_THRESHOLD（800 行）时输出 ⚠️  警告
- * - 超过 ERROR_THRESHOLD（1200 行）时输出 ❌  错误并以非零码退出
- * - 支持 --strict 参数：将警告级别升为错误
+ * Behavior:
+ * - Scans all .ts files under src/ except .d.ts files.
+ * - Prints a warning when a file exceeds WARN_THRESHOLD (800 lines).
+ * - Fails when a file exceeds ERROR_THRESHOLD (1200 lines).
+ * - Supports --strict to treat warnings as failures.
  *
- * 使用方式：
- *   node scripts/check-file-sizes.cjs          # 常规检查（警告不影响 exit code）
- *   node scripts/check-file-sizes.cjs --strict  # 严格模式（警告也报错）
+ * Usage:
+ *   node scripts/check-file-sizes.cjs
+ *   node scripts/check-file-sizes.cjs --strict
  *
- * 添加到 CI/pre-commit 钩子可防止大文件持续膨胀。
+ * Add this to CI/pre-commit hooks to prevent unchecked file growth.
  */
 
 'use strict';
@@ -20,21 +20,21 @@
 const fs   = require('node:fs');
 const path = require('node:path');
 
-// ─── 阈值配置 ────────────────────────────────────────────────────────────────
+// ─── Threshold config ─────────────────────────────────────────────────────────
 
-const WARN_THRESHOLD  = 800;   // 超此行数输出警告
-const ERROR_THRESHOLD = 1200;  // 超此行数输出错误并导致脚本退出为非零
+const WARN_THRESHOLD  = 800;   // Warn above this line count.
+const ERROR_THRESHOLD = 1200;  // Fail above this line count.
 
-// ─── 参数解析 ────────────────────────────────────────────────────────────────
+// ─── Argument parsing ─────────────────────────────────────────────────────────
 
 const args    = process.argv.slice(2);
 const strict  = args.includes('--strict');
 const srcRoot = path.resolve(__dirname, '..', 'src');
 
-// ─── 文件扫描 ────────────────────────────────────────────────────────────────
+// ─── File scanning ────────────────────────────────────────────────────────────
 
 /**
- * 递归收集 dir 下所有非 .d.ts 的 TypeScript 文件路径。
+ * Recursively collects all non-.d.ts TypeScript files under dir.
  * @param {string} dir
  * @returns {string[]}
  */
@@ -52,19 +52,19 @@ function collectTsFiles(dir) {
 }
 
 /**
- * 计算文件行数（通过换行符个数 + 1）。
+ * Counts file lines.
  * @param {string} filePath
  * @returns {number}
  */
 function countLines(filePath) {
     const content = fs.readFileSync(filePath, 'utf8');
-    // 末尾空行不计
+    // Ignore trailing blank lines.
     const trimmed = content.trimEnd();
     if (!trimmed) return 0;
     return trimmed.split('\n').length;
 }
 
-// ─── 主逻辑 ──────────────────────────────────────────────────────────────────
+// ─── Main logic ───────────────────────────────────────────────────────────────
 
 function main() {
     const files = collectTsFiles(srcRoot).sort();
@@ -83,35 +83,35 @@ function main() {
         }
     }
 
-    // ── 输出报告 ──────────────────────────────────────────────────────────────
+    // ── Output report ─────────────────────────────────────────────────────────
     let hasOutput = false;
 
     if (warns.length > 0) {
-        console.log('\n⚠️   文件行数超过警告阈值（WARN > ' + WARN_THRESHOLD + '）：');
+        console.log('\nWARNING: file line count exceeds WARN threshold (' + WARN_THRESHOLD + '):');
         for (const { relPath, lines } of warns) {
-            console.log(`   ⚠️   ${relPath}  (${lines} 行)`);
+            console.log(`   WARN  ${relPath}  (${lines} lines)`);
         }
         hasOutput = true;
     }
 
     if (errors.length > 0) {
-        console.log('\n❌  文件行数超过错误阈值（ERROR > ' + ERROR_THRESHOLD + '）：');
+        console.log('\nERROR: file line count exceeds ERROR threshold (' + ERROR_THRESHOLD + '):');
         for (const { relPath, lines } of errors) {
-            console.log(`   ❌  ${relPath}  (${lines} 行)`);
+            console.log(`   ERROR ${relPath}  (${lines} lines)`);
         }
         hasOutput = true;
     }
 
     if (!hasOutput) {
-        console.log('✅  所有文件行数均在阈值以内（WARN=' + WARN_THRESHOLD + ', ERROR=' + ERROR_THRESHOLD + '）。');
+        console.log('All file line counts are within thresholds (WARN=' + WARN_THRESHOLD + ', ERROR=' + ERROR_THRESHOLD + ').');
     }
 
     const exitCode = errors.length > 0 || (strict && warns.length > 0) ? 1 : 0;
 
     if (exitCode !== 0) {
         const msg = strict && warns.length > 0 && errors.length === 0
-            ? '⛔  --strict 模式：警告文件需拆分后再提交。'
-            : '⛔  存在超过 ERROR 阈值的文件，请拆分后再提交。';
+            ? '--strict mode: warning files must be split before commit.'
+            : 'Files above the ERROR threshold must be split before commit.';
         console.error('\n' + msg);
     }
 

@@ -22,7 +22,7 @@ function run(command, args, extraEnv = {}) {
 function requireEnv(name) {
     const value = process.env[name];
     if (!value) {
-        console.error(`[server-matrix] 缺少环境变量: ${name}`);
+        console.error(`[server-matrix] missing environment variable: ${name}`);
         process.exit(2);
     }
     return value;
@@ -31,7 +31,7 @@ function requireEnv(name) {
 const memoryUri = requireEnv('MONSQLIZE_MEMORY_MONGO_URI');
 const replSetUri = requireEnv('MONSQLIZE_REPLSET_URI');
 
-console.log('[server-matrix] 使用外部 Mongo 服务执行真实服务端矩阵...');
+console.log('[server-matrix] running real server matrix with external Mongo services...');
 console.log(`[server-matrix] MONSQLIZE_MEMORY_MONGO_URI: ${memoryUri}`);
 console.log(`[server-matrix] MONSQLIZE_REPLSET_URI: ${replSetUri}`);
 
@@ -56,5 +56,5 @@ run('node', ['--test',
     MONSQLIZE_REPLSET_URI: replSetUri,
 });
 
-console.log('[server-matrix] ✅ 真实服务端矩阵执行完成');
+console.log('[server-matrix] real server matrix completed');
 

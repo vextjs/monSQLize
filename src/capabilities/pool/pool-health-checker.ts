@@ -4,6 +4,8 @@
  * Periodically pings each pool and maintains status / latency / lastCheck state,
  * providing demotion and exclusion signals for the auto selection strategy.
  */
+import { createError, ErrorCodes } from '../../core/errors';
+
 export interface HealthStatus {
     status: 'up' | 'down' | 'checking' | 'unknown';
     lastCheck: Date;
@@ -138,7 +140,7 @@ export class HealthChecker {
         const client = (stored ?? this._poolManager?._getPool(poolName)) as {
             db: (name: string) => { command?: (cmd: Record<string, unknown>) => Promise<unknown>; admin?: () => { ping: () => Promise<unknown> }; };
         } | null | undefined;
-        if (!client) throw new Error(`No client for pool: ${poolName}`);
+        if (!client) throw createError(ErrorCodes.POOL_NOT_FOUND, `No client for pool: ${poolName}`);
         const db = client.db('admin');
         const pingFn = db.command ? () => db.command!({ ping: 1 }) : () => db.admin!().ping();
         const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Ping timeout')), timeout));

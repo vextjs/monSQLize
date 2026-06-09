@@ -841,7 +841,7 @@ const msq = new MonSQLize({
 | `slowQueryLog` | object | - | 慢查询日志持久化 |
 | `models` | object | - | Model 自动加载 |
 | `sync` | object | - | Change Stream 同步 |
-| `config.ssh` | object | - | SSH 隧道配置（需安装可选依赖 `ssh2`） |
+| `config.ssh` | object | - | SSH 隧道配置（`ssh2` 已随 monsqlize 安装） |
 | `businessLock` | object | - | 业务级分布式锁（企业级） |
 
 ### 常用配置场景

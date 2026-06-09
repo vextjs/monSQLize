@@ -445,7 +445,8 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
 changelogs/
 ├── README.md          # 变更文档说明
 ├── TEMPLATE.md        # 变更文档模板
-├── v2.0.1.md         # 当前发布详细变更
+├── v2.0.2.md         # 当前发布详细变更
+├── v2.0.1.md         # v2.0.1 详细变更
 ├── v2.0.0.md         # v2 TypeScript 重写发布详细变更
 └── v1.x.y.md         # 历史版本详细变更（仓库归档）
 ```
@@ -497,11 +498,12 @@ changelogs/
 
 ## 相关文档
 
-- [changelogs/v2.0.1.md](./changelogs/v2.0.1.md) - 当前发布详细变更文档
+- [changelogs/v2.0.2.md](./changelogs/v2.0.2.md) - 当前发布详细变更文档
+- [changelogs/v2.0.1.md](./changelogs/v2.0.1.md) - v2.0.1 详细变更文档
 - [README.md](./README.md) - 项目说明
 - [docs/](https://github.com/vextjs/monSQLize/blob/main/docs/index.md) - API 文档
 
 ---
 
-**最后更新**: 2026-06-03
+**最后更新**: 2026-06-09
 

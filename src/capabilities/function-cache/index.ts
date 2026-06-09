@@ -24,6 +24,7 @@ import {
     type WithCacheStats as HubWithCacheStats,
     type WrappedFunction as HubWrappedFunction,
 } from 'cache-hub/function-cache';
+import { createError, ErrorCodes } from '../../core/errors';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -110,7 +111,7 @@ function resolveCacheSource(cacheOrDb: FunctionCacheSource): CacheLike {
         }
     }
 
-    throw new Error('Invalid cache instance from MonSQLize');
+    throw createError(ErrorCodes.CACHE_UNAVAILABLE, 'Invalid cache instance from MonSQLize');
 }
 
 function toWithCacheStats(stats: HubWithCacheStats, totalTime = 0): WithCacheStats {
@@ -160,17 +161,17 @@ function validateFunctionCacheOptions(options?: FunctionCacheOptions): FunctionC
         options !== undefined &&
         (typeof options !== 'object' || options === null || Array.isArray(options))
     ) {
-        throw new Error('options must be an object');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'options must be an object');
     }
 
     const opts = options ?? {};
     if (opts.namespace !== undefined && typeof opts.namespace !== 'string') {
-        throw new Error('namespace must be a string');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'namespace must be a string');
     }
 
     const ttl = opts.ttl !== undefined ? opts.ttl : opts.defaultTTL;
     if (ttl !== undefined && (typeof ttl !== 'number' || Number.isNaN(ttl) || ttl < 0)) {
-        throw new Error('defaultTTL must be a non-negative number');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'defaultTTL must be a non-negative number');
     }
 
     return opts;
@@ -181,20 +182,20 @@ function validateFunctionCachePerFnOptions(options?: FunctionCachePerFnOptions):
         options !== undefined &&
         (typeof options !== 'object' || options === null || Array.isArray(options))
     ) {
-        throw new Error('options must be an object');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'options must be an object');
     }
 
     const opts = options ?? {};
     if (opts.keyBuilder !== undefined && typeof opts.keyBuilder !== 'function') {
-        throw new Error('keyBuilder must be a function');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'keyBuilder must be a function');
     }
     if (opts.condition !== undefined && typeof opts.condition !== 'function') {
-        throw new Error('condition must be a function');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'condition must be a function');
     }
 
     const ttl = opts.ttl !== undefined ? opts.ttl : opts.defaultTTL;
     if (ttl !== undefined && (typeof ttl !== 'number' || Number.isNaN(ttl) || ttl < 0)) {
-        throw new Error('defaultTTL must be a non-negative number');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'defaultTTL must be a non-negative number');
     }
 
     return opts;
@@ -206,18 +207,18 @@ export function withCache<TArgs extends unknown[], TResult>(
     fn: (...args: TArgs) => Promise<TResult>,
     options: WithCacheOptions<(...args: TArgs) => Promise<TResult>> = {},
 ): CachedFunction<TArgs, TResult> {
-    if (typeof fn !== 'function') throw new Error('fn must be a function');
+    if (typeof fn !== 'function') throw createError(ErrorCodes.INVALID_ARGUMENT, 'fn must be a function');
 
     const { ttl = 60000, namespace, keyBuilder, condition, cache: externalCache, enableStats = true } = options;
 
     if (typeof ttl !== 'number' || Number.isNaN(ttl) || ttl < 0)
-        throw new Error('ttl must be a non-negative number');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'ttl must be a non-negative number');
     if (keyBuilder !== undefined && typeof keyBuilder !== 'function')
-        throw new Error('keyBuilder must be a function');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'keyBuilder must be a function');
     if (condition !== undefined && typeof condition !== 'function')
-        throw new Error('condition must be a function');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'condition must be a function');
     if (externalCache !== undefined && !isValidCache(externalCache))
-        throw new Error('Invalid cache instance');
+        throw createError(ErrorCodes.CACHE_UNAVAILABLE, 'Invalid cache instance');
 
     const wrapped = hubWithCache(fn, {
         ttl,
@@ -278,9 +279,9 @@ export class FunctionCache {
         options?: FunctionCachePerFnOptions,
     ): Promise<void> {
         if (!name || typeof name !== 'string')
-            throw new Error('Function name must be a non-empty string');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'Function name must be a non-empty string');
         if (typeof fn !== 'function')
-            throw new Error('fn must be a function');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'fn must be a function');
         const opts = validateFunctionCachePerFnOptions(options);
         const ttl = opts.ttl !== undefined ? opts.ttl : opts.defaultTTL;
 
@@ -309,14 +310,14 @@ export class FunctionCache {
 
     async invalidate(name: string, ...args: unknown[]): Promise<void> {
         if (!name || typeof name !== 'string') {
-            throw new Error('Function name must be a non-empty string');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'Function name must be a non-empty string');
         }
         await this._inner.invalidate(name, ...args);
     }
 
     async invalidatePattern(pattern: string): Promise<number> {
         if (!pattern || typeof pattern !== 'string')
-            throw new Error('Pattern must be a non-empty string');
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'Pattern must be a non-empty string');
         return this._inner.invalidatePattern(pattern);
     }
 

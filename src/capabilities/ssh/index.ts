@@ -8,6 +8,7 @@
 import * as net from 'node:net';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
+import { createError, ErrorCodes } from '../../core/errors';
 
 // ssh2 ships no bundled types; import via require and cast to our minimal interface.
 interface SshStream extends NodeJS.ReadWriteStream {
@@ -36,9 +37,10 @@ function loadSsh2Client(): SshClientConstructor {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         return (require('ssh2') as { Client: SshClientConstructor }).Client;
     } catch {
-        throw new Error(
-            'ssh2 is not installed. SSH tunnel support requires the optional "ssh2" package.\n' +
-            'Run: npm install ssh2',
+        throw createError(
+            ErrorCodes.INVALID_CONFIG,
+            'Unable to load ssh2. monsqlize installs ssh2 by default; check that the package installation is complete ' +
+            'and that your runtime can resolve bundled dependencies.',
         );
     }
 }
@@ -113,10 +115,10 @@ export class SSHTunnelSSH2 {
         } = this._sshConfig;
 
         if (!host || !username) {
-            throw new Error('SSH config requires: host, username');
+            throw createError(ErrorCodes.INVALID_CONFIG, 'SSH config requires: host, username');
         }
         if (!password && !privateKey && !privateKeyPath) {
-            throw new Error('SSH authentication required: provide password, privateKey, or privateKeyPath');
+            throw createError(ErrorCodes.INVALID_CONFIG, 'SSH authentication required: provide password, privateKey, or privateKeyPath');
         }
 
         const config: SshAuthConfig = { host, port, username, readyTimeout, keepaliveInterval };
@@ -197,7 +199,7 @@ export class SSHTunnelSSH2 {
 
     getTunnelUri(_protocol: string, originalUri: string): string {
         if (!this.isConnected || this.localPort === null) {
-            throw new Error(`SSH tunnel [${this.remoteHost}:${this.remotePort}] not connected`);
+            throw createError(ErrorCodes.NOT_CONNECTED, `SSH tunnel [${this.remoteHost}:${this.remotePort}] not connected`);
         }
         return originalUri.replace(
             `${this.remoteHost}:${this.remotePort}`,
@@ -207,7 +209,7 @@ export class SSHTunnelSSH2 {
 
     getLocalAddress(): string {
         if (!this.isConnected || this.localPort === null) {
-            throw new Error(`SSH tunnel [${this.remoteHost}:${this.remotePort}] not connected`);
+            throw createError(ErrorCodes.NOT_CONNECTED, `SSH tunnel [${this.remoteHost}:${this.remotePort}] not connected`);
         }
         return `localhost:${this.localPort}`;
     }

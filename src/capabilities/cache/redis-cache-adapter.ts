@@ -1,8 +1,8 @@
 import { createRedisCacheAdapter as createHubRedisCacheAdapter } from 'cache-hub/redis';
 import { createError, ErrorCodes } from '../../core/errors';
 
-const LEGACY_INVALID_REDIS_ARG_ERROR = 'redisUrlOrInstance 必须是 Redis URL 字符串或 ioredis 实例';
-const LEGACY_IOREDIS_MISSING_ERROR = 'ioredis 未安装。请运行: npm install ioredis\n或传入已创建的 ioredis 实例';
+const LEGACY_INVALID_REDIS_ARG_ERROR = 'redisUrlOrInstance must be a Redis URL string or an ioredis instance';
+const LEGACY_IOREDIS_MISSING_ERROR = 'Unable to load ioredis. monsqlize installs ioredis by default; check package installation completeness or pass an existing ioredis instance';
 
 function isMissingIoredisError(error: unknown): boolean {
     if (!(error instanceof Error)) {
@@ -18,10 +18,10 @@ function createLegacyRedisError(message: string, code: string = ErrorCodes.INVAL
 }
 
 /**
- * v1 兼容的 Redis 缓存适配器工厂。
+ * v1-compatible Redis cache adapter factory.
  *
- * v2 运行时由 `cache-hub` 驱动，但这里保留旧版参数校验与错误文案，
- * 让下游服务无需修改启动路径的错误处理逻辑。
+ * The v2 runtime is backed by `cache-hub`, while this wrapper keeps the legacy
+ * argument validation and error semantics for existing startup paths.
  */
 export function createRedisCacheAdapter(redisUrlOrInstance: string | object | undefined) {
     if (typeof redisUrlOrInstance === 'string') {

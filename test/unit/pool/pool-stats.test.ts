@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 
 const MonSQLize = require('../../../dist/cjs/index.cjs');
 
-// 当前根导出已经公开 PoolStatsManager；这里仍通过 ConnectionPoolManager._stats
-// 走 ConnectionPoolManager 的真实装配路径，避免把测试改成脱离上下文的直接 new。
+// The root export already exposes PoolStatsManager; this test still goes through
+// ConnectionPoolManager._stats to keep the real wiring path covered.
 function createStatsMgr() {
     const cpm = new MonSQLize.ConnectionPoolManager({
         clientFactory: () => Promise.reject(new Error('not needed')),

@@ -1,21 +1,21 @@
 /**
  * ESLint v9 Flat Config
- * 从 .eslintrc.js 迁移而来
+ * Migrated from .eslintrc.js.
  */
 
 const js = require('@eslint/js');
 
 module.exports = [
-    // ESLint 推荐规则
+    // ESLint recommended rules.
     js.configs.recommended,
 
-    // 全局配置
+    // Global config.
     {
         languageOptions: {
             ecmaVersion: 2021,
             sourceType: 'commonjs',
             globals: {
-                // Node.js 全局变量
+                // Node.js globals.
                 __dirname: 'readonly',
                 __filename: 'readonly',
                 Buffer: 'readonly',
@@ -36,18 +36,18 @@ module.exports = [
             }
         },
         rules: {
-            // 代码风格
-            'indent': 'off',  // 暂时关闭缩进检查，项目代码风格已稳定
+            // Code style.
+            'indent': 'off',  // Indentation is currently handled outside ESLint.
             'quotes': ['warn', 'single', { avoidEscape: true }],
             'semi': ['error', 'always'],
             'no-trailing-spaces': 'warn',
 
-            // 最佳实践
+            // Best practices.
             'no-unused-vars': ['warn', {
                 argsIgnorePattern: '^_',
                 varsIgnorePattern: '^_',
             }],
-            'no-console': 'off', // 允许 console（日志库）
+            'no-console': 'off', // Console output is allowed for logger adapters and scripts.
             'no-empty': ['error', { allowEmptyCatch: true }],
             'no-prototype-builtins': 'off',
 
@@ -57,10 +57,10 @@ module.exports = [
             'object-shorthand': 'warn',
             'prefer-arrow-callback': 'off',
 
-            // 异步
+            // Async.
             'require-await': 'warn',
 
-            // 错误预防
+            // Error prevention.
             'no-undef': 'error',
             'no-dupe-keys': 'error',
             'no-duplicate-case': 'error',
@@ -68,7 +68,7 @@ module.exports = [
         }
     },
 
-    // ESM 入口特殊配置
+    // ESM entrypoint override.
     {
         files: ['**/*.mjs'],
         languageOptions: {
@@ -77,7 +77,7 @@ module.exports = [
         }
     },
 
-    // 测试文件特殊配置
+    // Test file override.
     {
         files: ['test/**/*.js', '**/*.test.js'],
         languageOptions: {
@@ -93,7 +93,7 @@ module.exports = [
         }
     },
 
-    // 忽略文件
+    // Ignored files.
     {
         ignores: [
             'node_modules/',

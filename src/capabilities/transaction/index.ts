@@ -9,6 +9,7 @@
 import { randomBytes } from 'node:crypto';
 import type { MongoClient, ClientSession } from 'mongodb';
 import type { CacheLike } from '../cache';
+import { createError, ErrorCodes } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
 import type {
     MongoSession,
@@ -170,7 +171,7 @@ export class Transaction {
      */
     async start(): Promise<void> {
         if (this.state !== 'pending') {
-            throw new Error(`Cannot start transaction in state: ${this.state}`);
+            throw createError(ErrorCodes.INVALID_OPERATION, `Cannot start transaction in state: ${this.state}`);
         }
         this.session.startTransaction();
         this.state = 'active';
@@ -193,7 +194,7 @@ export class Transaction {
      */
     async commit(): Promise<void> {
         if (this.state !== 'active') {
-            throw new Error(`Cannot commit transaction in state: ${this.state}`);
+            throw createError(ErrorCodes.INVALID_OPERATION, `Cannot commit transaction in state: ${this.state}`);
         }
         if (typeof (this.session as unknown as Record<string, unknown>).commitTransaction === 'function') {
             await this.session.commitTransaction();

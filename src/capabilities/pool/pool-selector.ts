@@ -4,6 +4,7 @@
  * Implements five routing strategies — auto / roundRobin / leastConnections /
  * weighted / manual — with dynamic target selection based on role, tags, and weight.
  */
+import { createError, ErrorCodes } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
 
 type PoolSelectorPoolConfig = {
@@ -66,7 +67,7 @@ export class PoolSelector {
 
     select(pools: PoolSelectorPoolConfig[], context: PoolSelectorContext): string {
         if (!pools || pools.length === 0) {
-            throw new Error('No available pools');
+            throw createError(ErrorCodes.INVALID_OPERATION, 'No available pools');
         }
         switch (this._strategy) {
             case 'auto':

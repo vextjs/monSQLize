@@ -20,8 +20,8 @@ function b64urlDecodeStr(s: string): string {
     return Buffer.from(b64, 'base64').toString();
 }
 
-function makeInvalidCursorError(cause?: unknown): Error {
-    const err = new Error('Invalid cursor') as Error & { code: string; cause?: unknown };
+function makeInvalidCursorError(message = 'Invalid cursor', cause?: unknown): Error {
+    const err = new Error(message) as Error & { code: string; cause?: unknown };
     err.code = 'INVALID_CURSOR';
     if (cause !== undefined) err.cause = cause;
     return err;
@@ -44,7 +44,7 @@ export interface CursorPayloadV1 {
  */
 export function encodeCursor(payload: { v?: number; s: object; a: object; d?: string }): string {
     if (!payload.s || !payload.a) {
-        throw new Error('encodeCursor requires sort (s) and anchor (a)');
+        throw makeInvalidCursorError('encodeCursor requires sort (s) and anchor (a)');
     }
     const json = JSON.stringify({ v: payload.v ?? 1, s: payload.s, a: payload.a, d: payload.d });
     return b64urlEncodeStr(json);
@@ -58,10 +58,10 @@ export function decodeCursor(str: string): CursorPayloadV1 {
     try {
         const obj = JSON.parse(b64urlDecodeStr(str)) as Record<string, unknown>;
         if (!obj || obj['v'] !== 1 || !obj['s'] || !obj['a']) {
-            throw new Error('bad-structure');
+            throw makeInvalidCursorError('bad-structure');
         }
         return obj as unknown as CursorPayloadV1;
     } catch (e) {
-        throw makeInvalidCursorError(e);
+        throw makeInvalidCursorError('Invalid cursor', e);
     }
 }

@@ -28,7 +28,7 @@ function probeVersion(version) {
     if (result.status === 0) {
         return {
             ready: true,
-            reason: 'memory-server 单机 + replica set 均可启动',
+            reason: 'memory-server standalone and replica-set probes can start',
         };
     }
 
@@ -37,7 +37,7 @@ function probeVersion(version) {
 
     return {
         ready: false,
-        reason: unsupported ? '当前平台/版本组合不受 binary 支持，建议跳过' : '启动探测失败，需人工确认',
+        reason: unsupported ? 'current platform/version combination is not supported by the binary' : 'startup probe failed and requires manual confirmation',
         error: errorText,
         unsupported,
     };
@@ -62,7 +62,7 @@ const summary = {
 
 summary.ready = summary.matrix.some((item) => item.ready);
 summary.nextAction = summary.ready
-    ? '可执行 npm run test:server-matrix（以内存 MongoDB 版本矩阵运行）'
-    : '当前主机无法为目标版本拉起 mongodb-memory-server；请根据 error 字段决定跳过或补环境';
+    ? 'Run npm run test:server-matrix with the in-memory MongoDB version matrix'
+    : 'This host cannot start mongodb-memory-server for the target versions; inspect error to decide whether to skip or provision the environment';
 
 console.log(JSON.stringify(summary, null, 2));

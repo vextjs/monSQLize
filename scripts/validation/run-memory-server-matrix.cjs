@@ -95,16 +95,16 @@ function fail(message) {
 }
 
 const nodeScenarios = [
-    { label: `Node ${process.version}（当前环境）`, type: 'current', major: Number(process.versions.node.split('.')[0]) },
+    { label: `Node ${process.version} (current environment)`, type: 'current', major: Number(process.versions.node.split('.')[0]) },
 ];
 
 if (commandExists('volta')) {
-    nodeScenarios.push({ label: 'Node 22.x（Volta）', type: 'volta', major: 22 });
+    nodeScenarios.push({ label: 'Node 22.x (Volta)', type: 'volta', major: 22 });
 }
 
 const driverScenarios = [
     {
-        label: `Driver ${currentDriverVersion}（当前依赖）`,
+        label: `Driver ${currentDriverVersion} (current dependency)`,
         range: null,
         setup() {
             return { skipped: false, version: readInstalledDriverVersion() };
@@ -114,14 +114,14 @@ const driverScenarios = [
         },
     },
     {
-        label: 'Driver 7.x（临时安装）',
+        label: 'Driver 7.x (temporary install)',
         range: '7',
         setup() {
             const installResult = installDriver('7');
             if (installResult.status !== 0) {
                 return {
                     skipped: true,
-                    reason: '临时安装 mongodb@7 失败，标记为 environment-unavailable，发布前需复验',
+                    reason: 'temporary mongodb@7 install failed; marked environment-unavailable and must be rechecked before release',
                 };
             }
             return { skipped: false, version: readInstalledDriverVersion() };
@@ -129,7 +129,7 @@ const driverScenarios = [
         cleanup() {
             const restoreResult = restoreBaseDriver();
             if (restoreResult.status !== 0) {
-                fail(`恢复基础依赖 ${baseDriverRange} 失败`);
+                fail(`failed to restore base dependency ${baseDriverRange}`);
             }
             return true;
         },
@@ -163,13 +163,13 @@ for (const driverScenario of driverScenarios) {
         const buildResult = runNpmScenario(nodeScenario, ['run', 'build']);
         if (buildResult.status !== 0) {
             driverScenario.cleanup();
-            fail(`${driverScenario.label} 在 ${nodeScenario.label} 下构建失败`);
+            fail(`${driverScenario.label} build failed under ${nodeScenario.label}`);
         }
 
         const compatibilityResult = runNpmScenario(nodeScenario, ['run', 'test:compatibility']);
         if (compatibilityResult.status !== 0) {
             driverScenario.cleanup();
-            fail(`${driverScenario.label} 在 ${nodeScenario.label} 下兼容测试失败`);
+            fail(`${driverScenario.label} compatibility tests failed under ${nodeScenario.label}`);
         }
 
         for (const mongoVersion of mongoVersions) {
@@ -179,13 +179,13 @@ for (const driverScenario of driverScenarios) {
                     node: nodeScenario.label,
                     mongo: mongoVersion.label,
                     status: 'environment-unavailable',
-                    reason: probe.unsupported ? 'memory-server 不支持该版本/平台组合，发布前需复验' : 'memory-server 探测失败，发布前需复验',
+                    reason: probe.unsupported ? 'memory-server does not support this version/platform combination; recheck before release' : 'memory-server probe failed; recheck before release',
                     error: probe.error,
                 });
                 continue;
             }
 
-            console.log(`[memory-server-matrix]    验证 ${nodeScenario.label} / ${driverVersion} / ${mongoVersion.label}`);
+            console.log(`[memory-server-matrix]    verifying ${nodeScenario.label} / ${driverVersion} / ${mongoVersion.label}`);
             const integrationResult = runNodeScenario(nodeScenario, ['--test', ...integrationSuites], {
                 env: {
                     MONSQLIZE_MATRIX_MODE: '1',
@@ -196,7 +196,7 @@ for (const driverScenario of driverScenarios) {
 
             if (integrationResult.status !== 0) {
                 driverScenario.cleanup();
-                fail(`${driverScenario.label} 在 ${nodeScenario.label} + ${mongoVersion.label} 下集成测试失败`);
+                fail(`${driverScenario.label} integration tests failed under ${nodeScenario.label} + ${mongoVersion.label}`);
             }
 
             driverSummary.results.push({
@@ -214,11 +214,11 @@ for (const driverScenario of driverScenarios) {
 if (readInstalledDriverVersion() !== currentDriverVersion) {
     const restoreResult = restoreBaseDriver();
     if (restoreResult.status !== 0) {
-        fail(`最终恢复驱动版本 ${baseDriverRange} 失败`);
+        fail(`final driver restore to ${baseDriverRange} failed`);
     }
 }
 
-console.log('\n[memory-server-matrix] 汇总:');
+console.log('\n[memory-server-matrix] summary:');
 console.log(JSON.stringify({
     checkedAt: new Date().toISOString(),
     node: process.version,

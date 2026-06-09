@@ -8,7 +8,7 @@ export interface SSHConfig {
     /** SSH server hostname or IP. */
     host: string;
     /** SSH server port (default: 22). */
-    scopedCollection<TSchema = unknown>(name: string, options?: { database?: string; pool?: string; }): Collection<TSchema>;
+    port?: number;
     /** SSH login username. */
     username: string;
     /** SSH password (mutually exclusive with privateKey). */
@@ -107,7 +107,7 @@ export interface MonSQLizeOptions {
         /**
          * Distributed cache invalidation via Redis Pub/Sub.
          * When configured, broadcasts `delPattern` events to all other connected instances.
-         * Requires `ioredis` to be installed separately.
+         * `ioredis` is installed with monSQLize; this block only enables and configures Redis usage.
          * @since v2.0.0
          */
         distributed?: {

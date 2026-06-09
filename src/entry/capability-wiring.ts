@@ -159,7 +159,7 @@ export async function initializeDistributedCacheInvalidator(
             logger,
         });
     } catch (err) {
-        logger.warn?.('[Cache] Failed to initialize distributed cache invalidator — is ioredis installed?', err);
+        logger.warn?.('[Cache] Failed to initialize distributed cache invalidator — check Redis config or package installation completeness.', err);
         return null;
     }
 }

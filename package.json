@@ -85,19 +85,7 @@
     "release:preflight": "node scripts/release-preflight.cjs",
     "prepublishOnly": "npm run release:preflight",
     "release:publish": "npm run release:preflight && npm publish --ignore-scripts",
-    "postpublish": "echo '✅ 发布成功！请创建 GitHub Release: https://github.com/vextjs/monSQLize/releases/new?tag=v'$npm_package_version"
-  },
-  "peerDependenciesMeta": {
-    "ioredis": {
-      "optional": true
-    },
-    "ssh2": {
-      "optional": true
-    }
-  },
-  "optionalDependencies": {
-    "ioredis": "5.8.2",
-    "ssh2": "1.17.0"
+    "postpublish": "echo 'Publish succeeded. Create GitHub Release: https://github.com/vextjs/monSQLize/releases/new?tag=v'$npm_package_version"
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",
@@ -115,7 +103,9 @@
   "dependencies": {
     "async-lock": "1.4.1",
     "cache-hub": "1.0.0",
+    "ioredis": "5.8.2",
     "mongodb": "6.21.0",
+    "ssh2": "1.17.0",
     "schema-dsl": "2.0.3"
   }
 }

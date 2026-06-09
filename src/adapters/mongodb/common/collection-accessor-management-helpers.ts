@@ -5,6 +5,7 @@
  * and collection info operations used by MongoCollectionAccessor.
  */
 import { Collection, Db, Document } from 'mongodb';
+import { createError, ErrorCodes } from '../../../core/errors';
 import type { Logger } from '../../../core/logger';
 import type { FindPageOptions, FindPageResult } from '../queries';
 import {
@@ -145,7 +146,7 @@ export async function setValidatorForAccessor<TSchema extends Document>(
     options: { validationLevel?: string; validationAction?: string } = {},
 ): Promise<{ ok: number; collection: string }> {
     if (validator === null || typeof validator !== 'object') {
-        throw new Error('Validator must be a non-null object');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Validator must be a non-null object');
     }
     const isEmptyValidator = Object.keys(validator as Record<string, unknown>).length === 0;
     const command: Record<string, unknown> = {
@@ -172,7 +173,7 @@ export async function setValidationLevelForAccessor<TSchema extends Document>(
     level: unknown,
 ): Promise<{ ok: number; validationLevel: string }> {
     if (typeof level !== 'string' || !['off', 'strict', 'moderate'].includes(level)) {
-        throw new Error('Invalid validation level: must be "off", "strict", or "moderate"');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Invalid validation level: must be "off", "strict", or "moderate"');
     }
     const result = await resolveDb(collectionRef, dbRef).command({ collMod: collectionName, validationLevel: level });
     return { ok: result['ok'] as number, validationLevel: level };
@@ -185,7 +186,7 @@ export async function setValidationActionForAccessor<TSchema extends Document>(
     action: unknown,
 ): Promise<{ ok: number; validationAction: string }> {
     if (typeof action !== 'string' || !['error', 'warn'].includes(action)) {
-        throw new Error('Invalid validation action: must be "error" or "warn"');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Invalid validation action: must be "error" or "warn"');
     }
     const result = await resolveDb(collectionRef, dbRef).command({ collMod: collectionName, validationAction: action });
     return { ok: result['ok'] as number, validationAction: action };
@@ -247,7 +248,7 @@ export async function renameCollectionForAccessor<TSchema extends Document>(
     options: { dropTarget?: boolean } = {},
 ): Promise<{ renamed: boolean; from: string; to: string }> {
     if (!newName || typeof newName !== 'string') {
-        throw new Error('New collection name is required and must be a non-empty string');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'New collection name is required and must be a non-empty string');
     }
     await (collectionRef as unknown as Collection<Document>).rename(newName, { dropTarget: options.dropTarget ?? false });
     return { renamed: true, from: collectionName, to: newName };
@@ -260,7 +261,7 @@ export async function collModForAccessor<TSchema extends Document>(
     modifications: unknown,
 ): Promise<Record<string, unknown>> {
     if (modifications === null || typeof modifications !== 'object') {
-        throw new Error('Modifications must be a non-null object');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Modifications must be a non-null object');
     }
     return resolveDb(collectionRef, dbRef).command({
         collMod: collectionName,
@@ -276,10 +277,10 @@ export async function convertToCappedForAccessor<TSchema extends Document>(
     options: { max?: number } = {},
 ): Promise<{ ok: number; collection: string; capped: boolean; size: number }> {
     if (typeof size !== 'number') {
-        throw new Error('Size must be a number');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Size must be a number');
     }
     if (size <= 0) {
-        throw new Error('Size must be a positive number');
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Size must be a positive number');
     }
     const command: Record<string, unknown> = { convertToCapped: collectionName, size };
     if (options.max !== undefined) {

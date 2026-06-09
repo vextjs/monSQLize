@@ -21,11 +21,11 @@ import { setupExample, teardownExample } from '../helpers/bootstrap.js';
 interface UserDoc { username: string; email: string; role: string; score: number; }
 
 // ── Minimal Redis-compatible stub (no real Redis required) ────────────────────
-// 完整模拟 Redis 客户端接口，支持 pub/sub on('message') 事件监听
+// Fully simulates the Redis client surface, including pub/sub on('message').
 class InMemoryRedisStub {
     constructor(private readonly peers: InMemoryRedisStub[] = []) {}
     private store = new Map<string, { value: string; exp?: number }>();
-    // 事件处理器 Map：event → handlers[]
+    // Event handler map: event -> handlers[].
     private _handlers = new Map<string, Array<(...args: unknown[]) => void>>();
 
     async get(key: string): Promise<string | null> {
@@ -58,13 +58,13 @@ class InMemoryRedisStub {
         }
         return 1;
     }
-    // subscribe: 立即回调 null（表示成功订阅）
+    // subscribe: immediately invokes the callback with null to report success.
     subscribe(_channel: string, cb?: (err?: Error | null) => void): void {
         if (cb) cb(null);
     }
     async unsubscribe(): Promise<void> {}
     async quit(): Promise<void> {}
-    // on: 注册 EventEmitter 风格事件监听器（DistributedCacheInvalidator 需要）
+    // on: registers EventEmitter-style listeners required by DistributedCacheInvalidator.
     on(_event: string, _handler: (...args: unknown[]) => void): this {
         if (!this._handlers.has(_event)) this._handlers.set(_event, []);
         this._handlers.get(_event)!.push(_handler);
@@ -89,8 +89,8 @@ async function main() {
 
     // ── Distributed invalidator — broadcasts to all nodes ────────────────────
     // Constructor: new DistributedCacheInvalidator(options?)
-    //   options.cache — 当前节点自己的本地缓存
-    //   options._connections — 示例里注入的 pub/sub 连接（避免真实 Redis 依赖）
+    //   options.cache — local cache for the current node
+    //   options._connections — injected pub/sub connections used by this example
     //   options.channel — pub/sub channel name
     const remoteL1 = new MonSQLize.MemoryCache({ maxEntries: 500, defaultTtl: 60_000 });
     const invalidator = new MonSQLize.DistributedCacheInvalidator({
