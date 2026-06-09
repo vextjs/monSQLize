@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-05-24",
-  "packageVersion": "2.0.0",
+  "generatedAt": "2026-06-09",
+  "packageVersion": "2.0.2",
   "support": {
     "node": {
       "declared": ">=18.0.0",
@@ -31,7 +31,7 @@
       "pending": []
     },
     "mongodbDriver": {
-      "declaredDependency": "^6.21.0",
+      "declaredDependency": "6.21.0",
       "additionalVerifiedDrivers": [
         {
           "sampleVersion": "7.2.0",

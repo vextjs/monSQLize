@@ -1,7 +1,7 @@
 # CHANGELOG
 
-> Summary index — current release details are packaged in [changelogs/v2.0.1.md](./changelogs/v2.0.1.md); historical details live in the repository changelog archive.
-> **Last updated**: 2026-06-03
+> Summary index — current release details are packaged in [changelogs/v2.0.2.md](./changelogs/v2.0.2.md); historical details live in the repository changelog archive.
+> **Last updated**: 2026-06-09
 
 ---
 
@@ -9,6 +9,7 @@
 
 | Version | Date | Summary | Details |
 |---------|------|---------|---------|
+| [v2.0.2](./changelogs/v2.0.2.md) | 2026-06-09 | Patch: direct runtime, optional and development dependencies pinned to exact versions for deterministic consumer installs | [View](./changelogs/v2.0.2.md) |
 | [v2.0.1](./changelogs/v2.0.1.md) | 2026-06-03 | Patch: model collection/pool compatibility, automatic-index task dedupe, runtime cache/pool v1 smooth-upgrade fixes, and current docs/types alignment | [View](./changelogs/v2.0.1.md) |
 | [v2.0.0](./changelogs/v2.0.0.md) | 2026-06-01 | 🎉 **v2.0.0 — TypeScript rewrite**: full TypeScript source, cache-hub integration, schema-dsl `^2.0.3` TS dependency, Apache-2.0 licensing, English README, MultiLevel cache support, v1 API compat preserved, optimized npm artifact boundary without default sourcemaps, JSDoc coverage complete, `getPoolStats/getPoolHealth` keyed by pool name, v1 compat fixes included, workspace smooth-upgrade bridge validated for downstream consumers | [View](./changelogs/v2.0.0.md) |
 | [v1.3.0](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.3.0.md) | 2026-04-27 | 🆕 **新功能**：链式池访问 API — `pool(name)` / `use(dbName)` / `scopedCollection()` / `scopedModel()` 四个公开方法，支持多连接池多数据库路由，connection 合并语义，TypeScript 类型签名完整覆盖 | [查看](https://github.com/vextjs/monSQLize/blob/main/changelogs/v1.3.0.md) |

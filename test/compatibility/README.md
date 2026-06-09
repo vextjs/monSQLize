@@ -19,7 +19,7 @@ test/compatibility/
 - `package.json` 的 `engines.node` 与当前测试矩阵一致
 - Node `20.x` 当前环境（`v20.20.2`）已完成 `npm run verify` 与 `npm run test:compatibility`
 - Node `22.x` 已通过 `volta run --node 22` 实跑
-- `mongodb@^6.21.0` 作为当前依赖基线存在且与矩阵声明一致
+- `mongodb@6.21.0` 作为当前依赖基线存在且与矩阵声明一致
 - MongoDB Driver `7.x` 已通过临时安装 `mongodb@7.2.0` 完成扩展验证，验证后已恢复 `6.21.0` 基线
 - MongoDB Server `6.0.14` / `7.0.14` 已通过 `mongodb-memory-server` 的单机 + replica set 双路径实跑
 - `npm run test:server-matrix` 已完成 **Node 20 / 22 × Driver 6 / 7 × MongoDB 6 / 7** 内存矩阵回归
