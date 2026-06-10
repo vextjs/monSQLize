@@ -428,7 +428,7 @@ await db.withLock('resource:123', async () => {
 ### 处理示例
 
 ```javascript
-const { LockAcquireError } = require('monsqlize/errors');
+const { LockAcquireError } = require('monsqlize');
 
 try {
     await db.withLock('resource:123', async () => {

@@ -104,7 +104,7 @@ BSON 二进制格式（12 字节）：
 
 #### 3. 实际测试验证
 
-我们编写了完整的向后兼容性测试（`scripts/test/verify-backward-compatibility.js`）：
+当前 ObjectId 兼容性由 `npm run test:examples` 与 ObjectId converter 单元 / 集成测试共同覆盖：
 
 **测试流程**：
 1. ✅ monSQLize 插入数据（包含旧版本 ObjectId，自动转换为 bson@6.x）
@@ -269,11 +269,11 @@ const msq = new MonSQLize({
 运行以下测试脚本：
 
 ```bash
-# 跨版本兼容性测试
-node scripts/test/verify-cross-version-objectid.js
+# 运行包含 ObjectId 示例的官方示例套件
+npm run test:examples
 
-# 向后兼容性测试
-node scripts/test/verify-backward-compatibility.js
+# 运行包含 ObjectId converter 回归用例的默认测试套件
+npm test
 ```
 
 ---

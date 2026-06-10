@@ -1397,5 +1397,5 @@ app.get('/api/orders', async (req, res) => {
 - [find 方法文档](./find.md)
 - [缓存策略](./cache.md)
 - [性能优化指南](./count-queue.md)
-- [API 参考](./INDEX.md)
+- [API 参考](./api-index.md)
 - [monSQLize README](../README.md)

@@ -22,7 +22,7 @@
 
 ---
 
-## �📋 概述
+## 📋 概述
 
 monSQLize 现已完全支持 **ES Module (import)** 和 **CommonJS (require)** 两种导入方式。
 
@@ -216,8 +216,8 @@ import MonSQLize, { Logger, MemoryCache } from 'monsqlize';
 ### 运行 ESM 测试
 
 ```bash
-# 运行 ES Module 导入测试
-node test/esm/import.test.mjs
+# 运行根入口 CJS / ESM 导入测试
+npm run test:runtime
 ```
 
 ### 测试内容
@@ -409,7 +409,7 @@ const module = await import('./module.js');
 
 ---
 
-**版本要求**: Node.js >= 14.x (ES Module 完整支持)
+**版本要求**: Node.js >= 18.0.0
 
-**推荐版本**: Node.js 18.x 或 20.x (LTS)
+**推荐版本**: Node.js 20.x 或 22.x (LTS)
 

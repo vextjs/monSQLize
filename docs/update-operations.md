@@ -623,7 +623,7 @@ await users.find({ status: 'active' }, { cache: 5000 });
 
 - [MongoDB 聚合管道文档](https://www.mongodb.com/docs/manual/tutorial/update-documents-with-aggregation-pipeline/)
 - [MongoDB 聚合表达式](https://www.mongodb.com/docs/manual/reference/operator/aggregation/)
-- [monSQLize API 文档](./INDEX.md)
+- [monSQLize API 文档](./api-index.md)
 
 ---
 

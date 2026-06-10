@@ -1033,7 +1033,7 @@ function logError(error, context = {}) {
 
 ## 参考资料
 
-- [API 文档索引](./INDEX.md)
+- [API 文档索引](./api-index.md)
 - [事务管理](./transaction.md)
 - [多连接池管理](./multi-pool.md)
 - [链式池/库访问 API](./pool-chain-api.md)

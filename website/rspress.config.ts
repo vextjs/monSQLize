@@ -44,7 +44,7 @@ export default defineConfig({
         text: 'Versions',
         items: [
           {
-            text: 'v2.0.0 (Current TS)',
+            text: 'v2.0.2 (Current TS)',
             link: '/getting-started'
           },
           {
