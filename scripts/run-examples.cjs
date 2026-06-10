@@ -95,7 +95,7 @@ async function startSharedServers() {
     return { server, replSet, singleVersion, replSetVersion, launchTimeout };
 }
 
-async function startStandaloneServer(version, launchTimeout) {
+function startStandaloneServer(version, launchTimeout) {
     const { MongoMemoryServer } = require('mongodb-memory-server');
     return MongoMemoryServer.create({
         binary: { version },
@@ -107,7 +107,7 @@ async function startStandaloneServer(version, launchTimeout) {
     });
 }
 
-async function startReplSetServer(version, launchTimeout) {
+function startReplSetServer(version, launchTimeout) {
     const { MongoMemoryReplSet } = require('mongodb-memory-server');
     return MongoMemoryReplSet.create({
         binary: { version },
