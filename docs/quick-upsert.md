@@ -131,7 +131,7 @@ const userStatus = await collection("user_status").findOneAndUpdate(
 
 ### 示例 3：不同数据 - 用户配置管理
 
-### 示例 3：不同数据 - 用户配置管理
+### 示例 3：不同数据 - 用户配置管理（完整示例）
 
 ```javascript
 // 保存用户偏好设置（插入时需要设置默认值）

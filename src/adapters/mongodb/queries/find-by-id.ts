@@ -39,7 +39,7 @@ export async function findOneByIdDocument<TSchema extends Document = Document>(
 ): Promise<TSchema | null> {
     const objectId = parseRequiredObjectId(id);
     const rawOptions = (options ?? {}) as Record<string, unknown>;
-    const findOptions: FindOptions<TSchema> = {};
+    const findOptions: FindOptions = {};
 
     const projection = normalizeProjection(rawOptions.projection as string[] | Record<string, unknown> | null | undefined);
     if (projection) findOptions.projection = projection;

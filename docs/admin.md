@@ -83,13 +83,13 @@ setInterval(async () => {
 
 获取 MongoDB 版本信息和构建详情。
 
-### 语法
+### 语法（buildInfo()）
 
 ```javascript
 const info = await db._adapter.buildInfo();
 ```
 
-### 返回值
+### 返回值（buildInfo()）
 
 - **类型**: `Promise<Object>`
 - **属性**:
@@ -100,7 +100,7 @@ const info = await db._adapter.buildInfo();
   - `debug` (boolean): 是否为 Debug 版本
   - `maxBsonObjectSize` (number): BSON 对象最大大小
 
-### 示例
+### 示例（buildInfo()）
 
 ```javascript
 const info = await adapter.buildInfo();
@@ -113,7 +113,7 @@ console.log('BSON 最大大小:', info.maxBsonObjectSize, 'bytes');
 ```
 
 **输出示例**:
-```
+```text
 MongoDB 版本: 6.0.3
 版本数组: [ 6, 0, 3 ]
 Git 版本: 01a0d5a0e6e8e5f...
@@ -121,13 +121,13 @@ Git 版本: 01a0d5a0e6e8e5f...
 BSON 最大大小: 16777216 bytes
 ```
 
-### 使用场景
+### 使用场景（buildInfo()）
 
 1. **兼容性检测**: 检查 MongoDB 版本是否满足最低要求
 2. **功能检测**: 根据版本决定是否使用特定功能
 3. **监控报告**: 在监控系统中记录数据库版本
 
-### 最佳实践
+### 最佳实践（buildInfo()）
 
 ```javascript
 // 检查版本兼容性
@@ -169,7 +169,7 @@ async function initializeFeatures() {
 
 获取服务器状态信息，包括连接数、内存使用、操作统计等。
 
-### 语法
+### 语法（serverStatus()）
 
 ```javascript
 const status = await db._adapter.serverStatus([options]);
@@ -183,7 +183,7 @@ const status = await db._adapter.serverStatus([options]);
     - `1024`: KB
     - `1048576`: MB
 
-### 返回值
+### 返回值（serverStatus()）
 
 - **类型**: `Promise<Object>`
 - **属性**:
@@ -211,7 +211,7 @@ const status = await db._adapter.serverStatus([options]);
   - `version` (string): MongoDB 版本
   - `process` (string): 进程类型
 
-### 示例
+### 示例（serverStatus()）
 
 #### 基础使用
 
@@ -249,14 +249,14 @@ const statusMB = await adapter.serverStatus({ scale: 1048576 });
 console.log('内存使用:', statusMB.mem.resident, 'MB');
 ```
 
-### 使用场景
+### 使用场景（serverStatus()）
 
 1. **性能监控**: 实时监控数据库性能指标
 2. **容量规划**: 分析连接使用情况，规划连接池大小
 3. **故障诊断**: 检查内存使用、连接数等异常情况
 4. **告警系统**: 设置阈值触发告警
 
-### 最佳实践
+### 最佳实践（serverStatus()）
 
 ```javascript
 // 监控连接数
@@ -324,13 +324,13 @@ async function collectMetrics() {
 
 获取当前数据库的统计信息。
 
-### 语法
+### 语法（stats()）
 
 ```javascript
 const stats = await db._adapter.stats([options]);
 ```
 
-### 参数
+### 参数（stats()）
 
 - **options** (Object, 可选):
   - `scale` (number): 缩放因子
@@ -338,7 +338,7 @@ const stats = await db._adapter.stats([options]);
     - `1024`: KB
     - `1048576`: MB
 
-### 返回值
+### 返回值（stats()）
 
 - **类型**: `Promise<Object>`
 - **属性**:
@@ -354,9 +354,9 @@ const stats = await db._adapter.stats([options]);
   - `totalSize` (number): 总大小
   - `scaleFactor` (number): 缩放因子
 
-### 示例
+### 示例（stats()）
 
-#### 基础使用
+#### 基础使用（示例（stats()））
 
 ```javascript
 const stats = await adapter.stats();
@@ -385,14 +385,14 @@ console.log('索引大小:', statsMB.indexSize, 'MB');
 console.log('总大小:', statsMB.totalSize, 'MB');
 ```
 
-### 使用场景
+### 使用场景（stats()）
 
 1. **容量规划**: 评估数据库存储需求
 2. **性能优化**: 分析索引占用空间
 3. **成本估算**: 计算存储成本
 4. **监控告警**: 当数据库大小超过阈值时告警
 
-### 最佳实践
+### 最佳实践（stats()）
 
 ```javascript
 // 容量监控

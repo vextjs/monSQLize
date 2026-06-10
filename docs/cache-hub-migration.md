@@ -49,7 +49,7 @@ const cache = new MonSQLize.MemoryCache({
 
 ### 2. `createRedisCacheAdapter()`
 
-#### 旧写法
+#### 旧写法（2. createRedisCacheAdapter()）
 
 ```ts
 const cache = MonSQLize.createRedisCacheAdapter({
@@ -58,7 +58,7 @@ const cache = MonSQLize.createRedisCacheAdapter({
 });
 ```
 
-#### 新写法
+#### 新写法（2. createRedisCacheAdapter()）
 
 ```ts
 const cache = MonSQLize.createRedisCacheAdapter('redis://localhost:6379');
@@ -66,13 +66,13 @@ const cache = MonSQLize.createRedisCacheAdapter('redis://localhost:6379');
 const cache = MonSQLize.createRedisCacheAdapter(redis);
 ```
 
-> `createRedisCacheAdapter('redis://...')` 与 `createRedisCacheAdapter(redis)` 是平滑升级保留入口；`undefined`、空字符串和缺少 `ioredis` 时仍保持旧版错误语义，不会静默降级成内存缓存。
+> `createRedisCacheAdapter('redis://...')` 与 `createRedisCacheAdapter(redis)` 是平滑升级保留入口；`undefined`、空字符串，以及安装不完整、包管理器裁剪或运行时解析失败导致 `ioredis` 不可用时，仍保持旧版错误语义，不会静默降级成内存缓存。
 
 > 若你依赖 `{ client, prefix }` 对象写法中的 `prefix`，需要在调用方自行封装 key 命名空间，而不是继续依赖 monSQLize 提供 prefix 包装。
 
 ### 3. `DistributedCacheInvalidator`
 
-#### 旧写法
+#### 旧写法（3. DistributedCacheInvalidator）
 
 ```ts
 const invalidator = new MonSQLize.DistributedCacheInvalidator({
@@ -83,7 +83,7 @@ const invalidator = new MonSQLize.DistributedCacheInvalidator({
 });
 ```
 
-#### 新写法
+#### 新写法（3. DistributedCacheInvalidator）
 
 ```ts
 const invalidator = new MonSQLize.DistributedCacheInvalidator({
@@ -107,7 +107,7 @@ const invalidator = new MonSQLize.DistributedCacheInvalidator({
 
 ### 4. `withCache()`
 
-#### 旧写法
+#### 旧写法（4. withCache()）
 
 ```ts
 const cached = MonSQLize.withCache(fetchUser, { ttl: 60_000 });
@@ -115,7 +115,7 @@ const stats = cached.getCacheStats();
 const ok = await cached.invalidate('u1');
 ```
 
-#### 新写法
+#### 新写法（4. withCache()）
 
 ```ts
 const cached = MonSQLize.withCache(fetchUser, { ttl: 60_000 });
@@ -126,7 +126,7 @@ await cached.invalidateAll();
 
 ### 5. `FunctionCache`
 
-#### 旧写法
+#### 旧写法（5. FunctionCache）
 
 ```ts
 const fnCache = new MonSQLize.FunctionCache(runtime, {
@@ -137,7 +137,7 @@ const fnCache = new MonSQLize.FunctionCache(runtime, {
 const ok = await fnCache.invalidate('getUser', 'u1');
 ```
 
-#### 新写法
+#### 新写法（5. FunctionCache）
 
 ```ts
 const fnCache = new MonSQLize.FunctionCache(runtime, {
@@ -154,7 +154,7 @@ await fnCache.invalidate('getUser', 'u1');
 
 When you pass an object as `MonSQLizeOptions.cache`, v2 uses duck-typing to decide how to handle it:
 
-```
+```text
 cache instanceof MemoryCache  →  use directly as MemoryCache
 has get + set + del methods   →  use directly as CacheLike (pass-through)
 has multiLevel: true          →  build MultiLevelCache

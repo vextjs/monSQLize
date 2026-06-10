@@ -594,7 +594,7 @@ const result = await fnCache.execute<{ userId: string; name: string }>('getUserP
 
 - [缓存策略文档](./cache.md)
 - [多层缓存配置](./cache.md#多层缓存)
-- [Redis 适配器](./cache.md#redis-适配器)
+- [使用已创建的 Redis 实例](./cache.md#方式-3使用已创建的-redis-实例)
 - [函数缓存键生成机制](./function-cache.md)
 
 ---

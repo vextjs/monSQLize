@@ -97,13 +97,13 @@ collection(name: string).insertOne(document: object, options?: InsertOneOptions)
 
 批量插入多个文档到集合（**10-50x 性能提升**）。
 
-#### 方法签名
+#### 方法签名（insertMany()）
 
 ```typescript
 collection(name: string).insertMany(documents: object[], options?: InsertManyOptions): Promise<InsertManyResult>
 ```
 
-#### 参数详解
+#### 参数详解（insertMany()）
 
 **第一个参数：documents**（必需）
 - 类型：`object[]`
@@ -124,7 +124,7 @@ collection(name: string).insertMany(documents: object[], options?: InsertManyOpt
 **MongoDB 参考文档**: 
 - [insertMany()](https://www.mongodb.com/docs/manual/reference/method/db.collection.insertMany/)
 
-#### 返回值
+#### 返回值（insertMany()）
 
 ```typescript
 {
@@ -512,7 +512,7 @@ await msq.connect();
 ```
 
 **输出示例**:
-```
+```text
 [慢写入] {
   操作: 'insertOne',
   集合: 'orders',

@@ -167,17 +167,17 @@ if (cache) {
 
 获取当前实例的默认配置参数。
 
-#### 方法签名
+#### 方法签名（getDefaults()）
 
 ```javascript
 const defaults = msq.getDefaults()
 ```
 
-#### 参数说明
+#### 参数说明（getDefaults()）
 
 无参数。
 
-#### 返回值
+#### 返回值（getDefaults()）
 
 ```javascript
 {
@@ -559,17 +559,17 @@ console.log('实例 2 配置:', msq2.getDefaults());
 
 获取集合的完整命名空间（格式：`databaseName.collectionName`）。
 
-#### 方法签名
+#### 方法签名（getNamespace()）
 
 ```javascript
 const namespace = collection('collectionName').getNamespace()
 ```
 
-#### 参数说明
+#### 参数说明（getNamespace()）
 
 无参数。返回当前绑定集合的命名空间。
 
-#### 返回值
+#### 返回值（getNamespace()）
 
 ```javascript
 string  // 格式: "databaseName.collectionName"

@@ -123,7 +123,7 @@ const result = await msq.collection('orders').find({
 
 ## 手动预处理（仅在应用层确有需要时）
 
-v2 当前对外承诺的是**自动跨版本 ObjectId 转换**。`monsqlize/lib/utils/objectid-converter` 属于迁移期 legacy helper 子路径，不再建议作为正式依赖入口。
+v2 当前对外承诺的是**自动跨版本 ObjectId 转换**。迁移期 legacy helper 子路径不再建议作为正式依赖入口。
 
 如果业务确实需要在进入 monSQLize 前显式归一化数据，请在应用层自行做预处理，再把结果交给 monSQLize；不要把旧 helper 子路径当作长期公开 API。
 

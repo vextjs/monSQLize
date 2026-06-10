@@ -252,7 +252,7 @@ await syncManager.start();
 Change Streams 需要 MongoDB 4.0+ 并且是副本集或分片集群环境。
 
 **单节点环境会报错**:
-```
+```text
 Error: The $changeStream stage is only supported on replica sets
 ```
 

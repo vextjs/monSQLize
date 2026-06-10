@@ -182,7 +182,7 @@ console.log(user.posts);   // 数组
 
 **决策树**:
 
-```
+```text
 你的关系是什么？
 ├─ 一对一（一个用户一个资料）
 │  → single: true
@@ -373,7 +373,7 @@ async function example() {
 example();
 ```
 
-**完整示例文件**: `examples/model/relations.js`
+**完整示例文件**: [`examples/docs/populate-relations.ts`](../../examples/docs/populate-relations.ts)
 
 ---
 

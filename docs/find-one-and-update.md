@@ -80,7 +80,7 @@ collection(collectionName).findOneAndUpdate(filter, update, options)
 > **✅ monSQLize 的处理**:
 > - 已在内部自动处理此差异，用户无需关心驱动版本
 > - API 行为保持一致，向后兼容
-> - 详见技术分析报告: `analysis-reports/2025-11-17-mongodb-driver-6x-compatibility.md`
+> - 当前验证入口见 [MongoDB 驱动版本兼容性指南](./mongodb-driver-compatibility.md) 与 [findOneAnd* 返回值统一说明](./findOneAnd-return-value-unified.md)
 
 ## 核心特性
 

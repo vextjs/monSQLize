@@ -69,7 +69,7 @@ return obj;
 
 **转换情况**：
 
-```
+```text
 ❌ 不会触发任何 ObjectId 转换
 ```
 

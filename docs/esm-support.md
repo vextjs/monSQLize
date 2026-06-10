@@ -195,11 +195,11 @@ import MonSQLize, { Logger, MemoryCache } from 'monsqlize';
 
 ## 🔧 可用的导出
 
-### 默认导出
+### 默认导出（可用的导出）
 
 - `MonSQLize` (主类)
 
-### 命名导出
+### 命名导出（可用的导出）
 
 - `MonSQLize` (主类，命名导出)
 - `Logger` (日志工具)

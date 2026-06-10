@@ -55,7 +55,7 @@ const model = msq.pool('cn').model('BillingInvoice');
 
 ## API 总览
 
-```
+```text
 msq
  ├── .pool(poolName)          → PoolAccessor
  │    ├── .collection(name)   → Collection（指定池，默认库）

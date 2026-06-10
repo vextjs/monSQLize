@@ -133,13 +133,13 @@ await users.insertOne({
 - **`moderate`**: 只验证有效文档的更新，不验证现有无效文档
 - **`off`**: 禁用验证
 
-### 语法
+### 语法（setValidationLevel()）
 
 ```javascript
 await collection.setValidationLevel(level);
 ```
 
-### 示例
+### 示例（setValidationLevel()）
 
 ```javascript
 // 严格验证（所有文档）
@@ -163,13 +163,13 @@ await collection.setValidationLevel('off');
 - **`error`**: 拒绝不符合规则的文档（默认）
 - **`warn`**: 允许写入但记录警告
 
-### 语法
+### 语法（setValidationAction()）
 
 ```javascript
 await collection.setValidationAction(action);
 ```
 
-### 示例
+### 示例（setValidationAction()）
 
 ```javascript
 // 拒绝无效文档
@@ -185,7 +185,7 @@ await collection.setValidationAction('warn');
 
 获取当前的验证配置。
 
-### 语法
+### 语法（getValidator()）
 
 ```javascript
 const validation = await collection.getValidator();
@@ -199,7 +199,7 @@ const validation = await collection.getValidator();
   - `validationLevel` (string): 验证级别
   - `validationAction` (string): 验证行为
 
-### 示例
+### 示例（getValidator()）
 
 ```javascript
 const validation = await collection.getValidator();

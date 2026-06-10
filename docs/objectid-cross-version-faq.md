@@ -5,7 +5,7 @@
 ### 问题描述
 
 即使没有配置 Redis，初始化 monSQLize 时仍然输出：
-```
+```text
 [DEBUG] [Saga] 使用 Redis 存储（多进程共享）
 ```
 
@@ -17,7 +17,7 @@ monSQLize 的 Saga 协调器（SagaOrchestrator）判断逻辑有误：
 
 ### 解决方案
 
-修改 `lib/saga/SagaOrchestrator.js` 的判断逻辑，通过检测 Redis 特有的方法来识别：
+修改 Saga 协调器的判断逻辑，通过检测 Redis 特有的方法来识别：
 
 ```javascript
 // ❌ 旧逻辑（错误）
@@ -43,7 +43,7 @@ if (isRedis) {
 ### 验证结果
 
 修复后的日志输出：
-```
+```text
 [DEBUG] [Saga] 使用内存缓存（单进程，Saga 元数据不共享）  ✅ 正确
 ```
 
@@ -51,7 +51,7 @@ if (isRedis) {
 
 ## Q2: 自动将旧版本 ObjectId 转换为 bson@6.x，会不会影响旧版本 mongoose？
 
-### 问题描述
+### 问题描述（Q2: 自动将旧版本 ObjectId 转换为 bson@6.x，会不会）
 
 担心 monSQLize 转换 ObjectId 后，mongoose 读取数据时会出现问题。
 
@@ -63,7 +63,7 @@ if (isRedis) {
 
 #### 1. 转换的时机和方向
 
-```
+```text
 ┌─────────────┐                   ┌─────────────┐
 │  mongoose   │ ─────────────────→│  MongoDB    │
 │ (bson@4.x)  │    写入 (无需转换)  │  数据库     │
@@ -89,7 +89,7 @@ if (isRedis) {
 
 无论是 bson@4.x、5.x 还是 6.x，ObjectId 在 MongoDB 中的存储格式都是相同的：
 
-```
+```text
 BSON 二进制格式（12 字节）：
 ┌─────────────┬─────────┬─────────┬─────────┐
 │  Timestamp  │ Machine │ Process │ Counter │
@@ -113,7 +113,7 @@ BSON 二进制格式（12 字节）：
 4. ✅ monSQLize 读取更新后的数据，验证一致性
 
 **测试结论**：
-```
+```text
 ✅ monSQLize 写入的数据可以被原生驱动正常读取
 ✅ ObjectId 值完全一致（十六进制字符串相同）
 ✅ ObjectId 类型正确（都是 ObjectId 实例）

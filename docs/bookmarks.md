@@ -127,19 +127,19 @@ try {
 
 列出已缓存的 bookmark（支持按查询过滤或查看全部）。
 
-#### 方法签名
+#### 方法签名（2. listBookmarks(keyDims?)）
 
 ```javascript
 async listBookmarks(keyDims?)
 ```
 
-#### 参数
+#### 参数（2. listBookmarks(keyDims?)）
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `keyDims` | Object | 否 | 查询维度（不传则列出所有） |
 
-#### 返回值
+#### 返回值（2. listBookmarks(keyDims?)）
 
 **按查询过滤**：
 ```javascript
@@ -162,7 +162,7 @@ async listBookmarks(keyDims?)
 }
 ```
 
-#### 使用示例
+#### 使用示例（2. listBookmarks(keyDims?)）
 
 ```javascript
 // 列出特定查询的 bookmark
@@ -207,19 +207,19 @@ async function monitorBookmarks() {
 
 清除指定查询或全部 bookmark 缓存。
 
-#### 方法签名
+#### 方法签名（3. clearBookmarks(keyDims?)）
 
 ```javascript
 async clearBookmarks(keyDims?)
 ```
 
-#### 参数
+#### 参数（3. clearBookmarks(keyDims?)）
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `keyDims` | Object | 否 | 查询维度（不传则清除所有） |
 
-#### 返回值
+#### 返回值（3. clearBookmarks(keyDims?)）
 
 ```javascript
 {
@@ -228,7 +228,7 @@ async clearBookmarks(keyDims?)
 }
 ```
 
-#### 使用示例
+#### 使用示例（3. clearBookmarks(keyDims?)）
 
 ```javascript
 // 清除特定查询的 bookmark
@@ -505,7 +505,7 @@ async function checkCacheHealth() {
 
 ---
 
-## 错误处理
+## 错误处理（第2处）
 
 ```javascript
 try {

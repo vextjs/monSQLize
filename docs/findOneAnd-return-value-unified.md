@@ -1,26 +1,27 @@
 ﻿# findOneAnd* 方法返回值统一说明
 
-**文档版本**: 1.0  
-**最后更新**: 2025-01-02
+**文档版本**: 当前 main / unreleased
+**最后更新**: 2026-06-10
+**适用版本**: monSQLize v2.0.2+
 
 ---
 
 ## 📑 目录
 
-- [概述](#-概述)
-- [问题背景](#-问题背景)
-- [monSQLize 的解决方案](#-monsqlize-的解决方案)
-- [实现原理](#-实现原理)
-- [适用的方法](#-适用的方法)
-- [用户体验对比](#-用户体验对比)
-- [测试验证](#-测试验证)
-- [最佳实践](#-最佳实践)
-- [总结](#-总结)
-- [相关文档](#-相关文档)
+- [概述](#概述)
+- [问题背景](#问题背景)
+- [monSQLize 的解决方案](#monsqlize-的解决方案)
+- [实现原理](#实现原理)
+- [适用的方法](#适用的方法)
+- [用户体验对比](#用户体验对比)
+- [测试验证](#测试验证)
+- [最佳实践](#最佳实践)
+- [总结](#总结)
+- [相关文档](#相关文档)
 
 ---
 
-## �📋 概述
+## 📋 概述
 
 本文档详细说明 monSQLize 如何统一处理不同 MongoDB Driver 版本中 `findOneAndUpdate`、`findOneAndReplace`、`findOneAndDelete` 方法的返回值差异。
 
@@ -30,7 +31,7 @@
 
 ### MongoDB Driver 版本差异
 
-在 MongoDB Node.js Driver 的不同版本中，`findOneAnd*` 方法的返回值格式存在重大差异：
+在 MongoDB Node.js Driver 的不同版本中，`findOneAnd*` 方法的返回值格式存在重大差异。当前 monSQLize 默认随包安装 `mongodb@6.21.0`；Driver 7.2.0 作为扩展矩阵验证版本。
 
 #### Driver 4.x 返回格式
 
@@ -56,7 +57,7 @@ console.log(result);
 const user = result.value;
 ```
 
-#### Driver 5.x/6.x 返回格式（简化）
+#### Driver 5.x 返回格式
 
 ```javascript
 const result = await collection.findOneAndUpdate(
@@ -74,6 +75,26 @@ console.log(result);
 const user = result.value;
 ```
 
+#### Driver 6.x / 7.x 默认返回格式
+
+```javascript
+const result = await collection.findOneAndUpdate(
+  { name: 'Alice' },
+  { $set: { age: 31 } }
+);
+
+console.log(result);
+// 输出：
+{
+  _id: ...,
+  name: "Alice",
+  age: 31
+}
+
+// ✅ 默认已经是文档本身
+const user = result;
+```
+
 ### 问题
 
 如果直接使用 MongoDB Driver，用户代码需要根据版本处理不同的返回值：
@@ -85,8 +106,10 @@ const result = await collection.findOneAndUpdate(filter, update);
 let user;
 if (driverVersion === 4) {
   user = result.value;  // Driver 4.x
-} else if (driverVersion >= 5) {
-  user = result.value;  // Driver 5.x/6.x
+} else if (driverVersion === 5) {
+  user = result.value;  // Driver 5.x
+} else if (driverVersion >= 6) {
+  user = result;        // Driver 6.x / 7.x 默认行为
 }
 ```
 
@@ -94,12 +117,12 @@ if (driverVersion === 4) {
 
 ## ✅ monSQLize 的解决方案
 
-### 自动统一返回值
+### 默认依赖统一用户体验
 
-monSQLize 自动检测 Driver 版本并统一返回值格式，**用户无需关心版本差异**。
+monSQLize 默认随包安装 `mongodb@6.21.0`，并验证 Driver 7.2.0 扩展矩阵。使用默认安装时，`findOneAnd*` 直接返回文档或 `null`，**用户无需额外安装或选择 driver 版本**。
 
 ```javascript
-// ✅ 使用 monSQLize，所有版本代码完全相同
+// ✅ 使用默认 monSQLize 安装
 const user = await collection.findOneAndUpdate(
   { name: 'Alice' },
   { $set: { age: 31 } }
@@ -118,59 +141,30 @@ console.log(user);
 
 ## 🔧 实现原理
 
-### 版本适配器
+### Driver 薄封装
 
-monSQLize 内部使用版本适配器自动处理差异：
-
-**文件**: `test/utils/version-adapter.js`
-
-```javascript
-class VersionAdapter {
-  /**
-   * 适配 findOneAnd* 操作的返回值
-   * @param {Object} result - Driver 原始返回值
-   * @returns {Object|null} - 统一后的文档
-   */
-  adaptFindOneAndUpdateResult(result) {
-    if (!result) return null;
-    
-    // Driver 5.x/6.x: { value: doc }
-    if (result.value !== undefined && !result.ok) {
-      return result.value;
-    }
-    
-    // Driver 4.x: { value: doc, ok: 1, lastErrorObject: {...} }
-    if (result.ok && result.value !== undefined) {
-      return result.value;
-    }
-    
-    // 未知格式，返回原值
-    return result;
-  }
-}
-```
-
-### 自动应用
-
-monSQLize 在调用 `findOneAnd*` 方法后自动应用适配器：
+monSQLize 在 `src/adapters/mongodb/writes/write-basic.ts` 中调用 MongoDB Driver 原生方法，并保持当前 driver 基线的默认返回形态：
 
 ```javascript
 // monSQLize 内部实现（简化版）
 async findOneAndUpdate(filter, update, options = {}) {
   // 1. 调用原生 Driver
-  const rawResult = await this.nativeCollection.findOneAndUpdate(
+  const result = await this.nativeCollection.findOneAndUpdate(
     filter, 
     update, 
     options
   );
   
-  // 2. 自动适配返回值
-  const adaptedResult = versionAdapter.adaptFindOneAndUpdateResult(rawResult);
-  
-  // 3. 返回统一格式
-  return adaptedResult;  // 直接返回文档
+  // 2. 返回当前 driver 基线的文档/null 形态
+  return result;
 }
 ```
+
+### 验证边界
+
+- `mongodb@6.21.0` 是默认运行时基线。
+- Driver 7.2.0 通过兼容性矩阵作为扩展验证。
+- Driver 4.x / 5.x 的 `{ value, ok, lastErrorObject }` 是历史迁移背景，不建议在新项目覆盖默认依赖。
 
 ---
 
@@ -273,22 +267,25 @@ console.log(user.name);  // 简洁清晰
 
 ### 测试覆盖
 
-monSQLize 已通过完整的多版本测试验证：
+monSQLize 通过当前兼容性矩阵验证默认 driver 基线和扩展 driver：
 
 | Driver 版本 | 测试状态 | findOneAndUpdate | findOneAndReplace | findOneAndDelete |
 |------------|---------|-----------------|------------------|-----------------|
-| 4.17.2 | ✅ 通过 | ✅ 统一 | ✅ 统一 | ✅ 统一 |
-| 5.9.2 | ✅ 通过 | ✅ 统一 | ✅ 统一 | ✅ 统一 |
-| 6.17.0 | ✅ 通过 | ✅ 统一 | ✅ 统一 | ✅ 统一 |
+| 6.21.0 | ✅ 默认基线 | ✅ 文档/null | ✅ 文档/null | ✅ 文档/null |
+| 7.2.0 | ✅ 扩展验证 | ✅ 文档/null | ✅ 文档/null | ✅ 文档/null |
+| 4.x / 5.x | ℹ️ 历史背景 | ⚠️ 原生元数据形态 | ⚠️ 原生元数据形态 | ⚠️ 原生元数据形态 |
 
 ### 运行测试
 
 ```bash
-# 测试所有 Driver 版本
-npm run test:compatibility:driver
+# 运行兼容性矩阵
+npm run test:compatibility
 
-# 测试特定版本
-node scripts/test-driver-versions-simple.js --drivers=5.9.2,6.17.0
+# 运行 MongoDB server matrix
+npm run test:server-matrix
+
+# 查看当前解析到的 driver
+npm ls mongodb
 ```
 
 ---
@@ -303,13 +300,12 @@ const user = await collection.findOneAndUpdate(filter, update);
 // 直接返回文档，所有版本一致
 ```
 
-### 2. 升级 Driver 版本无风险
+### 2. 避免在应用中覆盖默认 Driver
 
 ```javascript
-// 从 Driver 4.x 升级到 6.x
-// ✅ monSQLize 自动处理差异
-// ✅ 用户代码无需修改
-// ✅ 测试全部通过
+// ✅ 推荐：使用 monSQLize 的默认运行时依赖
+// package manager 不需要额外声明 mongodb
+// 如必须覆盖 driver，请先运行兼容性矩阵
 ```
 
 ### 3. 处理不存在的情况
@@ -333,20 +329,20 @@ console.log(user.name);
 
 ### ✅ monSQLize 的优势
 
-1. **自动统一返回值**
-   - 所有 Driver 版本返回格式一致
+1. **默认安装即统一体验**
+   - 默认 Driver 基线返回文档或 `null`
    - 用户无需手动提取 `value`
    - 代码更简洁清晰
 
-2. **版本升级无风险**
-   - 自动检测 Driver 版本
-   - 自动适配 API 差异
-   - 用户代码无需修改
+2. **版本升级有验证入口**
+   - 兼容性矩阵覆盖 `mongodb@6.21.0` 与 Driver 7.2.0
+   - 用户代码无需为默认安装增加版本判断
+   - 新主版本升级前先跑矩阵验证
 
 3. **完整测试覆盖**
-   - 测试 Driver 4.x, 5.x, 6.x
+   - 测试当前默认 driver 与扩展 driver
    - 验证所有 `findOneAnd*` 方法
-   - 100% 测试通过
+   - 验证结果记录在 `test/validation/`
 
 4. **开发效率提升**
    - 减少 30-50% 代码量
@@ -358,10 +354,10 @@ console.log(user.name);
 ## 📚 相关文档
 
 - 📖 [MongoDB Driver 兼容性指南](./mongodb-driver-compatibility.md)
-- 📖 [完整兼容性矩阵]
-- 📖 [兼容性测试指南]
+- 📖 [兼容性矩阵配置](../test/compatibility/matrix.json)
+- 📖 [验证进度](../test/validation/VERIFICATION-PROGRESS.md)
 
 ---
 
-**结论**: monSQLize 已完全统一 `findOneAnd*` 方法的返回值，用户可以放心使用任意支持的 Driver 版本，无需关心版本差异！🎉
+**结论**: 使用 monSQLize 默认安装时，`findOneAnd*` 方法返回文档或 `null`，用户不需要额外安装 driver，也不需要手动处理 `result.value`。
 

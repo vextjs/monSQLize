@@ -304,7 +304,7 @@ try {
 
 ## 相关方法
 
-- [`dropIndexes()`](#dropIndexes) - 删除所有索引
+- [`dropIndexes()`](#dropindexes---删除所有索引) - 删除所有索引
 - [`createIndex()`](./create-index.md) - 创建索引
 - [`listIndexes()`](./list-indexes.md) - 列出所有索引
 - [索引管理完整指南](./collection-management.md) - 索引管理综合文档
@@ -315,17 +315,17 @@ try {
 
 删除集合的所有索引（`_id` 索引除外）。
 
-### 语法
+### 语法（dropIndexes() - 删除所有索引）
 
 ```javascript
 await collection(collectionName).dropIndexes()
 ```
 
-### 参数
+### 参数（dropIndexes() - 删除所有索引）
 
 无参数。
 
-### 返回值
+### 返回值（dropIndexes() - 删除所有索引）
 
 **类型**: `Promise<Object>`
 
@@ -337,7 +337,7 @@ await collection(collectionName).dropIndexes()
 }
 ```
 
-### 代码示例
+### 代码示例（dropIndexes() - 删除所有索引）
 
 #### 示例 1: 删除所有索引
 
@@ -393,7 +393,7 @@ try {
 }
 ```
 
-### 安全建议
+### 安全建议（dropIndexes() - 删除所有索引）
 
 **重要警告**：
 - ⚠️ 此操作会删除所有自定义索引

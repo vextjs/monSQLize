@@ -481,7 +481,7 @@ module.exports = {
 
 ### 目录结构
 
-```
+```text
 models/
 ├── user.model.js
 ├── post.model.js
@@ -509,18 +509,18 @@ models/
 ### 错误处理
 
 #### 目录不存在
-```
+```text
 [Model] Models directory not found: /path/to/models
 ```
 
 #### 文件格式错误
-```
+```text
 [Model] ❌ Failed to load models/invalid.model.js: export is null
 [Model] ❌ Failed to load models/no-name.model.js: missing 'name' property
 ```
 
 #### 重复注册
-```
+```text
 [Model] Model 'users' already registered, skipping models/user2.model.js
 ```
 
@@ -551,7 +551,7 @@ models/
 
 ## Schema 验证（v1.0.7 默认启用）
 
-### 功能说明
+### 功能说明（Schema 验证（v1.0.7 默认启用））
 
 monSQLize 集成 `schema-dsl` 提供数据验证功能。**从 v1.0.7 开始，Schema 验证默认启用**。
 
@@ -679,7 +679,7 @@ await User.insertOne(doc, { skipValidation: true });
 - **缓存优化**: Schema 编译后缓存，重复使用无额外开销
 - **跳过选项**: 可通过 `skipValidation` 跳过（不推荐）
 
-### 最佳实践
+### 最佳实践（Schema 验证（v1.0.7 默认启用））
 
 1. **始终定义 Schema**: 保证数据质量
 2. **合理使用可选字段**: 避免过度严格
@@ -1013,7 +1013,7 @@ const adminCount = await User.countAdmins();
 
 ---
 
-## 注意事项
+## 注意事项（Model API 文档）
 
 ### ⚠️ 方法命名避免冲突
 
@@ -1138,7 +1138,7 @@ Model.define('users', {
 | findOneAndReplace | ❌ | ✅ | 替换时更新 |
 | incrementOne | ❌ | ❌ | ⚠️ 暂不支持 |
 
-### 注意事项
+### 注意事项（自动时间戳（v1.0.3+））
 
 #### ⚠️ 用户手动设置会被覆盖
 
@@ -1373,7 +1373,7 @@ Model.define('posts', {
 // 缺点：不记录删除时间
 ```
 
-### 自定义字段名
+### 自定义字段名（软删除（softDelete））
 
 ```javascript
 Model.define('comments', {
@@ -1494,7 +1494,7 @@ Model.define('users', {
 });
 ```
 
-### 完整配置
+### 完整配置（乐观锁版本控制（Version））
 
 ```javascript
 Model.define('users', {
@@ -1586,7 +1586,7 @@ await User.deleteOne({ _id, version: 0 });
 // 软删除时版本号递增
 ```
 
-### 最佳实践
+### 最佳实践（乐观锁版本控制（Version））
 
 ```javascript
 // 并发更新场景
@@ -1613,7 +1613,7 @@ async function updateUserStatus(userId, newStatus) {
 
 ---
 
-### 完整示例
+### 完整示例（乐观锁版本控制（Version））
 
 ```javascript
 import MonSQLize from 'monsqlize';
@@ -1687,7 +1687,7 @@ example().catch(console.error);
 
 ---
 
-## 常见问题
+## 常见问题（Model API 文档）
 
 **Q: `this.password` 从哪来？**  
 A: 来自数据库查询结果，不是 schema。schema 只定义验证规则。
@@ -1702,7 +1702,6 @@ A: instance 注入到文档对象，static 挂载到 Model 实例。
 
 ## 更多示例
 
-查看 `examples/model/` 目录：
-- `basic.js` - 基础使用
-- `advanced.js` - 高级功能
-
+查看当前 TypeScript 示例：
+- [`examples/docs/model.ts`](../examples/docs/model.ts) - Model 基础使用
+- [`examples/docs/populate-relations.ts`](../examples/docs/populate-relations.ts) - Relations 与 populate 示例

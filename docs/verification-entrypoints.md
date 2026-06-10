@@ -7,7 +7,7 @@
 | 入口 | 命令 | 默认环境 | 用途 |
 |------|------|----------|------|
 | Fast | `npm run verify:fast` | 本地 / CI | 日常改动、热点重构、PR 前快速守卫 |
-| Full | `npm run verify:full` | 本地 / CI | 完整功能回归、示例回归、memory-server 矩阵 |
+| Full | `npm run verify:full` | 本地 / CI | 完整功能回归、示例回归、memory-server 矩阵；不串联 coverage 治理门禁 |
 | Release | `npm run verify:release` | 本地私有发布前 | 在 `full` 基础上追加 opt-in 真实环境检查 |
 
 ## 补充入口
@@ -15,7 +15,7 @@
 | 命令 | 说明 |
 |------|------|
 | `npm test` | 默认统一门禁：smoke + compatibility + unit + integration；不再隐式跑 legacy compat runner 或迁移专用 runner |
-| `npm run test:coverage` | 覆盖率门禁：通过 `c8` 运行默认测试，lines / statements / functions / branches 均要求 95% 以上 |
+| `npm run test:coverage` | 独立覆盖率治理门禁：通过 `c8` 运行默认测试，lines / statements / functions / branches 均要求 95% 以上 |
 | `npm run test:refactor-guard` | 热点重构三联回归：exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server 默认矩阵（Node / Driver / MongoDB server） |
 | `npm run test:real-env:private` | 私有真实环境检查；默认不进入常规 verify / CI |
@@ -72,7 +72,7 @@ npm run test:real-env:private
 ## 默认边界
 
 - **默认闭环**：`npm test` / `verify:fast` / `verify:full` / `test:server-matrix`
-- **覆盖率闭环**：`npm run test:coverage`，并由 `verify:full` 串联
+- **覆盖率闭环**：`npm run test:coverage` 独立执行；当前仍作为 P-04 治理项跟踪，不阻断 `verify:full`
 - **显式 opt-in**：`test:real-env:private`
 - **公开发布前门禁**：`release:preflight`
 - **本地私有发布前补充**：`verify:release`

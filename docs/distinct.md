@@ -529,7 +529,7 @@ collection('products').distinct('category', { inStock: true }, {
 
 ### Q2: distinct 与 aggregate + $group 的区别？
 
-### Q2: distinct 与 aggregate + $group 的区别？
+### Q2: distinct 与 aggregate + $group 的区别？（常见问题）
 
 **distinct**：
 - 简单易用，语法直观

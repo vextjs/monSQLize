@@ -71,7 +71,7 @@ monSQLize 现已支持完整的 MongoDB 风格链式调用 API，提供更直观
 
 所有方法均为 **MongoDB 原生支持** ✅
 
-### aggregate() 链式方法
+### aggregate() 链式方法（支持的链式方法）
 
 所有方法均为 **MongoDB 原生支持** ✅
 

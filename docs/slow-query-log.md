@@ -36,7 +36,7 @@
 
 ### 工作原理
 
-```
+```text
 ┌─────────────┐
 │ 业务查询执行 │
 └──────┬──────┘
@@ -206,7 +206,7 @@ const products = await collection('products').find(
 
 #### 文本格式
 
-```
+```text
 [2026-01-20 08:30:15] WARN: [SLOW QUERY] find on mydb.products took 1523ms (threshold: 1000ms)
 Query: {"category":"electronics"}
 Options: {"limit":10}
@@ -958,7 +958,7 @@ const msq = new MonSQLize({
 ### 问题2：存储连接失败
 
 **错误信息**：
-```
+```text
 [SlowQueryLog] Failed to initialize MongoDB storage: MongoServerError...
 ```
 
@@ -1011,7 +1011,7 @@ console.log('TTL:', msq.slowQueryLogManager.config.storage.mongodb.ttl);
 
 **结论**：性能影响极小（<1%），可忽略
 
-### 优化建议
+### 优化建议（性能优化）
 
 1. **使用批量写入**（默认启用）
    ```javascript

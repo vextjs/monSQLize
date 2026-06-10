@@ -1302,7 +1302,7 @@ const exportStream = await collection('orders').findPage({
 
 `cursorSecret` 是一个可选的实例级配置项。未设置时，游标令牌是纯 Base64url 编码，任何人都可以解码其内容（包含排序字段值）。设置后，每个令牌都会附加一个 HMAC-SHA256 签名：
 
-```
+```text
 token 格式（无签名）:  <base64url-payload>
 token 格式（有签名）:  <base64url-payload>.<base64url-signature>
 ```

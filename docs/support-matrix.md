@@ -22,14 +22,15 @@
 
 - **Default gate**：`npm test`
 - **Fast**：`npm run verify:fast`
-- **Full**：`npm run verify:full`
+- **Full functional gate**：`npm run verify:full`
+- **Coverage governance**：`npm run test:coverage`
 - **Matrix**：`npm run test:server-matrix`
 - **Release preflight（公开门禁）**：`npm run release:preflight`
 - **Private real env**：`npm run test:real-env:private`
 
 ## 公开验证与私有验证边界
 
-- `verify:fast` / `verify:full` / `test:server-matrix` / `release:preflight` 都属于**公开可复现**验证入口。
+- `verify:fast` / `verify:full` / `test:server-matrix` / `release:preflight` 都属于**公开可复现**验证入口；`test:coverage` 是独立覆盖率治理入口。
 - `npm test` 现在默认覆盖 smoke / compatibility / unit / integration；已迁移的 TypeScript 测试先编译到 `.generated/test-dist/test/**` 再执行，不再保留独立迁移 runner。
 - `test:real-env:private` 与 `verify:release` 属于**显式 opt-in** 的私有真实环境验证，需要操作者自行注入 SSH / Mongo 环境变量。
 - GitHub Actions 默认只运行公开门禁，不假设任何私有 SSH / Mongo 资源存在。

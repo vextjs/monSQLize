@@ -447,7 +447,7 @@ const msq2 = new MonSQLize({
 
 ```javascript
 import MonSQLize from 'monsqlize';
-const MemoryCache = require('monsqlize/lib/cache');  // 导入缓存工具类
+const { MemoryCache } = MonSQLize;  // 公开缓存工具类
 const Redis = require('ioredis');
 
 // 创建 Redis 客户端（远端缓存）
@@ -1030,7 +1030,7 @@ setInterval(() => {
 
 ---
 
-## 最佳实践
+## 最佳实践（缓存策略文档）
 
 ### 1. 根据数据特征选择 TTL
 
@@ -1183,7 +1183,7 @@ const product2 = await collection('products').findOne({
 **A**: 每个缓存条目包含查询键（约 100-200 字节）和查询结果（取决于数据大小）。
 
 估算公式：
-```
+```text
 内存占用 ≈ 缓存条目数 × 平均结果大小
 
 示例:
@@ -1391,7 +1391,7 @@ await clearAllCache();
 
 ---
 
-### 最佳实践
+### 最佳实践（缓存失效 API）
 
 #### 1. 避免过度使用
 

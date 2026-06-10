@@ -40,20 +40,20 @@
 
 #### ✅ 已支持的链式调用（共 12 个方法）
 
-| 方法 | 语法 | 说明 | 实现位置 |
+| 方法 | 语法 | 说明 | 公开能力 |
 |------|------|------|---------|
-| **`.limit(n)`** | `.limit(number)` | 限制返回文档数量 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.skip(n)`** | `.skip(number)` | 跳过文档数量 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.sort(spec)`** | `.sort(object)` | 排序规则 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.project(spec)`** | `.project(object)` | 字段投影 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.hint(spec)`** | `.hint(object\|string)` | 索引提示 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.collation(spec)`** | `.collation(object)` | 排序规则 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.comment(str)`** | `.comment(string)` | 查询注释 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.maxTimeMS(ms)`** | `.maxTimeMS(number)` | 查询超时时间 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.batchSize(n)`** | `.batchSize(number)` | 批处理大小 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.explain(v)`** | `.explain(string?)` | 返回查询执行计划 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.stream()`** | `.stream()` | 返回流式结果 | `lib/mongodb/queries/chain.js:FindChain` |
-| **`.toArray()`** | `.toArray()` | 显式转换为数组 | `lib/mongodb/queries/chain.js:FindChain` |
+| **`.limit(n)`** | `.limit(number)` | 限制返回文档数量 | `find()` query chain |
+| **`.skip(n)`** | `.skip(number)` | 跳过文档数量 | `find()` query chain |
+| **`.sort(spec)`** | `.sort(object)` | 排序规则 | `find()` query chain |
+| **`.project(spec)`** | `.project(object)` | 字段投影 | `find()` query chain |
+| **`.hint(spec)`** | `.hint(object\|string)` | 索引提示 | `find()` query chain |
+| **`.collation(spec)`** | `.collation(object)` | 排序规则 | `find()` query chain |
+| **`.comment(str)`** | `.comment(string)` | 查询注释 | `find()` query chain |
+| **`.maxTimeMS(ms)`** | `.maxTimeMS(number)` | 查询超时时间 | `find()` query chain |
+| **`.batchSize(n)`** | `.batchSize(number)` | 批处理大小 | `find()` query chain |
+| **`.explain(v)`** | `.explain(string?)` | 返回查询执行计划 | `find()` query chain |
+| **`.stream()`** | `.stream()` | 返回流式结果 | `find()` query chain |
+| **`.toArray()`** | `.toArray()` | 显式转换为数组 | `find()` query chain |
 
 #### 📝 使用示例
 
@@ -108,19 +108,19 @@ const stream = collection('products')
 
 #### ✅ 已支持的链式调用（共 9 个方法）
 
-| 方法 | 语法 | 说明 | 实现位置 |
+| 方法 | 语法 | 说明 | 公开能力 |
 |------|------|------|---------|
-| **`.hint(spec)`** | `.hint(object\|string)` | 索引提示 | `lib/mongodb/queries/chain.js:AggregateChain` |
-| **`.collation(spec)`** | `.collation(object)` | 排序规则 | `lib/mongodb/queries/chain.js:AggregateChain` |
-| **`.comment(str)`** | `.comment(string)` | 查询注释 | `lib/mongodb/queries/chain.js:AggregateChain` |
-| **`.maxTimeMS(ms)`** | `.maxTimeMS(number)` | 查询超时时间 | `lib/mongodb/queries/chain.js:AggregateChain` |
-| **`.allowDiskUse(bool)`** | `.allowDiskUse(boolean)` | 允许使用磁盘 | `lib/mongodb/queries/chain.js:AggregateChain` |
-| **`.batchSize(n)`** | `.batchSize(number)` | 批处理大小 | `lib/mongodb/queries/chain.js:AggregateChain` |
-| **`.explain(v)`** | `.explain(string?)` | 返回聚合执行计划 | `lib/mongodb/queries/chain.js:AggregateChain` |
-| **`.stream()`** | `.stream()` | 返回流式结果 | `lib/mongodb/queries/chain.js:AggregateChain` |
-| **`.toArray()`** | `.toArray()` | 显式转换为数组 | `lib/mongodb/queries/chain.js:AggregateChain` |
+| **`.hint(spec)`** | `.hint(object\|string)` | 索引提示 | `aggregate()` query chain |
+| **`.collation(spec)`** | `.collation(object)` | 排序规则 | `aggregate()` query chain |
+| **`.comment(str)`** | `.comment(string)` | 查询注释 | `aggregate()` query chain |
+| **`.maxTimeMS(ms)`** | `.maxTimeMS(number)` | 查询超时时间 | `aggregate()` query chain |
+| **`.allowDiskUse(bool)`** | `.allowDiskUse(boolean)` | 允许使用磁盘 | `aggregate()` query chain |
+| **`.batchSize(n)`** | `.batchSize(number)` | 批处理大小 | `aggregate()` query chain |
+| **`.explain(v)`** | `.explain(string?)` | 返回聚合执行计划 | `aggregate()` query chain |
+| **`.stream()`** | `.stream()` | 返回流式结果 | `aggregate()` query chain |
+| **`.toArray()`** | `.toArray()` | 显式转换为数组 | `aggregate()` query chain |
 
-#### 📝 使用示例
+#### 📝 使用示例（2. aggregate() 方法）
 
 ```javascript
 // 基础聚合
@@ -311,7 +311,7 @@ const allPlans = await collection('orders').aggregate([
   { $sort: { createdAt: -1 } },
   { $limit: 100 }
 ]).explain('allPlansExecution');
-```
+```text
 
 #### 🔍 verbosity 参数说明
 
@@ -416,7 +416,7 @@ await cursor.forEach(doc => console.log(doc));
 const stream = collection('users').find({ status: 'active' }, { stream: true });
 stream.on('data', doc => console.log(doc));
 stream.on('end', () => console.log('完成'));
-```
+```text
 
 ---
 

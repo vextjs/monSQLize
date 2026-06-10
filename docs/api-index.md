@@ -175,6 +175,69 @@
 
 ---
 
+## 🧭 入口、示例与站点页面
+
+| 文档 | 说明 |
+|------|------|
+| [README.md](README.md) | docs 目录索引 |
+| [index.md](index.md) | 文档站首页 |
+| [api-index.md](api-index.md) | 当前 API 参考索引 |
+| [getting-started.md](getting-started.md) | 入门指南 |
+| [examples.md](examples.md) | 示例索引 |
+| [recipes.md](recipes.md) | 常见配方 |
+| [capability-index.md](capability-index.md) | 能力索引 |
+
+---
+
+## 🗂️ 管理、索引与表达式
+
+| 文档 | 说明 |
+|------|------|
+| [admin.md](admin.md) | 管理 API |
+| [database-ops.md](database-ops.md) | 数据库操作 |
+| [create-index.md](create-index.md) | 创建单个索引 |
+| [create-indexes.md](create-indexes.md) | 批量创建索引 |
+| [drop-index.md](drop-index.md) | 删除索引 |
+| [list-indexes.md](list-indexes.md) | 列出索引 |
+| [find-and-count.md](find-and-count.md) | 查询并计数 |
+| [expression-functions.md](expression-functions.md) | 表达式函数 |
+| [quick-upsert.md](quick-upsert.md) | 快速 upsert |
+
+---
+
+## 🧩 运行时、部署与治理
+
+| 文档 | 说明 |
+|------|------|
+| [runtime-architecture.md](runtime-architecture.md) | 运行时架构 |
+| [support-matrix.md](support-matrix.md) | 支持矩阵 |
+| [roadmap-boundaries.md](roadmap-boundaries.md) | 路线图边界 |
+| [file-dependency-governance.md](file-dependency-governance.md) | 文件依赖治理 |
+| [capability-traceability.md](capability-traceability.md) | 能力可追溯性 |
+| [release-preflight.md](release-preflight.md) | 发布前检查 |
+| [verification-entrypoints.md](verification-entrypoints.md) | 验证入口 |
+| [validation.md](validation.md) | 验证说明 |
+
+---
+
+## 🔎 ObjectId、缓存与排障
+
+| 文档 | 说明 |
+|------|------|
+| [objectid-conversion-scope.md](objectid-conversion-scope.md) | ObjectId 转换范围 |
+| [objectid-cross-version.md](objectid-cross-version.md) | ObjectId 跨版本说明 |
+| [objectid-cross-version-faq.md](objectid-cross-version-faq.md) | ObjectId 跨版本 FAQ |
+| [objectid-logging-optimization.md](objectid-logging-optimization.md) | ObjectId 日志优化 |
+| [cache-and-function-cache.md](cache-and-function-cache.md) | 缓存与函数缓存对比 |
+| [cache-hub-migration.md](cache-hub-migration.md) | cache-hub 迁移 |
+| [slow-query-log.md](slow-query-log.md) | 慢查询日志 |
+| [failure-recovery-examples.md](failure-recovery-examples.md) | 故障恢复示例 |
+| [multi-pool-health-check.md](multi-pool-health-check.md) | 多连接池健康检查 |
+| [distributed-deployment-quickref.md](distributed-deployment-quickref.md) | 分布式部署速查 |
+| [model/relations-quickstart.md](model/relations-quickstart.md) | Relations 快速开始 |
+
+---
+
 ## 🚀 快速开始路径
 
 **新用户推荐阅读顺序**:
@@ -190,8 +253,9 @@
 
 ---
 
-**文档总数**: 96个
-**最后更新**: 2026-06-03
+**文档总数**: 97 个
+**索引覆盖**: 97/97（含当前索引页）
+**最后更新**: 2026-06-10
 **新增**: 
 - ✨ esm-support.md - ES Module (import) 支持
 - ✨ findOneAnd-return-value-unified.md - 返回值统一说明

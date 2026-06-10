@@ -1,44 +1,44 @@
 # MongoDB 驱动版本兼容性指南
 
-**文档版本**: 2.0  
-**最后更新**: 2025-01-02  
-**适用版本**: monSQLize v1.x
+**文档版本**: 当前 main / unreleased
+**最后更新**: 2026-06-10
+**适用版本**: monSQLize v2.0.2+
 
 ---
 
 ## 📑 目录
 
-- [📋 概述](#-概述)
-- [🎯 当前支持的驱动版本](#-当前支持的驱动版本)
-- [✅ monSQLize 自动处理的差异](#-monsqlize-自动处理的差异)
-- [🛡️ monSQLize 的兼容性保证](#️-monsqlize-的兼容性保证)
-- [🚀 未来驱动升级指南](#-未来驱动升级指南)
-- [📊 测试策略](#-测试策略)
-- [🔧 开发者指南](#-开发者指南)
-- [📖 相关资源](#-相关资源)
-- [❓ FAQ](#-faq)
-- [📝 更新日志](#-更新日志)
+- [概述](#概述)
+- [当前支持的驱动版本](#当前支持的驱动版本)
+- [monSQLize 对版本差异的处理](#monsqlize-对版本差异的处理)
+- [monSQLize 的兼容性保证](#monsqlize-的兼容性保证)
+- [未来驱动升级指南](#未来驱动升级指南)
+- [测试策略](#测试策略)
+- [开发者指南](#开发者指南)
+- [相关资源](#相关资源)
+- [FAQ](#faq)
+- [更新日志](#更新日志)
 
 ---
 
-## �📋 概述
+## 📋 概述
 
 本文档说明 monSQLize 如何处理 MongoDB Node.js 驱动的版本差异，以及如何确保未来驱动升级时的兼容性。
 
-**✅ 重要更新**: monSQLize 现已完全支持 MongoDB Driver 4.x, 5.x, 6.x，并自动处理所有 API 差异。
+**当前口径**: monSQLize 默认随包安装 `mongodb@6.21.0` 作为运行时基线；Driver 7.2.0 已通过扩展兼容性验证。Driver 4.x / 5.x 属于历史兼容背景，不再作为当前默认支持矩阵。
 
 ---
 
 ## 🎯 当前支持的驱动版本
 
-### 官方支持
+### 当前支持矩阵
 
 | MongoDB 驱动版本 | 支持状态 | 测试状态 | 说明 |
 |-----------------|---------|---------|------|
-| **4.x** (4.17.2) | ✅ 完全支持 | ✅ 已测试 | 自动适配连接选项和返回值 |
-| **5.x** (5.9.2) | ✅ 完全支持 | ✅ 已测试 | 自动统一返回值格式 |
-| **6.x** (6.17.0) | ✅ 完全支持 | ✅ 已测试 | 推荐版本 ⭐⭐⭐⭐⭐ |
-| **7.x+** | ⚠️ 未知 | ⏸️ 待测试 | 未经测试，可能需要适配 |
+| **6.x** (6.21.0) | ✅ 运行时基线 | ✅ 默认验证 | package 精确依赖，开箱即用 |
+| **7.x** (7.2.0) | ✅ 扩展兼容 | ✅ 矩阵验证 | 用于提前发现上游 breaking change |
+| **4.x / 5.x** | ℹ️ 历史兼容参考 | ⚠️ 不在当前默认矩阵 | 旧版本迁移背景；新项目建议使用默认依赖 |
+| **8.x+** | ⚠️ 待评估 | ⏸️ 未纳入当前矩阵 | 升级前需按本文验证流程确认 |
 
 ### 依赖声明
 
@@ -46,23 +46,23 @@
 ```json
 {
   "dependencies": {
-    "mongodb": "^6.17.0"
+    "mongodb": "6.21.0"
   }
 }
 ```
 
 **说明**: 
-- `^6.17.0` 表示兼容 6.17.0 到 <7.0.0 的所有版本
-- monSQLize 内部已处理 4.x/5.x/6.x 的差异
-- 用户可以使用任意支持的版本，无需修改代码
+- 用户安装 monSQLize 后默认获得 `mongodb@6.21.0`，无需额外安装 MongoDB driver。
+- Driver 7.2.0 通过兼容性验证，但不是当前 package 的默认运行时依赖。
+- 如包管理器裁剪、覆盖依赖或 workspace 解析导致 driver 不可用，优先恢复完整安装，再执行本文验证命令。
 
 ---
 
-## ✅ monSQLize 自动处理的差异
+## ✅ monSQLize 对版本差异的处理
 
-### 1. findOneAnd* 方法的返回值统一 ✅
+### 1. findOneAnd* 方法的返回值
 
-这是最重要的差异，monSQLize 已完全自动处理。
+这是最重要的差异。当前 monSQLize 默认运行在 MongoDB Driver 6.21.0 上，并通过 Driver 7.2.0 扩展矩阵验证公共 API 行为。
 
 #### MongoDB 驱动版本差异
 
@@ -80,7 +80,7 @@ const result = await collection.findOneAndUpdate(filter, update);
 }
 ```
 
-**Driver 5.x/6.x 返回格式**（简化）:
+**Driver 5.x 返回格式**:
 ```javascript
 const result = await collection.findOneAndUpdate(filter, update);
 // result 格式：
@@ -89,12 +89,21 @@ const result = await collection.findOneAndUpdate(filter, update);
 }
 ```
 
-#### ✅ monSQLize 统一处理
+**Driver 6.x / 7.x 默认返回格式**:
+```javascript
+const result = await collection.findOneAndUpdate(filter, update);
+// result 格式：
+{
+  _id: ...,
+  name: "Alice"
+}
+```
 
-**用户代码完全相同，无论使用哪个 Driver 版本**：
+#### ✅ monSQLize 当前行为
+
+**使用默认安装时，用户代码直接接收文档或 `null`：**
 
 ```javascript
-// 使用 monSQLize，所有 Driver 版本返回格式统一
 const user = await collection.findOneAndUpdate(
   { name: 'Alice' },
   { $set: { age: 31 } }
@@ -108,28 +117,11 @@ console.log(user);  // { _id: ..., name: "Alice", age: 31 }
 // ❌ 不需要: if (result.ok) return result;
 ```
 
-**实现原理**：
+**实现边界**:
 
-monSQLize 内部的 `test/utils/version-adapter.js` 自动检测 Driver 版本并统一返回值：
-
-```javascript
-// monSQLize 内部自动处理
-adaptFindOneAndUpdateResult(result) {
-  if (!result) return null;
-  
-  // Driver 5.x/6.x: 直接返回 value
-  if (result.value !== undefined && !result.ok) {
-    return result.value;
-  }
-  
-  // Driver 4.x: 提取 value
-  if (result.ok && result.value !== undefined) {
-    return result.value;
-  }
-  
-  return result;
-}
-```
+- monSQLize 以 `mongodb@6.21.0` 精确依赖提供开箱即用行为。
+- Driver 7.2.0 通过 `test:compatibility` 与 server matrix 验证。
+- 如果应用强制覆盖为历史 Driver 4.x / 5.x，需要自行验证返回值差异，不建议新项目这样做。
 
 **适用的方法**：
 - ✅ findOneAndUpdate
@@ -138,26 +130,7 @@ adaptFindOneAndUpdateResult(result) {
 
 ---
 
-### 2. 连接选项自动适配 ✅
-
-console.log(result);
-// 输出：
-// {
-//   value: { _id: ..., name: "Alice" },
-//   ok: 1,
-//   lastErrorObject: { 
-//     updatedExisting: true, 
-//     n: 1 
-//   }
-// }
-```
-
-**特点**:
-- ✅ 默认返回完整元数据
-- ✅ 包含 `value`（文档）、`ok`（状态）、`lastErrorObject`（详细信息）
-- ✅ 可以直接判断操作是否成功
-
-#### MongoDB 驱动 6.x
+### 2. `includeResultMetadata` 明确控制
 
 ```javascript
 // 默认行为（不带选项）
@@ -185,121 +158,67 @@ console.log(result);
 ```
 
 **特点**:
-- ❌ 默认不返回元数据，直接返回文档
-- ✅ 需要 `includeResultMetadata: true` 才返回完整元数据
-- ⚠️ **破坏性变更**：旧代码访问 `result.lastErrorObject` 会报错
+- 默认不返回元数据，直接返回文档或 `null`。
+- 需要 `includeResultMetadata: true` 时，显式传入原生 MongoDB Driver 选项。
+- 从旧 Driver 元数据返回值迁移时，应避免继续无条件读取 `result.lastErrorObject`。
 
 ### 其他受影响的方法
 
-| 方法 | 驱动 5.x | 驱动 6.x | 是否变化 |
+| 方法 | Driver 5.x 历史默认 | Driver 6.21.0 / 7.2.0 默认 | 当前建议 |
 |------|---------|---------|---------|
-| **findOneAndUpdate** | `{ value, ok, lastErrorObject }` | 文档对象 | ✅ 已变化 |
-| **findOneAndReplace** | `{ value, ok, lastErrorObject }` | 文档对象 | ✅ 已变化 |
-| **findOneAndDelete** | `{ value, ok, lastErrorObject }` | 文档对象 | ✅ 已变化 |
-| **updateOne** | `{ acknowledged, matchedCount, ... }` | 相同 | ❌ 未变化 |
-| **updateMany** | `{ acknowledged, matchedCount, ... }` | 相同 | ❌ 未变化 |
-| **deleteOne** | `{ acknowledged, deletedCount }` | 相同 | ❌ 未变化 |
-| **deleteMany** | `{ acknowledged, deletedCount }` | 相同 | ❌ 未变化 |
-| **replaceOne** | `{ acknowledged, matchedCount, ... }` | 相同 | ⚠️ 行为微调* |
+| **findOneAndUpdate** | `{ value, ok, lastErrorObject }` | 文档对象或 `null` | 使用默认依赖，无需提取 `value` |
+| **findOneAndReplace** | `{ value, ok, lastErrorObject }` | 文档对象或 `null` | 使用默认依赖，无需提取 `value` |
+| **findOneAndDelete** | `{ value, ok, lastErrorObject }` | 文档对象或 `null` | 使用默认依赖，无需提取 `value` |
+| **updateOne** | `{ acknowledged, matchedCount, ... }` | 相同 | 按原生结果处理 |
+| **updateMany** | `{ acknowledged, matchedCount, ... }` | 相同 | 按原生结果处理 |
+| **deleteOne** | `{ acknowledged, deletedCount }` | 相同 | 按原生结果处理 |
+| **deleteMany** | `{ acknowledged, deletedCount }` | 相同 | 按原生结果处理 |
+| **replaceOne** | `{ acknowledged, matchedCount, ... }` | 相同 | 按原生结果处理 |
 
-**注**: replaceOne 的 `modifiedCount` 计算方式有微调，即使内容相同也可能返回 1。
+**注**: Driver 4.x / 5.x 只作为历史迁移参考。当前文档不再把它们作为默认安装后的用户验证路径。
 
 ---
 
 ## 🛡️ monSQLize 的兼容性保证
 
-### 核心策略：适配层模式
+### 核心策略：精确依赖 + 薄封装 + 矩阵验证
 
-monSQLize 使用**适配层模式**隔离驱动版本差异：
+monSQLize 不要求用户手动安装或选择 MongoDB Driver。当前包通过以下方式降低使用负担：
 
-```
-用户代码
-    ↓
-monSQLize 公共 API（保持不变）
-    ↓
-result-handler.js（适配层）← 处理驱动差异
-    ↓
-MongoDB 驱动（可能变化）
-```
+- `package.json` 精确声明 `mongodb@6.21.0`，安装后即可使用。
+- 写入与查询 API 保持薄封装，默认透传当前 Driver 的稳定行为。
+- `test:compatibility` 与 server matrix 覆盖当前基线和 Driver 7.2.0 扩展验证。
+- 历史 Driver 4.x / 5.x 只作为迁移参考，不作为当前用户路径承诺。
 
-### 关键实现：result-handler.js
+### 关键实现位置
 
-**位置**: `lib/mongodb/writes/result-handler.js`
+**位置**: `src/adapters/mongodb/writes/`
 
 **职责**:
-1. ✅ 统一处理 `findOneAnd*` 的返回值
-2. ✅ 自动检测和适配驱动版本差异
-3. ✅ 提供一致的 API 行为
-4. ✅ 记录异常情况和版本警告
+1. 调用原生 `collection.findOneAndUpdate` / `findOneAndReplace` / `findOneAndDelete`
+2. 保持当前 Driver 默认返回文档或 `null` 的行为
+3. 对批量写入、upsert、increment 等扩展方法提供 monSQLize 自身封装
+4. 通过测试矩阵发现上游 Driver 行为漂移
 
 **核心函数**:
 
 ```javascript
-// 1. 处理返回值格式差异
-handleFindOneAndResult(result, options, logger)
-
-// 2. 安全判断文档是否被修改
-wasDocumentModified(result)
-
-// 3. 检测驱动版本
-detectDriverVersion()
-
-// 4. 输出版本警告
-warnUnsupportedDriverVersion(logger)
+findOneAndUpdateDocument(collection, filter, update, options)
+findOneAndReplaceDocument(collection, filter, replacement, options)
+findOneAndDeleteDocument(collection, filter, options)
 ```
 
-### 版本检测机制
+### 版本治理机制
 
-**自动检测**:
-- 首次调用 `findOneAnd*` 方法时自动检测驱动版本
-- 检测逻辑：读取 `require("mongodb").version` 或 `package.json`
-
-**警告机制**:
-```javascript
-// 驱动版本 < 6.x
-logger.warn("[result-handler] ⚠️ 检测到 MongoDB 驱动版本过旧", {
-  detectedVersion: 5,
-  supportedVersion: "6.x",
-  message: "monSQLize 专为 MongoDB 驱动 6.x 设计，旧版本可能存在兼容性问题",
-  recommendation: "建议升级到 MongoDB Node.js 驱动 ^6.0.0"
-});
-
-// 驱动版本 > 6.x
-logger.warn("[result-handler] ⚠️ 检测到 MongoDB 驱动版本未经测试", {
-  detectedVersion: 7,
-  testedVersion: "6.x",
-  message: "monSQLize 已针对 MongoDB 驱动 6.x 测试，新版本可能存在未知问题",
-  recommendation: "如遇问题，请查看技术分析报告或回退到驱动 6.x"
-});
-```
+- 默认安装路径不需要用户声明 `mongodb`。
+- 兼容性验证临时覆盖 driver 版本，验证后恢复 `mongodb@6.21.0`。
+- CI / 发布前检查应以 `npm ls mongodb` 和 `npm run test:compatibility` 作为证据。
 
 ### 异常情况处理
 
-**场景 1: result 为 null**
-```javascript
-// 驱动在某些边界情况可能返回 null
-handleFindOneAndResult(null, {});
-// 返回: null（用户视角正常）
-
-// 日志输出
-logger.debug("[result-handler] Result is null/undefined, returning empty result");
-```
-
-**场景 2: 缺少 lastErrorObject**
-```javascript
-// 驱动返回了非预期格式
-const result = { _id: 1, name: "Alice" }; // 缺少 value 和 lastErrorObject
-handleFindOneAndResult(result, {});
-
-// 自动补充缺失字段
-// 日志输出
-logger.warn("[result-handler] ⚠️ Result missing lastErrorObject, possible driver version issue", {
-  hasValue: false,
-  resultKeys: ["_id", "name"],
-  driverVersion: 6,
-  recommendation: "这可能表明 MongoDB 驱动返回了非预期的格式，请检查驱动版本"
-});
-```
+- 没有匹配文档时，`findOneAnd*` 返回 `null`。
+- 如果调用方显式传入 `includeResultMetadata: true`，返回值遵循 MongoDB Driver 原生元数据结构。
+- 如果应用覆盖为历史 Driver 并得到 `{ value, ok, lastErrorObject }`，应先恢复默认依赖或在应用层完成迁移验证。
 
 ---
 
@@ -307,7 +226,7 @@ logger.warn("[result-handler] ⚠️ Result missing lastErrorObject, possible dr
 
 ### 升级前检查清单
 
-当 MongoDB 发布新的主版本驱动时（如 7.x），请按以下步骤操作：
+当 MongoDB 发布新的主版本驱动时（如未来 8.x），请按以下步骤操作：
 
 #### 步骤 1：阅读官方文档 ✅
 
@@ -325,27 +244,25 @@ logger.warn("[result-handler] ⚠️ Result missing lastErrorObject, possible dr
 # 1. 创建测试分支
 git checkout -b test/mongodb-driver-upgrade
 
-# 2. 升级驱动
-npm install mongodb@^7.0.0
+# 2. 临时覆盖到待验证版本
+npm install mongodb@next --no-save --package-lock=false
 
-# 3. 运行完整测试套件
-npm test
+# 3. 运行兼容性验证
+npm run test:compatibility
+npm run test:server-matrix
 
-# 4. 检查测试结果
-# - 关注 findOneAndUpdate 测试（22 个）
-# - 关注 findOneAndDelete 测试（18 个）
-# - 关注 findOneAndReplace 测试（20 个）
-# - 关注 replaceOne 测试（24 个）
+# 4. 恢复默认运行时依赖
+npm install mongodb@6.21.0 --no-save --package-lock=false
 ```
 
 #### 步骤 3：检查日志输出 ✅
 
 ```bash
-# 运行测试并查看警告日志
-npm test 2>&1 | grep "result-handler"
+# 查看当前解析到的 driver 版本
+npm ls mongodb
 
-# 查找版本警告
-npm test 2>&1 | grep "检测到 MongoDB 驱动版本"
+# 查看兼容性矩阵结果
+npm run test:compatibility
 ```
 
 #### 步骤 4：修复兼容性问题 ✅
@@ -355,7 +272,7 @@ npm test 2>&1 | grep "检测到 MongoDB 驱动版本"
 1. **定位问题**:
    ```bash
    # 运行特定测试套件
-   npm test -- --grep "findOneAndUpdate"
+   npm run test:compatibility -- --grep "findOneAnd"
    ```
 
 2. **分析错误**:
@@ -363,10 +280,10 @@ npm test 2>&1 | grep "检测到 MongoDB 驱动版本"
    - 是否是新增/删除的字段？
    - 是否是行为逻辑变化？
 
-3. **修改适配层**:
-   - 优先修改 `result-handler.js`
+3. **修改封装层或矩阵**:
+   - 优先检查 `src/adapters/mongodb/writes/` 与 `src/adapters/mongodb/common/`
    - 保持公共 API 不变
-   - 添加新的驱动版本检测逻辑
+   - 如只是验证范围变化，先更新 `test/compatibility/matrix.json`
 
 4. **更新文档**:
    - 更新本文档的"支持的驱动版本"
@@ -380,7 +297,7 @@ npm test 2>&1 | grep "检测到 MongoDB 驱动版本"
 npm test
 
 # 覆盖率检查
-npm run coverage
+npm run test:coverage
 
 # 确保没有回归问题
 ```
@@ -392,7 +309,7 @@ npm run coverage
 **场景**: 驱动 7.x 返回 `{ document, metadata }` 格式
 
 ```javascript
-// lib/mongodb/writes/result-handler.js
+// src/adapters/mongodb/writes/index.ts
 
 function handleFindOneAndResult(result, options = {}, logger = null) {
     const driverVersion = detectDriverVersion();
@@ -423,9 +340,9 @@ function handleFindOneAndResult(result, options = {}, logger = null) {
 ```
 
 **关键点**:
-- ✅ 仅修改 `result-handler.js`
-- ✅ 公共 API 保持不变
-- ✅ 用户代码无需修改
+- 先用临时 driver 覆盖验证公共 API 行为。
+- 如发现 breaking change，优先在 `src/adapters/mongodb/` 的薄封装层修复。
+- 公共 API 保持不变，用户代码无需修改。
 
 ---
 
@@ -433,13 +350,13 @@ function handleFindOneAndResult(result, options = {}, logger = null) {
 
 ### 测试覆盖范围
 
-| 测试类型 | 测试用例数 | 说明 |
+| 测试类型 | 命令 / 入口 | 说明 |
 |---------|-----------|------|
-| **findOneAndUpdate** | 22 | 覆盖所有选项和边界情况 |
-| **findOneAndDelete** | 18 | 覆盖排序、projection 等 |
-| **findOneAndReplace** | 20 | 覆盖 upsert、缓存等 |
-| **replaceOne** | 24 | 覆盖驱动行为变化 |
-| **其他写操作** | 100+ | 确保无回归 |
+| **兼容性矩阵** | `npm run test:compatibility` | 覆盖当前基线与扩展 driver 组合 |
+| **服务矩阵** | `npm run test:server-matrix` | 覆盖真实 MongoDB / memory server 场景 |
+| **验证进度** | `test/validation/VERIFICATION-PROGRESS.md` | 记录 Driver 7.2.0 扩展验证状态 |
+| **真实服务结果** | `test/validation/REAL-SERVER-MATRIX.md` | 记录真实服务矩阵验收 |
+| **矩阵配置** | `test/compatibility/matrix.json` | 维护待验证的版本组合 |
 
 ### 关键测试场景
 
@@ -456,18 +373,14 @@ function handleFindOneAndResult(result, options = {}, logger = null) {
 ### 自动化测试命令
 
 ```bash
-# 运行所有测试
-npm test
+# 运行当前兼容性矩阵
+npm run test:compatibility
 
-# 仅运行 findOneAnd* 测试
-npm test -- --grep "findOneAnd"
+# 运行 MongoDB server matrix
+npm run test:server-matrix
 
-# 测试覆盖率
-npm run coverage
-
-# 查看覆盖率报告
-open coverage/index.html  # macOS
-start coverage/index.html  # Windows
+# 查看当前解析到的 driver
+npm ls mongodb
 ```
 
 ---
@@ -479,40 +392,34 @@ start coverage/index.html  # Windows
 如果未来需要添加类似的方法（如自定义的 `findOneAndModify`），请遵循以下模式：
 
 ```javascript
-// lib/mongodb/writes/custom-find-one-and-modify.js
-
-const { handleFindOneAndResult, wasDocumentModified } = require("./result-handler");
+// src/adapters/mongodb/writes/custom-find-one-and-modify.ts
 
 async function customFindOneAndModify(filter, modification, options = {}) {
-    const { logger } = this.context;
-    
     try {
-        // 1. 强制获取完整元数据
-        const driverOptions = { ...options, includeResultMetadata: true };
-        
-        // 2. 调用 MongoDB 驱动
+        // 1. Pass through supported native driver options explicitly.
+        const driverOptions = { ...options };
+
+        // 2. Call the native driver method.
         const result = await nativeCollection.customMethod(filter, modification, driverOptions);
-        
-        // 3. 判断是否需要失效缓存
-        const wasModified = wasDocumentModified(result);
-        if (cache && wasModified) {
-            // 缓存失效逻辑
+
+        // 3. Invalidate cache only after a confirmed write path.
+        if (cache) {
+            // cache invalidation logic
         }
-        
-        // 4. 使用统一的返回值处理（传递 logger）
-        return handleFindOneAndResult(result, options, logger);
-        
+
+        // 4. Return the native document/null shape for the current driver baseline.
+        return result;
     } catch (error) {
-        // 错误处理
+        throw error;
     }
 }
 ```
 
 **关键点**:
-- ✅ 使用 `includeResultMetadata: true`
-- ✅ 使用 `wasDocumentModified()` 判断缓存失效
-- ✅ 使用 `handleFindOneAndResult()` 处理返回值
-- ✅ 传递 `logger` 参数用于诊断
+- 保持 TypeScript 类型与 `Collection<TSchema>` 方法签名一致。
+- 不新增隐藏版本探测逻辑；版本差异用矩阵测试发现。
+- 需要元数据时由调用方显式传入 `includeResultMetadata: true`。
+- 修改后同步更新 `test/compatibility/` 和验证文档。
 
 ---
 
@@ -520,10 +427,10 @@ async function customFindOneAndModify(filter, modification, options = {}) {
 
 ### 内部文档
 
-- **技术分析报告**: `analysis-reports/2025-11-17-mongodb-driver-6x-compatibility-FINAL.md`
-  - 详细的问题分析
-  - 修复方案对比
-  - 经验教训和最佳实践
+- **验证入口**:
+  - `test/validation/VERIFICATION-PROGRESS.md` - 当前验证进度
+  - `test/validation/REAL-SERVER-MATRIX.md` - 真实服务矩阵结果
+  - `test/compatibility/matrix.json` - Driver / server 版本矩阵配置
 
 - **API 文档**:
   - `docs/find-one-and-update.md` - 包含兼容性说明
@@ -542,13 +449,13 @@ async function customFindOneAndModify(filter, modification, options = {}) {
 
 ### Q1: 如果我使用的是 MongoDB 驱动 5.x，会有问题吗？
 
-**A**: 理论上可以工作，但未经充分测试。建议升级到 6.x：
+**A**: 当前默认安装不会解析到 Driver 5.x。若应用通过 package manager overrides 强制替换为 5.x，请先恢复默认依赖：
 
 ```bash
-npm install mongodb@^6.17.0
+npm install mongodb@6.21.0
 ```
 
-如果必须使用 5.x，请运行完整测试套件确认兼容性。
+如果必须使用 5.x，请自行运行兼容性验证，并在应用层处理 `{ value, ok, lastErrorObject }` 与文档对象之间的差异。
 
 ### Q2: 如何知道当前使用的驱动版本？
 
@@ -565,16 +472,16 @@ const mongodb = require("mongodb");
 console.log("MongoDB Driver Version:", mongodb.version);
 ```
 
-### Q3: 升级到驱动 7.x 后测试失败，怎么办？
+### Q3: 升级到未来 driver 主版本后测试失败，怎么办？
 
 **A**: 按照"未来驱动升级指南"操作：
 
 1. 查看失败的测试套件（特别是 `findOneAnd*`）
 2. 分析错误日志
-3. 修改 `result-handler.js` 适配新格式
+3. 在 `src/adapters/mongodb/` 对应薄封装层评估是否需要兼容处理
 4. 保持公共 API 不变
 
-如需帮助，请参考技术分析报告或提交 Issue。
+如需帮助，请附上 `test:compatibility` 与 server matrix 输出提交 Issue。
 
 ### Q4: 为什么只有 findOneAnd* 方法受影响？
 
@@ -596,6 +503,7 @@ console.log("MongoDB Driver Version:", mongodb.version);
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-06-10 | 当前 main | 更新为 `mongodb@6.21.0` 运行时基线与 Driver 7.2.0 扩展验证口径 |
 | 2025-11-17 | 1.0 | 初始版本 - 添加驱动 6.x 兼容性说明 |
 
 ---

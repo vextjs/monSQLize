@@ -6,11 +6,12 @@ const projectRoot = path.resolve(__dirname, '..', '..');
 const packageJson = require(path.join(projectRoot, 'package.json'));
 const baseDriverRange = packageJson.dependencies.mongodb;
 const currentDriverVersion = readInstalledDriverVersion();
+const testDistRoot = path.join('.generated', 'test-dist');
 const mongoVersions = [
     { label: 'MongoDB 6.x', version: '6.0.14' },
     { label: 'MongoDB 7.x', version: '7.0.14' },
 ];
-const integrationSuites = [
+const integrationSourceSuites = [
     'test/integration/mongodb/connect.test.js',
     'test/integration/mongodb/queries.test.js',
     'test/integration/mongodb/management.test.js',
@@ -21,6 +22,7 @@ const integrationSuites = [
     'test/integration/transaction/transaction.test.js',
     'test/integration/sync/sync.test.js',
 ];
+const integrationSuites = integrationSourceSuites.map((suite) => path.join(testDistRoot, suite));
 
 function commandExists(command) {
     const lookupCommand = process.platform === 'win32' ? 'where' : 'which';

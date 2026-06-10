@@ -66,7 +66,7 @@ await msq.connect();
 ```
 
 **输出示例**：
-```
+```text
 ✅ 数据库连接成功
 实例 ID: a1b2c3d4
 连接 URI: mongodb://[REDACTED]@localhost:27017
@@ -108,7 +108,7 @@ await msq.close();
 ```
 
 **输出示例**：
-```
+```text
 🛑 数据库连接已关闭
 实例 ID: a1b2c3d4
 ```
@@ -153,7 +153,7 @@ try {
 ```
 
 **输出示例**：
-```
+```text
 ❌ 错误发生
 实例 ID: a1b2c3d4
 错误上下文: connect
@@ -224,7 +224,7 @@ const products = await collection('products').find({
 ```
 
 **输出示例**：
-```
+```text
 🐢 慢查询警告
 操作: find
 集合: products
@@ -291,7 +291,7 @@ await collection('products').find({
 ```
 
 **输出示例**：
-```
+```text
 [Query] {
   operation: 'find',
   collection: 'products',

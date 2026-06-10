@@ -471,7 +471,7 @@ await collection("configs").replaceOne(
 
 ### 决策树
 
-```
+```text
 需要更新文档？
 ├─ 需要保留未修改的字段？
 │  ├─ 是 → 使用 updateOne + $set

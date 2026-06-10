@@ -10,7 +10,7 @@
 - `test/bootstrap/replset-server.js`
 - `mongodb-memory-server`
 
-这条链路直接验证当前 runtime 在 **MongoDB 6.x / 7.x 二进制**上的行为闭环；默认使用内存版 MongoDB，不再要求外部数据库服务。
+这条链路会先把 TypeScript 测试编译到 `.generated/test-dist/test/**`，再直接验证当前 runtime 在 **MongoDB 6.x / 7.x 二进制**上的行为闭环；默认使用内存版 MongoDB，不再要求外部数据库服务。
 
 ## 2. 输入方式
 
@@ -50,20 +50,20 @@ npm run test:server-matrix
 
 ### 4.1 普通服务端路径
 
-- `test/integration/mongodb/connect.test.js`
-- `test/integration/mongodb/queries.test.js`
-- `test/integration/mongodb/management.test.js`
-- `test/integration/mongodb/writes-batch.test.js`
-- `test/integration/model/model-features.test.js`
-- `test/integration/pool/pool.test.js`
-- `test/integration/slow-query-log/slow-query-log.test.js`
+- `.generated/test-dist/test/integration/mongodb/connect.test.js`
+- `.generated/test-dist/test/integration/mongodb/queries.test.js`
+- `.generated/test-dist/test/integration/mongodb/management.test.js`
+- `.generated/test-dist/test/integration/mongodb/writes-batch.test.js`
+- `.generated/test-dist/test/integration/model/model-features.test.js`
+- `.generated/test-dist/test/integration/pool/pool.test.js`
+- `.generated/test-dist/test/integration/slow-query-log/slow-query-log.test.js`
 
 这些测试在矩阵脚本中会分别对 `MongoDB 6.0.14` / `7.0.14` 执行。
 
 ### 4.2 Replica Set 路径
 
-- `test/integration/transaction/transaction.test.js`
-- `test/integration/sync/sync.test.js`
+- `.generated/test-dist/test/integration/transaction/transaction.test.js`
+- `.generated/test-dist/test/integration/sync/sync.test.js`
 
 这些测试同样在矩阵脚本中分别对 `MongoDB 6.0.14` / `7.0.14` 执行。
 

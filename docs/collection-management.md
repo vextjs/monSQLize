@@ -161,23 +161,23 @@ console.log('✅ 带验证规则的集合创建成功');
 
 删除集合及其所有数据。
 
-#### 方法签名
+#### 方法签名（dropCollection()）
 
 ```javascript
 await collection('collectionName').dropCollection()
 ```
 
-#### 参数说明
+#### 参数说明（dropCollection()）
 
 无参数。删除当前绑定的集合。
 
-#### 返回值
+#### 返回值（dropCollection()）
 
 ```javascript
 Promise<boolean>  // 删除成功返回 true
 ```
 
-#### 使用示例
+#### 使用示例（dropCollection()）
 
 ```javascript
 const { collection } = await msq.connect();
@@ -202,13 +202,13 @@ console.log('✅ 集合已删除');
 
 创建视图集合（基于聚合管道的只读视图）。
 
-#### 方法签名
+#### 方法签名（createView()）
 
 ```javascript
 await collection('collectionName').createView(viewName, sourceCollection, pipeline)
 ```
 
-#### 参数说明
+#### 参数说明（createView()）
 
 | 参数 | 类型 | 必需 | 说明 |
 |------|------|------|------|
@@ -216,7 +216,7 @@ await collection('collectionName').createView(viewName, sourceCollection, pipeli
 | `sourceCollection` | string | ✅ | 源集合名称 |
 | `pipeline` | array | ❌ | 聚合管道（默认 `[]`） |
 
-#### 返回值
+#### 返回值（createView()）
 
 ```javascript
 Promise<boolean>  // 创建成功返回 true

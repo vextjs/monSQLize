@@ -2,6 +2,11 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const projectRoot = path.resolve(__dirname, '..', '..');
+const testDistRoot = path.join('.generated', 'test-dist');
+
+function distTest(suite) {
+    return path.join(testDistRoot, suite);
+}
 
 function run(command, args, extraEnv = {}) {
     const result = spawnSync(command, args, {
@@ -36,21 +41,22 @@ console.log(`[server-matrix] MONSQLIZE_MEMORY_MONGO_URI: ${memoryUri}`);
 console.log(`[server-matrix] MONSQLIZE_REPLSET_URI: ${replSetUri}`);
 
 run('npm', ['run', 'build']);
+run('npm', ['run', 'build:tests']);
 run('node', ['--test',
-    'test/integration/mongodb/connect.test.js',
-    'test/integration/mongodb/queries.test.js',
-    'test/integration/mongodb/management.test.js',
-    'test/integration/mongodb/writes-batch.test.js',
-    'test/integration/model/model-features.test.js',
-    'test/integration/pool/pool.test.js',
-    'test/integration/slow-query-log/slow-query-log.test.js',
+    distTest('test/integration/mongodb/connect.test.js'),
+    distTest('test/integration/mongodb/queries.test.js'),
+    distTest('test/integration/mongodb/management.test.js'),
+    distTest('test/integration/mongodb/writes-batch.test.js'),
+    distTest('test/integration/model/model-features.test.js'),
+    distTest('test/integration/pool/pool.test.js'),
+    distTest('test/integration/slow-query-log/slow-query-log.test.js'),
 ], {
     MONSQLIZE_MEMORY_MONGO_URI: memoryUri,
 });
 
 run('node', ['--test',
-    'test/integration/transaction/transaction.test.js',
-    'test/integration/sync/sync.test.js',
+    distTest('test/integration/transaction/transaction.test.js'),
+    distTest('test/integration/sync/sync.test.js'),
 ], {
     MONSQLIZE_MATRIX_MODE: '1',
     MONSQLIZE_REPLSET_URI: replSetUri,

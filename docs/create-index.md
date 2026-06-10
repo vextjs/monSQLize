@@ -733,7 +733,7 @@ const operations = await db.admin().command({
 - [`createIndexes()`](./create-indexes.md) - 批量创建多个索引
 - [`listIndexes()`](./list-indexes.md) - 列出集合的所有索引
 - [`dropIndex()`](./drop-index.md) - 删除指定索引
-- [`dropIndexes()`](./drop-index.md#dropIndexes) - 删除所有索引
+- [`dropIndexes()`](./drop-index.md#dropindexes---删除所有索引) - 删除所有索引
 - [索引管理完整指南](./collection-management.md) - 索引管理综合文档
 
 ---

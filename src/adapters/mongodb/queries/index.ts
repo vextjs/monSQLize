@@ -437,8 +437,8 @@ export async function findOneDocument<TSchema extends Document = Document>(
     ...args: Parameters<Collection<TSchema>['findOne']>
 ): ReturnType<Collection<TSchema>['findOne']> {
     const [query, options] = args;
-    const rawOptions = (options ?? {}) as FindOptions<TSchema> & { explain?: boolean | string; };
-    const findOptions: FindOptions<TSchema> = {};
+    const rawOptions = (options ?? {}) as FindOptions & { explain?: boolean | string; };
+    const findOptions: FindOptions = {};
     if (rawOptions.projection !== undefined) findOptions.projection = rawOptions.projection;
     if (rawOptions.sort !== undefined) findOptions.sort = rawOptions.sort;
     if (rawOptions.maxTimeMS !== undefined) findOptions.maxTimeMS = rawOptions.maxTimeMS;

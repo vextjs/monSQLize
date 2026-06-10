@@ -561,7 +561,7 @@ const result2 = await collection('products').insertBatch(documents, {
 
 ## 8. 多层缓存（本地 + Redis）
 
-### MongoDB 原生：无缓存
+### MongoDB 原生：无缓存（8. 多层缓存（本地 + Redis））
 
 ```javascript
 // MongoDB 原生：每次都查询数据库

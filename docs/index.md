@@ -30,7 +30,7 @@ features:
     details: findPage (cursor/offset pagination), findOneById, findByIds, findAndCount, stream, explain and more — the most complete MongoDB query extension set.
     link: /api-index
   - title: 🏢 Enterprise-Grade Distributed
-    details: Distributed locks, SSH tunnels, Saga distributed transactions, Change Stream sync, slow-query logging — all zero-config out of the box.
+    details: Distributed locks, SSH tunnels, Saga distributed transactions, Change Stream sync, slow-query logging — runtime dependencies are installed by default, with external services enabled through explicit configuration.
     link: /capability-index
   - title: 🌐 Multi-Pool & Read/Write Split
     details: Load balancing, automatic failover, and pool().use().scopedCollection() chain access for advanced multi-database architectures.
@@ -39,7 +39,7 @@ features:
     details: Schema validation, lifecycle hooks, and Populate associations (6 methods). Progressive adoption — drop in without touching existing code.
     link: /model
   - title: 🔷 Full TypeScript
-    details: Complete type declarations, 100% v1 API compatible, 2284/2284 assertions pass in the current release preflight. Works side-by-side with Mongoose or native driver projects.
+    details: Complete type declarations, v1 compatibility guards, and current functional validation paths. Works side-by-side with Mongoose or native driver projects.
     link: /getting-started
   - title: 🔄 Saga Transactions
     details: Distributed saga orchestration with automatic compensation. Define multi-step workflows with rollback semantics across services.

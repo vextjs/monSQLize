@@ -157,13 +157,13 @@ npm run test:integration
 ## 🔗 相关资源
 
 - **文档**: 
-  - [文档标题](link)
+  - 文档标题（路径或 URL）
 - **示例**: 
-  - [示例标题](link)
+  - 示例标题（路径或 URL）
 - **Issue**: 
-  - [#123](link) - Issue标题
+  - #123（URL）- Issue标题
 - **PR**: 
-  - [#456](link) - PR标题
+  - #456（URL）- PR标题
 
 ---
 

@@ -1,7 +1,7 @@
 ﻿# 分布式部署指南
 
-**版本**: v2.2.0  
-**更新日期**: 2025-11-25
+**版本**: Unreleased (main)
+**更新日期**: 2026-06-09
 
 ---
 
@@ -36,7 +36,7 @@ monSQLize 支持单实例和多实例部署。在**单实例**环境下，所有
 
 ### 1. 单实例部署（✅ 推荐：小型应用）
 
-```
+```text
 ┌─────────────────────────────┐
 │   Node.js 实例               │
 │                              │
@@ -77,7 +77,7 @@ const msq = new MonSQLize({
 
 ### 2. 多实例 + 独立本地缓存（🔴 不推荐）
 
-```
+```text
 ┌───────────────────┐    ┌───────────────────┐
 │  实例 A           │    │  实例 B           │
 │ ┌──────────┐      │    │ ┌──────────┐      │
@@ -99,7 +99,7 @@ const msq = new MonSQLize({
 
 ### 3. 多实例 + Redis + 分布式缓存失效（🟢 推荐）
 
-```
+```text
 ┌───────────────────┐    ┌───────────────────┐
 │  实例 A           │    │  实例 B           │
 │ ┌──────────┐      │    │ ┌──────────┐      │
@@ -159,7 +159,7 @@ const msq = new MonSQLize({
 
 ### 4. 多实例 + 分布式事务锁（🟢 推荐：金融/交易）
 
-```
+```text
 ┌───────────────────┐    ┌───────────────────┐
 │  实例 A           │    │  实例 B           │
 │ ┌──────────┐      │    │ ┌──────────┐      │
@@ -314,7 +314,7 @@ await msq.withTransaction(async (tx) => {
 **原理**：使用 Redis Pub/Sub 广播缓存失效消息
 
 **工作流程**：
-```
+```text
 1. 实例 A 更新数据
 2. 实例 A 失效本地缓存 + Redis
 3. 实例 A 广播失效消息（Redis Pub/Sub）
@@ -357,7 +357,7 @@ cache: {
 **原理**：使用 Redis 存储事务锁信息，所有实例共享
 
 **工作流程**：
-```
+```text
 1. 实例 A 开启事务
 2. 在 Redis 中添加缓存锁（key + sessionId）
 3. 实例 B 查询数据
@@ -542,7 +542,7 @@ async connect() {
 #### 2. 写操作阶段（updateOne/deleteOne 等）
 
 ```javascript
-// lib/mongodb/writes/update-one.js
+// src/adapters/mongodb/writes/update-one.ts
 async function updateOne(filter, update, options) {
   // 步骤1: 执行 MongoDB 更新
   const result = await collection.updateOne(filter, update, options);
@@ -648,7 +648,7 @@ class DistributedCacheInvalidator {
 
 ### 完整调用链
 
-```
+```text
 写操作 (updateOne/deleteOne/...)
   ↓
 cache.delPattern(pattern)

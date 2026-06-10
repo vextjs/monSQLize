@@ -23,7 +23,7 @@
 
 健康检查器（HealthChecker）定期对所有连接池执行健康检查，发现问题后会自动标记连接池状态，并触发故障转移。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │              健康检查循环（每 5 秒）                       │
 └─────────────────────────────────────────────────────────┘
@@ -74,7 +74,7 @@
 
 **代码示例**:
 ```javascript
-// 在 lib/infrastructure/HealthChecker.js 中
+// Health-check flow used by the pool manager
 async _checkHealth(poolName) {
     const pool = this._poolManager._getPool(poolName);
     
@@ -153,7 +153,7 @@ try {
 
 ### 自动处理流程
 
-```
+```text
 问题发现
     ↓
 ┌──────────────┐

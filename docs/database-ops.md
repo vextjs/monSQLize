@@ -64,13 +64,13 @@ console.log(dbNames); // ['admin', 'config', 'local', 'mydb']
 2. **生产环境保护**: 生产环境默认禁止，需额外传入 `{ allowProduction: true }`
 3. **审计日志**: 所有删除尝试都会记录
 
-### 语法
+### 语法（dropDatabase()）
 
 ```javascript
 const result = await db._adapter.dropDatabase(databaseName, options);
 ```
 
-### 参数
+### 参数（dropDatabase()）
 
 - **databaseName** (string, 必需): 数据库名称
 - **options** (Object, 必需):
@@ -78,7 +78,7 @@ const result = await db._adapter.dropDatabase(databaseName, options);
   - `allowProduction` (boolean): 是否允许在生产环境执行，默认 `false`
   - `user` (string): 操作用户（用于审计）
 
-### 返回值
+### 返回值（dropDatabase()）
 
 - **类型**: `Promise<Object>`
 - **属性**:
@@ -86,7 +86,7 @@ const result = await db._adapter.dropDatabase(databaseName, options);
   - `database` (string): 被删除的数据库名称
   - `timestamp` (Date): 删除时间
 
-### 示例
+### 示例（dropDatabase()）
 
 #### ❌ 错误：未提供确认
 
@@ -147,23 +147,23 @@ try {
 
 列出当前数据库中的所有集合。
 
-### 语法
+### 语法（listCollections()）
 
 ```javascript
 const collections = await db._adapter.listCollections([options]);
 ```
 
-### 参数
+### 参数（listCollections()）
 
 - **options** (Object, 可选):
   - `nameOnly` (boolean): 仅返回集合名称，默认 `false`
 
-### 返回值
+### 返回值（listCollections()）
 
 - **不使用 nameOnly**: `Promise<Array<Object>>`
 - **使用 nameOnly**: `Promise<Array<string>>`
 
-### 示例
+### 示例（listCollections()）
 
 ```javascript
 // 获取详细信息
@@ -185,18 +185,18 @@ console.log(names); // ['users', 'orders', 'products']
 
 执行任意 MongoDB 命令。
 
-### 语法
+### 语法（runCommand()）
 
 ```javascript
 const result = await db._adapter.runCommand(command, [options]);
 ```
 
-### 参数
+### 参数（runCommand()）
 
 - **command** (Object, 必需): MongoDB 命令对象
 - **options** (Object, 可选): 命令选项
 
-### 示例
+### 示例（runCommand()）
 
 ```javascript
 // 执行 ping 命令

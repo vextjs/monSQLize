@@ -73,7 +73,7 @@ console.log(user.profile);  // { userId: '...', bio: '...', avatar: '...' }
 ```
 
 **数据结构**:
-```
+```text
 users collection:
 { _id: '1', username: 'john' }
 
@@ -116,7 +116,7 @@ console.log(user.posts);  // [{ title: '...', userId: '1' }, ...]
 ```
 
 **数据结构**:
-```
+```text
 users collection:
 { _id: '1', username: 'john' }
 
@@ -163,7 +163,7 @@ console.log(post.author);  // { _id: '1', username: 'john' }
 ```
 
 **数据结构**:
-```
+```text
 posts collection:
 { _id: 'post1', userId: '1', title: 'Hello World' }
 

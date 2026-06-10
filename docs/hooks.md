@@ -610,7 +610,7 @@ hooks: (model) => ({
 
 ### 单个 hook 的执行顺序
 
-```
+```text
 1. before hook 执行
    ↓
 2. 数据库操作执行

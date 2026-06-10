@@ -224,7 +224,7 @@ try {
 
 关闭数据库连接，正确清理所有资源。
 
-#### 方法签名
+#### 方法签名（close()）
 
 ```javascript
 async close()
@@ -238,7 +238,7 @@ async close()
 - ✅ 清理 ModelInstance 缓存（v1.2.1+）
 - ✅ 释放所有内部引用
 
-#### 使用示例
+#### 使用示例（close()）
 
 ```javascript
 import MonSQLize from 'monsqlize';

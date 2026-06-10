@@ -182,7 +182,7 @@ collation: {
 const activeUserCount = await collection('users').count({ status: 'active' });
 
 // activeUserCount = 42
-```
+```text
 
 **返回值类型**：`Promise<number>`
 
@@ -205,7 +205,7 @@ const plan = await collection('users').count(
 //     ...
 //   }
 // }
-```
+```text
 
 **返回值类型**：`Promise<Object>`
 
@@ -227,7 +227,7 @@ console.log(`活跃用户数: ${activeUsers}`);
 // 统计特定角色用户
 const adminCount = await collection('users').count({ role: 'admin' });
 console.log(`管理员数量: ${adminCount}`);
-```
+```text
 
 **适用场景**：
 - 统计集合总文档数
@@ -267,7 +267,7 @@ const recentOrders = await collection('orders').count({
     $lt: new Date('2025-02-01')
   }
 });
-```
+```text
 
 ### 3. 使用索引优化
 
@@ -292,7 +292,7 @@ const plan = await collection('orders').count(
 console.log('执行时间:', plan.executionStats.executionTimeMillis, 'ms');
 console.log('扫描文档数:', plan.executionStats.totalDocsExamined);
 console.log('扫描索引键数:', plan.executionStats.totalKeysExamined);
-```
+```text
 
 **性能优化建议**：
 - 为常用统计字段创建索引
@@ -316,7 +316,7 @@ const cachedCount = await collection('users').count(
   { status: 'active' },
   { cache: 5 * 60 * 1000 }
 );
-```
+```text
 
 **缓存策略**：
 - 对频繁统计且数据变化不频繁的场景启用缓存
@@ -334,7 +334,7 @@ const totalUsers = await collection('users').count();
 
 // 有条件查询使用 countDocuments（精确，但较慢）
 const activeUsers = await collection('users').count({ status: 'active' });
-```
+```text
 
 **性能差异**：
 - `estimatedDocumentCount`: 毫秒级，基于集合元数据
@@ -360,7 +360,7 @@ try {
     console.error('统计失败:', error.message);
   }
 }
-```
+```text
 
 **常见错误**：
 - `NOT_CONNECTED`: 数据库未连接
@@ -378,7 +378,7 @@ const count = await collection('orders').count({ customerName: 'Alice' });  // c
 
 // ✅ 推荐：索引字段统计（快）
 const count = await collection('orders').count({ customerId: 'USER-001' });  // customerId 已索引
-```
+```text
 
 ### 2. 查询条件优化
 
@@ -388,7 +388,7 @@ const count = await collection('users').count({ email: { $regex: /^admin/ } });
 
 // ✅ 推荐：精确匹配或前缀索引
 const count = await collection('users').count({ role: 'admin' });
-```
+```text
 
 ### 3. 缓存策略
 
@@ -404,7 +404,7 @@ const getDashboardStats = async () => {
   
   return { totalUsers, activeUsers };
 };
-```
+```text
 
 ### 4. 超时设置
 
@@ -414,7 +414,7 @@ const count = await collection('orders').count(
   { status: 'completed' },
   { maxTimeMS: 5000 }  // 5 秒超时
 );
-```
+```text
 
 ### 5. skip 和 limit 优化
 
@@ -424,7 +424,7 @@ const sampleCount = await collection('orders').count(
   { status: 'completed' },
   { limit: 1000 }
 );
-```
+```text
 
 ## 最佳实践
 

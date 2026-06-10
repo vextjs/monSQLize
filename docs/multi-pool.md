@@ -94,7 +94,7 @@ monSQLize 的多连接池功能允许您在单个应用程序中管理多个 Mon
 
 ### 架构概览
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    应用程序（Your App）                       │
 └─────────────────────────────────────────────────────────────┘
@@ -310,7 +310,7 @@ main().catch(console.error);
 | **custom** | 自定义角色 | 特殊业务需求 | 特定租户、测试环境 |
 
 **角色选择逻辑**（auto 策略）:
-```
+```text
 写操作(write) → primary
 读操作(read)  → secondary（优先） → primary（fallback）
 分析查询      → analytics（手动指定）
@@ -380,7 +380,7 @@ const pool = manager.selectPool('read', { pool: 'analytics' });
 | **secondary** | 使用 secondary | 优先使用副本 |
 
 **故障转移流程**:
-```
+```text
 请求 → 选择连接池
   ↓
 检查健康状态
@@ -1746,7 +1746,7 @@ try {
 
 ---
 
-## 完整示例
+## 完整示例（企业级多连接池管理）
 
 ### 基础示例
 
@@ -1965,7 +1965,7 @@ advancedExample().catch(console.error);
 
 ---
 
-## 🔗 相关文档
+## 🔗 相关文档（企业级多连接池管理）
 
 - [链式池/库访问 API（v1.3.0+）](./pool-chain-api.md) — 使用 `pool()` / `use()` 进行跨池跨库链式访问
 - [错误码参考](./error-codes.md) — 包含 `NO_POOL_MANAGER` / `POOL_NOT_FOUND` 等新错误码
