@@ -1,12 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-// model-utils is not exported by default index, read it from the source
-// Actually it IS exported - let's check:
-const MonSQLize = require('../../../dist/cjs/index.cjs');
-
-// toKey, unique, groupBy, getByPath, pickFields, applySort, serializeDocument
-const { toKey, unique, groupBy, getByPath, pickFields, applySort, serializeDocument } = MonSQLize;
+import { toKey, unique, groupBy, getByPath, pickFields, applySort, serializeDocument } from '../../../src/capabilities/model/model-utils';
 
 describe('toKey — branch coverage', () => {
     it('Date value → ISO string', () => {

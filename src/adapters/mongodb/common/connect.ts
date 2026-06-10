@@ -6,7 +6,7 @@
  * - When useMemoryServer is true, mongodb-memory-server starts automatically; no URI is required.
  */
 
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
 
@@ -17,10 +17,12 @@ import type { MongoConnectConfig, MongoConnectionState } from '../../../../types
 export type { MongoConnectConfig, MongoConnectionState } from '../../../../types/mongodb';
 
 const DEFAULT_MEMORY_SERVER_VERSION = '7.0.14';
+const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'examples-replset-', 'probe-single-', 'probe-replset-'];
 
 // Singleton memory server (v1 compatible: reuses an already-started instance)
 let _memoryServerInstance: { getUri(): string; stop(cleanupOptions?: { doCleanup?: boolean; force?: boolean }): Promise<boolean | void> } | null = null;
 let _memoryServerCleanupOptions: { doCleanup: true; force: boolean } = { doCleanup: true, force: true };
+let _memoryServerDbPath: string | null = null;
 const _memoryServerClients = new Set<MongoClient>();
 
 function setDefaultEnv(name: string, value: string): void {
@@ -31,6 +33,54 @@ function setDefaultEnv(name: string, value: string): void {
 
 function sanitizePathSegment(input: string): string {
     return input.replace(/[^a-zA-Z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '') || 'default';
+}
+
+function parseManagedPathPid(name: string): number | null {
+    if (!MANAGED_DB_PATH_PREFIXES.some((prefix) => name.startsWith(prefix))) {
+        return null;
+    }
+    const match = /-(\d+)-[^-]+$/.exec(name);
+    if (!match) {
+        return null;
+    }
+    const pid = Number.parseInt(match[1], 10);
+    return Number.isFinite(pid) && pid > 0 ? pid : null;
+}
+
+function isProcessAlive(pid: number): boolean {
+    if (pid === process.pid) {
+        return true;
+    }
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        return (error as { code?: string }).code === 'EPERM';
+    }
+}
+
+function pruneManagedDbRoot(dbRoot: string): void {
+    let entries: Array<{ isDirectory(): boolean; name: string }>;
+    try {
+        entries = readdirSync(dbRoot, { withFileTypes: true });
+    } catch {
+        return;
+    }
+
+    for (const entry of entries) {
+        if (!entry.isDirectory()) {
+            continue;
+        }
+        const pid = parseManagedPathPid(entry.name);
+        if (!pid || isProcessAlive(pid)) {
+            continue;
+        }
+        try {
+            rmSync(path.join(dbRoot, entry.name), { recursive: true, force: true });
+        } catch {
+            // Best-effort stale path cleanup. The current instance path still reports cleanup failure.
+        }
+    }
 }
 
 function resolveMemoryServerBinaryVersion(memoryServerOptions: MongoConnectConfig['memoryServerOptions'] = {}): string {
@@ -50,6 +100,7 @@ function resolveMemoryServerPolicy(binaryVersion: string): { downloadDir: string
 
     mkdirSync(downloadDir, { recursive: true });
     mkdirSync(dbRoot, { recursive: true });
+    pruneManagedDbRoot(dbRoot);
 
     setDefaultEnv('MONGOMS_DOWNLOAD_DIR', downloadDir);
     setDefaultEnv('MONGOMS_PREFER_GLOBAL_PATH', 'false');
@@ -61,6 +112,41 @@ function resolveMemoryServerPolicy(binaryVersion: string): { downloadDir: string
 
 function createManagedDbPath(dbRoot: string, dbName: string): string {
     return mkdtempSync(path.join(dbRoot, `replset-${sanitizePathSegment(dbName)}-${process.pid}-`));
+}
+
+function isManagedCleanupError(error: unknown, dbPath: string): boolean {
+    if (!error || typeof error !== 'object') {
+        return false;
+    }
+    const candidate = error as { code?: string; path?: string };
+    if (!candidate.code || !['ENOTEMPTY', 'EBUSY', 'EPERM', 'ENOENT'].includes(candidate.code)) {
+        return false;
+    }
+    return !candidate.path || path.resolve(candidate.path).startsWith(path.resolve(dbPath));
+}
+
+function delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function cleanupManagedDbPath(dbPath: string | null): Promise<boolean> {
+    if (!dbPath) {
+        return true;
+    }
+    for (const waitMs of [0, 50, 100, 200, 400, 800]) {
+        if (waitMs > 0) {
+            await delay(waitMs);
+        }
+        try {
+            rmSync(dbPath, { recursive: true, force: true });
+            if (!existsSync(dbPath)) {
+                return true;
+            }
+        } catch {
+            // Retry while the OS releases journal files.
+        }
+    }
+    return !existsSync(dbPath);
 }
 
 function resolveLaunchTimeout(): number | undefined {
@@ -130,7 +216,10 @@ async function startMemoryServer(
     const instanceConfig = { ...(memoryServerOptions?.instance ?? {}) } as Record<string, unknown>;
     const hasUserDbPath = typeof instanceConfig.dbPath === 'string' && instanceConfig.dbPath.length > 0;
     if (!hasUserDbPath) {
-        instanceConfig.dbPath = createManagedDbPath(dbRoot, dbName);
+        _memoryServerDbPath = createManagedDbPath(dbRoot, dbName);
+        instanceConfig.dbPath = _memoryServerDbPath;
+    } else {
+        _memoryServerDbPath = null;
     }
     if (instanceConfig.launchTimeout === undefined) {
         const launchTimeout = resolveLaunchTimeout();
@@ -157,6 +246,10 @@ async function startMemoryServer(
         logger?.info?.('MongoDB Memory ReplSet started', { uri });
         return uri;
     } catch (err) {
+        if (!hasUserDbPath) {
+            await cleanupManagedDbPath(_memoryServerDbPath);
+            _memoryServerDbPath = null;
+        }
         logger?.error?.('Failed to start MongoDB Memory ReplSet', err);
         throw createConnectionError(
             `Failed to start MongoDB Memory ReplSet: ${(err as Error).message}`,
@@ -171,13 +264,23 @@ async function stopMemoryServer(logger?: Logger): Promise<void> {
     }
 
     const instance = _memoryServerInstance;
+    const dbPath = _memoryServerDbPath;
     _memoryServerInstance = null;
+    _memoryServerDbPath = null;
+    let stopError: unknown = null;
     try {
         await instance.stop(_memoryServerCleanupOptions);
         logger?.info?.('MongoDB Memory ReplSet stopped');
     } catch (cause) {
+        stopError = cause;
         logger?.warn?.('Failed to stop MongoDB Memory ReplSet cleanly.', cause);
     } finally {
+        if (_memoryServerCleanupOptions.force) {
+            const cleaned = await cleanupManagedDbPath(dbPath);
+            if (!cleaned && (!stopError || isManagedCleanupError(stopError, dbPath ?? ''))) {
+                logger?.warn?.('Failed to remove MongoDB Memory ReplSet dbPath.', { dbPath });
+            }
+        }
         _memoryServerCleanupOptions = { doCleanup: true, force: true };
     }
 }

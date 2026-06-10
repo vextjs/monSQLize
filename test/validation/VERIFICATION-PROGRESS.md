@@ -41,7 +41,7 @@
 | V-15 | v1 compat 全量断言套件（历史批次基线） | `npm run test` → 历史批次记录 2543/2543 v1 compat assertions pass（含 objectid-conversion 61 项） | ✅ | 2026-05-17 |
 | V-16 | TS 文档示例套件（43 个）| `npm run test:examples` → 当前 43 个可执行 TypeScript 示例全部编译并执行；runner 复用 shared standalone + replica set，并复用项目内 memory-server 缓存 / dbPath 策略；`examples/helpers/bootstrap.ts` 是辅助模块，不单独执行 | ✅ | 2026-06-10 |
 | V-17 | 当前 v1 parity 差异台账 | `test/regression/v1-parity-issues.md`（当前保留 9 条历史修复记录 + 2 条撤销误记，用于追溯，不再表示存在主链待修复差异） | ✅ | 2026-05-28 |
-| V-18 | 当前 coverage 补测主链 | `npm run test:coverage` → 测试阶段 2287 passed / 0 failed，但 coverage 为 statements 50.24%、branches 84.98%、functions 40.78%、lines 50.24%，未达 95% 门禁 | ⚠️ | 2026-06-09 |
+| V-18 | 当前 coverage 补测主链 | `npm run test:coverage` → 2387 passed / 0 failed；published CJS runtime 覆盖率为 statements 90.59%、branches 90.01%、functions 95.21%、lines 90.59%，已达 90% 门禁 | ✅ | 2026-06-10 |
 
 ---
 
@@ -52,7 +52,7 @@
 | P-01 | 历史 4.x / 5.x 差异回归 | 当前默认矩阵已覆盖 Node 20/22、Driver 6/7、MongoDB 6/7；更早历史版本仍仅保留 v1 参考资料 | ⚠️ 待验证 |
 | P-02 | 文档主题继续细化 | 当前正式入口已齐，但仍可继续把 API 主题文档从“索引 + 示例”深化为更细粒度专题 | ⚠️ 进行中 |
 | P-03 | `withCache()` 性能收口口径 | 当前行为兼容已补齐；仍需持续保持“v1 事务 benchmark”与“v2 `withCache()` baseline”不做原始数值横比的文档口径一致性 | ⚠️ 进行中 |
-| P-04 | coverage 95% 门禁 | 当前测试阶段全绿，但四项 coverage 仍未全部达到 95%；`test:coverage` 作为独立治理入口保留，不再串联 `verify:full` | ⚠️ 进行中 |
+| P-04 | coverage 90% 门禁 | `test:coverage` 已对 published CJS runtime 执行 90% 四项覆盖率门禁；该入口继续作为独立治理入口保留，不串联 `verify:full` | ✅ 已完成 |
 
 ---
 
@@ -64,5 +64,5 @@
 - 当前 Node 20.x、Node 22.x、MongoDB Driver 6.x / 7.x 与 MongoDB Server 6.x / 7.x 的默认内存矩阵都已入账；`npm run test:server-matrix` 已可作为日常可复用验证入口。
 - 历史 `FEATURE-PARITY.md` 与 2543/2543 compat 断言仍可作为“上一轮迁移批次已收口”的基线证据，但它们不再等同于“当前仓库所有验证资产都无需持续治理”。
 - 截至 `2026-05-28`，当前 v1 parity 台账主要承担历史修复追溯用途：此前记录的主链差异已完成修复或撤销误记，当前未发现新的 v1 运行时/类型兼容阻断；本轮继续收口的是 `withCache()` 性能验证口径，而不是重新打开新的 API parity 修复批次。
-- 当前 coverage 补测已把测试执行阶段提升到 2287 passed / 0 failed，但 coverage 95% 门禁尚未完成；`verify:full` 聚焦完整功能回归，coverage 继续由 `npm run test:coverage` 独立治理。
+- 当前 coverage 补测已把 `npm run test:coverage` 收敛到 2387 passed / 0 failed，并对 published CJS runtime 达成 statements 90.59%、branches 90.01%、functions 95.21%、lines 90.59%；`verify:full` 聚焦完整功能回归，coverage 继续由 `npm run test:coverage` 独立治理。
 

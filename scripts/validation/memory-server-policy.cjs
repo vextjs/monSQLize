@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DEFAULT_MEMORY_SERVER_VERSION = '7.0.14';
+const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'examples-replset-', 'probe-single-', 'probe-replset-'];
 
 function isGeneratedPath(dir) {
     return dir.split(path.sep).includes('.generated');
@@ -43,6 +44,54 @@ function sanitizeSegment(input) {
     return String(input).replace(/[^a-zA-Z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '') || 'default';
 }
 
+function parseManagedPathPid(name) {
+    if (!MANAGED_DB_PATH_PREFIXES.some((prefix) => name.startsWith(prefix))) {
+        return null;
+    }
+    const match = /-(\d+)-[^-]+$/.exec(name);
+    if (!match) {
+        return null;
+    }
+    const pid = Number.parseInt(match[1], 10);
+    return Number.isFinite(pid) && pid > 0 ? pid : null;
+}
+
+function isProcessAlive(pid) {
+    if (pid === process.pid) {
+        return true;
+    }
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        return error && error.code === 'EPERM';
+    }
+}
+
+function pruneMemoryServerDbRoot(dbRoot) {
+    let entries;
+    try {
+        entries = fs.readdirSync(dbRoot, { withFileTypes: true });
+    } catch {
+        return;
+    }
+
+    for (const entry of entries) {
+        if (!entry.isDirectory()) {
+            continue;
+        }
+        const pid = parseManagedPathPid(entry.name);
+        if (!pid || isProcessAlive(pid)) {
+            continue;
+        }
+        try {
+            fs.rmSync(path.join(dbRoot, entry.name), { recursive: true, force: true });
+        } catch {
+            // Best-effort cleanup; current instance cleanup still fails loudly when its own path remains.
+        }
+    }
+}
+
 function resolveMemoryServerBinaryVersion(version) {
     return version || process.env.MONSQLIZE_MEMORY_MONGO_BINARY_VERSION || process.env.MONGOMS_VERSION || DEFAULT_MEMORY_SERVER_VERSION;
 }
@@ -77,6 +126,7 @@ function configureMemoryServerEnv(version) {
 
 function createMemoryServerDbPath(kind, dbName = 'monsqlize') {
     const { dbRoot } = configureMemoryServerEnv();
+    pruneMemoryServerDbRoot(dbRoot);
     return fs.mkdtempSync(path.join(dbRoot, `${sanitizeSegment(kind)}-${sanitizeSegment(dbName)}-${process.pid}-`));
 }
 
@@ -120,13 +170,68 @@ function memoryServerCleanupOptions() {
     return { doCleanup: true, force: true };
 }
 
+function isCleanupPathError(error, dbPath) {
+    if (!error || typeof error !== 'object') {
+        return false;
+    }
+    if (!error.code || !['ENOTEMPTY', 'EBUSY', 'EPERM', 'ENOENT'].includes(error.code)) {
+        return false;
+    }
+    return !error.path || path.resolve(error.path).startsWith(path.resolve(dbPath));
+}
+
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function stopMemoryServerWithCleanup(instance, dbPath) {
+    let stopError = null;
+    let cleanupError = null;
+
+    try {
+        await instance.stop(memoryServerCleanupOptions());
+    } catch (error) {
+        stopError = error;
+    }
+
+    if (dbPath) {
+        for (const waitMs of [0, 50, 100, 200, 400, 800]) {
+            if (waitMs > 0) {
+                await delay(waitMs);
+            }
+            try {
+                fs.rmSync(dbPath, { recursive: true, force: true });
+                if (!fs.existsSync(dbPath)) {
+                    if (!stopError || isCleanupPathError(stopError, dbPath)) {
+                        return;
+                    }
+                    break;
+                }
+            } catch (error) {
+                cleanupError = error;
+                // Retry while the OS releases journal files.
+            }
+        }
+    }
+
+    if (dbPath && fs.existsSync(dbPath) && (!stopError || isCleanupPathError(stopError, dbPath))) {
+        throw cleanupError instanceof Error ? cleanupError : new Error(`Failed to remove MongoDB memory-server dbPath: ${dbPath}`);
+    }
+
+    if (stopError) {
+        throw stopError;
+    }
+}
+
 module.exports = {
     DEFAULT_MEMORY_SERVER_VERSION,
     configureMemoryServerEnv,
     createMemoryServerDbPath,
     memoryServerCleanupOptions,
+    pruneMemoryServerDbRoot,
     resolveMemoryServerBinaryVersion,
     resolveMemoryServerLaunchTimeoutMs,
     resolveReplSetBinaryVersion,
     seedMemoryServerBinaryCache,
+    stopMemoryServerWithCleanup,
 };

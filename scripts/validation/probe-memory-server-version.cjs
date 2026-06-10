@@ -1,9 +1,9 @@
 const {
     configureMemoryServerEnv,
     createMemoryServerDbPath,
-    memoryServerCleanupOptions,
     resolveMemoryServerLaunchTimeoutMs,
     seedMemoryServerBinaryCache,
+    stopMemoryServerWithCleanup,
 } = require('./memory-server-policy.cjs');
 
 const version = process.argv[2];
@@ -21,37 +21,41 @@ if (!version) {
 
     let server = null;
     let repl = null;
+    let serverDbPath = null;
+    let replDbPath = null;
 
     try {
+        serverDbPath = createMemoryServerDbPath('probe-single', 'monsqlize_matrix_probe');
         server = await MongoMemoryServer.create({
             binary: { version },
             instance: {
                 dbName: 'monsqlize_matrix_probe',
-                dbPath: createMemoryServerDbPath('probe-single', 'monsqlize_matrix_probe'),
+                dbPath: serverDbPath,
                 ...(launchTimeout ? { launchTimeout } : {}),
             },
         });
-        await server.stop(memoryServerCleanupOptions());
+        await stopMemoryServerWithCleanup(server, serverDbPath);
         server = null;
 
+        replDbPath = createMemoryServerDbPath('probe-replset', 'monsqlize_matrix_probe');
         repl = await MongoMemoryReplSet.create({
             binary: { version },
             instanceOpts: [
                 {
-                    dbPath: createMemoryServerDbPath('probe-replset', 'monsqlize_matrix_probe'),
+                    dbPath: replDbPath,
                     ...(launchTimeout ? { launchTimeout } : {}),
                 },
             ],
             replSet: { count: 1, dbName: 'monsqlize_matrix_probe' },
         });
-        await repl.stop(memoryServerCleanupOptions());
+        await stopMemoryServerWithCleanup(repl, replDbPath);
         repl = null;
     } finally {
         if (repl) {
-            await repl.stop(memoryServerCleanupOptions()).catch(() => undefined);
+            await stopMemoryServerWithCleanup(repl, replDbPath).catch(() => undefined);
         }
         if (server) {
-            await server.stop(memoryServerCleanupOptions()).catch(() => undefined);
+            await stopMemoryServerWithCleanup(server, serverDbPath).catch(() => undefined);
         }
     }
 

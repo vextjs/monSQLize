@@ -276,6 +276,11 @@ describe('validateRange — edge cases', () => {
         assert.throws(() => MonSQLize.validateRange(101, 1, 100, 'value'));
     });
 
+    it('validateRange rejects non-number and infinite values', () => {
+        assert.throws(() => MonSQLize.validateRange('1' as any, 1, 100, 'value'));
+        assert.throws(() => MonSQLize.validateRange(Infinity, 1, 100, 'value'));
+    });
+
     it('validatePositiveInteger with valid int passes', () => {
         assert.doesNotThrow(() => MonSQLize.validatePositiveInteger(5, 'field'));
     });
@@ -290,5 +295,517 @@ describe('validateRange — edge cases', () => {
 
     it('validatePositiveInteger with float throws', () => {
         assert.throws(() => MonSQLize.validatePositiveInteger(1.5, 'field'));
+    });
+});
+
+describe('public API — MongoDBSlowQueryLogStorage', () => {
+    function createFakeMongoClient(rows: Array<Record<string, unknown>> = [
+        {
+            queryHash: 'hash-1',
+            database: 'app',
+            collection: 'users',
+            operation: 'find',
+            count: 2,
+            totalTimeMs: 20,
+            maxTimeMs: 12,
+            minTimeMs: 8,
+            firstSeen: new Date('2026-01-01T00:00:00.000Z'),
+            lastSeen: new Date('2026-01-01T00:01:00.000Z'),
+            sampleQuery: { role: 'admin' },
+            metadata: { source: 'test' },
+        },
+    ]) {
+        const calls: Array<{ method: string; args: unknown[] }> = [];
+        let closed = false;
+        const cursor = {
+            sort: (...args: unknown[]) => {
+                calls.push({ method: 'sort', args });
+                return cursor;
+            },
+            skip: (...args: unknown[]) => {
+                calls.push({ method: 'skip', args });
+                return cursor;
+            },
+            limit: (...args: unknown[]) => {
+                calls.push({ method: 'limit', args });
+                return cursor;
+            },
+            toArray: async () => rows,
+        };
+        const collection = {
+            createIndex: async (...args: unknown[]) => {
+                calls.push({ method: 'createIndex', args });
+            },
+            updateOne: async (...args: unknown[]) => {
+                calls.push({ method: 'updateOne', args });
+            },
+            bulkWrite: async (...args: unknown[]) => {
+                calls.push({ method: 'bulkWrite', args });
+            },
+            find: (...args: unknown[]) => {
+                calls.push({ method: 'find', args });
+                return cursor;
+            },
+        };
+        const client = {
+            db: (...args: unknown[]) => {
+                calls.push({ method: 'db', args });
+                return {
+                    collection: (...collectionArgs: unknown[]) => {
+                        calls.push({ method: 'collection', args: collectionArgs });
+                        return collection;
+                    },
+                };
+            },
+            close: async () => {
+                closed = true;
+                calls.push({ method: 'close', args: [] });
+            },
+        };
+        return { client, calls, get closed() { return closed; } };
+    }
+
+    it('uses an owned client for initialize, save, batch, query, and close', async () => {
+        const fake = createFakeMongoClient();
+        const storage = new MonSQLize.MongoDBSlowQueryLogStorage(
+            {
+                type: 'mongodb',
+                useBusinessConnection: false,
+                uri: 'mongodb://127.0.0.1:27017',
+                database: 'audit',
+                collection: 'slow_logs',
+                ttl: 60,
+            },
+            null,
+            null,
+            async (uri: string) => {
+                assert.equal(uri, 'mongodb://127.0.0.1:27017');
+                return fake.client;
+            },
+        );
+
+        await storage.initialize();
+        await storage.initialize();
+        await storage.save({ database: 'app', collection: 'users', operation: 'find', durationMs: 10 });
+        await storage.saveBatch([]);
+        await storage.saveBatch([{ database: 'app', collection: 'users', operation: 'find', durationMs: 11 }]);
+        await storage.saveBatch([
+            { database: 'app', collection: 'users', operation: 'find', durationMs: 12 },
+            { database: 'app', collection: 'orders', operation: 'aggregate', durationMs: 13 },
+        ]);
+        const rows = await storage.query({ database: 'app', collection: 'users' }, { sort: { lastSeen: -1 }, skip: 1, limit: 1 });
+        await storage.close();
+
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].avgTimeMs, 10);
+        assert.equal(fake.closed, true);
+        assert.equal(fake.calls.filter((call) => call.method === 'createIndex').length, 2);
+        assert.equal(fake.calls.filter((call) => call.method === 'updateOne').length, 2);
+        assert.equal(fake.calls.filter((call) => call.method === 'bulkWrite').length, 1);
+        assert.ok(fake.calls.some((call) => call.method === 'skip'));
+        assert.ok(fake.calls.some((call) => call.method === 'limit'));
+    });
+
+    it('reuses the business client and validates missing owned-client URI', async () => {
+        const fake = createFakeMongoClient();
+        const storage = new MonSQLize.MongoDBSlowQueryLogStorage(
+            { type: 'mongodb', useBusinessConnection: true, database: 'audit', collection: 'slow_logs', ttl: 0 },
+            fake.client,
+        );
+
+        await storage.initialize();
+        await storage.close();
+
+        assert.equal(fake.closed, false);
+        assert.equal(fake.calls.filter((call) => call.method === 'createIndex').length, 1);
+        await assert.rejects(
+            () => new MonSQLize.MongoDBSlowQueryLogStorage({ type: 'mongodb', useBusinessConnection: false }).initialize(),
+            /slowQueryLog\.storage\.uri/,
+        );
+    });
+
+    it('uses default storage names and maps empty numeric fields to zero', async () => {
+        const fake = createFakeMongoClient([
+            {
+                queryHash: 'hash-2',
+                database: 'app',
+                collection: 'logs',
+                operation: 'aggregate',
+                firstSeen: new Date('2026-01-02T00:00:00.000Z'),
+                lastSeen: new Date('2026-01-02T00:01:00.000Z'),
+            },
+        ]);
+        const storage = new MonSQLize.MongoDBSlowQueryLogStorage(
+            { type: 'mongodb', useBusinessConnection: true },
+            fake.client,
+        );
+
+        const rows = await storage.query();
+        await storage.close();
+
+        assert.equal(rows[0].count, 0);
+        assert.equal(rows[0].avgTimeMs, 0);
+        assert.equal(fake.calls.some((call) => call.method === 'db' && call.args[0] === 'admin'), true);
+        assert.equal(fake.calls.some((call) => call.method === 'collection' && call.args[0] === 'slow_query_logs'), true);
+    });
+});
+
+describe('public API — runtime cache normalization', () => {
+    function createRemoteCache() {
+        const calls: Array<{ method: string; args: unknown[] }> = [];
+        const store = new Map<string, unknown>();
+        return {
+            calls,
+            cache: {
+                get: async (key: string) => {
+                    calls.push({ method: 'get', args: [key] });
+                    return store.get(key);
+                },
+                set: async (key: string, value: unknown, ttl?: number) => {
+                    calls.push({ method: 'set', args: [key, value, ttl] });
+                    store.set(key, value);
+                },
+                del: async (key: string) => {
+                    calls.push({ method: 'del', args: [key] });
+                    return store.delete(key) ? 1 : 0;
+                },
+                exists: async (key: string) => {
+                    calls.push({ method: 'exists', args: [key] });
+                    return store.has(key);
+                },
+                has: async (key: string) => {
+                    calls.push({ method: 'has', args: [key] });
+                    return store.has(key);
+                },
+                getMany: async (keys: string[]) => {
+                    calls.push({ method: 'getMany', args: [keys] });
+                    return Object.fromEntries(keys.filter((key) => store.has(key)).map((key) => [key, store.get(key)]));
+                },
+                setMany: async (entries: Record<string, unknown>, ttl?: number) => {
+                    calls.push({ method: 'setMany', args: [entries, ttl] });
+                    for (const [key, value] of Object.entries(entries)) store.set(key, value);
+                },
+                delMany: async (keys: string[]) => {
+                    calls.push({ method: 'delMany', args: [keys] });
+                    let deleted = 0;
+                    for (const key of keys) {
+                        if (store.delete(key)) deleted += 1;
+                    }
+                    return deleted;
+                },
+                delPattern: async (pattern: string) => {
+                    calls.push({ method: 'delPattern', args: [pattern] });
+                    const regex = new RegExp(`^${pattern.replace(/[|\\{}()[\]^$+?.]/g, '\\$&').replace(/\*/g, '.*')}$`);
+                    let deleted = 0;
+                    for (const key of [...store.keys()]) {
+                        if (regex.test(key)) {
+                            store.delete(key);
+                            deleted += 1;
+                        }
+                    }
+                    return deleted;
+                },
+                keys: async (pattern?: string) => {
+                    calls.push({ method: 'keys', args: [pattern] });
+                    if (!pattern) return [...store.keys()];
+                    const regex = new RegExp(`^${pattern.replace(/[|\\{}()[\]^$+?.]/g, '\\$&').replace(/\*/g, '.*')}$`);
+                    return [...store.keys()].filter((key) => regex.test(key));
+                },
+                getStats: () => ({ entries: store.size }),
+            },
+        };
+    }
+
+    it('wraps vext redis cache shape with prefix and default ttl', async () => {
+        const remote = createRemoteCache();
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'cache_public_api',
+            config: { uri: 'mongodb://127.0.0.1:27017' },
+            cache: {
+                memory: { maxEntries: 5 },
+                redis: {
+                    cache: remote.cache,
+                    prefix: 'tenant:',
+                    defaultTtl: 77,
+                },
+                policy: { writePolicy: 'both', backfillLocalOnRemoteHit: true },
+            },
+        });
+        const cache = runtime.getCache();
+
+        await cache.set('user:1', { id: 1 });
+        await cache.get('user:1');
+        await cache.getMany(['user:1']);
+        await cache.setMany({ 'user:2': { id: 2 } });
+        await cache.delMany(['user:2']);
+        await cache.keys('user:*');
+        await cache.delPattern('user:*');
+
+        const remoteProxy = (cache as any)._remoteCompat;
+        await remoteProxy.set('direct:1', { id: 3 });
+        await remoteProxy.set('tenant:direct:2', { id: 4 }, 5);
+        assert.deepEqual(await remoteProxy.get('direct:1'), { id: 3 });
+        assert.equal(await remoteProxy.exists('direct:1'), true);
+        assert.equal(await remoteProxy.has('direct:1'), true);
+        assert.deepEqual(await remoteProxy.getMany(['direct:1', 'direct:2']), {
+            'direct:1': { id: 3 },
+            'direct:2': { id: 4 },
+        });
+        await remoteProxy.setMany({ 'direct:3': { id: 5 }, 'tenant:direct:4': { id: 6 } }, 9);
+        assert.deepEqual((await remoteProxy.keys()).sort(), ['direct:1', 'direct:2', 'direct:3', 'direct:4']);
+        assert.deepEqual((await remoteProxy.keys('direct:*')).sort(), ['direct:1', 'direct:2', 'direct:3', 'direct:4']);
+        assert.equal(await remoteProxy.del('direct:1'), 1);
+        assert.equal(await remoteProxy.delMany(['direct:2', 'direct:3']), 2);
+        assert.equal(await remoteProxy.delPattern('direct:*'), 1);
+        assert.equal(remoteProxy.getStats().entries, 0);
+
+        assert.ok(remote.calls.some((call) => call.method === 'set' && call.args[0] === 'tenant:user:1' && call.args[2] === 77));
+        assert.ok(remote.calls.some((call) => call.method === 'setMany'));
+        assert.ok(remote.calls.some((call) => call.method === 'delPattern' && call.args[0] === 'tenant:user:*'));
+    });
+
+    it('accepts direct cache-like and local remote config shapes', async () => {
+        const direct = createRemoteCache();
+        const directRuntime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'cache_direct',
+            config: { uri: 'mongodb://127.0.0.1:27017' },
+            cache: direct.cache,
+        });
+        assert.strictEqual(directRuntime.getCache(), direct.cache);
+
+        const localRemote = createRemoteCache();
+        const multiRuntime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'cache_local_remote',
+            config: { uri: 'mongodb://127.0.0.1:27017' },
+            cache: {
+                multiLevel: true,
+                local: { maxEntries: 2, ttl: 10 },
+                remote: localRemote.cache,
+                policy: { writePolicy: 'both', backfillLocalOnRemoteHit: false },
+            },
+        });
+        await multiRuntime.getCache().set('k', 'v');
+        assert.ok(localRemote.calls.some((call) => call.method === 'set'));
+
+        const directRedis = createRemoteCache();
+        const directRedisRuntime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'cache_direct_redis',
+            config: { uri: 'mongodb://127.0.0.1:27017' },
+            cache: {
+                memory: new MonSQLize.MemoryCache({ maxEntries: 1 }),
+                redis: directRedis.cache,
+            },
+        });
+        assert.strictEqual((directRedisRuntime.getCache() as any)._remoteCompat, directRedis.cache);
+
+        const disabledRedisRuntime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'cache_disabled_redis',
+            config: { uri: 'mongodb://127.0.0.1:27017' },
+            cache: {
+                memory: { enabled: false },
+                redis: { enabled: false },
+            },
+        });
+        assert.equal((disabledRedisRuntime.getCache() as any)._remoteCompat, undefined);
+
+        const missingRedisTargetRuntime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'cache_missing_redis_target',
+            config: { uri: 'mongodb://127.0.0.1:27017' },
+            cache: {
+                redis: { timeoutMs: 25 },
+            },
+        });
+        assert.equal((missingRedisTargetRuntime.getCache() as any)._remoteCompat, undefined);
+    });
+});
+
+describe('public API — Redis adapter and SSH branch coverage', () => {
+    it('keeps redis adapter error semantics for invalid inputs', () => {
+        assert.throws(() => MonSQLize.createRedisCacheAdapter(undefined), /redisUrlOrInstance/);
+        assert.throws(() => MonSQLize.createRedisCacheAdapter('   '), /redisUrlOrInstance/);
+    });
+
+    it('covers SSH tunnel auth and URI helper branches through a runtime connect attempt', async () => {
+        const logs: string[] = [];
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'ssh_public_api',
+            logger: { info: (message: string) => logs.push(message), error: () => undefined },
+            config: {
+                uri: 'mongodb://user:pass@mongo.internal:27018/app',
+                ssh: {
+                    host: 'bastion.local',
+                    username: 'deploy',
+                },
+            },
+        });
+
+        await assert.rejects(() => runtime.connect(), /SSH authentication required/);
+        await runtime.close();
+    });
+});
+
+describe('public API — ConnectionPoolManager branch coverage', () => {
+    function createPoolClient(name: string, closed: string[] = []) {
+        return {
+            db: (databaseName?: string) => ({
+                command: async () => ({ ok: 1 }),
+                admin: () => ({ ping: async () => ({ ok: 1 }) }),
+                collection: (collectionName: string) => ({ databaseName, collectionName }),
+            }),
+            close: async () => {
+                closed.push(name);
+            },
+        };
+    }
+
+    it('covers add, duplicate, max-count, manual selection, stats, and close paths', async () => {
+        const closed: string[] = [];
+        const manager = new MonSQLize.ConnectionPoolManager({
+            maxPoolsCount: 1,
+            clientFactory: async (config: { name: string }) => createPoolClient(config.name, closed),
+        });
+
+        await manager.addPool({ name: 'primary', uri: 'mongodb://primary', role: 'primary', healthCheck: { enabled: false } });
+        await assert.rejects(
+            () => manager.addPool({ name: 'primary', uri: 'mongodb://primary-duplicate' }),
+            /already exists/,
+        );
+        await assert.rejects(
+            () => manager.addPool({ name: 'secondary', uri: 'mongodb://secondary' }),
+            /Maximum pool count/,
+        );
+
+        const selected = manager.selectPool('read', { pool: 'primary' });
+        assert.equal(selected.name, 'primary');
+        assert.deepEqual(selected.collection('app', 'users'), { databaseName: 'app', collectionName: 'users' });
+        assert.equal(manager.getPool('missing'), null);
+        assert.ok(manager.getPoolStats().primary);
+        manager.startHealthCheck('missing');
+        manager.startHealthCheck('primary');
+        manager.stopHealthCheck('primary');
+        await manager.close();
+        assert.deepEqual(closed, ['primary']);
+    });
+
+    it('covers fallback, selector miss, health transitions, and network error wrapping', async () => {
+        const warnings: unknown[] = [];
+        const manager = new MonSQLize.ConnectionPoolManager({
+            fallback: { enabled: true, fallbackStrategy: 'readonly' },
+            clientFactory: async (config: { name: string }) => createPoolClient(config.name),
+            healthCheckFn: async (poolName: string) => poolName !== 'primary',
+            logger: { warn: (...args: unknown[]) => warnings.push(args) },
+        });
+
+        await manager.addPool({ name: 'primary', uri: 'mongodb://primary', role: 'primary', healthCheck: { enabled: false } });
+        await manager.addPool({ name: 'secondary', uri: 'mongodb://secondary', role: 'secondary', healthCheck: { enabled: false } });
+
+        const healthStatus = (manager as any)._healthChecker._healthStatus;
+        healthStatus.set('primary', { status: 'down', lastCheck: new Date(), consecutiveFailures: 1 });
+        healthStatus.set('secondary', { status: 'down', lastCheck: new Date(), consecutiveFailures: 1 });
+
+        assert.equal(manager.selectPool('read').name, 'secondary');
+        assert.throws(() => manager.selectPool('write'), /No available connection pool/);
+
+        healthStatus.set('primary', { status: 'up', lastCheck: new Date(), consecutiveFailures: 0 });
+        (manager as any)._selector.select = () => 'ghost';
+        assert.throws(() => manager.selectPool('read'), /Selected pool 'ghost' not available/);
+
+        await (manager as any).checkPoolHealth('missing');
+        await (manager as any).checkPoolHealth('primary');
+        await (manager as any).checkPoolHealth('primary');
+        assert.equal(manager.getHealthStatus().primary.status, 'down');
+
+        (manager as any).healthCheckFn = async () => {
+            throw 'health failed';
+        };
+        await (manager as any).checkPoolHealth('secondary');
+        assert.equal(manager.getHealthStatus().secondary.status, 'degraded');
+        assert.ok(warnings.length >= 1);
+
+        (manager as any).recordSelection('missing', false);
+        (manager as any).recordSelection('secondary', false);
+        assert.equal(manager.getPoolStats().secondary.errorCount >= 1, true);
+        await manager.close();
+
+        const failingManager = new MonSQLize.ConnectionPoolManager({
+            clientFactory: async () => {
+                const error = new Error('Server selection timed out') as Error & { code?: string };
+                error.name = 'MongoServerSelectionError';
+                error.code = 'ETIMEOUT';
+                throw error;
+            },
+        });
+        await assert.rejects(
+            () => failingManager.addPool({ name: 'broken', uri: 'mongodb://broken' }),
+            /connect ETIMEDOUT/,
+        );
+        await failingManager.close();
+    });
+});
+
+describe('public API — HealthChecker and PoolStats branch coverage', () => {
+    it('covers HealthChecker registration, timers, in-progress guard, and ping variants', async () => {
+        const logs: string[] = [];
+        const checker = new MonSQLize.HealthChecker({
+            logger: { info: (message: string) => logs.push(message) },
+        });
+
+        checker.register('disabled', { enabled: false });
+        checker.start();
+        checker.start();
+        checker.register(
+            { name: 'admin-ping', healthCheck: { interval: 20, retries: 1, timeout: 20 } },
+            { db: () => ({ admin: () => ({ ping: async () => ({ ok: 1 }) }) }) },
+        );
+        await checker.checkPool('admin-ping');
+        assert.equal(checker.getStatus('admin-ping')?.status, 'up');
+
+        (checker as any)._inProgress.add('admin-ping');
+        await checker.checkPool('admin-ping');
+        (checker as any)._inProgress.delete('admin-ping');
+
+        await checker.checkPool('missing-status');
+        checker.register('missing-client', { retries: 1, timeout: 1 });
+        await checker.checkPool('missing-client');
+        assert.equal(checker.getStatus('missing-client')?.status, 'down');
+
+        checker.register(
+            { name: 'string-error', healthCheck: { retries: 1, timeout: 20 } },
+            { db: () => ({ command: async () => { throw 'bad ping'; } }) },
+        );
+        await checker.checkPool('string-error');
+        assert.equal(checker.getStatus('string-error')?.status, 'down');
+        assert.equal(checker.getAllStatus().size >= 3, true);
+
+        await new Promise((resolve) => setImmediate(resolve));
+        checker.stop();
+        checker.stop();
+        checker.unregister('admin-ping');
+        assert.ok(logs.some((message) => message.includes('started')));
+    });
+
+    it('covers PoolStats success, failure, reset, and close branches', async () => {
+        const stats = new MonSQLize.PoolStats({ logger: { info: () => undefined } });
+
+        stats.recordConnections('primary', 3);
+        stats.recordSelection('primary', 'find');
+        await stats.recordQuery('primary', 12, null);
+        await stats.recordQuery('primary', 18, new Error('query failed'));
+        assert.equal(stats.getStats('primary').totalRequests >= 3, true);
+        assert.ok(stats.getAllStats().primary);
+        stats.reset('primary');
+        assert.equal(stats.getStats('primary').totalRequests, 0);
+        stats.recordSelection('secondary', 'aggregate');
+        stats.reset();
+        stats.resetAll();
+        stats.close();
+        stats.close();
     });
 });

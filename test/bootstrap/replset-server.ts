@@ -2,10 +2,10 @@ import { ensureWebCryptoGlobal } from './webcrypto';
 import {
     configureMemoryServerEnv,
     createMemoryServerDbPath,
-    memoryServerCleanupOptions,
     resolveMemoryServerLaunchTimeoutMs,
     resolveReplSetBinaryVersion,
     seedMemoryServerBinaryCache,
+    stopMemoryServerWithCleanup,
 } from './memory-server-policy';
 
 type ReplSetOptions = {
@@ -27,6 +27,7 @@ type ReplSetBootstrap = {
 
 let replSetPromise: Promise<any> | null = null;
 let replSetInstance: any = null;
+let replSetDbPath: string | null = null;
 
 export function createReplSetBootstrap(options: ReplSetOptions = {}): ReplSetBootstrap {
     const externalUri = options.uri || process.env.MONSQLIZE_REPLSET_URI;
@@ -49,11 +50,12 @@ export function createReplSetBootstrap(options: ReplSetOptions = {}): ReplSetBoo
                 const { MongoMemoryReplSet } = require('mongodb-memory-server');
                 const dbName = options.dbName || 'monsqlize_p4a';
                 const launchTimeout = resolveMemoryServerLaunchTimeoutMs();
+                replSetDbPath = createMemoryServerDbPath('replset', dbName);
                 replSetInstance = await MongoMemoryReplSet.create({
                     binary: { version: binaryVersion },
                     instanceOpts: [
                         {
-                            dbPath: createMemoryServerDbPath('replset', dbName),
+                            dbPath: replSetDbPath,
                             ...(launchTimeout ? { launchTimeout } : {}),
                         },
                     ],
@@ -81,9 +83,10 @@ export function createReplSetBootstrap(options: ReplSetOptions = {}): ReplSetBoo
                 return true;
             }
             if (replSetInstance) {
-                await replSetInstance.stop(memoryServerCleanupOptions());
+                await stopMemoryServerWithCleanup(replSetInstance, replSetDbPath);
                 replSetInstance = null;
             }
+            replSetDbPath = null;
             replSetPromise = null;
             return true;
         },

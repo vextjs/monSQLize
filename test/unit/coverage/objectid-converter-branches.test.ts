@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { ObjectId } from 'mongodb';
 
-const { convertObjectIdStrings, convertUpdateDocument } = require('../../../dist/cjs/index.cjs');
+import { convertObjectIdStrings, convertUpdateDocument } from '../../../src/adapters/mongodb/utils/objectid-converter';
 
 describe('convertObjectIdStrings — branch coverage', () => {
     it('returns obj as-is when depth > MAX_DEPTH (10)', () => {

@@ -95,6 +95,9 @@ const UNIT = [
     'test/unit/coverage/sync-validation-branches.test.js',
     'test/unit/coverage/lock-manager-extra-branches.test.js',
     'test/unit/coverage/model-utils-write-utils-branches.test.js',
+    'test/unit/coverage/model-instance-config-branches.test.js',
+    'test/unit/coverage/model-utils-branches.test.js',
+    'test/unit/coverage/objectid-converter-branches.test.js',
     // Coverage gap fill — Phase N
     'test/unit/coverage/public-api-extra-coverage.test.js',
     // Coverage gap fill — Phase O
@@ -318,6 +321,9 @@ const SUITE_MAP = {
     'sync-validation-branches': ['test/unit/coverage/sync-validation-branches.test.js'],
     'lock-manager-extra-branches': ['test/unit/coverage/lock-manager-extra-branches.test.js'],
     'model-utils-write-utils-branches': ['test/unit/coverage/model-utils-write-utils-branches.test.js'],
+    'model-instance-config-branches': ['test/unit/coverage/model-instance-config-branches.test.js'],
+    'model-utils-branches': ['test/unit/coverage/model-utils-branches.test.js'],
+    'objectid-converter-unit-branches': ['test/unit/coverage/objectid-converter-branches.test.js'],
     'management-and-queries-extra': ['test/integration/mongodb/management-and-queries-extra.test.js'],
     // Phase N
     'public-api-extra-coverage': ['test/unit/coverage/public-api-extra-coverage.test.js'],

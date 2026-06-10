@@ -2,10 +2,10 @@ import { ensureWebCryptoGlobal } from './webcrypto';
 import {
     configureMemoryServerEnv,
     createMemoryServerDbPath,
-    memoryServerCleanupOptions,
     resolveMemoryServerBinaryVersion,
     resolveMemoryServerLaunchTimeoutMs,
     seedMemoryServerBinaryCache,
+    stopMemoryServerWithCleanup,
 } from './memory-server-policy';
 
 type MemoryServerOptions = {
@@ -27,6 +27,7 @@ type MemoryServerBootstrap = {
 
 let memoryServerPromise: Promise<any> | null = null;
 let memoryServerInstance: any = null;
+let memoryServerDbPath: string | null = null;
 
 export function createMemoryServerBootstrap(options: MemoryServerOptions = {}): MemoryServerBootstrap {
     const externalUri = options.uri || process.env.MONSQLIZE_MEMORY_MONGO_URI;
@@ -49,11 +50,12 @@ export function createMemoryServerBootstrap(options: MemoryServerOptions = {}): 
                 const { MongoMemoryServer } = require('mongodb-memory-server');
                 const dbName = options.dbName || 'monsqlize_p2a';
                 const launchTimeout = resolveMemoryServerLaunchTimeoutMs();
+                memoryServerDbPath = createMemoryServerDbPath('single', dbName);
                 memoryServerInstance = await MongoMemoryServer.create({
                     binary: { version: binaryVersion },
                     instance: {
                         dbName,
-                        dbPath: createMemoryServerDbPath('single', dbName),
+                        dbPath: memoryServerDbPath,
                         ...(launchTimeout ? { launchTimeout } : {}),
                     },
                 });
@@ -76,9 +78,10 @@ export function createMemoryServerBootstrap(options: MemoryServerOptions = {}): 
             }
 
             if (memoryServerInstance) {
-                await memoryServerInstance.stop(memoryServerCleanupOptions());
+                await stopMemoryServerWithCleanup(memoryServerInstance, memoryServerDbPath);
                 memoryServerInstance = null;
             }
+            memoryServerDbPath = null;
             memoryServerPromise = null;
             return true;
         },

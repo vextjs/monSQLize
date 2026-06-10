@@ -1,9 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-const MonSQLize = require('../../../dist/cjs/index.cjs');
-
-const {
+import {
     resolveModelTimestampsConfig,
     resolveModelSoftDeleteConfig,
     resolveModelVersionConfig,
@@ -12,7 +10,7 @@ const {
     attachModelStatics,
     isModelValidationEnabled,
     buildModelSchemaState,
-} = MonSQLize;
+} from '../../../src/capabilities/model/model-instance-config';
 
 describe('resolveModelTimestampsConfig — branch coverage', () => {
     it('returns null when timestamps is undefined', () => {

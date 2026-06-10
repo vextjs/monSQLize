@@ -7,11 +7,11 @@ const { MongoClient } = require('mongodb');
 const {
     configureMemoryServerEnv,
     createMemoryServerDbPath,
-    memoryServerCleanupOptions,
     resolveMemoryServerBinaryVersion,
     resolveMemoryServerLaunchTimeoutMs,
     resolveReplSetBinaryVersion,
     seedMemoryServerBinaryCache,
+    stopMemoryServerWithCleanup,
 } = require('./validation/memory-server-policy.cjs');
 
 const projectRoot = path.resolve(__dirname, '..');
@@ -97,18 +97,20 @@ async function startSharedServers() {
 
 function startStandaloneServer(version, launchTimeout) {
     const { MongoMemoryServer } = require('mongodb-memory-server');
+    const dbPath = createMemoryServerDbPath('examples-single', 'monsqlize_examples_shared');
     return MongoMemoryServer.create({
         binary: { version },
         instance: {
             dbName: 'monsqlize_examples_shared',
-            dbPath: createMemoryServerDbPath('examples-single', 'monsqlize_examples_shared'),
+            dbPath,
             ...(launchTimeout ? { launchTimeout } : {}),
         },
-    });
+    }).then((instance) => ({ instance, dbPath }));
 }
 
 function startReplSetServer(version, launchTimeout) {
     const { MongoMemoryReplSet } = require('mongodb-memory-server');
+    const dbPath = createMemoryServerDbPath('examples-replset', 'monsqlize_examples_replset');
     return MongoMemoryReplSet.create({
         binary: { version },
         replSet: {
@@ -118,11 +120,11 @@ function startReplSetServer(version, launchTimeout) {
         },
         instanceOpts: [
             {
-                dbPath: createMemoryServerDbPath('examples-replset', 'monsqlize_examples_replset'),
+                dbPath,
                 ...(launchTimeout ? { launchTimeout } : {}),
             },
         ],
-    });
+    }).then((instance) => ({ instance, dbPath }));
 }
 
 async function pingMongo(uri) {
@@ -139,18 +141,18 @@ async function pingMongo(uri) {
 
 async function ensureSharedServers(shared) {
     try {
-        await pingMongo(shared.server.getUri());
+        await pingMongo(shared.server.instance.getUri());
     } catch (error) {
         console.warn(`[examples] standalone health check failed; restarting shared server: ${(error && error.message) || error}`);
-        await shared.server.stop(memoryServerCleanupOptions()).catch(() => undefined);
+        await stopMemoryServerWithCleanup(shared.server.instance, shared.server.dbPath).catch(() => undefined);
         shared.server = await startStandaloneServer(shared.singleVersion, shared.launchTimeout);
     }
 
     try {
-        await pingMongo(shared.replSet.getUri());
+        await pingMongo(shared.replSet.instance.getUri());
     } catch (error) {
         console.warn(`[examples] replica-set health check failed; restarting shared server: ${(error && error.message) || error}`);
-        await shared.replSet.stop(memoryServerCleanupOptions()).catch(() => undefined);
+        await stopMemoryServerWithCleanup(shared.replSet.instance, shared.replSet.dbPath).catch(() => undefined);
         shared.replSet = await startReplSetServer(shared.replSetVersion, shared.launchTimeout);
     }
 }
@@ -158,10 +160,10 @@ async function ensureSharedServers(shared) {
 function createExampleEnv(shared) {
     return {
         ...process.env,
-        MONSQLIZE_EXAMPLES_MONGO_URI: shared.server.getUri(),
-        MONSQLIZE_MEMORY_MONGO_URI: shared.server.getUri(),
-        MONSQLIZE_EXAMPLES_REPLSET_URI: shared.replSet.getUri(),
-        MONSQLIZE_REPLSET_URI: shared.replSet.getUri(),
+        MONSQLIZE_EXAMPLES_MONGO_URI: shared.server.instance.getUri(),
+        MONSQLIZE_MEMORY_MONGO_URI: shared.server.instance.getUri(),
+        MONSQLIZE_EXAMPLES_REPLSET_URI: shared.replSet.instance.getUri(),
+        MONSQLIZE_REPLSET_URI: shared.replSet.instance.getUri(),
     };
 }
 
@@ -181,10 +183,10 @@ function createExampleEnv(shared) {
         console.error(error && error.stack ? error.stack : String(error));
     } finally {
         if (shared?.replSet) {
-            await shared.replSet.stop(memoryServerCleanupOptions());
+            await stopMemoryServerWithCleanup(shared.replSet.instance, shared.replSet.dbPath);
         }
         if (shared?.server) {
-            await shared.server.stop(memoryServerCleanupOptions());
+            await stopMemoryServerWithCleanup(shared.server.instance, shared.server.dbPath);
         }
     }
 
