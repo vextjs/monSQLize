@@ -34,7 +34,7 @@ async function waitFor<T>(check: () => T | null, message: string, timeoutMs = 80
 }
 
 async function main() {
-    const { server } = await setupReplicaSetExample('example-sync-target-failure');
+    const { msq, server } = await setupReplicaSetExample('example-sync-target-failure');
     const tokenPath = path.join(os.tmpdir(), `example-sync-target-failure-${process.pid}.json`);
     let failOnce = true;
 
@@ -94,7 +94,7 @@ async function main() {
     } finally {
         await runtime.stopSync().catch(() => {});
         await runtime.close();
-        await server.stop();
+        await teardownExample(msq, server);
         await rm(tokenPath, { force: true }).catch(() => {});
     }
 }

@@ -19,10 +19,24 @@
 - 单机实例：覆盖普通 integration 场景
 - 单节点 replica set：覆盖 transaction / sync 等需要副本集的场景
 
+资源目录由仓库统一固定，避免每次脚本运行重复下载二进制或在系统临时目录留下大量数据：
+
+- 二进制缓存：`.cache/mongodb-memory-server/binaries`
+- 临时数据目录：`.cache/mongodb-memory-server/db`
+- 默认二进制版本：`7.0.14`
+- 项目自动创建的 `dbPath` 会在 `stop({ doCleanup: true, force: true })` 路径中清理
+
 如需手工指定二进制版本，可使用：
 
 - `MONSQLIZE_MEMORY_MONGO_BINARY_VERSION`
 - `MONSQLIZE_REPLSET_BINARY_VERSION`
+
+如需改写缓存或临时目录，可使用：
+
+- `MONGOMS_DOWNLOAD_DIR`
+- `MONSQLIZE_MEMORY_SERVER_CACHE_DIR`
+- `MONSQLIZE_MEMORY_SERVER_DB_DIR`
+- `MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS`
 
 ## 3. 探测命令
 
@@ -90,4 +104,5 @@ npm run test:server-matrix
 - 当前这台机器**已经具备**默认矩阵执行条件
 - `npm run probe:server-matrix` 与 `npm run test:server-matrix` 均可直接复用
 - 若后续还要补“外部真实服务”烟囱回归，应视为附加验证，而不是默认闭环前提
+- 2026-06-10 复核：`npm run probe:server-matrix` 已在项目本地 binary cache / dbPath 策略下通过，执行后 `.cache/mongodb-memory-server/db` 无残留项目自动目录
 

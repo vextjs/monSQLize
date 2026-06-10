@@ -1,4 +1,12 @@
 import { ensureWebCryptoGlobal } from './webcrypto';
+import {
+    configureMemoryServerEnv,
+    createMemoryServerDbPath,
+    memoryServerCleanupOptions,
+    resolveMemoryServerBinaryVersion,
+    resolveMemoryServerLaunchTimeoutMs,
+    seedMemoryServerBinaryCache,
+} from './memory-server-policy';
 
 type MemoryServerOptions = {
     uri?: string;
@@ -22,7 +30,7 @@ let memoryServerInstance: any = null;
 
 export function createMemoryServerBootstrap(options: MemoryServerOptions = {}): MemoryServerBootstrap {
     const externalUri = options.uri || process.env.MONSQLIZE_MEMORY_MONGO_URI;
-    const binaryVersion = options.binaryVersion || process.env.MONSQLIZE_MEMORY_MONGO_BINARY_VERSION;
+    const binaryVersion = resolveMemoryServerBinaryVersion(options.binaryVersion);
 
     async function ensureServer(): Promise<MemoryServerContext> {
         if (externalUri) {
@@ -36,11 +44,17 @@ export function createMemoryServerBootstrap(options: MemoryServerOptions = {}): 
         if (!memoryServerPromise) {
             memoryServerPromise = (async () => {
                 ensureWebCryptoGlobal();
+                configureMemoryServerEnv(binaryVersion);
+                await seedMemoryServerBinaryCache(binaryVersion);
                 const { MongoMemoryServer } = require('mongodb-memory-server');
+                const dbName = options.dbName || 'monsqlize_p2a';
+                const launchTimeout = resolveMemoryServerLaunchTimeoutMs();
                 memoryServerInstance = await MongoMemoryServer.create({
-                    ...(binaryVersion ? { binary: { version: binaryVersion } } : {}),
+                    binary: { version: binaryVersion },
                     instance: {
-                        dbName: options.dbName || 'monsqlize_p2a',
+                        dbName,
+                        dbPath: createMemoryServerDbPath('single', dbName),
+                        ...(launchTimeout ? { launchTimeout } : {}),
                     },
                 });
                 return memoryServerInstance;
@@ -62,7 +76,7 @@ export function createMemoryServerBootstrap(options: MemoryServerOptions = {}): 
             }
 
             if (memoryServerInstance) {
-                await memoryServerInstance.stop();
+                await memoryServerInstance.stop(memoryServerCleanupOptions());
                 memoryServerInstance = null;
             }
             memoryServerPromise = null;

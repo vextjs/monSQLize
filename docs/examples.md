@@ -11,6 +11,8 @@ npm run build
 npm run test:examples
 ```
 
+`npm run test:examples` 会在父进程中启动共享 `mongodb-memory-server` standalone + replica set，并在示例之间做健康检查，再把 URI 传给所有示例子进程；二进制缓存固定在 `.cache/mongodb-memory-server/binaries`，临时数据目录固定在 `.cache/mongodb-memory-server/db` 并在退出时清理。
+
 也可以单独执行任意示例：
 
 ```bash

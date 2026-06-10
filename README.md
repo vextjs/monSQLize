@@ -482,6 +482,8 @@ npm run test:server-matrix
 npm run test:real-env:private
 ```
 
+`test:examples`, `test:server-matrix`, and `config.useMemoryServer` use a fixed `mongodb-memory-server` policy: MongoDB `7.0.14` by default, binaries cached under `.cache/mongodb-memory-server/binaries`, and temporary data paths created under `.cache/mongodb-memory-server/db` with forced cleanup for project-managed paths. Override with `MONSQLIZE_MEMORY_MONGO_BINARY_VERSION`, `MONSQLIZE_REPLSET_BINARY_VERSION`, `MONGOMS_DOWNLOAD_DIR`, or `MONSQLIZE_MEMORY_SERVER_DB_DIR` when needed.
+
 `test:coverage` is the independent 95% coverage governance gate. `test:real-env:private` is intentionally opt-in and expects private environment variables. Neither command is part of the default CI or release gate.
 
 ## Release Status

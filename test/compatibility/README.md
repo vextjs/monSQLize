@@ -34,6 +34,7 @@ test/compatibility/
 - `npm run probe:server-matrix` 会直接探测 `mongodb-memory-server` 是否能拉起 `MongoDB 6.0.14 / 7.0.14`
 - 本机当前已确认 `6.0.14` 与 `7.0.14` 的单机 / replica set 都可启动
 - 因此默认矩阵已不再依赖外部 `docker` / `mongod` / `mongosh` 或外部 URI
+- 矩阵与示例入口统一复用 `.cache/mongodb-memory-server/binaries`，并把临时 dbPath 收敛到 `.cache/mongodb-memory-server/db`
 
 ## 运行命令
 

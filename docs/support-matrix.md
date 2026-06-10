@@ -16,7 +16,7 @@
 |------|----------|------|
 | Node.js | 20.x / 22.x | `test/compatibility/matrix.json` + `npm run test:server-matrix` |
 | MongoDB Driver | 6.x / 7.x | `npm run test:server-matrix` |
-| MongoDB Server | 6.x / 7.x | `mongodb-memory-server` single + replica set matrix |
+| MongoDB Server | 6.x / 7.x | `mongodb-memory-server` single + replica set matrix with project-local binary cache and dbPath cleanup |
 
 ## 默认验证方式
 

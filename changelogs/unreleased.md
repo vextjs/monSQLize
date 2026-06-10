@@ -8,6 +8,7 @@
 - Kept `verify:full` as a reproducible full functional gate and left the 95% coverage threshold on the independent `test:coverage` governance command.
 - Updated server-matrix runners to execute the compiled `.generated/test-dist` integration tests after the TypeScript test build.
 - Restored MongoDB driver 7 type compatibility for query `FindOptions` usage.
+- Reused `mongodb-memory-server` binaries and project-local temporary dbPath directories across runtime, tests, examples, and validation scripts to prevent repeated downloads and runaway OS temp files.
 
 ## Documentation
 

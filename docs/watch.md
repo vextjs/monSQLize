@@ -280,6 +280,8 @@ const collection = msq.dbInstance.collection('users');
 const watcher = collection.watch();
 ```
 
+`useMemoryServer` 使用单节点 replica set，二进制缓存固定在 `.cache/mongodb-memory-server/binaries`，自动创建的临时 dbPath 固定在 `.cache/mongodb-memory-server/db` 并在关闭时清理。
+
 **生产环境** - 使用副本集或分片集群:
 ```javascript
 const msq = new MonSQLize({

@@ -21,6 +21,8 @@
 | `npm run test:real-env:private` | 私有真实环境检查；默认不进入常规 verify / CI |
 | `npm run release:preflight` | 公开发布前门禁：检查 lockfile 发布态、changelog / 支持矩阵 / 依赖治理文档，并串联 `verify:fast` + `npm test` + `npm pack --dry-run` |
 
+memory-server 相关入口统一使用 `.cache/mongodb-memory-server/binaries` 作为二进制缓存，`.cache/mongodb-memory-server/db` 作为项目内临时数据目录；项目自动创建的 dbPath 会在脚本退出或 runtime close 时清理，避免默认系统临时目录堆积。
+
 ## 运行策略
 
 ### 1. 日常开发 / 小范围重构

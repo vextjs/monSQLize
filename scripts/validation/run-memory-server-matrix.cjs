@@ -1,12 +1,21 @@
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { configureMemoryServerEnv } = require('./memory-server-policy.cjs');
 
 const projectRoot = path.resolve(__dirname, '..', '..');
 const packageJson = require(path.join(projectRoot, 'package.json'));
 const baseDriverRange = packageJson.dependencies.mongodb;
 const currentDriverVersion = readInstalledDriverVersion();
 const testDistRoot = path.join('.generated', 'test-dist');
+const memoryServerPolicy = configureMemoryServerEnv();
+const memoryServerEnv = {
+    MONGOMS_DOWNLOAD_DIR: memoryServerPolicy.downloadDir,
+    MONGOMS_PREFER_GLOBAL_PATH: 'false',
+    MONGOMS_RUNTIME_DOWNLOAD: 'true',
+    MONSQLIZE_MEMORY_SERVER_CACHE_DIR: memoryServerPolicy.cacheRoot,
+    MONSQLIZE_MEMORY_SERVER_DB_DIR: memoryServerPolicy.dbRoot,
+};
 const mongoVersions = [
     { label: 'MongoDB 6.x', version: '6.0.14' },
     { label: 'MongoDB 7.x', version: '7.0.14' },
@@ -38,6 +47,7 @@ function run(command, args, options = {}) {
         shell: options.shell ?? (process.platform === 'win32'),
         env: {
             ...process.env,
+            ...memoryServerEnv,
             ...(options.env || {}),
         },
     });

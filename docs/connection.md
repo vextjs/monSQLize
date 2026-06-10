@@ -553,6 +553,8 @@ describe('用户服务测试', () => {
 });
 ```
 
+`useMemoryServer` 默认会复用项目内 `.cache/mongodb-memory-server/binaries` 二进制缓存，并把自动创建的临时数据目录放到 `.cache/mongodb-memory-server/db` 后在关闭时清理。如需固定目录，可传入 `memoryServerOptions.instance.dbPath` 或设置 `MONSQLIZE_MEMORY_SERVER_DB_DIR`。
+
 ---
 
 ## 配置选项

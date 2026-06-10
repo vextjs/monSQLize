@@ -1,7 +1,16 @@
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
+const { configureMemoryServerEnv } = require('./memory-server-policy.cjs');
 
 const projectRoot = path.resolve(__dirname, '..', '..');
+const memoryServerPolicy = configureMemoryServerEnv();
+const memoryServerEnv = {
+    MONGOMS_DOWNLOAD_DIR: memoryServerPolicy.downloadDir,
+    MONGOMS_PREFER_GLOBAL_PATH: 'false',
+    MONGOMS_RUNTIME_DOWNLOAD: 'true',
+    MONSQLIZE_MEMORY_SERVER_CACHE_DIR: memoryServerPolicy.cacheRoot,
+    MONSQLIZE_MEMORY_SERVER_DB_DIR: memoryServerPolicy.dbRoot,
+};
 const matrixVersions = [
     { label: 'MongoDB 6.x', version: '6.0.14' },
     { label: 'MongoDB 7.x', version: '7.0.14' },
@@ -23,6 +32,10 @@ function probeVersion(version) {
         cwd: projectRoot,
         stdio: 'pipe',
         encoding: 'utf8',
+        env: {
+            ...process.env,
+            ...memoryServerEnv,
+        },
     });
 
     if (result.status === 0) {

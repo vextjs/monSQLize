@@ -1,4 +1,12 @@
 import { ensureWebCryptoGlobal } from './webcrypto';
+import {
+    configureMemoryServerEnv,
+    createMemoryServerDbPath,
+    memoryServerCleanupOptions,
+    resolveMemoryServerLaunchTimeoutMs,
+    resolveReplSetBinaryVersion,
+    seedMemoryServerBinaryCache,
+} from './memory-server-policy';
 
 type ReplSetOptions = {
     uri?: string;
@@ -22,7 +30,7 @@ let replSetInstance: any = null;
 
 export function createReplSetBootstrap(options: ReplSetOptions = {}): ReplSetBootstrap {
     const externalUri = options.uri || process.env.MONSQLIZE_REPLSET_URI;
-    const binaryVersion = options.binaryVersion || process.env.MONSQLIZE_REPLSET_BINARY_VERSION || process.env.MONSQLIZE_MEMORY_MONGO_BINARY_VERSION;
+    const binaryVersion = resolveReplSetBinaryVersion(options.binaryVersion);
 
     async function ensureServer(): Promise<ReplSetContext> {
         if (externalUri) {
@@ -36,12 +44,23 @@ export function createReplSetBootstrap(options: ReplSetOptions = {}): ReplSetBoo
         if (!replSetPromise) {
             replSetPromise = (async () => {
                 ensureWebCryptoGlobal();
+                configureMemoryServerEnv(binaryVersion);
+                await seedMemoryServerBinaryCache(binaryVersion);
                 const { MongoMemoryReplSet } = require('mongodb-memory-server');
+                const dbName = options.dbName || 'monsqlize_p4a';
+                const launchTimeout = resolveMemoryServerLaunchTimeoutMs();
                 replSetInstance = await MongoMemoryReplSet.create({
-                    ...(binaryVersion ? { binary: { version: binaryVersion } } : {}),
+                    binary: { version: binaryVersion },
+                    instanceOpts: [
+                        {
+                            dbPath: createMemoryServerDbPath('replset', dbName),
+                            ...(launchTimeout ? { launchTimeout } : {}),
+                        },
+                    ],
                     replSet: {
                         count: 1,
-                        dbName: options.dbName || 'monsqlize_p4a',
+                        dbName,
+                        storageEngine: 'wiredTiger',
                     },
                 });
                 return replSetInstance;
@@ -62,7 +81,7 @@ export function createReplSetBootstrap(options: ReplSetOptions = {}): ReplSetBoo
                 return true;
             }
             if (replSetInstance) {
-                await replSetInstance.stop();
+                await replSetInstance.stop(memoryServerCleanupOptions());
                 replSetInstance = null;
             }
             replSetPromise = null;

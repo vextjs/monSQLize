@@ -28,6 +28,8 @@ node .generated/examples-dist/examples/quick-start/basic-connect.js
 npm run test:examples
 ```
 
+`npm run test:examples` starts shared standalone and replica set MongoDB servers, health-checks them between examples, and passes their URIs into every example process. MongoDB binaries are cached in `.cache/mongodb-memory-server/binaries`, and temporary data directories are created under `.cache/mongodb-memory-server/db` and cleaned when the runner exits.
+
 ## Example Index
 
 ### Quick Start

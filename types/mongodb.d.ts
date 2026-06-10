@@ -13,7 +13,14 @@ export interface MongoConnectConfig {
     useMemoryServer?: boolean;
     /** Instance/binary configuration options for mongodb-memory-server. */
     memoryServerOptions?: {
-        instance?: { port?: number; dbName?: string; storageEngine?: string; replSet?: string };
+        instance?: {
+            port?: number;
+            dbName?: string;
+            storageEngine?: string;
+            replSet?: string;
+            dbPath?: string;
+            launchTimeout?: number;
+        };
         binary?: { version?: string };
         [key: string]: unknown;
     };

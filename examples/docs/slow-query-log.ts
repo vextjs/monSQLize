@@ -9,22 +9,14 @@
  *   npm run build && tsc -p tsconfig.examples.json
  *   node .generated/examples-dist/examples/docs/slow-query-log.js
  */
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import MonSQLize from 'monsqlize';
+import { setupExample, teardownExample } from '../helpers/bootstrap.js';
 
 async function main() {
-    const server = await MongoMemoryServer.create({ instance: { dbName: 'example-slow-query' } });
-    const uri = server.getUri();
-
-    // ── Configure slow query logging ──────────────────────────────────────
-    const msq = new MonSQLize({
-        type: 'mongodb',
-        databaseName: 'example-slow-query',
-        config: { uri },
+    const { msq, server } = await setupExample('example-slow-query', {
         slowQueryLog: {
             enabled: true,
             storage: {
-                // 'memory' storage for examples — no extra collection needed
+                // 'memory' storage for examples keeps the run self-contained.
                 type: 'memory',
             },
             batch: {
@@ -42,7 +34,6 @@ async function main() {
         },
     });
 
-    await msq.connect();
     const products = msq.collection('products');
 
     await products.insertMany(
@@ -53,7 +44,7 @@ async function main() {
         })),
     );
 
-    // ── Manually record slow queries (simulating slow operations) ─────────
+    // Manually record slow queries to simulate slow operations.
     await msq.recordSlowQuery({
         database: 'example-slow-query',
         collection: 'products',
@@ -78,27 +69,26 @@ async function main() {
         query: { name: 'Product-10' },
     });
 
-    // ── Query the slow log ────────────────────────────────────────────────
+    // Query the slow log.
     const logs = await msq.getSlowQueryLogs({ collection: 'products' }, { limit: 10 });
     console.log('Slow query log entries:');
     for (const entry of logs) {
-        console.log(`  ${entry.collection}.${entry.operation} — count:${entry.count} avg:${entry.avgTimeMs}ms max:${entry.maxTimeMs}ms`);
+        console.log(`  ${entry.collection}.${entry.operation} - count:${entry.count} avg:${entry.avgTimeMs}ms max:${entry.maxTimeMs}ms`);
     }
 
-    // ── Filter by operation ───────────────────────────────────────────────
+    // Filter by operation.
     const findLogs = await msq.getSlowQueryLogs({ operation: 'find' }, { limit: 5 });
     console.log('\nOnly "find" entries:', findLogs.length);
 
-    // ── Get the slow query log manager directly ───────────────────────────
+    // Get the slow query log manager directly.
     const manager = msq.getSlowQueryLogManager();
     console.log('\nManager available:', manager !== null);
 
-    await msq.close();
-    await server.stop();
-    console.log('✅ Slow query log example complete');
+    await teardownExample(msq, server);
+    console.log('Slow query log example complete');
 }
 
 main().catch((err) => {
-    console.error('❌ Example failed:', err);
+    console.error('Example failed:', err);
     process.exit(1);
 });
