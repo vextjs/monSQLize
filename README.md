@@ -431,10 +431,11 @@ The v2 line has been validated against the workspace consumers `chat`, `payment`
 
 See the current support and verification documents:
 
-- [docs/README.md](https://github.com/vextjs/monSQLize/blob/main/docs/README.md)
-- [docs/recipes.md](https://github.com/vextjs/monSQLize/blob/main/docs/recipes.md)
-- [docs/support-matrix.md](https://github.com/vextjs/monSQLize/blob/main/docs/support-matrix.md)
-- [docs/verification-entrypoints.md](https://github.com/vextjs/monSQLize/blob/main/docs/verification-entrypoints.md)
+- [English documentation](https://github.com/vextjs/monSQLize/blob/main/docs/en/README.md)
+- [Chinese documentation](https://github.com/vextjs/monSQLize/blob/main/docs/zh/README.md)
+- [English recipes](https://github.com/vextjs/monSQLize/blob/main/docs/en/recipes.md)
+- [Support matrix](https://github.com/vextjs/monSQLize/blob/main/docs/en/support-matrix.md)
+- [Verification entry points](https://github.com/vextjs/monSQLize/blob/main/docs/en/verification-entrypoints.md)
 - [test/compatibility/README.md](https://github.com/vextjs/monSQLize/blob/main/test/compatibility/README.md)
 - [test/validation/VERIFICATION-PROGRESS.md](https://github.com/vextjs/monSQLize/blob/main/test/validation/VERIFICATION-PROGRESS.md)
 
@@ -442,8 +443,9 @@ See the current support and verification documents:
 
 Current TypeScript documentation and examples are the source of truth for the v2 package:
 
-- `docs/**` - current documentation.
-- `docs/recipes.md` - shortest copy-ready paths for common setup scenarios.
+- `docs/en/**` - default English documentation.
+- `docs/zh/**` - Simplified Chinese documentation.
+- `docs/en/recipes.md` / `docs/zh/recipes.md` - shortest copy-ready paths for common setup scenarios.
 - `examples/**` - TypeScript examples.
 - `test/compatibility/**` - package exports and compatibility guards.
 - `test/validation/**` - verification ledgers and mapping notes.

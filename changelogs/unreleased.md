@@ -19,3 +19,5 @@
 - Refreshed documentation consistency for MongoDB driver support, `findOneAnd*` return values, API index coverage, example paths, dependency version wording, and archived changelog links.
 - Fixed stale documentation references for lock error imports, ObjectId / ESM verification commands, coverage threshold wording, API index links, Node.js version requirements, and the current docs site version label.
 - Fixed Markdown fence corruption, stale chain-method wording, and visible replacement characters in current docs site pages.
+- Started the bilingual documentation structure with `docs/en/**` as the default English site and `docs/zh/**` as the Simplified Chinese site; enabled Rspress `locales` and `languageParity`.
+- Translated the English entry documentation batch covering the home page, README, getting started, examples, capability index, cache overview, API index, ESM support, connection management, and ObjectId auto conversion.

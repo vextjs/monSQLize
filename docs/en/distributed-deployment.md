@@ -1,0 +1,984 @@
+﻿# Distributed Deployment Guide
+
+**Version**: Unreleased (main)
+**Updated date**: 2026-06-09
+
+---
+
+## 📚 Table of Contents
+
+- [Overview](#overview)
+- [Architecture Selection](#architecture-selection)
+- [Risk in distributed environment](#risks-in-distributed-environments)
+- [Solution](#solution)
+- [Configuration Guide](#configuration-guide)
+- [Best Practice](#best-practices)
+- [Performance considerations](#performance-considerations)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## Overview
+
+monSQLize supports single-instance and multi-instance deployments. In a **single instance** environment, all caching and transaction mechanisms work perfectly. However, in a multi-instance (distributed) environment, additional configuration is required to ensure data consistency.
+
+
+## Why is distributed support needed?
+
+In a multi-instance deployment, each instance has its own local cache and lock manager. If no special treatment is done, it will lead to:
+
+1. ❌ **Cache Inconsistency**: After instance A updates the data, the local cache of instance B still has the old data
+2. ❌ **Transaction isolation failure**: During the transaction of instance A, instance B may read the intermediate state and write it to the cache
+3. ❌ **Business logic error**: There may be errors in balance calculation, inventory deduction and other scenarios
+
+---
+
+## Architecture selection
+
+
+## 1. Single instance deployment (✅ Recommended: small applications)
+
+```text
+┌─────────────────────────────┐
+│ Node.js Example │
+│                              │
+│  ┌───────────────┐          │
+│ │ Local Cache LRU │ │
+│  └───────────────┘          │
+└─────────────────────────────┘
+         │
+         ▼
+MongoDB (replica set)
+```
+
+**Features**:
+- ✅ All functions fully supported
+- ✅ No Redis required
+- ✅ Easy to configure
+- ⚠️ No high availability
+
+**Applicable scenarios**:
+- Development/test environment
+- Production environment with low traffic
+- Single application
+
+**Configuration Example**:
+```javascript
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: { uri: 'mongodb://localhost:27017' },
+  cache: {
+    maxSize: 1000,
+    ttl: 60000
+  }
+});
+```
+
+---
+
+
+## 2. Multiple instances + independent local cache (🔴 not recommended)
+
+```text
+┌───────────────────┐    ┌───────────────────┐
+│Instance A │ │Instance B │
+│ ┌──────────┐      │    │ ┌──────────┐      │
+│ │Local cache A │ │ │ │Local cache B │ │
+│ └──────────┘      │    │ └──────────┘      │
+└────────┬──────────┘    └────────┬──────────┘
+         │                         │
+         └────────┬────────────────┘
+                  ▼
+MongoDB (replica set)
+```
+
+**RISK**:
+- 🔴 **High Risk**: Cache Inconsistency
+- 🔴 **Transaction isolation failure**
+- ❌ **Not recommended for production environments**
+
+---
+
+
+## 3. Multiple instances + Redis + distributed cache failure (🟢 Recommended)
+
+```text
+┌───────────────────┐    ┌───────────────────┐
+│Instance A │ │Instance B │
+│ ┌──────────┐      │    │ ┌──────────┐      │
+│ │Local cache A │ │ │ │Local cache B │ │
+│ └────┬─────┘      │    │ └────┬─────┘      │
+└──────┼────────────┘    └──────┼────────────┘
+       │                         │
+       └────────┬────────────────┘
+                ▼
+         ┌─────────────┐
+         │   Redis     │
+│ (caching + broadcasting) │
+         └──────┬──────┘
+                │
+                ▼
+MongoDB (replica set)
+```
+
+**Features**:
+- ✅ High availability
+- ✅ Good cache consistency (millisecond latency)
+- ✅Excellent performance
+- ⚠️ Depends on Redis
+
+**Applicable scenarios**:
+- Production environment (recommended)
+- High concurrency scenarios
+- Tolerate short-term (millisecond level) data inconsistencies
+
+**Configuration Example**:
+```javascript
+const Redis = require('ioredis');
+const redis = new Redis('redis://localhost:6379');
+
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: { uri: 'mongodb://localhost:27017' },
+
+  cache: {
+    multiLevel: true,
+    local: { maxSize: 1000 },
+    remote: MonSQLize.createRedisCacheAdapter(redis),  //Redis cache
+
+    //🆕 Enable distributed cache invalidation
+    distributed: {
+      enabled: true,           //✅ Required: Enable
+      instanceId: 'instance-1' //❌ Optional: automatically generated by default (manual setting is recommended)
+      //redis // ❌ Optional: automatically reused from remote by default (ES6 abbreviation)
+      //channel: 'myapp:cache:invalidate' // ❌ Optional: Custom channel
+    }
+  }
+});
+```
+
+---
+
+
+## 4. Multiple instances + distributed transaction locks (🟢 Recommended: Finance/Trading)
+
+```text
+┌───────────────────┐    ┌───────────────────┐
+│Instance A │ │Instance B │
+│ ┌──────────┐      │    │ ┌──────────┐      │
+│ │Local cache A │ │ │ │Local cache B │ │
+│ └────┬─────┘      │    │ └────┬─────┘      │
+└──────┼────────────┘    └──────┼────────────┘
+       │                         │
+       └────────┬────────────────┘
+                ▼
+         ┌─────────────┐
+         │   Redis     │
+│ (cache + lock) │
+         └──────┬──────┘
+                │
+                ▼
+MongoDB (replica set)
+```
+
+**Features**:
+- ✅ Strong consistency
+- ✅ Transaction isolation guarantee
+- ✅ Suitable for financial/trading scenarios
+- ⚠️ Slight performance degradation (Redis network requests)
+
+**Applicable scenarios**:
+- financial system
+- Payment/Transfer
+- Inventory deductions
+- Any scenario requiring strong consistency
+
+**Configuration Example**:
+```javascript
+const Redis = require('ioredis');
+const redis = new Redis('redis://localhost:6379');
+
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: { uri: 'mongodb://localhost:27017?replicaSet=rs0' },
+
+  cache: {
+    multiLevel: true,
+    local: { maxSize: 1000 },
+    remote: MonSQLize.createRedisCacheAdapter(redis),
+
+    //Distributed cache invalidation
+    distributed: {
+      enabled: true,              //✅ Required: Enable
+      instanceId: 'instance-1'    //❌ Optional: automatically generated by default (manual setting is recommended)
+      //redis // ❌ Optional: automatically reused from remote by default (ES6 abbreviation)
+    },
+
+    //🆕 Distributed transaction lock
+    transaction: {
+      distributedLock: {
+        redis,                                 //✅ Required: Redis instance (transaction lock must be configured explicitly)
+        keyPrefix: 'myapp:cache:lock:'         //❌ Optional: lock key prefix
+      }
+    }
+  }
+});
+```
+
+---
+
+
+## 5. Multiple instances + disable cache (🟡 Applicable: strong consistency requirements)
+
+**Features**:
+- ✅ 100% data consistency
+- ✅ No external dependencies
+- ❌ Performance degradation (all requests check the database)
+
+**Applicable scenarios**:
+- Low traffic applications
+- Strong consistency requirements
+- Unable to use Redis
+
+**Configuration Example**:
+```javascript
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: { uri: 'mongodb://localhost:27017' },
+
+  cache: {
+    //Disable caching (all queries access the database directly)
+    maxSize: 0
+  }
+});
+```
+
+---
+
+## Risks in distributed environments
+
+
+## Risk 1: Cache invalidation out of sync
+
+**Scenario**:
+```javascript
+//timeline
+T1: Instance A queries user { id: 1, balance: 100 } → writes local cache A
+T2: Instance B queries user { id: 1, balance: 100 } → writes local cache B
+T3: Instance A updates the balance to 150 → invalidates local cache A ✓
+T4: Instance B queries user → hits local cache B → returns old data 100 ❌
+```
+
+**Impact**:
+- Users see inconsistent balances
+-Business logic may go wrong
+
+**Solution**: Enable **Distributed Cache Invalidation Broadcast**
+
+---
+
+
+## Risk 2: Transaction cache lock does not take effect
+
+**Scenario**:
+```javascript
+//Example A: Transfer transaction
+await msq.withTransaction(async (tx) => {
+  //T1: Debit Alice
+  await accounts.updateOne(
+    { userId: 'alice' },
+    { $inc: { balance: -100 } },
+    { session: tx.session }
+  );
+
+  //T2: Instance B queries Alice → reads the intermediate state → writes to the cache ❌
+
+  //T3: Add Bob
+  await accounts.updateOne(
+    { userId: 'bob' },
+    { $inc: { balance: 100 } },
+    { session: tx.session }
+  );
+});
+```
+
+**Impact**:
+- Read the intermediate state of the transaction
+- There may be dirty data in the cache
+- Transaction isolation failure
+
+**Solution**: Enable **Distributed Transaction Lock**
+
+---
+
+## Solution
+
+
+## Solution 1: Distributed cache invalidation broadcast (recommended)
+
+**Principle**: Use Redis Pub/Sub to broadcast cache invalidation messages
+
+**Workflow**:
+```text
+1. Instance A updates data
+2. Instance A invalid local cache + Redis
+3. Instance A broadcast failure message (Redis Pub/Sub)
+4. Instance B receives the message
+5. Instance B invalidates local cache
+```
+
+**Configuration**:
+```javascript
+const Redis = require('ioredis');
+const redis = new Redis('redis://localhost:6379');
+
+cache: {
+  multiLevel: true,
+  local: { maxSize: 1000 },
+  remote: MonSQLize.createRedisCacheAdapter(redis),
+
+  distributed: {
+    enabled: true,                 //✅ Required: Enable distributed invalidation
+    instanceId: 'instance-A'       //❌ Optional: Instance ID, automatically generated by default (manual setting is recommended)
+    //redis // ❌ Optional: automatically reused from remote by default (ES6 abbreviation)
+    // channel: 'myapp:cache:invalidate'// ❌ optional: default'monsqlize:cache:invalidate'
+  }
+}
+```
+
+**Advantages**:
+- ✅ Real-time broadcast, low latency (millisecond level)
+- ✅ Use existing Redis infrastructure
+- ✅ Simple to implement and easy to maintain
+
+**Disadvantages**:
+- ⚠️ Depends on Redis
+- ⚠️ May be inconsistent within a very short time window (network delay)
+
+---
+
+
+## Solution 2: Distributed transaction lock (recommended: strong consistency)
+
+**Principle**: Use Redis to store transaction lock information, shared by all instances
+
+**Workflow**:
+```text
+1. Instance A starts a transaction
+2. Add cache lock (key + sessionId) in Redis
+3. Instance B queries data
+4. Check Redis lock → found lock → do not write to cache
+5. Instance A commits the transaction
+6. Release the Redis lock
+```
+
+**Configuration**:
+```javascript
+const Redis = require('ioredis');
+const redis = new Redis('redis://localhost:6379');
+
+cache: {
+  transaction: {
+    distributedLock: {
+      redis,                           //✅ Required: Redis instance (transaction lock must be configured explicitly)
+      keyPrefix: 'myapp:cache:lock:'// ❌ optional: default'monsqlize:cache:lock:'
+    }
+  }
+}
+```
+
+**Advantages**:
+- ✅ Real distributed lock
+- ✅ Transaction isolation guarantee
+- ✅ Suitable for financial/trading scenarios
+
+**Disadvantages**:
+- ⚠️ Slight performance degradation (Redis network requests)
+- ⚠️ Depends on Redis availability
+
+---
+
+## Configuration Guide
+
+
+## Complete configuration example
+
+```javascript
+import MonSQLize from 'monsqlize';
+const Redis = require('ioredis');
+
+//Create a Redis instance (reused for caching, broadcasting, and locking)
+const redis = new Redis({
+  host: 'localhost',
+  port: 6379,
+  db: 0,
+  retryStrategy: (times) => {
+    return Math.min(times * 50, 2000);
+  }
+});
+
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: {
+    uri: 'mongodb://localhost:27017?replicaSet=rs0'
+  },
+
+  cache: {
+    //Multi-tier caching
+    multiLevel: true,
+
+    //Local cache configuration
+    local: {
+      maxSize: 1000,       //Cache up to 1000 items
+      maxMemory: 0,        //No memory limit
+      enableStats: true    //Enable statistics
+    },
+
+    //Remote Redis cache (reuse instance)
+    remote: MonSQLize.createRedisCacheAdapter(redis),
+
+    //caching strategy
+    policy: {
+      writePolicy: 'both',            //Double-write (both) or local-first (local-first-async-remote)
+      backfillLocalOnRemoteHit: true  //Backfill local when remote hits
+    },
+
+    //🆕 Distributed cache invalidation
+    distributed: {
+      enabled: true,                           //✅ Required: Enable
+      instanceId: process.env.INSTANCE_ID,    //❌ Optional: automatically generated by default (environment variables are recommended)
+      channel: 'myapp:cache:invalidate'       //❌ Optional: Custom channel
+      //redis // ❌ Optional: automatically reused from remote by default (ES6 abbreviation)
+    },
+
+    //🆕 Distributed transaction lock
+    transaction: {
+      distributedLock: {
+        redis,                                 //✅ Required: Redis instance (transaction lock must be configured explicitly)
+        keyPrefix: 'myapp:cache:lock:',        //❌ Optional: lock key prefix
+        maxDuration: 300000                    //❌ Optional: lock maximum duration (milliseconds)
+      }
+    }
+  }
+});
+
+//connect
+await msq.connect();
+
+//use
+const { collection } = await msq.connect();
+const users = await collection('users').find({
+  query: { active: true },
+  cache: 60000  //Cache for 60 seconds
+});
+
+//Close (clean up resources)
+await msq.close();
+```
+
+**💡 Configuration instructions**:
+- ✅ **Required**: Must be configured, otherwise the function will not work
+- ❌ **Optional**: You can not configure it, use the default value
+- **One Redis instance**: used for three purposes: caching, broadcasting, and locking (recommended for reuse)
+
+---
+
+
+## Configuration option description
+
+
+### distributed (distributed cache invalidation)
+
+| Options | Type | Required | Default | Description |
+|-----|------|------|--------|------|
+| `enabled` | Boolean | ✅ | - | Whether to enable distributed cache invalidation |
+| `redis` | Object | ❌ | Automatically extract from `remote` | ioredis instance (optional, the Redis of `cache.remote` is reused by default) |
+| `redisUrl` | String | ❌ | - | Redis connection URL (choose one from redis, not recommended) |
+| `instanceId` | String | ❌ | `instance-${timestamp}-${random}` | Instance identification, automatically generated by default (such as `instance-1732521234567-a2b3c4d5e`), **strongly recommended to set manually** |
+| `channel` | String | ❌ | `'monsqlize:cache:invalidate'` | Pub/Sub channel name |
+
+**⚠️ IMPORTANT NOTE**:
+- **`redis` and `redisUrl`**: both optional
+  - **Recommended**: Do not configure `redis` and automatically reuse the Redis instance from `cache.remote`
+  - If you need to configure it separately: use the `redis` parameter (reusable instance)
+  - Not recommended: use `redisUrl` (new connection will be created)
+- **`instanceId`**: Optional, but **strongly recommended to set manually**
+  - Default value format: `instance-${timestamp}-${random}` (such as `instance-1732521234567-a2b3c4d5e`)
+  - **`instanceId` must be different for each instance**, otherwise the cache invalidation broadcast will fail.
+  - It is recommended to use environment variables: `process.env.INSTANCE_ID` or `process.env.HOSTNAME`
+
+
+### transaction.distributedLock (distributed transaction lock)
+
+| Options | Type | Required | Default | Description |
+|-----|------|------|--------|------|
+| `redis` | Object | ✅ | - | ioredis instance (**required**) |
+| `keyPrefix` | String | ❌ | `'monsqlize:cache:lock:'` | Lock key prefix |
+| `maxDuration` | Number | ❌ | `300000` | Maximum lock duration (milliseconds) |
+
+---
+
+## Technical implementation details
+
+
+## Complete process of distributed cache invalidation
+
+
+### 1. Initialization phase (when connect())
+
+```javascript
+// dist/cjs/index.cjs
+async connect() {
+  //Step 1: Create DistributedCacheInvalidator
+  this._cacheInvalidator = new DistributedCacheInvalidator({
+    redisUrl: this.cache.distributed.redisUrl,
+    redis: this.cache.distributed.redis,
+    channel: this.cache.distributed.channel,
+    cache: this.cache,
+    logger: this.logger
+  });
+
+  //Step 2: Inject invalidate method into MultiLevelCache
+  if (this.cache && typeof this.cache.setPublish === 'function') {
+    this.cache.setPublish((msg) => {
+      if (msg && msg.type === 'invalidate' && msg.pattern) {
+        //When the cache is invalidated, call invalidate to broadcast the message
+        this._cacheInvalidator.invalidate(msg.pattern);
+      }
+    });
+  }
+}
+```
+
+
+### 2. Write operation phase (updateOne/deleteOne, etc.)
+
+```javascript
+// src/adapters/mongodb/writes/update-one.ts
+async function updateOne(filter, update, options) {
+  //Step 1: Perform MongoDB update
+  const result = await collection.updateOne(filter, update, options);
+
+  //Step 2: Invalidate cache
+  const pattern = buildNamespacePattern({
+    iid: instanceId,
+    type: 'mongodb',
+    db: databaseName,
+    collection: collectionName
+  });
+
+  //Step 3: Call cache.delPattern()
+  await cache.delPattern(pattern);  //← A broadcast will be triggered here!
+
+  return result;
+}
+```
+
+
+### 3. MultiLevelCache.delPattern() triggers broadcast
+
+```javascript
+// lib/multi-level-cache.js
+class MultiLevelCache {
+  async delPattern(pattern) {
+    //Step 1: Delete local cache
+    const deleted = await this.local.delPattern(pattern);
+
+    //Step 2: Call the publish callback (if set)
+    if (this.publish) {
+      this.publish({
+        type: 'invalidate',
+        pattern: pattern,
+        ts: Date.now()
+      });
+    }
+
+    return deleted;
+  }
+
+  setPublish(publishFn) {
+    this.publish = publishFn;  //Injected by index.js
+  }
+}
+```
+
+
+### 4. DistributedCacheInvalidator broadcast message
+
+```javascript
+// lib/distributed-cache-invalidator.js
+class DistributedCacheInvalidator {
+  async invalidate(pattern) {
+    //Step 1: Construct the message
+    const message = JSON.stringify({
+      type: 'invalidate',
+      pattern: pattern,
+      instanceId: this.instanceId,  //own instance ID
+      timestamp: Date.now()
+    });
+
+    //Step 2: Broadcast to Redis Pub/Sub
+    await this.pub.publish(this.channel, message);
+
+    this.stats.messagesSent++;
+  }
+}
+```
+
+
+### 5. Other instances receive the message and invalidate the cache
+
+```javascript
+// lib/distributed-cache-invalidator.js
+class DistributedCacheInvalidator {
+  _setupSubscription() {
+    //Step 1: Subscribe to the Redis channel
+    this.sub.subscribe(this.channel);
+
+    //Step 2: Process the received message
+    this.sub.on('message', (channel, message) => {
+      const data = JSON.parse(message);
+
+      //Step 3: Ignore your own messages
+      if (data.instanceId === this.instanceId) {
+        return;
+      }
+
+      //Step 4: Invalidate local cache
+      if (data.type === 'invalidate' && data.pattern) {
+        this._handleInvalidation(data.pattern);
+      }
+    });
+  }
+
+  _handleInvalidation(pattern) {
+    //Invalidate local cache (does not affect Redis)
+    if (this.cache.local && this.cache.local.delPattern) {
+      this.cache.local.delPattern(pattern);
+      this.stats.invalidationsTriggered++;
+    }
+  }
+}
+```
+
+
+## Complete call chain
+
+```text
+Write operations (updateOne/deleteOne/...)
+  ↓
+cache.delPattern(pattern)
+  ↓
+MultiLevelCache.delPattern()
+  ↓
+├─→ local.delPattern() (delete local cache)
+└─→ this.publish({ pattern }) (trigger broadcast)
+       ↓
+     DistributedCacheInvalidator.invalidate()
+       ↓
+redis.pub.publish(channel, message) (Redis Pub/Sub broadcast)
+       ↓
+     ┌─────────────────────────────────┐
+│ Redis Subscriber for other instances │
+     └─────────────────────────────────┘
+       ↓
+     DistributedCacheInvalidator._handleInvalidation()
+       ↓
+cache.local.delPattern(pattern) (delete local cache)
+```
+
+
+## Explanation of key points
+
+1. **Lazy injection of publish callback**:
+   - Cache created in `constructor`
+   - `DistributedCacheInvalidator` created in `connect()`
+   - Use the `setPublish()` method to dynamically inject callbacks
+
+2. **Instance ID Isolation**:
+   - Each instance has a unique `instanceId`
+   - Check `instanceId` when receiving messages, ignore messages sent by yourself
+   - Avoid repeated invalidation of local cache
+
+3. **Only invalidate local cache**:
+   - After receiving the broadcast message, only the local cache is invalidated
+   - Does not affect Redis cache (has expired)
+   - Reduce unnecessary Redis operations
+
+4. **Error handling**:
+   - Broadcast failure does not affect the success of the write operation
+   - Use `catch()` to catch all exceptions
+   - Log errors but don't throw them
+
+---
+
+## Best Practices
+
+
+## 1. Environment detection
+
+Automatically detect whether you are in a distributed environment:
+
+```javascript
+function isDistributedEnvironment() {
+  return !!(
+    process.env.INSTANCE_ID ||
+    process.env.POD_NAME ||      // Kubernetes
+    process.env.HOSTNAME         // Docker
+  );
+}
+
+const cache = isDistributedEnvironment() ? {
+  multiLevel: true,
+  distributed: { enabled: true, ... }
+} : {
+  maxSize: 1000
+};
+```
+
+---
+
+
+## 2. Choose a plan based on your business
+
+| Business type | Recommended solution | Configuration |
+|---------|---------|------|
+| **General Application** | Distributed Cache Invalidation | `distributed.enabled = true` |
+| **Finance/Payment** | Cache invalidation + transaction lock | `distributed.enabled = true`<br>`transaction.distributedLock = {...}` |
+| **Strong Consistency** | Disable caching | `maxSize = 0` |
+| **Development Environment** | Local Cache | Default Configuration |
+
+---
+
+
+## 3. Monitoring and logging
+
+Enable logs to view distributed component status:
+
+```javascript
+const msq = new MonSQLize({
+  // ...
+  logger: {
+    level: 'info',  // debug | info | warn | error
+    // ...
+  }
+});
+
+//View statistics
+const cache = msq.getCache();
+console.log(cache.getStats());  //cache statistics
+```
+
+---
+
+
+## 4. Error handling
+
+Degrade strategy when distributed components fail:
+
+```javascript
+//If the Redis connection fails, you can still use the local cache
+cache: {
+  multiLevel: true,
+  local: { maxSize: 1000 },
+  remote: MonSQLize.createRedisCacheAdapter('redis://...'),
+
+  distributed: {
+    enabled: true,
+    redisUrl: 'redis://...'
+    //If Redis is unavailable, it will automatically downgrade to local cache only.
+  }
+}
+```
+
+---
+
+## Performance considerations
+
+
+## 1. Distributed cache invalidation performance
+
+- **Latency**: ~1-5ms (Redis Pub/Sub)
+- **Bandwidth**: Each failure ~100 bytes
+- **Impact**: Negligible impact on overall performance
+
+
+## 2. Distributed transaction lock performance
+
+- **Latency**: ~2-10ms (Redis SET/DEL)
+- **Throughput**: Slight decrease (~10-20%)
+- **RECOMMENDED**: Enable only when strong consistency is required
+
+
+## 3. Comparison of caching strategies
+
+| Strategy | Latency | Consistency | Applicable scenarios |
+|-----|------|--------|---------|
+| **Local Only** | Minimum | Low | Single Instance |
+| **Local + Redis** | Low | Medium | Multiple instances |
+| **Local + Redis + Broadcast** | Low | High | Recommended |
+| **Local + Redis + Broadcast + Lock** | Medium | Highest | Finance/Trading |
+| **Disable Cache** | High | Highest | Strong Consistency |
+
+---
+
+## Troubleshooting
+
+
+## Problem 1: Cache invalidation broadcast does not take effect
+
+**Symptoms**: After instance A is updated, instance B still reads old data
+
+**Troubleshooting steps**:
+1. Check whether the Redis connection is normal
+   ```javascript
+   await redis.ping();  //should return 'PONG'
+   ```
+
+2. Check Pub/Sub subscriptions
+   ```javascript
+   await redis.subscribe('myapp:cache:invalidate');
+   redis.on('message', (channel, message) => {
+     console.log('Received message:', channel, message);
+   });
+   ```
+
+3. View logs
+   ```javascript
+   //Enable debug logging
+   logger: { level: 'debug' }
+   ```
+
+4. Check the instance ID
+   ```javascript
+   //Make sure the instanceId is different for each instance (manual setting is highly recommended)
+   distributed: {
+     instanceId: process.env.INSTANCE_ID  //Use environment variables
+   }
+   ```
+
+---
+
+
+## Problem 2: Distributed transaction lock does not take effect
+
+**Symptom**: Other instances still write to cache during transaction
+
+**Troubleshooting steps**:
+1. Confirm that the configuration is correct
+   ```javascript
+   transaction: {
+     distributedLock: {
+       redis  //✅ Required: The transaction lock must be explicitly passed into the Redis instance
+     }
+   }
+   ```
+
+2. Check whether the lock is created
+   ```javascript
+   //View locks in Redis
+   await redis.keys('myapp:cache:lock:*');
+   ```
+
+3. View the transaction log
+   ```javascript
+   logger: { level: 'debug' }
+   //Find the "Lock acquired" log
+   ```
+
+---
+
+
+## Problem 3: Redis connection failed
+
+**Symptoms**: An error occurs when the application starts or the cache does not work
+
+**Solution**:
+```javascript
+const Redis = require('ioredis');
+const redis = new Redis({
+  host: 'localhost',
+  port: 6379,
+  retryStrategy: (times) => {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  },
+  reconnectOnError: (err) => {
+    console.error('Redis error:', err);
+    return true;
+  }
+});
+
+redis.on('error', (err) => {
+  console.error('Redis connection failed:', err.message);
+});
+
+redis.on('connect', () => {
+  console.log('✅ Redis connection successful');
+});
+```
+
+---
+
+## Summary
+
+
+## Recommended configuration
+
+| Environment | Recommended solutions |
+|------|---------|
+| **Development Environment** | Local cache (default) |
+| **Production environment (single instance)** | Local cache + Redis |
+| **Production environment (multiple instances)** | Local + Redis + distributed failure |
+| **Financial/Trading System** | Local + Redis + Invalidation + Lock |
+
+
+## Quick Start
+
+**The simplest distributed configuration** (recommended):
+```javascript
+const Redis = require('ioredis');
+const redis = new Redis('redis://localhost:6379');
+
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: { uri: 'mongodb://...' },
+  cache: {
+    multiLevel: true,
+    local: { maxSize: 1000 },
+    remote: MonSQLize.createRedisCacheAdapter(redis),
+    distributed: {
+      enabled: true,              //✅ Required: Enable
+      instanceId: 'instance-1'    //❌ Optional: automatically generated by default (manual setting is recommended)
+      //redis // ❌ Optional: automatically reused from remote by default (ES6 abbreviation)
+    }
+  }
+});
+```
+
+**⚠️ IMPORTANT**:
+- `instanceId` is optional and automatically generated by default (format: `instance-${timestamp}-${random}`)
+- But **strongly recommended to set it manually** to facilitate debugging and log tracking
+- `instanceId` must be different for each instance
+- It is recommended to use environment variables: `instanceId: process.env.INSTANCE_ID`
+- The `redis` parameter can be omitted and will be automatically reused from `remote`
+
+---
+
+## Related documents
+
+- [Cache Policy Document](./cache.md)
+- [Cache consistency description](./cache.md)
+- [Transaction Function Document](./transaction.md)
+- [Redis Cache Adapter](../../src/capabilities/cache/redis-cache-adapter.ts)
+
+---
+
+**Updated date**: 2025-11-25
+**Maintainer**: monSQLize Team
