@@ -301,7 +301,7 @@ body:not(.notTopArrived) .rp-nav.rp-nav {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  transform: none;
+  transform: translateY(28px);
 }
 
 .rp-home-hero .rp-home-hero__image-img {
