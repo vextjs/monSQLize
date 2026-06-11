@@ -1,6 +1,6 @@
 {
   "name": "monsqlize",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "TypeScript-native MongoDB ODM with multi-level caching (cache-hub), distributed locks, Saga orchestration, unified expression system (122 operators), connection pool management, ChangeStream sync, slow-query logging, and full v1 API compatibility",
   "type": "commonjs",
   "main": "./dist/cjs/index.cjs",
@@ -18,6 +18,7 @@
     "dist/**/*.cjs",
     "dist/**/*.mjs",
     "dist/**/*.d.ts",
+    "changelogs/v2.0.3.md",
     "changelogs/v2.0.2.md",
     "changelogs/v2.0.1.md",
     "changelogs/v2.0.0.md",
@@ -82,6 +83,7 @@
     "test:refactor-guard": "npm run build && npm run build:tests && node --test --test-concurrency=1 .generated/test-dist/test/compatibility/exports/exports.test.js .generated/test-dist/test/integration/model/model-features.test.js .generated/test-dist/test/integration/runtime/runtime-core-regression.test.js .generated/test-dist/test/integration/sync/sync.test.js",
     "test:refactor-guard:cache": "npm run build && npm run build:tests && node --test .generated/test-dist/test/unit/cache/cache-refactor-guard.test.js",
     "test:coverage": "npm run build && npm run build:tests && c8 --reporter=text --reporter=lcov --reporter=json-summary --include \".generated/test-dist/dist/cjs/**/*.cjs\" --check-coverage --lines 90 --statements 90 --functions 90 --branches 90 node test/run-tests.cjs",
+    "test:audit": "npm audit --omit=dev --registry=https://registry.npmjs.org/",
     "test": "npm run build && npm run build:tests && node test/run-tests.cjs",
     "type-check": "npm run build && tsc -p tsconfig.json --noEmit && tsd --files test/types/root-import.test-d.ts --files test/types/cache-usage.test-d.ts --files test/types/model-usage.test-d.ts --files test/types/pool-usage.test-d.ts --files test/types/sync-usage.test-d.ts --files test/types/slow-query-log-usage.test-d.ts --files test/types/saga-usage.test-d.ts",
     "check:test-language": "node scripts/check-test-language.cjs",

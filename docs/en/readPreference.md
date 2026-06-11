@@ -4,15 +4,15 @@
 
 - [Overview](#overview)
 - [Core Features](#core-features)
-- [✅ 5 reading preference modes](#5-reading-preference-modes)
+- [5 read preference modes](#5-read-preference-modes)
 - [✅ Connection level global configuration](#connection-level-global-configuration)
 - [API parameter description](#api-parameter-description)
 - [Connection configuration](#connection-configuration)
 - [Usage example](#usage-example)
 - [Basic usage](#basic-usage)
   - [Example 1: Default read preference (primary)](#example-1-default-read-preference-primary)
-  - [Example 2: secondaryPreferred (read slave node first)](#example-2-secondarypreferred-read-slave-node-first)
-  - [Example 3: secondary (read only from the slave node)](#example-3-secondary-read-only-from-the-slave-node)
+  - [Example 2: secondaryPreferred (prefer secondary nodes)](#example-2-secondarypreferred-prefer-secondary-nodes)
+  - [Example 3: secondary (read only from secondary nodes)](#example-3-secondary-read-only-from-secondary-nodes)
   - [Example 4: primaryPreferred (read primary node first)](#example-4-primarypreferred-read-primary-node-first)
   - [Example 5: nearest (nearest read, low latency)](#example-5-nearest-nearest-read-low-latency)
 - [Advanced usage](#advanced-usage)
@@ -33,18 +33,18 @@
 
 ## Overview
 
-`readPreference` is a node selection strategy used to control read operations in MongoDB replica sets, and supports replica set read and write separation scenarios. By configuring `readPreference`, you can reduce the load on the master node and achieve low-latency reads for globally distributed deployments.
+`readPreference` is the MongoDB node-selection strategy for read operations in replica sets. It supports read/write separation by reducing load on the primary node and can help globally distributed deployments read from lower-latency nodes.
 
 **Applicable scenarios**:
 - ✅ Replica Set deployment (Replica Set)
-- ✅ Read and write separation (reduce the load on the master node)
+- ✅ Read/write separation (reduce load on the primary node)
 - ✅ Globally distributed deployment (low latency reading)
-- ✅ Analysis/report query (isolate master node write load)
+- ✅ Analytics/report queries (isolate primary-node write load)
 
 **Restrictions**:
 - ⚠️ Only global configuration (connection level), query level override is not supported
 - ⚠️ MongoDB exclusive features (no corresponding concept for PostgreSQL/MySQL)
-- ⚠️ Read slave nodes may have replication delays (data is not the latest)
+- ⚠️ Reads from secondary nodes may observe replication lag (data may not be the latest)
 - ⚠️ Not valid in stand-alone mode (replica set environment required)
 
 ---
@@ -52,18 +52,18 @@
 ## Core Features
 
 
-## ✅ 5 reading preference modes
+### 5 read preference modes
 
 | Mode | Read Node | Data Consistency | Applicable Scenarios |
 |------|---------|-----------|---------|
-| **primary** | Read-only primary node | Strong consistency | Default, latest data required |
-| **primaryPreferred** | Read the primary node first, read from the slave node when the primary node fails | Usually strong consistency | Require strong consistency + fault tolerance |
-| **secondary** | read-only slave | eventual consistency | analysis/reporting, isolated master |
-| **secondaryPreferred** | Read from the slave node first, and read from the master node when the slave node is unavailable | Eventual consistency | Read more and write less, reducing the load on the master node |
-| **nearest** | The node with the lowest read latency (master or slave) | Eventual consistency | Globally distributed deployment, low latency |
+| **primary** | Primary node only | Strong consistency | Default, latest data required |
+| **primaryPreferred** | Primary first; secondary when the primary is unavailable | Usually strong consistency | Strong consistency with failover tolerance |
+| **secondary** | Secondary nodes only | Eventual consistency | Analytics/reporting, primary write-load isolation |
+| **secondaryPreferred** | Secondary first; primary when no secondary is available | Eventual consistency | Read-heavy workloads, reduced primary load |
+| **nearest** | Lowest-latency node (primary or secondary) | Eventual consistency | Globally distributed deployment, low latency |
 
 
-## ✅ Connection level global configuration
+### Connection-level global configuration
 
 ```javascript
 const msq = new MonSQLize({
@@ -71,7 +71,7 @@ const msq = new MonSQLize({
     databaseName: 'test_db',
     config: {
         uri: 'mongodb://localhost:27017,localhost:27018,localhost:27019/?replicaSet=rs0',
-        readPreference: 'secondaryPreferred'  //← Global configuration
+        readPreference: 'secondaryPreferred'  // Global configuration
     }
 });
 ```
@@ -86,18 +86,18 @@ const msq = new MonSQLize({
 ## API parameter description
 
 
-## Connection configuration
+### Connection configuration
 
 | Parameters | Type | Required | Default | Description |
 |------|------|------|--------|------|
 | **config.readPreference** | string | ❌ | `'primary'` | Replica set read preference mode |
 
 **Optional values**:
-- `'primary'` - Read only from the master node (default)
-- `'primaryPreferred'` - Read the master node first, read from the slave node when the master node is unavailable
-- `'secondary'` - Read only from slave nodes
-- `'secondaryPreferred'` - Read the slave node first, and read the master node when the slave node is unavailable.
-- `'nearest'` - read nearest node (low latency)
+- `'primary'` - Read only from the primary node (default)
+- `'primaryPreferred'` - Read from the primary first, then a secondary when the primary is unavailable
+- `'secondary'` - Read only from secondary nodes
+- `'secondaryPreferred'` - Read from secondary nodes first, then the primary when no secondary is available
+- `'nearest'` - Read from the nearest node (low latency)
 
 ---
 
@@ -115,16 +115,16 @@ const msq = new MonSQLize({
     databaseName: 'test_db',
     config: {
         uri: 'mongodb://localhost:27017',
-        //If readPreference is not configured, the default is 'primary' (only read the primary node)
+        // If readPreference is not configured, the default is 'primary' (read only from the primary)
     }
 });
 
 await msq.connect();
 const { collection } = msq;
 
-//Query operations automatically read from the primary node
+// Query operations automatically read from the primary node
 const users = await collection('users').find({ query: {} });
-console.log(`✅ ${users.length} pieces of data were read from the master node`);
+console.log(`✅ Read ${users.length} documents from the primary node`);
 
 await msq.close();
 ```
@@ -132,9 +132,9 @@ await msq.close();
 ---
 
 
-### Example 2: secondaryPreferred (read slave node first)
+### Example 2: secondaryPreferred (prefer secondary nodes)
 
-**Applicable scenarios**: Read more and write less, reducing the load on the master node
+**Applicable scenarios**: read-heavy workloads that should reduce load on the primary node.
 
 ```javascript
 const msq = new MonSQLize({
@@ -142,21 +142,21 @@ const msq = new MonSQLize({
     databaseName: 'test_db',
     config: {
         uri: 'mongodb://localhost:27017,localhost:27018,localhost:27019/?replicaSet=rs0',
-        readPreference: 'secondaryPreferred'  //← Read slave nodes first
+        readPreference: 'secondaryPreferred'  // Prefer secondary nodes
     }
 });
 
 await msq.connect();
 const { collection } = msq;
 
-//Query reads from slave nodes first (reduces load on master node)
+// Queries read from secondary nodes first (reduces load on the primary)
 const products = await collection('products').find({
     query: { category: 'electronics' }
 });
-console.log(`✅ Read ${products.length} product data from the slave node`);
+console.log(`✅ Read ${products.length} products from secondary nodes`);
 
-//⚠️ NOTE: slave nodes may have replication delays
-console.log('⚠️ NOTE: Slave node data may have a delay of a few milliseconds to a few seconds');
+// NOTE: secondary nodes may have replication lag
+console.log('NOTE: secondary data may lag by a few milliseconds to a few seconds');
 
 await msq.close();
 ```
@@ -164,9 +164,9 @@ await msq.close();
 ---
 
 
-### Example 3: secondary (read only from the slave node)
+### Example 3: secondary (read only from secondary nodes)
 
-**Applicable scenarios**: Analysis/report query, completely isolating the write load of the master node
+**Applicable scenarios**: analytics/reporting queries that should isolate primary write load.
 
 ```javascript
 const msq = new MonSQLize({
@@ -174,20 +174,20 @@ const msq = new MonSQLize({
     databaseName: 'analytics_db',
     config: {
         uri: 'mongodb://localhost:27017,localhost:27018,localhost:27019/?replicaSet=rs0',
-        readPreference: 'secondary'  //← Read only from slave nodes
+        readPreference: 'secondary'  // Read only from secondary nodes
     }
 });
 
 await msq.connect();
 const { collection } = msq;
 
-//Applicable scenarios: analysis/report query, complete isolation of master node write load
+// Applicable scenarios: analytics/reporting query with primary write-load isolation
 const reports = await collection('sales').aggregate([
     { $match: { date: { $gte: new Date('2025-01-01') } } },
     { $group: { _id: '$category', total: { $sum: '$amount' } } }
 ]);
-console.log(`✅ Generate ${reports.length} report data from slave nodes`);
-console.log('✅ The master node is not affected and focuses on processing write operations.');
+console.log(`✅ Generated ${reports.length} report rows from secondary nodes`);
+console.log('✅ The primary node can continue focusing on write operations.');
 
 await msq.close();
 ```
@@ -197,7 +197,7 @@ await msq.close();
 
 ### Example 4: primaryPreferred (read primary node first)
 
-**Applicable Scenario**: Strong consistency is required, but you want to have a backup plan when the master node fails
+**Applicable scenario**: strong consistency is required, but reads should have a fallback when the primary node is unavailable.
 
 ```javascript
 const msq = new MonSQLize({
@@ -205,19 +205,19 @@ const msq = new MonSQLize({
     databaseName: 'test_db',
     config: {
         uri: 'mongodb://localhost:27017,localhost:27018,localhost:27019/?replicaSet=rs0',
-        readPreference: 'primaryPreferred'  //← Read the master node first, and read from the slave node when the master node fails.
+        readPreference: 'primaryPreferred'  // Read from the primary first, then from a secondary if needed
     }
 });
 
 await msq.connect();
 const { collection } = msq;
 
-//Applicable scenarios: Strong consistency is required, but there is a backup plan when the master node fails.
+// Applicable scenario: strong consistency with a fallback when the primary is unavailable
 const orders = await collection('orders').find({
     query: { status: 'pending' }
 });
-console.log(`✅ Read ${orders.length} orders from the master node first`);
-console.log('✅ If the master node fails, automatically switch to the slave node');
+console.log(`✅ Read ${orders.length} orders from the primary node first`);
+console.log('✅ If the primary is unavailable, reads can fall back to a secondary');
 
 await msq.close();
 ```
@@ -235,14 +235,14 @@ const msq = new MonSQLize({
     databaseName: 'test_db',
     config: {
         uri: 'mongodb://localhost:27017,localhost:27018,localhost:27019/?replicaSet=rs0',
-        readPreference: 'nearest'  //← The node with the lowest read latency (master or slave)
+        readPreference: 'nearest'  // Lowest-latency node (primary or secondary)
     }
 });
 
 await msq.connect();
 const { collection } = msq;
 
-//Applicable scenarios: Global distributed deployment, nearby reading to reduce latency
+// Applicable scenario: global deployments where nearby reads reduce latency
 const articles = await collection('articles').find({
     query: { published: true },
     limit: 10
@@ -267,23 +267,23 @@ const msq = new MonSQLize({
     databaseName: 'test_db',
     config: {
         uri: 'mongodb://localhost:27017,localhost:27018,localhost:27019/?replicaSet=rs0',
-        readPreference: 'secondaryPreferred'  //← Read Preferences
+        readPreference: 'secondaryPreferred'  // Read preference
     },
-    maxTimeMS: 3000,  //Query timeout
-    slowQueryMs: 500  //Slow query threshold
+    maxTimeMS: 3000,  // Query timeout
+    slowQueryMs: 500  // Slow query threshold
 });
 
 await msq.connect();
 const { collection } = msq;
 
-//readPreference is compatible with other options (hint, collation, comment)
+// readPreference is compatible with other options (hint, collation, comment)
 const results = await collection('products').find({
     query: { price: { $gt: 100 } },
-    hint: { category: 1, price: 1 },  //index hint
-    comment: 'expensive-products-query',  //Query comments
-    maxTimeMS: 2000  //Single query timeout
+    hint: { category: 1, price: 1 },  // Index hint
+    comment: 'expensive-products-query',  // Query comment
+    maxTimeMS: 2000  // Per-query timeout
 });
-console.log(`✅ Use multiple options to query: ${results.length} results`);
+console.log(`✅ Query with multiple options returned ${results.length} results`);
 
 await msq.close();
 ```
@@ -293,73 +293,73 @@ await msq.close();
 ## Best Practices
 
 
-## ✅ Recommended practices
+### Recommended practices
 
-1. **Use secondaryPreferred** when reading more and writing less.
+1. **Use `secondaryPreferred` for read-heavy workloads**
    ```javascript
-   //✅ Recommendation: Reduce the load on the master node
+   // Recommendation: reduce load on the primary node
    readPreference: 'secondaryPreferred'
    ```
 
-2. **Strong consistency scenarios use primary (default)**
+2. **Use `primary` (default) for strong-consistency reads**
    ```javascript
-   //✅ Recommendation: Use default values when the latest data is required
-   //Do not configure readPreference, or explicitly configure it as 'primary'
+   // Recommendation: use the default when the latest data is required
+   // Do not configure readPreference, or explicitly configure it as 'primary'
    ```
 
-3. **Globally distributed deployment uses nearest**
+3. **Use `nearest` for globally distributed deployments**
    ```javascript
-   //✅ Recommended: low latency reading
+   // Recommendation: lower-latency reads
    readPreference: 'nearest'
    ```
 
-4. **Use secondary for analysis/report query**
+4. **Use `secondary` for analytics/reporting queries**
    ```javascript
-   //✅ Recommendation: Completely isolate the master node write load
+   // Recommendation: isolate primary write load
    readPreference: 'secondary'
    ```
 
 ---
 
 
-## ⚠️ Notes
+### Notes
 
 1. **Replication delay problem**
    ```javascript
-   //❌ Avoid: reading from the slave node immediately after writing data
-   await collection('users').insertOne({ name: 'Alice' });  //← Write to master node
+   // Avoid: reading from secondary nodes immediately after writing data
+   await collection('users').insertOne({ name: 'Alice' });  // Write to primary
 
-   //⚠️ The data just written may not be read (replication delay)
+   // The newly written data may not be visible yet because of replication lag
    const users = await collection('users').find({ query: { name: 'Alice' } });
 
-   //✅ Solution: Use 'primary' to read immediately after writing or wait for copy to complete
+   // Solution: use 'primary' for read-after-write or wait for replication to complete
    ```
 
 2. **Single mode is invalid**
    ```javascript
-   //⚠️ In stand-alone mode, the readPreference configuration is invalid and the only node is always read.
+   // In stand-alone mode, readPreference is ineffective because there is only one node.
    const msq = new MonSQLize({
        config: {
-           uri: 'mongodb://localhost:27017', // ← stand-alone mode
-           readPreference: 'secondary'  //← Invalid configuration
+           uri: 'mongodb://localhost:27017', // stand-alone mode
+           readPreference: 'secondary'  // Ineffective configuration
        }
    });
    ```
 
 3. **Replica Set URI Format**
    ```javascript
-   //✅ Correct: Contains multiple nodes + replicaSet parameter
+   // Correct: contains multiple nodes + replicaSet parameter
    uri: 'mongodb://host1:27017,host2:27018,host3:27019/?replicaSet=rs0'
 
-   //❌ Error: Single node URI (cannot separate read and write)
+   // Incorrect: single-node URI (cannot separate reads and writes)
    uri: 'mongodb://localhost:27017'
    ```
 
 4. **Cross-database compatibility**
    ```javascript
-   //⚠️ readPreference is a MongoDB exclusive feature
-   //PostgreSQL/MySQL has no corresponding concept
-   //This configuration needs to be removed when switching databases
+   // readPreference is MongoDB-specific.
+   // PostgreSQL/MySQL do not have the same concept.
+   // Remove this configuration when switching database adapters.
    ```
 
 ---
@@ -367,22 +367,22 @@ await msq.close();
 ## Performance impact
 
 
-## Impact of read preference on performance
+### Impact of read preference on performance
 
 | Read preference | Master node load | Latency | Data consistency | Applicable scenarios |
 |--------|-----------|------|-----------|---------|
-| **primary** | High | Low | Strong consistency | More writes and less reads, the latest data is required |
+| **primary** | High | Low | Strong consistency | Write-heavy workloads, latest data required |
 | **primaryPreferred** | High | Low | Usually strongly consistent | Requires consistency + fault tolerance |
-| **secondary** | Low | Medium (replication latency) | Eventually consistent | Analytics/reporting, isolated primary |
-| **secondaryPreferred** | Low | Medium (replication latency) | Eventually consistent | Read more and write less, reduce the primary node |
+| **secondary** | Low | Medium (replication latency) | Eventually consistent | Analytics/reporting, primary isolation |
+| **secondaryPreferred** | Low | Medium (replication latency) | Eventually consistent | Read-heavy workloads, reduced primary load |
 | **nearest** | Medium | Lowest | Eventually consistent | Globally distributed, low latency |
 
 
-## Performance optimization suggestions
+### Performance optimization suggestions
 
-1. **Read more and write less scenario**: Use `secondaryPreferred` to reduce the load of the master node by 20-50%
+1. **Read-heavy workloads**: Use `secondaryPreferred` to reduce primary load by 20-50%
 2. **Globally distributed**: Use `nearest` to reduce latency by 30-70% (depending on geographical location)
-3. **Analysis/Report**: Use `secondary` to completely isolate the master node write load
+3. **Analytics/reporting**: Use `secondary` to isolate primary write load
 
 ---
 
@@ -397,8 +397,8 @@ await msq.close();
 
 ## Q: How to verify that readPreference is effective?
 **A**:
-1. Check the MongoDB log/profile to confirm that the read operation hits the slave node
-2. Set the delay on the slave node and observe whether there is a lag in the query results.
+1. Check the MongoDB log/profile to confirm that the read operation hits a secondary node
+2. Add delay on a secondary node and observe whether query results lag.
 3. Use `db.currentOp()` to view the read preferences of active connections
 
 ---
@@ -417,7 +417,7 @@ await msq.close();
 ## Q: How to deal with replication delays?
 **A**:
 1. **Read immediately after writing**: use `primary` or `primaryPreferred`
-2. **Acceptable Delay**: Use `secondaryPreferred` or `secondary`
+2. **Acceptable delay**: Use `secondaryPreferred` or `secondary`
 3. **Mixed strategy**: Use `primary` for key queries and `secondary` for analytical queries.
 
 ---
@@ -437,4 +437,4 @@ await msq.close();
 - [MongoDB official documentation - Read Preference](https://www.mongodb.com/docs/manual/core/read-preference/)
 - [MongoDB Replica Set Deployment Guide](https://www.mongodb.com/docs/manual/tutorial/deploy-replica-set/)
 - [monSQLize connection configuration](./connection.md)
-- [Example of multiple connection pools and read preferences](../../examples/docs/pool.ts)
+- [Example of multiple connection pools and read preferences](https://github.com/vextjs/monSQLize/blob/main/examples/docs/pool.ts)

@@ -440,14 +440,14 @@ if (confirmed) {
 ## ⚠️ Avoid using empty filters
 
 ```javascript
-//Danger: delete all documents
+// Danger: delete all documents
 await collection("users").deleteMany({});
 
-//If you really need to clear the collection, state it clearly
+// If you really need to clear the collection, state it clearly
 const CONFIRM_DELETE_ALL = true;
 if (CONFIRM_DELETE_ALL) {
   const result = await collection("temp_data").deleteMany({});
-  console.log(`The collection has been cleared and ${result.deletedCount} pieces of data have been deleted.`);
+  console.log(`The collection has been cleared and ${result.deletedCount} documents have been deleted.`);
 }
 ```
 
@@ -457,10 +457,10 @@ if (CONFIRM_DELETE_ALL) {
 For important data, consider using soft deletion (marked as deleted) instead of physical deletion:
 
 ```javascript
-//Physically deleted (unrecoverable)
+// Physical delete (unrecoverable)
 await collection("users").deleteMany({ status: "inactive" });
 
-//Soft delete (recoverable)
+// Soft delete (recoverable)
 await collection("users").updateMany(
   { status: "inactive" },
   {
@@ -472,7 +472,7 @@ await collection("users").updateMany(
   }
 );
 
-//Filter deleted data when querying
+// Filter deleted data when querying
 const activeUsers = await collection("users").find({
   deleted: { $ne: true }
 });
@@ -482,16 +482,16 @@ const activeUsers = await collection("users").find({
 ## ⚠️ Record deletion operation log
 
 ```javascript
-//Log before deletion
+// Log before deletion
 const filter = { status: "inactive" };
 const countBefore = await collection("users").count(filter);
 
-//perform deletion
+// Perform deletion
 const result = await collection("users").deleteMany(filter, {
   comment: `cleanup-inactive-users-${new Date().toISOString()}`
 });
 
-//Record audit log
+// Record audit log
 await collection("audit_logs").insertOne({
   action: "deleteMany",
   collection: "users",
@@ -509,7 +509,7 @@ await collection("audit_logs").insertOne({
 ## ⚠️ Deletion is irreversible
 
 ```javascript
-//Once deleted, it cannot be recovered
+// Once deleted, it cannot be recovered
 const result = await collection("users").deleteMany({ status: "inactive" });
 console.log(`${result.deletedCount} users permanently deleted`);
 ```
@@ -520,11 +520,11 @@ console.log(`${result.deletedCount} users permanently deleted`);
 Automatic cache invalidation clears the cache for the entire collection:
 
 ```javascript
-//Delete some users
+// Delete some users
 await collection("users").deleteMany({ status: "inactive" });
 
-//The cache of all users collections will be cleared
-//Include cache for other queries
+// The cache for the entire users collection will be cleared,
+// including cache entries for other queries.
 ```
 
 
@@ -533,7 +533,7 @@ await collection("users").deleteMany({ status: "inactive" });
 A large number of deletions may affect database performance. It is recommended to perform the following during off-peak periods:
 
 ```javascript
-//Perform large deletes during off-peak periods
+// Perform large deletes during off-peak periods
 const isOffPeak = new Date().getHours() < 6;
 
 if (isOffPeak) {
@@ -558,7 +558,7 @@ When a large number of documents are deleted, the index is updated automatically
 
 ```javascript
 /**
- *Securely delete documents in bulk (in batches, with timeout, with logs)
+ * Safely delete documents in bulk (batched, timed, and logged)
  */
 async function safeDeleteMany(collectionName, filter, options = {}) {
   const {
@@ -568,16 +568,16 @@ async function safeDeleteMany(collectionName, filter, options = {}) {
     dryRun = false
   } = options;
 
-  //1. Count the total number first
+  // 1. Count the total number first
   const totalCount = await collection(collectionName).count(filter);
-  console.log(`Prepare to delete ${totalCount} pieces of data`);
+  console.log(`Preparing to delete ${totalCount} documents`);
 
   if (dryRun) {
     console.log("[Simulation Mode] Will not actually delete");
     return { deletedCount: 0, totalCount };
   }
 
-  //2. Delete in batches
+  // 2. Delete in batches
   let deletedTotal = 0;
   let batchCount = 0;
 
@@ -590,24 +590,24 @@ async function safeDeleteMany(collectionName, filter, options = {}) {
     );
 
     deletedTotal += result.deletedCount;
-    console.log(`[Batch ${batchCount}] deletes ${result.deletedCount} items, accumulating ${deletedTotal}/${totalCount}`);
+    console.log(`[Batch ${batchCount}] deleted ${result.deletedCount} documents, total ${deletedTotal}/${totalCount}`);
 
     if (result.deletedCount === 0) {
-      break;  //No more data to delete
+      break;  // No more data to delete
     }
 
-    //pause
+    // Pause between batches.
     await new Promise(resolve => setTimeout(resolve, pauseMs));
   }
 
-  console.log(`✅ Done! A total of ${deletedTotal} pieces of data were deleted`);
+  console.log(`✅ Done! Deleted ${deletedTotal} documents in total`);
   return { deletedCount: deletedTotal, totalCount };
 }
 
-//Usage example
+// Usage example
 await safeDeleteMany("logs",
   { createdAt: { $lt: new Date("2020-01-01") } },
-  { dryRun: true }  //Simulate the run first
+  { dryRun: true }  // Simulate the run first
 );
 ```
 
@@ -619,7 +619,7 @@ await safeDeleteMany("logs",
 
 ## Sample code
 
-For complete sample code, please refer to [examples/docs/delete-many.ts](../../examples/docs/delete-many.ts)
+For complete sample code, please refer to the [deleteMany runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/delete-many.ts).
 
 ## MongoDB Documentation
 

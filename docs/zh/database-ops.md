@@ -20,7 +20,7 @@
 ### 语法
 
 ```javascript
-const databases = await db._adapter.listDatabases([options]);
+const databases = await db.listDatabases(options);
 ```
 
 ### 参数
@@ -40,7 +40,7 @@ const databases = await db._adapter.listDatabases([options]);
 
 ```javascript
 // 获取详细信息
-const databases = await adapter.listDatabases();
+const databases = await db.listDatabases();
 console.log(databases);
 // [
 //   { name: 'admin', sizeOnDisk: 83886080, empty: false },
@@ -48,7 +48,7 @@ console.log(databases);
 // ]
 
 // 仅获取名称
-const dbNames = await adapter.listDatabases({ nameOnly: true });
+const dbNames = await db.listDatabases({ nameOnly: true });
 console.log(dbNames); // ['admin', 'config', 'local', 'mydb']
 ```
 
@@ -67,7 +67,7 @@ console.log(dbNames); // ['admin', 'config', 'local', 'mydb']
 ### 语法（dropDatabase()）
 
 ```javascript
-const result = await db._adapter.dropDatabase(databaseName, options);
+const result = await db.db(databaseName).dropDatabase(options);
 ```
 
 ### 参数（dropDatabase()）
@@ -92,7 +92,7 @@ const result = await db._adapter.dropDatabase(databaseName, options);
 
 ```javascript
 try {
-    await adapter.dropDatabase('test_db');
+    await db.db('test_db').dropDatabase({ confirm: false });
 } catch (error) {
     console.error(error.message);
     // "dropDatabase requires explicit confirmation..."
@@ -102,7 +102,7 @@ try {
 #### ✅ 正确：提供确认
 
 ```javascript
-const result = await adapter.dropDatabase('test_db', {
+const result = await db.db('test_db').dropDatabase({
     confirm: true,
     user: 'admin@example.com'
 });
@@ -115,7 +115,7 @@ console.log('Timestamp:', result.timestamp);
 
 ```javascript
 // 在生产环境（NODE_ENV=production）
-const result = await adapter.dropDatabase('prod_db', {
+const result = await db.db('prod_db').dropDatabase({
     confirm: true,
     allowProduction: true,
     user: 'admin@example.com'
@@ -126,7 +126,7 @@ const result = await adapter.dropDatabase('prod_db', {
 
 ```javascript
 try {
-    await adapter.dropDatabase('my_database', {
+    await db.db('my_database').dropDatabase({
         confirm: true,
         user: 'admin@example.com'
     });
@@ -150,32 +150,31 @@ try {
 ### 语法（listCollections()）
 
 ```javascript
-const collections = await db._adapter.listCollections([options]);
+const collections = await db.listCollections(filter, options);
 ```
 
 ### 参数（listCollections()）
 
-- **options** (Object, 可选):
-  - `nameOnly` (boolean): 仅返回集合名称，默认 `false`
+- **filter** (Object, 可选): MongoDB 集合列表过滤条件
+- **options** (Object, 可选): MongoDB listCollections 选项
 
 ### 返回值（listCollections()）
 
-- **不使用 nameOnly**: `Promise<Array<Object>>`
-- **使用 nameOnly**: `Promise<Array<string>>`
+- `Promise<Array<Object>>`
 
 ### 示例（listCollections()）
 
 ```javascript
 // 获取详细信息
-const collections = await adapter.listCollections();
+const collections = await db.listCollections();
 console.log(collections);
 // [
 //   { name: 'users', type: 'collection', options: {}, info: {...} },
 //   { name: 'orders', type: 'collection', options: {}, info: {...} }
 // ]
 
-// 仅获取名称
-const names = await adapter.listCollections({ nameOnly: true });
+// 从公开返回值中提取名称
+const names = collections.map((collection) => collection.name);
 console.log(names); // ['users', 'orders', 'products']
 ```
 
@@ -188,7 +187,7 @@ console.log(names); // ['users', 'orders', 'products']
 ### 语法（runCommand()）
 
 ```javascript
-const result = await db._adapter.runCommand(command, [options]);
+const result = await db.runCommand(command, options);
 ```
 
 ### 参数（runCommand()）
@@ -200,16 +199,16 @@ const result = await db._adapter.runCommand(command, [options]);
 
 ```javascript
 // 执行 ping 命令
-const ping = await adapter.runCommand({ ping: 1 });
+const ping = await db.runCommand({ ping: 1 });
 console.log(ping.ok); // 1
 
 // 执行 dbStats 命令
-const stats = await adapter.runCommand({ dbStats: 1, scale: 1024 });
+const stats = await db.runCommand({ dbStats: 1, scale: 1024 });
 console.log('Collections:', stats.collections);
 console.log('Data size (KB):', stats.dataSize);
 
 // 执行 collStats 命令
-const collStats = await adapter.runCommand({
+const collStats = await db.runCommand({
     collStats: 'users',
     scale: 1048576 // MB
 });
@@ -223,7 +222,7 @@ console.log('Size (MB):', collStats.size);
 
 - [运维监控](./admin.md) - ping, buildInfo, serverStatus, stats
 - [集合管理](./collection-management.md) - 集合级别操作
-- [集合管理示例](../../examples/docs/collection-management.ts)
+- [集合管理示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts)
 
 ---
 

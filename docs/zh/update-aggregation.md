@@ -849,10 +849,10 @@ collection.updateMany(
 
 ## 相关文档
 
-- [update-one.md](./update-one.md) - updateOne 完整文档
-- [update-many.md](./update-many.md) - updateMany 完整文档
-- [update-operations.md](./update-operations.md) - 更新操作概览
-- [aggregate.md](./aggregate.md) - 聚合管道详解
+- [updateOne 指南](./update-one.md) - updateOne 完整文档
+- [updateMany 指南](./update-many.md) - updateMany 完整文档
+- [更新操作概览](./update-operations.md) - 更新操作概览
+- [聚合管道指南](./aggregate.md) - 聚合管道详解
 
 ---
 

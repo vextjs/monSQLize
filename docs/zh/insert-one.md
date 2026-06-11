@@ -559,8 +559,8 @@ if (result.success) {
 ## 示例代码
 
 完整的示例代码请参考：
-- [examples/docs/insert.ts](../../examples/docs/insert.ts)
-- [examples/write-operations.md](./write-operations.md)
+- [insert 可运行示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/insert.ts)
+- [写入操作指南](./write-operations.md)
 
 ## MongoDB 文档
 

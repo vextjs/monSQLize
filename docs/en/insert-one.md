@@ -609,8 +609,8 @@ if (result.success) {
 ## Sample code
 
 For complete sample code, please refer to:
-- [examples/docs/insert.ts](../../examples/docs/insert.ts)
-- [examples/write-operations.md](./write-operations.md)
+- [insert runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/insert.ts)
+- [write operations guide](./write-operations.md)
 
 ## MongoDB Documentation
 

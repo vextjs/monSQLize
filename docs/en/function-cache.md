@@ -583,7 +583,7 @@ const cached = withCache(fn, {
 
 - ✅ Basic types (string, number, boolean)
 - ✅ Objects, arrays
-- ✅ Date、RegExp
+- ✅ Date, RegExp
 - ✅ MongoDB types (ObjectId, Decimal128, etc.)
 - ❌ Function, Symbol
 

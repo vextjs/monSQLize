@@ -110,12 +110,90 @@ describe('Runtime — extended methods coverage', () => {
         await tx.abort();
     });
 
+    it('getTransactionStats returns aggregate stats after transaction activity', async () => {
+        const before = runtime.getTransactionStats();
+        assert.ok(before !== null);
+        await runtime.withTransaction(async () => 'ok');
+        const stats = runtime.getTransactionStats();
+        assert.ok(stats !== null);
+        assert.ok(stats.totalTransactions >= before.totalTransactions + 1);
+        assert.ok(typeof stats.averageDuration === 'number');
+        assert.ok(typeof stats.p95Duration === 'number');
+        assert.ok(typeof stats.p99Duration === 'number');
+        assert.ok(typeof stats.successRate === 'string');
+        assert.ok(typeof stats.readOnlyRatio === 'string');
+    });
+
+    it('getDistributedCacheInvalidatorStats returns null when distributed cache is disabled', () => {
+        assert.equal(runtime.getDistributedCacheInvalidatorStats(), null);
+    });
+
+    it('initializes distributed cache invalidator with injected Redis-like connections', async () => {
+        const warnings: unknown[][] = [];
+        const publishedPatterns: string[] = [];
+        const fakeRedis = {
+            subscribe(_channel: string, callback?: () => void) {
+                callback?.();
+            },
+            on() {},
+            publish: async (_channel: string, message: string) => {
+                publishedPatterns.push(JSON.parse(message).pattern);
+                return 1;
+            },
+            unsubscribe: async () => {},
+            quit: async () => {},
+        };
+        const distributedRuntime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_runtime_distributed_invalidator',
+            config: { uri },
+            cache: {
+                distributed: {
+                    redis: fakeRedis,
+                    channel: 'monsqlize:test:invalidate',
+                    instanceId: 'runtime-methods-test',
+                },
+            },
+            logger: {
+                debug: () => {},
+                info: () => {},
+                warn: (...args: unknown[]) => warnings.push(args),
+                error: () => {},
+            },
+        });
+
+        try {
+            await distributedRuntime.connect();
+            const stats = distributedRuntime.getDistributedCacheInvalidatorStats();
+            assert.ok(stats !== null);
+            assert.equal(stats.instanceId, 'runtime-methods-test');
+            assert.ok(warnings.some(([message]) => String(message).includes('distributed invalidator created')));
+        } finally {
+            await distributedRuntime.close();
+        }
+        assert.deepEqual(publishedPatterns, []);
+    });
+
     // ── getSlowQueryLogManager ────────────────────────────────────────────────
 
     it('getSlowQueryLogManager returns null when not configured', () => {
         const mgr = runtime.getSlowQueryLogManager();
         // null or a real manager depending on options
         assert.ok(mgr === null || typeof mgr === 'object');
+    });
+
+    it('slow query log queries reject when the capability is not enabled', async () => {
+        await assert.rejects(
+            () => runtime.getSlowQueryLogs(),
+            /slow query log is not enabled/i,
+        );
+    });
+
+    it('startSync rejects when sync is not enabled', async () => {
+        await assert.rejects(
+            () => runtime.startSync(),
+            /sync is not enabled/i,
+        );
     });
 
     // ── getSagaOrchestrator / saga ────────────────────────────────────────────

@@ -1,4 +1,4 @@
-# Chain pool/library access API (Chain Access API)
+# Chain pool/database access API (Chain Access API)
 
 > **Version**: v1.3.0+
 > **Updated date**: 2026-04-26
@@ -21,8 +21,8 @@
 - [scopedCollection()](#scopedcollection)
 - [scopedModel()](#scopedmodel)
 - [Chain combination example](#chain-combination-example)
-- [Single pool and multiple libraries](#single-pool-and-multiple-libraries)
-- [Multiple pools and multiple libraries](#multiple-pools-and-multiple-libraries)
+- [Single pool and multiple databases](#single-pool-and-multiple-databases)
+- [Multiple pools and multiple databases](#multiple-pools-and-multiple-databases)
 - [Cooperate with Model](#cooperate-with-model)
 - [Error handling](#error-handling)
 - [Comparison with old API](#comparison-with-old-api)
@@ -37,19 +37,19 @@ v1.3.0 adds four new methods to support chain access to different connection poo
 |------|------|
 | `msq.pool(poolName)` | Switch to the specified connection pool and return `PoolAccessor` |
 | `msq.use(dbName)` | Switch database (default connection pool), return `ScopedAccessor` |
-| `msq.scopedCollection(name, opts)` | Underlying method: press `{pool, database}` to get Collection |
-| `msq.scopedModel(key, opts)` | Underlying method: press `{pool, database}` to get Model |
+| `msq.scopedCollection(name, opts)` | Low-level method: get a Collection by `{ pool, database }` |
+| `msq.scopedModel(key, opts)` | Low-level method: get a Model by `{ pool, database }` |
 
 Typical scenario:
 
 ```javascript
-//Access the invoices collection of the main billing database
+// Access the invoices collection in the main billing database
 const col = msq.use('billing').collection('invoices');
 
-//Access the invoices collection of the cn connection pool billing database
+// Access the invoices collection in the billing database on the cn pool
 const col = msq.pool('cn').use('billing').collection('invoices');
 
-//Access the cn connection pool BillingInvoice Model (database is included in the connection configuration)
+// Access the BillingInvoice Model on the cn pool (database is included in the connection configuration)
 const model = msq.pool('cn').model('BillingInvoice');
 ```
 
@@ -60,12 +60,12 @@ const model = msq.pool('cn').model('BillingInvoice');
 ```text
 msq
  ├── .pool(poolName)          → PoolAccessor
-│ ├── .collection(name) → Collection (specified pool, default library)
+│ ├── .collection(name) → Collection (specified pool, default database)
 │ ├── .model(key) → ModelInstance (specified pool)
-│ └── .use(dbName) → ScopedAccessor (specified pool + specified library)
+│ └── .use(dbName) → ScopedAccessor (specified pool + specified database)
  │         ├── .collection(name)
  │         └── .model(key)
-└── .use(dbName) → ScopedAccessor (default pool + specified library)
+└── .use(dbName) → ScopedAccessor (default pool + specified database)
       ├── .collection(name)
       └── .model(key)
 ```
@@ -113,8 +113,8 @@ const docs = await users.find({ status: 'active' }).toArray();
 Get a Model instance on the specified connection pool. If the `connection.database` defined by the Model has a value, the database configuration will be automatically merged.
 
 ```javascript
-//BillingInvoice definition.connection = { database: 'billing' }
-//Actual access: cn pool billing library invoices collection
+// BillingInvoice definition.connection = { database: 'billing' }
+// Actual access: the invoices collection in the billing database on the cn pool
 const Invoice = msq.pool('cn').model('BillingInvoice');
 const result = await Invoice.find({ status: 'paid' });
 ```
@@ -123,7 +123,7 @@ const result = await Invoice.find({ status: 'paid' });
 
 | Error code | Trigger condition |
 |--------|---------|
-| `MODEL_NOT_DEFINED` | `key` Not registered |
+| `MODEL_NOT_DEFINED` | `key` is not registered |
 
 ---
 
@@ -141,7 +141,7 @@ const accessor = msq.pool('cn').use('billing');
 
 ## pool().use().collection()
 
-Specify the connection pool + specify the database to obtain the Collection.
+Specify the connection pool and database to obtain the Collection.
 
 ```javascript
 const invoices = msq.pool('cn').use('billing').collection('invoices');
@@ -153,10 +153,10 @@ const rows = await invoices.find({ month: '2026-04' }).toArray();
 
 ## pool().use().model(key)
 
-Specify the connection pool + specify the database (prioritizes `connection.database` defined by the Model) to obtain the Model.
+Specify the connection pool and database (prioritizing `connection.database` defined by the Model) to obtain the Model.
 
 ```javascript
-//Force the use of the analytics library instead of the billing library configured in the BillingInvoice definition
+// Force the analytics database instead of the billing database configured in the BillingInvoice definition
 const Invoice = msq.pool('cn').use('analytics').model('BillingInvoice');
 ```
 
@@ -164,7 +164,7 @@ const Invoice = msq.pool('cn').use('analytics').model('BillingInvoice');
 
 ## use(dbName)
 
-Switch database on default connection pool, return `ScopedAccessor`. Applicable to **single pool and multiple databases** scenarios.
+Switch databases on the default connection pool and return `ScopedAccessor`. This is useful for **single-pool, multi-database** scenarios.
 
 ```javascript
 const accessor = msq.use('billing');
@@ -173,7 +173,7 @@ const accessor = msq.use('billing');
 **Parameters**:
 - `dbName` {string} — target database name
 
-**Return value**: `ScopedAccessor` — including two methods `collection` and `model`
+**Return value**: `ScopedAccessor` — includes two methods: `collection` and `model`
 
 **Exception**:
 
@@ -209,10 +209,10 @@ const list = await Invoice.findPage({ status: 'pending' }, { pageSize: 20 });
 
 ## scopedCollection()
 
-The underlying method directly passes `{pool, database}` opts to obtain the Collection.
+The low-level method passes `{ pool, database }` options directly to obtain the Collection.
 
 ```javascript
-//Equivalent to msq.pool('cn').use('billing').collection('invoices')
+// Equivalent to msq.pool('cn').use('billing').collection('invoices')
 const col = msq.scopedCollection('invoices', { pool: 'cn', database: 'billing' });
 ```
 
@@ -220,7 +220,7 @@ const col = msq.scopedCollection('invoices', { pool: 'cn', database: 'billing' }
 - `collectionName` {string}
 - `opts` {object}
   - `pool` {string?} — connection pool name (if not passed, the default pool will be used)
-  - `database` {string?} — database name (if not passed, the default library will be used)
+  - `database` {string?} — database name (if not passed, the default database will be used)
 
 When `opts` is an empty object, it is equivalent to `msq.collection(collectionName)` (backwards compatible).
 
@@ -228,7 +228,7 @@ When `opts` is an empty object, it is equivalent to `msq.collection(collectionNa
 
 ## scopedModel()
 
-The underlying method directly passes `{pool, database}` opts to obtain the Model.
+The low-level method passes `{ pool, database }` options directly to obtain the Model.
 
 ```javascript
 const model = msq.scopedModel('BillingInvoice', { pool: 'cn' });
@@ -239,12 +239,12 @@ const model = msq.scopedModel('BillingInvoice', { pool: 'cn' });
 ```javascript
 // BillingInvoice.connection = { database: 'billing' }
 // opts = { pool: 'cn' }
-//merged = { pool: 'cn', database: 'billing' } ← opts supplement, definition fill in the blanks
+// merged = { pool: 'cn', database: 'billing' } because opts overrides and definition.connection fills missing fields
 const m = msq.scopedModel('BillingInvoice', { pool: 'cn' });
 
-//Force coverage:
+// Force override:
 // opts = { pool: 'cn', database: 'analytics' }
-//merged = { pool: 'cn', database: 'analytics' } ← opts fully covered
+// merged = { pool: 'cn', database: 'analytics' }
 const m2 = msq.scopedModel('BillingInvoice', { pool: 'cn', database: 'analytics' });
 ```
 
@@ -253,30 +253,30 @@ const m2 = msq.scopedModel('BillingInvoice', { pool: 'cn', database: 'analytics'
 | Error code | Trigger condition |
 |--------|---------|
 | `NOT_CONNECTED` | `connect()` not called |
-| `MODEL_NOT_DEFINED` | `key` Not registered |
+| `MODEL_NOT_DEFINED` | `key` is not registered |
 | `NO_POOL_MANAGER` | `pool` was passed but PoolManager was not configured |
-| `POOL_NOT_FOUND` | `pool` Not registered |
+| `POOL_NOT_FOUND` | `pool` is not registered |
 
 ---
 
 ## Chain combination example
 
 
-## Single pool and multiple libraries
+## Single pool and multiple databases
 
 ```javascript
 const msq = new MonSQLize({ uri: 'mongodb://localhost:27017' });
 await msq.connect();
 
-//Access the billing library
+// Access the billing database
 const invoices = await msq.use('billing').collection('invoices').find({}).toArray();
 
-//Access the analytics library
+// Access the analytics database
 const report = await msq.use('analytics').collection('monthly').findOne({ month: '2026-04' });
 ```
 
 
-## Multiple pools and multiple libraries
+## Multiple pools and multiple databases
 
 ```javascript
 const msq = new MonSQLize({
@@ -288,10 +288,10 @@ const msq = new MonSQLize({
 });
 await msq.connect();
 
-//cn pool billing library
+// cn pool, billing database
 const cnInvoices = await msq.pool('cn').use('billing').collection('invoices').find({}).toArray();
 
-//eu pool billing library
+// eu pool, billing database
 const euInvoices = await msq.pool('eu').use('billing').collection('invoices').find({}).toArray();
 ```
 
@@ -299,7 +299,7 @@ const euInvoices = await msq.pool('eu').use('billing').collection('invoices').fi
 ## Cooperate with Model
 
 ```javascript
-//Model definition (definition.connection has database set)
+// Model definition (definition.connection has database set)
 // file: models/billing/invoice.model.js
 module.exports = {
   name: 'Invoice',
@@ -309,11 +309,11 @@ module.exports = {
   schema: { ... }
 };
 
-//Use (no need to specify database again)
+// Use (no need to specify database again)
 const cnInvoice = msq.pool('cn').model('BillingInvoice');
 const result = await cnInvoice.find({ status: 'paid' });
 
-//Quick access with key alias (single pool)
+// Quick access with key alias (single pool)
 const Invoice = msq.scopedModel('BillingInvoice');
 ```
 
@@ -343,9 +343,9 @@ The `POOL_NOT_FOUND` error contains the `err.available` field, which lists all c
 
 | Requirements | v1.2.x (old) | v1.3.0+ (new) |
 |------|------------|-------------|
-| Collection of default pool default library | `msq.collection('users')` | `msq.collection('users')` (unchanged) |
-| Default pool switching database | Not supported | `msq.use('billing').collection('invoices')` |
-| Switch connection pool | Need to manually remove the pool instance from PoolManager | `msq.pool('cn').collection('users')` |
+| Collection on the default pool and default database | `msq.collection('users')` | `msq.collection('users')` (unchanged) |
+| Switch database on the default pool | Not supported | `msq.use('billing').collection('invoices')` |
+| Switch connection pool | Manually retrieve the pool instance from PoolManager | `msq.pool('cn').collection('users')` |
 | Switch connection pool + database | Not supported | `msq.pool('cn').use('billing').collection('invoices')` |
 | Model cross-pool access | Not supported | `msq.pool('cn').model('BillingInvoice')` |
 
@@ -373,7 +373,7 @@ class MonSQLize {
 }
 ```
 
-See [types/index.d.ts](../../types/index.d.ts) for details.
+See the [public type declarations](../../types/index.d.ts) for details.
 
 ---
 

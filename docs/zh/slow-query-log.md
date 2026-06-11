@@ -49,7 +49,7 @@
        │ 如果执行时间 > 500ms
        ▼
 ┌─────────────────┐
-│ 生成queryHash   │ ← SHA256(db+coll+op+queryShape)
+│ 生成queryHash   │ ← SHA256(database+collection+operation+query)
 └──────┬──────────┘
        │
        ▼
@@ -401,10 +401,10 @@ slowQueryLog: {
 ```javascript
 // filter - 查询条件
 {
-  db: 'mydb',              // 数据库名
+  database: 'mydb',        // 数据库名
   collection: 'users',     // 集合名
   operation: 'find',       // 操作类型
-  minExecutionTime: 500    // 最小执行时间（未实现）
+  queryHash: 'abc123def456' // 可选的精确查询 Hash
 }
 
 // options - 查询选项
@@ -420,13 +420,11 @@ slowQueryLog: {
 ```javascript
 [
   {
-    _id: ObjectId('...'),
     queryHash: 'abc123def456',          // 查询Hash（唯一标识）
-    db: 'mydb',                         // 数据库名
+    database: 'mydb',                   // 数据库名
     collection: 'users',                // 集合名
     operation: 'find',                  // 操作类型
-    queryShape: { status: 1 },          // 查询模式（已脱敏）
-    type: 'mongodb',                    // 数据库类型
+    sampleQuery: { status: 'active' },  // 查询样本
     count: 2400,                        // 执行次数
     totalTimeMs: 1248000,               // 总执行时间
     minTimeMs: 500,                     // 最小执行时间
@@ -434,11 +432,7 @@ slowQueryLog: {
     avgTimeMs: 520,                     // 平均执行时间（动态计算）
     firstSeen: ISODate('...'),          // 首次发现时间
     lastSeen: ISODate('...'),           // 最后一次时间
-    lastExecution: {                    // 最后一次执行详情
-      executionTimeMs: 520,
-      timestamp: ISODate('...'),
-      metadata: {}
-    }
+    metadata: {}
   }
 ]
 ```
@@ -460,7 +454,7 @@ const topSlow = await msq.getSlowQueryLogs(
 
 // 查询特定集合的慢查询
 const userLogs = await msq.getSlowQueryLogs(
-  { db: 'mydb', collection: 'users' },
+  { database: 'mydb', collection: 'users' },
   { sort: { avgTimeMs: -1 } }
 );
 
@@ -666,7 +660,7 @@ setInterval(async () => {
     console.log(`   执行次数: ${log.count}`);
     console.log(`   平均耗时: ${log.avgTimeMs}ms`);
     console.log(`   最大耗时: ${log.maxTimeMs}ms`);
-    console.log(`   查询模式:`, JSON.stringify(log.queryShape));
+    console.log(`   查询样本:`, JSON.stringify(log.sampleQuery));
     console.log('');
   });
 }, 3600000);  // 每小时
@@ -728,11 +722,11 @@ console.log(JSON.stringify(report, null, 2));
 // 分析慢查询后创建索引
 const slowQuery = {
   collection: 'users',
-  queryShape: { status: 1, createdAt: 1 }
+  sampleQuery: { status: 'active', createdAt: { $gte: someDate } }
 };
 
 // 根据查询模式创建索引
-await msq.db.collection('users').createIndex(
+await msq.db('mydb').collection('users').createIndex(
   { status: 1, createdAt: -1 },
   { name: 'idx_status_createdAt' }
 );
@@ -871,7 +865,7 @@ msq.on('slow-query', (info) => {
 ```javascript
 // 定期检查慢查询日志集合大小
 setInterval(async () => {
-  const stats = await msq.db.collection('slow_query_logs').stats();
+  const stats = await msq.db('admin').collection('slow_query_logs').stats();
   const sizeMB = stats.size / 1024 / 1024;
   
   console.log('慢查询日志存储:', {
@@ -1056,32 +1050,29 @@ console.log('TTL:', msq.slowQueryLogManager.config.storage.mongodb.ttl);
 
 ```javascript
 {
-  _id: ObjectId('...'),
   queryHash: 'abc123def456',          // 查询Hash（唯一）
-  db: 'mydb',                         // 数据库名
+  database: 'mydb',                   // 数据库名
   collection: 'users',                // 集合名
   operation: 'find',                  // 操作类型
-  queryShape: { status: 1 },          // 查询模式（已脱敏）
-  type: 'mongodb',                    // 数据库类型
+  sampleQuery: { status: 'active' },  // 查询样本
   count: 2400,                        // 执行次数
   totalTimeMs: 1248000,               // 总执行时间
   minTimeMs: 500,                     // 最小执行时间
   maxTimeMs: 1200,                    // 最大执行时间
   firstSeen: ISODate('...'),          // 首次发现时间
   lastSeen: ISODate('...'),           // 最后一次时间（TTL字段）
-  lastExecution: {                    // 最后一次执行详情
-    executionTimeMs: 520,
-    timestamp: ISODate('...'),
-    metadata: {}
-  }
+  metadata: {}
 }
 ```
 
 **索引**：
 
 ```javascript
-// 唯一索引（queryHash）
-db.slow_query_logs.createIndex({ queryHash: 1 }, { unique: true });
+// 存储后端使用的唯一索引
+db.slow_query_logs.createIndex(
+  { queryHash: 1, database: 1, collection: 1, operation: 1 },
+  { unique: true, name: 'slow_query_log_unique' }
+);
 
 // TTL索引（lastSeen）
 db.slow_query_logs.createIndex(
@@ -1090,7 +1081,7 @@ db.slow_query_logs.createIndex(
 );
 
 // 查询优化索引
-db.slow_query_logs.createIndex({ db: 1, collection: 1 });
+db.slow_query_logs.createIndex({ database: 1, collection: 1 });
 db.slow_query_logs.createIndex({ count: -1 });
 ```
 
@@ -1103,7 +1094,7 @@ db.slow_query_logs.createIndex({ count: -1 });
 ### C. 相关链接
 
 - [需求方案文档]
-- [使用示例](../../examples/docs/slow-query-log.ts)
+- [使用示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/slow-query-log.ts)
 - [配置设计说明]
 
 ---

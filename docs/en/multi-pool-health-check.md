@@ -85,7 +85,7 @@ async _checkHealth(poolName) {
         await pool.db().admin().ping();
 
         //Success: reset failure count
-        this._updateStatus(poolName, 'up', null);
+        this.updateStatus(poolName, 'up', null);
 
     } catch (error) {
         //Failure: Increase failure count
@@ -94,7 +94,7 @@ async _checkHealth(poolName) {
 
         //Threshold reached: marked as down
         if (currentStatus.consecutiveFailures >= config.retries) {
-            this._updateStatus(poolName, 'down', error);
+            this.updateStatus(poolName, 'down', error);
 
             //🔔 Trigger events (can be used for alarms)
             this.emit('poolDown', poolName, error);
@@ -146,8 +146,9 @@ try {
     //🔔 Record errors and alert
     logger.error('Query failed', { error, poolName: pool?.name });
 
-    //Optional: Manually mark the connection pool as down
-    // manager._healthChecker.markAsDown(pool.name);
+    // Query public health state and decide whether to alert or retry
+    const health = manager.getPoolHealth();
+    logger.warn('Current pool health', health);
 }
 ```
 
@@ -197,17 +198,17 @@ const manager = new ConnectionPoolManager({
 
 //Behavior when the main database fails
 try {
-    const pool = manager.selectPool('write');  //write operation
-    //If the main library is down:
-    //- readonly strategy: throw an error (write is not allowed)
-    //- secondary strategy: use replicas (possibly write to replicas)
-    //- error strategy: throw an error directly
+    const pool = manager.selectPool('write');  // Write operation
+    // If the primary database is down:
+    // - readonly strategy: throw an error (write is not allowed)
+    // - secondary strategy: use replicas (possibly write to replicas)
+    // - error strategy: throw an error directly
 } catch (error) {
     if (error.message.includes('readonly')) {
-        //Downgrade to read-only mode
+        // Downgrade to read-only mode
         logger.warn('The main database fails and the system enters read-only mode.');
 
-        //🔔 Trigger alarm
+        // Trigger alarm
         sendAlert({
             level: 'critical',
             message: 'The main database fails and the system is downgraded to read-only mode.',
@@ -231,7 +232,7 @@ async _checkHealth(poolName) {
             await pool.db().admin().ping();
 
             //Check successful: immediately restore to up
-            this._updateStatus(poolName, 'up', null);
+            this.updateStatus(poolName, 'up', null);
 
             //🔔 Trigger recovery event
             this.emit('poolRecovered', poolName);
@@ -383,7 +384,7 @@ pm2 logs pool-monitor
 const EventEmitter = require('events');
 
 class HealthChecker extends EventEmitter {
-    _updateStatus(poolName, status, error) {
+    updateStatus(poolName, status, error) {
         const oldStatus = this._status.get(poolName)?.status;
 
         //update status
@@ -413,8 +414,9 @@ class HealthChecker extends EventEmitter {
     }
 }
 
-//Use event listening
-manager._healthChecker.on('poolDown', ({ poolName, error }) => {
+//Use event listening when you own a custom health checker
+const healthChecker = new HealthChecker();
+healthChecker.on('poolDown', ({ poolName, error }) => {
     console.error(`🚨 Connection pool failure: ${poolName}`, error.message);
 
     //🔔 Send alert
@@ -426,7 +428,7 @@ manager._healthChecker.on('poolDown', ({ poolName, error }) => {
     });
 });
 
-manager._healthChecker.on('poolRecovered', ({ poolName }) => {
+healthChecker.on('poolRecovered', ({ poolName }) => {
     console.info(`✅ The connection pool has been restored: ${poolName}`);
 
     //🔔 Send recovery notification
@@ -843,7 +845,7 @@ async _checkHealth(poolName) {
             throw new Error('Replication lag too high');
         }
 
-        this._updateStatus(poolName, 'up', null);
+        this.updateStatus(poolName, 'up', null);
     } catch (error) {
         // ...
     }
@@ -859,12 +861,12 @@ async _checkHealth(poolName) {
 const manager = new ConnectionPoolManager({
     poolFallback: {
         enabled: true,
-        fallbackStrategy: 'readonly',  //Not allowed to write to copy
-        //Or use the 'error' strategy to report errors directly without downgrading
+        fallbackStrategy: 'readonly',  // Do not allow writes to replicas
+        // Or use the 'error' strategy to report errors directly without downgrading
     }
 });
 
-//Business level processing
+// Business-level processing
 try {
     const pool = manager.selectPool('write');
     await pool.collection('orders').insertOne(order);
@@ -893,8 +895,8 @@ sudo systemctl stop mongod
 # Method 2: Firewall blocking
 sudo iptables -A INPUT -p tcp --dport 27017 -j DROP
 
-# Method 3: Manually tag in the code
-manager._healthChecker._updateStatus('primary', 'down', new Error('Test'));
+# Method 3: Unit test your alert function with a synthetic health snapshot
+testAlert({ poolName: 'primary', status: 'down', error: new Error('Test') });
 
 # Observe logs and alarms
 tail -f pool-error.log

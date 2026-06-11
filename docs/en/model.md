@@ -197,7 +197,7 @@ for (const name of Model.list()) {
 ---
 
 
-## Model.redefine(collectionName, definition)（v1.1.7+）
+## Model.redefine(collectionName, definition) (v1.1.7+)
 
 Redefine a registered Model. Equivalent to the combined operation of `undefine()` + `define()`.
 
@@ -232,7 +232,7 @@ if (process.env.NODE_ENV === 'development') {
 ---
 
 
-## Model.undefine(collectionName)（v1.1.7+）
+## Model.undefine(collectionName) (v1.1.7+)
 
 Unregister a registered Model definition. Idempotent operation, no error will be thrown for non-existent Model.
 
@@ -270,7 +270,7 @@ Get the Model instance.
 > - After the process is restarted, the memory task table is cleared, and the `createIndex()` ensure command will be sent again when the corresponding Model is used for the first time; the same index definition is processed by the MongoDB driver/server according to idempotent semantics
 > - Automatic indexing will not call `listIndexes()` preflight first; an error will be thrown by MongoDB when index definition conflicts
 > - After `Model.redefine()` or `Model.undefine()`, the next time you call `msq.model()`, you will automatically obtain the newly defined instance.
-> - After `Model._clear()` (v1.2.2 fix), the cache of all registered Models will be automatically invalidated, and `msq.model()` will be called next time to rebuild the instance.
+> - After `Model.redefine()` or `Model.undefine()`, cached instances are invalidated and the next `msq.model()` call rebuilds them.
 > - Clear all caches after `msq.close()`
 
 ```javascript
@@ -1579,7 +1579,7 @@ Model.define('users', {
     options: {
         version: {
             enabled: true,      //Whether to enable
-            field: '__v'// Custom field name (default'version'）
+            field: '__v' // Custom field name (default 'version')
         }
     }
 });
@@ -1783,5 +1783,5 @@ A: instance is injected into the document object, and static is mounted to the M
 ## More examples
 
 Check out current TypeScript examples:
-- [`examples/docs/model.ts`](../../examples/docs/model.ts) - Basic use of Model
-- [`examples/docs/populate-relations.ts`](../../examples/docs/populate-relations.ts) - Relations and populate example
+- [Model basic runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/model.ts) - Basic use of Model
+- [relations and populate runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/populate-relations.ts) - Relations and populate example

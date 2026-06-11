@@ -305,17 +305,19 @@ await msq.withTransaction(async (tx) => {
 
 ```javascript
 //Check statistics regularly
-const stats = msq._transactionManager.getStats();
+const stats = msq.getTransactionStats();
 
-console.log('Transaction statistics:');
-console.log(`- Read-only transaction ratio: ${stats.readOnlyRatio}`);
-console.log(`- Average time taken: ${stats.averageDuration.toFixed(2)}ms`);
-console.log(`- P95 time: ${stats.p95Duration.toFixed(2)}ms`);
-console.log(`- Success rate: ${stats.successRate}`);
+if (stats) {
+    console.log('Transaction statistics:');
+    console.log(`- Read-only transaction ratio: ${stats.readOnlyRatio}`);
+    console.log(`- Average time taken: ${stats.averageDuration.toFixed(2)}ms`);
+    console.log(`- P95 time: ${stats.p95Duration.toFixed(2)}ms`);
+    console.log(`- Success rate: ${stats.successRate}`);
 
-//Determine whether optimization is needed
-if (parseFloat(stats.readOnlyRatio) > 30) {
-    console.log('✅ Read-only optimization works well');
+    //Determine whether optimization is needed
+    if (parseFloat(stats.readOnlyRatio) > 30) {
+        console.log('✅ Read-only optimization works well');
+    }
 }
 ```
 
@@ -351,7 +353,7 @@ const msq = new MonSQLize({
 | `successRate` | Transaction success rate | <95% Investigation required |
 | `averageDuration` | Average time consumption | >1000ms Needs optimization |
 | `p95Duration` | P95 Time consuming | >3000ms Needs optimization |
-| `lockBlocks` | Cache lock blocking times | >10% Consider optimizing lock granularity |
+| `activeTransactions` | Currently active transactions | Abnormal non-zero value for a long time requires investigation |
 
 
 ## Monitoring script example
@@ -359,7 +361,8 @@ const msq = new MonSQLize({
 ```javascript
 //Periodic output statistics (every minute)
 setInterval(() => {
-    const stats = msq._transactionManager.getStats();
+    const stats = msq.getTransactionStats();
+    if (!stats) return;
 
     console.log('📊 Transaction monitoring:', {
         time: new Date().toISOString(),

@@ -39,6 +39,13 @@ describe('function-cache behavior', () => {
     // ── withCache: getCacheStats() v1 alias ──────────────────────────────────
 
     describe('withCache getCacheStats() v1 alias', () => {
+        it('stats before first call use zero average time', () => {
+            const cached = MonSQLize.withCache(async (x: number) => x, {});
+            const stats = cached.stats();
+            assert.equal(stats.calls, 0);
+            assert.equal(stats.avgTime, 0);
+        });
+
         it('getCacheStats() returns same result as stats()', async () => {
             const cached = MonSQLize.withCache(async (x: number) => x * 2, {
                 ttl: 5000,
@@ -156,6 +163,15 @@ describe('function-cache behavior', () => {
     // ── FunctionCache: per-function stats ────────────────────────────────────
 
     describe('FunctionCache getStats()', () => {
+        it('getStats() before registrations returns an empty stats map', () => {
+            const fc = new MonSQLize.FunctionCache(new MonSQLize.MemoryCache(), {
+                namespace: 'stats-empty',
+                enableStats: true,
+            });
+
+            assert.deepEqual(fc.getStats(), {});
+        });
+
         it('getStats(name) returns per-function stats', async () => {
             const fc = new MonSQLize.FunctionCache(new MonSQLize.MemoryCache(), {
                 namespace: 'stats-test',
@@ -294,6 +310,36 @@ describe('function-cache behavior', () => {
             assert.equal(stats.two.calls, 0);
             assert.equal(stats.one.totalTime, 0);
             assert.equal(stats.two.totalTime, 0);
+        });
+
+        it('register() accepts per-function defaultTTL, keyBuilder, and condition options', async () => {
+            const fc = new MonSQLize.FunctionCache(new MonSQLize.MemoryCache(), {
+                namespace: 'per-fn-opts',
+            });
+            let calls = 0;
+
+            fc.register(
+                'load',
+                async (id: string, skip: boolean) => {
+                    calls += 1;
+                    return skip ? null : { id, calls };
+                },
+                {
+                    defaultTTL: 5_000,
+                    keyBuilder: (id: string) => `id:${id}`,
+                    condition: (value: unknown) => value !== null,
+                },
+            );
+
+            const first = await fc.execute('load', 'u1', false);
+            const second = await fc.execute('load', 'u1', false);
+            const skippedOne = await fc.execute('load', 'u2', true);
+            const skippedTwo = await fc.execute('load', 'u2', true);
+
+            assert.deepEqual(first, second);
+            assert.equal(skippedOne, null);
+            assert.equal(skippedTwo, null);
+            assert.equal(calls, 3);
         });
     });
 });

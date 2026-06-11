@@ -31,7 +31,7 @@ This document provides a detailed comparison of the functional differences betwe
 - [Comparison of performance monitoring features](#comparison-of-performance-monitoring-features)
 - [5. Cross-database access](#5-cross-database-access)
 - [MongoDB native: Manually switch databases](#mongodb-native-manually-switch-databases)
-- [monSQLize: one line of code across libraries](#monsqlize-one-line-of-code-across-libraries)
+- [monSQLize: one line of code across databases](#monsqlize-one-line-of-code-across-databases)
 - [Comparison of cross-database access features](#comparison-of-cross-database-access-features)
 - [6. Type Safety (TypeScript)](#6-type-safety-typescript)
 - [MongoDB native: generic types](#mongodb-native-generic-types)
@@ -71,7 +71,7 @@ This document provides a detailed comparison of the functional differences betwe
 | **Delete operation** | ✅ | ✅ | Automatic cache invalidation, slow query monitoring |
 | **Aggregation operation** | ✅ | ✅ | Cache support, streaming processing |
 | **Execution Plan** | ✅ | ✅ | Integrated into query chain |
-| **Cross-library access** | Manual switching | ✅ | One line of code switching |
+| **Cross-database access** | Manual switching | ✅ | One line of code switching |
 | **Cache Management** | ❌ | ✅ | TTL/LRU/auto-invalidation/multi-layer caching |
 | **Performance Monitoring** | Configuration required | ✅ | Out-of-the-box slow query log |
 
@@ -86,28 +86,28 @@ monSQLize fully encapsulates all native functions of MongoDB. You can use the fa
 
 | Operations | Methods | Native Support | Documentation |
 |------|------|---------|------|
-| **Create** | insertOne, insertMany | ✅ | [insert-one.md](./insert-one.md), [insert-many.md](./insert-many.md) |
-| **Read** | find, findOne, aggregate, count, distinct | ✅ | [find.md](./find.md), [findOne.md](./findOne.md) |
-| **Update** | updateOne, updateMany, replaceOne | ✅ | [update-one.md](./update-one.md), [update-many.md](./update-many.md) |
-| **Delete** | deleteOne, deleteMany | ✅ | [delete-one.md](./delete-one.md), [delete-many.md](./delete-many.md) |
+| **Create** | insertOne, insertMany | ✅ | [insertOne guide](./insert-one.md), [insertMany guide](./insert-many.md) |
+| **Read** | find, findOne, aggregate, count, distinct | ✅ | [find guide](./find.md), [findOne guide](./findOne.md) |
+| **Update** | updateOne, updateMany, replaceOne | ✅ | [updateOne guide](./update-one.md), [updateMany guide](./update-many.md) |
+| **Delete** | deleteOne, deleteMany | ✅ | [deleteOne guide](./delete-one.md), [deleteMany guide](./delete-many.md) |
 
 
 ## ✅ Atomic operations
 
 | Methods | Native Support | Documentation |
 |------|---------|------|
-| findOneAndUpdate | ✅ | [find-one-and-update.md](./find-one-and-update.md) |
-| findOneAndReplace | ✅ | [find-one-and-replace.md](./find-one-and-replace.md) |
-| findOneAndDelete | ✅ | [find-one-and-delete.md](./find-one-and-delete.md) |
+| findOneAndUpdate | ✅ | [findOneAndUpdate guide](./find-one-and-update.md) |
+| findOneAndReplace | ✅ | [findOneAndReplace guide](./find-one-and-replace.md) |
+| findOneAndDelete | ✅ | [findOneAndDelete guide](./find-one-and-delete.md) |
 
 
 ## ✅ Index management
 
 | Methods | Native Support | Documentation |
 |------|---------|------|
-| createIndex, createIndexes | ✅ | [create-index.md](./create-index.md) |
-| listIndexes | ✅ | [list-indexes.md](./list-indexes.md) |
-| dropIndex, dropIndexes | ✅ | [drop-index.md](./drop-index.md) |
+| createIndex, createIndexes | ✅ | [Index creation guide](./create-index.md) |
+| listIndexes | ✅ | [Index listing guide](./list-indexes.md) |
+| dropIndex, dropIndexes | ✅ | [Index drop guide](./drop-index.md) |
 
 
 ## ✅ All query options
@@ -181,7 +181,7 @@ const products2 = await collection('products').find(
 | **Cache Statistics** | ❌ None | ✅ Hit Rate/Number of Eliminations |
 | **Multi-tier caching** | ❌ None | ✅ Local + Redis |
 
-**Detailed documentation**: [cache.md](./cache.md)
+**Detailed documentation**: [Cache system](./cache.md)
 
 **Performance improvement**: Speed increase when cache hits **1000x** (10-50ms → 0.001ms)
 
@@ -266,21 +266,21 @@ const freshProducts = await collection('products').find(
 ## MongoDB native: offset/limit paging (poor performance)
 
 ```javascript
-//MongoDB native: use skip + limit (deep paging is slow)
+// MongoDB native: use skip + limit (deep paging is slow)
 const page = 1000;  //Page 1000
 const pageSize = 20;
 
 const products = await db.collection('products')
   .find({ category: 'electronics' })
   .sort({ createdAt: -1 })
-  .skip((page - 1) * pageSize)  //❌ Skip 19980 pieces of data (very slow)
+  .skip((page - 1) * pageSize)  // Skip 19980 documents (very slow)
   .limit(pageSize)
   .toArray();
 
-//Question:
-//- skip requires scanning all previous documents (performance decreases linearly with the number of pages)
-//- Page 1000 needs to scan 19980 pieces of data, which is very slow
-//- Paging results are unstable when data changes (insertion/deletion will affect subsequent pages)
+// Problem:
+// - skip requires scanning all previous documents (performance decreases linearly with the number of pages)
+// - Page 1000 needs to scan 19980 documents, which is very slow
+// - Paging results are unstable when data changes (insertions/deletions affect subsequent pages)
 ```
 
 **Performance comparison**:
@@ -296,33 +296,33 @@ const products = await db.collection('products')
 ## monSQLize: Cursor paging (stable performance)
 
 ```javascript
-//monSQLize: Use cursor paging (depth paging is also fast)
+// monSQLize: use cursor paging (deep paging is also fast)
 const page1 = await collection('products').findPage(
   { category: 'electronics' },
   {
     limit: 20,
     sort: { createdAt: -1 },
     bookmarks: {
-      step: 10,      //Cache a bookmark every 10 pages
-      maxHops: 20    //Jump up to 20 times
+      step: 10,      // Cache a bookmark every 10 pages
+      maxHops: 20    // Jump up to 20 times
     }
   }
 );
 
-//Jump to page 1000 (jump via bookmark, no need to scan all data)
+// Jump to page 1000 (jump via bookmark, no need to scan all data)
 const page1000 = await collection('products').findPage(
   { category: 'electronics' },
   {
     limit: 20,
-    page: 1000,    //✅ Skip directly to page 1000
+    page: 1000,    // Skip directly to page 1000
     bookmarks: { step: 10, maxHops: 20 }
   }
 );
 
-//Performance:
-//- Skip through bookmarks to avoid scanning large amounts of data
-//- Stable performance of deep paging (~10-20ms)
-//- Data changes do not affect existing pages (the cursor locks the data set at the time of query)
+// Performance:
+// - Skip through bookmarks to avoid scanning large amounts of data
+// - Stable deep-paging performance (~10-20ms)
+// - Data changes do not affect existing pages (the cursor locks the data set at query time)
 ```
 
 **Performance comparison**:
@@ -345,7 +345,7 @@ const page1000 = await collection('products').findPage(
 | **Total statistics** | ✅ Need to be queried separately | ✅ Asynchronous statistics (no blocking) |
 | **Data Stability** | ❌ Insertion/deletion affects paging | ✅ Cursor locked data set |
 
-**Detailed documentation**: [findPage.md](./findPage.md)
+**Detailed documentation**: [findPage guide](./findPage.md)
 
 ---
 
@@ -355,51 +355,51 @@ const page1000 = await collection('products').findPage(
 ## MongoDB native: profiling needs to be configured
 
 ```javascript
-//MongoDB native: requires manual configuration of profiling
+// MongoDB native: requires manual profiling configuration
 await db.setProfilingLevel(1, { slowms: 100 });
 
-//View the slow query log (need to query the system.profile collection separately)
+// View the slow query log (requires querying system.profile separately)
 const slowQueries = await db.collection('system.profile')
   .find({ millis: { $gt: 100 } })
   .toArray();
 
-//Question:
-//- Requires manual configuration
-//- Logs are stored in the database (taking up space)
-//- Requires separate query and analysis
-//- Slow query warnings cannot be seen directly in the code
+// Problem:
+// - Requires manual configuration
+// - Logs are stored in the database (occupying space)
+// - Requires separate query and analysis
+// - Slow-query warnings cannot be seen directly in the code
 ```
 
 
 ## monSQLize: Slow query log out of the box
 
 ```javascript
-//monSQLize: Automatically monitor slow queries
+// monSQLize: automatically monitor slow queries
 const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
-  slowQueryMs: 1000  //Log warning after 1 second (default)
+  slowQueryMs: 1000  // Log warning after 1 second (default)
 });
 
-//Automatically monitor slow query events
+// Automatically monitor slow query events
 msq.on('slow-query', (data) => {
   console.warn('Slow query warning:', {
-Operation: data.operation,
-Collection: data.collectionName,
-Time consuming: data.duration,
-Query: data.query,
-Options: data.options
+    operation: data.operation,
+    collection: data.collectionName,
+    duration: data.duration,
+    query: data.query,
+    options: data.options
   });
 });
 
-//Execute queries (automated monitoring)
+// Execute queries (automated monitoring)
 const products = await collection('products').find({
   category: 'electronics'
 });
 
-//If the query takes more than 1 second, the slow-query event is automatically triggered
-//Output: Slow query warning: { operation: 'find', collection: 'products', duration: 1200, ... }
+// If the query takes more than 1 second, the slow-query event is automatically triggered.
+// Output: Slow query warning: { operation: 'find', collection: 'products', duration: 1200, ... }
 ```
 
 
@@ -413,7 +413,7 @@ const products = await collection('products').find({
 | **Operation time consuming** | ❌ Requires profiling | ✅ Automatic recording |
 | **Log Storage** | ❌ Occupies database space | ✅ Application layer logs |
 
-**Detailed documentation**: [events.md](./events.md)
+**Detailed documentation**: [Event system](./events.md)
 
 ---
 
@@ -423,45 +423,45 @@ const products = await collection('products').find({
 ## MongoDB native: Manually switch databases
 
 ```javascript
-//MongoDB native: need to switch database manually
+// MongoDB native: switch databases manually
 const client = new MongoClient('mongodb://localhost:27017');
 await client.connect();
 
-//access shop database
+// Access the shop database
 const shopDb = client.db('shop');
 const products = await shopDb.collection('products').find({}).toArray();
 
-//Access the analytics database (requires manual switching)
-const analyticsDb = client.db('analytics');  //❌ Manual switching
+// Access the analytics database (requires manual switching)
+const analyticsDb = client.db('analytics');  // Manual switching
 const events = await analyticsDb.collection('events').find({}).toArray();
 
-//Question:
-//- Each cross-database needs to be manually switched
-//- verbose code
-//- error prone
+// Problem:
+// - Each cross-database access needs a manual switch
+// - Verbose code
+// - Error-prone
 ```
 
 
-## monSQLize: one line of code across libraries
+## monSQLize: one line of code across databases
 
 ```javascript
-//monSQLize: cross-database access in one line of code
+// monSQLize: cross-database access in one line of code
 const msq = new MonSQLize({
   type: 'mongodb',
-  databaseName: 'shop',  //Default database
+  databaseName: 'shop',  // Default database
   config: { uri: 'mongodb://localhost:27017' }
 });
 
 const { db, collection } = await msq.connect();
 
-//Access the default database (shop)
+// Access the default database (shop)
 const products = await collection('products').find({});
 
-//Access analytics across libraries (one line of code)
+// Access analytics across databases (one line of code)
 const events = await db('analytics').collection('events').find({});
-//✅ Concise and clear
+// Concise and clear
 
-//Chained cross-library
+// Chained cross-database access
 const logs = await db('logs').collection('access_logs').find({});
 ```
 
@@ -470,12 +470,12 @@ const logs = await db('logs').collection('access_logs').find({});
 
 | Features | MongoDB native | monSQLize |
 |------|-------------|-----------|
-| **Cross-library switching** | ❌ Manual `client.db(name)` | ✅ One line of code `db(name)` |
+| **Cross-database switching** | ❌ Manual `client.db(name)` | ✅ One line of code `db(name)` |
 | **Default database** | ❌ No concept | ✅ Automatically use the default database |
 | **Code Simplicity** | ⚠️ Lengthy | ✅ Concise |
 | **Cache Isolation** | ❌ No cache | ✅ Automatic isolation by database |
 
-**Detailed documentation**: [connection.md](./connection.md)
+**Detailed documentation**: [Connection configuration](./connection.md)
 
 ---
 
@@ -615,7 +615,7 @@ const result2 = await collection('products').insertBatch(documents, {
 | 10,000 | 2000ms | 100ms (**20x**) | 200ms |
 | 100,000 | Timeout | 1000ms | 2000ms (batch safe) |
 
-**Detailed documentation**: [insert-many.md](./insert-many.md), [insertBatch.md](./insertBatch.md)
+**Detailed documentation**: [insertMany guide](./insert-many.md), [insertBatch guide](./insertBatch.md)
 
 ---
 
@@ -684,7 +684,7 @@ const products2 = await collection('products').find(
 | **Auto Backfill** | ❌ None | ✅ Backfill local on Redis hit |
 | **Cache Consistency** | ❌ None | ✅ Write operations automatically invalidated |
 
-**Detailed documentation**: [cache.md](./cache.md#multi-layer-caching)
+**Detailed documentation**: [Multi-layer caching](./cache.md#multi-layer-caching)
 
 ---
 
@@ -731,7 +731,7 @@ const products = await collection('products')
 | **Comment chaining** | ⚠️ Required in find option | ✅ .comment() |
 | **Streaming chain** | ✅ .stream() | ✅ .stream() + cache |
 
-**Detailed documentation**: [chaining-api.md](./chaining-api.md)
+**Detailed documentation**: [Chain query API](./chaining-api.md)
 
 ---
 
@@ -793,7 +793,7 @@ msq.on('error', (data) => {
 | **Cache Event** | ❌ | ✅ |
 | **Business Event** | ❌ | ✅ |
 
-**Detailed documentation**: [events.md](./events.md)
+**Detailed documentation**: [Event system](./events.md)
 
 ---
 
@@ -845,17 +845,17 @@ If you want to experience the extended capabilities of monSQLize, start here:
 4. **Monitor slow query**: Listen for `slow-query` events
 5. **Cross-database access**: use `db(name).collection(name)`
 
-**Full example**: View [README.md](./getting-started.md)
+**Full example**: View the [getting started guide](./getting-started.md)
 
 ---
 
 ## 📚 Related documents
 
-- [cache.md](./cache.md) - Detailed documentation of cache system
-- [findPage.md](./findPage.md) - Query detailed documents by page
-- [events.md](./events.md) - Event system detailed documentation
-- [insert-many.md](./insert-many.md) - Batch insert performance optimization
-- [connection.md](./connection.md) - Connection management and cross-database access
+- [Cache system](./cache.md) - Detailed documentation of cache system
+- [findPage guide](./findPage.md) - Query detailed documents by page
+- [Event system](./events.md) - Event system detailed documentation
+- [insertMany guide](./insert-many.md) - Batch insert performance optimization
+- [Connection configuration](./connection.md) - Connection management and cross-database access
 
 ---
 

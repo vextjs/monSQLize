@@ -471,7 +471,7 @@ npm run verify:full
 npm run release:preflight
 ```
 
-Release preflight runs linting, type checks, size guards, runtime checks, compatibility checks, refactor guards, the default test suite, and `npm pack --dry-run`.
+Release preflight runs linting, type checks, size guards, runtime checks, compatibility checks, refactor guards, production dependency audit, the default test suite, and `npm pack --dry-run`.
 
 `npm run release:publish` runs the preflight gate once and then calls `npm publish --ignore-scripts` so the final publish step does not repeat the full lifecycle gate. Raw `npm publish` is still guarded by `prepublishOnly`.
 
@@ -481,6 +481,7 @@ Optional commands:
 npm run check:docs-examples
 npm run test:examples
 npm run test:coverage
+npm run test:audit
 npm run test:server-matrix
 npm run test:real-env:private
 ```
@@ -489,11 +490,11 @@ npm run test:real-env:private
 
 `test:examples`, `test:server-matrix`, and `config.useMemoryServer` use a fixed `mongodb-memory-server` policy: MongoDB `7.0.14` by default, binaries cached under `.cache/mongodb-memory-server/binaries`, and temporary data paths created under `.cache/mongodb-memory-server/db` with forced cleanup for project-managed paths. Stale managed data paths whose owner PID is no longer alive are pruned before new memory-server launches. Override with `MONSQLIZE_MEMORY_MONGO_BINARY_VERSION`, `MONSQLIZE_REPLSET_BINARY_VERSION`, `MONGOMS_DOWNLOAD_DIR`, or `MONSQLIZE_MEMORY_SERVER_DB_DIR` when needed.
 
-`test:coverage` is the independent 90% coverage governance gate for the published CJS runtime artifact. `test:real-env:private` is intentionally opt-in and expects private environment variables. Neither command is part of the default CI or release gate.
+`test:coverage` is the independent 90% coverage governance gate for the published CJS runtime artifact. `test:audit` checks production dependencies against the npm registry. `test:real-env:private` is intentionally opt-in and expects private environment variables. Coverage and private real-environment checks are not part of the default CI or release gate.
 
 ## Release Status
 
-The current published release is `v2.0.2`.
+The current published release is `v2.0.3`.
 
 Key release-readiness points:
 
@@ -505,6 +506,13 @@ Key release-readiness points:
 - GitHub Actions publishes to npm from `v*` tags after running `npm run release:preflight`; the publish step skips duplicate lifecycle scripts because the gate already ran in the same job.
 
 ## Roadmap
+
+### v2.0.3
+
+- v1 compatibility patch for documented `findPage({ cache })` behavior.
+- Public transaction and distributed cache invalidator statistics APIs.
+- Standalone documentation-site link safety and bilingual docs consistency fixes.
+- Release preflight alignment for bilingual docs paths and production dependency audit.
 
 ### v2.0.2
 

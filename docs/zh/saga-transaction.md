@@ -568,7 +568,7 @@ assert(result.success === true);
 ## 示例
 
 完整示例请参考：
-- [examples/docs/saga.ts](../../examples/docs/saga.ts)
+- [Saga 可运行示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/saga.ts)
 
 ---
 

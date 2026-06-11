@@ -262,7 +262,11 @@ export class MonSQLizeRuntime {
             : rawCacheInput;
         this._cache = normalizeRuntimeCache(cacheInput as Record<string, unknown> | MemoryCache | undefined);
         this._logger = Logger.create(options.logger ?? null);
-        this._cacheLockManager = new CacheLockManager({ logger: options.logger ?? null });
+        this._cacheLockManager = new CacheLockManager({
+            logger: options.logger ?? null,
+            maxDuration: options.transaction?.lockMaxDuration,
+            cleanupInterval: options.transaction?.lockCleanupInterval,
+        });
         this._cache.setLockManager?.(this._cacheLockManager);
         this._runtimeDefaults = buildRuntimeDefaults(options);
         this._adapterCacheOverride = undefined;
@@ -671,7 +675,11 @@ export class MonSQLizeRuntime {
     defineSaga(definition: SagaDefinition): Promise<SagaDefinition> { return this.initializeSagaOrchestrator().defineSaga(definition); }
     async executeSaga(name: string, data: unknown): Promise<SagaResult> { return this.initializeSagaOrchestrator().execute(name, data); }
     listSagas(): string[] { return this.initializeSagaOrchestrator().listSagas(); }
+    getTransactionStats(): TransactionStats | null { return this._transactionManager?.getStats() ?? null; }
     getSagaStats(): SagaStats { return this.initializeSagaOrchestrator().getStats(); }
+    getDistributedCacheInvalidatorStats(): ReturnType<DistributedCacheInvalidator['getStats']> | null {
+        return this._distributedInvalidator?.getStats() ?? null;
+    }
     async startSync(): Promise<void> {
         this.ensureConnected();
         const manager = await this.initializeSyncManager();
@@ -722,6 +730,7 @@ export class MonSQLizeRuntime {
             cache: this._cache,
             logger: this.options.logger ?? null,
             lockManager: this._cacheLockManager,
+            transaction: this.options.transaction,
         });
         return this._transactionManager;
     }

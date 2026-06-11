@@ -2,7 +2,7 @@
 
 Every core API in the documentation site should map, as much as possible, to an example that can run directly inside the current repository.
 
-> See the [official examples index](../../examples/README.md) for the full source list. `npm run test:examples` compiles and executes the current **56** TypeScript examples. `examples/helpers/bootstrap.ts` is a helper module and is not executed on its own.
+> See the [official examples index](https://github.com/vextjs/monSQLize/blob/main/examples/README.md) for the full source list. `npm run test:examples` compiles and executes the current **56** TypeScript examples. `examples/helpers/bootstrap.ts` is a helper module and is not executed on its own.
 
 ## How to Run
 
@@ -105,4 +105,4 @@ node .generated/examples-dist/examples/docs/find.js
 | `relations.md` | `examples/docs/relations.ts` |
 | `model/nested-populate.md` | `examples/docs/nested-populate.ts` |
 
-Some conceptual pages intentionally reuse the same richer example instead of duplicating nearly identical scripts for every heading. The complete source of truth is the [official examples index](../../examples/README.md).
+Some conceptual pages intentionally reuse the same richer example instead of duplicating nearly identical scripts for every heading. The complete source of truth is the [official examples index](https://github.com/vextjs/monSQLize/blob/main/examples/README.md).

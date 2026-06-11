@@ -13,9 +13,12 @@ const packageLockPath = path.join(root, 'package-lock.json');
 const requiredFiles = [
     'CHANGELOG.md',
     `changelogs/v${version}.md`,
-    'docs/support-matrix.md',
-    'docs/file-dependency-governance.md',
-    'docs/verification-entrypoints.md',
+    'docs/en/support-matrix.md',
+    'docs/en/file-dependency-governance.md',
+    'docs/en/verification-entrypoints.md',
+    'docs/zh/support-matrix.md',
+    'docs/zh/file-dependency-governance.md',
+    'docs/zh/verification-entrypoints.md',
 ];
 
 function ensureExists(relativePath) {
@@ -99,6 +102,7 @@ ensureLockfileIsReleaseReady();
 
 console.log(`[release-preflight] validating release assets for v${version}`);
 run('npm', ['run', 'verify:fast']);
+run('npm', ['run', 'test:audit']);
 run('npm', ['test']);
 run('npm', ['pack', '--dry-run']);
 

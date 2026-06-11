@@ -48,7 +48,7 @@ async findPage(options = {})
 | `offsetJump` | Object | 否 | - | 基于 offset 的跳页配置 |
 | `totals` | Object | 否 | - | 总数统计配置 |
 | `meta` | Boolean | 否 | `false` | 是否返回查询元信息 |
-| `cache` | Number | 否 | `0` | 缓存 TTL（毫秒），大于 0 时启用缓存 |
+| `cache` | Number | 否 | `0` | 非流式、非 explain 分页结果缓存 TTL（毫秒）；`async` totals 使用独立缓存 |
 | `explain` | Boolean/String | 否 | - | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
 
 ### jump 配置项
@@ -95,12 +95,12 @@ async findPage(options = {})
 - **none**: 不统计总数（默认），性能最佳
 - **sync**: 同步统计，立即返回总数，可能影响响应时间（适合数据量较小或有索引优化的场景）
 - **async**: 异步统计，首次返回 token，后台计算后缓存结果（适合大数据量）
-- **approx**: 近似统计，返回缓存的近似值（占位实现，未来版本支持）
+- **approx**: 快速近似统计路径。空查询使用 `estimatedDocumentCount`；带过滤条件的查询使用 `countDocuments` 并透传 `hint` / `collation`，确保统计条件与查询一致。
 
 **注意事项**：
-- 统计结果会缓存，键前缀为 `tot:`
+- 统计结果会按 `ttlMs` 缓存，键前缀为 `findPageTotals:`
 - 统计失败时会缓存 `total: null` 并附带 `error` 字段
-- async 模式使用飞行中去重（inflight deduplication），5 秒窗口内相同查询共享结果
+- async 模式使用飞行中去重（inflight deduplication），同一 totals 计算尚未完成时会共享同一后台任务
 
 ## 返回值
 
@@ -552,7 +552,7 @@ const result = await collection('products').findPage({
 **缓存最佳实践**：
 - 热门查询启用缓存
 - 根据数据更新频率设置合理的 TTL
-- 数据变更后及时失效缓存：`collection.invalidate('findPage')`
+- 通过 monSQLize collection accessor 写入时会自动失效读缓存；如果绕过 accessor 使用原生 driver 或外部任务写入，需调用 `collection.invalidate('findPage')`
 
 ### 4. 正确处理总数统计
 
@@ -1060,13 +1060,14 @@ console.log(dataResult);
 **A**: 缓存机制说明：
 
 **缓存内容**：
-- **查询结果缓存**：键前缀为 `fp:`，缓存分页查询结果
-- **书签缓存**：键前缀为 `bm:`，缓存跳页书签
-- **总数缓存**：键前缀为 `tot:`，缓存总数统计结果
+- **查询结果缓存**：键前缀为 `findPage:`，当 `cache` 大于 `0` 时缓存非流式、非 explain 分页结果
+- **书签缓存**：键前缀为 `<db>:<collection>:bm:`，缓存跳页书签
+- **总数缓存**：键前缀为 `findPageTotals:`，按 `totals.ttlMs` 缓存总数统计结果
 
 **缓存失效**：
-- 缓存**不会**自动失效，需要手动清理或等待 TTL 过期
-- 数据更新后应手动失效相关缓存
+- TTL 会控制缓存自动过期
+- 通过 monSQLize collection accessor 写入时会自动失效读缓存
+- 如果通过原生 MongoDB driver、其他进程或外部任务改写数据，需要手动失效相关缓存
 
 ```javascript
 // 更新数据
@@ -1078,8 +1079,8 @@ await collection('products').update(
 // 手动失效缓存
 await collection('products').invalidate('findPage');
 
-// 或失效所有缓存
-await collection('products').invalidate('*');
+// 或失效该集合的所有读缓存
+await collection('products').invalidate();
 ```
 
 **缓存键区分**：

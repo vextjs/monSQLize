@@ -34,6 +34,8 @@ export interface TotalsInfo {
     token?: string;
     /** Write timestamp (ms) if from cache */
     ts?: number;
+    /** True when an approximate totals strategy was used */
+    approx?: boolean;
     /** Error identifier for async mode failures */
     error?: string;
 }
@@ -98,9 +100,9 @@ export interface OffsetJumpOptions {
 export interface TotalsOptions {
     /** Counting strategy (default 'none') */
     mode?: 'none' | 'async' | 'approx' | 'sync';
-    /** Timeout for countDocuments (sync/async modes, ms) */
+    /** Timeout for countDocuments / estimatedDocumentCount (ms) */
     maxTimeMS?: number;
-    /** Cache TTL for totals (async/approx modes, ms; default 10 min) */
+    /** Cache TTL for totals (ms; default 10 min) */
     ttlMs?: number;
     /** Index hint for count query */
     hint?: unknown;
@@ -220,7 +222,7 @@ export interface FindPageOptions<TSchema = any> {
     hint?: Document | string;
     collation?: Document;
     batchSize?: number;
-    /** Cache TTL in milliseconds */
+    /** Cache TTL in milliseconds for the non-stream/non-explain page result */
     cache?: number;
     /** Include timing/meta info in result — pass true or MetaOptions for sub-step detail */
     meta?: boolean | MetaOptions;

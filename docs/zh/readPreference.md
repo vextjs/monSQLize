@@ -399,4 +399,4 @@ await msq.close();
 - [MongoDB 官方文档 - Read Preference](https://www.mongodb.com/docs/manual/core/read-preference/)
 - [MongoDB 副本集部署指南](https://www.mongodb.com/docs/manual/tutorial/deploy-replica-set/)
 - [monSQLize 连接配置](./connection.md)
-- [多连接池与读偏好示例](../../examples/docs/pool.ts)
+- [多连接池与读偏好示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/pool.ts)

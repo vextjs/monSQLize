@@ -632,11 +632,10 @@ try {
 ## Sample code
 
 For complete sample code, please refer to:
-- [examples/docs/insert-many.ts](../../examples/docs/insert-many.ts)
-- [examples/write-operations.md](./write-operations.md)
+- [insertMany runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/insert-many.ts)
+- [write operations guide](./write-operations.md)
 
 ## MongoDB Documentation
 
 - [MongoDB insertMany document](https://www.mongodb.com/docs/manual/reference/method/db.collection.insertMany/)
 - [MongoDB Bulk Write Operations](https://www.mongodb.com/docs/manual/core/bulk-write-operations/)
-

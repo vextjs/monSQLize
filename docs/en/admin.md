@@ -46,7 +46,7 @@ Check whether the database connection is normal.
 ## Syntax
 
 ```javascript
-const isAlive = await db._adapter.ping();
+const isAlive = await db.db().admin().ping();
 ```
 
 
@@ -67,10 +67,10 @@ const db = new MonSQLize({
 });
 
 await db.connect();
-const adapter = db._adapter;
+const admin = db.db().admin();
 
 //Check connection
-const isAlive = await adapter.ping();
+const isAlive = await admin.ping();
 console.log('Database is alive:', isAlive);
 ```
 
@@ -89,7 +89,7 @@ console.log('Database is alive:', isAlive);
 async function startup() {
     await db.connect();
 
-    const isAlive = await adapter.ping();
+    const isAlive = await db.db().admin().ping();
     if (!isAlive) {
         throw new Error('Database connection failed');
     }
@@ -99,7 +99,7 @@ async function startup() {
 
 //Regular health check-up
 setInterval(async () => {
-    const isAlive = await adapter.ping();
+    const isAlive = await db.db().admin().ping();
     if (!isAlive) {
         console.error('❌ Database connection lost');
         //Trigger an alarm or reconnect
@@ -117,7 +117,7 @@ Get MongoDB version information and build details.
 ## Syntax (buildInfo())
 
 ```javascript
-const info = await db._adapter.buildInfo();
+const info = await db.db().admin().buildInfo();
 ```
 
 
@@ -136,7 +136,7 @@ const info = await db._adapter.buildInfo();
 ## Example (buildInfo())
 
 ```javascript
-const info = await adapter.buildInfo();
+const info = await admin.buildInfo();
 
 console.log('MongoDB version:', info.version);
 console.log('Version array:', info.versionArray);
@@ -167,7 +167,7 @@ BSON maximum size: 16777216 bytes
 ```javascript
 //Check version compatibility
 async function checkMongoDBVersion() {
-    const info = await adapter.buildInfo();
+    const info = await db.db().admin().buildInfo();
     const [major, minor] = info.versionArray;
 
     //Requires MongoDB 4.4+
@@ -182,7 +182,7 @@ async function checkMongoDBVersion() {
 
 //Enable features based on version
 async function initializeFeatures() {
-    const info = await adapter.buildInfo();
+    const info = await db.db().admin().buildInfo();
     const [major, minor] = info.versionArray;
 
     //MongoDB 5.0+ supports time series collections
@@ -208,7 +208,7 @@ Obtain server status information, including number of connections, memory usage,
 ## Syntax (serverStatus())
 
 ```javascript
-const status = await db._adapter.serverStatus([options]);
+const status = await db.db().admin().serverStatus(options);
 ```
 
 
@@ -256,7 +256,7 @@ const status = await db._adapter.serverStatus([options]);
 ### Basic usage
 
 ```javascript
-const status = await adapter.serverStatus();
+const status = await admin.serverStatus();
 
 console.log('=== Connection information ===');
 console.log('Current connection:', status.connections.current);
@@ -282,11 +282,11 @@ console.log('Version:', status.version);
 
 ```javascript
 //Use KB as the unit
-const statusKB = await adapter.serverStatus({ scale: 1024 });
+const statusKB = await db.db().admin().serverStatus({ scale: 1024 });
 console.log('Memory usage:', statusKB.mem.resident, 'KB');
 
 //Use MB as unit
-const statusMB = await adapter.serverStatus({ scale: 1048576 });
+const statusMB = await db.db().admin().serverStatus({ scale: 1048576 });
 console.log('Memory usage:', statusMB.mem.resident, 'MB');
 ```
 
@@ -304,7 +304,7 @@ console.log('Memory usage:', statusMB.mem.resident, 'MB');
 ```javascript
 //Monitor the number of connections
 async function monitorConnections() {
-    const status = await adapter.serverStatus();
+    const status = await db.db().admin().serverStatus();
     const usagePercent = (status.connections.current /
         (status.connections.current + status.connections.available)) * 100;
 
@@ -322,7 +322,7 @@ async function monitorConnections() {
 
 //Monitor memory usage
 async function monitorMemory() {
-    const status = await adapter.serverStatus({ scale: 1048576 }); // MB
+    const status = await db.db().admin().serverStatus({ scale: 1048576 }); // MB
 
     if (status.mem.resident > 1024) { //More than 1GB
         console.warn(`⚠️ Memory usage too high: ${status.mem.resident} MB`);
@@ -337,7 +337,7 @@ async function monitorMemory() {
 
 //Collect performance metrics regularly
 async function collectMetrics() {
-    const status = await adapter.serverStatus();
+    const status = await db.db().admin().serverStatus();
 
     //Send to monitoring system (such as Prometheus, Grafana)
     return {
@@ -371,7 +371,7 @@ Get the statistics of the current database.
 ## Syntax (stats())
 
 ```javascript
-const stats = await db._adapter.stats([options]);
+const stats = await db.db().admin().stats(options);
 ```
 
 
@@ -407,7 +407,7 @@ const stats = await db._adapter.stats([options]);
 ### Basic usage (example (stats()))
 
 ```javascript
-const stats = await adapter.stats();
+const stats = await admin.stats();
 
 console.log('Database:', stats.db);
 console.log('Number of sets:', stats.collections);
@@ -425,7 +425,7 @@ console.log('Index size:', stats.indexSize, 'bytes');
 
 ```javascript
 //Use MB as unit
-const statsMB = await adapter.stats({ scale: 1048576 });
+const statsMB = await db.db().admin().stats({ scale: 1048576 });
 
 console.log('=== Database Statistics (MB) ===');
 console.log('Data size:', statsMB.dataSize, 'MB');
@@ -448,7 +448,7 @@ console.log('Total size:', statsMB.totalSize, 'MB');
 ```javascript
 //Capacity monitoring
 async function monitorDatabaseCapacity() {
-    const stats = await adapter.stats({ scale: 1073741824 }); // GB
+    const stats = await db.db().admin().stats({ scale: 1073741824 }); // GB
 
     const capacityReport = {
         database: stats.db,
@@ -470,7 +470,7 @@ async function monitorDatabaseCapacity() {
 
 //Index analysis
 async function analyzeIndexes() {
-    const stats = await adapter.stats();
+    const stats = await db.db().admin().stats();
 
     //Calculate index proportion
     const indexRatio = (stats.indexSize / stats.dataSize) * 100;
@@ -491,7 +491,7 @@ async function analyzeIndexes() {
 
 //Generate statistical reports
 async function generateDatabaseReport() {
-    const stats = await adapter.stats({ scale: 1048576 }); // MB
+    const stats = await db.db().admin().stats({ scale: 1048576 }); // MB
 
     return {
         database: stats.db,
@@ -522,10 +522,9 @@ async function generateDatabaseReport() {
 
 - [Database Operation](./database-ops.md) - listDatabases, dropDatabase
 - [Collection Management](./collection-management.md) - Collection statistics and management
-- [Collection Management Example](../../examples/docs/collection-management.ts) - Current TypeScript example
+- [Collection Management Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts) - Current TypeScript example
 
 ---
 
 **Last updated**: 2025-12-02
 **Version**: v0.3.0
-

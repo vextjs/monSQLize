@@ -899,11 +899,11 @@ Precise failure supports simple query conditions:
 
 ✅ **Supported Operators**:
 - Equality match: `{ status: 'active' }`
-- `$eq`：`{ status: { $eq: 'active' } }`
-- `$ne`：`{ status: { $ne: 'deleted' } }`
-- `$gt`, `$gte`, `$lt`, `$lte`：`{ price: { $gte: 100 } }`
-- `$in`：`{ category: { $in: ['a', 'b'] } }`
-- `$nin`：`{ status: { $nin: ['deleted'] } }`
+- `$eq`: `{ status: { $eq: 'active' } }`
+- `$ne`: `{ status: { $ne: 'deleted' } }`
+- `$gt`, `$gte`, `$lt`, `$lte`: `{ price: { $gte: 100 } }`
+- `$in`: `{ category: { $in: ['a', 'b'] } }`
+- `$nin`: `{ status: { $nin: ['deleted'] } }`
 
 ❌ **Unsupported operators** (automatically skipped, expires by TTL):
 - `$regex`, `$exists`, `$type`
@@ -1425,10 +1425,10 @@ Return `Promise<void>`.
 ```javascript
 const { collection } = await msq.connect();
 
-//Scenario: Data is modified using MongoDB Shell, Compass, or other tools
-//Need to manually clear the cache of monSQLize
+// Scenario: data is modified using MongoDB Shell, Compass, or other tools.
+// Clear the monSQLize cache manually.
 
-//Clear the cache of the products collection
+// Clear the cache of the products collection.
 await collection('products').invalidate();
 
 console.log('✅ The cache has been cleared and the next query will get the latest data');

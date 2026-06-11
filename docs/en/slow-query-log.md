@@ -110,7 +110,7 @@ Slow query log persistent storage is a new feature introduced in monSQLize v1.0.
 │ If execution time > 500ms
        ▼
 ┌─────────────────┐
-│ Generate queryHash │ ← SHA256(db+coll+op+queryShape)
+│ Generate queryHash │ ← SHA256(database+collection+operation+query)
 └──────┬──────────┘
        │
        ▼
@@ -487,10 +487,10 @@ Query slow query log (supports scheme B aggregation data)
 ```javascript
 //filter - query conditions
 {
-  db: 'mydb',              //Database name
+  database: 'mydb',        //Database name
   collection: 'users',     //Collection name
   operation: 'find',       //Operation type
-  minExecutionTime: 500    //Minimum execution time (not implemented)
+  queryHash: 'abc123def456' //Optional exact query hash
 }
 
 //options - query options
@@ -506,13 +506,11 @@ Query slow query log (supports scheme B aggregation data)
 ```javascript
 [
   {
-    _id: ObjectId('...'),
     queryHash: 'abc123def456',          //Query Hash (unique identifier)
-    db: 'mydb',                         //Database name
+    database: 'mydb',                   //Database name
     collection: 'users',                //Collection name
     operation: 'find',                  //Operation type
-    queryShape: { status: 1 },          //Query mode (desensitized)
-    type: 'mongodb',                    //Database type
+    sampleQuery: { status: 'active' },  //Sample query payload
     count: 2400,                        //Number of executions
     totalTimeMs: 1248000,               //total execution time
     minTimeMs: 500,                     //Minimum execution time
@@ -520,11 +518,7 @@ Query slow query log (supports scheme B aggregation data)
     avgTimeMs: 520,                     //Average execution time (dynamic calculation)
     firstSeen: ISODate('...'),          //Time of first discovery
     lastSeen: ISODate('...'),           //last time
-    lastExecution: {                    //Last execution details
-      executionTimeMs: 520,
-      timestamp: ISODate('...'),
-      metadata: {}
-    }
+    metadata: {}
   }
 ]
 ```
@@ -546,7 +540,7 @@ const topSlow = await msq.getSlowQueryLogs(
 
 //Slow query for specific collection
 const userLogs = await msq.getSlowQueryLogs(
-  { db: 'mydb', collection: 'users' },
+  { database: 'mydb', collection: 'users' },
   { sort: { avgTimeMs: -1 } }
 );
 
@@ -763,7 +757,7 @@ setInterval(async () => {
     console.log(`Number of executions: ${log.count}`);
     console.log(`Average time taken: ${log.avgTimeMs}ms`);
     console.log(`Maximum time taken: ${log.maxTimeMs}ms`);
-    console.log(`Query mode:`, JSON.stringify(log.queryShape));
+    console.log(`Sample query:`, JSON.stringify(log.sampleQuery));
     console.log('');
   });
 }, 3600000);  //hourly
@@ -828,11 +822,11 @@ console.log(JSON.stringify(report, null, 2));
 //Create index after analyzing slow queries
 const slowQuery = {
   collection: 'users',
-  queryShape: { status: 1, createdAt: 1 }
+  sampleQuery: { status: 'active', createdAt: { $gte: someDate } }
 };
 
 //Create index based on query pattern
-await msq.db.collection('users').createIndex(
+await msq.db('mydb').collection('users').createIndex(
   { status: 1, createdAt: -1 },
   { name: 'idx_status_createdAt' }
 );
@@ -938,7 +932,7 @@ storage: {
 ```
 
 **When to use independent connections**:
-- Business library performance is extremely sensitive
+- Production database performance is extremely sensitive
 - The amount of slow query logs is large (>10,000 entries/day)
 - Requires independent permission control and resource isolation
 
@@ -979,7 +973,7 @@ msq.on('slow-query', (info) => {
 ```javascript
 //Periodically check slow query log collection size
 setInterval(async () => {
-  const stats = await msq.db.collection('slow_query_logs').stats();
+  const stats = await msq.db('admin').collection('slow_query_logs').stats();
   const sizeMB = stats.size / 1024 / 1024;
 
   console.log('Slow query log storage:', {
@@ -1171,32 +1165,29 @@ console.log('TTL:', msq.slowQueryLogManager.config.storage.mongodb.ttl);
 
 ```javascript
 {
-  _id: ObjectId('...'),
   queryHash: 'abc123def456',          //Query Hash (unique)
-  db: 'mydb',                         //Database name
+  database: 'mydb',                   //Database name
   collection: 'users',                //Collection name
   operation: 'find',                  //Operation type
-  queryShape: { status: 1 },          //Query mode (desensitized)
-  type: 'mongodb',                    //Database type
+  sampleQuery: { status: 'active' },  //Sample query payload
   count: 2400,                        //Number of executions
   totalTimeMs: 1248000,               //total execution time
   minTimeMs: 500,                     //Minimum execution time
   maxTimeMs: 1200,                    //Maximum execution time
   firstSeen: ISODate('...'),          //Time of first discovery
   lastSeen: ISODate('...'),           //Last time (TTL field)
-  lastExecution: {                    //Last execution details
-    executionTimeMs: 520,
-    timestamp: ISODate('...'),
-    metadata: {}
-  }
+  metadata: {}
 }
 ```
 
 **Index**:
 
 ```javascript
-//Unique index (queryHash)
-db.slow_query_logs.createIndex({ queryHash: 1 }, { unique: true });
+//Unique index used by the storage backend
+db.slow_query_logs.createIndex(
+  { queryHash: 1, database: 1, collection: 1, operation: 1 },
+  { unique: true, name: 'slow_query_log_unique' }
+);
 
 //TTL index (lastSeen)
 db.slow_query_logs.createIndex(
@@ -1205,7 +1196,7 @@ db.slow_query_logs.createIndex(
 );
 
 //query optimization index
-db.slow_query_logs.createIndex({ db: 1, collection: 1 });
+db.slow_query_logs.createIndex({ database: 1, collection: 1 });
 db.slow_query_logs.createIndex({ count: -1 });
 ```
 
@@ -1220,7 +1211,7 @@ db.slow_query_logs.createIndex({ count: -1 });
 ## C. Related links
 
 - [Requirement plan document]
-- [Usage Example](../../examples/docs/slow-query-log.ts)
+- [Usage Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/slow-query-log.ts)
 - [Configuration design description]
 
 ---
@@ -1228,4 +1219,3 @@ db.slow_query_logs.createIndex({ count: -1 });
 **Documentation version**: v1.3.1
 **Last update**: 2025-12-22
 **Maintainer**: AI assistant
-

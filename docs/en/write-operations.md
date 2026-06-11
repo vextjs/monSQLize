@@ -102,7 +102,7 @@ collection(name: string).insertOne(document: object, options?: InsertOneOptions)
 | Parameters | Type | Default value | Source | Description |
 |------|------|--------|------|------|
 | **writeConcern** | `object` | `{ w: 1 }` | MongoDB native ✅ | Write confirmation level |
-| **writeConcern.w** | `number \| 'majority'` | `1` | MongoDB native ✅ | Write confirmation level (1=master node confirmation, 'majority'=majority node confirmation) |
+| **writeConcern.w** | `number \| 'majority'` | `1` | MongoDB native ✅ | Write acknowledgment level (`1` = primary acknowledgement, `'majority'` = majority acknowledgement) |
 | **writeConcern.j** | `boolean` | `false` | MongoDB native ✅ | Whether to wait for the log to be placed |
 | **writeConcern.wtimeout** | `number` | - | MongoDB native ✅ | Write timeout (milliseconds) |
 | **bypassDocumentValidation** | `boolean` | `false` | MongoDB native ✅ | Skip document validation (not recommended) |
@@ -120,8 +120,8 @@ collection(name: string).insertOne(document: object, options?: InsertOneOptions)
 
 ```typescript
 {
-  acknowledged: boolean,  //Whether it is confirmed (usually true)
-  insertedId: ObjectId    //Inserted document _id
+  acknowledged: boolean,  // Whether it is acknowledged (usually true)
+  insertedId: ObjectId    // Inserted document _id
 }
 ```
 
@@ -169,9 +169,9 @@ collection(name: string).insertMany(documents: object[], options?: InsertManyOpt
 
 ```typescript
 {
-  acknowledged: boolean,           //Is it confirmed
-  insertedCount: number,           //Number of documents successfully inserted
-  insertedIds: {                   //Inserted document _id mapping table
+  acknowledged: boolean,           // Whether it is acknowledged
+  insertedCount: number,           // Number of documents successfully inserted
+  insertedIds: {                   // Inserted document _id mapping
     0: ObjectId(...),
     1: ObjectId(...),
     2: ObjectId(...)
@@ -202,7 +202,7 @@ const result = await collection('products').insertOne({
 });
 
 console.log('Insertion successful:', result.insertedId);
-//Output: Insertion successful: 507f1f77bcf86cd799439011
+// Output: Insertion successful: 507f1f77bcf86cd799439011
 ```
 
 
@@ -216,10 +216,10 @@ const result = await collection('products').insertMany([
   { name: 'AirPods Pro', price: 249, category: 'accessories' }
 ]);
 
-console.log(`Successfully inserted ${result.insertedCount} pieces of data`);
+console.log(`Successfully inserted ${result.insertedCount} documents`);
 console.log('Inserted ID:', result.insertedIds);
-//Output: 3 pieces of data successfully inserted
-//Output: Inserted IDs: { 0: ObjectId(...), 1: ObjectId(...), 2: ObjectId(...) }
+// Output: 3 documents successfully inserted
+// Output: Inserted IDs: { 0: ObjectId(...), 1: ObjectId(...), 2: ObjectId(...) }
 ```
 
 ---
@@ -232,7 +232,7 @@ console.log('Inserted ID:', result.insertedIds);
 ## 3. Use comment parameter (production environment log tracking)
 
 ```javascript
-//In a production environment, use comment to identify the query source to facilitate log analysis and slow query tracking.
+// In production, use comment to identify the query source for log analysis and slow-query tracking.
 const result = await collection('orders').insertOne(
   {
     userId: 'user_123',
@@ -241,23 +241,23 @@ const result = await collection('orders').insertOne(
     status: 'pending'
   },
   {
-    comment: 'OrderAPI:createOrder:user_123'  //Format: service name: method name: user ID
+    comment: 'OrderAPI:createOrder:user_123'  // Format: service name: method name: user ID
   }
 );
 
-//MongoDB logs will contain this comment for easy tracking and analysis
+// MongoDB logs will contain this comment for tracking and analysis.
 console.log('Order created successfully:', result.insertedId);
 ```
 
 **comment Best Practices**:
 ```javascript
-//Recommended format: "ServiceName:methodName:uniqueIdentifier"
+// Recommended format: "ServiceName:methodName:uniqueIdentifier"
 comment: 'ProductAPI:createProduct:admin_456'
 comment: 'OrderService:batchImport:session_abc123'
 comment: 'DataMigration:seedUsers:v2.0'
 
-//Slow query log example:
-//[Slow write] insertOne - orders (45ms) | comment: "OrderAPI:createOrder:user_123"
+// Slow query log example:
+// [Slow write] insertOne - orders (45ms) | comment: "OrderAPI:createOrder:user_123"
 ```
 
 ---
@@ -267,7 +267,8 @@ comment: 'DataMigration:seedUsers:v2.0'
 ## 4. Use writeConcern (key data persistence)
 
 ```javascript
-//For key data such as financial transactions and orders, use { w: 'majority', j: true } to ensure data security
+// For critical data such as financial transactions and orders,
+// use { w: 'majority', j: true } to improve durability.
 const result = await collection('transactions').insertOne(
   {
     userId: 'user_789',
@@ -277,9 +278,9 @@ const result = await collection('transactions').insertOne(
   },
   {
     writeConcern: {
-      w: 'majority',    //Wait for confirmation from the majority of nodes
-      j: true,          //Waiting for the log to be downloaded
-      wtimeout: 5000    //5 seconds timeout
+      w: 'majority',    // Wait for acknowledgement from the majority of nodes
+      j: true,          // Wait for journal persistence
+      wtimeout: 5000    // 5-second timeout
     }
   }
 );
@@ -291,10 +292,10 @@ console.log('Transaction records have been safely written:', result.insertedId);
 
 | scene | w | j | description |
 |------|---|---|------|
-| **Default scenario** | 1 | false | The master node returns immediately after confirmation, with the best performance |
-| **Key data** | 'majority' | true | Most nodes confirm and logs are placed, the data is the most secure |
-| **High performance requirements** | 1 | false | Master node memory confirmation, fastest |
-| **Read and write separation scenario** | 'majority' | false | Ensure that data can be read from the node |
+| **Default scenario** | 1 | false | The primary acknowledges immediately, which offers the best performance |
+| **Critical data** | 'majority' | true | Most nodes acknowledge and the write is journaled |
+| **High-performance requirements** | 1 | false | Primary memory acknowledgement, fastest |
+| **Read/write separation scenario** | 'majority' | false | Ensure the data can be read from secondary nodes after replication |
 
 ---
 
@@ -649,8 +650,8 @@ for (let i = 0; i < allData.length; i += BATCH_SIZE) {
 
 ## References
 
-- [examples/docs/insert.ts](../../examples/docs/insert.ts) - Current TypeScript single insertion example
-- [examples/docs/insert-many.ts](../../examples/docs/insert-many.ts) - Current TypeScript bulk insert example
-- [docs/cache.md](./cache.md) - Cache invalidation mechanism
-- [docs/events.md](./events.md) - Slow query monitoring
+- [single insert runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/insert.ts) - Current TypeScript single insertion example
+- [bulk insert runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/insert-many.ts) - Current TypeScript bulk insert example
+- [Cache system](./cache.md) - Cache invalidation mechanism
+- [Event system](./events.md) - Slow query monitoring
 - [MongoDB writeConcern documentation](https://www.mongodb.com/docs/manual/reference/write-concern/)

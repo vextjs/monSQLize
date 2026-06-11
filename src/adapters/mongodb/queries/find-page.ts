@@ -10,11 +10,12 @@
  * Does not depend on FindChain/AggregateChain to avoid circular references.
  */
 
+import { createHash } from 'node:crypto';
 import { Collection, Document } from 'mongodb';
 
 import { MemoryCache } from '../../../capabilities/cache';
 import { createError, ErrorCodes } from '../../../core/errors';
-import type { RuntimeDefaults, SortShape } from '../../../types/internal/query';
+import type { QueryCacheLike, RuntimeDefaults, SortShape } from '../../../types/internal/query';
 import type {
     FindPageOptions,
     FindPageResult,
@@ -54,59 +55,237 @@ function mergeFilters(base: Document, extra?: Document): Document {
     return { $and: [base, extra] };
 }
 
+function stableStringify(value: unknown): string {
+    if (value === undefined) {
+        return '"__undefined__"';
+    }
+    if (value === null) {
+        return 'null';
+    }
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+    }
+    if (value instanceof Date) {
+        return JSON.stringify(value.toISOString());
+    }
+    if (typeof value === 'object') {
+        const customJson = (value as { toJSON?: () => unknown }).toJSON;
+        if (typeof customJson === 'function' && value.constructor?.name !== 'Object') {
+            return stableStringify(customJson.call(value));
+        }
+        const entries = Object.entries(value as Record<string, unknown>)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`);
+        return `{${entries.join(',')}}`;
+    }
+    return JSON.stringify(value);
+}
+
+function hashPayload(payload: unknown): string {
+    return createHash('sha256').update(stableStringify(payload)).digest('hex');
+}
+
+function buildFindPageCacheKey<TSchema extends Document>(
+    collection: Collection<TSchema>,
+    options: FindPageOptions<TSchema>,
+    normalized: {
+        query: Document;
+        sort: SortShape;
+        limit: number;
+        page: number;
+        maxTimeMS?: number;
+    },
+): { key: string; keyHash: string } {
+    const payload = {
+        query: normalized.query,
+        sort: normalized.sort,
+        limit: normalized.limit,
+        page: normalized.page,
+        after: options.after,
+        before: options.before,
+        projection: options.projection,
+        pipeline: options.pipeline ?? [],
+        totals: options.totals,
+        jump: options.jump,
+        offsetJump: options.offsetJump,
+        maxTimeMS: normalized.maxTimeMS,
+        hint: (options as Record<string, unknown>).hint,
+        collation: (options as Record<string, unknown>).collation,
+        batchSize: (options as Record<string, unknown>).batchSize,
+        options: options.options,
+    };
+    const keyHash = hashPayload(payload);
+    return { key: `findPage:${collection.namespace}:${keyHash}`, keyHash };
+}
+
+function buildTotalsCacheKey<TSchema extends Document>(
+    collection: Collection<TSchema>,
+    query: Document,
+    limit: number,
+    totals: TotalsOptions,
+): { key: string; token: string } {
+    const payload = {
+        query,
+        limit,
+        mode: totals.mode ?? 'sync',
+        hint: totals.hint,
+        collation: totals.collation,
+        maxTimeMS: totals.maxTimeMS,
+    };
+    const token = hashPayload(payload);
+    return { key: `findPageTotals:${collection.namespace}:${token}`, token };
+}
+
+function cloneFindPageResult<TSchema extends Document>(result: FindPageResult<TSchema>): FindPageResult<TSchema> {
+    return {
+        ...result,
+        items: Array.isArray(result.items) ? [...result.items] : result.items,
+        pageInfo: result.pageInfo && typeof result.pageInfo === 'object'
+            ? { ...(result.pageInfo as unknown as Record<string, unknown>) } as unknown as FindPageResult<TSchema>['pageInfo']
+            : result.pageInfo,
+        totals: result.totals && typeof result.totals === 'object'
+            ? { ...(result.totals as unknown as Record<string, unknown>) } as unknown as FindPageResult<TSchema>['totals']
+            : result.totals,
+        meta: result.meta && typeof result.meta === 'object'
+            ? {
+                ...result.meta,
+                ns: { ...result.meta.ns },
+                steps: result.meta.steps ? [...result.meta.steps] : undefined,
+            }
+            : result.meta,
+    };
+}
+
+function getPositiveTtl(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && value > 0 ? value : fallback;
+}
+
 // Async totals result cache (keyed by query fingerprint, backed by MemoryCache)
 const _asyncTotalsCache = new MemoryCache({
     maxEntries: 10_000,
     enableStats: false,
 });
+const _totalsInflight = new Map<string, Promise<void>>();
+
+function runTotalsOnce(key: string, task: () => Promise<void>): void {
+    if (_totalsInflight.has(key)) {
+        return;
+    }
+    const promise = task()
+        .catch(() => { /* failures are cached by the task itself */ })
+        .finally(() => {
+            _totalsInflight.delete(key);
+        });
+    _totalsInflight.set(key, promise);
+}
 
 async function computeTotals<TSchema extends Document = Document>(
     coll: Collection<TSchema>,
     query: Document,
     limit: number,
     totals: TotalsOptions,
+    defaults: RuntimeDefaults = {},
+    queryCache?: QueryCacheLike | null,
 ): Promise<TotalsInfo> {
     const mode = (totals.mode ?? 'sync') as TotalsInfo['mode'];
+    const cache = queryCache ?? _asyncTotalsCache;
+    const ttlMs = getPositiveTtl(totals.ttlMs, 10 * 60_000);
+    const { key: cacheKey, token } = buildTotalsCacheKey(coll, query, limit, totals);
 
-    if (mode === 'sync') {
+    const buildCountOptions = (fallbackMaxTimeMS: number): Record<string, unknown> => {
         const countOpts: Record<string, unknown> = {};
-        if (totals.maxTimeMS !== undefined) {
-            countOpts.maxTimeMS = totals.maxTimeMS;
+        const maxTimeMS = totals.maxTimeMS ?? fallbackMaxTimeMS;
+        if (maxTimeMS !== undefined) {
+            countOpts.maxTimeMS = maxTimeMS;
         }
-        const total = await coll.countDocuments(
-            query as Parameters<Collection<TSchema>['countDocuments']>[0],
+        if (totals.hint !== undefined) {
+            countOpts.hint = totals.hint;
+        }
+        if (totals.collation !== undefined) {
+            countOpts.collation = totals.collation;
+        }
+        return countOpts;
+    };
+
+    const countWithOptions = async (): Promise<number> => {
+        const countOpts = buildCountOptions(2000);
+        const countQuery = query as Parameters<Collection<TSchema>['countDocuments']>[0];
+        const runner = () => coll.countDocuments(
+            countQuery,
             countOpts as Parameters<Collection<TSchema>['countDocuments']>[1],
         );
-        const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
-        return { mode: 'sync', total, totalPages, ts: Date.now() };
+        return defaults.countQueue ? defaults.countQueue.execute(runner) : runner();
+    };
+
+    const buildPayload = (total: number, approx = false): TotalsInfo => ({
+        mode,
+        total,
+        totalPages: total > 0 ? Math.ceil(total / limit) : 0,
+        ts: Date.now(),
+        ...(approx ? { approx: true } as Record<string, unknown> : {}),
+    });
+
+    const buildFailurePayload = (error: string): TotalsInfo => ({
+        mode,
+        total: null,
+        totalPages: null,
+        ts: Date.now(),
+        error,
+    });
+
+    if (mode === 'sync') {
+        const cached = cache.get(cacheKey) as TotalsInfo | undefined;
+        if (cached !== undefined) {
+            return { ...cached, mode: 'sync' };
+        }
+        try {
+            const payload = buildPayload(await countWithOptions());
+            await Promise.resolve(cache.set(cacheKey, payload, ttlMs));
+            return { ...payload, mode: 'sync' };
+        } catch {
+            const payload = buildFailurePayload('count_failed');
+            await Promise.resolve(cache.set(cacheKey, payload, ttlMs));
+            return { ...payload, mode: 'sync' };
+        }
     }
 
     if (mode === 'async') {
-        const cacheKey = JSON.stringify({ ns: coll.namespace, q: query });
-        const token = Buffer.from(cacheKey).toString('base64url');
-        const cachedTotal = _asyncTotalsCache.get(cacheKey);
-        if (cachedTotal !== undefined) {
-            return { mode: 'async', total: cachedTotal as number, token };
+        const cached = cache.get(cacheKey) as TotalsInfo | undefined;
+        if (cached !== undefined) {
+            return { ...cached, mode: 'async', token };
         }
-        setImmediate(async () => {
-            try {
-                const n = await coll.countDocuments(
-                    query as Parameters<Collection<TSchema>['countDocuments']>[0],
-                );
-                _asyncTotalsCache.set(cacheKey, n);
-            } catch { /* ignore background count errors */ }
+        setImmediate(() => {
+            runTotalsOnce(cacheKey, async () => {
+                try {
+                    const payload = buildPayload(await countWithOptions());
+                    await Promise.resolve(cache.set(cacheKey, payload, ttlMs));
+                } catch {
+                    await Promise.resolve(cache.set(cacheKey, buildFailurePayload('count_failed'), ttlMs));
+                }
+            });
         });
         return { mode: 'async', total: null, token };
     }
 
     if (mode === 'approx') {
-        const countOpts: Record<string, unknown> = {};
-        if (totals.maxTimeMS !== undefined) {
-            countOpts.maxTimeMS = totals.maxTimeMS;
+        const cached = cache.get(cacheKey) as TotalsInfo | undefined;
+        if (cached !== undefined) {
+            return { ...cached, mode: 'approx' };
         }
-        const total = await coll.estimatedDocumentCount(countOpts as Parameters<Collection<TSchema>['estimatedDocumentCount']>[0]);
-        const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
-        return { mode: 'approx', total, totalPages, ts: Date.now() };
+        try {
+            const total = Object.keys(query ?? {}).length > 0
+                ? await countWithOptions()
+                : await coll.estimatedDocumentCount({
+                    maxTimeMS: totals.maxTimeMS ?? 1000,
+                } as Parameters<Collection<TSchema>['estimatedDocumentCount']>[0]);
+            const payload = buildPayload(total, true);
+            await Promise.resolve(cache.set(cacheKey, payload, ttlMs));
+            return { ...payload, mode: 'approx' };
+        } catch {
+            const payload = buildFailurePayload('approx_failed');
+            await Promise.resolve(cache.set(cacheKey, payload, ttlMs));
+            return { ...payload, mode: 'approx' };
+        }
     }
 
     // Unknown mode — return a minimal stub
@@ -123,6 +302,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     options: FindPageOptions<TSchema> = {},
     defaults: RuntimeDefaults = {},
+    queryCache?: QueryCacheLike | null,
 ): Promise<FindPageResult<TSchema>> {
     const metaEnabled = options.meta === true || (typeof options.meta === 'object' && options.meta !== null);
     const metaOptions = (options.meta && typeof options.meta === 'object' ? options.meta : {}) as MetaOptions;
@@ -166,6 +346,15 @@ export async function executeFindPage<TSchema extends Document = Document>(
     }
 
     const jumpOpts = ext.jump as { step: number; maxHops: number } | undefined;
+    const cacheTTL = typeof ext.cache === 'number' && ext.cache > 0 ? ext.cache : 0;
+    const pageResultCache = cacheTTL > 0
+        && queryCache
+        && options.stream !== true
+        && (options.explain === undefined || options.explain === false)
+        ? buildFindPageCacheKey(collection, options, { query: baseQuery, sort, limit, page, maxTimeMS: effectiveMaxTimeMS })
+        : null;
+    const shouldRefreshAsyncTotals = (options.totals as TotalsOptions | undefined)?.mode === 'async';
+    let findPageCacheHit = false;
 
     const finishResult = (result: FindPageResult<TSchema>): FindPageResult<TSchema> => {
         if (!metaEnabled) {
@@ -198,6 +387,9 @@ export async function executeFindPage<TSchema extends Document = Document>(
             endTs: metaEndTs,
             durationMs: metaEndTs - metaStartTs,
             ...(typeof effectiveMaxTimeMS === 'number' ? { maxTimeMS: effectiveMaxTimeMS } : {}),
+            cacheHit: findPageCacheHit,
+            ...(findPageCacheHit ? { fromCache: true } : {}),
+            ...(pageResultCache ? { cacheTtl: cacheTTL, keyHash: pageResultCache.keyHash } : {}),
             page,
             after: Boolean(options.after),
             before: Boolean(options.before),
@@ -300,7 +492,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
 
     const timedComputeTotals = async (): Promise<TotalsInfo> => {
         const stepStartTs = Date.now();
-        const result = await computeTotals(collection, baseQuery, limit, options.totals as TotalsOptions);
+        const result = await computeTotals(collection, baseQuery, limit, options.totals as TotalsOptions, defaults, queryCache);
         pushMetaStep('computeTotals', Date.now() - stepStartTs, 'totals');
         return result;
     };
@@ -328,6 +520,35 @@ export async function executeFindPage<TSchema extends Document = Document>(
             ...(extra.currentPage !== undefined ? { currentPage: extra.currentPage } : {}),
         };
     };
+
+    const writePageResultCache = (result: FindPageResult<TSchema>): void => {
+        if (!pageResultCache || !queryCache) {
+            return;
+        }
+        const cacheValue = cloneFindPageResult(result);
+        delete cacheValue.meta;
+        if (shouldRefreshAsyncTotals) {
+            delete cacheValue.totals;
+        }
+        void queryCache.set(pageResultCache.key, cacheValue, cacheTTL);
+    };
+
+    const finishAndCache = (result: FindPageResult<TSchema>): FindPageResult<TSchema> => {
+        writePageResultCache(result);
+        return finishResult(result);
+    };
+
+    if (pageResultCache && queryCache) {
+        const cached = queryCache.get(pageResultCache.key) as FindPageResult<TSchema> | undefined;
+        if (cached !== undefined) {
+            findPageCacheHit = true;
+            const result = cloneFindPageResult(cached);
+            if (options.totals && (options.totals as TotalsOptions).mode !== 'none' && (shouldRefreshAsyncTotals || result.totals === undefined)) {
+                result.totals = await timedComputeTotals();
+            }
+            return finishResult(result);
+        }
+    }
 
     // ── Stream mode: return a Node.js Readable directly ──────────────────────
     if (options.stream === true) {
@@ -384,7 +605,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         if (options.totals && (options.totals as TotalsOptions).mode !== 'none') {
             result.totals = await timedComputeTotals();
         }
-        return finishResult(result);
+        return finishAndCache(result);
     }
 
     // ── After/Before cursor mode ──────────────────────────────────────────────
@@ -397,7 +618,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         const last = items[items.length - 1] ?? null;
         const enc = (item: TSchema | null) =>
             item ? encodeCursor(Object.keys(sort).map((f) => (item as Record<string, unknown>)[f]), cursorSecret) : null;
-        return finishResult({
+        const result: FindPageResult<TSchema> = {
             items,
             pageInfo: {
                 hasNext: direction === 'before' ? Boolean(options.before) : hasMore,
@@ -405,7 +626,11 @@ export async function executeFindPage<TSchema extends Document = Document>(
                 startCursor: enc(first),
                 endCursor: enc(last),
             },
-        });
+        };
+        if (options.totals && (options.totals as TotalsOptions).mode !== 'none') {
+            result.totals = await timedComputeTotals();
+        }
+        return finishAndCache(result);
     }
 
     // ── Page navigation: cursor stepping ─────────────────────────────────────
@@ -420,16 +645,20 @@ export async function executeFindPage<TSchema extends Document = Document>(
         if (options.totals && (options.totals as TotalsOptions).mode !== 'none') {
             result.totals = await timedComputeTotals();
         }
-        return finishResult(result);
+        return finishAndCache(result);
     }
 
     for (let cp = 2; cp <= page; cp++) {
         const lastItem = items[items.length - 1];
         if (!lastItem) {
-            return finishResult({
+            const result: FindPageResult<TSchema> = {
                 items,
                 pageInfo: buildPageInfo(items, false, { hasPrev: cp > 2, currentPage: cp - 1 }),
-            });
+            };
+            if (options.totals && (options.totals as TotalsOptions).mode !== 'none') {
+                result.totals = await timedComputeTotals();
+            }
+            return finishAndCache(result);
         }
         const endCursor = encodeCursor(
             Object.keys(sort).map((f) => (lastItem as Record<string, unknown>)[f]),
@@ -448,7 +677,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
     if (options.totals && (options.totals as TotalsOptions).mode !== 'none') {
         result.totals = await timedComputeTotals();
     }
-    return finishResult(result);
+    return finishAndCache(result);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -465,6 +694,7 @@ export async function findPageDocuments<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     options: FindPageOptions<TSchema> = {},
     defaults?: RuntimeDefaults,
+    queryCache?: QueryCacheLike | null,
 ): Promise<FindPageResult<TSchema>> {
-    return executeFindPage(collection, options, defaults ?? {});
+    return executeFindPage(collection, options, defaults ?? {}, queryCache);
 }

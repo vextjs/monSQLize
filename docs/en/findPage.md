@@ -49,7 +49,7 @@ async findPage(options = {})
 | `offsetJump` | Object | No | - | Page jump configuration based on offset |
 | `totals` | Object | No | - | Total statistics configuration |
 | `meta` | Boolean | No | `false` | Whether to return query meta information |
-| `cache` | Number | No | `0` | Cache TTL (milliseconds), greater than 0 enables caching |
+| `cache` | Number | No | `0` | Cache TTL for non-stream/non-explain page results (milliseconds). `async` totals are cached separately |
 | `explain` | Boolean/String | No | - | Returns the query execution plan, optional values: `true`, `'queryPlanner'`, `'executionStats'`, `'allPlansExecution'` |
 
 ### jump configuration item
@@ -96,12 +96,12 @@ Used to obtain the total number and total page number information.
 - **none**: Do not count the total number (default), best performance
 - **sync**: Synchronize statistics, return the total number immediately, which may affect response time (suitable for scenarios with small data volume or index optimization)
 - **async**: Asynchronous statistics, returning token for the first time, caching the results after background calculation (suitable for large data volumes)
-- **approx**: Approximate statistics, returns cached approximate values ​​(placeholder implementation, supported in future versions)
+- **approx**: Fast approximate-style statistics. Empty queries use `estimatedDocumentCount`; filtered queries use `countDocuments` with the provided `hint` / `collation` so the query condition is respected.
 
 **Note**:
-- Statistical results will be cached, and the key prefix is ​​`tot:`
+- Statistical results are cached with the `findPageTotals:` key prefix and the `ttlMs` value.
 - When statistics fails, `total: null` will be cached with the `error` field
-- async mode uses inflight deduplication to share results for the same query within a 5-second window
+- async mode uses inflight deduplication while the same totals calculation is still running.
 
 ## Return value
 
@@ -552,8 +552,8 @@ const result = await collection('products').findPage({
 
 **Caching Best Practices**:
 - Enable caching for popular queries
--Set reasonable TTL based on data update frequency
-- Immediately invalid cache after data changes: `collection.invalidate('findPage')`
+- Set a reasonable TTL based on the data update frequency
+- Writes through the monSQLize collection accessor invalidate read caches automatically; after native driver writes or external jobs, call `collection.invalidate('findPage')`
 
 ### 4. Correctly handle total statistics
 
@@ -1061,13 +1061,14 @@ console.log(dataResult);
 **A**: Caching mechanism description:
 
 **Cached content**:
-- **Query result cache**: The key prefix is ​​`fp:`, and the paging query results are cached
-- **Bookmark Cache**: The key prefix is ​​`bm:`, cache jump bookmarks
-- **Total cache**: The key prefix is ​​`tot:`, and the cached total statistics results are
+- **Query result cache**: the key prefix is `findPage:`, and it stores non-stream/non-explain page results when `cache` is greater than `0`
+- **Bookmark cache**: the key prefix is `<db>:<collection>:bm:`, and it stores jump bookmarks
+- **Totals cache**: the key prefix is `findPageTotals:`, and it stores totals results controlled by `totals.ttlMs`
 
 **Cache Invalidation**:
-- The cache will **not** automatically expire and needs to be cleaned manually or wait for the TTL to expire
-- Relevant caches should be manually invalidated after data update
+- TTL controls automatic expiration.
+- Writes through the monSQLize collection accessor automatically invalidate read caches.
+- If data is changed through the native MongoDB driver, another process, or an external job, manually invalidate the related cache.
 
 ```javascript
 // Update data
@@ -1079,8 +1080,8 @@ await collection('products').update(
 // Manual invalidation of cache
 await collection('products').invalidate('findPage');
 
-// or invalidate all caches
-await collection('products').invalidate('*');
+// or invalidate all read caches for this collection
+await collection('products').invalidate();
 ```
 
 **Cache key distinction**:
@@ -1118,7 +1119,7 @@ const r3 = await collection('products').findPage({
 **A**: `pipeline` only takes effect on the limit data** returned on the current page and does not affect the paging logic and query conditions.
 
 ```javascript
-// The pipeline only processes the returned 20 pieces of data
+// The pipeline only processes the 20 returned documents
 const result = await collection('orders').findPage({
   query: { status: 'completed' },
   sort: { completedAt: -1 },

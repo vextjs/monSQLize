@@ -8,15 +8,15 @@
 
 ## 📋 Overview
 
-**Change Stream data synchronization** is based on MongoDB's native Change Stream mechanism, which monitors data changes in real time and synchronizes them to multiple backup libraries.
+**Change Stream data synchronization** is based on MongoDB's native Change Stream mechanism, which monitors data changes in real time and synchronizes them to multiple backup databases.
 
 
 ## Core Features
 
 - ✅ **Real-time synchronization**: Based on MongoDB Change Stream, delay 10-500ms
-- ✅ **Decoupling design**: Main library write operations are not affected, asynchronous and synchronous
+- ✅ **Decoupled design**: Primary database write operations are not affected; synchronization runs asynchronously
 - ✅ **Resume breakpoint**: Resume Token is automatically saved and will continue after restarting
-- ✅ **Multi-target support**: Sync to multiple backup libraries at the same time
+- ✅ **Multi-target support**: Sync to multiple backup databases at the same time
 - ✅ **Data Filtering**: Custom filtering logic
 - ✅ **Data conversion**: Support desensitization and field conversion
 - ✅ **Automatic reconnect**: Automatically recover from network interruptions
@@ -31,7 +31,7 @@
 
 1. **MongoDB Replica Set** 🔴
    ```bash
-   #Check if it is a Replica Set
+   # Check whether it is a Replica Set
    rs.status()
    ```
 
@@ -39,7 +39,7 @@
 
 3. **User Permissions** 🔴
    ```javascript
-   //Requires changeStream permission
+   // Requires changeStream permission
    {
        resource: { db: "dbName", collection: "" },
        actions: ["changeStream", "find"]
@@ -60,10 +60,10 @@ const msq = new MonSQLize({
     type: 'mongodb',
     config: {
         uri: 'mongodb://localhost:27017/main',
-        replicaSet: 'rs0'  //🔴 Must
+        replicaSet: 'rs0'  // Required
     },
 
-    //🆕 Synchronize configuration
+    // Synchronization configuration
     sync: {
         enabled: true,
         targets: [
@@ -78,9 +78,9 @@ const msq = new MonSQLize({
 
 await msq.connect();
 
-//Normal use, automatic synchronization
+// Normal use, automatic synchronization
 await msq.collection('users').insertOne({ name: 'Alice' });
-//✅ Automatically sync to backup-main
+// Automatically sync to backup-main
 
 await msq.close();
 ```
@@ -155,7 +155,7 @@ await msq.close();
         enabled: true,
         targets: [...],
 
-        //Only sync active users
+        // Only sync active users
         filter: (event) => {
             if (event.ns?.coll === 'users') {
                 return event.fullDocument?.status === 'active';
@@ -175,7 +175,7 @@ await msq.close();
         enabled: true,
         targets: [...],
 
-        //Remove sensitive fields
+        // Remove sensitive fields
         transform: (doc) => {
             delete doc.password;
             delete doc.ssn;
@@ -208,7 +208,7 @@ const redis = new Redis();
 
 ## 📊 Performance impact
 
-| Write QPS | Main library CPU | Main library memory | Network bandwidth | Synchronization delay |
+| Write QPS | Primary database CPU | Primary database memory | Network bandwidth | Synchronization delay |
 |---------|---------|---------|---------|---------|
 | 100 | +0.5% | +10MB | 1MB/s | 10-50ms |
 | 1000 | +1% | +20MB | 10MB/s | 50-200ms |
@@ -222,7 +222,7 @@ const redis = new Redis();
 ## Get statistics
 
 ```javascript
-const stats = msq._syncManager.getStats();
+const stats = msq.getSyncStats();
 console.log(stats);
 // {
 //   isRunning: true,
@@ -239,14 +239,14 @@ console.log(stats);
 ## Manually stop synchronization
 
 ```javascript
-await msq._syncManager.stop();
+await msq.stopSync();
 ```
 
 
 ## Manually start synchronization
 
 ```javascript
-await msq._syncManager.start();
+await msq.startSync();
 ```
 
 ---
@@ -274,7 +274,7 @@ rs.initiate()
 
 **Solution**:
 1. Check network delay: `ping backup-host`
-2. Check the backup library performance: `db.serverStatus()`
+2. Check backup database performance: `db.serverStatus()`
 3. Reduce the number of synchronized collections
 
 
@@ -296,8 +296,8 @@ rs.initiate()
 
 **Manual processing**:
 ```javascript
-//View error statistics
-const stats = msq._syncManager.getStats();
+// View error statistics
+const stats = msq.getSyncStats();
 console.log(stats.errorCount);
 console.log(stats.targets[0].lastError);
 ```
@@ -340,7 +340,7 @@ console.log(stats.targets[0].lastError);
 ```javascript
 //Check statistics regularly
 setInterval(() => {
-    const stats = msq._syncManager.getStats();
+    const stats = msq.getSyncStats();
 
     if (stats.errorCount > 100) {
         //Send alert
@@ -369,7 +369,7 @@ process.on('SIGTERM', async () => {
 
 ## 📚 More resources
 
-- [Sample code](../../examples/docs/sync.ts)
+- [Sample code](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync.ts)
 - [MongoDB Change Streams official documentation](https://www.mongodb.com/docs/manual/changeStreams/)
 - [ConnectionPoolManager documentation](./multi-pool.md)
 
@@ -377,4 +377,3 @@ process.on('SIGTERM', async () => {
 
 _Document update time: 2026-01-17_
 _Version: v1.0.9_
-

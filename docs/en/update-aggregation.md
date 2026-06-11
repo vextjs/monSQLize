@@ -892,10 +892,10 @@ Similar to `updateOne`, but can update multiple documents.
 
 ## Related documents
 
-- [update-one.md](./update-one.md) - updateOne full document
-- [update-many.md](./update-many.md) - updateMany full document
-- [update-operations.md](./update-operations.md) - Overview of update operations
-- [aggregate.md](./aggregate.md) - Detailed explanation of aggregation pipeline
+- [updateOne guide](./update-one.md) - updateOne full document
+- [updateMany guide](./update-many.md) - updateMany full document
+- [Update operations overview](./update-operations.md) - Overview of update operations
+- [Aggregation pipeline guide](./aggregate.md) - Detailed explanation of aggregation pipeline
 
 ---
 

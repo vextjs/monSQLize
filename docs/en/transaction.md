@@ -682,13 +682,15 @@ await msq.withTransaction(async (tx) => {
 
 ```javascript
 //Get transaction statistics
-const stats = msq._transactionManager?.getStats();
-console.log('Transaction statistics:', {
-total: stats.totalTransactions,
-Success: stats.successfulTransactions,
-Failed: stats.failedTransactions,
-Average time: stats.averageDuration + 'ms'
-});
+const stats = msq.getTransactionStats();
+if (stats) {
+    console.log('Transaction statistics:', {
+        total: stats.totalTransactions,
+        successful: stats.successfulTransactions,
+        failed: stats.failedTransactions,
+        averageDuration: `${stats.averageDuration}ms`
+    });
+}
 ```
 
 ---
@@ -697,7 +699,7 @@ Average time: stats.averageDuration + 'ms'
 
 - [MongoDB transaction official document](https://docs.mongodb.com/manual/core/transactions/)
 - [Design Document]
-- [Sample code](../../examples/docs/transaction.ts)
+- [Sample code](https://github.com/vextjs/monSQLize/blob/main/examples/docs/transaction.ts)
 
 ---
 

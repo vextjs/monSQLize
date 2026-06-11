@@ -424,7 +424,7 @@ await collection("users").deleteOne({ userId: "user123" });
 
 ## Sample code
 
-For complete sample code, please refer to [examples/docs/delete.ts](../../examples/docs/delete.ts)
+For complete sample code, please refer to the [delete runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/delete.ts).
 
 ## MongoDB Documentation
 

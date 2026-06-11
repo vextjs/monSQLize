@@ -583,5 +583,5 @@ try {
 
 - [findPage method document](./findPage.md)
 - [Cache Policy Document](./cache.md)
-- [bookmarks sample code](../../examples/docs/bookmarks.ts)
+- [bookmarks sample code](https://github.com/vextjs/monSQLize/blob/main/examples/docs/bookmarks.ts)
 - Performance optimization guide

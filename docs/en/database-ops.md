@@ -40,7 +40,7 @@ List all databases on the MongoDB server.
 ## Syntax
 
 ```javascript
-const databases = await db._adapter.listDatabases([options]);
+const databases = await db.listDatabases(options);
 ```
 
 
@@ -63,7 +63,7 @@ const databases = await db._adapter.listDatabases([options]);
 
 ```javascript
 //Get details
-const databases = await adapter.listDatabases();
+const databases = await db.listDatabases();
 console.log(databases);
 // [
 //   { name: 'admin', sizeOnDisk: 83886080, empty: false },
@@ -71,7 +71,7 @@ console.log(databases);
 // ]
 
 //Get name only
-const dbNames = await adapter.listDatabases({ nameOnly: true });
+const dbNames = await db.listDatabases({ nameOnly: true });
 console.log(dbNames); // ['admin', 'config', 'local', 'mydb']
 ```
 
@@ -92,7 +92,7 @@ console.log(dbNames); // ['admin', 'config', 'local', 'mydb']
 ## Syntax (dropDatabase())
 
 ```javascript
-const result = await db._adapter.dropDatabase(databaseName, options);
+const result = await db.db(databaseName).dropDatabase(options);
 ```
 
 
@@ -121,7 +121,7 @@ const result = await db._adapter.dropDatabase(databaseName, options);
 
 ```javascript
 try {
-    await adapter.dropDatabase('test_db');
+    await db.db('test_db').dropDatabase({ confirm: false });
 } catch (error) {
     console.error(error.message);
     // "dropDatabase requires explicit confirmation..."
@@ -132,7 +132,7 @@ try {
 ### ✅ Correct: Provide confirmation
 
 ```javascript
-const result = await adapter.dropDatabase('test_db', {
+const result = await db.db('test_db').dropDatabase({
     confirm: true,
     user: 'admin@example.com'
 });
@@ -146,7 +146,7 @@ console.log('Timestamp:', result.timestamp);
 
 ```javascript
 //In a production environment (NODE_ENV=production)
-const result = await adapter.dropDatabase('prod_db', {
+const result = await db.db('prod_db').dropDatabase({
     confirm: true,
     allowProduction: true,
     user: 'admin@example.com'
@@ -158,7 +158,7 @@ const result = await adapter.dropDatabase('prod_db', {
 
 ```javascript
 try {
-    await adapter.dropDatabase('my_database', {
+    await db.db('my_database').dropDatabase({
         confirm: true,
         user: 'admin@example.com'
     });
@@ -183,35 +183,34 @@ List all collections in the current database.
 ## Syntax (listCollections())
 
 ```javascript
-const collections = await db._adapter.listCollections([options]);
+const collections = await db.listCollections(filter, options);
 ```
 
 
 ## Parameters (listCollections())
 
-- **options** (Object, optional):
-  - `nameOnly` (boolean): only returns the collection name, default `false`
+- **filter** (Object, optional): MongoDB collection-list filter
+- **options** (Object, optional): MongoDB listCollections options
 
 
 ## Return value (listCollections())
 
-- **Do not use nameOnly**: `Promise<Array<Object>>`
-- **Use nameOnly**: `Promise<Array<string>>`
+- `Promise<Array<Object>>`
 
 
 ## Example (listCollections())
 
 ```javascript
 //Get details
-const collections = await adapter.listCollections();
+const collections = await db.listCollections();
 console.log(collections);
 // [
 //   { name: 'users', type: 'collection', options: {}, info: {...} },
 //   { name: 'orders', type: 'collection', options: {}, info: {...} }
 // ]
 
-//Get name only
-const names = await adapter.listCollections({ nameOnly: true });
+//Get name only from the public return value
+const names = collections.map((collection) => collection.name);
 console.log(names); // ['users', 'orders', 'products']
 ```
 
@@ -225,7 +224,7 @@ Execute any MongoDB command.
 ## Syntax (runCommand())
 
 ```javascript
-const result = await db._adapter.runCommand(command, [options]);
+const result = await db.runCommand(command, options);
 ```
 
 
@@ -239,16 +238,16 @@ const result = await db._adapter.runCommand(command, [options]);
 
 ```javascript
 //Execute ping command
-const ping = await adapter.runCommand({ ping: 1 });
+const ping = await db.runCommand({ ping: 1 });
 console.log(ping.ok); // 1
 
 //Execute dbStats command
-const stats = await adapter.runCommand({ dbStats: 1, scale: 1024 });
+const stats = await db.runCommand({ dbStats: 1, scale: 1024 });
 console.log('Collections:', stats.collections);
 console.log('Data size (KB):', stats.dataSize);
 
 //Execute collStats command
-const collStats = await adapter.runCommand({
+const collStats = await db.runCommand({
     collStats: 'users',
     scale: 1048576 // MB
 });
@@ -262,10 +261,9 @@ console.log('Size (MB):', collStats.size);
 
 - [Operation and Maintenance Monitoring](./admin.md) - ping, buildInfo, serverStatus, stats
 - [Collection Management](./collection-management.md) - Collection level operations
-- [Collection Management Example](../../examples/docs/collection-management.ts)
+- [Collection Management Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts)
 
 ---
 
 **Last updated**: 2025-12-02
 **Version**: v0.3.0
-

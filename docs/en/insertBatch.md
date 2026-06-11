@@ -130,10 +130,10 @@ const largeDataset = Array.from({ length: 10000 }, (_, i) => ({
 }));
 
 const result = await collection('users').insertBatch(largeDataset, {
-  batchSize: 1000  //1000 items per batch, automatically divided into 10 batches
+  batchSize: 1000  // 1000 items per batch, automatically divided into 10 batches
 });
 
-console.log(`Successfully inserted ${result.insertedCount}/${result.totalCount} pieces of data`);
+console.log(`Successfully inserted ${result.insertedCount}/${result.totalCount} documents`);
 console.log(`Total ${result.batchCount} batches, ${result.errors.length} errors`);
 ```
 
@@ -449,9 +449,8 @@ for (const err of result.errors) {
 
 ## References
 
-- [examples/docs/batch-operations.ts](../../examples/docs/batch-operations.ts) - Current TypeScript example
+- [batch operations runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/batch-operations.ts) - Current TypeScript example
 - [test/unit/writes/batch.test.ts](../../test/unit/writes/batch.test.ts) - test case
-- [docs/write-operations.md](./write-operations.md) - Overview of write operations
-- [docs/cache.md](./cache.md) - Cache invalidation mechanism
-- [docs/insertBatch-improvements.md](./insertBatch.md) - Suggestions for further improvements
-
+- [Write operations guide](./write-operations.md) - Overview of write operations
+- [Cache system](./cache.md) - Cache invalidation mechanism
+- [insertBatch improvement notes](./insertBatch.md) - Suggestions for further improvements

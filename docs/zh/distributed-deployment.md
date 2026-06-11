@@ -519,7 +519,7 @@ await msq.close();
 // dist/cjs/index.cjs
 async connect() {
   // 步骤1: 创建 DistributedCacheInvalidator
-  this._cacheInvalidator = new DistributedCacheInvalidator({
+  this.cacheInvalidator = new DistributedCacheInvalidator({
     redisUrl: this.cache.distributed.redisUrl,
     redis: this.cache.distributed.redis,
     channel: this.cache.distributed.channel,
@@ -532,7 +532,7 @@ async connect() {
     this.cache.setPublish((msg) => {
       if (msg && msg.type === 'invalidate' && msg.pattern) {
         // 当缓存失效时，调用 invalidate 广播消息
-        this._cacheInvalidator.invalidate(msg.pattern);
+        this.cacheInvalidator.invalidate(msg.pattern);
       }
     });
   }
@@ -942,7 +942,7 @@ const msq = new MonSQLize({
 - [缓存策略文档](./cache.md)
 - [缓存一致性说明](./cache.md)
 - [事务功能文档](./transaction.md)
-- [Redis 缓存适配器](../../src/capabilities/cache/redis-cache-adapter.ts)
+- [Redis 缓存适配器](https://github.com/vextjs/monSQLize/blob/main/src/capabilities/cache/redis-cache-adapter.ts)
 
 ---
 

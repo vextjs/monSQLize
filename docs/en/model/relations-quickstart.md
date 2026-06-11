@@ -387,7 +387,7 @@ async function example() {
 example();
 ```
 
-**Complete sample file**: [`examples/docs/populate-relations.ts`](../../../examples/docs/populate-relations.ts)
+**Complete sample file**: [populate relations runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/populate-relations.ts)
 
 ---
 

@@ -373,7 +373,7 @@ async function example() {
 example();
 ```
 
-**完整示例文件**: [`examples/docs/populate-relations.ts`](../../../examples/docs/populate-relations.ts)
+**完整示例文件**: [Populate 关系可运行示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/populate-relations.ts)
 
 ---
 

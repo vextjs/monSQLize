@@ -159,8 +159,9 @@ export class Transaction {
             cache?: CacheLike | null;
             logger?: LoggerLike | null;
             lockManager?: CacheLockManager | null;
-            timeout?: number;
-        } = {},
+        timeout?: number;
+        transactionOptions?: Record<string, unknown>;
+    } = {},
     ) {
         (this.session as MongoSession & { __monSQLizeTransaction?: Transaction; }).__monSQLizeTransaction = this;
     }
@@ -173,7 +174,7 @@ export class Transaction {
         if (this.state !== 'pending') {
             throw createError(ErrorCodes.INVALID_OPERATION, `Cannot start transaction in state: ${this.state}`);
         }
-        this.session.startTransaction();
+        this.session.startTransaction(this.options.transactionOptions);
         this.state = 'active';
         this.startedAt = Date.now();
         const timeout = this.options.timeout ?? 30000;
@@ -309,12 +310,18 @@ export class TransactionManager {
     private readonly cache: CacheLike | null;
     private readonly lockManager: CacheLockManager | null;
     private readonly defaultOptions: Required<Pick<TransactionOptions, 'maxDuration' | 'enableRetry' | 'maxRetries' | 'retryDelay' | 'retryBackoff'>>;
+    private readonly defaultReadConcern: TransactionOptions['readConcern'] | undefined;
+    private readonly defaultWriteConcern: TransactionOptions['writeConcern'] | undefined;
+    private readonly defaultReadPreference: TransactionOptions['readPreference'] | undefined;
+    private readonly maxStatsSamples: number;
     readonly activeTransactions = new Map<string, Transaction>();
     private readonly durations: number[] = [];
     private readonly stats = {
         totalTransactions: 0,
         successfulTransactions: 0,
         failedTransactions: 0,
+        readOnlyTransactions: 0,
+        writeTransactions: 0,
     };
 
     constructor(options: {
@@ -327,6 +334,10 @@ export class TransactionManager {
         maxRetries?: number;
         retryDelay?: number;
         retryBackoff?: number;
+        defaultReadConcern?: TransactionOptions['readConcern'];
+        defaultWriteConcern?: TransactionOptions['writeConcern'];
+        defaultReadPreference?: TransactionOptions['readPreference'];
+        maxStatsSamples?: number;
     });
     constructor(
         client: MongoClient,
@@ -339,6 +350,10 @@ export class TransactionManager {
             maxRetries?: number;
             retryDelay?: number;
             retryBackoff?: number;
+            defaultReadConcern?: TransactionOptions['readConcern'];
+            defaultWriteConcern?: TransactionOptions['writeConcern'];
+            defaultReadPreference?: TransactionOptions['readPreference'];
+            maxStatsSamples?: number;
         },
     );
     constructor(
@@ -362,19 +377,27 @@ export class TransactionManager {
             maxRetries?: number;
             retryDelay?: number;
             retryBackoff?: number;
+            defaultReadConcern?: TransactionOptions['readConcern'];
+            defaultWriteConcern?: TransactionOptions['writeConcern'];
+            defaultReadPreference?: TransactionOptions['readPreference'];
+            maxStatsSamples?: number;
         } = {},
     ) {
         const options = ('client' in (input as object))
-            ? input as unknown as { client: MongoClient; cache?: unknown; logger?: unknown; lockManager?: unknown; maxDuration?: number; enableRetry?: boolean; maxRetries?: number; retryDelay?: number; retryBackoff?: number }
+            ? input as unknown as { client: MongoClient; cache?: unknown; logger?: unknown; lockManager?: unknown; maxDuration?: number; enableRetry?: boolean; maxRetries?: number; retryDelay?: number; retryBackoff?: number; defaultReadConcern?: TransactionOptions['readConcern']; defaultWriteConcern?: TransactionOptions['writeConcern']; defaultReadPreference?: TransactionOptions['readPreference']; maxStatsSamples?: number }
             : {
                 client: input as MongoClient,
                 cache: legacyCache,
                 ...legacyOptions,
-            } as { client: MongoClient; cache?: unknown; logger?: unknown; lockManager?: unknown; maxDuration?: number; enableRetry?: boolean; maxRetries?: number; retryDelay?: number; retryBackoff?: number };
+            } as { client: MongoClient; cache?: unknown; logger?: unknown; lockManager?: unknown; maxDuration?: number; enableRetry?: boolean; maxRetries?: number; retryDelay?: number; retryBackoff?: number; defaultReadConcern?: TransactionOptions['readConcern']; defaultWriteConcern?: TransactionOptions['writeConcern']; defaultReadPreference?: TransactionOptions['readPreference']; maxStatsSamples?: number };
         this.client = options.client;
         this.cache = (options.cache ?? null) as CacheLike | null;
         this.logger = options.logger ?? null;
         this.lockManager = (options.lockManager ?? null) as CacheLockManager | null;
+        this.defaultReadConcern = options.defaultReadConcern;
+        this.defaultWriteConcern = options.defaultWriteConcern;
+        this.defaultReadPreference = options.defaultReadPreference;
+        this.maxStatsSamples = options.maxStatsSamples ?? 1000;
         this.defaultOptions = {
             maxDuration: options.maxDuration ?? 30000,
             enableRetry: options.enableRetry ?? true,
@@ -394,11 +417,17 @@ export class TransactionManager {
         const session = this.client.startSession({
             causalConsistency: options.causalConsistency !== false,
         }) as ClientSession as unknown as MongoSession;
+        const transactionOptions = {
+            readConcern: options.readConcern ?? this.defaultReadConcern,
+            writeConcern: options.writeConcern ?? this.defaultWriteConcern,
+            readPreference: options.readPreference ?? this.defaultReadPreference,
+        };
         const transaction = new Transaction(session, {
             cache: this.cache,
             logger: this.logger,
             lockManager: options.enableCacheLock === false ? null : this.lockManager,
             timeout: options.timeout ?? options.maxDuration ?? this.defaultOptions.maxDuration,
+            transactionOptions: compactUndefined(transactionOptions),
         });
         const originalEnd = transaction.end.bind(transaction);
         transaction.end = async () => {
@@ -427,12 +456,12 @@ export class TransactionManager {
                 await transaction.start();
                 const result = await callback(transaction);
                 await transaction.commit();
-                this.recordStats(Date.now() - startedAt, true);
+                this.recordStats(transaction, Date.now() - startedAt, true);
                 return result;
             } catch (error) {
                 lastError = error;
                 await transaction.abort();
-                this.recordStats(Date.now() - startedAt, false);
+                this.recordStats(transaction, Date.now() - startedAt, false);
                 if (!enableRetry || attempt === maxRetries || !isTransientTransactionError(error)) {
                     throw error;
                 }
@@ -473,27 +502,60 @@ export class TransactionManager {
         const averageDuration = this.durations.length === 0
             ? 0
             : this.durations.reduce((sum, item) => sum + item, 0) / this.durations.length;
+        const sortedDurations = [...this.durations].sort((a, b) => a - b);
+        const p95Duration = percentile(sortedDurations, 0.95);
+        const p99Duration = percentile(sortedDurations, 0.99);
+        const totalTransactions = this.stats.totalTransactions;
         return {
-            totalTransactions: this.stats.totalTransactions,
+            totalTransactions,
             successfulTransactions: this.stats.successfulTransactions,
             failedTransactions: this.stats.failedTransactions,
+            readOnlyTransactions: this.stats.readOnlyTransactions,
+            writeTransactions: this.stats.writeTransactions,
             activeTransactions: this.activeTransactions.size,
             averageDuration,
+            p95Duration,
+            p99Duration,
+            successRate: totalTransactions > 0
+                ? `${((this.stats.successfulTransactions / totalTransactions) * 100).toFixed(2)}%`
+                : '0%',
+            readOnlyRatio: totalTransactions > 0
+                ? `${((this.stats.readOnlyTransactions / totalTransactions) * 100).toFixed(2)}%`
+                : '0%',
+            sampleCount: this.durations.length,
         };
     }
 
-    private recordStats(duration: number, success: boolean): void {
+    private recordStats(transaction: Transaction, duration: number, success: boolean): void {
         this.stats.totalTransactions += 1;
         if (success) {
             this.stats.successfulTransactions += 1;
         } else {
             this.stats.failedTransactions += 1;
         }
+        if (transaction.pendingInvalidations.size > 0) {
+            this.stats.writeTransactions += 1;
+        } else {
+            this.stats.readOnlyTransactions += 1;
+        }
         this.durations.push(duration);
-        if (this.durations.length > 100) {
+        if (this.durations.length > this.maxStatsSamples) {
             this.durations.shift();
         }
     }
+}
+
+function percentile(sortedValues: number[], ratio: number): number {
+    if (sortedValues.length === 0) {
+        return 0;
+    }
+    const index = Math.floor(sortedValues.length * ratio);
+    return sortedValues[Math.min(index, sortedValues.length - 1)] ?? 0;
+}
+
+function compactUndefined<T extends Record<string, unknown>>(value: T): Partial<T> | undefined {
+    const entries = Object.entries(value).filter(([, item]) => item !== undefined);
+    return entries.length === 0 ? undefined : Object.fromEntries(entries) as Partial<T>;
 }
 
 function stringifySessionId(id: unknown): string {

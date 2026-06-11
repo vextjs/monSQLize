@@ -137,6 +137,12 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         const legacyNamespacePatterns = [
             `${String(this.management.defaults?.namespace?.instanceId)}:mongodb:${this.dbName}:${this.collectionName}:*`,
         ];
+        const findPagePatterns = [
+            `findPage:${namespace}:*`,
+            `findPageTotals:${namespace}:*`,
+            `bookmark:${bookmarkNamespace}:*`,
+            `${bookmarkNamespace}:bm:*`,
+        ];
         const patterns = operation === 'find'
             ? [`find:${namespace}:*`]
             : operation === 'findOne'
@@ -144,12 +150,12 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
                 : operation === 'count'
                     ? [`count:${namespace}:*`]
                     : operation === 'findPage'
-                        ? [`bookmark:${bookmarkNamespace}:*`]
+                        ? findPagePatterns
                         : [
                             `find:${namespace}:*`,
                             `findOne:${namespace}:*`,
                             `count:${namespace}:*`,
-                            `bookmark:${bookmarkNamespace}:*`,
+                            ...findPagePatterns,
                         ];
         patterns.push(...legacyNamespacePatterns);
 
@@ -319,7 +325,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         const resolvedOptions = options.query
             ? { ...options, query: this._cvFilter(options.query) as typeof options.query }
             : options;
-        return findPageDocuments(this.collectionRef, resolvedOptions, this.management.defaults);
+        return findPageDocuments(this.collectionRef, resolvedOptions, this.management.defaults, this.management.queryCache);
     }
 
     /** Opens a change stream on the collection with an optional aggregation pipeline. */

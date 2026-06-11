@@ -90,7 +90,7 @@ monSQLize's multi-connection pool feature allows you to manage multiple MongoDB 
 
 ## Features
 
-- ✅ **Read and write separation**: Use the main library for write operations, and use read-only copies for read operations, reducing the pressure on the main library
+- ✅ **Read/write separation**: Use the primary pool for write operations and read replicas for read operations, reducing pressure on the primary database
 - ✅ **Load Balancing**: Intelligently distribute query load among multiple replicas to improve overall performance
 - ✅ **Failover**: Automatically detect failures and switch to a healthy connection pool to ensure service continuity
 - ✅ **Performance Optimization**: Route analysis queries to dedicated analysis nodes without affecting online services
@@ -103,10 +103,10 @@ monSQLize's multi-connection pool feature allows you to manage multiple MongoDB 
 
 | Scenario | Description | Benefits |
 |------|------|------|
-| 🎯 **High concurrency reads more and writes less** | Share read pressure through read-only replicas | Reduce main database load by 60-80% |
+| 🎯 **High-concurrency, read-heavy workloads** | Share read pressure through read replicas | Reduce primary database load by 60-80% |
 | 🎯 **Report Analysis** | Route heavy queries to dedicated analysis nodes | Online services will not be affected |
 | 🎯 **Multi-tenant system** | Use different database connections for different tenants | Data isolation and performance guarantee |
-| 🎯 **Disaster recovery switch** | Automatically switch to the standby database when the main database fails | Failure recovery time < 5 seconds |
+| 🎯 **Disaster recovery switch** | Automatically switch to the standby database when the primary database fails | Failure recovery time < 5 seconds |
 
 
 ## Version requirements
@@ -137,7 +137,7 @@ monSQLize's multi-connection pool feature allows you to manage multiple MongoDB 
 │ Connection pool collection │
 │  ┌───────────┐  ┌───────────┐  ┌───────────┐              │
 │  │ Primary   │  │Secondary-1│  │Secondary-2│  ...         │
-│ │ (Main library) │ │ (Copy 1) │ │ (Copy 2) │ │
+│ │ (Primary DB)  │ │(Replica 1)│ │(Replica 2)│ │
 │  └───────────┘  └───────────┘  └───────────┘              │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -179,14 +179,14 @@ const manager = new ConnectionPoolManager({
 
 **Step 3: Add connection pool**
 ```javascript
-//Add main library
+// Add the primary pool
 await manager.addPool({
     name: 'primary',
     uri: 'mongodb://localhost:27017/mydb',
     role: 'primary'
 });
 
-//Add a read replica
+// Add a read replica
 await manager.addPool({
     name: 'secondary',
     uri: 'mongodb://localhost:27018/mydb',
@@ -201,10 +201,10 @@ manager.startHealthCheck();
 
 **Step 5: Use connection pool**
 ```javascript
-//Automatically select the best connection pool (read operations will select secondary)
+// Automatically select the best connection pool (read operations select a secondary)
 const pool = manager.selectPool('read');
 
-//Execute query
+// Execute query
 const users = await pool.collection('users').find({ status: 'active' }).toArray();
 
 console.log(`${users.length} users found`);
@@ -231,7 +231,7 @@ async function main() {
     });
 
     try {
-        //2. Add main library
+        // 2. Add the primary pool
         await manager.addPool({
             name: 'primary',
             uri: 'mongodb://primary.example.com:27017/mydb',
@@ -333,7 +333,7 @@ The connection pool role defines the purpose and behavior of the connection pool
 | Role | Purpose | Recommended usage scenarios | Examples |
 |------|------|------------|------|
 | **primary** | Main database, handles write operations and important read operations | All write operations, strong consistency reads | Order creation, user registration |
-| **secondary** | Read-only copy, handles ordinary read operations | List query, detail query | Product list, user information |
+| **secondary** | Read replica, handles ordinary read operations | List query, detail query | Product list, user information |
 | **analytics** | Analysis node, processing heavy queries | Reports, statistics, aggregate queries | Sales reports, data analysis |
 | **custom** | Custom roles | Special business needs | Specific tenants, test environments |
 
@@ -408,7 +408,7 @@ When the connection pool fails, it automatically switches to other healthy conne
 |------|------|---------|
 | **error** | Throw an error | Strict mode, no downgrade allowed |
 | **readonly** | Only read operations are allowed | Read-only is allowed when the main database fails |
-| **secondary** | Use secondary | Use the copy first |
+| **secondary** | Use secondary | Prefer a read replica |
 
 **Failover Process**:
 ```text
@@ -423,7 +423,7 @@ Choose a different health pool
 └─ Not found → Downgrade strategy
 ├─ error → throw error ❌
 ├─ readonly → read-only mode ⚠️
-└─ secondary → Use copy ✅
+└─ secondary → Use replica ✅
 ```
 
 ---
@@ -1083,7 +1083,7 @@ const manager = new ConnectionPoolManager({
     }
 });
 
-//main library
+// Primary pool
 await manager.addPool({
     name: 'primary',
     uri: process.env.MONGO_PRIMARY_URI,
@@ -1101,7 +1101,7 @@ await manager.addPool({
     }
 });
 
-//2 copies (read)
+// 2 read replicas
 for (let i = 1; i <= 2; i++) {
     await manager.addPool({
         name: `secondary-${i}`,
@@ -1136,7 +1136,7 @@ const manager = new ConnectionPoolManager({
     logger: customLogger
 });
 
-//Main library (dual master)
+// Primary pools (dual-primary topology)
 await manager.addPool({
     name: 'primary-1',
     uri: process.env.MONGO_PRIMARY_1_URI,
@@ -1165,7 +1165,7 @@ await manager.addPool({
     healthCheck: { enabled: true, interval: 2000 }
 });
 
-//4 copies (read)
+// 4 read replicas
 for (let i = 1; i <= 4; i++) {
     await manager.addPool({
         name: `secondary-${i}`,
@@ -1213,29 +1213,29 @@ for (let i = 1; i <= 2; i++) {
 
 **Plan**:
 ```javascript
-//1 master + 2 replicas
+// 1 primary + 2 replicas
 await manager.addPool({ name: 'primary', role: 'primary', ... });
 await manager.addPool({ name: 'sec-1', role: 'secondary', ... });
 await manager.addPool({ name: 'sec-2', role: 'secondary', ... });
 
-//Write operations automatically use the main library
+// Write operations automatically use the primary pool
 const writePool = manager.selectPool('write');
 await writePool.collection('orders').insertOne({...});
 
-//Read operations automatically use replicas
+// Read operations automatically use replicas
 const readPool = manager.selectPool('read');
 const orders = await readPool.collection('orders').find({}).toArray();
 ```
 
-**Profit**:
-- ✅ The writing pressure of the main library remains unchanged
-- ✅ Read pressure is distributed to 2 copies
-- ✅ Main library load reduced by ~80%
+**Benefit**:
+- ✅ Write pressure on the primary stays unchanged
+- ✅ Read pressure is distributed to 2 replicas
+- ✅ Primary load is reduced by ~80%
 
 
 ## Load balancing
 
-**Scenario**: Multiple copies have different performance
+**Scenario**: Multiple replicas have different performance
 
 **Plan**:
 ```javascript
@@ -1336,7 +1336,7 @@ const manager = new ConnectionPoolManager({
     }
 });
 
-//main library
+// Primary pool
 await manager.addPool({
     name: 'primary',
     role: 'primary',
@@ -1372,8 +1372,8 @@ const pool = manager.selectPool('write');  //Automatically select healthy primar
 
 | Application scale | QPS | Recommended number of connection pools | Configuration |
 |---------|-----|------------|------|
-| Small | <1K | 2-3 | 1 master + 1-2 replicas |
-| Medium | 1K-10K | 4-8 | 1-2 main + 3-6 copies |
+| Small | <1K | 2-3 | 1 primary + 1-2 replicas |
+| Medium | 1K-10K | 4-8 | 1-2 primary pools + 3-6 replicas |
 | Large | >10K | 8-20 | 2-4 primary + 6-16 replicas |
 
 
@@ -1837,7 +1837,7 @@ import { ConnectionPoolManager } from 'monsqlize';
 async function basicExample() {
     const manager = new ConnectionPoolManager();
 
-    //Add master and replica
+    // Add a primary pool and a read replica
     await manager.addPool({
         name: 'primary',
         uri: 'mongodb://localhost:27017/mydb',
@@ -1852,14 +1852,14 @@ async function basicExample() {
 
     manager.startHealthCheck();
 
-    //write operation
+    // Write operation
     const writePool = manager.selectPool('write');
     await writePool.collection('users').insertOne({
         name: 'Alice',
         email: 'alice@example.com'
     });
 
-    //Read operation
+    // Read operation
     const readPool = manager.selectPool('read');
     const users = await readPool.collection('users').find({}).toArray();
     console.log(`Number of users: ${users.length}`);
@@ -1877,7 +1877,7 @@ basicExample().catch(console.error);
 import { ConnectionPoolManager } from 'monsqlize';
 
 async function advancedExample() {
-    //Create manager with full configuration
+    // Create manager with full configuration
     const manager = new ConnectionPoolManager({
         maxPoolsCount: 10,
         poolStrategy: 'weighted',
@@ -1890,7 +1890,7 @@ async function advancedExample() {
         logger: console
     });
 
-    //Add main library (dual master)
+    // Add primary pools (dual-primary topology)
     for (let i = 1; i <= 2; i++) {
         await manager.addPool({
             name: `primary-${i}`,
@@ -1910,7 +1910,7 @@ async function advancedExample() {
         });
     }
 
-    //Add copies (4)
+    // Add read replicas (4)
     for (let i = 1; i <= 4; i++) {
         await manager.addPool({
             name: `secondary-${i}`,
@@ -2047,7 +2047,7 @@ If you find documentation errors or have suggestions for improvements, please fe
 
 ## 🔗 Related documents (enterprise-level multiple connection pool management)
 
-- [Chained pool/library access API (v1.3.0+)](./pool-chain-api.md) — Use `pool()` / `use()` for cross-pool and cross-library chained access
+- [Chained pool/database access API (v1.3.0+)](./pool-chain-api.md) — Use `pool()` / `use()` for cross-pool and cross-database chained access
 - [Error Code Reference](./error-codes.md) — Contains new error codes such as `NO_POOL_MANAGER` / `POOL_NOT_FOUND`
 - [Model layer document](./model.md)
 

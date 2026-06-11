@@ -7,6 +7,7 @@ import MonSQLize, {
     type SagaStats,
     type Transaction,
     type TransactionInfo,
+    type TransactionStats,
 } from 'monsqlize';
 
 const definition: SagaDefinition = {
@@ -44,9 +45,14 @@ expectType<Error | undefined>(sagaResult.error);
 
 declare const transaction: Transaction;
 declare const info: TransactionInfo;
+declare const transactionStats: TransactionStats;
 expectType<TransactionInfo>(transaction.getInfo());
 expectType<'pending' | 'started' | 'committed' | 'aborted'>(transaction.getInfo().status);
 expectType<'pending' | 'started' | 'committed' | 'aborted'>(info.status);
+expectType<string>(transactionStats.successRate);
+expectType<string>(transactionStats.readOnlyRatio);
+expectType<number>(transactionStats.p95Duration);
+expectType<number>(transactionStats.sampleCount);
 
 const cachedOrchestrator = new SagaOrchestrator({
     cache: {
@@ -61,6 +67,7 @@ const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'app' });
 expectType<Promise<SagaDefinition>>(runtime.defineSaga(definition));
 expectType<Promise<SagaResult>>(runtime.executeSaga('create-order', { id: 1 }));
 expectType<string[]>(runtime.listSagas());
+expectType<TransactionStats | null>(runtime.getTransactionStats());
 expectType<SagaStats>(runtime.getSagaStats());
 expectType<SagaOrchestrator>(runtime.saga());
 

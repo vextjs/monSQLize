@@ -305,7 +305,7 @@ console.log('扫描文档数:', noIndexPlan.executionStats.totalDocsExamined);
 console.log('执行时间:', noIndexPlan.executionStats.executionTimeMillis, 'ms');
 
 // 创建索引
-await collection('logs')._collection.createIndex({ level: 1, service: 1 });
+await collection('logs').createIndex({ level: 1, service: 1 });
 
 console.log('\n===== 有索引查询 =====');
 const withIndexPlan = await collection('logs').find(
@@ -323,8 +323,8 @@ console.log('\n✅ 性能提升:', improvement, '%');
 
 ```javascript
 // 创建多个索引
-await collection('inventory')._collection.createIndex({ category: 1, quantity: 1 }, { name: 'cat_qty_idx' });
-await collection('inventory')._collection.createIndex({ warehouse: 1, quantity: 1 }, { name: 'wh_qty_idx' });
+await collection('inventory').createIndex({ category: 1, quantity: 1 }, { name: 'cat_qty_idx' });
+await collection('inventory').createIndex({ warehouse: 1, quantity: 1 }, { name: 'wh_qty_idx' });
 
 // 让优化器自动选择
 console.log('===== 自动选择索引 =====');
@@ -747,6 +747,6 @@ const goodPipeline = [
 ## 参考资料
 
 - [MongoDB Explain 文档](https://docs.mongodb.com/manual/reference/method/cursor.explain/)
-- [explain 示例代码](../../examples/docs/explain.ts)
+- [explain 示例代码](https://github.com/vextjs/monSQLize/blob/main/examples/docs/explain.ts)
 - [性能优化指南](./count-queue.md)
 - [索引设计最佳实践](./create-index.md)

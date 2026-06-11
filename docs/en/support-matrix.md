@@ -7,7 +7,7 @@
 
 | dimensions | current scope | evidence |
 |------|----------|------|
-| Node.js | 18.x / 20.x / 22.x | `.github/workflows/test.yml` + `npm test`（smoke + compatibility + unit + integration）+ `npm run verify:fast` |
+| Node.js | 18.x / 20.x / 22.x | `.github/workflows/test.yml` + `npm test` (smoke + compatibility + unit + integration) + `npm run verify:fast` |
 | Module | CJS / ESM | `test/smoke/root-cjs.test.ts` / `root-esm.test.ts` compiled test product |
 
 ## Default server matrix
@@ -20,13 +20,13 @@
 
 ## Default verification method
 
-- **Default gate**：`npm test`
-- **Fast**：`npm run verify:fast`
-- **Full functional gate**：`npm run verify:full`
-- **Coverage governance**：`npm run test:coverage`
-- **Matrix**：`npm run test:server-matrix`
+- **Default gate**: `npm test`
+- **Fast**: `npm run verify:fast`
+- **Full functional gate**: `npm run verify:full`
+- **Coverage governance**: `npm run test:coverage`
+- **Matrix**: `npm run test:server-matrix`
 - **Release preflight (public access)**: `npm run release:preflight`
-- **Private real env**：`npm run test:real-env:private`
+- **Private real env**: `npm run test:real-env:private`
 
 ## Public verification and private verification boundaries
 

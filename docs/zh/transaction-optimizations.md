@@ -291,17 +291,19 @@ await msq.withTransaction(async (tx) => {
 
 ```javascript
 // 定期检查统计
-const stats = msq._transactionManager.getStats();
+const stats = msq.getTransactionStats();
 
-console.log('事务统计:');
-console.log(`- 只读事务占比: ${stats.readOnlyRatio}`);
-console.log(`- 平均耗时: ${stats.averageDuration.toFixed(2)}ms`);
-console.log(`- P95 耗时: ${stats.p95Duration.toFixed(2)}ms`);
-console.log(`- 成功率: ${stats.successRate}`);
+if (stats) {
+    console.log('事务统计:');
+    console.log(`- 只读事务占比: ${stats.readOnlyRatio}`);
+    console.log(`- 平均耗时: ${stats.averageDuration.toFixed(2)}ms`);
+    console.log(`- P95 耗时: ${stats.p95Duration.toFixed(2)}ms`);
+    console.log(`- 成功率: ${stats.successRate}`);
 
-// 判断是否需要优化
-if (parseFloat(stats.readOnlyRatio) > 30) {
-    console.log('✅ 只读优化生效良好');
+    // 判断是否需要优化
+    if (parseFloat(stats.readOnlyRatio) > 30) {
+        console.log('✅ 只读优化生效良好');
+    }
 }
 ```
 
@@ -335,14 +337,15 @@ const msq = new MonSQLize({
 | `successRate` | 事务成功率 | <95% 需要调查 |
 | `averageDuration` | 平均耗时 | >1000ms 需要优化 |
 | `p95Duration` | P95 耗时 | >3000ms 需要优化 |
-| `lockBlocks` | 缓存锁阻塞次数 | >10% 考虑优化锁粒度 |
+| `activeTransactions` | 当前活跃事务数量 | 长时间异常非 0 需要排查 |
 
 ### 监控脚本示例
 
 ```javascript
 // 定期输出统计（每分钟）
 setInterval(() => {
-    const stats = msq._transactionManager.getStats();
+    const stats = msq.getTransactionStats();
+    if (!stats) return;
     
     console.log('📊 事务监控:', {
         时间: new Date().toISOString(),

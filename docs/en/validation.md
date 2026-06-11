@@ -324,7 +324,7 @@ setupValidation().catch(console.error);
 ## Related documents
 
 - [Collection Management](./collection-management.md) - collMod, stats
-- [Collection Management Example](../../examples/docs/collection-management.ts)
+- [Collection Management Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts)
 
 ---
 

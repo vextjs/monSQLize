@@ -211,7 +211,7 @@ const redis = new Redis();
 ### 获取统计信息
 
 ```javascript
-const stats = msq._syncManager.getStats();
+const stats = msq.getSyncStats();
 console.log(stats);
 // {
 //   isRunning: true,
@@ -227,13 +227,13 @@ console.log(stats);
 ### 手动停止同步
 
 ```javascript
-await msq._syncManager.stop();
+await msq.stopSync();
 ```
 
 ### 手动启动同步
 
 ```javascript
-await msq._syncManager.start();
+await msq.startSync();
 ```
 
 ---
@@ -280,7 +280,7 @@ rs.initiate()
 **手动处理**:
 ```javascript
 // 查看错误统计
-const stats = msq._syncManager.getStats();
+const stats = msq.getSyncStats();
 console.log(stats.errorCount);
 console.log(stats.targets[0].lastError);
 ```
@@ -321,7 +321,7 @@ console.log(stats.targets[0].lastError);
 ```javascript
 // 定期检查统计
 setInterval(() => {
-    const stats = msq._syncManager.getStats();
+    const stats = msq.getSyncStats();
     
     if (stats.errorCount > 100) {
         // 发送告警
@@ -349,7 +349,7 @@ process.on('SIGTERM', async () => {
 
 ## 📚 更多资源
 
-- [示例代码](../../examples/docs/sync.ts)
+- [示例代码](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync.ts)
 - [MongoDB Change Streams 官方文档](https://www.mongodb.com/docs/manual/changeStreams/)
 - [ConnectionPoolManager 文档](./multi-pool.md)
 

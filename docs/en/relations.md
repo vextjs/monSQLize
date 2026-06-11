@@ -212,7 +212,7 @@ Model.define('users', {
             localField: '_id',      //Required: local field
             foreignField: 'userId', //Required: foreign key field
             single: false,          //Required: Whether it is single
-            as: 'articles'// Optional: result field name (default'posts'）
+            as: 'articles' // Optional: result field name (default 'posts')
         },
 
         //Minimal configuration

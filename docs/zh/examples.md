@@ -2,7 +2,7 @@
 
 文档站中的每个核心 API，都应尽量对应到**当前仓库内可直接运行的示例**。
 
-> 当前完整示例源列表见 [官方示例总览](../../examples/README.md)，其中 `npm run test:examples` 会统一编译并执行当前 **56 个** TypeScript 示例；`examples/helpers/bootstrap.ts` 是辅助模块，不单独执行。
+> 当前完整示例源列表见 [官方示例总览](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)，其中 `npm run test:examples` 会统一编译并执行当前 **56 个** TypeScript 示例；`examples/helpers/bootstrap.ts` 是辅助模块，不单独执行。
 
 ## 运行方式
 
@@ -105,4 +105,4 @@ node .generated/examples-dist/examples/docs/find.js
 | `relations.md` | `examples/docs/relations.ts` |
 | `model/nested-populate.md` | `examples/docs/nested-populate.ts` |
 
-> 说明：部分概念型页面会复用同一个 richer example，而不是为每个标题机械复制一份完全相同的脚本；完整列表以 [官方示例总览](../../examples/README.md) 为准。
+> 说明：部分概念型页面会复用同一个 richer example，而不是为每个标题机械复制一份完全相同的脚本；完整列表以 [官方示例总览](https://github.com/vextjs/monSQLize/blob/main/examples/README.md) 为准。

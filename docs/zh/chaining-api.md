@@ -1,4 +1,4 @@
-﻿# 链式调用方法 (Chaining Methods)
+# 链式调用方法 (Chaining Methods)
 
 ## 📑 目录
 

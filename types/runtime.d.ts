@@ -184,6 +184,7 @@ export declare function createRedisCacheAdapter(
 export type { LockOptions, LockStats, MongoSession, TransactionOptions, TransactionStats };
 
 export type DistributedCacheInvalidatorOptions = HubDistributedInvalidatorOptions;
+export type DistributedCacheInvalidatorStats = HubInvalidatorStats;
 
 export declare class DistributedCacheInvalidator {
     constructor(options: DistributedCacheInvalidatorOptions);

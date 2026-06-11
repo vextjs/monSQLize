@@ -617,7 +617,7 @@ A: Possible reasons:
 A:
 ```javascript
 //1. Check the relationship definition
-console.log(User._relations.get('profile'));
+console.log(User.getRelations().profile);
 
 //2. Check foreign key values
 const user = await User.findOne({ _id });
@@ -776,11 +776,10 @@ interface PopulateOptions {
 ## More resources
 
 - [Model API Documentation](../model.md)
-- [Sample code](../../../examples/docs/populate-relations.ts)
+- [Sample code](https://github.com/vextjs/monSQLize/blob/main/examples/docs/populate-relations.ts)
 - [GitHub Issues](https://github.com/vextjs/monSQLize/issues)
 
 ---
 
 **Last updated**: 2026-06-01
 **Version**: v2.0.0
-

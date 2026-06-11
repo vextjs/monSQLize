@@ -83,7 +83,7 @@ async _checkHealth(poolName) {
         await pool.db().admin().ping();
         
         // 成功：重置失败计数
-        this._updateStatus(poolName, 'up', null);
+        this.updateStatus(poolName, 'up', null);
         
     } catch (error) {
         // 失败：增加失败计数
@@ -92,7 +92,7 @@ async _checkHealth(poolName) {
         
         // 达到阈值：标记为 down
         if (currentStatus.consecutiveFailures >= config.retries) {
-            this._updateStatus(poolName, 'down', error);
+            this.updateStatus(poolName, 'down', error);
             
             // 🔔 触发事件（可用于告警）
             this.emit('poolDown', poolName, error);
@@ -142,8 +142,9 @@ try {
     // 🔔 记录错误并告警
     logger.error('查询失败', { error, poolName: pool?.name });
     
-    // 可选：手动标记连接池为 down
-    // manager._healthChecker.markAsDown(pool.name);
+    // 查询公开健康状态，再决定是否告警或重试
+    const health = manager.getPoolHealth();
+    logger.warn('当前连接池健康状态', health);
 }
 ```
 
@@ -224,7 +225,7 @@ async _checkHealth(poolName) {
             await pool.db().admin().ping();
             
             // 检查成功：立即恢复为 up
-            this._updateStatus(poolName, 'up', null);
+            this.updateStatus(poolName, 'up', null);
             
             // 🔔 触发恢复事件
             this.emit('poolRecovered', poolName);
@@ -373,7 +374,7 @@ pm2 logs pool-monitor
 const EventEmitter = require('events');
 
 class HealthChecker extends EventEmitter {
-    _updateStatus(poolName, status, error) {
+    updateStatus(poolName, status, error) {
         const oldStatus = this._status.get(poolName)?.status;
         
         // 更新状态
@@ -403,8 +404,9 @@ class HealthChecker extends EventEmitter {
     }
 }
 
-// 使用事件监听
-manager._healthChecker.on('poolDown', ({ poolName, error }) => {
+// 自建健康检查器时可使用事件监听
+const healthChecker = new HealthChecker();
+healthChecker.on('poolDown', ({ poolName, error }) => {
     console.error(`🚨 连接池故障: ${poolName}`, error.message);
     
     // 🔔 发送告警
@@ -416,7 +418,7 @@ manager._healthChecker.on('poolDown', ({ poolName, error }) => {
     });
 });
 
-manager._healthChecker.on('poolRecovered', ({ poolName }) => {
+healthChecker.on('poolRecovered', ({ poolName }) => {
     console.info(`✅ 连接池已恢复: ${poolName}`);
     
     // 🔔 发送恢复通知
@@ -827,7 +829,7 @@ async _checkHealth(poolName) {
             throw new Error('Replication lag too high');
         }
         
-        this._updateStatus(poolName, 'up', null);
+        this.updateStatus(poolName, 'up', null);
     } catch (error) {
         // ...
     }
@@ -875,8 +877,8 @@ sudo systemctl stop mongod
 # 方法2: 防火墙阻断
 sudo iptables -A INPUT -p tcp --dport 27017 -j DROP
 
-# 方法3: 在代码中手动标记
-manager._healthChecker._updateStatus('primary', 'down', new Error('Test'));
+# 方法3: 使用合成健康状态单测告警函数
+testAlert({ poolName: 'primary', status: 'down', error: new Error('Test') });
 
 # 观察日志和告警
 tail -f pool-error.log

@@ -654,13 +654,15 @@ await msq.withTransaction(async (tx) => {
 
 ```javascript
 // 获取事务统计
-const stats = msq._transactionManager?.getStats();
-console.log('事务统计:', {
-    总数: stats.totalTransactions,
-    成功: stats.successfulTransactions,
-    失败: stats.failedTransactions,
-    平均耗时: stats.averageDuration + 'ms'
-});
+const stats = msq.getTransactionStats();
+if (stats) {
+    console.log('事务统计:', {
+        总数: stats.totalTransactions,
+        成功: stats.successfulTransactions,
+        失败: stats.failedTransactions,
+        平均耗时: `${stats.averageDuration}ms`
+    });
+}
 ```
 
 ---
@@ -669,7 +671,7 @@ console.log('事务统计:', {
 
 - [MongoDB 事务官方文档](https://docs.mongodb.com/manual/core/transactions/)
 - [设计文档]
-- [示例代码](../../examples/docs/transaction.ts)
+- [示例代码](https://github.com/vextjs/monSQLize/blob/main/examples/docs/transaction.ts)
 
 ---
 

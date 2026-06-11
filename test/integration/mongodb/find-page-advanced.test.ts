@@ -4,6 +4,8 @@ import { createMemoryServerBootstrap } from '../../bootstrap/memory-server';
 
 const MonSQLize = require('../../../dist/cjs/index.cjs');
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 describe('findPage() — advanced modes coverage', () => {
     const bootstrap = createMemoryServerBootstrap();
     let uri = '';
@@ -35,6 +37,7 @@ describe('findPage() — advanced modes coverage', () => {
             docs.push({ val: i, tag: i % 3 === 0 ? 'c' : i % 3 === 1 ? 'a' : 'b' });
         }
         await db.collection('items').insertMany(docs);
+        await col.invalidate('all');
     });
 
     // ── stream mode ───────────────────────────────────────────────────────────
@@ -268,6 +271,38 @@ describe('findPage() — advanced modes coverage', () => {
         assert.ok(result.totals !== undefined);
     });
 
+    it('totals.mode: sync applies hint and collation options', async () => {
+        await runtime._adapter.db.collection('items').createIndex({ tag: 1 });
+        const result = await col.findPage({
+            query: { tag: 'a' },
+            sort: { val: 1 },
+            limit: 10,
+            totals: {
+                mode: 'sync',
+                hint: { tag: 1 },
+                collation: { locale: 'simple' },
+                maxTimeMS: 5000,
+            },
+        });
+        assert.ok(result.totals !== undefined);
+        assert.equal(result.totals.total, 10);
+        assert.equal(result.totals.totalPages, 1);
+    });
+
+    it('totals.mode: approx counts filtered queries instead of ignoring the query', async () => {
+        const result = await col.findPage({
+            query: { tag: 'a' },
+            sort: { val: 1 },
+            limit: 4,
+            totals: { mode: 'approx', ttlMs: 60_000 },
+        });
+        assert.ok(result.totals !== undefined);
+        assert.equal(result.totals.mode, 'approx');
+        assert.equal(result.totals.total, 10);
+        assert.equal(result.totals.totalPages, 3);
+        assert.equal(result.totals.approx, true);
+    });
+
     it('totals.mode: none skips totals computation', async () => {
         const result = await col.findPage({
             sort: { val: 1 },
@@ -337,6 +372,19 @@ describe('findPage() — advanced modes coverage', () => {
         });
         assert.ok(result.meta !== undefined);
         assert.equal(result.meta.before, true);
+    });
+
+    it('after cursor mode can attach totals', async () => {
+        const page1 = await col.findPage({ sort: { val: 1 }, limit: 5 });
+        const result = await col.findPage({
+            sort: { val: 1 },
+            limit: 5,
+            after: page1.pageInfo.endCursor,
+            totals: { mode: 'sync' },
+        });
+        assert.ok(result.totals !== undefined);
+        assert.equal(result.totals.total, 30);
+        assert.equal(result.totals.totalPages, 6);
     });
 
     it('meta with maxTimeMS option', async () => {
@@ -532,5 +580,57 @@ describe('findPage() — advanced modes coverage', () => {
         });
         assert.ok(result.meta !== undefined);
         assert.ok(Array.isArray(result.meta.steps));
+    });
+
+    it('query-level cache stores page results and invalidate("findPage") clears them', async () => {
+        const options = {
+            query: { tag: 'a' },
+            sort: { val: 1 },
+            limit: 5,
+            cache: 60_000,
+            meta: true,
+        };
+
+        const first = await col.findPage(options);
+        assert.equal(first.meta.cacheHit, false);
+
+        await runtime._adapter.db.collection('items').insertOne({ val: -100, tag: 'a' });
+
+        const cached = await col.findPage(options);
+        assert.equal(cached.meta.cacheHit, true);
+        assert.deepEqual(
+            cached.items.map((item: { val: number }) => item.val),
+            first.items.map((item: { val: number }) => item.val),
+        );
+
+        const deleted = await col.invalidate('findPage');
+        assert.ok(deleted >= 1);
+
+        const fresh = await col.findPage(options);
+        assert.equal(fresh.meta.cacheHit, false);
+        assert.equal(fresh.items[0].val, -100);
+    });
+
+    it('query-level cache does not freeze async totals at the initial null value', async () => {
+        const options = {
+            sort: { val: 1 },
+            limit: 10,
+            cache: 60_000,
+            totals: { mode: 'async', ttlMs: 60_000 },
+            meta: true,
+        };
+
+        const first = await col.findPage(options);
+        assert.equal(first.meta.cacheHit, false);
+        assert.ok(first.totals?.token);
+
+        let second = await col.findPage(options);
+        for (let i = 0; i < 10 && second.totals?.total === null; i++) {
+            await delay(25);
+            second = await col.findPage(options);
+        }
+
+        assert.equal(second.meta.cacheHit, true);
+        assert.equal(second.totals?.total, 30);
     });
 });

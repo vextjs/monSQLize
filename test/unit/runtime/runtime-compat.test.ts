@@ -52,6 +52,193 @@ describe('P6 runtime compat mock path', () => {
         MonSQLize.Model._clear();
     });
 
+    it('db() rejects an inconsistent connected state without a client', () => {
+        const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'compat_db' });
+
+        runtime._connected = true;
+        runtime._client = null;
+
+        assert.throws(
+            () => runtime.db(),
+            (err: unknown) => {
+                assert.ok(err instanceof Error);
+                assert.equal((err as NodeJS.ErrnoException).code, 'NOT_CONNECTED');
+                return true;
+            },
+        );
+    });
+
+    it('validates runtime numeric limits during construction', () => {
+        assert.doesNotThrow(() => new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'compat_db',
+            maxTimeMS: 100,
+            findLimit: 50,
+            findPageMaxLimit: 25,
+        }));
+        assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', maxTimeMS: 0 }), /maxTimeMS/);
+        assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findLimit: 0 }), /findLimit/);
+        assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findPageMaxLimit: 0 }), /findPageMaxLimit/);
+    });
+
+    it('accepts a custom cache without a lock-manager hook', () => {
+        const values = new Map<string, unknown>();
+        const cache = {
+            get: (key: string) => values.get(key),
+            set: (key: string, value: unknown) => { values.set(key, value); },
+            del: (key: string) => { values.delete(key); },
+        };
+
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'compat_db',
+            cache,
+        });
+
+        assert.strictEqual(runtime.getCache(), cache);
+    });
+
+    it('normalizes memory cache boolean and numeric options', () => {
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'compat_db',
+            cache: {
+                memory: {
+                    enabled: true,
+                    enableStats: true,
+                    enableTags: false,
+                    ttl: 100,
+                    cleanupInterval: 1_000,
+                },
+            },
+        });
+
+        assert.equal(runtime.getCache().constructor.name, 'MultiLevelCache');
+    });
+
+    it('normalizes vext-style memory and Redis cache config with an injected Redis-like instance', () => {
+        const remoteValues = new Map<string, string>();
+        const redisLike = {
+            get: async (key: string) => remoteValues.get(key) ?? null,
+            set: async (key: string, value: string) => { remoteValues.set(key, value); return 'OK'; },
+            del: async (key: string) => { remoteValues.delete(key); return 1; },
+            keys: async () => [...remoteValues.keys()],
+            scan: async () => ['0', [...remoteValues.keys()]],
+        };
+
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'compat_db',
+            cache: {
+                memory: {},
+                redis: {
+                    enabled: true,
+                    instance: redisLike,
+                    prefix: 'compat:',
+                    ttl: 1_000,
+                },
+            },
+        });
+
+        assert.equal(runtime.getCache().constructor.name, 'MultiLevelCache');
+    });
+
+    it('routes multi-level cache invalidation through the runtime distributed publish proxy', async () => {
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'compat_db',
+            cache: {
+                memory: {},
+                distributed: {
+                    redis: {},
+                    channel: 'monsqlize:test:runtime-proxy',
+                },
+            },
+        });
+
+        const cache = runtime.getCache();
+        assert.equal(cache.constructor.name, 'MultiLevelCache');
+        await cache.delPattern('users:*');
+    });
+
+    it('pool management helpers fail clearly when pools are not configured', () => {
+        const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'compat_db' });
+
+        assert.throws(
+            () => runtime.getPoolNames(),
+            /pool\(\) requires options\.pools configuration/i,
+        );
+    });
+
+    it('collection() delegates through the dbInstance compatibility path before connect', () => {
+        const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'compat_db' });
+        const collection = createMockCollection('users');
+
+        Object.defineProperty(runtime, 'dbInstance', {
+            configurable: true,
+            value: {
+                collection(collectionName: string) {
+                    return collectionName === 'users' ? collection : createMockCollection(collectionName);
+                },
+                db() {
+                    return {};
+                },
+            },
+        });
+
+        assert.strictEqual(runtime.collection('users'), collection);
+    });
+
+    it('scoped collection with database fails clearly when dbInstance is unavailable', () => {
+        const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'compat_db' });
+
+        assert.throws(
+            () => runtime._resolveModelCollection('users', { database: 'tenant_db' }),
+            /NOT_CONNECTED|not connected/i,
+        );
+    });
+
+    it('close() logs cleanup and SSH tunnel close failures', async () => {
+        const warnings: unknown[][] = [];
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'compat_db',
+            logger: {
+                debug: () => {},
+                info: () => {},
+                warn: (...args: unknown[]) => warnings.push(args),
+                error: () => {},
+            },
+        });
+
+        runtime._syncManager = { stop: () => Promise.reject(new Error('sync cleanup failed')) };
+        runtime._sshTunnel = { close: () => Promise.reject(new Error('ssh close failed')) };
+
+        await runtime.close();
+
+        assert.ok(warnings.some(([message]) => String(message).includes('cleanup error during close')));
+        assert.ok(warnings.some(([message]) => String(message).includes('Error closing SSH tunnel')));
+    });
+
+    it('throws MODEL_NOT_DEFINED for pre-connect model lookup misses', () => {
+        const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'compat_db' });
+
+        Object.defineProperty(runtime, 'dbInstance', {
+            configurable: true,
+            value: {
+                collection(collectionName: string) {
+                    return createMockCollection(collectionName);
+                },
+                db() {
+                    return {};
+                },
+            },
+        });
+
+        assert.throws(() => runtime.model('missing'), /MODEL_NOT_DEFINED|not defined/);
+        assert.throws(() => runtime.scopedModel('missing'), /MODEL_NOT_DEFINED|not defined/);
+    });
+
     it('creates and caches model instances through the dbInstance compatibility path before connect', () => {
         const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'compat_db' });
         const defaultCollection = createMockCollection('users');
@@ -97,6 +284,38 @@ describe('P6 runtime compat mock path', () => {
         const scopedViaApi = runtime.scopedModel('users');
         assert.equal(scopedViaApi.collectionName, 'users');
         assert.equal(scopedViaApi.getNamespace().collection, 'users');
+    });
+
+    it('refreshes a cached pre-connect model instance after redefine', () => {
+        const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'compat_db' });
+
+        Object.defineProperty(runtime, 'dbInstance', {
+            configurable: true,
+            value: {
+                collection(collectionName: string) {
+                    return createMockCollection(collectionName);
+                },
+                db() {
+                    return {};
+                },
+            },
+        });
+        Object.defineProperty(runtime, 'databaseName', {
+            configurable: true,
+            value: 'compat_db',
+        });
+
+        MonSQLize.Model.define('users', { schema: {} });
+        const first = runtime.model('users');
+
+        MonSQLize.Model.redefine('users', {
+            collection: 'users_archive',
+            schema: {},
+        });
+        const second = runtime.model('users');
+
+        assert.notStrictEqual(first, second);
+        assert.equal(second.collectionName, 'users_archive');
     });
 
     it('supports the v1 find(query, projection, options) overload at runtime', async () => {

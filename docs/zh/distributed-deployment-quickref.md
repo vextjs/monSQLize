@@ -151,7 +151,7 @@ env:
 
 ```javascript
 // 启动后检查
-const stats = msq._cacheInvalidator?.getStats();
+const stats = msq.getDistributedCacheInvalidatorStats();
 console.log('分布式失效器状态:', stats);
 // 输出: { messagesSent: 0, messagesReceived: 0, instanceId: 'xxx', ... }
 ```

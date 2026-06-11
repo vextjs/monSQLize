@@ -46,8 +46,15 @@ export interface TransactionStats {
     totalTransactions: number;
     successfulTransactions: number;
     failedTransactions: number;
+    readOnlyTransactions: number;
+    writeTransactions: number;
     activeTransactions: number;
     averageDuration: number;
+    p95Duration: number;
+    p99Duration: number;
+    successRate: string;
+    readOnlyRatio: string;
+    sampleCount: number;
 }
 
 /**
@@ -80,6 +87,7 @@ export declare class Transaction {
         logger?: LoggerLike | null;
         lockManager?: CacheLockManager | null;
         timeout?: number;
+        transactionOptions?: Record<string, unknown>;
     });
     /** Begin the transaction (starts the MongoDB session transaction). */
     start(): Promise<void>;
@@ -118,6 +126,10 @@ export declare class TransactionManager {
         maxRetries?: number;
         retryDelay?: number;
         retryBackoff?: number;
+        defaultReadConcern?: TransactionOptions['readConcern'];
+        defaultWriteConcern?: TransactionOptions['writeConcern'];
+        defaultReadPreference?: TransactionOptions['readPreference'];
+        maxStatsSamples?: number;
     });
     /** Open a new transaction session. */
     startSession(options?: TransactionOptions): Promise<Transaction>;

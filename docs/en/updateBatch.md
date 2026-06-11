@@ -614,7 +614,7 @@ try {
 - [find - streaming query](./find.md)
 - [updateMany - batch update (small data volume)](./update-many.md)
 - [MongoDB update operator](https://www.mongodb.com/docs/manual/reference/operator/update/)
-- [Usage Example](../../examples/docs/batch-operations.ts)
+- [Usage Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/batch-operations.ts)
 - [Batch write test](../../test/unit/writes/batch.test.ts)
 
 ---

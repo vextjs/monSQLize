@@ -584,8 +584,8 @@ try {
 ## 示例代码
 
 完整的示例代码请参考：
-- [examples/docs/insert-many.ts](../../examples/docs/insert-many.ts)
-- [examples/write-operations.md](./write-operations.md)
+- [insertMany 可运行示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/insert-many.ts)
+- [写入操作指南](./write-operations.md)
 
 ## MongoDB 文档
 

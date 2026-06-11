@@ -535,7 +535,7 @@ await msq.close();
 // dist/cjs/index.cjs
 async connect() {
   //Step 1: Create DistributedCacheInvalidator
-  this._cacheInvalidator = new DistributedCacheInvalidator({
+  this.cacheInvalidator = new DistributedCacheInvalidator({
     redisUrl: this.cache.distributed.redisUrl,
     redis: this.cache.distributed.redis,
     channel: this.cache.distributed.channel,
@@ -548,7 +548,7 @@ async connect() {
     this.cache.setPublish((msg) => {
       if (msg && msg.type === 'invalidate' && msg.pattern) {
         //When the cache is invalidated, call invalidate to broadcast the message
-        this._cacheInvalidator.invalidate(msg.pattern);
+        this.cacheInvalidator.invalidate(msg.pattern);
       }
     });
   }
@@ -976,7 +976,7 @@ const msq = new MonSQLize({
 - [Cache Policy Document](./cache.md)
 - [Cache consistency description](./cache.md)
 - [Transaction Function Document](./transaction.md)
-- [Redis Cache Adapter](../../src/capabilities/cache/redis-cache-adapter.ts)
+- [Redis Cache Adapter](https://github.com/vextjs/monSQLize/blob/main/src/capabilities/cache/redis-cache-adapter.ts)
 
 ---
 

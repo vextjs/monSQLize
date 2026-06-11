@@ -263,7 +263,7 @@ Model.define('users', newDefinition);
 > - 进程重启后内存任务表清空，首次使用对应 Model 时会再次发送 `createIndex()` ensure 命令；相同索引定义由 MongoDB 驱动/服务端按幂等语义处理
 > - 自动索引不会先调用 `listIndexes()` 预检；索引定义冲突时由 MongoDB 抛错
 > - `Model.redefine()` 或 `Model.undefine()` 后，下次调用 `msq.model()` 自动获取新定义的实例
-> - `Model._clear()` 后（v1.2.2 修复），所有已注册 Model 的缓存均自动失效，下次调用 `msq.model()` 重建实例
+> - `Model.redefine()` 或 `Model.undefine()` 后，已缓存实例会自动失效，下次调用 `msq.model()` 时重建
 > - `msq.close()` 后全部缓存清空
 
 ```javascript
@@ -1703,5 +1703,5 @@ A: instance 注入到文档对象，static 挂载到 Model 实例。
 ## 更多示例
 
 查看当前 TypeScript 示例：
-- [`examples/docs/model.ts`](../../examples/docs/model.ts) - Model 基础使用
-- [`examples/docs/populate-relations.ts`](../../examples/docs/populate-relations.ts) - Relations 与 populate 示例
+- [Model 基础可运行示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/model.ts) - Model 基础使用
+- [Relations 与 populate 可运行示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/populate-relations.ts) - Relations 与 populate 示例

@@ -37,6 +37,7 @@ type TransactionManagerConfig = {
     cache: import('../capabilities/cache').CacheLike;
     logger: LoggerLike | null;
     lockManager: CacheLockManager;
+    transaction?: MonSQLizeOptions['transaction'];
 };
 
 /**
@@ -56,6 +57,15 @@ export function getOrCreateTransactionManager(config: TransactionManagerConfig):
         cache: config.cache,
         logger: config.logger,
         lockManager: config.lockManager,
+        maxDuration: config.transaction?.maxDuration ?? config.transaction?.defaultTimeout,
+        enableRetry: config.transaction?.enableRetry,
+        maxRetries: config.transaction?.maxRetries,
+        retryDelay: config.transaction?.retryDelay,
+        retryBackoff: config.transaction?.retryBackoff,
+        defaultReadConcern: config.transaction?.defaultReadConcern,
+        defaultWriteConcern: config.transaction?.defaultWriteConcern,
+        defaultReadPreference: config.transaction?.defaultReadPreference,
+        maxStatsSamples: config.transaction?.maxStatsSamples,
     });
 }
 

@@ -5,12 +5,17 @@ const MonSQLize = require('../../../dist/cjs/index.cjs');
 
 function createFakeSession() {
     let inTransaction = false;
+    let startOptions: Record<string, unknown> | undefined;
     return {
         id: { toString: () => 'session-1' },
         inTransaction() {
             return inTransaction;
         },
-        startTransaction() {
+        getStartOptions() {
+            return startOptions;
+        },
+        startTransaction(options?: Record<string, unknown>) {
+            startOptions = options;
             inTransaction = true;
         },
         commitTransaction() {
@@ -111,9 +116,51 @@ describe('P4-A transaction', () => {
         assert.equal(stats.totalTransactions, 2);
         assert.equal(stats.successfulTransactions, 1);
         assert.equal(stats.failedTransactions, 1);
+        assert.equal(stats.readOnlyTransactions, 2);
+        assert.equal(stats.writeTransactions, 0);
         assert.equal(stats.activeTransactions, 0);
+        assert.equal(typeof stats.p95Duration, 'number');
+        assert.equal(typeof stats.p99Duration, 'number');
+        assert.equal(stats.successRate, '50.00%');
+        assert.equal(stats.readOnlyRatio, '100.00%');
+        assert.equal(stats.sampleCount, 2);
 
         await manager.abortAll();
         cacheLockManager.stop();
+    });
+
+    it('forwards global and per-transaction options to startTransaction', async () => {
+        const sessions = [createFakeSession(), createFakeSession()];
+        const usedSessions: any[] = [];
+        const manager = new MonSQLize.TransactionManager({
+            client: {
+                startSession: () => {
+                    const session = sessions.shift();
+                    usedSessions.push(session);
+                    return session;
+                },
+            },
+            defaultReadConcern: { level: 'majority' },
+            defaultWriteConcern: { w: 'majority' },
+            defaultReadPreference: 'primary',
+            maxStatsSamples: 1,
+        });
+
+        await manager.withTransaction(async () => 'default');
+        const defaultOptions = usedSessions[0].getStartOptions();
+        assert.equal(defaultOptions?.readConcern?.level, 'majority');
+        assert.equal(defaultOptions?.writeConcern?.w, 'majority');
+        assert.equal(defaultOptions?.readPreference, 'primary');
+
+        await manager.withTransaction(async () => 'override', {
+            readConcern: { level: 'snapshot' },
+            writeConcern: { w: 1 },
+            readPreference: 'secondary',
+        });
+        const overrideOptions = usedSessions[1].getStartOptions();
+        assert.equal(overrideOptions?.readConcern?.level, 'snapshot');
+        assert.equal(overrideOptions?.writeConcern?.w, 1);
+        assert.equal(overrideOptions?.readPreference, 'secondary');
+        assert.equal(manager.getStats().sampleCount, 1);
     });
 });

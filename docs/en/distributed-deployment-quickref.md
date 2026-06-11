@@ -165,7 +165,7 @@ fieldPath: metadata.name # Use Pod name
 
 ```javascript
 //Check after startup
-const stats = msq._cacheInvalidator?.getStats();
+const stats = msq.getDistributedCacheInvalidatorStats();
 console.log('Distributed invalidator status:', stats);
 //Output: { messagesSent: 0, messagesReceived: 0, instanceId: 'xxx', ... }
 ```
@@ -174,4 +174,3 @@ console.log('Distributed invalidator status:', stats);
 
 **Documentation**: [Full Description](./distributed-deployment.md)
 **Update**: 2025-11-25
-

@@ -41,6 +41,7 @@ import type {
     CacheLike,
     CacheLockManager,
     DistributedCacheInvalidator,
+    DistributedCacheInvalidatorStats,
     FunctionCache,
     Logger,
     MemoryCache,
@@ -65,7 +66,7 @@ import type {
 import type { SagaDefinition, SagaOrchestrator, SagaResult, SagaStats } from './saga';
 import type { SlowQueryLogConfigInput, SlowQueryLogEntry, SlowQueryLogFilter, SlowQueryLogManager, SlowQueryLogQueryOptions, SlowQueryLogRecord } from './slow-query-log';
 import type { ChangeStreamSyncManager, SyncConfig, SyncStats } from './sync';
-import type { Transaction, TransactionOptions } from './transaction';
+import type { Transaction, TransactionOptions, TransactionStats } from './transaction';
 
 export interface MonSQLizeOptions {
     type?: 'mongodb';
@@ -131,6 +132,24 @@ export interface MonSQLizeOptions {
     maxPoolsCount?: number;
     sync?: SyncConfig;
     slowQueryLog?: SlowQueryLogConfigInput;
+    /** Global transaction defaults and transaction statistics settings. @since v1.4.0 */
+    transaction?: {
+        enableRetry?: boolean;
+        maxRetries?: number;
+        retryDelay?: number;
+        retryBackoff?: number;
+        /** Default transaction timeout in milliseconds. Alias: `maxDuration`. */
+        defaultTimeout?: number;
+        /** Default transaction timeout in milliseconds. Alias: `defaultTimeout`. */
+        maxDuration?: number;
+        defaultReadConcern?: TransactionOptions['readConcern'];
+        defaultWriteConcern?: TransactionOptions['writeConcern'];
+        defaultReadPreference?: TransactionOptions['readPreference'];
+        lockMaxDuration?: number;
+        lockCleanupInterval?: number;
+        maxStatsSamples?: number;
+        distributedLock?: Record<string, unknown>;
+    };
     /** Global query timeout in milliseconds applied to all find/aggregate operations. Default: 2000. @since v1.3.0 */
     maxTimeMS?: number;
     /** Default limit for find() when caller does not specify one. Default: 10. @since v1.3.0 */
@@ -292,8 +311,12 @@ export interface MonSQLizeInstance {
     executeSaga(name: string, data: unknown): Promise<SagaResult>;
     /** List all registered Saga names. */
     listSagas(): string[];
+    /** Return aggregate transaction statistics; `null` before transaction capability initialization. */
+    getTransactionStats(): TransactionStats | null;
     /** Return Saga execution statistics (success / failure / compensation counts, etc.). */
     getSagaStats(): SagaStats;
+    /** Return distributed cache invalidator statistics; `null` when distributed invalidation is not enabled. */
+    getDistributedCacheInvalidatorStats(): DistributedCacheInvalidatorStats | null;
     /** Start ChangeStream data synchronisation. */
     startSync(): Promise<void>;
     /** Stop ChangeStream data synchronisation. */
@@ -431,7 +454,9 @@ export default class MonSQLize implements MonSQLizeInstance {
     defineSaga(definition: SagaDefinition): Promise<SagaDefinition>;
     executeSaga(name: string, data: unknown): Promise<SagaResult>;
     listSagas(): string[];
+    getTransactionStats(): TransactionStats | null;
     getSagaStats(): SagaStats;
+    getDistributedCacheInvalidatorStats(): DistributedCacheInvalidatorStats | null;
     startSync(): Promise<void>;
     stopSync(): Promise<void>;
     getSyncStats(): SyncStats | null;

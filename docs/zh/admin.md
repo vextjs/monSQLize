@@ -20,7 +20,7 @@
 ### 语法
 
 ```javascript
-const isAlive = await db._adapter.ping();
+const isAlive = await db.db().admin().ping();
 ```
 
 ### 返回值
@@ -39,10 +39,10 @@ const db = new MonSQLize({
 });
 
 await db.connect();
-const adapter = db._adapter;
+const admin = db.db().admin();
 
 // 检测连接
-const isAlive = await adapter.ping();
+const isAlive = await admin.ping();
 console.log('Database is alive:', isAlive);
 ```
 
@@ -59,7 +59,7 @@ console.log('Database is alive:', isAlive);
 async function startup() {
     await db.connect();
     
-    const isAlive = await adapter.ping();
+    const isAlive = await db.db().admin().ping();
     if (!isAlive) {
         throw new Error('Database connection failed');
     }
@@ -69,7 +69,7 @@ async function startup() {
 
 // 定期健康检查
 setInterval(async () => {
-    const isAlive = await adapter.ping();
+    const isAlive = await db.db().admin().ping();
     if (!isAlive) {
         console.error('❌ Database connection lost');
         // 触发告警或重连
@@ -86,7 +86,7 @@ setInterval(async () => {
 ### 语法（buildInfo()）
 
 ```javascript
-const info = await db._adapter.buildInfo();
+const info = await db.db().admin().buildInfo();
 ```
 
 ### 返回值（buildInfo()）
@@ -103,7 +103,7 @@ const info = await db._adapter.buildInfo();
 ### 示例（buildInfo()）
 
 ```javascript
-const info = await adapter.buildInfo();
+const info = await admin.buildInfo();
 
 console.log('MongoDB 版本:', info.version);
 console.log('版本数组:', info.versionArray);
@@ -132,7 +132,7 @@ BSON 最大大小: 16777216 bytes
 ```javascript
 // 检查版本兼容性
 async function checkMongoDBVersion() {
-    const info = await adapter.buildInfo();
+    const info = await db.db().admin().buildInfo();
     const [major, minor] = info.versionArray;
     
     // 要求 MongoDB 4.4+
@@ -147,7 +147,7 @@ async function checkMongoDBVersion() {
 
 // 根据版本启用功能
 async function initializeFeatures() {
-    const info = await adapter.buildInfo();
+    const info = await db.db().admin().buildInfo();
     const [major, minor] = info.versionArray;
     
     // MongoDB 5.0+ 支持时间序列集合
@@ -172,7 +172,7 @@ async function initializeFeatures() {
 ### 语法（serverStatus()）
 
 ```javascript
-const status = await db._adapter.serverStatus([options]);
+const status = await db.db().admin().serverStatus(options);
 ```
 
 ### 参数
@@ -216,7 +216,7 @@ const status = await db._adapter.serverStatus([options]);
 #### 基础使用
 
 ```javascript
-const status = await adapter.serverStatus();
+const status = await admin.serverStatus();
 
 console.log('=== 连接信息 ===');
 console.log('当前连接:', status.connections.current);
@@ -241,11 +241,11 @@ console.log('版本:', status.version);
 
 ```javascript
 // 使用 KB 为单位
-const statusKB = await adapter.serverStatus({ scale: 1024 });
+const statusKB = await db.db().admin().serverStatus({ scale: 1024 });
 console.log('内存使用:', statusKB.mem.resident, 'KB');
 
 // 使用 MB 为单位
-const statusMB = await adapter.serverStatus({ scale: 1048576 });
+const statusMB = await db.db().admin().serverStatus({ scale: 1048576 });
 console.log('内存使用:', statusMB.mem.resident, 'MB');
 ```
 
@@ -261,7 +261,7 @@ console.log('内存使用:', statusMB.mem.resident, 'MB');
 ```javascript
 // 监控连接数
 async function monitorConnections() {
-    const status = await adapter.serverStatus();
+    const status = await db.db().admin().serverStatus();
     const usagePercent = (status.connections.current / 
         (status.connections.current + status.connections.available)) * 100;
     
@@ -279,7 +279,7 @@ async function monitorConnections() {
 
 // 监控内存使用
 async function monitorMemory() {
-    const status = await adapter.serverStatus({ scale: 1048576 }); // MB
+    const status = await db.db().admin().serverStatus({ scale: 1048576 }); // MB
     
     if (status.mem.resident > 1024) { // 超过 1GB
         console.warn(`⚠️ 内存使用过高: ${status.mem.resident} MB`);
@@ -294,7 +294,7 @@ async function monitorMemory() {
 
 // 定期收集性能指标
 async function collectMetrics() {
-    const status = await adapter.serverStatus();
+    const status = await db.db().admin().serverStatus();
     
     // 发送到监控系统（如 Prometheus、Grafana）
     return {
@@ -327,7 +327,7 @@ async function collectMetrics() {
 ### 语法（stats()）
 
 ```javascript
-const stats = await db._adapter.stats([options]);
+const stats = await db.db().admin().stats(options);
 ```
 
 ### 参数（stats()）
@@ -359,7 +359,7 @@ const stats = await db._adapter.stats([options]);
 #### 基础使用（示例（stats()））
 
 ```javascript
-const stats = await adapter.stats();
+const stats = await admin.stats();
 
 console.log('数据库:', stats.db);
 console.log('集合数:', stats.collections);
@@ -376,7 +376,7 @@ console.log('索引大小:', stats.indexSize, 'bytes');
 
 ```javascript
 // 使用 MB 为单位
-const statsMB = await adapter.stats({ scale: 1048576 });
+const statsMB = await db.db().admin().stats({ scale: 1048576 });
 
 console.log('=== 数据库统计（MB）===');
 console.log('数据大小:', statsMB.dataSize, 'MB');
@@ -397,7 +397,7 @@ console.log('总大小:', statsMB.totalSize, 'MB');
 ```javascript
 // 容量监控
 async function monitorDatabaseCapacity() {
-    const stats = await adapter.stats({ scale: 1073741824 }); // GB
+    const stats = await db.db().admin().stats({ scale: 1073741824 }); // GB
     
     const capacityReport = {
         database: stats.db,
@@ -419,7 +419,7 @@ async function monitorDatabaseCapacity() {
 
 // 索引分析
 async function analyzeIndexes() {
-    const stats = await adapter.stats();
+    const stats = await db.db().admin().stats();
     
     // 计算索引占比
     const indexRatio = (stats.indexSize / stats.dataSize) * 100;
@@ -440,7 +440,7 @@ async function analyzeIndexes() {
 
 // 生成统计报告
 async function generateDatabaseReport() {
-    const stats = await adapter.stats({ scale: 1048576 }); // MB
+    const stats = await db.db().admin().stats({ scale: 1048576 }); // MB
     
     return {
         database: stats.db,
@@ -471,7 +471,7 @@ async function generateDatabaseReport() {
 
 - [数据库操作](./database-ops.md) - listDatabases, dropDatabase
 - [集合管理](./collection-management.md) - 集合统计和管理
-- [集合管理示例](../../examples/docs/collection-management.ts) - 当前 TypeScript 示例
+- [集合管理示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts) - 当前 TypeScript 示例
 
 ---
 

@@ -531,13 +531,13 @@ collection('products').distinct('category', { inStock: true }, {
 
 ### Q2: What is the difference between distinct and aggregate + $group? (FAQ)
 
-**distinct**：
+**distinct**:
 - Easy to use, intuitive syntax
 - Specifically used for field deduplication
 - Better performance optimization
 - Does not support complex data conversion
 
-**aggregate + $group**：
+**aggregate + $group**:
 - More powerful functions, supporting complex aggregation
 - Can calculate multiple fields at the same time
 - Support data conversion and calculation
@@ -829,6 +829,5 @@ const chineseNames = await collection('users').distinct('name', {}, {
 ## Sample code
 
 For more complete examples please refer to:
-- [distinct.ts](../../examples/docs/distinct.ts) - Current TypeScript usage examples
+- [distinct.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/distinct.ts) - Current TypeScript usage examples
 - [queries.test.ts](../../test/integration/mongodb/queries.test.ts) - Integration test coverage
-

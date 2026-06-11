@@ -7,7 +7,7 @@
 | Capabilities | Documentation Entry | Official Examples | Automated Verification |
 |------|----------|----------|------------|
 | Connection / Basic CRUD | `getting-started.md` | `examples/quick-start/basic-connect.ts` | `test/integration/mongodb/connect.test.ts` |
-| Query（find / findOne / count / distinct） | `find.md` / `findOne.md` / `count.md` / `distinct.md` | `examples/docs/find.ts` / `find-one.ts` / `count.ts` / `distinct.ts` | `test/integration/mongodb/queries.test.ts` |
+| Query (find / findOne / count / distinct) | `find.md` / `findOne.md` / `count.md` / `distinct.md` | `examples/docs/find.ts` / `find-one.ts` / `count.ts` / `distinct.ts` | `test/integration/mongodb/queries.test.ts` |
 | Paging / Chain query | `findPage.md` / `chaining-api.md` | `examples/docs/find-page.ts` / `chaining-api.ts` | `test/integration/model/model-features.test.ts` + `npm run test:examples` |
 | Aggregation / Expression | `aggregate.md` / `expression-functions.md` | `examples/docs/aggregate.ts` / `aggregate-advanced.ts` / `expression-functions.ts` | `test/unit/expression/*.test.ts` |
 | Write extension / Batch | `write-operations.md` / `updateBatch.md` / `deleteBatch.md` | `examples/docs/update.ts` / `batch-operations.ts` | `test/unit/writes/batch.test.ts` + `test/integration/mongodb/writes-batch.test.ts` |

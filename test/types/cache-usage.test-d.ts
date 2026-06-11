@@ -3,6 +3,7 @@ import MonSQLize, {
     type CachedFunction,
     type CacheLike,
     type CacheSetOptions,
+    type DistributedCacheInvalidatorStats,
     type MultiLevelInvalidationMessage,
     type RedisCacheAdapterOptions,
     type WithCacheOptions,
@@ -28,6 +29,7 @@ const runtime = new MonSQLize({
     type: 'mongodb',
     databaseName: 'typed-function-cache',
 });
+expectType<DistributedCacheInvalidatorStats | null>(runtime.getDistributedCacheInvalidatorStats());
 
 const functionCache = new MonSQLize.FunctionCache(runtime, {
     namespace: 'svc',

@@ -694,6 +694,6 @@ try {
 ## Reference
 
 - [Program Document]
-- [Sample code](../../examples/docs/lock.ts)
+- [Sample code](https://github.com/vextjs/monSQLize/blob/main/examples/docs/lock.ts)
 - [Unit Test](../../test/unit/lock/lock.test.ts)
 

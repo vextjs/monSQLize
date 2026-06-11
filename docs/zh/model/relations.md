@@ -597,7 +597,7 @@ A: 可能的原因：
 A: 
 ```javascript
 // 1. 检查关系定义
-console.log(User._relations.get('profile'));
+console.log(User.getRelations().profile);
 
 // 2. 检查外键值
 const user = await User.findOne({ _id });
@@ -747,7 +747,7 @@ interface PopulateOptions {
 ## 更多资源
 
 - [Model API 文档](../model.md)
-- [示例代码](../../../examples/docs/populate-relations.ts)
+- [示例代码](https://github.com/vextjs/monSQLize/blob/main/examples/docs/populate-relations.ts)
 - [GitHub Issues](https://github.com/vextjs/monSQLize/issues)
 
 ---

@@ -290,7 +290,7 @@ console.log('Number of scanned documents:', noIndexPlan.executionStats.totalDocs
 console.log('Execution time:', noIndexPlan.executionStats.executionTimeMillis, 'ms');
 
 // Create index
-await collection('logs')._collection.createIndex({ level: 1, service: 1 });
+await collection('logs').createIndex({ level: 1, service: 1 });
 
 console.log('\n===== There is an index query=====');
 const withIndexPlan = await collection('logs').find(
@@ -306,8 +306,8 @@ console.log('\n✅ Performance improvements:', improvement, '%');
 ### Example 4: hint forces index selection
 ```javascript
 // Create multiple indexes
-await collection('inventory')._collection.createIndex({ category: 1, quantity: 1 }, { name: 'cat_qty_idx' });
-await collection('inventory')._collection.createIndex({ warehouse: 1, quantity: 1 }, { name: 'wh_qty_idx' });
+await collection('inventory').createIndex({ category: 1, quantity: 1 }, { name: 'cat_qty_idx' });
+await collection('inventory').createIndex({ warehouse: 1, quantity: 1 }, { name: 'wh_qty_idx' });
 
 // Let the optimizer choose automatically
 console.log('===== Automatically select index=====');
@@ -700,6 +700,6 @@ const goodPipeline = [
 ## References
 
 - [MongoDB Explain Document](https://docs.mongodb.com/manual/reference/method/cursor.explain/)
-- [explain sample code ](../../examples/docs/explain.ts)
+- [explain sample code ](https://github.com/vextjs/monSQLize/blob/main/examples/docs/explain.ts)
 - [Performance Optimization Guide](./count-queue.md)
 - [Best Practices in Index Design](./create-index.md)
