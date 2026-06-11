@@ -7,8 +7,8 @@ hero:
   text: TypeScript MongoDB Engine
   tagline: MongoDB-native APIs with cache-hub L1/L2 caching, multi-pool routing, Saga workflows, and schema-ready models.
   image:
-    src: /favicon.svg
-    alt: monSQLize logo
+    src: /hero-mark.svg
+    alt: monSQLize hero mark
   actions:
     - theme: brand
       text: Quick Start

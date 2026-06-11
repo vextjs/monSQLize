@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="64 36 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">monSQLize hero mark</title>
+  <desc id="desc">A transparent monSQLize hero scene with an M database mark, query flows, cache rings, and pool nodes.</desc>
+  <defs>
+    <style>
+      .flow-line {
+        stroke-dasharray: 18 18;
+        animation: dash 14s linear infinite;
+      }
+
+      .flow-line-slow {
+        stroke-dasharray: 10 20;
+        animation: dash 20s linear infinite reverse;
+      }
+
+      .float {
+        animation: float 7s ease-in-out infinite;
+      }
+
+      .pulse {
+        animation: pulse 3.2s ease-in-out infinite;
+      }
+
+      .pulse-delay {
+        animation: pulse 3.2s ease-in-out 1.1s infinite;
+      }
+
+      .orbit {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: orbit 18s linear infinite;
+      }
+
+      @keyframes dash {
+        to {
+          stroke-dashoffset: -144;
+        }
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.62;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.08);
+        }
+      }
+
+      @keyframes orbit {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .flow-line,
+        .flow-line-slow,
+        .float,
+        .pulse,
+        .pulse-delay,
+        .orbit {
+          animation: none;
+        }
+      }
+    </style>
+
+    <linearGradient id="stroke-main" x1="186" y1="146" x2="462" y2="370" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38E8D4"/>
+      <stop offset="0.56" stop-color="#4ADE80"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="stroke-soft" x1="198" y1="166" x2="458" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#DDEBFF"/>
+    </linearGradient>
+    <linearGradient id="data-arc" x1="208" y1="330" x2="420" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#67E8F9"/>
+      <stop offset="0.72" stop-color="#A7F3D0"/>
+    </linearGradient>
+    <linearGradient id="panel-line" x1="74" y1="90" x2="556" y2="404" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5EEAD4"/>
+      <stop offset="0.58" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="surface" x1="84" y1="92" x2="568" y2="404" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#05251E" stop-opacity="0.64"/>
+      <stop offset="0.52" stop-color="#08223F" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#0D1426" stop-opacity="0.34"/>
+    </linearGradient>
+    <radialGradient id="core-glow" cx="0" cy="0" r="1" gradientTransform="matrix(230 0 0 170 334 258)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5EEAD4" stop-opacity="0.32"/>
+      <stop offset="0.52" stop-color="#0EA5E9" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#0EA5E9" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="mark-shadow" x="128" y="82" width="390" height="380" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-color="#020617" flood-opacity="0.34"/>
+    </filter>
+    <filter id="scene-shadow" x="28" y="40" width="584" height="430" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="24" stdDeviation="30" flood-color="#020617" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#scene-shadow)">
+    <ellipse cx="330" cy="262" rx="268" ry="188" fill="url(#core-glow)"/>
+    <path d="M70 352C154 290 232 388 344 336 444 290 486 196 574 168" fill="none" stroke="url(#panel-line)" stroke-width="2.5" stroke-linecap="round" opacity="0.18"/>
+    <path d="M62 174C170 86 318 132 548 74" fill="none" stroke="#F8FAFC" stroke-width="2.5" stroke-linecap="round" opacity="0.12"/>
+    <path class="flow-line" d="M72 318C156 266 226 326 318 294 418 260 464 178 566 150" fill="none" stroke="url(#panel-line)" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+    <path class="flow-line-slow" d="M94 396C184 350 232 424 334 392 418 366 468 320 552 320" fill="none" stroke="#A7F3D0" stroke-width="3" stroke-linecap="round" opacity="0.36"/>
+  </g>
+
+  <g opacity="0.84">
+    <rect x="64" y="118" width="150" height="112" rx="18" fill="url(#surface)" stroke="#5EEAD4" stroke-opacity="0.18"/>
+    <path d="M92 150h74M92 178h96M92 206h58" stroke="#CFFAFE" stroke-width="7" stroke-linecap="round" opacity="0.32"/>
+    <circle class="pulse" cx="184" cy="150" r="8" fill="#4ADE80"/>
+
+    <rect x="470" y="102" width="104" height="154" rx="20" fill="url(#surface)" stroke="#67E8F9" stroke-opacity="0.18"/>
+    <ellipse cx="522" cy="150" rx="34" ry="14" fill="none" stroke="#A7F3D0" stroke-width="6" opacity="0.66"/>
+    <path d="M488 150v58c0 8 15 15 34 15s34-7 34-15v-58" fill="none" stroke="#A7F3D0" stroke-width="6" opacity="0.4"/>
+    <path class="flow-line-slow" d="M502 186c14 8 27 8 42 0" fill="none" stroke="#67E8F9" stroke-width="4" stroke-linecap="round" opacity="0.58"/>
+
+    <rect x="122" y="376" width="404" height="62" rx="20" fill="url(#surface)" stroke="#5EEAD4" stroke-opacity="0.16"/>
+    <path d="M168 407h80M296 407h72M416 407h56" stroke="#E0F2FE" stroke-width="7" stroke-linecap="round" opacity="0.25"/>
+    <circle class="pulse-delay" cx="146" cy="407" r="9" fill="#38E8D4"/>
+    <circle class="pulse" cx="274" cy="407" r="9" fill="#4ADE80"/>
+    <circle class="pulse-delay" cx="396" cy="407" r="9" fill="#A78BFA"/>
+    <circle class="pulse" cx="496" cy="407" r="9" fill="#67E8F9"/>
+  </g>
+
+  <g class="orbit" opacity="0.5">
+    <ellipse cx="324" cy="260" rx="178" ry="106" fill="none" stroke="#5EEAD4" stroke-width="2" stroke-dasharray="4 16"/>
+    <circle cx="502" cy="260" r="7" fill="#67E8F9"/>
+  </g>
+
+  <g class="float" filter="url(#mark-shadow)">
+    <path d="M216 328V218c0-29 23-52 52-52 25 0 44 15 55 36 13-22 34-36 62-36 36 0 61 26 61 63v99" fill="none" stroke="#04111F" stroke-width="70" stroke-linecap="round" stroke-linejoin="round" opacity="0.36"/>
+    <path d="M216 328V218c0-29 23-52 52-52 25 0 44 15 55 36 13-22 34-36 62-36 36 0 61 26 61 63v99" fill="none" stroke="url(#stroke-soft)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M216 328V218c0-29 23-52 52-52 25 0 44 15 55 36 13-22 34-36 62-36 36 0 61 26 61 63v99" fill="none" stroke="url(#stroke-main)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <g class="float" opacity="0.96">
+    <ellipse cx="324" cy="350" rx="112" ry="40" fill="#06101F" opacity="0.2"/>
+    <path d="M228 352c0 25 43 45 96 45s96-20 96-45" fill="none" stroke="url(#data-arc)" stroke-width="11" stroke-linecap="round"/>
+    <path d="M250 384c17 11 43 18 74 18s57-7 74-18" fill="none" stroke="#D1FAE5" stroke-width="7" stroke-linecap="round" opacity="0.66"/>
+  </g>
+
+  <g>
+    <circle class="pulse" cx="438" cy="144" r="16" fill="#4ADE80"/>
+    <circle class="pulse-delay" cx="478" cy="198" r="10" fill="#67E8F9"/>
+    <circle class="pulse" cx="418" cy="224" r="8" fill="#C4B5FD"/>
+    <path d="M438 144c23 12 37 31 40 54M478 198c-17 16-37 24-60 26" fill="none" stroke="#E0FBFF" stroke-width="5" stroke-linecap="round" opacity="0.78"/>
+  </g>
+</svg>

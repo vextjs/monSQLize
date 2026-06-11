@@ -7,6 +7,8 @@ TypeScript-native MongoDB ODM and enhancement layer with v1-compatible APIs, mul
 [![MongoDB](https://img.shields.io/badge/MongoDB-6.x%20%2F%207.x-green.svg)](https://www.mongodb.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-brightgreen)](https://nodejs.org/)
 
+Documentation: [English](https://vextjs.github.io/monSQLize/) · [简体中文](https://vextjs.github.io/monSQLize/zh/)
+
 ```bash
 npm install monsqlize
 ```
@@ -443,6 +445,7 @@ See the current support and verification documents:
 
 Current TypeScript documentation and examples are the source of truth for the v2 package:
 
+- Complete docs: [English](https://vextjs.github.io/monSQLize/) · [简体中文](https://vextjs.github.io/monSQLize/zh/)
 - `docs/en/**` - default English documentation.
 - `docs/zh/**` - Simplified Chinese documentation.
 - `docs/en/recipes.md` / `docs/zh/recipes.md` - shortest copy-ready paths for common setup scenarios.

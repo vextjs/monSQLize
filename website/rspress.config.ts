@@ -91,6 +91,88 @@ const navSource: NavSource[] = [
   }
 ];
 
+const englishFooterMessage = `
+<div class="msq-footer msq-footer--en" role="presentation">
+  <section class="msq-footer__brand" aria-label="monSQLize">
+    <span class="msq-footer__mark" aria-hidden="true"></span>
+    <div>
+      <strong>monSQLize</strong>
+      <span>MongoDB-native TypeScript APIs with cache, multi-pool routing, Saga workflows, and optional models.</span>
+    </div>
+  </section>
+  <nav class="msq-footer__grid" aria-label="monSQLize footer">
+    <div>
+      <h2>Docs</h2>
+      <a href="api-index.html">API Reference</a>
+      <a href="examples.html">Examples</a>
+      <a href="model.html">Model</a>
+      <a href="capability-index.html">Advanced</a>
+    </div>
+    <div>
+      <h2>Ecosystem</h2>
+      <a href="https://github.com/vextjs" target="_blank" rel="noreferrer">VextJS Organization</a>
+      <a href="https://vextjs.github.io/vext/" target="_blank" rel="noreferrer">VextJS</a>
+      <a href="https://vextjs.github.io/schema-dsl/" target="_blank" rel="noreferrer">schema-dsl</a>
+      <a href="https://vextjs.github.io/flex-rate-limit/" target="_blank" rel="noreferrer">flex-rate-limit</a>
+    </div>
+    <div>
+      <h2>Project</h2>
+      <a href="https://github.com/vextjs/monSQLize" target="_blank" rel="noreferrer">GitHub</a>
+      <a href="https://github.com/vextjs/monSQLize/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">Changelog</a>
+      <a href="https://github.com/vextjs/monSQLize/releases" target="_blank" rel="noreferrer">Releases</a>
+      <a href="https://github.com/vextjs/monSQLize/issues" target="_blank" rel="noreferrer">Issues</a>
+    </div>
+    <div>
+      <h2>Runtime</h2>
+      <span>Apache-2.0</span>
+      <span>Node.js 18+</span>
+      <span>MongoDB Driver 6.x</span>
+      <span>TypeScript ready</span>
+    </div>
+  </nav>
+</div>`;
+
+const chineseFooterMessage = `
+<div class="msq-footer msq-footer--zh" role="presentation">
+  <section class="msq-footer__brand" aria-label="monSQLize">
+    <span class="msq-footer__mark" aria-hidden="true"></span>
+    <div>
+      <strong>monSQLize</strong>
+      <span>保留 MongoDB 原生体验，整合缓存、多连接池路由、Saga 编排与可选 Model 层。</span>
+    </div>
+  </section>
+  <nav class="msq-footer__grid" aria-label="monSQLize 页脚">
+    <div>
+      <h2>文档</h2>
+      <a href="api-index.html">API 参考</a>
+      <a href="examples.html">示例</a>
+      <a href="model.html">Model</a>
+      <a href="capability-index.html">高级能力</a>
+    </div>
+    <div>
+      <h2>生态</h2>
+      <a href="https://github.com/vextjs" target="_blank" rel="noreferrer">VextJS 组织</a>
+      <a href="https://vextjs.github.io/vext/" target="_blank" rel="noreferrer">VextJS</a>
+      <a href="https://vextjs.github.io/schema-dsl/" target="_blank" rel="noreferrer">schema-dsl</a>
+      <a href="https://vextjs.github.io/flex-rate-limit/" target="_blank" rel="noreferrer">flex-rate-limit</a>
+    </div>
+    <div>
+      <h2>项目</h2>
+      <a href="https://github.com/vextjs/monSQLize" target="_blank" rel="noreferrer">GitHub</a>
+      <a href="https://github.com/vextjs/monSQLize/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">更新日志</a>
+      <a href="https://github.com/vextjs/monSQLize/releases" target="_blank" rel="noreferrer">Releases</a>
+      <a href="https://github.com/vextjs/monSQLize/issues" target="_blank" rel="noreferrer">Issues</a>
+    </div>
+    <div>
+      <h2>运行基线</h2>
+      <span>Apache-2.0</span>
+      <span>Node.js 18+</span>
+      <span>MongoDB Driver 6.x</span>
+      <span>TypeScript ready</span>
+    </div>
+  </nav>
+</div>`;
+
 const sidebarSource: SidebarGroupSource[] = [
   {
     en: 'Getting Started',
@@ -471,6 +553,9 @@ export default defineConfig({
         nav: englishNav,
         sidebar: {
           '/': englishSidebar
+        },
+        footer: {
+          message: englishFooterMessage
         }
       },
       {
@@ -481,6 +566,9 @@ export default defineConfig({
         nav: chineseNav,
         sidebar: {
           '/zh/': chineseSidebar
+        },
+        footer: {
+          message: chineseFooterMessage
         }
       }
     ],
@@ -496,7 +584,7 @@ export default defineConfig({
       }
     ],
     footer: {
-      message: 'Released under the Apache License 2.0.'
+      message: `${englishFooterMessage}\n${chineseFooterMessage}`
     }
   }
 });
