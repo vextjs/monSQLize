@@ -150,6 +150,20 @@ describe('PoolSelector — extended strategy coverage', () => {
         assert.equal(result, 'reporting');
     });
 
+    it('auto strategy lets explicit preference override read defaults', () => {
+        const selector = new MonSQLize.PoolSelector({ strategy: 'auto' });
+        const pools = [
+            { name: 'secondary', role: 'secondary', weight: 1, tags: ['read'] },
+            { name: 'analytics', role: 'analytics', weight: 1, tags: ['reporting'] },
+            { name: 'primary', role: 'primary', weight: 1, tags: ['write'] },
+        ];
+        const result = selector.select(pools, {
+            operation: 'read',
+            poolPreference: { role: 'analytics' },
+        });
+        assert.equal(result, 'analytics');
+    });
+
     it('auto strategy selects by poolPreference role', () => {
         const selector = new MonSQLize.PoolSelector({ strategy: 'auto' });
         const pools = [

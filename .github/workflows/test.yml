@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check docs example matrix
+        run: npm run check:docs-examples
+
       - name: Type check
         run: npm run type-check
 

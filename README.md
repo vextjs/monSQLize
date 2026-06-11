@@ -478,11 +478,14 @@ Release preflight runs linting, type checks, size guards, runtime checks, compat
 Optional commands:
 
 ```bash
+npm run check:docs-examples
 npm run test:examples
 npm run test:coverage
 npm run test:server-matrix
 npm run test:real-env:private
 ```
+
+`check:docs-examples` verifies the 97/97 bilingual documentation matrix, runnable-example runner parity, shared-example targets, doc-check targets, and user-facing path text.
 
 `test:examples`, `test:server-matrix`, and `config.useMemoryServer` use a fixed `mongodb-memory-server` policy: MongoDB `7.0.14` by default, binaries cached under `.cache/mongodb-memory-server/binaries`, and temporary data paths created under `.cache/mongodb-memory-server/db` with forced cleanup for project-managed paths. Stale managed data paths whose owner PID is no longer alive are pruned before new memory-server launches. Override with `MONSQLIZE_MEMORY_MONGO_BINARY_VERSION`, `MONSQLIZE_REPLSET_BINARY_VERSION`, `MONGOMS_DOWNLOAD_DIR`, or `MONSQLIZE_MEMORY_SERVER_DB_DIR` when needed.
 

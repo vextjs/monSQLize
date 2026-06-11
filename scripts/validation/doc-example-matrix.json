@@ -1,0 +1,685 @@
+{
+  "schemaVersion": 1,
+  "description": "Document verification matrix for the current 97 English documentation slugs. Chinese docs inherit coverage by slug parity.",
+  "entries": [
+    {
+      "doc": "README",
+      "kind": "doc-check",
+      "target": "docs/en/README.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "admin",
+      "kind": "shared-example",
+      "target": "examples/docs/collection-management.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "aggregate",
+      "kind": "example",
+      "target": "examples/docs/aggregate.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "api-index",
+      "kind": "doc-check",
+      "target": "docs/en/api-index.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "bookmarks",
+      "kind": "example",
+      "target": "examples/docs/bookmarks.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "business-lock",
+      "kind": "example",
+      "target": "examples/docs/lock.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "cache",
+      "kind": "example",
+      "target": "examples/docs/cache-multilevel.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "cache-and-function-cache",
+      "kind": "example",
+      "target": "examples/cache/with-cache.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "cache-hub-migration",
+      "kind": "shared-example",
+      "target": "examples/docs/cache-multilevel.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "capability-index",
+      "kind": "doc-check",
+      "target": "docs/en/capability-index.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "capability-traceability",
+      "kind": "doc-check",
+      "target": "docs/en/capability-traceability.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "chaining-api",
+      "kind": "example",
+      "target": "examples/docs/chaining-api.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "chaining-methods",
+      "kind": "shared-example",
+      "target": "examples/docs/chaining-api.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "collection-management",
+      "kind": "example",
+      "target": "examples/docs/collection-management.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "connection",
+      "kind": "shared-example",
+      "target": "examples/quick-start/basic-connect.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "count",
+      "kind": "example",
+      "target": "examples/docs/count.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "count-queue",
+      "kind": "example",
+      "target": "examples/docs/count-queue.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "create-index",
+      "kind": "shared-example",
+      "target": "examples/docs/index-management.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "create-indexes",
+      "kind": "shared-example",
+      "target": "examples/docs/index-management.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "database-ops",
+      "kind": "shared-example",
+      "target": "examples/docs/collection-management.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "delete-many",
+      "kind": "example",
+      "target": "examples/docs/delete-many.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "delete-one",
+      "kind": "example",
+      "target": "examples/docs/delete.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "deleteBatch",
+      "kind": "example",
+      "target": "examples/docs/delete.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "distinct",
+      "kind": "example",
+      "target": "examples/docs/distinct.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "distributed-deployment",
+      "kind": "doc-check",
+      "target": "docs/en/distributed-deployment.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "distributed-deployment-quickref",
+      "kind": "doc-check",
+      "target": "docs/en/distributed-deployment-quickref.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "drop-index",
+      "kind": "shared-example",
+      "target": "examples/docs/index-management.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "error-codes",
+      "kind": "doc-check",
+      "target": "docs/en/error-codes.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "esm-support",
+      "kind": "doc-check",
+      "target": "docs/en/esm-support.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "events",
+      "kind": "example",
+      "target": "examples/docs/events.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "examples",
+      "kind": "doc-check",
+      "target": "docs/en/examples.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "explain",
+      "kind": "example",
+      "target": "examples/docs/explain.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "expression-functions",
+      "kind": "example",
+      "target": "examples/docs/expression-functions.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "failure-recovery-examples",
+      "kind": "example",
+      "target": "examples/docs/pool-fallback.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "file-dependency-governance",
+      "kind": "doc-check",
+      "target": "docs/en/file-dependency-governance.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "find",
+      "kind": "example",
+      "target": "examples/docs/find.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "find-and-count",
+      "kind": "example",
+      "target": "examples/docs/find-and-count.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "find-by-ids",
+      "kind": "example",
+      "target": "examples/docs/find-by-ids.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "find-one-and-delete",
+      "kind": "example",
+      "target": "examples/docs/delete.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "find-one-and-replace",
+      "kind": "example",
+      "target": "examples/docs/upsert.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "find-one-and-update",
+      "kind": "example",
+      "target": "examples/docs/upsert.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "find-one-by-id",
+      "kind": "example",
+      "target": "examples/docs/find-one-by-id.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "findOne",
+      "kind": "example",
+      "target": "examples/docs/find-one.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "findOneAnd-return-value-unified",
+      "kind": "doc-check",
+      "target": "docs/en/findOneAnd-return-value-unified.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "findPage",
+      "kind": "example",
+      "target": "examples/docs/find-page.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "function-cache",
+      "kind": "example",
+      "target": "examples/docs/function-cache.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "getting-started",
+      "kind": "example",
+      "target": "examples/quick-start/basic-connect.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "hooks",
+      "kind": "example",
+      "target": "examples/docs/hooks.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "increment-one",
+      "kind": "example",
+      "target": "examples/docs/update.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "index",
+      "kind": "doc-check",
+      "target": "docs/en/index.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "insert-many",
+      "kind": "example",
+      "target": "examples/docs/insert-many.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "insert-one",
+      "kind": "example",
+      "target": "examples/docs/insert.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "insertBatch",
+      "kind": "example",
+      "target": "examples/docs/insert.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "list-indexes",
+      "kind": "shared-example",
+      "target": "examples/docs/index-management.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "model",
+      "kind": "example",
+      "target": "examples/docs/model.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "model/nested-populate",
+      "kind": "example",
+      "target": "examples/docs/nested-populate.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "model/relations",
+      "kind": "shared-example",
+      "target": "examples/docs/populate-relations.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "model/relations-quickstart",
+      "kind": "shared-example",
+      "target": "examples/docs/populate-relations.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "mongodb-driver-compatibility",
+      "kind": "doc-check",
+      "target": "docs/en/mongodb-driver-compatibility.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "mongodb-native-vs-extensions",
+      "kind": "doc-check",
+      "target": "docs/en/mongodb-native-vs-extensions.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "multi-pool",
+      "kind": "example",
+      "target": "examples/docs/pool.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "multi-pool-health-check",
+      "kind": "example",
+      "target": "examples/docs/multi-pool-health-check.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "objectid-auto-convert",
+      "kind": "example",
+      "target": "examples/docs/objectid.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "objectid-conversion-scope",
+      "kind": "shared-example",
+      "target": "examples/docs/objectid.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "objectid-cross-version",
+      "kind": "shared-example",
+      "target": "examples/docs/objectid.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "objectid-cross-version-faq",
+      "kind": "shared-example",
+      "target": "examples/docs/objectid.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "objectid-logging-optimization",
+      "kind": "shared-example",
+      "target": "examples/docs/objectid.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "pool-chain-api",
+      "kind": "example",
+      "target": "examples/docs/pool-chain-api.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "populate",
+      "kind": "example",
+      "target": "examples/docs/populate-relations.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "quick-upsert",
+      "kind": "example",
+      "target": "examples/docs/quick-upsert.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "readPreference",
+      "kind": "shared-example",
+      "target": "examples/docs/pool.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "recipes",
+      "kind": "doc-check",
+      "target": "docs/en/recipes.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "relations",
+      "kind": "example",
+      "target": "examples/docs/relations.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "release-preflight",
+      "kind": "doc-check",
+      "target": "docs/en/release-preflight.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "replace-one",
+      "kind": "example",
+      "target": "examples/docs/upsert.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "roadmap-boundaries",
+      "kind": "doc-check",
+      "target": "docs/en/roadmap-boundaries.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "runtime-architecture",
+      "kind": "doc-check",
+      "target": "docs/en/runtime-architecture.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "saga-advanced",
+      "kind": "example",
+      "target": "examples/docs/saga-advanced.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "saga-transaction",
+      "kind": "example",
+      "target": "examples/docs/saga.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "slow-query-log",
+      "kind": "example",
+      "target": "examples/docs/slow-query-log.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "ssh-tunnel",
+      "kind": "doc-check",
+      "target": "docs/en/ssh-tunnel.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "support-matrix",
+      "kind": "doc-check",
+      "target": "docs/en/support-matrix.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "sync-backup",
+      "kind": "example",
+      "target": "examples/docs/sync.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "transaction",
+      "kind": "example",
+      "target": "examples/docs/transaction.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "transaction-optimizations",
+      "kind": "example",
+      "target": "examples/docs/transaction-optimizations.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "update-aggregation",
+      "kind": "example",
+      "target": "examples/docs/update-aggregation.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "update-many",
+      "kind": "example",
+      "target": "examples/docs/update.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "update-one",
+      "kind": "example",
+      "target": "examples/docs/update-one.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "update-operations",
+      "kind": "shared-example",
+      "target": "examples/docs/update.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "updateBatch",
+      "kind": "example",
+      "target": "examples/docs/update.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "upsert-guide",
+      "kind": "shared-example",
+      "target": "examples/docs/upsert.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "upsert-one",
+      "kind": "example",
+      "target": "examples/docs/upsert-one.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "utilities",
+      "kind": "doc-check",
+      "target": "docs/en/utilities.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "validation",
+      "kind": "shared-example",
+      "target": "examples/docs/collection-management.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "verification-entrypoints",
+      "kind": "doc-check",
+      "target": "docs/en/verification-entrypoints.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "watch",
+      "kind": "example",
+      "target": "examples/docs/watch.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "write-operations",
+      "kind": "example",
+      "target": "examples/docs/batch-operations.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    }
+  ]
+}

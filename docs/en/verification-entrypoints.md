@@ -15,6 +15,7 @@
 | Command | Description |
 |------|------|
 | `npm test` | Default unified access control: smoke + compatibility + unit + integration; no longer implicitly run legacy compat runner or migration-specific runner |
+| `npm run check:docs-examples` | Documentation/example parity gate: verifies the 97/97 bilingual docs matrix, runner coverage, shared-example targets, doc-check targets, and visible path text |
 | `npm run test:coverage` | Independent coverage management access control: run the default test through `c8`, and the lines / statements / functions / branches of the published CJS runtime are required to be above 90% |
 | `npm run test:refactor-guard` | Hot spot reconstruction triple regression: exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server default matrix (Node/Driver/MongoDB server) |
@@ -34,6 +35,8 @@ npm run verify:fast
 
 Note: Currently `verify:fast` no longer has a dedicated runner for serial migration; it covers lint, type-check, size strict, runtime smoke, compatibility, runtime/model/sync refactor guard and cache refactor guard. The full unit/integration default gate is overridden by `npm test`, and release preflight continues `npm test` after `verify:fast`.
 
+`verify:fast` includes `npm run check:docs-examples`, so documentation/example drift is caught before regular type and runtime checks.
+
 Suitable for:
 
 - Hotspot file splitting
@@ -52,6 +55,8 @@ Suitable for:
 - Linked updates of documents and examples
 - Behavior changes or cross-module refactoring
 - Return of the complete repository before release
+
+`verify:full` also includes `npm run test:examples`, so runnable examples are compiled and executed after the matrix gate has checked 97/97 document coverage.
 
 
 ## 3. Private real environment verification
@@ -76,7 +81,7 @@ Required environment variables:
 
 ## Default boundary
 
-- **Default closed loop**: `npm test` / `verify:fast` / `verify:full` / `test:server-matrix`
+- **Default closed loop**: `npm test` / `check:docs-examples` / `verify:fast` / `verify:full` / `test:server-matrix`
 - **Coverage closed loop**: `npm run test:coverage` is executed independently; P-04 has been completed and retained as an independent coverage gate, and `verify:full` is not blocked
 - **Explicit opt-in**: `test:real-env:private`
 - **Public release pre-access control**: `release:preflight`

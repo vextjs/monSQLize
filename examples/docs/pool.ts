@@ -73,13 +73,15 @@ async function main() {
     console.log('\n=== Auto-strategy pool selection ===');
     // selectPool(operation, options?) — first arg is 'read' | 'write'
     const writePool = poolManager.selectPool('write');
-    console.log(`  Write => selected: ${writePool}`);
+    console.log(`  Write => selected: ${writePool.name}`);
 
     const readPool = poolManager.selectPool('read');
-    console.log(`  Read  => selected: ${readPool}`);
+    console.log(`  Read  => selected: ${readPool.name}`);
 
-    const analyticsPool = poolManager.selectPool('read', { tags: ['analytics'] });
-    console.log(`  Analytics read => selected: ${analyticsPool}`);
+    const analyticsPool = poolManager.selectPool('read', {
+        poolPreference: { role: 'analytics' },
+    });
+    console.log(`  Analytics read => selected: ${analyticsPool.name}`);
 
     // ── Direct pool access via MonSQLize collection ────────────────────────────
     console.log('\n=== Direct query through pool client ===');

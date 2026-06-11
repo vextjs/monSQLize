@@ -15,7 +15,7 @@
 
 ## Recommended Reading Order
 
-1. Package entry: [`../../README.md`](../../README.md)
+1. Package entry: [repository README](../../README.md)
 2. Quick start: [`getting-started.md`](./getting-started.md)
 3. Recipes: [`recipes.md`](./recipes.md)
 4. Cache guide: [`cache-and-function-cache.md`](./cache-and-function-cache.md)

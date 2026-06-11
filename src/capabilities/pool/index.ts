@@ -264,10 +264,11 @@ export class ConnectionPoolManager {
         }
 
         // select pool name via selector
+        const poolPreference = options.poolPreference ?? (options.tags?.length ? { tags: options.tags } : undefined);
         const poolName = this._selector.select(candidates, {
             operation,
             stats: this._stats.getAllStats(),
-            poolPreference: options.poolPreference,
+            poolPreference,
         });
 
         const poolData = this.pools.get(poolName);
@@ -409,10 +410,12 @@ export class ConnectionPoolManager {
     _getHealthyPools(): PoolConfig[] {
         const result: PoolConfig[] = [];
         for (const [name, config] of this._configs.entries()) {
-            const status = this._healthChecker.getStatus(name);
-            if (!status || status.status !== 'down') {
-                result.push(config);
+            const compatStatus = this._healthChecker.getStatus(name);
+            const publicStatus = this.healthStatus.get(name);
+            if (compatStatus?.status === 'down' || publicStatus?.status === 'down') {
+                continue;
             }
+            result.push(config);
         }
         return result;
     }

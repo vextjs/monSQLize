@@ -138,6 +138,18 @@ describe('pool behavior', () => {
             assert.equal(result.name, 'node2');
         });
 
+        it('auto strategy forwards direct tags option as pool preference', async () => {
+            const mgr = makeManager({ poolStrategy: 'auto' });
+            await mgr.addPool({ name: 'primary', uri: 'mongodb://h1', role: 'primary', tags: ['write'] });
+            await mgr.addPool({ name: 'secondary', uri: 'mongodb://h2', role: 'secondary', tags: ['read'] });
+            await mgr.addPool({ name: 'analytics', uri: 'mongodb://h3', role: 'analytics', tags: ['reporting'] });
+
+            const result = mgr.selectPool('read', { tags: ['reporting'] });
+            await mgr.close();
+
+            assert.equal(result.name, 'analytics');
+        });
+
         it('throws when manually selecting a non-existent pool', async () => {
             const mgr = makeManager();
             await mgr.addPool({ name: 'only', uri: 'mongodb://h1', role: 'primary' });
@@ -243,6 +255,39 @@ describe('pool behavior', () => {
             await new Promise((r) => setTimeout(r, 50));
             status = mgr.getHealthStatus();
             assert.ok(['degraded', 'down'].includes(status.hc2.status));
+
+            mgr.stopHealthCheck();
+            await mgr.close();
+        });
+
+        it('selectPool() respects public health status from startHealthCheck()', async () => {
+            let analyticsHealthy = true;
+            const mgr = new MonSQLize.ConnectionPoolManager({
+                clientFactory: (cfg: { name: string }) => createFakeClient(cfg.name)(),
+                healthCheckFn: (poolName: string) => Promise.resolve(poolName !== 'analytics' || analyticsHealthy),
+                poolStrategy: 'auto',
+            });
+
+            await mgr.addPool({
+                name: 'primary',
+                uri: 'mongodb://primary',
+                role: 'primary',
+                healthCheck: { enabled: true, interval: 10, retries: 1 },
+            });
+            await mgr.addPool({
+                name: 'analytics',
+                uri: 'mongodb://analytics',
+                role: 'analytics',
+                healthCheck: { enabled: true, interval: 10, retries: 1 },
+            });
+
+            mgr.startHealthCheck();
+            await new Promise((r) => setTimeout(r, 30));
+            analyticsHealthy = false;
+            await new Promise((r) => setTimeout(r, 40));
+
+            assert.equal(mgr.getHealthStatus().analytics.status, 'down');
+            assert.equal(mgr.selectPool('read').name, 'primary');
 
             mgr.stopHealthCheck();
             await mgr.close();

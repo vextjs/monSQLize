@@ -44,14 +44,14 @@ type NavSource = NavLinkSource | NavMenuSource;
 
 const navSource: NavSource[] = [
   {
-    en: 'Guide',
-    zh: '指南',
-    link: '/getting-started'
-  },
-  {
     en: 'API Reference',
     zh: 'API 参考',
     link: '/api-index'
+  },
+  {
+    en: 'Examples',
+    zh: '示例',
+    link: '/examples'
   },
   {
     en: 'Model',

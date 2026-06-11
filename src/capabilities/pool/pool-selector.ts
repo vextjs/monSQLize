@@ -90,7 +90,10 @@ export class PoolSelector {
         const { operation, poolPreference } = context;
         let candidates = pools;
 
-        if (operation === 'read') {
+        const preferred = this.filterByPreference(pools, poolPreference);
+        if (preferred.length > 0) {
+            candidates = preferred;
+        } else if (operation === 'read') {
             const secondaries = pools.filter((pool) => pool.role === 'secondary');
             if (secondaries.length > 0) {
                 candidates = secondaries;
@@ -102,10 +105,24 @@ export class PoolSelector {
             }
         }
 
+        if (candidates.length === 1) {
+            return candidates[0].name;
+        }
+        return this.selectByWeighted(candidates);
+    }
+
+    private filterByPreference(
+        pools: PoolSelectorPoolConfig[],
+        poolPreference: PoolSelectorContext['poolPreference'],
+    ): PoolSelectorPoolConfig[] {
+        let candidates = pools;
+        let applied = false;
+
         if (poolPreference?.role) {
             const filteredByRole = candidates.filter((pool) => pool.role === poolPreference.role);
             if (filteredByRole.length > 0) {
                 candidates = filteredByRole;
+                applied = true;
             }
         }
 
@@ -121,13 +138,11 @@ export class PoolSelector {
             });
             if (filteredByTags.length > 0) {
                 candidates = filteredByTags;
+                applied = true;
             }
         }
 
-        if (candidates.length === 1) {
-            return candidates[0].name;
-        }
-        return this.selectByWeighted(candidates);
+        return applied ? candidates : [];
     }
 
     private selectByRoundRobin(pools: PoolSelectorPoolConfig[], context: PoolSelectorContext): string {

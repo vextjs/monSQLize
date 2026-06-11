@@ -1,10 +1,10 @@
 /**
- * Pool fallback / recovery example.
- * See: docs/failure-recovery-examples.md
+ * Multi-pool health check example with a fake client factory.
+ * See: docs/multi-pool-health-check.md
  *
  * Run:
  *   npm run build && tsc -p tsconfig.examples.json
- *   node .generated/examples-dist/examples/docs/pool-fallback.js
+ *   node .generated/examples-dist/examples/docs/multi-pool-health-check.js
  */
 import MonSQLize from 'monsqlize';
 
@@ -50,7 +50,7 @@ async function waitFor(check: () => boolean, message: string, timeoutMs = 3000, 
 }
 
 async function main() {
-    let analyticsDown = false;
+    let analyticsHealthy = true;
     const manager = new MonSQLize.ConnectionPoolManager({
         poolStrategy: 'auto',
         poolFallback: {
@@ -60,7 +60,7 @@ async function main() {
             maxRetries: 1,
         },
         clientFactory: (config) => Promise.resolve(createFakeClient(config.name)),
-        healthCheckFn: (poolName) => Promise.resolve(!(analyticsDown && poolName === 'analytics')),
+        healthCheckFn: (poolName) => Promise.resolve(poolName !== 'analytics' || analyticsHealthy),
     } as ExamplePoolManagerOptions);
 
     try {
@@ -79,30 +79,39 @@ async function main() {
         });
 
         manager.startHealthCheck();
-
-        console.log('=== Pool fallback / recovery ===');
-        console.log(`  Initial read pool: ${manager.selectPool('read').name}`);
-
-        analyticsDown = true;
-        await waitFor(
-            () => manager.getHealthStatus().analytics?.status === 'down',
-            'analytics pool did not become unhealthy in time',
-        );
-        console.log(`  Read pool after analytics down: ${manager.selectPool('read').name}`);
-
-        analyticsDown = false;
         await waitFor(
             () => manager.getHealthStatus().analytics?.status === 'up',
-            'analytics pool did not recover in time',
+            'analytics pool did not start healthy',
         );
-        console.log(`  Read pool after recovery: ${manager.selectPool('read').name}`);
-        console.log('✅ Pool fallback example complete');
+
+        console.log('Initial analytics status:', manager.getHealthStatus().analytics.status);
+
+        analyticsHealthy = false;
+        await waitFor(
+            () => manager.getHealthStatus().analytics?.status === 'down',
+            'analytics pool did not go down',
+        );
+        console.log('Analytics status after failure:', manager.getHealthStatus().analytics.status);
+        console.log('Selected read pool after failure:', manager.selectPool('read').name);
+
+        analyticsHealthy = true;
+        await waitFor(
+            () => manager.getHealthStatus().analytics?.status === 'up',
+            'analytics pool did not recover',
+        );
+        const recovered = manager.selectPool('read', { pool: 'analytics' });
+        const stats = manager.getPoolStats();
+
+        console.log('Analytics status after recovery:', manager.getHealthStatus().analytics.status);
+        console.log('Manual analytics selection:', recovered.name);
+        console.log('Analytics total requests:', stats.analytics.totalRequests);
+        console.log('Pool health check example complete');
     } finally {
         await manager.close();
     }
 }
 
-main().catch((error) => {
-    console.error('❌ Example failed:', error);
+main().catch((err) => {
+    console.error('Example failed:', err);
     process.exit(1);
 });

@@ -15,6 +15,7 @@
 | 命令 | 说明 |
 |------|------|
 | `npm test` | 默认统一门禁：smoke + compatibility + unit + integration；不再隐式跑 legacy compat runner 或迁移专用 runner |
+| `npm run check:docs-examples` | 文档 / 示例一致性门禁：校验 97/97 双语文档矩阵、runner 覆盖、共享示例目标、doc-check 目标和用户可见路径文本 |
 | `npm run test:coverage` | 独立覆盖率治理门禁：通过 `c8` 运行默认测试，published CJS runtime 的 lines / statements / functions / branches 均要求 90% 以上 |
 | `npm run test:refactor-guard` | 热点重构三联回归：exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server 默认矩阵（Node / Driver / MongoDB server） |
@@ -33,6 +34,8 @@ npm run verify:fast
 
 说明：当前 `verify:fast` 不再串联迁移专用 runner；它覆盖 lint、type-check、size strict、runtime smoke、compatibility、runtime/model/sync refactor guard 与 cache refactor guard。完整 unit / integration 默认门禁由 `npm test` 覆盖，发布预检会在 `verify:fast` 后继续执行 `npm test`。
 
+`verify:fast` 已包含 `npm run check:docs-examples`，因此文档 / 示例漂移会在常规类型与运行时检查前被发现。
+
 适合：
 
 - 热点文件拆分
@@ -50,6 +53,8 @@ npm run verify:full
 - 文档和示例联动更新
 - 行为变更或跨模块重构
 - 发版前的完整仓库回归
+
+`verify:full` 同时包含 `npm run test:examples`，会在矩阵门禁确认 97/97 文档覆盖后编译并执行全部 runnable examples。
 
 ### 3. 私有真实环境验证
 
@@ -73,7 +78,7 @@ npm run test:real-env:private
 
 ## 默认边界
 
-- **默认闭环**：`npm test` / `verify:fast` / `verify:full` / `test:server-matrix`
+- **默认闭环**：`npm test` / `check:docs-examples` / `verify:fast` / `verify:full` / `test:server-matrix`
 - **覆盖率闭环**：`npm run test:coverage` 独立执行；P-04 已完成并保留为独立 coverage gate，不阻断 `verify:full`
 - **显式 opt-in**：`test:real-env:private`
 - **公开发布前门禁**：`release:preflight`

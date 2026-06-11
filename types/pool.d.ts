@@ -68,7 +68,7 @@ export declare class ConnectionPoolManager {
     removePool(name: string): Promise<void>;
     getPool(name: string): unknown | null;
     getPoolNames(): string[];
-    selectPool(operation: string, options?: { pool?: string; tags?: string[]; databaseName?: string; }): {
+    selectPool(operation: string, options?: { pool?: string; tags?: string[]; databaseName?: string; poolPreference?: { role?: string; tags?: string[]; }; }): {
         name: string;
         client: unknown;
         db: (name?: string) => unknown;

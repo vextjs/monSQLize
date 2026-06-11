@@ -15,7 +15,7 @@
 
 ## 推荐阅读顺序
 
-1. 根入口说明：[`../../README.md`](../../README.md)
+1. 根入口说明：[仓库 README](../../README.md)
 2. 上手路径：[`getting-started.md`](./getting-started.md)
 3. 场景配方：[`recipes.md`](./recipes.md)
 4. 缓存专题：[`cache-and-function-cache.md`](./cache-and-function-cache.md)
