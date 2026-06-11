@@ -30,6 +30,15 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+type RuntimeCachePublishMessage = {
+    type: string;
+    pattern?: string;
+    tag?: string;
+    ts: number;
+};
+
+type RuntimeCachePublish = (msg: RuntimeCachePublishMessage) => void;
+
 function buildMemoryCache(input: unknown, fallback: Record<string, unknown> = {}): CacheLike {
     if (input instanceof MemoryCache) return input;
     if (isCacheLike(input)) return input;
@@ -174,7 +183,7 @@ export function normalizeRuntimeCache(
             remoteTimeoutMs: isObjectRecord(input.redis)
                 ? toOptionalNumber(input.redis.timeoutMs)
                 : undefined,
-            publish: input.publish as ((msg: { type: string; pattern: string; ts: number }) => void) | undefined,
+            publish: input.publish as RuntimeCachePublish | undefined,
         });
     }
 
@@ -196,7 +205,7 @@ export function normalizeRuntimeCache(
             remoteTimeoutMs: remoteInput && !isCacheLike(remoteInput)
                 ? toOptionalNumber((remoteInput as Record<string, unknown>).timeoutMs)
                 : undefined,
-            publish: input.publish as ((msg: { type: string; pattern: string; ts: number }) => void) | undefined,
+            publish: input.publish as RuntimeCachePublish | undefined,
         });
     }
 

@@ -278,22 +278,16 @@ async function getOrderWithUser(orderId) {
 ### Scenario 4: Batch query optimization
 
 ```javascript
-// Query the details of multiple users (note: findByIds is suitable here, but use the findOneById example first)
+// Query multiple users by ID in a single request.
 async function getUsersByIds(userIds) {
-  const users = await Promise.all(
-    userIds.map(id => 
-      collection('users').findOneById(id, {
-        projection: ['name', 'email', 'avatar'],
-        cache: 5000
-      })
-    )
-  );
-
-  // Filter out non-existent users
-  return users.filter(user => user !== null);
+  return collection('users').findByIds(userIds, {
+    projection: { name: 1, email: 1, avatar: 1 },
+    cache: 5000,
+    preserveOrder: true
+  });
 }
 
-// ⚠️ Tip: If you need batch query, it is recommended to use findByIds (Phase 2 plan implementation)
+// Tip: use findOneById() for one document and findByIds() for batch ID lookup.
 ```
 
 ### Scenario 5: Cache invalidation processing
@@ -611,4 +605,3 @@ if (!user) {
 ---
 
 **Last updated**: 2025-11-18
-

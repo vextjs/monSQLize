@@ -498,7 +498,7 @@ Key release-readiness points:
 - Package exports are consolidated under `dist/cjs`, `dist/esm`, and `dist/types`.
 - npm packages include the runtime bundles and declaration files only; source maps are disabled by default and can be generated locally with `MONSQLIZE_BUILD_SOURCEMAPS=1 npm run build`.
 - v1 smooth-upgrade compatibility has been validated against the target workspace consumers.
-- `schema-dsl` follows the npm `latest` TypeScript line `schema-dsl@2.0.3`; deprecated `2.3.x` mistake releases are intentionally excluded.
+- `schema-dsl` follows the npm `latest` TypeScript line `schema-dsl@2.0.8`; deprecated `2.3.x` mistake releases are intentionally excluded.
 - GitHub Actions publishes to npm from `v*` tags after running `npm run release:preflight`; the publish step skips duplicate lifecycle scripts because the gate already ran in the same job.
 
 ## Roadmap

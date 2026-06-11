@@ -1,6 +1,10 @@
 import { expectAssignable, expectType } from 'tsd';
 import MonSQLize, {
     type CachedFunction,
+    type CacheLike,
+    type CacheSetOptions,
+    type MultiLevelInvalidationMessage,
+    type RedisCacheAdapterOptions,
     type WithCacheOptions,
 } from '../..';
 
@@ -48,12 +52,26 @@ functionCache.resetStats();
 functionCache.clear();
 
 const memoryCache = new MonSQLize.MemoryCache();
+const taggedSetOptions: CacheSetOptions = { tags: ['typed'] };
+memoryCache.set('typed:key', { ok: true }, 1000, taggedSetOptions);
+expectType<number | null | undefined>(memoryCache.getRemainingTtl('typed:key'));
+expectAssignable<Record<string, number | null>>(memoryCache.getRemainingTtlMany(['typed:key']));
 const lockManager = { isLocked: (_key: string) => false };
 memoryCache.setLockManager(lockManager);
 expectType<typeof lockManager | null>(memoryCache.getLockManager());
 
 const multiLevelCache = new MonSQLize.MultiLevelCache({ local: memoryCache });
-multiLevelCache.setPublish((_msg) => { });
+multiLevelCache.setPublish((msg: MultiLevelInvalidationMessage) => {
+    if (msg.type === 'invalidateTag') {
+        expectType<string>(msg.tag);
+    } else {
+        expectType<string>(msg.pattern);
+    }
+});
 multiLevelCache.setLockManager(lockManager);
+
+const redisOptions: RedisCacheAdapterOptions = { scanCount: 50, deleteCommand: 'unlink' };
+const redisCache = MonSQLize.createRedisCacheAdapter({ scan: () => ['0', []] }, redisOptions);
+expectAssignable<CacheLike>(redisCache);
 
 

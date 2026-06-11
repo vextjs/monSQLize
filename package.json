@@ -109,10 +109,10 @@
   },
   "dependencies": {
     "async-lock": "1.4.1",
-    "cache-hub": "1.0.0",
+    "cache-hub": "2.2.4",
     "ioredis": "5.8.2",
     "mongodb": "6.21.0",
-    "ssh2": "1.17.0",
-    "schema-dsl": "2.0.3"
+    "schema-dsl": "2.0.8",
+    "ssh2": "1.17.0"
   }
 }

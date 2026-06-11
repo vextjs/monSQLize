@@ -12,6 +12,7 @@ import { MultiLevelCache as BaseMultiLevelCache } from 'cache-hub';
 
 export type {
     CacheLike,
+    CacheSetOptions,
     CacheStats,
     LockManager as CacheLockLike,
     MemoryCacheOptions,
@@ -22,9 +23,14 @@ export type { DistributedCacheInvalidatorOptions } from './distributed-cache-inv
 
 import type { CacheLike, LockManager as CacheLockLike } from 'cache-hub';
 
-type PublishMessage = { type: string; pattern: string; ts: number };
+type PublishMessage =
+    | { type: 'delPattern'; pattern: string; ts: number }
+    | { type: 'invalidateTag'; tag: string; ts: number };
 type PublishFn = (msg: PublishMessage) => void;
-type MultiLevelCacheOptions = ConstructorParameters<typeof BaseMultiLevelCache>[0];
+type HubMultiLevelCacheOptions = ConstructorParameters<typeof BaseMultiLevelCache>[0];
+type MultiLevelCacheOptions = Omit<HubMultiLevelCacheOptions, 'publish'> & {
+    publish?: PublishFn;
+};
 
 export class MultiLevelCache extends BaseMultiLevelCache {
     private readonly _localCompat: CacheLike;
@@ -35,7 +41,7 @@ export class MultiLevelCache extends BaseMultiLevelCache {
         const publishRef: { current?: PublishFn } = { current: options.publish };
         super({
             ...options,
-            publish: (msg: PublishMessage) => publishRef.current?.(msg),
+            publish: (msg) => publishRef.current?.(msg),
         });
         this._localCompat = options.local;
         this._remoteCompat = options.remote;

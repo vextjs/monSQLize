@@ -25,7 +25,7 @@ The current repository formally restores:
 - `Model.define/get/list/undefine/redefine`
 - `msq.model()`
 - relations / virtuals / populate
-- `findById()` / `findByIds()` / `findAndCount()`
+- `findOneById()` / `findByIds()` / `findAndCount()`
 
 Current Model entries:
 

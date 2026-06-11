@@ -1,4 +1,5 @@
 import { createRedisCacheAdapter as createHubRedisCacheAdapter } from 'cache-hub/redis';
+import type { RedisCacheAdapterOptions } from 'cache-hub/redis';
 import { createError, ErrorCodes } from '../../core/errors';
 
 const LEGACY_INVALID_REDIS_ARG_ERROR = 'redisUrlOrInstance must be a Redis URL string or an ioredis instance';
@@ -23,7 +24,10 @@ function createLegacyRedisError(message: string, code: string = ErrorCodes.INVAL
  * The v2 runtime is backed by `cache-hub`, while this wrapper keeps the legacy
  * argument validation and error semantics for existing startup paths.
  */
-export function createRedisCacheAdapter(redisUrlOrInstance: string | object | undefined) {
+export function createRedisCacheAdapter(
+    redisUrlOrInstance: string | object | undefined,
+    options?: RedisCacheAdapterOptions,
+) {
     if (typeof redisUrlOrInstance === 'string') {
         const redisUrl = redisUrlOrInstance.trim();
         if (!redisUrl) {
@@ -31,7 +35,7 @@ export function createRedisCacheAdapter(redisUrlOrInstance: string | object | un
         }
 
         try {
-            return createHubRedisCacheAdapter(redisUrl);
+            return createHubRedisCacheAdapter(redisUrl, options);
         } catch (error) {
             if (isMissingIoredisError(error)) {
                 throw createLegacyRedisError(LEGACY_IOREDIS_MISSING_ERROR, ErrorCodes.CACHE_UNAVAILABLE);
@@ -41,7 +45,7 @@ export function createRedisCacheAdapter(redisUrlOrInstance: string | object | un
     }
 
     if (redisUrlOrInstance && typeof redisUrlOrInstance === 'object') {
-        return createHubRedisCacheAdapter(redisUrlOrInstance);
+        return createHubRedisCacheAdapter(redisUrlOrInstance, options);
     }
 
     throw createLegacyRedisError(LEGACY_INVALID_REDIS_ARG_ERROR);

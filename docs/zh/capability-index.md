@@ -24,7 +24,7 @@
 - `Model.define/get/list/undefine/redefine`
 - `msq.model()`
 - relations / virtuals / populate
-- `findById()` / `findByIds()` / `findAndCount()`
+- `findOneById()` / `findByIds()` / `findAndCount()`
 
 当前 Model 相关入口：
 

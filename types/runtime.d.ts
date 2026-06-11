@@ -9,11 +9,16 @@ import type { ResumeTokenConfig, SyncChangeEvent, SyncConfig, SyncStats, SyncTar
 import type { MongoSession, TransactionOptions, TransactionStats } from './transaction';
 import type {
     CacheLike as HubCacheLike,
+    CacheRemainingTtl as HubCacheRemainingTtl,
+    CacheSetOptions as HubCacheSetOptions,
     CacheStats as HubCacheStats,
     LockManager as HubCacheLockLike,
     MemoryCacheOptions as HubMemoryCacheOptions,
 } from 'cache-hub';
-import type { RedisCacheAdapter as HubRedisCacheAdapter } from 'cache-hub/redis';
+import type {
+    RedisCacheAdapter as HubRedisCacheAdapter,
+    RedisCacheAdapterOptions as HubRedisCacheAdapterOptions,
+} from 'cache-hub/redis';
 import type {
     DistributedInvalidatorOptions as HubDistributedInvalidatorOptions,
     InvalidatorStats as HubInvalidatorStats,
@@ -44,6 +49,8 @@ export declare class Logger {
 
 export type CacheLockLike = HubCacheLockLike;
 export type CacheLike = HubCacheLike;
+export type CacheRemainingTtl = HubCacheRemainingTtl;
+export type CacheSetOptions = HubCacheSetOptions;
 export type MemoryCacheOptions = HubMemoryCacheOptions;
 
 /**
@@ -80,15 +87,27 @@ export interface MultiLevelCacheOptions {
     local?: MemoryCacheOptions;
     remote?: CacheLike | (MemoryCacheOptions & { timeoutMs?: number });
     policy?: MultiLevelCachePolicy;
-    publish?: (msg: unknown) => void;
+    publish?: MultiLevelPublish;
 }
+
+export type MultiLevelInvalidationMessage = {
+    type: 'delPattern';
+    pattern: string;
+    ts: number;
+} | {
+    type: 'invalidateTag';
+    tag: string;
+    ts: number;
+};
+
+export type MultiLevelPublish = (msg: MultiLevelInvalidationMessage) => void;
 
 export declare class MemoryCache {
     constructor(options?: MemoryCacheOptions);
     setLockManager(lockManager: CacheLockLike): void;
     getLockManager(): CacheLockLike | null;
     get<T = unknown>(key: string): T | undefined;
-    set(key: string, value: unknown, ttl?: number): void;
+    set(key: string, value: unknown, ttl?: number, options?: CacheSetOptions): void;
     del(key: string): boolean;
     exists(key: string): boolean;
     has(key: string): boolean;
@@ -98,6 +117,8 @@ export declare class MemoryCache {
     clear(): void;
     keys(pattern?: string): string[];
     delPattern(pattern: string): number;
+    getRemainingTtl(key: string): CacheRemainingTtl | undefined;
+    getRemainingTtlMany(keys: string[]): Record<string, CacheRemainingTtl>;
     getStats(): CacheStats;
     resetStats(): void;
     invalidateByTag(tag: string): void;
@@ -111,10 +132,11 @@ export declare class MultiLevelCache {
         writePolicy?: 'both' | 'local-first-async-remote';
         backfillOnRemoteHit?: boolean;
         remoteTimeoutMs?: number;
-        publish?: (msg: { type: string; pattern: string; ts: number }) => void;
+        publish?: MultiLevelPublish;
+        remoteInvalidationErrors?: 'ignore' | 'throw';
     });
     get<T = unknown>(key: string): Promise<T | undefined>;
-    set(key: string, value: unknown, ttl?: number): Promise<void>;
+    set(key: string, value: unknown, ttl?: number, options?: CacheSetOptions): Promise<void>;
     del(key: string): Promise<boolean>;
     exists(key: string): Promise<boolean>;
     has(key: string): Promise<boolean>;
@@ -125,14 +147,14 @@ export declare class MultiLevelCache {
     delPattern(pattern: string): Promise<number>;
     keys(pattern?: string): Promise<string[]>;
     invalidateByTag(tag: string): void | Promise<void>;
-    setPublish(publish: (msg: { type: string; pattern: string; ts: number }) => void): void;
+    setPublish(publish: MultiLevelPublish): void;
     setLockManager(lockManager: CacheLockLike): void;
     getStats(): CacheStats;
     resetStats(): void;
     destroy(): void;
 }
 
-export type RedisCacheAdapterOptions = never;
+export type RedisCacheAdapterOptions = HubRedisCacheAdapterOptions;
 export type RedisLike = object;
 
 /**
@@ -156,6 +178,7 @@ export type RedisCacheAdapter = HubRedisCacheAdapter;
 
 export declare function createRedisCacheAdapter(
     redisUrlOrInstance: string | object | undefined,
+    options?: RedisCacheAdapterOptions,
 ): HubRedisCacheAdapter;
 
 export type { LockOptions, LockStats, MongoSession, TransactionOptions, TransactionStats };

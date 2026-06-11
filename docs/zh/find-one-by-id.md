@@ -278,22 +278,16 @@ async function getOrderWithUser(orderId) {
 ### 场景 4: 批量查询优化
 
 ```javascript
-// 查询多个用户详情（注意：这里适合用 findByIds，但先用 findOneById 示例）
+// 单次请求批量查询多个用户详情
 async function getUsersByIds(userIds) {
-  const users = await Promise.all(
-    userIds.map(id => 
-      collection('users').findOneById(id, {
-        projection: ['name', 'email', 'avatar'],
-        cache: 5000
-      })
-    )
-  );
-
-  // 过滤掉不存在的用户
-  return users.filter(user => user !== null);
+  return collection('users').findByIds(userIds, {
+    projection: { name: 1, email: 1, avatar: 1 },
+    cache: 5000,
+    preserveOrder: true
+  });
 }
 
-// ⚠️ 提示：如果需要批量查询，推荐使用 findByIds（阶段2计划实现）
+// 提示：单个文档按 ID 查询用 findOneById()；批量 ID 查询用 findByIds()。
 ```
 
 ### 场景 5: 缓存失效处理

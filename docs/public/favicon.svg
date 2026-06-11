@@ -1,4 +1,51 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="12" fill="#4A90D9"/>
-  <text x="50%" y="54%" font-family="monospace" font-size="36" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">M</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">monSQLize logo</title>
+  <desc id="desc">A rounded monogram combining a database stack, query flow, and the letter M.</desc>
+  <defs>
+    <linearGradient id="surface" x1="86" y1="46" x2="426" y2="466" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06162A"/>
+      <stop offset="0.48" stop-color="#0E2F55"/>
+      <stop offset="1" stop-color="#1466D8"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="142" y1="154" x2="388" y2="368" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#40E0D0"/>
+      <stop offset="0.52" stop-color="#4ADE80"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="whiteGlow" x1="158" y1="184" x2="354" y2="348" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D8EEFF"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientTransform="matrix(210 0 0 210 332 178)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5EEAD4" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#5EEAD4" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="22" y="18" width="468" height="486" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#020617" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+
+  <rect x="28" y="28" width="456" height="456" rx="112" fill="url(#surface)"/>
+  <circle cx="332" cy="178" r="210" fill="url(#halo)"/>
+  <path d="M84 366C170 314 244 412 428 308" fill="none" stroke="#93C5FD" stroke-width="2.5" stroke-linecap="round" opacity="0.16"/>
+  <path d="M90 168C186 94 284 124 424 84" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" opacity="0.10"/>
+
+  <g filter="url(#shadow)">
+    <path d="M142 333V214c0-29 23-52 52-52 26 0 44 15 55 36 13-22 34-36 62-36 36 0 61 26 61 63v108" fill="none" stroke="#06101F" stroke-width="68" stroke-linecap="round" stroke-linejoin="round" opacity="0.42"/>
+    <path d="M142 333V214c0-29 23-52 52-52 26 0 44 15 55 36 13-22 34-36 62-36 36 0 61 26 61 63v108" fill="none" stroke="url(#whiteGlow)" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M142 333V214c0-29 23-52 52-52 26 0 44 15 55 36 13-22 34-36 62-36 36 0 61 26 61 63v108" fill="none" stroke="url(#accent)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <g opacity="0.95">
+    <ellipse cx="256" cy="363" rx="112" ry="42" fill="#06101F" opacity="0.34"/>
+    <path d="M160 360c0 24 43 44 96 44s96-20 96-44" fill="none" stroke="#67E8F9" stroke-width="10" stroke-linecap="round" opacity="0.78"/>
+    <path d="M182 391c17 12 43 20 74 20s57-8 74-20" fill="none" stroke="#A7F3D0" stroke-width="8" stroke-linecap="round" opacity="0.72"/>
+  </g>
+
+  <g>
+    <circle cx="374" cy="142" r="16" fill="#4ADE80"/>
+    <circle cx="406" cy="198" r="10" fill="#67E8F9"/>
+    <circle cx="349" cy="222" r="8" fill="#C4B5FD"/>
+    <path d="M374 142c19 11 30 29 32 56M406 198c-16 14-34 21-57 24" fill="none" stroke="#DDFBFF" stroke-width="5" stroke-linecap="round" opacity="0.78"/>
+  </g>
 </svg>

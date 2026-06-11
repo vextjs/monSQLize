@@ -1,18 +1,95 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { defineConfig } from '@rspress/core';
+import type { RspressPlugin } from '@rspress/core';
 import { pluginSitemap } from '@rspress/plugin-sitemap';
 
-type SidebarItemSource = {
+type MarkdownAstNode = {
+  type?: string;
+  url?: string;
+  children?: MarkdownAstNode[];
+};
+
+type MarkdownFile = {
+  path?: string;
+  history?: string[];
+};
+
+type SidebarEntrySource = {
   en: string;
   zh: string;
-  link: string;
+  link?: string;
+  items?: SidebarEntrySource[];
 };
 
 type SidebarGroupSource = {
   en: string;
   zh: string;
-  items: SidebarItemSource[];
+  items: SidebarEntrySource[];
 };
+
+type NavLinkSource = {
+  en: string;
+  zh: string;
+  link: string;
+};
+
+type NavMenuSource = {
+  en: string;
+  zh: string;
+  items: NavLinkSource[];
+};
+
+type NavSource = NavLinkSource | NavMenuSource;
+
+const navSource: NavSource[] = [
+  {
+    en: 'Guide',
+    zh: '指南',
+    link: '/getting-started'
+  },
+  {
+    en: 'API Reference',
+    zh: 'API 参考',
+    link: '/api-index'
+  },
+  {
+    en: 'Model',
+    zh: 'Model',
+    link: '/model'
+  },
+  {
+    en: 'Advanced',
+    zh: '高级能力',
+    link: '/capability-index'
+  },
+  {
+    en: 'Versions',
+    zh: '版本',
+    items: [
+      {
+        en: 'v2.0.2 (Current TS)',
+        zh: 'v2.0.2（当前 TS）',
+        link: '/getting-started'
+      },
+      {
+        en: 'Changelog',
+        zh: '更新日志',
+        link: 'https://github.com/vextjs/monSQLize/blob/main/CHANGELOG.md'
+      },
+      {
+        en: 'GitHub Pages',
+        zh: 'GitHub Pages',
+        link: 'https://vextjs.github.io/monSQLize/'
+      },
+      {
+        en: 'v1.x (Legacy JS)',
+        zh: 'v1.x（旧版 JS）',
+        link: 'https://github.com/vextjs/monSQLize/tree/v1'
+      }
+    ]
+  }
+];
 
 const sidebarSource: SidebarGroupSource[] = [
   {
@@ -22,8 +99,8 @@ const sidebarSource: SidebarGroupSource[] = [
       { en: 'Home', zh: '首页', link: '/' },
       { en: 'Getting Started', zh: '快速开始', link: '/getting-started' },
       { en: 'Examples', zh: '示例总览', link: '/examples' },
+      { en: 'Recipes', zh: '常见配方', link: '/recipes' },
       { en: 'Connection Management', zh: '连接管理', link: '/connection' },
-      { en: 'ObjectId Auto Conversion', zh: 'ObjectId 自动转换', link: '/objectid-auto-convert' },
       { en: 'ESM Support', zh: 'ESM 支持', link: '/esm-support' },
       { en: 'Documentation Index', zh: '文档索引', link: '/api-index' }
     ]
@@ -34,8 +111,6 @@ const sidebarSource: SidebarGroupSource[] = [
     items: [
       { en: 'find()', zh: 'find()', link: '/find' },
       { en: 'findOne()', zh: 'findOne()', link: '/findOne' },
-      { en: 'findOneById()', zh: 'findOneById()', link: '/find-one-by-id' },
-      { en: 'findByIds()', zh: 'findByIds()', link: '/find-by-ids' },
       { en: 'findPage()', zh: 'findPage()', link: '/findPage' },
       { en: 'findAndCount()', zh: 'findAndCount()', link: '/find-and-count' },
       { en: 'count()', zh: 'count()', link: '/count' },
@@ -43,6 +118,19 @@ const sidebarSource: SidebarGroupSource[] = [
       { en: 'aggregate()', zh: 'aggregate()', link: '/aggregate' },
       { en: 'explain()', zh: 'explain()', link: '/explain' },
       { en: 'watch()', zh: 'watch()', link: '/watch' }
+    ]
+  },
+  {
+    en: 'ObjectId and ID Queries',
+    zh: 'ObjectId 与 ID 查询',
+    items: [
+      { en: 'ObjectId Auto Conversion', zh: 'ObjectId 自动转换', link: '/objectid-auto-convert' },
+      { en: 'findOneById()', zh: 'findOneById()', link: '/find-one-by-id' },
+      { en: 'findByIds()', zh: 'findByIds()', link: '/find-by-ids' },
+      { en: 'ObjectId Conversion Scope', zh: 'ObjectId 转换范围', link: '/objectid-conversion-scope' },
+      { en: 'ObjectId Cross-Version', zh: 'ObjectId 跨版本', link: '/objectid-cross-version' },
+      { en: 'ObjectId Cross-Version FAQ', zh: 'ObjectId 跨版本 FAQ', link: '/objectid-cross-version-faq' },
+      { en: 'ObjectId Logging Optimization', zh: 'ObjectId 日志优化', link: '/objectid-logging-optimization' }
     ]
   },
   {
@@ -170,10 +258,6 @@ const sidebarSource: SidebarGroupSource[] = [
       { en: 'Error Code Reference', zh: '错误码参考', link: '/error-codes' },
       { en: 'Data Validation', zh: '数据验证', link: '/validation' },
       { en: 'Utilities', zh: '工具方法', link: '/utilities' },
-      { en: 'ObjectId Conversion Scope', zh: 'ObjectId 转换范围', link: '/objectid-conversion-scope' },
-      { en: 'ObjectId Cross-Version', zh: 'ObjectId 跨版本', link: '/objectid-cross-version' },
-      { en: 'ObjectId Cross-Version FAQ', zh: 'ObjectId 跨版本 FAQ', link: '/objectid-cross-version-faq' },
-      { en: 'ObjectId Logging Optimization', zh: 'ObjectId 日志优化', link: '/objectid-logging-optimization' },
       { en: 'MongoDB Driver Compatibility', zh: 'MongoDB Driver 兼容性', link: '/mongodb-driver-compatibility' },
       { en: 'MongoDB Native vs Extensions', zh: 'MongoDB 原生 vs 扩展', link: '/mongodb-native-vs-extensions' },
       { en: 'findOneAnd Return Value Unification', zh: 'findOneAnd 返回值统一', link: '/findOneAnd-return-value-unified' }
@@ -181,32 +265,167 @@ const sidebarSource: SidebarGroupSource[] = [
   }
 ];
 
+const isExternalLink = (link: string) => /^https?:\/\//.test(link);
+const repositoryRoot = path.join(import.meta.dirname, '..');
+const docsRoot = path.join(repositoryRoot, 'docs');
+const githubRepositoryUrl = 'https://github.com/vextjs/monSQLize';
+const siteBase = '/monSQLize/';
+
+const isExternalOrSiteLink = (url: string) =>
+  /^(?:[a-z][a-z0-9+.-]*:|\/\/|#|\/)/i.test(url);
+
+const toPosixPath = (filePath: string) => filePath.split(path.sep).join('/');
+
+const resolveMarkdownPath = (file: MarkdownFile) =>
+  file.path || file.history?.[0] || docsRoot;
+
+const splitUrlTarget = (url: string) => {
+  const match = /^([^?#]*)([?#].*)?$/.exec(url);
+  return {
+    targetPath: match?.[1] || '',
+    suffix: match?.[2] || ''
+  };
+};
+
+const rewriteRepositoryRelativeUrl = (url: string, sourceFile: string) => {
+  if (!url || isExternalOrSiteLink(url)) {
+    return url;
+  }
+
+  const { targetPath, suffix } = splitUrlTarget(url);
+  if (!targetPath) {
+    return url;
+  }
+
+  const resolvedTarget = path.resolve(path.dirname(sourceFile), targetPath);
+  if (resolvedTarget === docsRoot || resolvedTarget.startsWith(`${docsRoot}${path.sep}`)) {
+    return url;
+  }
+
+  if (!resolvedTarget.startsWith(`${repositoryRoot}${path.sep}`)) {
+    return url;
+  }
+
+  const relativeTarget = toPosixPath(path.relative(repositoryRoot, resolvedTarget));
+  const targetKind = fs.existsSync(resolvedTarget) && fs.statSync(resolvedTarget).isDirectory()
+    ? 'tree'
+    : 'blob';
+
+  return `${githubRepositoryUrl}/${targetKind}/main/${relativeTarget}${suffix}`;
+};
+
+const visitMarkdownLinks = (node: MarkdownAstNode, visitor: (link: MarkdownAstNode) => void) => {
+  if (node.type === 'link' || node.type === 'definition') {
+    visitor(node);
+  }
+
+  node.children?.forEach(child => visitMarkdownLinks(child, visitor));
+};
+
+const rewriteRepositoryRelativeLinks = () => (tree: MarkdownAstNode, file: MarkdownFile) => {
+  const sourceFile = resolveMarkdownPath(file);
+
+  visitMarkdownLinks(tree, node => {
+    if (typeof node.url === 'string') {
+      node.url = rewriteRepositoryRelativeUrl(node.url, sourceFile);
+    }
+  });
+};
+
 const localizeLink = (link: string, language: 'en' | 'zh') => {
-  if (language === 'en') {
+  if (language === 'en' || isExternalLink(link)) {
     return link;
   }
 
   return link === '/' ? '/zh/' : `/zh${link}`;
 };
 
+const createSidebarItems = (items: SidebarEntrySource[], language: 'en' | 'zh') =>
+  items.map(item => ({
+    text: item[language],
+    ...(item.link ? { link: localizeLink(item.link, language) } : {}),
+    ...(item.items ? { items: createSidebarItems(item.items, language) } : {})
+  }));
+
 const createSidebar = (language: 'en' | 'zh') =>
   sidebarSource.map(group => ({
     text: group[language],
-    items: group.items.map(item => ({
-      text: item[language],
-      link: localizeLink(item.link, language)
-    }))
+    items: createSidebarItems(group.items, language)
   }));
 
 const englishSidebar = createSidebar('en');
 const chineseSidebar = createSidebar('zh');
 
+const isNavMenu = (item: NavSource): item is NavMenuSource => 'items' in item;
+
+const createNav = (language: 'en' | 'zh') =>
+  navSource.map(item => {
+    if (isNavMenu(item)) {
+      return {
+        text: item[language],
+        items: item.items.map(child => ({
+          text: child[language],
+          link: localizeLink(child.link, language)
+        }))
+      };
+    }
+
+    return {
+      text: item[language],
+      link: localizeLink(item.link, language)
+    };
+  });
+
+const englishNav = createNav('en');
+const chineseNav = createNav('zh');
+
+const generatedLanguageSwitchHrefAliases = new Map([
+  [`href="${siteBase}nested-populate.html"`, `href="${siteBase}model/nested-populate.html"`],
+  [`href="${siteBase}relations-quickstart.html"`, `href="${siteBase}model/relations-quickstart.html"`]
+]);
+
+const collectHtmlFiles = (directory: string): string[] => {
+  if (!fs.existsSync(directory)) {
+    return [];
+  }
+
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return collectHtmlFiles(entryPath);
+    }
+
+    return entry.isFile() && entry.name.endsWith('.html') ? [entryPath] : [];
+  });
+};
+
+const rewriteGeneratedLanguageSwitchLinks: RspressPlugin = {
+  name: 'rewrite-generated-language-switch-links',
+  afterBuild(config) {
+    const builtSiteDir = path.resolve(import.meta.dirname, config.outDir || 'dist');
+
+    collectHtmlFiles(builtSiteDir).forEach(htmlFile => {
+      const originalContent = fs.readFileSync(htmlFile, 'utf8');
+      let rewrittenContent = originalContent;
+
+      generatedLanguageSwitchHrefAliases.forEach((target, source) => {
+        rewrittenContent = rewrittenContent.split(source).join(target);
+      });
+
+      if (rewrittenContent !== originalContent) {
+        fs.writeFileSync(htmlFile, rewrittenContent);
+      }
+    });
+  }
+};
+
 export default defineConfig({
   root: path.join(import.meta.dirname, '..', 'docs'),
-  base: '/monSQLize/',
+  base: siteBase,
   lang: 'en',
   title: 'monSQLize',
   icon: '/favicon.svg',
+  globalStyles: path.join(import.meta.dirname, 'styles', 'home.css'),
   description: 'A powerful TypeScript MongoDB ODM with full v1 API compatibility — featuring chain queries, multi-pool, transactions, caching, Saga, and slow-query logging.',
   outDir: 'dist',
   locales: [
@@ -224,11 +443,13 @@ export default defineConfig({
     }
   ],
   plugins: [
+    rewriteGeneratedLanguageSwitchLinks,
     pluginSitemap({
       siteUrl: 'https://vextjs.github.io/monSQLize'
     })
   ],
   markdown: {
+    remarkPlugins: [rewriteRepositoryRelativeLinks],
     link: {
       checkDeadLinks: false
     }
@@ -240,43 +461,27 @@ export default defineConfig({
     enabled: true
   },
   themeConfig: {
-    nav: [
+    nav: englishNav,
+    locales: [
       {
-        text: 'Guide',
-        link: '/getting-started'
+        lang: 'en',
+        label: 'English',
+        title: 'monSQLize',
+        description: 'A TypeScript MongoDB ODM and enhancement layer.',
+        nav: englishNav,
+        sidebar: {
+          '/': englishSidebar
+        }
       },
       {
-        text: 'API Reference',
-        link: '/api-index'
-      },
-      {
-        text: 'Model',
-        link: '/model'
-      },
-      {
-        text: 'Advanced',
-        link: '/capability-index'
-      },
-      {
-        text: 'Versions',
-        items: [
-          {
-            text: 'v2.0.2 (Current TS)',
-            link: '/getting-started'
-          },
-          {
-            text: 'Changelog',
-            link: 'https://github.com/vextjs/monSQLize/blob/main/CHANGELOG.md'
-          },
-          {
-            text: 'GitHub Pages',
-            link: 'https://vextjs.github.io/monSQLize/'
-          },
-          {
-            text: 'v1.x (Legacy JS)',
-            link: 'https://github.com/vextjs/monSQLize/tree/v1'
-          }
-        ]
+        lang: 'zh',
+        label: '简体中文',
+        title: 'monSQLize',
+        description: 'TypeScript MongoDB ODM 与增强层。',
+        nav: chineseNav,
+        sidebar: {
+          '/zh/': chineseSidebar
+        }
       }
     ],
     sidebar: {
