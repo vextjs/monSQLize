@@ -74,19 +74,19 @@ node .generated/examples-dist/examples/docs/find.js
 | `slow-query-log.md` | `examples/docs/slow-query-log.ts` |
 | `transaction.md` | `examples/docs/transaction.ts` |
 | `watch.md` | `examples/docs/watch.ts` |
-| `examples/README.md` (combined capability index) | `examples/docs/aggregate-advanced.ts` |
-| `examples/README.md` (combined capability index) | `examples/docs/batch-operations.ts` |
-| `examples/README.md` (combined capability index) | `examples/docs/soft-delete.ts` |
-| `examples/README.md` (combined capability index) | `examples/docs/cache-multilevel.ts` |
-| `examples/README.md` (combined capability index) | `examples/docs/objectid.ts` |
-| `examples/README.md` (combined capability index) | `examples/docs/pool.ts` |
+| `aggregate.md` | `examples/docs/aggregate-advanced.ts` |
+| `write-operations.md` | `examples/docs/batch-operations.ts` |
+| `model.md` | `examples/docs/soft-delete.ts` |
+| `cache.md` | `examples/docs/cache-multilevel.ts` |
+| `objectid-auto-convert.md` | `examples/docs/objectid.ts` |
+| `multi-pool.md` | `examples/docs/pool.ts` |
 | `failure-recovery-examples.md` | `examples/docs/pool-fallback.ts` |
-| `examples/README.md` (combined capability index) | `examples/docs/sync.ts` |
+| `sync-backup.md` | `examples/docs/sync.ts` |
 | `failure-recovery-examples.md` | `examples/docs/sync-target-failure.ts` |
-| `examples/README.md` (combined capability index) | `examples/docs/lock.ts` |
+| `business-lock.md` | `examples/docs/lock.ts` |
 | `failure-recovery-examples.md` | `examples/docs/lock-timeout.ts` |
-| `examples/README.md` (combined capability index) | `examples/docs/saga.ts` |
+| `saga-transaction.md` | `examples/docs/saga.ts` |
 | `failure-recovery-examples.md` | `examples/docs/transaction-rollback.ts` |
-| `examples/README.md` (combined capability index) | `examples/docs/populate-relations.ts` |
+| `populate.md` | `examples/docs/populate-relations.ts` |
 
 Some conceptual pages intentionally reuse the same richer example instead of duplicating nearly identical scripts for every heading. The complete source of truth is `examples/README.md`.
