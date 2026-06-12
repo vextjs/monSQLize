@@ -1,6 +1,6 @@
 import type { BookmarkClearResult, BookmarkListResult, BookmarkPrewarmResult, DeleteBatchResult, DeleteResult, IncrementOneResult, IndexCreateResult, InsertBatchResult, InsertManyResult, UpdateBatchResult, UpdateResult } from './collection';
 import type { LoggerLike, ExpressionFunction, ExpressionObject } from './base';
-import type { ModelDefinition, ModelInstance as ModelInstanceContract, RegisteredModel, RelationConfig } from './model';
+import type { ModelDefinition, ModelEnsureIndexesOptions, ModelIndexEnsureResult, ModelInstance as ModelInstanceContract, RegisteredModel, RelationConfig } from './model';
 import type { LockOptions, LockStats } from './lock';
 import type { ConnectionPoolManagerOptions, FallbackStrategy, PoolConfig, PoolHealthStatus, PoolRole, PoolStats, PoolStrategy } from './pool';
 import type { SagaDefinition, SagaOrchestratorOptions, SagaResult, SagaStats, SagaStep } from './saga';
@@ -335,6 +335,7 @@ export declare class ModelInstance<TDocument = any> implements ModelInstanceCont
     createIndex(keys: unknown, options?: unknown): Promise<IndexCreateResult>;
     createIndexes(specs: Array<{ key: unknown; } & Record<string, unknown>>): Promise<string[]>;
     listIndexes(): Promise<Record<string, unknown>[]>;
+    ensureIndexes(options?: ModelEnsureIndexesOptions): Promise<ModelIndexEnsureResult>;
     dropIndex(name: string): Promise<unknown>;
     dropIndexes(): Promise<unknown>;
     prewarmBookmarks(keyDims?: unknown, pages?: number[]): Promise<BookmarkPrewarmResult>;

@@ -39,7 +39,7 @@ monSQLize keeps the MongoDB driver mental model while adding the production feat
 
 - Drop-in collection helpers that preserve MongoDB-style CRUD, aggregation, indexes, transactions, and Change Streams.
 - Smart caching through `cache-hub`, including local memory caching, optional Redis-backed L2 caching, automatic invalidation, and function-level caching.
-- A lightweight Model layer with `schema-dsl` validation, hooks, relations, populate, custom methods, timestamps, soft delete, and optimistic locking.
+- A lightweight Model layer with `schema-dsl` validation, hooks, relations, populate, custom methods, timestamps, soft delete, optimistic locking, and production-safe index preflight.
 - Multi-connection-pool support, pool health checks, pool-scoped collections/models, and fallback strategies.
 - Business locks and distributed locks for multi-instance deployments.
 - Saga orchestration for multi-step business workflows.
@@ -252,6 +252,27 @@ module.exports = {
 ```
 
 Relative model paths are resolved from `process.cwd()`. In production services, prefer absolute paths such as `path.join(__dirname, 'models')`.
+
+### Production Model Index Rollout
+
+Model-declared indexes are still created automatically by default for backward compatibility. Production services can turn off automatic indexing and run an explicit preflight before creating missing indexes:
+
+```js
+const db = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: { uri: 'mongodb://localhost:27017' },
+  autoIndex: false
+});
+
+const plan = await db.ensureModelIndexes({ models: ['users'], dryRun: true });
+
+if (plan.totals.conflicts === 0) {
+  await db.ensureModelIndexes({ models: ['users'], throwOnError: true });
+}
+```
+
+`ensureModelIndexes()` creates only missing indexes. It does not drop, rename, or rebuild conflicting indexes.
 
 ### Populate
 
@@ -497,7 +518,7 @@ npm run test:real-env:private
 
 ## Release Status
 
-The current published release is `v2.0.3`.
+The current published release is `v2.0.4`.
 
 Key release-readiness points:
 
@@ -505,10 +526,16 @@ Key release-readiness points:
 - Package exports are consolidated under `dist/cjs`, `dist/esm`, and `dist/types`.
 - npm packages include the runtime bundles and declaration files only; source maps are disabled by default and can be generated locally with `MONSQLIZE_BUILD_SOURCEMAPS=1 npm run build`.
 - v1 smooth-upgrade compatibility has been validated against the target workspace consumers.
-- `schema-dsl` follows the npm `latest` TypeScript line `schema-dsl@2.0.8`; deprecated `2.3.x` mistake releases are intentionally excluded.
+- `schema-dsl` follows the npm `latest` TypeScript line `schema-dsl@2.0.9`; deprecated `2.3.x` mistake releases are intentionally excluded.
 - GitHub Actions publishes to npm from `v*` tags after running `npm run release:preflight`; the publish step skips duplicate lifecycle scripts because the gate already ran in the same job.
 
 ## Roadmap
+
+### v2.0.4
+
+- Production-safe Model index rollout controls with `autoIndex`, dry-run preflight, conflict reporting, and explicit `ensureIndexes()` / `ensureModelIndexes()` APIs.
+- `schema-dsl` updated to `2.0.9`, with transitive `cache-hub` aligned to `2.2.4`.
+- User-facing capability and verification documentation wording cleaned up, plus documentation home experience refinements.
 
 ### v2.0.3
 

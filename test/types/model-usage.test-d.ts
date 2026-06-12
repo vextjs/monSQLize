@@ -1,8 +1,13 @@
 import { expectAssignable, expectType } from 'tsd';
 import MonSQLize, {
     type ModelAccessor,
+    type ModelAutoIndexOptions,
     type ModelDefinition,
     type ModelDocument,
+    type ModelEnsureAllIndexesOptions,
+    type ModelEnsureIndexesOptions,
+    type ModelIndexEnsureResult,
+    type ModelIndexEnsureSummary,
     type PopulateProxy,
     type RelationConfig,
     type VirtualConfig,
@@ -40,10 +45,14 @@ expectAssignable<ModelDefinition<UserDoc>>({
     relations: { posts: relation },
     virtuals: { displayName: virtual },
     connection: { database: 'tenant_a' },
-    options: { validate: true, timestamps: { createdAt: true, updatedAt: 'updatedAt' } },
+    options: { validate: true, timestamps: { createdAt: true, updatedAt: 'updatedAt' }, autoIndex: false },
 });
 
-const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'types_model' });
+expectAssignable<ModelAutoIndexOptions>({ enabled: false, emitEvents: true });
+expectAssignable<ModelEnsureIndexesOptions>({ dryRun: true, throwOnError: true });
+expectAssignable<ModelEnsureAllIndexesOptions>({ models: ['users'], database: 'types_model' });
+
+const runtime = new MonSQLize({ type: 'mongodb', databaseName: 'types_model', autoIndex: { enabled: false } });
 const users = runtime.model<UserDoc>('users');
 declare const userDocument: ModelDocument<UserDoc>;
 expectType<ModelAccessor<UserDoc>>(users);
@@ -84,6 +93,9 @@ expectType<PopulateProxy<{
 }>>(users.findPage({ page: 1, limit: 10, totals: { mode: 'sync' } }));
 expectType<{ valid: boolean; errors?: Array<{ field: string; message: string; value?: unknown }>; data?: unknown }>(users.validate({ firstName: 'Ada', lastName: 'Lovelace' }));
 expectType<Record<string, string>>(users.getEnums());
+expectType<Promise<ModelIndexEnsureResult>>(users.ensureIndexes());
+expectType<Promise<ModelIndexEnsureResult>>(users.ensureIndexes({ dryRun: true, throwOnError: true }));
+expectType<Promise<ModelIndexEnsureSummary>>(runtime.ensureModelIndexes({ models: ['users'], dryRun: true }));
 expectType<Promise<import('monsqlize').InsertManyResult>>(users.insertMany([{ firstName: 'Ada', lastName: 'Lovelace' }]));
 expectType<Promise<import('monsqlize').UpdateResult>>(users.updateOne({ firstName: 'Ada' }, { $set: { nickname: 'Countess' } }));
 expectType<Promise<import('monsqlize').UpdateResult>>(users.updateMany({}, { $set: { nickname: 'Analyst' } }));

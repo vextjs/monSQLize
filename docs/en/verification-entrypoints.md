@@ -81,8 +81,8 @@ Required environment variables:
 
 ## Default boundary
 
-- **Default closed loop**: `npm test` / `check:docs-examples` / `verify:fast` / `verify:full` / `test:server-matrix`
-- **Coverage closed loop**: `npm run test:coverage` is executed independently; P-04 has been completed and retained as an independent coverage gate, and `verify:full` is not blocked
+- **Default verification chain**: `npm test` / `check:docs-examples` / `verify:fast` / `verify:full` / `test:server-matrix`
+- **Coverage gate**: `npm run test:coverage` is executed independently; P-04 has been completed and retained as an independent coverage gate, and `verify:full` is not blocked
 - **Explicit opt-in**: `test:real-env:private`
 - **Public release pre-access control**: `release:preflight`
 - **Local private pre-release supplement**: `verify:release`

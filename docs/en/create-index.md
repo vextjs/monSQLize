@@ -515,18 +515,17 @@ await collection("products").createIndex(
 
 ```javascript
 try {
-  //Create index
-  await collection("users").createIndex({ email: 1 });
-
-  //Try to create the same index (will fail)
-  await collection("users").createIndex({ email: 1 });
+  await collection("users").createIndex(
+    { email: 1 },
+    { unique: true, name: "email_unique" }
+  );
 } catch (err) {
-  if (err.code === 'MONGODB_ERROR') {
-    if (err.message.includes('Index already exists')) {
-      console.log("The index already exists, no need to create it again");
-    } else {
-      console.error("Index creation failed:", err.message);
-    }
+  if (err.code === 'INVALID_ARGUMENT') {
+    console.error("Invalid index specification:", err.message);
+  } else if (err.codeName === 'IndexOptionsConflict' || err.codeName === 'IndexKeySpecsConflict') {
+    console.error("Index definition conflicts with an existing index:", err.message);
+  } else {
+    throw err;
   }
 }
 ```
@@ -541,14 +540,14 @@ try {
 
 ### 1. The index already exists
 
-**Error code**: `MONGODB_ERROR`
-**Message**: "Index already exists or name conflict"
+**Error code**: MongoDB driver/server error code when there is a name or option conflict. Creating the exact same index definition is usually idempotent and may simply return the existing index name.
+**Message**: Driver/server dependent, such as an index option or key-spec conflict.
 
-**Cause**: Attempt to create an existing index
+**Cause**: Attempting to create an index that conflicts with an existing index name, key, or options.
 
 **Solution**:
 ```javascript
-//Option 1: First check if the index exists
+//First check existing indexes and compare the key/options you care about.
 const indexes = await collection("users").listIndexes();
 const exists = indexes.some(idx => idx.name === 'email_1');
 
@@ -556,12 +555,14 @@ if (!exists) {
   await collection("users").createIndex({ email: 1 });
 }
 
-//Option 2: Catch the error and ignore it
+//If you intentionally rely on driver errors, inspect the driver code/codeName.
 try {
   await collection("users").createIndex({ email: 1 });
 } catch (err) {
-  if (!err.message.includes('Index already exists')) {
-    throw err;  //Rethrow other errors
+  if (err.codeName === 'IndexOptionsConflict' || err.codeName === 'IndexKeySpecsConflict') {
+    console.error("Resolve the existing index conflict before retrying");
+  } else {
+    throw err;
   }
 }
 ```
@@ -617,8 +618,8 @@ await collection("users").createIndex({ email: 1 }, { unique: true });
 
 ### 4. Unsupported index type
 
-**Error code**: `MONGODB_ERROR`
-**Message**: "Unsupported index type"
+**Error code**: MongoDB driver/server error code.
+**Message**: Driver/server dependent, such as an unsupported index type or option.
 
 **Reason**: The MongoDB version does not support this index type
 
@@ -777,21 +778,40 @@ const users = await collection("users").find(
 ## 5. Precautions for production environment
 
 ```javascript
-//Create index in production environment
-await collection("users").createIndex(
-  { email: 1 },
-  {
-    unique: true,
-    background: true,  //Create in the background (not blocking)
-    name: "email_unique"
-  }
-);
+//Preflight before creating indexes in production.
+const indexes = await collection("users").listIndexes();
+const hasEmailIndex = indexes.some((idx) => idx.name === "email_unique");
 
+if (!hasEmailIndex) {
+  //Run this during a maintenance or low-traffic window.
+  await collection("users").createIndex(
+    { email: 1 },
+    {
+      unique: true,
+      name: "email_unique"
+    }
+  );
+}
+```
+
+Do not rely on `background: true` as the production safety control. Modern MongoDB index builds still consume memory, temporary disk, and locks at specific phases. For large collections, pre-check existing indexes, clean conflicting data first, run during a low-traffic window, and monitor the database while the build is running.
+
+```javascript
 //Monitor index creation progress
 const operations = await db.admin().command({
   currentOp: true,
   "command.createIndexes": { $exists: true }
 });
+```
+
+For Model-declared indexes, prefer the Model ensure API:
+
+```javascript
+const plan = await User.ensureIndexes({ dryRun: true });
+
+if (plan.conflicts.length === 0) {
+  await User.ensureIndexes({ throwOnError: true });
+}
 ```
 
 ---

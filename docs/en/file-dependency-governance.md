@@ -4,10 +4,10 @@ The current root package adopts the **precise version dependency strategy**:
 
 | Dependencies | Strategy | Reasons |
 |------|------|------|
-| `cache-hub` | Exact version `2.2.4` | The npm latest release has passed compatibility verification; the root direct dependency is fixed to 2.2.4, while the `schema-dsl` transitive dependency is still owned by the current `schema-dsl` version |
-| `schema-dsl` | Accurate version `2.0.8` | npm `latest` points to 2.0.8, and this version is the current official TypeScript line; monSQLize only relies on `dsl` / `validate` capabilities, and uses 2.0.8 for type-check, model test, integration and examples verification |
+| `cache-hub` | Exact version `2.2.4` | The npm latest release has passed compatibility verification; the root direct dependency is fixed to 2.2.4, and `schema-dsl@2.0.9` declares the same transitive dependency version |
+| `schema-dsl` | Exact version `2.0.9` | npm `latest` points to 2.0.9, and this version is the current official TypeScript line; monSQLize only relies on `dsl` / `validate` capabilities, and uses 2.0.9 for type-check, model test, integration, and examples verification |
 
-> `schema-dsl@2.0.8` is consistent with the current version of workspace sibling `../schema-dsl`; the higher-looking `2.3.x` line exists on npm but has been marked as misreleased/deprecated and must not be followed by upgrades.
+> `schema-dsl@2.0.9` is the current npm `latest`; the historical `2.3.x` line exists on npm but has been marked as misreleased/deprecated and must not be followed by upgrades.
 
 ## Current Risk
 
@@ -20,8 +20,8 @@ The current root package adopts the **precise version dependency strategy**:
 
 ## Development status
 
-- The root direct `cache-hub` dependency is fixed to `2.2.4`; the `schema-dsl@2.0.8` transitive `cache-hub` dependency is not overridden and will be handled when `schema-dsl` is upgraded.
-- `schema-dsl` is fixed to `2.0.8`.
+- The root direct `cache-hub` dependency is fixed to `2.2.4`; `schema-dsl@2.0.9` also declares `cache-hub@2.2.4`, so no additional override is needed.
+- `schema-dsl` is fixed to `2.0.9`.
 - Local sibling `../schema-dsl` is only used for debugging the upstream library itself and is no longer a prerequisite for monSQLize root package installation.
 
 
@@ -34,23 +34,23 @@ The current root package adopts the **precise version dependency strategy**:
 npm run release:preflight
 ```
 
-## schema-dsl 2.x upgrade closed loop
+## schema-dsl 2.x upgrade verification
 
-The dependency governance baseline has upgraded and fixed `schema-dsl` from the historical `^1.2.5` to `2.0.8`. The closed-loop standard is as follows:
+The dependency governance baseline has upgraded and fixed `schema-dsl` from the historical `^1.2.5` to `2.0.9`. The verification standard is as follows:
 
-1. The upstream released the **non-deprecated** 2.x latest version on npm: `2.0.8`.
-2. `npm install schema-dsl@2.0.8 --save-exact` followed by `npm run type-check`.
+1. The upstream released the **non-deprecated** 2.x latest version on npm: `2.0.9`.
+2. `npm install schema-dsl@2.0.9 --save-exact` followed by `npm run type-check`.
 3. All model-related unit tests/integration tests passed (covered with `npm run test:unit` and `npm run test:integration`).
 4. `npm run test:examples` all passed.
 5. `npm run release:preflight` still needs to be used as the final access control before release.
-6. This file, Profile, CHANGELOG and lockfile must be synchronized to `2.0.8`.
+6. This file, Profile, CHANGELOG, and lockfile must be synchronized to `2.0.9`.
 
-## cache-hub 2.2.4 upgrade closed loop
+## cache-hub 2.2.4 upgrade verification
 
-The dependency governance baseline has upgraded and fixed `cache-hub` from `1.0.0` to `2.2.4`. The closed-loop standard is as follows:
+The dependency governance baseline has upgraded and fixed `cache-hub` from `1.0.0` to `2.2.4`. The verification standard is as follows:
 
 1. The upstream npm `latest` is `2.2.4`, and the Node.js engine requirement remains `>=18`, matching the current monSQLize baseline.
-2. The root direct dependency resolves to `2.2.4`; the `schema-dsl` transitive dependency temporarily stays on the version declared by `schema-dsl@2.0.8`.
+2. The root direct dependency resolves to `2.2.4`; `schema-dsl@2.0.9` also declares `cache-hub@2.2.4`.
 3. `npm run type-check`, targeted cache / function-cache tests, website build, and memory probe must pass.
 4. This file, Profile, CHANGELOG, package manifest, and lockfile must be synchronized with the root direct dependency `2.2.4` baseline.
 

@@ -1,40 +1,40 @@
 # Advanced Capability Index
 
-This page is the formal entry index for capabilities restored in the current TypeScript version of `monSQLize`.
+This page lists the stable capability entry points in the current TypeScript version of `monSQLize`.
 
 Principles:
 
-- First state what the current repository formally owns.
-- Then point to the corresponding documentation and runnable examples in this repository.
+- Start with the API entry points users can call.
+- Then point to the corresponding documentation and runnable examples.
 
 ## Current Capability Overview
 
-| Capability | Current formal entry | Current status | Notes |
-|------------|----------------------|----------------|-------|
-| Model | `msq.model()` / `MonSQLize.Model` | ✅ Restored | Minimal registry / features loop is in place |
-| transaction / lock | `startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()` | ✅ Restored | Current runtime / types / unit / integration coverage is closed |
-| pool | `pool()` / `ConnectionPoolManager` | ✅ Restored | Minimal multi-pool loop is in place |
-| sync | `startSync()` / `stopSync()` / `getSyncStats()` | ✅ Restored | Minimal lifecycle / manager loop is in place |
-| slow-query-log | `recordSlowQuery()` / `getSlowQueryLogs()` | ✅ Restored | Manager / queue / runtime façade are in place |
-| saga | `defineSaga()` / `executeSaga()` / `getSagaStats()` | ✅ Restored | Orchestrator / runtime façade are in place |
+| Capability | Recommended entry | Notes |
+|------------|----------------------|-------|
+| Model | `msq.model()` / `MonSQLize.Model` | Supports model registration, relations, virtuals, populate, and common query entries |
+| transaction / lock | `startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()` | Supports transaction wrappers, local business locks, and distributed lock entries |
+| pool | `pool()` / `ConnectionPoolManager` | Supports multi-pool configuration, selection strategies, fallback, and status inspection |
+| sync | `startSync()` / `stopSync()` / `getSyncStats()` | Supports Change Stream sync start, stop, and status inspection |
+| slow-query-log | `recordSlowQuery()` / `getSlowQueryLogs()` | Supports slow-query recording, querying, and runtime management |
+| saga | `defineSaga()` / `executeSaga()` / `getSagaStats()` | Supports Saga definition, execution, compensation, and stats queries |
 
 ## 1. Model
 
-The current repository formally restores:
+Available entries:
 
 - `Model.define/get/list/undefine/redefine`
 - `msq.model()`
 - relations / virtuals / populate
 - `findOneById()` / `findByIds()` / `findAndCount()`
 
-Current Model entries:
+Model documentation and examples:
 
 - Docs: `docs/model.md`, `docs/populate.md`, `docs/relations.md`
 - Example: `examples/docs/model.ts`
 
 ## 2. transaction / lock
 
-The current repository formally restores:
+Available entries:
 
 - `startSession()`
 - `withTransaction()`
@@ -51,7 +51,7 @@ More advanced distributed lock strategies will continue to be documented in this
 
 ## 3. pool
 
-The current repository formally restores:
+Available entries:
 
 - `pool()`
 - `ConnectionPoolManager`
@@ -64,19 +64,19 @@ This is the current entry point for:
 
 ## 4. sync / slow-query-log / saga
 
-The current repository formally restores the minimal public surface for:
+Available entries:
 
 - sync: contract / manager / lifecycle
 - slow-query-log: manager / queue / runtime façade
 - saga: orchestrator / runtime façade
 
-The repository already provides topic pages and runnable examples:
+These capabilities include topic pages and runnable examples:
 
 - sync: `docs/sync-backup.md`, examples `examples/docs/sync.ts` and `examples/docs/sync-target-failure.ts`
 - slow-query-log: `docs/slow-query-log.md`, example `examples/docs/slow-query-log.ts`
 - saga: `docs/saga-transaction.md`, `docs/saga-advanced.md`, example `examples/docs/saga.ts`
 
-The next expansion focus is runtime fault injection, real deployment topology, and performance boundaries rather than filling in basic entry points.
+Future documentation will continue to cover runtime fault injection, real deployment topology, and performance boundaries.
 
 ## 5. Recommended Entries in This Repository
 

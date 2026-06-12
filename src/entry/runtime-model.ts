@@ -12,7 +12,9 @@
 
 import { Model, ModelInstance } from '../capabilities/model';
 import type { MemoryCache } from '../capabilities/cache';
+import { summarizeModelIndexEnsureResults } from '../capabilities/model/model-instance-config';
 import { ErrorCodes, createError } from '../core/errors';
+import type { ModelEnsureAllIndexesOptions, ModelIndexEnsureSummary } from '../../types/model';
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type { ModelInstanceCacheEntry } from '../types/internal/model';
 import type { ModelCollectionLike, ModelRuntimeLike } from '../capabilities/model/populate-promise';
@@ -31,6 +33,13 @@ export type RuntimeModelHost = {
         name: string,
         options?: { database?: string; pool?: string },
     ): ModelCollectionLike<TDocument>;
+};
+
+export type RuntimeModelIndexHost = {
+    scopedModel<TDocument = Record<string, unknown>>(
+        name: string,
+        options?: { database?: string; pool?: string },
+    ): ModelInstance<TDocument>;
 };
 
 /**
@@ -101,4 +110,28 @@ export function createRuntimeModelInstance<TDocument = Record<string, unknown>>(
         instance: instance as ModelInstance<Record<string, unknown>>,
     });
     return instance;
+}
+
+export async function ensureRuntimeModelIndexes(
+    host: RuntimeModelIndexHost,
+    options: ModelEnsureAllIndexesOptions = {},
+): Promise<ModelIndexEnsureSummary> {
+    const modelNames = options.models ?? Model.list();
+    const models: ModelIndexEnsureSummary['models'] = [];
+    for (const name of modelNames) {
+        const model = host.scopedModel(name, {
+            database: options.database,
+            pool: options.pool,
+        });
+        const result = await model.ensureIndexes({
+            dryRun: options.dryRun,
+            throwOnError: options.throwOnError,
+        });
+        models.push({ name, result });
+    }
+    return {
+        dryRun: options.dryRun === true,
+        models,
+        totals: summarizeModelIndexEnsureResults(models.map((item) => item.result)),
+    };
 }

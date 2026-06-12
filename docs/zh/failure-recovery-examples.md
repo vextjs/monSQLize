@@ -28,6 +28,6 @@ node .generated/examples-dist/examples/docs/pool-fallback.js
 
 ## 设计原则
 
-- **默认闭环优先**：全部示例都使用本地内存环境或 fake client，可直接运行。
+- **默认可验证路径优先**：全部示例都使用本地内存环境或 fake client，可直接运行。
 - **恢复信号可观察**：日志输出要明确展示失败点、恢复点、恢复后的状态。
 - **与正式验证链对齐**：这些示例同时归入 `npm run test:examples`，不是只写不跑的演示稿。

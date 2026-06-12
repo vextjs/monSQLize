@@ -5,8 +5,16 @@
  * and other ModelInstance initialization parameters from the registered model definition
  * and runtime options.
  */
-import type { ModelDefinition } from '../../../types/model';
+import type {
+    ModelAutoIndexOptions,
+    ModelDeclaredIndex,
+    ModelDefinition,
+    ModelEnsureIndexesOptions,
+    ModelIndexEnsureResult,
+    ModelIndexEnsureSummary,
+} from '../../../types/model';
 import type { ModelCollectionLike } from './populate-promise';
+import { ErrorCodes, createError } from '../../core/errors';
 import { _makeValidatingDslFn, _schemaDslFn } from './schema-dsl';
 
 type ModelHooksFactory = (
@@ -47,6 +55,7 @@ type ModelDefinitionCompat<TDocument> = ModelDefinition<TDocument> & {
             enabled?: boolean;
             field?: string;
         };
+        autoIndex?: ModelAutoIndexOptions;
     };
 };
 
@@ -61,7 +70,21 @@ type ModelIndexScheduleOptions = {
     dbName?: string;
     poolName?: string;
     collectionName?: string;
+    autoIndex?: ModelAutoIndexOptions;
 };
+
+type ModelIndexTaskScope = {
+    dbName: string;
+    poolName: string;
+    collectionName: string;
+};
+
+type ResolvedModelAutoIndexOptions = {
+    enabled: boolean;
+    emitEvents: boolean;
+};
+
+type ModelIndexEnsureOptions = ModelEnsureIndexesOptions & ModelIndexScheduleOptions;
 
 const runtimeModelIndexTasks = new WeakMap<object, Map<string, ModelIndexTask>>();
 const fallbackModelIndexTasks = new Map<string, ModelIndexTask>();
@@ -86,6 +109,98 @@ function stableIndexStringify(value: unknown): string {
     return JSON.stringify(value) ?? 'undefined';
 }
 
+function getIndexOptionName(options: Record<string, unknown>): string | undefined {
+    return typeof options.name === 'string' && options.name.length > 0 ? options.name : undefined;
+}
+
+function summarizeIndexError(error: unknown): { name?: string; message: string; code?: unknown } {
+    if (error instanceof Error) {
+        const record = error as Error & { code?: unknown; codeName?: unknown };
+        return {
+            name: error.name,
+            message: error.message,
+            code: record.code ?? record.codeName,
+        };
+    }
+    return {
+        message: String(error),
+    };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getExistingIndexKey(index: Record<string, unknown>): unknown {
+    return index.key;
+}
+
+function declaredOptionEntries(options: Record<string, unknown>): Array<[string, unknown]> {
+    return Object.entries(options).filter(([name, value]) => {
+        if (value === undefined) return false;
+        if (name === 'background') return false;
+        return true;
+    });
+}
+
+function indexOptionsMatch(existing: Record<string, unknown>, declared: ModelDeclaredIndex): boolean {
+    if (stableIndexStringify(getExistingIndexKey(existing)) !== stableIndexStringify(declared.key)) {
+        return false;
+    }
+    for (const [name, value] of declaredOptionEntries(declared.options)) {
+        const existingValue = existing[name];
+        if (value === false && existingValue === undefined) {
+            continue;
+        }
+        if (stableIndexStringify(existingValue) !== stableIndexStringify(value)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function findExistingIndexByName(
+    existingIndexes: Record<string, unknown>[],
+    name: string | undefined,
+): Record<string, unknown> | undefined {
+    if (!name) return undefined;
+    return existingIndexes.find((index) => index.name === name);
+}
+
+function findExistingIndexByKey(
+    existingIndexes: Record<string, unknown>[],
+    key: unknown,
+): Record<string, unknown> | undefined {
+    const fingerprint = stableIndexStringify(key);
+    return existingIndexes.find((index) => stableIndexStringify(getExistingIndexKey(index)) === fingerprint);
+}
+
+function createIndexEnsureError(
+    message: string,
+    result: Pick<ModelIndexEnsureResult, 'namespace' | 'conflicts' | 'failed'>,
+    cause?: Error,
+): Error {
+    return createError(ErrorCodes.MONGODB_ERROR, message, [result], cause);
+}
+
+export function resolveModelAutoIndexOptions<TDocument>(
+    definition: ModelDefinition<TDocument>,
+    runtimeAutoIndex?: ModelAutoIndexOptions,
+): ResolvedModelAutoIndexOptions {
+    const modelAutoIndex = toCompatDefinition(definition).options?.autoIndex;
+    const value = modelAutoIndex ?? runtimeAutoIndex;
+    if (value === false) {
+        return { enabled: false, emitEvents: true };
+    }
+    if (value && typeof value === 'object') {
+        return {
+            enabled: value.enabled !== false,
+            emitEvents: value.emitEvents !== false,
+        };
+    }
+    return { enabled: true, emitEvents: true };
+}
+
 function getIndexTaskRegistry(runtime: object | undefined): Map<string, ModelIndexTask> {
     if (!runtime) {
         return fallbackModelIndexTasks;
@@ -101,7 +216,7 @@ function getIndexTaskRegistry(runtime: object | undefined): Map<string, ModelInd
 function resolveIndexTaskScope<TDocument>(
     collection: ModelCollectionLike<TDocument>,
     options: ModelIndexScheduleOptions | undefined,
-): { dbName: string; poolName: string; collectionName: string } {
+): ModelIndexTaskScope {
     try {
         const namespace = collection.getNamespace();
         return {
@@ -118,6 +233,26 @@ function resolveIndexTaskScope<TDocument>(
     }
 }
 
+function toIndexNamespace(scope: ModelIndexTaskScope): ModelIndexEnsureResult['namespace'] {
+    return {
+        db: scope.dbName,
+        collection: scope.collectionName,
+        poolName: scope.poolName,
+    };
+}
+
+function emitIndexFailure(
+    runtime: object | undefined,
+    payload: Record<string, unknown>,
+    emitEvents: boolean,
+): void {
+    if (!emitEvents) {
+        return;
+    }
+    const emitter = runtime as { emit?: (event: string, payload: unknown) => void } | undefined;
+    emitter?.emit?.('model-index-error', payload);
+}
+
 function warnIndexFailure(runtime: object | undefined, taskKey: string, error: unknown): void {
     const logger = runtime as { logger?: { warn?: (...args: unknown[]) => void } } | undefined;
     logger?.logger?.warn?.('[MonSQLize] model index creation failed', {
@@ -128,12 +263,13 @@ function warnIndexFailure(runtime: object | undefined, taskKey: string, error: u
 
 function scheduleIndexTask<TDocument>(
     collection: ModelCollectionLike<TDocument>,
-    key: unknown,
-    indexOptions: Record<string, unknown>,
+    declaredIndex: ModelDeclaredIndex,
+    emitEvents: boolean,
     options?: ModelIndexScheduleOptions,
 ): void {
     const scope = resolveIndexTaskScope(collection, options);
-    const indexFingerprint = stableIndexStringify({ key, options: indexOptions });
+    const { key, options: indexOptions } = declaredIndex;
+    const indexFingerprint = declaredIndex.fingerprint;
     const taskKey = `${scope.poolName}:${scope.dbName}:${scope.collectionName}:${indexFingerprint}`;
     const registry = getIndexTaskRegistry(options?.runtime);
     const existing = registry.get(taskKey);
@@ -155,6 +291,14 @@ function scheduleIndexTask<TDocument>(
                         task.status = 'failed';
                         task.error = error;
                         warnIndexFailure(options?.runtime, taskKey, error);
+                        emitIndexFailure(options?.runtime, {
+                            namespace: scope,
+                            taskKey,
+                            source: declaredIndex.source,
+                            key,
+                            options: indexOptions,
+                            error: summarizeIndexError(error),
+                        }, emitEvents);
                         resolve();
                     });
             });
@@ -300,6 +444,157 @@ export function resolveModelHooksFactory<TDocument>(
     return typeof hooks === 'function' ? hooks : null;
 }
 
+export function collectModelIndexDefinitions<TDocument>(
+    definition: ModelDefinition<TDocument>,
+    softDeleteConfig: ModelSoftDeleteConfig | null,
+): ModelDeclaredIndex[] {
+    const declared: ModelDeclaredIndex[] = [];
+    if (softDeleteConfig?.enabled && softDeleteConfig.type === 'timestamp' && softDeleteConfig.ttl) {
+        const key = { [softDeleteConfig.field]: 1 };
+        const options = { expireAfterSeconds: softDeleteConfig.ttl };
+        declared.push({
+            source: 'softDelete',
+            key,
+            options,
+            name: getIndexOptionName(options),
+            fingerprint: stableIndexStringify({ key, options }),
+        });
+    }
+
+    const indexes = toCompatDefinition(definition).indexes;
+    if (!Array.isArray(indexes) || indexes.length === 0) {
+        return declared;
+    }
+    for (const indexSpec of indexes) {
+        if (!isRecord(indexSpec) || !indexSpec.key) {
+            continue;
+        }
+        const { key, ...indexOptions } = indexSpec;
+        declared.push({
+            source: 'definition',
+            key,
+            options: indexOptions,
+            name: getIndexOptionName(indexOptions),
+            fingerprint: stableIndexStringify({ key, options: indexOptions }),
+        });
+    }
+    return declared;
+}
+
+export async function ensureModelIndexesForCollection<TDocument>(
+    collection: ModelCollectionLike<TDocument>,
+    definition: ModelDefinition<TDocument>,
+    softDeleteConfig: ModelSoftDeleteConfig | null,
+    options: ModelIndexEnsureOptions = {},
+): Promise<ModelIndexEnsureResult> {
+    const namespace = toIndexNamespace(resolveIndexTaskScope(collection, options));
+    const declared = collectModelIndexDefinitions(definition, softDeleteConfig);
+    const existingIndexes = await collection.listIndexes();
+    const existing: ModelIndexEnsureResult['existing'] = [];
+    const missing: ModelIndexEnsureResult['missing'] = [];
+    const conflicts: ModelIndexEnsureResult['conflicts'] = [];
+
+    for (const declaredIndex of declared) {
+        const existingByName = findExistingIndexByName(existingIndexes, declaredIndex.name);
+        if (existingByName) {
+            if (indexOptionsMatch(existingByName, declaredIndex)) {
+                existing.push({ declared: declaredIndex, existing: existingByName });
+            } else {
+                conflicts.push({
+                    declared: declaredIndex,
+                    existing: existingByName,
+                    reason: 'name-conflict',
+                });
+            }
+            continue;
+        }
+
+        const existingByKey = findExistingIndexByKey(existingIndexes, declaredIndex.key);
+        if (existingByKey) {
+            if (indexOptionsMatch(existingByKey, declaredIndex)) {
+                existing.push({ declared: declaredIndex, existing: existingByKey });
+            } else {
+                conflicts.push({
+                    declared: declaredIndex,
+                    existing: existingByKey,
+                    reason: 'options-conflict',
+                });
+            }
+            continue;
+        }
+
+        missing.push(declaredIndex);
+    }
+
+    const result: ModelIndexEnsureResult = {
+        dryRun: options.dryRun === true,
+        namespace,
+        declared,
+        existing,
+        missing,
+        created: [],
+        conflicts,
+        failed: [],
+        skipped: options.dryRun === true
+            ? missing.map((declaredIndex) => ({ declared: declaredIndex, reason: 'dry-run' }))
+            : conflicts.map((conflict) => ({ declared: conflict.declared, reason: conflict.reason })),
+    };
+
+    if (conflicts.length > 0 && options.throwOnError) {
+        throw createIndexEnsureError('Model index conflicts detected.', result);
+    }
+    if (options.dryRun === true) {
+        return result;
+    }
+
+    for (const declaredIndex of missing) {
+        try {
+            const createdName = await collection.createIndex(declaredIndex.key, declaredIndex.options);
+            result.created.push({
+                declared: declaredIndex,
+                name: typeof createdName === 'string' ? createdName : undefined,
+                result: createdName,
+            });
+        } catch (error: unknown) {
+            result.failed.push({
+                declared: declaredIndex,
+                error: summarizeIndexError(error),
+            });
+            if (options.throwOnError) {
+                throw createIndexEnsureError(
+                    'Model index creation failed.',
+                    result,
+                    error instanceof Error ? error : undefined,
+                );
+            }
+        }
+    }
+
+    return result;
+}
+
+export function summarizeModelIndexEnsureResults(
+    results: ModelIndexEnsureResult[],
+): ModelIndexEnsureSummary['totals'] {
+    return results.reduce<ModelIndexEnsureSummary['totals']>((totals, result) => ({
+        declared: totals.declared + result.declared.length,
+        existing: totals.existing + result.existing.length,
+        missing: totals.missing + result.missing.length,
+        created: totals.created + result.created.length,
+        conflicts: totals.conflicts + result.conflicts.length,
+        failed: totals.failed + result.failed.length,
+        skipped: totals.skipped + result.skipped.length,
+    }), {
+        declared: 0,
+        existing: 0,
+        missing: 0,
+        created: 0,
+        conflicts: 0,
+        failed: 0,
+        skipped: 0,
+    });
+}
+
 export function initializeModelV1Methods<TDocument>(
     target: object,
     definition: ModelDefinition<TDocument>,
@@ -334,25 +629,11 @@ export function scheduleModelIndexes<TDocument>(
     softDeleteConfig: ModelSoftDeleteConfig | null,
     options?: ModelIndexScheduleOptions,
 ): void {
-    if (softDeleteConfig?.enabled && softDeleteConfig.type === 'timestamp' && softDeleteConfig.ttl) {
-        const softDeleteIndex = softDeleteConfig;
-        scheduleIndexTask(
-            collection,
-            { [softDeleteIndex.field]: 1 },
-            { expireAfterSeconds: softDeleteIndex.ttl },
-            options,
-        );
-    }
-
-    const indexes = toCompatDefinition(definition).indexes;
-    if (!Array.isArray(indexes) || indexes.length === 0) {
+    const autoIndex = resolveModelAutoIndexOptions(definition, options?.autoIndex);
+    if (!autoIndex.enabled) {
         return;
     }
-    for (const indexSpec of indexes) {
-        if (!indexSpec?.key) {
-            continue;
-        }
-        const { key, ...indexOptions } = indexSpec;
-        scheduleIndexTask(collection, key, indexOptions, options);
+    for (const declaredIndex of collectModelIndexDefinitions(definition, softDeleteConfig)) {
+        scheduleIndexTask(collection, declaredIndex, autoIndex.emitEvents, options);
     }
 }

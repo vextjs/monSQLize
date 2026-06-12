@@ -75,6 +75,7 @@ if (user.checkPassword('secret123')) {
   - `connection` - 数据源绑定（v1.2.2+，可选）
     - `pool` - 连接池名称，须与构造函数 `pools[].name` 一致
     - `database` - 数据库名称，不填则使用实例 `databaseName`
+  - `options.autoIndex` - 可选的 Model 级自动索引控制，会覆盖运行时 `autoIndex` 配置
 
 ```javascript
 Model.define('users', {
@@ -258,10 +259,12 @@ Model.define('users', newDefinition);
 获取 Model 实例。
 
 > **缓存行为**（v1.2.1+）：同一 runtime / pool / database / 注册名 / 实际集合名 / 定义版本下，多次调用 `msq.model()` 返回同一 `ModelInstance` 实例。
-> - 首次创建实例时会调度 Model 自动索引；每个索引实际调用一次 `createIndex()`，同一进程内 pending / fulfilled 的索引任务会去重
+> - Model 自动索引默认启用，首次创建实例时会调度；每个索引实际调用一次 `createIndex()`，同一进程内 pending / fulfilled 的索引任务会去重
+> - 可通过 `new MonSQLize({ autoIndex: false })` 全局关闭，也可通过 `options: { autoIndex: false }` 在单个 Model 上关闭
 > - `connect()` 只加载与注册 Model 定义，不会单独创建 `ModelInstance`，也不会单独触发索引创建
 > - 进程重启后内存任务表清空，首次使用对应 Model 时会再次发送 `createIndex()` ensure 命令；相同索引定义由 MongoDB 驱动/服务端按幂等语义处理
-> - 自动索引不会先调用 `listIndexes()` 预检；索引定义冲突时由 MongoDB 抛错
+> - 自动索引不会先调用 `listIndexes()` 预检；失败会记录日志，failed 任务允许后续重试，支持事件的 runtime 会额外触发 `model-index-error`
+> - 生产发布建议使用 `autoIndex: false`，再通过 `ensureIndexes({ dryRun: true })` 或 `msq.ensureModelIndexes({ dryRun: true })` 做显式预检
 > - `Model.redefine()` 或 `Model.undefine()` 后，下次调用 `msq.model()` 自动获取新定义的实例
 > - `Model.redefine()` 或 `Model.undefine()` 后，已缓存实例会自动失效，下次调用 `msq.model()` 时重建
 > - `msq.close()` 后全部缓存清空
@@ -867,11 +870,46 @@ indexes: [
 
 自动索引只在 `ModelInstance` 创建时调度，不会在每次查询或每次请求时重复创建。同一进程内，monSQLize 会按 runtime / pool / database / collection / index 指纹记录索引任务：任务处于 pending 或 fulfilled 状态时会跳过重复调度；失败任务允许下次重新调度。
 
-该流程不会先读取 `listIndexes()` 做数据库预检，而是直接调用 MongoDB `createIndex()`。因此：
+为了保持向后兼容，自动索引默认启用。生产服务可以在运行时或单个 Model 上关闭：
 
-- 相同索引定义通常会被 MongoDB 幂等处理
-- 索引选项冲突、同名冲突等问题会由 MongoDB 返回错误
-- 如果业务需要在手动索引管理前做差异化判断，可先调用 `listIndexes()` 再决定是否调用 `createIndex()` / `createIndexes()`
+```javascript
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'app',
+    autoIndex: false
+});
+
+Model.define('users', {
+    schema: (dsl) => dsl({ email: 'email!' }),
+    options: { autoIndex: false },
+    indexes: [
+        { key: { email: 1 }, unique: true, name: 'users_email_unique' }
+    ]
+});
+```
+
+发布前使用显式 ensure API 做预检和受控执行：
+
+```javascript
+const User = msq.model('users');
+
+const plan = await User.ensureIndexes({ dryRun: true });
+console.log(plan.missing, plan.conflicts);
+
+if (plan.conflicts.length === 0) {
+    await User.ensureIndexes({ throwOnError: true });
+}
+
+const summary = await msq.ensureModelIndexes({
+    models: ['users'],
+    dryRun: true
+});
+console.log(summary.totals);
+```
+
+`ensureIndexes()` 与 `ensureModelIndexes()` 会先调用 `listIndexes()`，并把声明索引分类为 `existing`、`missing`、`conflicts`。dry-run 模式不会调用 `createIndex()`。执行模式只创建 `missing` 索引，不会 drop、rename 或 rebuild 冲突索引。设置 `throwOnError: true` 后，显式 ensure 遇到冲突或创建失败会抛出 MonSQLize `MONGODB_ERROR`。
+
+自动索引仍会直接调用 MongoDB `createIndex()`。相同索引定义通常由 MongoDB 幂等处理；索引选项冲突、同名冲突等问题由 driver/server 返回。
 
 ---
 
@@ -1410,6 +1448,8 @@ Model.define('logs', {
 // MongoDB 会自动删除 deletedAt 超过 30 天的文档
 ```
 
+生产环境中，如果已有大量文档已过期，创建 TTL 索引后可能触发集中清理。建议使用 `autoIndex: false`，先运行 `ensureIndexes({ dryRun: true })`，必要时分批清理旧数据，再在低峰窗口创建 TTL 索引并开启数据库监控。
+
 ### 与 timestamps 协同
 
 软删除和时间戳可以同时启用：
@@ -1673,7 +1713,7 @@ async function example() {
     
     // 6. 查询（恢复后可以查到）
     const restoredArticle = await Article.findOne({ _id: article._id });
-    console.log('Restored:', restoredArticle.title);  // 'Hello World'
+    console.log('恢复后:', restoredArticle.title);  // 'Hello World'
     
     // 7. 强制物理删除
     await Article.forceDelete({ _id: article._id });

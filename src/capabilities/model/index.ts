@@ -7,7 +7,10 @@
 import { ErrorCodes, createError } from '../../core/errors';
 import type {
     HookContext,
+    ModelAutoIndexOptions,
     ModelDefinition,
+    ModelEnsureIndexesOptions,
+    ModelIndexEnsureResult,
     PopulateConfig,
     PopulateProxy,
     RelationConfig,
@@ -44,6 +47,7 @@ import {
 import {
     attachModelStatics,
     buildModelSchemaState,
+    ensureModelIndexesForCollection,
     getModelEnums,
     initializeModelV1Methods,
     isModelValidationEnabled,
@@ -78,8 +82,14 @@ import {
 // Public type re-exports (for external consumers)
 export type {
     HookContext,
+    ModelAutoIndexOptions,
+    ModelDeclaredIndex,
     ModelConnection,
     ModelDefinition,
+    ModelEnsureAllIndexesOptions,
+    ModelEnsureIndexesOptions,
+    ModelIndexEnsureResult,
+    ModelIndexEnsureSummary,
     ModelScopeOptions,
     PopulateConfig,
     PopulateProxy,
@@ -162,6 +172,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
             dbName: options.dbName,
             poolName: options.poolName,
             collectionName: options.collectionName,
+            autoIndex: (this.runtime as { options?: { autoIndex?: ModelAutoIndexOptions } }).options?.autoIndex,
         });
         this._v1InstanceMethods = initializeModelV1Methods(this, options.definition);
     }
@@ -425,6 +436,16 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
 
     listIndexes(): Promise<Record<string, unknown>[]> {
         return this.collection.listIndexes();
+    }
+
+    ensureIndexes(options: ModelEnsureIndexesOptions = {}): Promise<ModelIndexEnsureResult> {
+        return ensureModelIndexesForCollection(this.collection, this.definition, this._softDeleteConfig, {
+            ...options,
+            runtime: this.runtime as object,
+            dbName: this.dbName,
+            poolName: this.poolName,
+            collectionName: this.collectionName,
+        });
     }
 
     dropIndex(name: string): Promise<unknown> {

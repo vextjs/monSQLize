@@ -33,7 +33,7 @@ export interface SSHConfig {
 
 import type { Collection, DbAccessor, HealthView } from './collection';
 import type { Lock, LockOptions, LockStats } from './lock';
-import type { ModelInstance } from './model';
+import type { ModelAutoIndexOptions, ModelEnsureAllIndexesOptions, ModelIndexEnsureSummary, ModelInstance } from './model';
 import type { MongoConnectConfig } from './mongodb';
 import type { ConnectionPoolManagerOptions, PoolConfig, PoolHealthStatus, PoolStats, PoolStrategy } from './pool';
 import type {
@@ -176,6 +176,8 @@ export interface MonSQLizeOptions {
     countQueue?: boolean | { enabled?: boolean; concurrency?: number; maxQueueSize?: number; timeout?: number; };
     /** Model definitions to auto-register on connect. Accepts a file path (string) or an object with { path, pattern?, recursive? }. @since v1.3.0 */
     models?: string | { path: string; pattern?: string; recursive?: boolean; };
+    /** Global automatic model index creation control. Defaults to true for backward compatibility. */
+    autoIndex?: ModelAutoIndexOptions;
     /** Auto-invalidate cache on write operations. @since v1.3.0 */
     cacheAutoInvalidate?: boolean;
 }
@@ -256,6 +258,11 @@ export interface MonSQLizeInstance {
      */
     model<TDocument = any>(name: string): ModelInstance<TDocument>;
     model(name: string): ModelInstance<any>;
+    /**
+     * Ensures declared indexes for registered models.
+     * Use `dryRun: true` for production preflight; execution only creates missing indexes.
+     */
+    ensureModelIndexes(options?: ModelEnsureAllIndexesOptions): Promise<ModelIndexEnsureSummary>;
     /**
      * Start a MongoDB transaction session.
      * @param options Optional transaction options.
@@ -442,6 +449,7 @@ export default class MonSQLize implements MonSQLizeInstance {
     scopedModel(name: string, options?: { database?: string; pool?: string; }): ModelInstance<any>;
     model<TDocument = any>(name: string): ModelInstance<TDocument>;
     model(name: string): ModelInstance<any>;
+    ensureModelIndexes(options?: ModelEnsureAllIndexesOptions): Promise<ModelIndexEnsureSummary>;
     startSession(options?: TransactionOptions): Promise<Transaction>;
     withTransaction<T>(callback: (transaction: Transaction) => Promise<T>, options?: TransactionOptions): Promise<T>;
     withLock<T>(key: string, callback: () => Promise<T>, options?: LockOptions): Promise<T>;

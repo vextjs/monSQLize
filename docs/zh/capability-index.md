@@ -1,39 +1,39 @@
 # 高级能力索引
 
-本页用于给出当前 TS 版 `monSQLize` 已恢复能力的正式入口索引。
+本页用于给出当前 TS 版 `monSQLize` 的稳定能力入口索引。
 
 > 原则：
-> - 先说明“当前仓库已正式承接什么”
-> - 再给出“当前仓库内对应的文档与示例入口”
+> - 先说明“用户可以从哪些 API 入口开始”
+> - 再给出对应的文档与示例入口
 
 ## 当前能力总览
 
-| 能力 | 当前正式入口 | 当前状态 | 说明 |
-|------|--------------|----------|------|
-| Model | `msq.model()` / `MonSQLize.Model` | ✅ 已恢复 | registry / features 最小闭环已建立 |
-| transaction / lock | `startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()` | ✅ 已恢复 | 当前 runtime / type / unit / integration 已闭环 |
-| pool | `pool()` / `ConnectionPoolManager` | ✅ 已恢复 | 当前多连接池最小闭环已建立 |
-| sync | `startSync()` / `stopSync()` / `getSyncStats()` | ✅ 已恢复 | 当前 lifecycle / manager 最小闭环已建立 |
-| slow-query-log | `recordSlowQuery()` / `getSlowQueryLogs()` | ✅ 已恢复 | 当前 manager / queue / runtime façade 已建立 |
-| saga | `defineSaga()` / `executeSaga()` / `getSagaStats()` | ✅ 已恢复 | 当前 orchestrator / runtime façade 已建立 |
+| 能力 | 推荐入口 | 说明 |
+|------|--------------|------|
+| Model | `msq.model()` / `MonSQLize.Model` | 支持 Model 注册、关系、虚拟字段、populate 与常用查询入口 |
+| transaction / lock | `startSession()` / `withTransaction()` / `withLock()` / `acquireLock()` / `tryAcquireLock()` | 支持事务封装、本地业务锁和分布式锁入口 |
+| pool | `pool()` / `ConnectionPoolManager` | 支持多连接池配置、选择策略、fallback 与状态查看 |
+| sync | `startSync()` / `stopSync()` / `getSyncStats()` | 支持 Change Stream 同步启动、停止和状态查询 |
+| slow-query-log | `recordSlowQuery()` / `getSlowQueryLogs()` | 支持慢查询记录、查询和运行时管理 |
+| saga | `defineSaga()` / `executeSaga()` / `getSagaStats()` | 支持 Saga 定义、执行、补偿和统计查询 |
 
 ## 1. Model
 
-当前仓库已正式恢复：
+可用入口：
 
 - `Model.define/get/list/undefine/redefine`
 - `msq.model()`
 - relations / virtuals / populate
 - `findOneById()` / `findByIds()` / `findAndCount()`
 
-当前 Model 相关入口：
+Model 相关文档与示例：
 
 - 文档：`docs/model.md`、`docs/populate.md`、`docs/relations.md`
 - 示例：`examples/docs/model.ts`
 
 ## 2. transaction / lock
 
-当前仓库已正式恢复：
+可用入口：
 
 - `startSession()`
 - `withTransaction()`
@@ -50,7 +50,7 @@
 
 ## 3. pool
 
-当前仓库已正式恢复：
+可用入口：
 
 - `pool()`
 - `ConnectionPoolManager`
@@ -63,19 +63,19 @@
 
 ## 4. sync / slow-query-log / saga
 
-当前仓库已正式恢复最小公开面：
+可用入口：
 
 - sync：contract / manager / lifecycle
 - slow-query-log：manager / queue / runtime façade
 - saga：orchestrator / runtime façade
 
-当前仓库已提供这些能力的专题入口与可执行示例：
+这些能力已提供专题文档与可执行示例：
 
 - sync：`docs/sync-backup.md`，示例 `examples/docs/sync.ts`、`examples/docs/sync-target-failure.ts`
 - slow-query-log：`docs/slow-query-log.md`，示例 `examples/docs/slow-query-log.ts`
 - saga：`docs/saga-transaction.md`、`docs/saga-advanced.md`，示例 `examples/docs/saga.ts`
 
-后续扩展重点是继续补充运行时故障注入、真实部署拓扑与性能边界，而不是补缺基础入口。
+后续文档会继续补充运行时故障注入、真实部署拓扑与性能边界。
 
 ## 5. 当前仓库内的推荐入口
 

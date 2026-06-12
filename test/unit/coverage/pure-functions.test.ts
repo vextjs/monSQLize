@@ -9,14 +9,18 @@ import { createConnectionError, createCursorError, createQueryTimeoutError, crea
 import {
     attachModelStatics,
     buildModelSchemaState,
+    collectModelIndexDefinitions,
+    ensureModelIndexesForCollection,
     getModelEnums,
     initializeModelV1Methods,
     isModelValidationEnabled,
     resolveModelHooksFactory,
+    resolveModelAutoIndexOptions,
     resolveModelSoftDeleteConfig,
     resolveModelTimestampsConfig,
     resolveModelVersionConfig,
     scheduleModelIndexes,
+    summarizeModelIndexEnsureResults,
 } from '../../../src/capabilities/model/model-instance-config';
 import {
     normalizePopulateConfig,
@@ -1257,6 +1261,24 @@ describe('source error factories and model config helpers — function coverage'
         assert.equal(createdIndexes.length, 2);
 
         scheduleModelIndexes({ createIndex: async () => undefined } as any, {} as any, null);
+
+        assert.deepEqual(resolveModelAutoIndexOptions({} as any, false), { enabled: false, emitEvents: true });
+        assert.deepEqual(resolveModelAutoIndexOptions({ options: { autoIndex: { enabled: true, emitEvents: false } } } as any, false), { enabled: true, emitEvents: false });
+
+        const declared = collectModelIndexDefinitions({
+            indexes: [{ key: { email: 1 }, unique: true, name: 'email_unique' }],
+        } as any, { enabled: true, field: 'deletedAt', type: 'timestamp', ttl: 120 });
+        assert.equal(declared.length, 2);
+        assert.equal(declared[0].source, 'softDelete');
+        assert.equal(declared[1].name, 'email_unique');
+
+        const disabledIndexes: unknown[] = [];
+        scheduleModelIndexes({ createIndex: async (...args: unknown[]) => { disabledIndexes.push(args); } } as any, {
+            indexes: [{ key: { disabled: 1 } }],
+            options: { autoIndex: false },
+        } as any, { enabled: true, field: 'deletedAt', type: 'timestamp', ttl: 60 });
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(disabledIndexes.length, 0);
     });
 
     it('scheduleModelIndexes deduplicates pending and fulfilled tasks per runtime but retries failures', async () => {
@@ -1279,7 +1301,11 @@ describe('source error factories and model config helpers — function coverage'
 
         let attempts = 0;
         const warnings: unknown[] = [];
-        const retryRuntime = { logger: { warn: (...args: unknown[]) => warnings.push(args) } };
+        const emitted: unknown[] = [];
+        const retryRuntime = {
+            logger: { warn: (...args: unknown[]) => warnings.push(args) },
+            emit: (event: string, payload: unknown) => emitted.push({ event, payload }),
+        };
         const retryCollection = {
             getNamespace: () => ({ iid: 'db:retry_users', type: 'mongodb', db: 'db', collection: 'retry_users' }),
             createIndex: async () => {
@@ -1292,6 +1318,7 @@ describe('source error factories and model config helpers — function coverage'
         await new Promise((resolve) => setImmediate(resolve));
         assert.equal(attempts, 1);
         assert.equal(warnings.length, 1);
+        assert.equal((emitted[0] as { event: string }).event, 'model-index-error');
 
         scheduleModelIndexes(retryCollection as any, definition as any, null, { runtime: retryRuntime, dbName: 'db', collectionName: 'retry_users' });
         await new Promise((resolve) => setImmediate(resolve));
@@ -1314,6 +1341,68 @@ describe('source error factories and model config helpers — function coverage'
         scheduleModelIndexes(syncFailCollection as any, definition as any, null, { runtime: syncRuntime, dbName: 'db', collectionName: 'sync_fail_users' });
         await new Promise((resolve) => setImmediate(resolve));
         assert.equal(syncAttempts, 2);
+    });
+
+    it('model index ensure helpers support dry-run, creation, conflicts, failures, and totals', async () => {
+        const createCalls: unknown[] = [];
+        const collection = {
+            getNamespace: () => ({ iid: 'db:ensure_users', type: 'mongodb', db: 'db', collection: 'ensure_users' }),
+            listIndexes: async () => [
+                { name: '_id_', key: { _id: 1 } },
+                { name: 'email_unique', key: { email: 1 }, unique: true },
+            ],
+            createIndex: async (...args: unknown[]) => {
+                createCalls.push(args);
+                return 'age_idx';
+            },
+        };
+        const definition = {
+            indexes: [
+                { key: { email: 1 }, unique: true, name: 'email_unique' },
+                { key: { age: 1 }, name: 'age_idx' },
+            ],
+        };
+
+        const dryRun = await ensureModelIndexesForCollection(collection as any, definition as any, null, { dryRun: true });
+        assert.equal(dryRun.existing.length, 1);
+        assert.equal(dryRun.missing.length, 1);
+        assert.equal(dryRun.skipped.length, 1);
+        assert.equal(createCalls.length, 0);
+
+        const executed = await ensureModelIndexesForCollection(collection as any, definition as any, null);
+        assert.equal(executed.created.length, 1);
+        assert.equal(createCalls.length, 1);
+
+        const conflict = await ensureModelIndexesForCollection({
+            getNamespace: () => ({ iid: 'db:ensure_conflicts', type: 'mongodb', db: 'db', collection: 'ensure_conflicts' }),
+            listIndexes: async () => [{ name: 'email_unique', key: { email: 1 } }],
+            createIndex: async () => undefined,
+        } as any, definition as any, null);
+        assert.equal(conflict.conflicts.length, 1);
+
+        await assert.rejects(
+            () => ensureModelIndexesForCollection({
+                getNamespace: () => ({ iid: 'db:ensure_conflicts', type: 'mongodb', db: 'db', collection: 'ensure_conflicts' }),
+                listIndexes: async () => [{ name: 'email_unique', key: { email: 1 } }],
+                createIndex: async () => undefined,
+            } as any, definition as any, null, { throwOnError: true }),
+            (error: unknown) => (error as { code?: string }).code === 'MONGODB_ERROR',
+        );
+
+        const failed = await ensureModelIndexesForCollection({
+            getNamespace: () => ({ iid: 'db:ensure_failures', type: 'mongodb', db: 'db', collection: 'ensure_failures' }),
+            listIndexes: async () => [],
+            createIndex: async () => {
+                throw new Error('create failed');
+            },
+        } as any, { indexes: [{ key: { age: 1 }, name: 'age_idx' }] } as any, null);
+        assert.equal(failed.failed.length, 1);
+
+        const totals = summarizeModelIndexEnsureResults([dryRun, executed, conflict, failed]);
+        assert.equal(totals.declared, 7);
+        assert.equal(totals.created, 2);
+        assert.equal(totals.conflicts, 1);
+        assert.equal(totals.failed, 1);
     });
 
     it('createRuntimeModelInstance honors definition collection and pool scope in the v2 path', async () => {
@@ -1354,6 +1443,53 @@ describe('source error factories and model config helpers — function coverage'
             { collectionName: 'actual_items', options: { database: 'reporting', pool: 'analytics' } },
         ]);
         assert.equal(createdIndexes.length, 1);
+    });
+
+    it('createRuntimeModelInstance applies model autoIndex overrides over runtime defaults', async () => {
+        const suffix = Date.now();
+        const disabledModelName = `AutoIndexDisabled${suffix}`;
+        const enabledModelName = `AutoIndexEnabled${suffix}`;
+        if (Model.has(disabledModelName)) Model.undefine(disabledModelName);
+        if (Model.has(enabledModelName)) Model.undefine(enabledModelName);
+
+        try {
+            Model.define(disabledModelName, {
+                collection: 'auto_index_disabled_items',
+                schema: {},
+                indexes: [{ key: { email: 1 }, unique: true }],
+                options: { autoIndex: false },
+            } as any);
+            Model.define(enabledModelName, {
+                collection: 'auto_index_enabled_items',
+                schema: {},
+                indexes: [{ key: { email: 1 }, unique: true }],
+                options: { autoIndex: { enabled: true, emitEvents: false } },
+            } as any);
+
+            const createHost = (runtimeAutoIndex: unknown, calls: unknown[]) => createRuntimeModelHost({
+                options: { type: 'mongodb', databaseName: 'default_db' } as any,
+                modelInstances: new MemoryCache({ maxEntries: 10 }),
+                runtime: { options: { autoIndex: runtimeAutoIndex }, scopedCollection: () => null, scopedModel: () => null } as any,
+                scopedCollection: (collectionName) => ({
+                    getNamespace: () => ({ iid: `default_db:${collectionName}`, type: 'mongodb', db: 'default_db', collection: collectionName }),
+                    createIndex: async (...args: unknown[]) => { calls.push({ collectionName, args }); },
+                }),
+            });
+
+            const disabledCalls: unknown[] = [];
+            createRuntimeModelInstance(createHost(true, disabledCalls), disabledModelName, {});
+            await new Promise((resolve) => setImmediate(resolve));
+            assert.equal(disabledCalls.length, 0);
+
+            const enabledCalls: unknown[] = [];
+            createRuntimeModelInstance(createHost(false, enabledCalls), enabledModelName, {});
+            await new Promise((resolve) => setImmediate(resolve));
+            assert.equal(enabledCalls.length, 1);
+            assert.equal((enabledCalls[0] as { collectionName: string }).collectionName, 'auto_index_enabled_items');
+        } finally {
+            if (Model.has(disabledModelName)) Model.undefine(disabledModelName);
+            if (Model.has(enabledModelName)) Model.undefine(enabledModelName);
+        }
     });
 });
 

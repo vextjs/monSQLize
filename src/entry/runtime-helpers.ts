@@ -15,5 +15,7 @@ export {
 export {
     createRuntimeModelHost,
     createRuntimeModelInstance,
+    ensureRuntimeModelIndexes,
+    type RuntimeModelIndexHost,
     type RuntimeModelHost,
 } from './runtime-model';

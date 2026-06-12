@@ -4,10 +4,10 @@
 
 | 依赖 | 策略 | 原因 |
 |------|------|------|
-| `cache-hub` | 精确版本 `2.2.4` | 上游 npm latest 已发布稳定版本并通过兼容验证；根包 direct dependency 固定到 2.2.4，`schema-dsl` 的传递依赖暂由 `schema-dsl` 自身版本声明管理 |
-| `schema-dsl` | 精确版本 `2.0.8` | npm `latest` 指向 2.0.8，且该版本是当前 TypeScript 正式线；monSQLize 仅依赖 `dsl` / `validate` 能力，并以 2.0.8 执行 type-check、model 测试、integration 与 examples 验证 |
+| `cache-hub` | 精确版本 `2.2.4` | 上游 npm latest 已发布稳定版本并通过兼容验证；根包 direct dependency 固定到 2.2.4，`schema-dsl@2.0.9` 声明的传递依赖同为 2.2.4 |
+| `schema-dsl` | 精确版本 `2.0.9` | npm `latest` 指向 2.0.9，且该版本是当前 TypeScript 正式线；monSQLize 仅依赖 `dsl` / `validate` 能力，并以 2.0.9 执行 type-check、model 测试、integration 与 examples 验证 |
 
-> `schema-dsl@2.0.8` 与工作区 sibling `../schema-dsl` 当前版本一致；npm 上存在看似更高的 `2.3.x`，但已标记为误发布 / deprecated，不得跟随升级。
+> `schema-dsl@2.0.9` 是当前 npm `latest`；npm 上历史 `2.3.x` 已标记为误发布 / deprecated，不得跟随升级。
 
 ## 当前风险
 
@@ -19,8 +19,8 @@
 
 ### 开发态
 
-- 根包 direct `cache-hub` 固定为 `2.2.4`；`schema-dsl@2.0.8` 的传递 `cache-hub` 暂不 override，后续随 `schema-dsl` 升级再联动。
-- `schema-dsl` 固定为 `2.0.8`。
+- 根包 direct `cache-hub` 固定为 `2.2.4`；`schema-dsl@2.0.9` 声明的 `cache-hub` 版本同为 `2.2.4`，不需要额外 override。
+- `schema-dsl` 固定为 `2.0.9`。
 - 本地 sibling `../schema-dsl` 仅用于上游库自身调试，不再作为 monSQLize 根包安装前提。
 
 ### 发布态
@@ -32,23 +32,23 @@
 npm run release:preflight
 ```
 
-## schema-dsl 2.x 升级闭环
+## schema-dsl 2.x 升级验证
 
-依赖治理基线已将 `schema-dsl` 从历史 `^1.2.5` 升级并固定到 `2.0.8`，闭环标准如下：
+依赖治理基线已将 `schema-dsl` 从历史 `^1.2.5` 升级并固定到 `2.0.9`，验证标准如下：
 
-1. 上游在 npm 发布了**非 deprecated** 的 2.x latest 版本：`2.0.8`。
-2. `npm install schema-dsl@2.0.8 --save-exact` 后通过 `npm run type-check`。
+1. 上游在 npm 发布了**非 deprecated** 的 2.x latest 版本：`2.0.9`。
+2. `npm install schema-dsl@2.0.9 --save-exact` 后通过 `npm run type-check`。
 3. model 相关单测 / 集成测试全通过（随 `npm run test:unit` 与 `npm run test:integration` 覆盖）。
 4. `npm run test:examples` 全通过。
 5. 发布前仍需以 `npm run release:preflight` 作为最终门禁。
-6. 本文件、Profile、CHANGELOG 与 lockfile 必须同步到 `2.0.8`。
+6. 本文件、Profile、CHANGELOG 与 lockfile 必须同步到 `2.0.9`。
 
-## cache-hub 2.2.4 升级闭环
+## cache-hub 2.2.4 升级验证
 
-依赖治理基线已将 `cache-hub` 从 `1.0.0` 升级并固定到 `2.2.4`，闭环标准如下：
+依赖治理基线已将 `cache-hub` 从 `1.0.0` 升级并固定到 `2.2.4`，验证标准如下：
 
 1. 上游 npm `latest` 为 `2.2.4`，Node.js 引擎要求仍为 `>=18`，与 monSQLize 当前基线一致。
-2. 根包 direct dependency 解析到 `2.2.4`；`schema-dsl` transitive dependency 暂保持 `schema-dsl@2.0.8` 自身声明的版本。
+2. 根包 direct dependency 解析到 `2.2.4`；`schema-dsl@2.0.9` 也声明 `cache-hub@2.2.4`。
 3. `npm run type-check`、缓存 / function-cache 定向测试、文档站构建与内存探针必须通过。
 4. 本文件、Profile、CHANGELOG、package manifest 与 lockfile 必须同步 root direct dependency 的 `2.2.4` 口径。
 

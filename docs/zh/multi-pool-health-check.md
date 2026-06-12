@@ -230,7 +230,7 @@ async _checkHealth(poolName) {
             // 🔔 触发恢复事件
             this.emit('poolRecovered', poolName);
             
-            this._logger.info(`[HealthChecker] 连接池已恢复: ${poolName}`);
+            this._logger.info(`[HealthChecker] 连接池恢复完成: ${poolName}`);
             
         } catch (error) {
             // 仍然失败，保持 down 状态
@@ -419,12 +419,12 @@ healthChecker.on('poolDown', ({ poolName, error }) => {
 });
 
 healthChecker.on('poolRecovered', ({ poolName }) => {
-    console.info(`✅ 连接池已恢复: ${poolName}`);
+    console.info(`✅ 连接池恢复完成: ${poolName}`);
     
     // 🔔 发送恢复通知
     sendAlert({
         level: 'info',
-        message: `连接池 ${poolName} 已恢复`,
+        message: `连接池 ${poolName} 恢复完成`,
         timestamp: new Date().toISOString()
     });
 });

@@ -76,6 +76,7 @@ Register the Model definition.
   - `connection` - Data source binding (v1.2.2+, optional)
     - `pool` - connection pool name, must be consistent with constructor `pools[].name`
     - `database` - database name, if left blank, use instance `databaseName`
+  - `options.autoIndex` - Optional Model-level automatic index control; overrides the runtime `autoIndex` option
 
 ```javascript
 Model.define('users', {
@@ -265,10 +266,12 @@ Model.define('users', newDefinition);
 Get the Model instance.
 
 > **Cache Behavior** (v1.2.1+): Under the same runtime/pool/database/registration name/actual collection name/defined version, calling `msq.model()` multiple times returns the same `ModelInstance` instance.
-> - Model automatic indexing will be scheduled when an instance is created for the first time; `createIndex()` is actually called once for each index, and pending / fulfilled indexing tasks in the same process will be deduplicated.
+> - Model automatic indexing is enabled by default and will be scheduled when an instance is created for the first time; `createIndex()` is actually called once for each index, and pending / fulfilled indexing tasks in the same process will be deduplicated.
+> - Disable automatic model indexing globally with `new MonSQLize({ autoIndex: false })`, or per Model with `options: { autoIndex: false }`.
 > - `connect()` only loads and registers the Model definition. `ModelInstance` will not be created separately, nor will it trigger index creation separately.
 > - After the process is restarted, the memory task table is cleared, and the `createIndex()` ensure command will be sent again when the corresponding Model is used for the first time; the same index definition is processed by the MongoDB driver/server according to idempotent semantics
-> - Automatic indexing will not call `listIndexes()` preflight first; an error will be thrown by MongoDB when index definition conflicts
+> - Automatic indexing will not call `listIndexes()` preflight first. Failures are logged, failed tasks may be retried later, and runtimes with events emit `model-index-error`.
+> - For production rollout, prefer `autoIndex: false` plus explicit `ensureIndexes({ dryRun: true })` or `msq.ensureModelIndexes({ dryRun: true })` before creating missing indexes.
 > - After `Model.redefine()` or `Model.undefine()`, the next time you call `msq.model()`, you will automatically obtain the newly defined instance.
 > - After `Model.redefine()` or `Model.undefine()`, cached instances are invalidated and the next `msq.model()` call rebuilds them.
 > - Clear all caches after `msq.close()`
@@ -910,11 +913,46 @@ indexes: [
 
 Automatic indexes are only scheduled when `ModelInstance` is created and will not be re-created for every query or every request. Within the same process, monSQLize will record index tasks according to the runtime / pool / database / collection / index fingerprint: repeated scheduling will be skipped when the task is in the pending or fulfilled state; failed tasks are allowed to be rescheduled next time.
 
-This process does not first read `listIndexes()` for database pre-checking, but directly calls MongoDB `createIndex()`. Therefore:
+Automatic indexing is enabled by default for backward compatibility. Production services can disable it globally or per Model:
 
-- Identical index definitions are usually treated idempotently by MongoDB
-- Issues such as index option conflicts and same-name conflicts will cause errors to be returned by MongoDB
-- If the business needs to make differentiated judgments before manual index management, you can first call `listIndexes()` and then decide whether to call `createIndex()` / `createIndexes()`
+```javascript
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'app',
+    autoIndex: false
+});
+
+Model.define('users', {
+    schema: (dsl) => dsl({ email: 'email!' }),
+    options: { autoIndex: false },
+    indexes: [
+        { key: { email: 1 }, unique: true, name: 'users_email_unique' }
+    ]
+});
+```
+
+Use the explicit ensure APIs for release preflight and controlled execution:
+
+```javascript
+const User = msq.model('users');
+
+const plan = await User.ensureIndexes({ dryRun: true });
+console.log(plan.missing, plan.conflicts);
+
+if (plan.conflicts.length === 0) {
+    await User.ensureIndexes({ throwOnError: true });
+}
+
+const summary = await msq.ensureModelIndexes({
+    models: ['users'],
+    dryRun: true
+});
+console.log(summary.totals);
+```
+
+`ensureIndexes()` and `ensureModelIndexes()` call `listIndexes()` first and classify declared indexes as `existing`, `missing`, or `conflicts`. Dry-run mode never calls `createIndex()`. Execution creates only `missing` indexes; it does not drop, rename, or rebuild conflicting indexes. Set `throwOnError: true` to fail the explicit ensure call with a MonSQLize `MONGODB_ERROR` when conflicts or creation failures are found.
+
+Automatic indexing still calls MongoDB `createIndex()` directly. Identical index definitions are usually handled idempotently by MongoDB, while option conflicts or same-name conflicts are reported by the driver/server.
 
 ---
 
@@ -1479,6 +1517,8 @@ Model.define('logs', {
 //MongoDB will automatically delete documents whose deletedAt is older than 30 days
 ```
 
+In production, TTL index creation can cause a large cleanup wave when many existing documents are already expired. Use `autoIndex: false`, run `ensureIndexes({ dryRun: true })`, clean old data in batches if needed, and create the TTL index during a low-traffic window with database monitoring enabled.
+
 
 ## Works with timestamps
 
@@ -1753,7 +1793,7 @@ async function example() {
 
     //6. Query (can be found after recovery)
     const restoredArticle = await Article.findOne({ _id: article._id });
-    console.log('Restored:', restoredArticle.title);  // 'Hello World'
+    console.log('After restore:', restoredArticle.title);  // 'Hello World'
 
     //7. Forced physical deletion
     await Article.forceDelete({ _id: article._id });

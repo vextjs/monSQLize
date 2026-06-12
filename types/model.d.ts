@@ -62,6 +62,104 @@ export interface VirtualConfig {
     set?: (this: Record<string, unknown>, value: unknown) => void;
 }
 
+export type ModelAutoIndexOptions = boolean | {
+    /** Enable automatic model index creation. Defaults to true for backward compatibility. */
+    enabled?: boolean;
+    /** Emit `model-index-error` when automatic index creation fails. Defaults to true. */
+    emitEvents?: boolean;
+};
+
+export type ModelIndexSource = 'definition' | 'softDelete';
+
+export interface ModelDeclaredIndex {
+    source: ModelIndexSource;
+    key: unknown;
+    options: Record<string, unknown>;
+    name?: string;
+    fingerprint: string;
+}
+
+export interface ModelIndexNamespace {
+    db: string;
+    collection: string;
+    poolName: string;
+}
+
+export interface ModelIndexErrorSummary {
+    name?: string;
+    message: string;
+    code?: unknown;
+}
+
+export interface ModelIndexEnsureExisting {
+    declared: ModelDeclaredIndex;
+    existing: Record<string, unknown>;
+}
+
+export interface ModelIndexConflict {
+    declared: ModelDeclaredIndex;
+    existing?: Record<string, unknown>;
+    reason: string;
+}
+
+export interface ModelIndexCreated {
+    declared: ModelDeclaredIndex;
+    name?: string;
+    result?: unknown;
+}
+
+export interface ModelIndexFailure {
+    declared: ModelDeclaredIndex;
+    error: ModelIndexErrorSummary;
+}
+
+export interface ModelIndexSkipped {
+    declared: ModelDeclaredIndex;
+    reason: string;
+}
+
+export interface ModelEnsureIndexesOptions {
+    /** Return the index diff without creating missing indexes. */
+    dryRun?: boolean;
+    /** Throw a MonSQLize `MONGODB_ERROR` when conflicts or creation failures are found. */
+    throwOnError?: boolean;
+}
+
+export interface ModelEnsureAllIndexesOptions extends ModelEnsureIndexesOptions {
+    /** Limit the operation to specific registered model names. Defaults to all models. */
+    models?: string[];
+    /** Optional database scope for models without their own connection override. */
+    database?: string;
+    /** Optional pool scope for models without their own connection override. */
+    pool?: string;
+}
+
+export interface ModelIndexEnsureResult {
+    dryRun: boolean;
+    namespace: ModelIndexNamespace;
+    declared: ModelDeclaredIndex[];
+    existing: ModelIndexEnsureExisting[];
+    missing: ModelDeclaredIndex[];
+    created: ModelIndexCreated[];
+    conflicts: ModelIndexConflict[];
+    failed: ModelIndexFailure[];
+    skipped: ModelIndexSkipped[];
+}
+
+export interface ModelIndexEnsureSummary {
+    dryRun: boolean;
+    models: Array<{ name: string; result: ModelIndexEnsureResult }>;
+    totals: {
+        declared: number;
+        existing: number;
+        missing: number;
+        created: number;
+        conflicts: number;
+        failed: number;
+        skipped: number;
+    };
+}
+
 /** v1 hooks factory format */
 export type V1HooksFactory<TDocument = Record<string, unknown>> = (
     model: ModelInstance<TDocument>,
@@ -95,6 +193,7 @@ export type V1MethodsFactory<TDocument = Record<string, unknown>> = (
 export interface ModelDefinitionOptions {
     timestamps?: boolean | { createdAt?: string | boolean; updatedAt?: string | boolean };
     validate?: boolean;
+    autoIndex?: ModelAutoIndexOptions;
     softDelete?: boolean | {
         enabled?: boolean;
         field?: string;
@@ -443,6 +542,11 @@ export interface ModelInstance<TDocument = any> {
     createIndexes(specs: Array<{ key: unknown; } & Record<string, unknown>>): Promise<string[]>;
     /** Lists all existing index definitions on the collection. */
     listIndexes(): Promise<Record<string, unknown>[]>;
+    /**
+     * Compares declared model indexes with the database and optionally creates missing indexes.
+     * Does not drop, rename, or rebuild conflicting indexes.
+     */
+    ensureIndexes(options?: ModelEnsureIndexesOptions): Promise<ModelIndexEnsureResult>;
     /**
      * Drops the specified index by name.
      * @param name Index name.

@@ -78,8 +78,8 @@ npm run test:real-env:private
 
 ## 默认边界
 
-- **默认闭环**：`npm test` / `check:docs-examples` / `verify:fast` / `verify:full` / `test:server-matrix`
-- **覆盖率闭环**：`npm run test:coverage` 独立执行；P-04 已完成并保留为独立 coverage gate，不阻断 `verify:full`
+- **默认验证链**：`npm test` / `check:docs-examples` / `verify:fast` / `verify:full` / `test:server-matrix`
+- **覆盖率门禁**：`npm run test:coverage` 独立执行；P-04 已完成并保留为独立 coverage gate，不阻断 `verify:full`
 - **显式 opt-in**：`test:real-env:private`
 - **公开发布前门禁**：`release:preflight`
 - **本地私有发布前补充**：`verify:release`

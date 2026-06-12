@@ -2,7 +2,7 @@
 
 ## Scope
 
-This page covers the minimal onboarding path that the current TypeScript version of `monSQLize` formally owns:
+This page covers the minimal onboarding path supported by the current TypeScript version of `monSQLize`:
 
 - Installation
 - Initializing `MonSQLize`

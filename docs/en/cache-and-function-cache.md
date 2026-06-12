@@ -89,14 +89,14 @@ The current official example is `examples/cache/with-cache.ts`. During verificat
 
 ## 5. Redis and Distributed Capabilities
 
-The current repository has restored:
+Available entries:
 
 - `createRedisCacheAdapter`
 - `DistributedCacheInvalidator`
 
 The first example batch does **not** depend on Redis because:
 
-1. Its goal is to establish a minimal runnable example loop.
+1. Its goal is to provide a minimal runnable example path.
 2. Redis-related capabilities require explicit runtime configuration. `ioredis` is already installed with monsqlize.
 3. The first formal documentation entry should not be coupled to distributed cache environment setup.
 

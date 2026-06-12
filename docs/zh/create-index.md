@@ -460,18 +460,17 @@ await collection("products").createIndex(
 
 ```javascript
 try {
-  // 创建索引
-  await collection("users").createIndex({ email: 1 });
-  
-  // 尝试创建相同索引（会失败）
-  await collection("users").createIndex({ email: 1 });
+  await collection("users").createIndex(
+    { email: 1 },
+    { unique: true, name: "email_unique" }
+  );
 } catch (err) {
-  if (err.code === 'MONGODB_ERROR') {
-    if (err.message.includes('索引已存在')) {
-      console.log("索引已存在，无需重复创建");
-    } else {
-      console.error("创建索引失败:", err.message);
-    }
+  if (err.code === 'INVALID_ARGUMENT') {
+    console.error("索引参数无效:", err.message);
+  } else if (err.codeName === 'IndexOptionsConflict' || err.codeName === 'IndexKeySpecsConflict') {
+    console.error("索引定义与已有索引冲突:", err.message);
+  } else {
+    throw err;
   }
 }
 ```
@@ -484,14 +483,14 @@ try {
 
 #### 1. 索引已存在
 
-**错误码**: `MONGODB_ERROR`  
-**消息**: "索引已存在或名称冲突"
+**错误码**: 出现名称或选项冲突时由 MongoDB driver/server 返回；创建完全相同的索引定义通常是幂等的，可能直接返回已有索引名。
+**消息**: 取决于 driver/server，例如索引选项冲突或 key spec 冲突。
 
-**原因**: 尝试创建已存在的索引
+**原因**: 试图创建与已有索引名称、key 或选项冲突的索引。
 
 **解决方案**:
 ```javascript
-// 方案 1: 先检查索引是否存在
+// 先检查已有索引，并比较你关心的 key/options
 const indexes = await collection("users").listIndexes();
 const exists = indexes.some(idx => idx.name === 'email_1');
 
@@ -499,12 +498,14 @@ if (!exists) {
   await collection("users").createIndex({ email: 1 });
 }
 
-// 方案 2: 捕获错误并忽略
+// 如果确实依赖 driver 错误，检查 code/codeName
 try {
   await collection("users").createIndex({ email: 1 });
 } catch (err) {
-  if (!err.message.includes('索引已存在')) {
-    throw err;  // 重新抛出其他错误
+  if (err.codeName === 'IndexOptionsConflict' || err.codeName === 'IndexKeySpecsConflict') {
+    console.error("先处理已有索引冲突再重试");
+  } else {
+    throw err;
   }
 }
 ```
@@ -557,8 +558,8 @@ await collection("users").createIndex({ email: 1 }, { unique: true });
 
 #### 4. 不支持的索引类型
 
-**错误码**: `MONGODB_ERROR`  
-**消息**: "不支持的索引类型"
+**错误码**: MongoDB driver/server 原样错误码。
+**消息**: 取决于 driver/server，例如不支持的索引类型或选项。
 
 **原因**: MongoDB 版本不支持该索引类型
 
@@ -709,21 +710,40 @@ const users = await collection("users").find(
 ### 5. 生产环境注意事项
 
 ```javascript
-// 生产环境创建索引
-await collection("users").createIndex(
-  { email: 1 },
-  {
-    unique: true,
-    background: true,  // 后台创建（不阻塞）
-    name: "email_unique"
-  }
-);
+// 生产环境创建索引前先预检
+const indexes = await collection("users").listIndexes();
+const hasEmailIndex = indexes.some((idx) => idx.name === "email_unique");
 
+if (!hasEmailIndex) {
+  // 在维护窗口或低峰期执行
+  await collection("users").createIndex(
+    { email: 1 },
+    {
+      unique: true,
+      name: "email_unique"
+    }
+  );
+}
+```
+
+不要把 `background: true` 当成生产安全开关。现代 MongoDB 索引构建仍会消耗内存、临时磁盘，并在特定阶段持有锁。大集合上创建索引时，建议先检查已有索引，提前清理冲突数据，在低峰窗口执行，并在构建期间监控数据库。
+
+```javascript
 // 监控索引创建进度
 const operations = await db.admin().command({
   currentOp: true,
   "command.createIndexes": { $exists: true }
 });
+```
+
+如果索引来自 Model 定义，推荐使用 Model ensure API：
+
+```javascript
+const plan = await User.ensureIndexes({ dryRun: true });
+
+if (plan.conflicts.length === 0) {
+  await User.ensureIndexes({ throwOnError: true });
+}
 ```
 
 ---

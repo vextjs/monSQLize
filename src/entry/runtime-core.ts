@@ -122,6 +122,7 @@ import { validateRange } from '../utils/validation';
 import { Logger, type LoggerLike } from '../core/logger';
 import { encodeCursor, decodeCursor } from '../utils/cursor';
 import type { HealthView } from '../../types/collection';
+import type { ModelEnsureAllIndexesOptions, ModelIndexEnsureSummary } from '../../types/model';
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type { MultiLevelCacheOptions, MultiLevelCachePolicy, WritePolicy } from '../../types/runtime';
 import type { SyncTargetHealthCheckConfig } from '../../types/sync';
@@ -136,6 +137,7 @@ import {
     buildPublicDefaults,
     createRuntimeDbFacade,
     createRuntimeModelInstance,
+    ensureRuntimeModelIndexes,
     resolveDatabaseName,
 } from './runtime-helpers';
 import {
@@ -388,6 +390,7 @@ export class MonSQLizeRuntime {
             log: d.log,
             countQueue: this.options.countQueue,
             models: this.options.models,
+            autoIndex: this.options.autoIndex,
         };
     }
 
@@ -628,6 +631,8 @@ export class MonSQLizeRuntime {
         return instance;
     }
 
+    async ensureModelIndexes(options: ModelEnsureAllIndexesOptions = {}): Promise<ModelIndexEnsureSummary> { this.ensureConnected(); return ensureRuntimeModelIndexes(this, options); }
+
     // Capability delegation ----------------------------------------------------
     async startSession(options: TransactionOptions = {}): Promise<Transaction> {
         this.ensureConnected();
@@ -740,9 +745,7 @@ export class MonSQLizeRuntime {
         return this._lockManager;
     }
 
-    async _loadModels(opts: { reload?: boolean } = {}): Promise<void> {
-        await loadModelFiles(this.options, this._logger, opts);
-    }
+    async _loadModels(opts: { reload?: boolean } = {}): Promise<void> { await loadModelFiles(this.options, this._logger, opts); }
 
     private async initializeSyncManager(): Promise<ChangeStreamSyncManager | null> {
         this._syncManager = await initializeRuntimeSyncManager({
@@ -775,9 +778,7 @@ export class MonSQLizeRuntime {
         return this._slowQueryLogManager;
     }
 
-    private ensureSlowQueryLogManager(): SlowQueryLogManager {
-        return ensureRuntimeSlowQueryLogManager(this.initializeSlowQueryLogManager());
-    }
+    private ensureSlowQueryLogManager(): SlowQueryLogManager { return ensureRuntimeSlowQueryLogManager(this.initializeSlowQueryLogManager()); }
 
     private initializeSagaOrchestrator(): SagaOrchestrator {
         this._sagaOrchestrator = getOrCreateSagaOrchestrator(this._sagaOrchestrator, this.options.logger ?? null, this._cache);

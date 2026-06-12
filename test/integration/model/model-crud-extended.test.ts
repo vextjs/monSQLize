@@ -327,3 +327,66 @@ describe('ModelInstance — model with relations', () => {
         assert.equal(rels.articles.from, 'articles');
     });
 });
+
+describe('ModelInstance — index safety controls', () => {
+    const bootstrap = createMemoryServerBootstrap();
+    let uri = '';
+    let runtime: any;
+    let model: any;
+
+    before(async () => {
+        const ctx = await bootstrap.setup();
+        uri = ctx.uri;
+        MonSQLize.Model._clear();
+        MonSQLize.Model.define('safeUsers', {
+            schema: {},
+            indexes: [{ key: { email: 1 }, unique: true, name: 'safe_email_unique' }],
+            options: {
+                softDelete: { enabled: true, field: 'deletedAt', type: 'timestamp', ttl: 30 },
+            },
+        });
+        runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_model_index_safety',
+            config: { uri },
+            autoIndex: false,
+        });
+        await runtime.connect();
+        model = runtime.model('safeUsers');
+        await new Promise((resolve) => setImmediate(resolve));
+    });
+
+    after(async () => {
+        if (runtime) await runtime.close();
+        MonSQLize.Model._clear();
+        await bootstrap.teardown();
+    });
+
+    it('autoIndex false prevents automatic model and soft-delete index creation', async () => {
+        const indexes = await model.listIndexes();
+        assert.ok(!indexes.some((index: any) => index.name === 'safe_email_unique'));
+        assert.ok(!indexes.some((index: any) => index.key?.deletedAt === 1));
+    });
+
+    it('ensureIndexes dry-run reports missing indexes without creating them', async () => {
+        const result = await model.ensureIndexes({ dryRun: true });
+        assert.equal(result.dryRun, true);
+        assert.equal(result.missing.length, 2);
+        assert.equal(result.created.length, 0);
+        const indexes = await model.listIndexes();
+        assert.ok(!indexes.some((index: any) => index.name === 'safe_email_unique'));
+    });
+
+    it('ensureIndexes creates missing declared indexes and runtime summarizes them', async () => {
+        const result = await model.ensureIndexes();
+        assert.equal(result.created.length, 2);
+        const indexes = await model.listIndexes();
+        assert.ok(indexes.some((index: any) => index.name === 'safe_email_unique'));
+        assert.ok(indexes.some((index: any) => index.key?.deletedAt === 1 && index.expireAfterSeconds === 30));
+
+        const summary = await runtime.ensureModelIndexes({ models: ['safeUsers'], dryRun: true });
+        assert.equal(summary.models.length, 1);
+        assert.equal(summary.totals.existing, 2);
+        assert.equal(summary.totals.missing, 0);
+    });
+});
