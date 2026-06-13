@@ -1572,7 +1572,7 @@ describe('model populate and schema helpers — additional branch coverage', () 
         assert.equal(notDeleted, false);
     });
 
-    it('validating schema DSL accepts unions and rejects unknown base types', () => {
+    it('validating schema DSL delegates type semantics to schema-dsl', () => {
         const calls: unknown[] = [];
         const dsl = _makeValidatingDslFn((fields: unknown) => {
             calls.push(fields);
@@ -1580,9 +1580,10 @@ describe('model populate and schema helpers — additional branch coverage', () 
         }) as unknown as (fields: unknown) => unknown;
 
         assert.deepEqual(dsl({ role: 'admin|user', name: 'string!' }), { role: 'admin|user', name: 'string!' });
+        assert.deepEqual(dsl({ completedAt: 'datetime', scene: 'admin_login!' }), { completedAt: 'datetime', scene: 'admin_login!' });
         assert.deepEqual(dsl(null), null);
-        assert.throws(() => dsl({ broken: 'notatype!' }), /Invalid type/);
-        assert.equal(calls.length, 2);
+        assert.deepEqual(dsl({ broken: 'notatype!' }), { broken: 'notatype!' });
+        assert.equal(calls.length, 4);
     });
 });
 

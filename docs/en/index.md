@@ -2,7 +2,7 @@
 pageType: home
 
 hero:
-  badge: v2.0.4 TypeScript release
+  badge: v2.0.5 TypeScript release
   name: monSQLize
   text: TypeScript MongoDB Engine
   tagline: MongoDB-native APIs with cache-hub L1/L2 caching, multi-pool routing, Saga workflows, and schema-ready models.

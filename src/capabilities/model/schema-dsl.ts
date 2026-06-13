@@ -9,6 +9,8 @@
  * - This file attempts require('schema-dsl') at module load time; if successful, dsl and validate are enabled;
  *   otherwise it silently degrades.
  * - Exposes two variables (_schemaDslFn / _schemaValidateFn) and one wrapper factory (_makeValidatingDslFn).
+ * - _makeValidatingDslFn intentionally delegates DSL semantics to schema-dsl instead of maintaining
+ *   a shadow type allowlist in monsqlize.
  */
 
 // ── schema-dsl type declarations ────────────────────────────────────────────
@@ -32,55 +34,16 @@ try {
     // schema-dsl not available – schema validation will be skipped
 }
 
-// ── Known valid base types (consistent with v1) ──────────────────────────────
-const KNOWN_SCHEMA_BASE_TYPES = new Set([
-    'string', 'number', 'boolean', 'integer', 'float', 'int', 'double', 'decimal',
-    'date', 'objectid', 'uuid', 'email', 'url', 'buffer', 'binary',
-    'object', 'array', 'any', 'mixed', 'null',
-]);
-
 /**
- * Extract the base type name from a schema-dsl type string (strips modifiers like ! ? [] :range).
- *
- * Examples:
- *   "string!"    → "string"
- *   "objectid!"  → "objectid"
- *   "invalid!"   → "invalid"
- */
-function _extractBaseType(typeStr: string): string {
-    const m = typeStr.match(/^[a-zA-Z_]+/);
-    return m ? m[0].toLowerCase() : '';
-}
-
-/**
- * Wrap the schema-dsl dsl() function to eagerly validate field type strings during Model.define().
+ * Wrap the schema-dsl dsl() function while keeping schema-dsl as the single DSL authority.
  *
  * Behavior:
- * - If a field type string contains an unknown base type, a TypeError is thrown immediately
- *   (rather than silently failing at validation time).
- * - Enum DSL strings (e.g. "admin|user") are skipped — pipe-separated values are literal unions, not base types.
- *
- * This enables fast-fail at Model.define() time instead of silent degradation at runtime.
+ * - monsqlize no longer keeps a duplicate schema-dsl type allowlist.
+ * - Unknown types, custom types, aliases, and fallback behavior are delegated to schema-dsl.
+ * - A future schema-dsl diagnostics API can be consumed here without parsing DSL strings in monsqlize.
  */
 export function _makeValidatingDslFn(realDsl: SchemaDslFn): SchemaDslFn {
     const validating = function validatingDsl(fields: unknown): unknown {
-        if (fields && typeof fields === 'object') {
-            for (const [field, spec] of Object.entries(fields as Record<string, unknown>)) {
-                if (typeof spec === 'string') {
-                    // v1 compat: enum DSL like "admin|user" is a literal-union, not a base type.
-                    if (spec.includes('|')) {
-                        continue;
-                    }
-                    const base = _extractBaseType(spec);
-                    if (base && !KNOWN_SCHEMA_BASE_TYPES.has(base)) {
-                        throw new TypeError(
-                            `[schema] Invalid type "${base}" in field "${field}". ` +
-                            `Known types: ${[...KNOWN_SCHEMA_BASE_TYPES].join(', ')}.`
-                        );
-                    }
-                }
-            }
-        }
         return (realDsl as unknown as (f: unknown) => unknown)(fields);
     };
     return validating as unknown as SchemaDslFn;

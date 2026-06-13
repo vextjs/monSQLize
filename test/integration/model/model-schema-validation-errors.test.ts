@@ -160,42 +160,26 @@ describe('model — scheduleModelIndexes with missing key in spec', () => {
     });
 });
 
-describe('model — buildModelSchemaState TypeError re-throw via redefine()', () => {
-    it('redefine with invalid type string → runtime.model() throws TypeError', async () => {
-        // Model.redefine() bypasses pre-validation → buildModelSchemaState catches TypeError and re-throws
-        const modelName = 'redefine_bad_type_' + Date.now();
+describe('model — schema-dsl type delegation via redefine()', () => {
+    it('redefine with unknown type string is delegated to schema-dsl', async () => {
+        const modelName = 'redefine_delegated_type_' + Date.now();
 
         // Step 1: define with valid schema
         Model.define(modelName, { schema: {} });
 
-        // Step 2: redefine with invalid type schema
-        // redefine() doesn't call definition-validator → bypasses type check
-        // buildModelSchemaState will call _makeValidatingDslFn → TypeError for unknown type
-        try {
-            Model.redefine(modelName, {
-                schema: (dsl: any) => dsl({ field: 'unknowntype!' }),
-            });
-        } catch (err: any) {
-            // redefine may or may not throw at definition time
-            if (err instanceof TypeError && err.message.includes('[schema]')) {
-                assert.ok(true);
-                return;
-            }
-        }
+        // Step 2: redefine with a schema-dsl-owned type and a literal DSL string.
+        Model.redefine(modelName, {
+            schema: (dsl: any) => dsl({ completedAt: 'datetime', scene: 'admin_login!' }),
+        });
 
-        // If redefine succeeded, the TypeError should come from model instantiation
         const bootstrap2 = createMemoryServerBootstrap();
         const { uri } = await bootstrap2.setup();
-        const rt = new MonSQLize({ type: 'mongodb', databaseName: 'test_redefine_err', config: { uri } });
+        const rt = new MonSQLize({ type: 'mongodb', databaseName: 'test_redefine_delegated', config: { uri } });
         await rt.connect();
         try {
-            assert.throws(
-                () => rt.model(modelName),
-                /Invalid type|schema/,
-            );
-        } catch {
-            // If no error thrown (schema-dsl not installed), still ok
-            assert.ok(true);
+            const m = rt.model(modelName);
+            const result = m.validate({ completedAt: new Date().toISOString(), scene: 'admin_login' });
+            assert.equal(result.valid, true);
         } finally {
             await rt.close();
             await bootstrap2.teardown();

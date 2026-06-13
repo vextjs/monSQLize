@@ -134,19 +134,28 @@ describe('validateModelDocument — schemaValidateFn result branches', () => {
     });
 });
 
-describe('model-instance-config — buildModelSchemaState TypeError re-throw', () => {
-    it('schema function with unknown type string throws TypeError at Model.define()', () => {
-        // buildModelSchemaState re-throws TypeError with '[schema] Invalid type'
-        // _makeValidatingDslFn detects unknown base type → throws TypeError
-        assert.throws(
-            () => {
-                const modelName = 'invalid_type_' + Date.now();
-                Model.define(modelName, {
-                    schema: (dsl: any) => dsl({ field: 'unknowntype!' }),
-                });
-            },
-            /Invalid type|schema/,
-        );
+describe('model-instance-config — schema-dsl type delegation', () => {
+    it('schema function with unknown type string is delegated to schema-dsl', () => {
+        const modelName = 'delegated_unknown_type_' + Date.now();
+
+        Model.define(modelName, {
+            schema: (dsl: any) => dsl({ field: 'unknowntype!' }),
+        });
+
+        assert.ok(Model.has(modelName));
+    });
+
+    it('schema function accepts schema-dsl-owned and literal DSL strings', () => {
+        const modelName = 'schema_dsl_owned_types_' + Date.now();
+
+        Model.define(modelName, {
+            schema: (dsl: any) => dsl({
+                completedAt: 'datetime',
+                scene: 'admin_login!',
+            }),
+        });
+
+        assert.ok(Model.has(modelName));
     });
 });
 

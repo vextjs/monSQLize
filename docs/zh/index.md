@@ -2,7 +2,7 @@
 pageType: home
 
 hero:
-  badge: v2.0.4 TypeScript 正式版
+  badge: v2.0.5 TypeScript 正式版
   name: monSQLize
   text: TypeScript MongoDB 增强引擎
   tagline: 保留 MongoDB 原生体验，整合 cache-hub 两级缓存、多连接池路由、Saga 编排与可选 Model 层。
