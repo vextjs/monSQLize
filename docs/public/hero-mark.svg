@@ -4,44 +4,52 @@
   <defs>
     <style>
       .flow-line {
-        stroke-dasharray: 18 18;
-        animation: dash 9s linear infinite, flow-glow 4.8s ease-in-out infinite;
+        stroke-dasharray: 28 22;
+        animation: flow-dash 6.4s linear infinite, flow-depth 4.8s ease-in-out infinite;
       }
 
       .flow-line-slow {
-        stroke-dasharray: 10 20;
-        animation: dash 15s linear infinite reverse, flow-glow 6.4s ease-in-out infinite reverse;
+        stroke-dasharray: 16 26;
+        animation: flow-dash 11s linear infinite reverse, flow-depth 7.2s ease-in-out infinite reverse;
       }
 
       .float {
-        animation: float 7s ease-in-out infinite;
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: float 8.2s ease-in-out infinite;
       }
 
       .pulse {
-        animation: pulse 3.2s ease-in-out infinite;
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: pulse 3.4s ease-in-out infinite;
       }
 
       .pulse-delay {
-        animation: pulse 3.2s ease-in-out 1.1s infinite;
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: pulse 3.4s ease-in-out 1.1s infinite;
       }
 
       .pulse-late {
-        animation: pulse 3.2s ease-in-out 2.1s infinite;
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: pulse 3.4s ease-in-out 2.1s infinite;
       }
 
       .signal-link {
-        stroke-dasharray: 1 24;
-        animation: signal 3.8s ease-in-out infinite;
+        stroke-dasharray: 14 22;
+        animation: signal 4s ease-in-out infinite;
       }
 
       .signal-link-delay {
-        stroke-dasharray: 1 24;
-        animation: signal 3.8s ease-in-out 1.2s infinite;
+        stroke-dasharray: 14 22;
+        animation: signal 4s ease-in-out 1.2s infinite;
       }
 
       .db-current {
         stroke-dasharray: 16 26;
-        animation: dash 6.8s linear infinite reverse, flow-glow 4.2s ease-in-out infinite;
+        animation: flow-dash 5.8s linear infinite reverse, flow-depth 4.2s ease-in-out infinite;
       }
 
       .orbit {
@@ -50,16 +58,33 @@
         animation: orbit 22s linear infinite;
       }
 
-      @keyframes dash {
+      .packet {
+        filter: url(#packet-glow);
+        opacity: 0;
+      }
+
+      .packet-a {
+        animation: packet-a 5.2s cubic-bezier(0.42, 0, 0.2, 1) infinite;
+      }
+
+      .packet-b {
+        animation: packet-b 6.4s cubic-bezier(0.42, 0, 0.2, 1) 1.4s infinite;
+      }
+
+      .packet-c {
+        animation: packet-c 4.8s cubic-bezier(0.42, 0, 0.2, 1) 0.7s infinite;
+      }
+
+      @keyframes flow-dash {
         to {
-          stroke-dashoffset: -144;
+          stroke-dashoffset: -180;
         }
       }
 
-      @keyframes flow-glow {
+      @keyframes flow-depth {
         0%,
         100% {
-          opacity: 0.42;
+          opacity: 0.36;
         }
         50% {
           opacity: 0.82;
@@ -72,7 +97,7 @@
           transform: translateY(0);
         }
         50% {
-          transform: translateY(-10px);
+          transform: translateY(-8px);
         }
       }
 
@@ -96,30 +121,128 @@
 
       @keyframes signal {
         0% {
-          opacity: 0.24;
-          stroke-dashoffset: 34;
+          opacity: 0.18;
+          stroke-dashoffset: 38;
         }
-        42% {
-          opacity: 0.86;
+        48% {
+          opacity: 0.78;
         }
         100% {
-          opacity: 0.24;
-          stroke-dashoffset: -34;
+          opacity: 0.18;
+          stroke-dashoffset: -38;
+        }
+      }
+
+      @keyframes packet-a {
+        0% {
+          opacity: 0;
+          transform: translate(0, 0) scale(0.72);
+        }
+        10% {
+          opacity: 0.95;
+        }
+        34% {
+          opacity: 0.95;
+          transform: translate(120px, -18px) scale(1);
+        }
+        66% {
+          opacity: 0.95;
+          transform: translate(292px, -78px) scale(1.08);
+        }
+        92% {
+          opacity: 0.95;
+          transform: translate(438px, -160px) scale(0.86);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(466px, -168px) scale(0.72);
+        }
+      }
+
+      @keyframes packet-b {
+        0% {
+          opacity: 0;
+          transform: translate(0, 0) scale(0.7);
+        }
+        12% {
+          opacity: 0.72;
+        }
+        44% {
+          opacity: 0.72;
+          transform: translate(188px, -28px) scale(0.92);
+        }
+        76% {
+          opacity: 0.72;
+          transform: translate(330px, -62px) scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(446px, -76px) scale(0.7);
+        }
+      }
+
+      @keyframes packet-c {
+        0% {
+          opacity: 0;
+          transform: translate(0, 0) scale(0.74);
+        }
+        18% {
+          opacity: 0.9;
+        }
+        56% {
+          opacity: 0.9;
+          transform: translate(40px, 54px) scale(1.04);
+        }
+        84% {
+          opacity: 0.9;
+          transform: translate(-20px, 80px) scale(0.9);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(-34px, 88px) scale(0.74);
+        }
+      }
+
+      @keyframes pulse-reduced {
+        0%,
+        100% {
+          opacity: 0.52;
+        }
+        50% {
+          opacity: 0.92;
         }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .flow-line,
-        .flow-line-slow,
         .float,
-        .pulse,
-        .pulse-delay,
-        .pulse-late,
-        .signal-link,
-        .signal-link-delay,
-        .db-current,
         .orbit {
           animation: none;
+        }
+
+        .flow-line {
+          animation: flow-dash 12s linear infinite, flow-depth 8s ease-in-out infinite;
+        }
+
+        .flow-line-slow,
+        .db-current {
+          animation-duration: 18s, 10s;
+        }
+
+        .pulse,
+        .pulse-delay,
+        .pulse-late {
+          animation-name: pulse-reduced;
+        }
+
+        .signal-link,
+        .signal-link-delay {
+          animation-duration: 7s;
+        }
+
+        .packet-a,
+        .packet-b,
+        .packet-c {
+          animation-duration: 9s;
         }
       }
     </style>
@@ -158,6 +281,14 @@
     <filter id="scene-shadow" x="28" y="40" width="584" height="430" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
       <feDropShadow dx="0" dy="24" stdDeviation="30" flood-color="#020617" flood-opacity="0.22"/>
     </filter>
+    <filter id="packet-glow" x="0" y="0" width="640" height="520" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+      <feColorMatrix in="blur" values="0 0 0 0 0.26 0 0 0 0 0.91 0 0 0 0 0.98 0 0 0 0.9 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
   <g filter="url(#scene-shadow)">
@@ -166,6 +297,8 @@
     <path d="M62 174C170 86 318 132 548 74" fill="none" stroke="#F8FAFC" stroke-width="2.5" stroke-linecap="round" opacity="0.12"/>
     <path class="flow-line" d="M72 318C156 266 226 326 318 294 418 260 464 178 566 150" fill="none" stroke="url(#panel-line)" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
     <path class="flow-line-slow" d="M94 396C184 350 232 424 334 392 418 366 468 320 552 320" fill="none" stroke="#A7F3D0" stroke-width="3" stroke-linecap="round" opacity="0.36"/>
+    <circle class="packet packet-a" cx="92" cy="318" r="6" fill="#67E8F9"/>
+    <circle class="packet packet-b" cx="104" cy="396" r="5" fill="#A7F3D0"/>
   </g>
 
   <g opacity="0.84">
@@ -207,6 +340,7 @@
     <circle class="pulse" cx="438" cy="144" r="16" fill="#4ADE80"/>
     <circle class="pulse-delay" cx="478" cy="198" r="10" fill="#67E8F9"/>
     <circle class="pulse-late" cx="418" cy="224" r="8" fill="#C4B5FD"/>
+    <circle class="packet packet-c" cx="438" cy="144" r="5.5" fill="#E0FBFF"/>
     <path class="signal-link" d="M438 144c23 12 37 31 40 54" fill="none" stroke="#E0FBFF" stroke-width="5" stroke-linecap="round" opacity="0.78"/>
     <path class="signal-link-delay" d="M478 198c-17 16-37 24-60 26" fill="none" stroke="#E0FBFF" stroke-width="5" stroke-linecap="round" opacity="0.78"/>
   </g>

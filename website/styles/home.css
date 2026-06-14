@@ -309,6 +309,18 @@ body:not(.notTopArrived) .rp-nav.rp-nav {
   max-width: 540px;
   border-radius: 0;
   filter: var(--msq-hero-mark-shadow);
+  transform-origin: center;
+  animation: msq-hero-scene-breathe 7.2s ease-in-out infinite;
+}
+
+@keyframes msq-hero-scene-breathe {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -8px, 0) scale(1.01);
+  }
 }
 
 .rp-home-feature.rp-home-feature {
@@ -592,5 +604,11 @@ html[lang="zh"] .msq-footer--zh {
 
   .msq-footer__grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-home-hero .rp-home-hero__image-img {
+    animation: none;
   }
 }
