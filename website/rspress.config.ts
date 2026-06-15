@@ -68,8 +68,8 @@ const navSource: NavSource[] = [
     zh: '版本',
     items: [
       {
-        en: 'v2.0.3 (Current TS)',
-        zh: 'v2.0.3（当前 TS）',
+        en: 'v2.0.6 (Current TS)',
+        zh: 'v2.0.6（当前 TS）',
         link: '/getting-started'
       },
       {
@@ -97,7 +97,7 @@ const englishFooterMessage = `
     <span class="msq-footer__mark" aria-hidden="true"></span>
     <div>
       <strong>monSQLize</strong>
-      <span>MongoDB-native TypeScript APIs with cache, multi-pool routing, Saga workflows, and optional models.</span>
+      <span>Database-native TypeScript data runtime with MongoDB stable today and SQL adapters next.</span>
     </div>
   </section>
   <nav class="msq-footer__grid" aria-label="monSQLize footer">
@@ -126,7 +126,7 @@ const englishFooterMessage = `
       <h2>Runtime</h2>
       <span>Apache-2.0</span>
       <span>Node.js 18+</span>
-      <span>MongoDB Driver 6.x</span>
+      <span>MongoDB adapter stable</span>
       <span>TypeScript ready</span>
     </div>
   </nav>
@@ -138,7 +138,7 @@ const chineseFooterMessage = `
     <span class="msq-footer__mark" aria-hidden="true"></span>
     <div>
       <strong>monSQLize</strong>
-      <span>保留 MongoDB 原生体验，整合缓存、多连接池路由、Saga 编排与可选 Model 层。</span>
+      <span>数据库原生 TypeScript 数据运行时，当前 MongoDB 稳定，后续接入 SQL adapter。</span>
     </div>
   </section>
   <nav class="msq-footer__grid" aria-label="monSQLize 页脚">
@@ -167,7 +167,7 @@ const chineseFooterMessage = `
       <h2>运行基线</h2>
       <span>Apache-2.0</span>
       <span>Node.js 18+</span>
-      <span>MongoDB Driver 6.x</span>
+      <span>MongoDB adapter stable</span>
       <span>TypeScript ready</span>
     </div>
   </nav>
@@ -508,20 +508,20 @@ export default defineConfig({
   title: 'monSQLize',
   icon: '/favicon.svg',
   globalStyles: path.join(import.meta.dirname, 'styles', 'home.css'),
-  description: 'A powerful TypeScript MongoDB ODM with full v1 API compatibility — featuring chain queries, multi-pool, transactions, caching, Saga, and slow-query logging.',
+  description: 'A database-native TypeScript production data runtime layer with MongoDB stable today, plus cache, pools, transactions, Saga workflows, models, sync, and observability.',
   outDir: 'dist',
   locales: [
     {
       lang: 'en',
       label: 'English',
       title: 'monSQLize',
-      description: 'A TypeScript MongoDB ODM and enhancement layer.'
+      description: 'A database-native TypeScript production data runtime layer.'
     },
     {
       lang: 'zh',
       label: '简体中文',
       title: 'monSQLize',
-      description: 'TypeScript MongoDB ODM 与增强层。'
+      description: '数据库原生 TypeScript 生产数据运行时增强层。'
     }
   ],
   plugins: [
@@ -549,7 +549,7 @@ export default defineConfig({
         lang: 'en',
         label: 'English',
         title: 'monSQLize',
-        description: 'A TypeScript MongoDB ODM and enhancement layer.',
+        description: 'A database-native TypeScript production data runtime layer.',
         nav: englishNav,
         sidebar: {
           '/': englishSidebar
@@ -562,7 +562,7 @@ export default defineConfig({
         lang: 'zh',
         label: '简体中文',
         title: 'monSQLize',
-        description: 'TypeScript MongoDB ODM 与增强层。',
+        description: '数据库原生 TypeScript 生产数据运行时增强层。',
         nav: chineseNav,
         sidebar: {
           '/zh/': chineseSidebar

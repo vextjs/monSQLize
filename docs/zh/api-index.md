@@ -1,5 +1,7 @@
 # 📚 API 参考索引
 
+本索引记录当前稳定的 MongoDB adapter API 与共享运行时能力。MySQL 与 PostgreSQL adapter API 会在 runtime、公开类型、示例与验证覆盖完成后再进入独立文档入口。
+
 ## 📚 核心概念
 
 | 文档 | 说明 |

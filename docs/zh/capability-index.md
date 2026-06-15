@@ -2,11 +2,20 @@
 
 本页用于给出当前 TS 版 `monSQLize` 的稳定能力入口索引。
 
+monSQLize 是数据库原生的生产数据运行时增强层。当前稳定适配器是 MongoDB；MySQL 与 PostgreSQL 是后续计划中的 adapter，不属于当前 npm runtime。
+
 > 原则：
 > - 先说明“用户可以从哪些 API 入口开始”
 > - 再给出对应的文档与示例入口
 
 ## 当前能力总览
+
+| 层级 | 当前状态 | 范围 |
+|------|----------|------|
+| 共享运行时 | 当前 runtime 已暴露能力稳定 | Cache、Function Cache、锁、连接池、Saga、模型约束、慢查询日志与运行时诊断 |
+| MongoDB adapter | Stable | `collection()`、`db()`、`use()`、`pool()`、查询/写入增强、聚合、索引、事务、Change Streams |
+| MySQL adapter | Planned / in development | 后续数据库原生 adapter，当前暂无公开 runtime API |
+| PostgreSQL adapter | Planned / in development | 后续数据库原生 adapter，当前暂无公开 runtime API |
 
 | 能力 | 推荐入口 | 说明 |
 |------|--------------|------|

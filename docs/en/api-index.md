@@ -1,5 +1,7 @@
 # API Reference Index
 
+This index documents the current stable MongoDB adapter APIs and shared runtime capabilities. MySQL and PostgreSQL adapter APIs will receive separate entries after runtime support, public types, examples, and verification coverage are available.
+
 ## Core Concepts
 
 | Document | Description |

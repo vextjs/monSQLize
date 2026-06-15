@@ -1,6 +1,6 @@
 # monSQLize
 
-TypeScript-native MongoDB ODM and enhancement layer with v1-compatible APIs, multi-level caching, distributed locks, transactions, Saga orchestration, model validation, connection pools, Change Stream sync, slow-query logging, and CommonJS / ESM / TypeScript declaration outputs.
+Database-native production data runtime layer for TypeScript services. monSQLize keeps database semantics explicit while adding shared runtime capabilities for caching, transactions, locks, connection pools, models, workflows, synchronization, observability, and CommonJS / ESM / TypeScript declaration outputs.
 
 [![npm version](https://img.shields.io/npm/v/monsqlize.svg)](https://www.npmjs.com/package/monsqlize)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -13,11 +13,12 @@ Documentation: [English](https://vextjs.github.io/monSQLize/) · [简体中文](
 npm install monsqlize
 ```
 
-monSQLize is currently a MongoDB-focused package. The long-term product direction is to keep the MongoDB-style query experience while gradually extending the same high-level API shape to additional database backends.
+MongoDB is the first complete adapter. MySQL and PostgreSQL adapters are planned as database-native runtime adapters, not as a transparent promise that every database already accepts the same query syntax.
 
 ## Table of Contents
 
 - [Why monSQLize](#why-monsqlize)
+- [Adapter Status](#adapter-status)
 - [When to Use It](#when-to-use-it)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -35,9 +36,9 @@ monSQLize is currently a MongoDB-focused package. The long-term product directio
 
 ## Why monSQLize
 
-monSQLize keeps the MongoDB driver mental model while adding the production features most teams end up building around it:
+monSQLize is not an ORM and it is not just a CRUD wrapper. It is a production data runtime layer: the database driver remains visible, while the operational features teams usually build around the driver are provided in one runtime.
 
-- Drop-in collection helpers that preserve MongoDB-style CRUD, aggregation, indexes, transactions, and Change Streams.
+- Database-native adapter APIs: the current stable adapter preserves MongoDB-style CRUD, aggregation, indexes, transactions, and Change Streams.
 - Smart caching through `cache-hub`, including local memory caching, optional Redis-backed L2 caching, automatic invalidation, and function-level caching.
 - A lightweight Model layer with `schema-dsl` validation, hooks, relations, populate, custom methods, timestamps, soft delete, optimistic locking, and production-safe index preflight.
 - Multi-connection-pool support, pool health checks, pool-scoped collections/models, and fallback strategies.
@@ -47,6 +48,16 @@ monSQLize keeps the MongoDB driver mental model while adding the production feat
 - Slow-query logging and query diagnostics.
 - CommonJS, ESM, and TypeScript declaration outputs from `dist/**`.
 
+## Adapter Status
+
+| Adapter | Current status | Public entry |
+|---|---|---|
+| MongoDB | Stable and fully implemented | `type: 'mongodb'`, `collection()`, `db()`, `use()`, `pool()` |
+| MySQL | Planned / in development | Not part of the current npm runtime yet |
+| PostgreSQL | Planned / in development | Not part of the current npm runtime yet |
+
+The shared runtime direction is cache consistency, connection lifecycle, transaction and lock orchestration, model constraints, workflow compensation, synchronization, and observability across adapters. Adapter-native query, transaction, and connection semantics will stay explicit.
+
 ## When to Use It
 
 monSQLize is a good fit when you need:
@@ -54,7 +65,8 @@ monSQLize is a good fit when you need:
 | Scenario | Benefit |
 |---|---|
 | High-concurrency reads | Cache hot data and reduce repeated database work. |
-| MongoDB API compatibility | Keep familiar query syntax while adding higher-level helpers. |
+| MongoDB API compatibility today | Keep familiar MongoDB syntax while adding higher-level runtime helpers. |
+| A future multi-database runtime boundary | Prepare for MySQL/PostgreSQL adapters without turning SQL into fake MongoDB syntax. |
 | Multi-instance services | Use Redis invalidation and distributed locks to keep instances coordinated. |
 | Transaction-heavy flows | Use `withTransaction()` and transaction-aware helpers instead of hand-rolled lifecycle code. |
 | Model-level ergonomics | Add schema validation, hooks, populate, and custom methods only where needed. |
@@ -78,6 +90,8 @@ Runtime dependencies installed with the package:
 - `ssh2` - SSH tunnel support for restricted/private network deployment.
 
 ## Quick Start
+
+The current stable quick start uses the MongoDB adapter.
 
 ### CommonJS
 
@@ -531,6 +545,13 @@ Key release-readiness points:
 
 ## Roadmap
 
+### Adapter roadmap
+
+- MongoDB remains the stable adapter and the current production runtime.
+- MySQL and PostgreSQL adapters will be introduced as database-native adapters under the same production runtime contract.
+- Adapter status will move from planned to alpha/stable only after runtime support, public types, examples, and verification coverage are present.
+- The project does not currently promise production-ready "one query syntax automatically adapts to every database" behavior.
+
 ### v2.0.6
 
 - Dependency alignment to `schema-dsl@2.0.11`, carrying the shared ESM/CJS custom type registry fix to downstream vext applications.
@@ -578,10 +599,10 @@ Key release-readiness points:
 
 ### v3.0+
 
-- Unified API experiments for MySQL.
-- Unified API experiments for PostgreSQL.
-- Broader ORM capabilities.
-- Cross-database sync middleware.
+- MySQL runtime adapter experiments.
+- PostgreSQL runtime adapter experiments.
+- Shared production runtime capabilities across database-native adapters.
+- Cross-database sync middleware experiments.
 
 ## License
 

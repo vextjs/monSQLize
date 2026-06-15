@@ -2,12 +2,21 @@
 
 This page lists the stable capability entry points in the current TypeScript version of `monSQLize`.
 
+monSQLize is a database-native production data runtime layer. The current stable adapter is MongoDB; MySQL and PostgreSQL are planned as future adapters and are not part of the current npm runtime.
+
 Principles:
 
 - Start with the API entry points users can call.
 - Then point to the corresponding documentation and runnable examples.
 
 ## Current Capability Overview
+
+| Layer | Current status | Scope |
+|-------|----------------|-------|
+| Shared runtime | Stable where exposed by the current runtime | Cache, function cache, locks, pools, Saga workflows, model constraints, slow-query logging, and runtime diagnostics |
+| MongoDB adapter | Stable | `collection()`, `db()`, `use()`, `pool()`, query/write helpers, aggregation, indexes, transactions, Change Streams |
+| MySQL adapter | Planned / in development | Future database-native adapter, no current public runtime API |
+| PostgreSQL adapter | Planned / in development | Future database-native adapter, no current public runtime API |
 
 | Capability | Recommended entry | Notes |
 |------------|----------------------|-------|

@@ -4,8 +4,8 @@ pageType: home
 hero:
   badge: v2.0.6 TypeScript release
   name: monSQLize
-  text: TypeScript MongoDB Engine
-  tagline: MongoDB-native APIs with cache-hub L1/L2 caching, multi-pool routing, Saga workflows, and schema-ready models.
+  text: TypeScript Data Runtime Layer
+  tagline: Database-native production runtime for MongoDB today, with MySQL and PostgreSQL adapters next.
   image:
     src: /hero-mark.svg
     alt: monSQLize hero mark
@@ -29,12 +29,12 @@ features:
     details: L1 memory LRU plus optional L2 Redis, powered by cache-hub with pattern invalidation and distributed sync.
     link: /cache-and-function-cache.html
   - icon: 🔎
-    title: 56+ Enhanced Query Methods
-    details: findPage, findAndCount, stream, explain, ID helpers, and chain builders without leaving MongoDB semantics.
+    title: MongoDB Adapter APIs
+    details: findPage, findAndCount, stream, explain, ID helpers, and chain builders stay explicit to MongoDB semantics.
     link: /api-index.html
   - icon: 🏢
-    title: Production Runtime Capabilities
-    details: Distributed locks, SSH tunnels, Change Stream sync, slow-query logging, and explicit opt-in external services.
+    title: Shared Production Runtime
+    details: Cache consistency, transactions, locks, pools, Saga workflows, sync, slow-query logging, and explicit external services.
     link: /capability-index.html
   - icon: 🌐
     title: Multi-Pool & Read/Write Split
@@ -45,9 +45,9 @@ features:
     details: Schema validation, lifecycle hooks, relations, and Populate support that can be adopted gradually.
     link: /model.html
   - icon: 🔷
-    title: Full TypeScript
-    details: Typed runtime APIs, v1 compatibility guards, and CJS/ESM/type publishing from a single validated source.
-    link: /getting-started.html
+    title: Adapter Roadmap
+    details: MongoDB is stable today; MySQL and PostgreSQL are planned as database-native adapters, not fake MongoDB dialects.
+    link: /roadmap-boundaries.html
   - icon: 🔄
     title: Saga Transactions
     details: Multi-step workflow orchestration with explicit compensation and rollback semantics across services.

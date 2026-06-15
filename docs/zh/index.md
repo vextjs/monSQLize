@@ -4,8 +4,8 @@ pageType: home
 hero:
   badge: v2.0.6 TypeScript 正式版
   name: monSQLize
-  text: TypeScript MongoDB 增强引擎
-  tagline: 保留 MongoDB 原生体验，整合 cache-hub 两级缓存、多连接池路由、Saga 编排与可选 Model 层。
+  text: TypeScript 数据运行时增强层
+  tagline: 当前以 MongoDB 为稳定适配器，后续以数据库原生语义接入 MySQL 与 PostgreSQL。
   image:
     src: /hero-mark.svg
     alt: monSQLize hero mark
@@ -29,12 +29,12 @@ features:
     details: L1 内存 LRU 加可选 L2 Redis，基于 cache-hub 提供模式化失效与分布式缓存同步。
     link: /zh/cache-and-function-cache.html
   - icon: 🔎
-    title: 56+ 增强查询方法
-    details: findPage、findAndCount、stream、explain、ID 便利方法与链式 builder，不偏离 MongoDB 语义。
+    title: MongoDB 适配器 API
+    details: findPage、findAndCount、stream、explain、ID 便利方法与链式 builder 明确保持 MongoDB 语义。
     link: /zh/api-index.html
   - icon: 🏢
-    title: 生产级运行能力
-    details: 分布式锁、SSH 隧道、Change Stream 同步、慢查询日志，外部服务均通过显式配置启用。
+    title: 共享生产运行时
+    details: 缓存一致性、事务、锁、连接池、Saga 编排、同步、慢查询日志与显式启用的外部服务。
     link: /zh/capability-index.html
   - icon: 🌐
     title: 多连接池与读写分离
@@ -45,9 +45,9 @@ features:
     details: Schema 验证、生命周期 hooks、Relations 与 Populate 支持，可渐进式接入。
     link: /zh/model.html
   - icon: 🔷
-    title: 完整 TypeScript
-    details: 类型化运行时 API、v1 兼容守卫，以及 CJS/ESM/类型定义的统一发布出口。
-    link: /zh/getting-started.html
+    title: Adapter 路线图
+    details: MongoDB 当前稳定；MySQL 与 PostgreSQL 将以数据库原生 adapter 接入，而不是伪装成 MongoDB 方言。
+    link: /zh/roadmap-boundaries.html
   - icon: 🔄
     title: Saga 事务
     details: 面向多步骤业务流程的编排能力，支持显式补偿与回滚语义。

@@ -1,8 +1,22 @@
 # Roadmap boundary description
 
+## Product positioning
+
+monSQLize is a **database-native production data runtime layer for TypeScript services**.
+
+The current stable adapter is MongoDB. MySQL and PostgreSQL are planned as future database-native adapters under the same runtime contract. The shared contract is the production runtime layer: cache consistency, connection lifecycle, transaction and lock orchestration, model constraints, workflows, synchronization, and observability.
+
+## Adapter status
+
+| Adapter | Status | Notes |
+|---------|--------|-------|
+| MongoDB | Stable | Current production runtime adapter |
+| MySQL | Planned / in development | Not part of the current npm runtime yet |
+| PostgreSQL | Planned / in development | Not part of the current npm runtime yet |
+
 ## Currently explicitly supported
 
-monSQLize is currently a **MongoDB enhancement layer**, including:
+The current MongoDB adapter includes:
 
 - MongoDB query extension
 - Cache / Function Cache
@@ -27,6 +41,7 @@ The long-term vision is preserved in the README, but the actual delivery must be
 
 ## External expression rules
 
-- It can be said that "the long-term vision is a unified query syntax".
+- It can be said that "MySQL and PostgreSQL are planned as database-native runtime adapters".
 - It must also be clear that "**The current official support scope is only MongoDB**".
 - When adding new documents or examples, roadmap capabilities must not be written as currently available capabilities.
+- Avoid promising that SQL adapters will behave as transparent MongoDB dialects. SQL query, transaction, prepared-statement, and connection semantics must remain explicit when those adapters are introduced.
