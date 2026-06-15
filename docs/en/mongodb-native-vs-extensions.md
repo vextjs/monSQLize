@@ -442,27 +442,27 @@ const events = await analyticsDb.collection('events').find({}).toArray();
 ```
 
 
-## monSQLize: one line of code across databases
+## monSQLize: scoped access across databases
 
 ```javascript
-// monSQLize: cross-database access in one line of code
+// monSQLize: cross-database access with an explicit scoped accessor
 const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',  // Default database
   config: { uri: 'mongodb://localhost:27017' }
 });
 
-const { db, collection } = await msq.connect();
+const { collection, use } = await msq.connect();
 
 // Access the default database (shop)
 const products = await collection('products').find({});
 
-// Access analytics across databases (one line of code)
-const events = await db('analytics').collection('events').find({});
-// Concise and clear
+// Access analytics with a scoped database accessor
+const events = await use('analytics').collection('events').find({});
+// Concise and clear for business collection access
 
 // Chained cross-database access
-const logs = await db('logs').collection('access_logs').find({});
+const logs = await use('logs').collection('access_logs').find({});
 ```
 
 
@@ -470,7 +470,7 @@ const logs = await db('logs').collection('access_logs').find({});
 
 | Features | MongoDB native | monSQLize |
 |------|-------------|-----------|
-| **Cross-database switching** | ❌ Manual `client.db(name)` | ✅ One line of code `db(name)` |
+| **Cross-database switching** | ❌ Manual `client.db(name)` | ✅ Scoped collection access with `use(name)` |
 | **Default database** | ❌ No concept | ✅ Automatically use the default database |
 | **Code Simplicity** | ⚠️ Lengthy | ✅ Concise |
 | **Cache Isolation** | ❌ No cache | ✅ Automatic isolation by database |
@@ -843,7 +843,7 @@ If you want to experience the extended capabilities of monSQLize, start here:
 2. **Enable cache**: Add `{ cache: 5000 }` to the query
 3. **Use paging**: Use `findPage()` instead of `find()`
 4. **Monitor slow query**: Listen for `slow-query` events
-5. **Cross-database access**: use `db(name).collection(name)`
+5. **Cross-database access**: use `use(name).collection(name)` for business collections; reserve `db(name)` for database-level commands
 
 **Full example**: View the [getting started guide](./getting-started.md)
 

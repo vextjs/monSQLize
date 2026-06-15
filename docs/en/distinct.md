@@ -425,10 +425,10 @@ Index fields that are frequently subjected to distinct queries:
 
 ```javascript
 // Create an index for the category field
-await db.collection('products').createIndex({ category: 1 });
+await collection('products').createIndex({ category: 1 });
 
 // Create a composite index for combined queries
-await db.collection('products').createIndex({ inStock: 1, category: 1 });
+await collection('products').createIndex({ inStock: 1, category: 1 });
 ```
 
 **Effect**:
@@ -634,7 +634,7 @@ try {
 **Optimization points**:
 1. **Create an index for distinct fields**
    ```javascript
-   await db.collection('products').createIndex({ category: 1 });
+   await collection('products').createIndex({ category: 1 });
    ```
 
 2. **Use query conditions to narrow the scope**
@@ -705,10 +705,10 @@ Create indexes for commonly used distinct fields to significantly improve query 
 
 ```javascript
 // single field index
-await db.collection('products').createIndex({ category: 1 });
+await collection('products').createIndex({ category: 1 });
 
 // Composite index (with query conditions)
-await db.collection('products').createIndex({ inStock: 1, category: 1 });
+await collection('products').createIndex({ inStock: 1, category: 1 });
 ```
 
 ### 2. Narrow the query scope

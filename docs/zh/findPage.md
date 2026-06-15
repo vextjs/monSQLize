@@ -497,7 +497,7 @@ try {
 
 ```javascript
 // 为常用查询创建复合索引
-db.collection('orders').createIndex({ status: 1, createdAt: -1 });
+await collection('orders').createIndex({ status: 1, createdAt: -1 });
 
 // 在 findPage 中使用 hint 指定索引
 const result = await collection('orders').findPage({
@@ -989,7 +989,7 @@ const result = await collection('orders').findPage({
 **2. 为统计查询指定索引**
 ```javascript
 // 创建索引
-await db.collection('orders').createIndex({ year: 1 });
+await collection('orders').createIndex({ year: 1 });
 
 // 使用 hint 指定索引
 const result = await collection('orders').findPage({
@@ -1355,7 +1355,7 @@ const msq = new MonSQLize({ type: 'mongodb', cursorSecret: process.env.CURSOR_SE
 
 ```ts
 // 部署前清理（伪代码）
-await db.collection('user_states').updateMany({}, { $unset: { lastCursor: '' } });
+await nativeDb.collection('user_states').updateMany({}, { $unset: { lastCursor: '' } });
 await redis.del('session:cursor:*');
 
 // 然后直接启用签名

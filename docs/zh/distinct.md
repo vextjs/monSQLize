@@ -425,10 +425,10 @@ try {
 
 ```javascript
 // 为 category 字段创建索引
-await db.collection('products').createIndex({ category: 1 });
+await collection('products').createIndex({ category: 1 });
 
 // 为组合查询创建复合索引
-await db.collection('products').createIndex({ inStock: 1, category: 1 });
+await collection('products').createIndex({ inStock: 1, category: 1 });
 ```
 
 **效果**：
@@ -634,7 +634,7 @@ try {
 **优化要点**：
 1. **为 distinct 字段创建索引**
    ```javascript
-   await db.collection('products').createIndex({ category: 1 });
+   await collection('products').createIndex({ category: 1 });
    ```
 
 2. **使用查询条件缩小范围**
@@ -705,10 +705,10 @@ const recentStatuses = await collection('orders').distinct('status', {
 
 ```javascript
 // 单字段索引
-await db.collection('products').createIndex({ category: 1 });
+await collection('products').createIndex({ category: 1 });
 
 // 复合索引（带查询条件时）
-await db.collection('products').createIndex({ inStock: 1, category: 1 });
+await collection('products').createIndex({ inStock: 1, category: 1 });
 ```
 
 ### 2. 缩小查询范围

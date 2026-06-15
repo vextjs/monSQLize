@@ -120,10 +120,10 @@ const msq = new MonSQLize({
 ## 3. Use
 
 ```javascript
-const db = await msq.connect();
+await msq.connect();
 
 //Use business lock
-await db.withLock('inventory:SKU123', async () => {
+await msq.withLock('inventory:SKU123', async () => {
     const product = await inventory.findOne({ sku: 'SKU123' });
     if (product.stock >= 1) {
         await inventory.updateOne(
@@ -169,13 +169,13 @@ async withLock<T>(
 
 ```javascript
 //Basic usage
-await db.withLock('resource:123', async () => {
+await msq.withLock('resource:123', async () => {
     //critical section code
     await doSomething();
 });
 
 //Custom options
-await db.withLock('resource:123', async () => {
+await msq.withLock('resource:123', async () => {
     await doSomething();
 }, {
     ttl: 5000,        //Release automatically after 5 seconds
@@ -184,7 +184,7 @@ await db.withLock('resource:123', async () => {
 });
 
 //return value
-const result = await db.withLock('resource:123', async () => {
+const result = await msq.withLock('resource:123', async () => {
     return await calculateSomething();
 });
 console.log(result);
@@ -335,7 +335,7 @@ new MonSQLize({
 The default value can be overridden on each call:
 
 ```javascript
-await db.withLock('key', callback, {
+await msq.withLock('key', callback, {
     ttl: 5000,          //Override default TTL
     retryTimes: 5,      //Override the default number of retries
     retryDelay: 200,    //Override the default retry interval
@@ -351,7 +351,7 @@ await db.withLock('key', callback, {
 ## Scenario 1: Inventory deduction (complex business)
 
 ```javascript
-await db.withLock(`inventory:${sku}`, async () => {
+await msq.withLock(`inventory:${sku}`, async () => {
     const product = await inventory.findOne({ sku });
     const user = await users.findOne({ userId });
 
@@ -373,8 +373,8 @@ await db.withLock(`inventory:${sku}`, async () => {
 ## Scenario 2: Order creation (lock + transaction)
 
 ```javascript
-await db.withLock(`order:${userId}:${sku}`, async () => {
-    await db.withTransaction(async (tx) => {
+await msq.withLock(`order:${userId}:${sku}`, async () => {
+    await msq.withTransaction(async (tx) => {
         //intra-transaction operations
         await inventory.updateOne(
             { sku, stock: { $gte: 1 } },
@@ -416,7 +416,7 @@ async function dailyReportTask() {
 ## Scenario 4: External API call
 
 ```javascript
-await db.withLock(`payment:${orderId}`, async () => {
+await msq.withLock(`payment:${orderId}`, async () => {
     //Call third-party payment
     const paymentResult = await thirdPartyPayment.charge({
         orderId,
@@ -444,8 +444,8 @@ Business locks work seamlessly with monSQLize transactions:
 
 ```javascript
 //Recommendation: lock outside, affairs inside
-await db.withLock('resource:123', async () => {
-    await db.withTransaction(async (tx) => {
+await msq.withLock('resource:123', async () => {
+    await msq.withTransaction(async (tx) => {
         //Transaction operations
         await collection1.updateOne({}, {}, { session: tx.session });
         await collection2.insertOne({}, { session: tx.session });
@@ -478,7 +478,7 @@ await db.withLock('resource:123', async () => {
 const { LockAcquireError } = require('monsqlize');
 
 try {
-    await db.withLock('resource:123', async () => {
+    await msq.withLock('resource:123', async () => {
         await doSomething();
     });
 } catch (error) {
@@ -496,7 +496,7 @@ try {
 
 ```javascript
 //Downgrade to lock-free execution when Redis is unavailable (use with caution)
-await db.withLock('resource:123', async () => {
+await msq.withLock('resource:123', async () => {
     await doSomething();
 }, {
     fallbackToNoLock: true  //⚠️ Use with caution!
@@ -532,7 +532,7 @@ const LockKeys = {
 };
 
 //use
-await db.withLock(
+await msq.withLock(
     LockKeys.INVENTORY.key(sku),
     callback,
     { ttl: LockKeys.INVENTORY.ttl }
@@ -544,13 +544,13 @@ await db.withLock(
 
 ```javascript
 //❌ The granularity is too coarse: all orders share one lock
-await db.withLock('order', async () => { ... });
+await msq.withLock('order', async () => { ... });
 
 //✅ Suitable granularity: one lock for each user + product
-await db.withLock(`order:${userId}:${sku}`, async () => { ... });
+await msq.withLock(`order:${userId}:${sku}`, async () => { ... });
 
 //⚠️ Too fine granularity: one lock per request (meaningless)
-await db.withLock(`order:${requestId}`, async () => { ... });
+await msq.withLock(`order:${requestId}`, async () => { ... });
 ```
 
 
@@ -572,7 +572,7 @@ await db.withLock(`order:${requestId}`, async () => { ... });
 ```javascript
 //✅ Recommended: Complete error handling
 try {
-    await db.withLock('key', async () => {
+    await msq.withLock('key', async () => {
         await doSomething();
     });
 } catch (error) {
@@ -630,7 +630,7 @@ setInterval(() => {
 ```javascript
 //Method 1: Throw an exception (recommended)
 try {
-    await db.withLock('key', callback);
+    await msq.withLock('key', callback);
 } catch (error) {
     if (error.message.includes('Redis unavailable')) {
         //Record alarm
@@ -638,7 +638,7 @@ try {
 }
 
 //Method 2: Downgrade (use with caution)
-await db.withLock('key', callback, {
+await msq.withLock('key', callback, {
     fallbackToNoLock: true
 });
 ```
@@ -696,4 +696,3 @@ try {
 - [Program Document]
 - [Sample code](https://github.com/vextjs/monSQLize/blob/main/examples/docs/lock.ts)
 - [Unit Test](../../test/unit/lock/lock.test.ts)
-

@@ -85,10 +85,10 @@ const msq = new MonSQLize({
 ### 3. 使用
 
 ```javascript
-const db = await msq.connect();
+await msq.connect();
 
 // 使用业务锁
-await db.withLock('inventory:SKU123', async () => {
+await msq.withLock('inventory:SKU123', async () => {
     const product = await inventory.findOne({ sku: 'SKU123' });
     if (product.stock >= 1) {
         await inventory.updateOne(
@@ -133,13 +133,13 @@ async withLock<T>(
 
 ```javascript
 // 基础用法
-await db.withLock('resource:123', async () => {
+await msq.withLock('resource:123', async () => {
     // 临界区代码
     await doSomething();
 });
 
 // 自定义选项
-await db.withLock('resource:123', async () => {
+await msq.withLock('resource:123', async () => {
     await doSomething();
 }, {
     ttl: 5000,        // 5秒后自动释放
@@ -148,7 +148,7 @@ await db.withLock('resource:123', async () => {
 });
 
 // 返回值
-const result = await db.withLock('resource:123', async () => {
+const result = await msq.withLock('resource:123', async () => {
     return await calculateSomething();
 });
 console.log(result);
@@ -294,7 +294,7 @@ new MonSQLize({
 在每次调用时可以覆盖默认值：
 
 ```javascript
-await db.withLock('key', callback, {
+await msq.withLock('key', callback, {
     ttl: 5000,          // 覆盖默认 TTL
     retryTimes: 5,      // 覆盖默认重试次数
     retryDelay: 200,    // 覆盖默认重试间隔
@@ -309,7 +309,7 @@ await db.withLock('key', callback, {
 ### 场景1：库存扣减（复杂业务）
 
 ```javascript
-await db.withLock(`inventory:${sku}`, async () => {
+await msq.withLock(`inventory:${sku}`, async () => {
     const product = await inventory.findOne({ sku });
     const user = await users.findOne({ userId });
     
@@ -330,8 +330,8 @@ await db.withLock(`inventory:${sku}`, async () => {
 ### 场景2：订单创建（锁+事务）
 
 ```javascript
-await db.withLock(`order:${userId}:${sku}`, async () => {
-    await db.withTransaction(async (tx) => {
+await msq.withLock(`order:${userId}:${sku}`, async () => {
+    await msq.withTransaction(async (tx) => {
         // 事务内操作
         await inventory.updateOne(
             { sku, stock: { $gte: 1 } },
@@ -371,7 +371,7 @@ async function dailyReportTask() {
 ### 场景4：外部API调用
 
 ```javascript
-await db.withLock(`payment:${orderId}`, async () => {
+await msq.withLock(`payment:${orderId}`, async () => {
     // 调用第三方支付
     const paymentResult = await thirdPartyPayment.charge({
         orderId,
@@ -399,8 +399,8 @@ await db.withLock(`payment:${orderId}`, async () => {
 
 ```javascript
 // 推荐：锁在外，事务在内
-await db.withLock('resource:123', async () => {
-    await db.withTransaction(async (tx) => {
+await msq.withLock('resource:123', async () => {
+    await msq.withTransaction(async (tx) => {
         // 事务操作
         await collection1.updateOne({}, {}, { session: tx.session });
         await collection2.insertOne({}, { session: tx.session });
@@ -431,7 +431,7 @@ await db.withLock('resource:123', async () => {
 const { LockAcquireError } = require('monsqlize');
 
 try {
-    await db.withLock('resource:123', async () => {
+    await msq.withLock('resource:123', async () => {
         await doSomething();
     });
 } catch (error) {
@@ -448,7 +448,7 @@ try {
 
 ```javascript
 // Redis 不可用时降级为无锁执行（慎用）
-await db.withLock('resource:123', async () => {
+await msq.withLock('resource:123', async () => {
     await doSomething();
 }, {
     fallbackToNoLock: true  // ⚠️ 慎用！
@@ -483,7 +483,7 @@ const LockKeys = {
 };
 
 // 使用
-await db.withLock(
+await msq.withLock(
     LockKeys.INVENTORY.key(sku),
     callback,
     { ttl: LockKeys.INVENTORY.ttl }
@@ -494,13 +494,13 @@ await db.withLock(
 
 ```javascript
 // ❌ 粒度太粗：所有订单共用一把锁
-await db.withLock('order', async () => { ... });
+await msq.withLock('order', async () => { ... });
 
 // ✅ 粒度合适：每个用户+商品一把锁
-await db.withLock(`order:${userId}:${sku}`, async () => { ... });
+await msq.withLock(`order:${userId}:${sku}`, async () => { ... });
 
 // ⚠️ 粒度太细：每个请求一把锁（无意义）
-await db.withLock(`order:${requestId}`, async () => { ... });
+await msq.withLock(`order:${requestId}`, async () => { ... });
 ```
 
 ### 3. TTL 设置
@@ -520,7 +520,7 @@ await db.withLock(`order:${requestId}`, async () => { ... });
 ```javascript
 // ✅ 推荐：完整错误处理
 try {
-    await db.withLock('key', async () => {
+    await msq.withLock('key', async () => {
         await doSomething();
     });
 } catch (error) {
@@ -574,7 +574,7 @@ setInterval(() => {
 ```javascript
 // 方式1：抛异常（推荐）
 try {
-    await db.withLock('key', callback);
+    await msq.withLock('key', callback);
 } catch (error) {
     if (error.message.includes('Redis unavailable')) {
         // 记录告警
@@ -582,7 +582,7 @@ try {
 }
 
 // 方式2：降级（慎用）
-await db.withLock('key', callback, {
+await msq.withLock('key', callback, {
     fallbackToNoLock: true
 });
 ```

@@ -32,14 +32,14 @@
 
 ```javascript
 import MonSQLize from 'monsqlize';
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
   config: { uri: 'mongodb://localhost:27017' }
 });
 
-await db.connect();
-const collection = db.dbInstance.collection('users');
+await msq.connect();
+const collection = msq.collection('users');
 
 // 监听所有变更
 const watcher = collection.watch();

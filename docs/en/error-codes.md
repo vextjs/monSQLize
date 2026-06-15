@@ -28,7 +28,7 @@ In the current main / Unreleased version, common user paths such as configuratio
 |--------|----------|----------|
 | `INVALID_CONFIG` | Structure configuration, connection pool configuration, SSH configuration, Redis/distributed capability configuration | Required fields, field types, URI prefix, authentication field, Redis/SSH runtime configuration |
 | `CONNECTION_FAILED` | MongoDB connection or memory MongoDB startup failed | MongoDB address, network, authentication, service status, `error.cause` |
-| `NOT_CONNECTED` | `connect()` before accessing the collection, Model, SSH tunnel address | `await db.connect()` first to confirm the connection life cycle |
+| `NOT_CONNECTED` | `connect()` before accessing the collection, Model, SSH tunnel address | `await msq.connect()` first to confirm the connection life cycle |
 | `CACHE_UNAVAILABLE` | The cache instance is invalid and lacks available cache capability | Whether the incoming cache implements `get`/`set` and whether the Redis configuration is reachable |
 | `POOL_NOT_FOUND` | The specified connection pool does not exist or the health checker cannot find the pool | Whether the pool name is registered, whether the case is consistent, and whether `pools` is passed in |
 | `INVALID_OPERATION` | The query is executed repeatedly, all connection pools are unavailable, and the transaction status is not allowed | Whether to repeat `toArray()`, pool health status, transaction life cycle |

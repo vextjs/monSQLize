@@ -60,7 +60,7 @@ for (let i = 0; i < 100; i++) {
 
 ```javascript
 //Use Count queue (enabled by default)
-const db = new MonSQLize({
+const msq = new MonSQLize({
     countQueue: {
         enabled: true,
         concurrency: 8  //Up to 8 counts at the same time
@@ -83,7 +83,7 @@ const db = new MonSQLize({
 ```javascript
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     config: {
         uri: 'mongodb://localhost:27017/mydb'
@@ -91,8 +91,8 @@ const db = new MonSQLize({
     //countQueue is enabled by default and requires no configuration
 });
 
-await db.connect();
-const collection = db.collection('users');
+await msq.connect();
+const collection = msq.collection('users');
 
 //Automatically use queue control
 await collection.findPage({
@@ -117,7 +117,7 @@ await collection.findPage({
 ## Basic configuration
 
 ```javascript
-const db = new MonSQLize({
+const msq = new MonSQLize({
     countQueue: {
         enabled: true,       //Whether to enable queue control
         concurrency: 8,      //count number of simultaneous executions
@@ -291,7 +291,7 @@ setInterval(async () => {
 const os = require('os');
 const cpuCount = os.cpus().length;
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     countQueue: {
         //Number of concurrencies = number of CPU cores (minimum 4, maximum 16)
         concurrency: Math.max(4, Math.min(cpuCount, 16))
@@ -303,7 +303,7 @@ const db = new MonSQLize({
 ## 2. Use with cache
 
 ```javascript
-const db = new MonSQLize({
+const msq = new MonSQLize({
     cache: {
         enabled: true,
         ttl: 600000  //Caching for 10 minutes
@@ -327,7 +327,7 @@ await collection.findPage({
 
 ```javascript
 //Recommended: queue + distributed lock
-const db = new MonSQLize({
+const msq = new MonSQLize({
     countQueue: {
         concurrency: 8  //Up to 8 single instances
     },

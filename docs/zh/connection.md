@@ -59,7 +59,7 @@ async connect()
 ```javascript
 {
   collection: Function,      // 集合访问函数（当前数据库）
-  db: Function,              // 跨库访问函数，db(name?) 返回 DbAccessor
+  db: Function,              // 数据库级访问函数，db(name?) 返回 DbAccessor
   use: Function,             // 切换数据库并返回 { collection, model }
   instance: MonSQLize        // 当前 MonSQLize 实例
 }
@@ -77,14 +77,14 @@ const msq = new MonSQLize({
 });
 
 // 连接数据库
-const { db, collection } = await msq.connect();
+const { collection, use } = await msq.connect();
 
 // 使用集合访问器
 const users = collection('users');
 const products = collection('products');
 
 // 跨库访问
-const analyticsEvents = db('analytics').collection('events');
+const analyticsEvents = use('analytics').collection('events');
 ```
 
 ---
@@ -164,12 +164,12 @@ try {
 
 #### db() 验证
 
-**重要说明**：`db()` 函数本身不会立即验证参数，它只是返回一个包含 `collection()` 方法的对象。参数验证只在调用 `db().collection()` 时才会触发。
+**重要说明**：当传入 `name` 时，`db(name)` 会立即验证数据库名。省略参数或传入 `undefined` 会使用默认数据库；`null` 在 JavaScript 运行时会触发 `INVALID_DATABASE_NAME`。
 
 **验证规则**：
 - 如果提供了 `databaseName`，必须是非空字符串
-- **允许** `null` 或 `undefined`（会使用默认数据库）
-- **不允许**空字符串或纯空格字符串
+- 省略参数或传入 `undefined` 会使用默认数据库
+- **不允许** `null`、空字符串或纯空格字符串
 
 ```javascript
 const { db } = await msq.connect();
@@ -179,7 +179,7 @@ const shopDb = db('shop');
 const analyticsDb = db('analytics');
 
 // ✅ 使用默认数据库（合法）
-const defaultDb1 = db(null);           // 合法：使用默认数据库
+const defaultDb1 = db();               // 合法：使用默认数据库
 const defaultDb2 = db(undefined);      // 合法：使用默认数据库
 
 // 验证可以正常获取集合
@@ -187,23 +187,20 @@ const shopOrders = shopDb.collection('orders');
 const analyticsEvents = analyticsDb.collection('events');
 
 // ❌ 无效参数（会抛出错误）
-// 注意：db() 本身不会验证，需要调用 collection() 才会触发验证
+// 注意：db() 会立即验证数据库名
 try {
-  db('').collection('test');        // 错误：INVALID_DATABASE_NAME - 空字符串
-  db('   ').collection('test');     // 错误：INVALID_DATABASE_NAME - 纯空格
+  db(null);                         // 错误：INVALID_DATABASE_NAME - null
+  db('');                           // 错误：INVALID_DATABASE_NAME - 空字符串
+  db('   ');                        // 错误：INVALID_DATABASE_NAME - 纯空格
 } catch (err) {
   console.error(err.code, err.message);
-  // 输出: INVALID_DATABASE_NAME Database name must be a non-empty string or null/undefined.
+  // 输出: INVALID_DATABASE_NAME Database name must be a non-empty string.
 }
 
-// ✅ null 和 undefined 是合法的
-try {
-  const users1 = db(null).collection('users');       // ✅ 使用默认数据库
-  const users2 = db(undefined).collection('users');  // ✅ 使用默认数据库
-  console.log('✅ 使用默认数据库成功');
-} catch (err) {
-  // 不会抛出错误
-}
+// ✅ 省略参数和 undefined 是合法的
+const users1 = db().collection('users');
+const users2 = db(undefined).collection('users');
+console.log('✅ 使用默认数据库成功');
 ```
 
 #### 错误信息
@@ -211,12 +208,12 @@ try {
 | 错误码 | 说明 | 示例 |
 |--------|------|------|
 | `INVALID_COLLECTION_NAME` | 集合名无效 | `collection('')` |
-| `INVALID_DATABASE_NAME` | 数据库名无效（空字符串或纯空格） | `db('').collection('test')` |
+| `INVALID_DATABASE_NAME` | 数据库名无效（`null`、空字符串或纯空格） | `db('')` |
 
 **注意**：
-- `db(null)` 和 `db(undefined)` **不会**抛出错误，它们是合法的用法
-- 这些参数会使用创建 MonSQLize 实例时指定的默认数据库名
-- 只有空字符串 `''` 和纯空格字符串 `'   '` 才会触发验证错误
+- `db()` 和 `db(undefined)` 会使用创建 MonSQLize 实例时指定的默认数据库名
+- `db(null)` 在 JavaScript 运行时会抛出 `INVALID_DATABASE_NAME`；TypeScript 调用方应直接省略参数
+- 空字符串 `''` 和纯空格字符串 `'   '` 也会触发验证错误
 
 ---
 
@@ -308,14 +305,14 @@ const msq = new MonSQLize({
   config: { uri: 'mongodb://localhost:27017' }
 });
 
-const { db, collection } = await msq.connect();
+const { collection, use } = await msq.connect();
 
 // 1. 访问默认数据库的集合
 const products = await collection('products').find({ query: {} });
 console.log('shop.products ->', products);
 
 // 2. 访问其他数据库的集合
-const analyticsEvents = await db('analytics').collection('events').findOne({
+const analyticsEvents = await use('analytics').collection('events').findOne({
   query: { type: 'click' },
   cache: 3000,
   maxTimeMS: 1500
@@ -380,18 +377,18 @@ try {
 
 try {
   // 无效的数据库名（空字符串）
-  // 注意：db() 本身不验证，需要调用 collection() 才会触发验证
-  const otherDb = db('').collection('users');
+  // 注意：db() 会立即验证数据库名
+  db('');
 } catch (err) {
   if (err.code === 'INVALID_DATABASE_NAME') {
     console.error('数据库名无效:', err.message);
-    console.log('请提供有效的数据库名（或使用 null/undefined 表示默认数据库）');
+    console.log('请提供有效的数据库名，或省略参数使用默认数据库');
   }
 }
 
-// ✅ 正确用法：使用 null 或 undefined 表示默认数据库
-const defaultDb = db(null).collection('users');  // 合法
-const defaultDb2 = db(undefined).collection('users');  // 合法
+// ✅ 正确用法：省略参数或使用 undefined 表示默认数据库
+const defaultDb = db().collection('users');
+const defaultDb2 = db(undefined).collection('users');
 ```
 
 ---
@@ -1008,12 +1005,12 @@ console.log(conn1 === conn2);  // true
 **A**: 不会。所有跨库访问共享同一个 MongoDB 客户端连接，只是访问不同的数据库。
 
 ```javascript
-const { db } = await msq.connect();
+const { use } = await msq.connect();
 
 // 这三个操作共享同一个连接
-await db('shop').collection('products').find({ query: {} });
-await db('analytics').collection('events').find({ query: {} });
-await db('logs').collection('errors').find({ query: {} });
+await use('shop').collection('products').find({ query: {} });
+await use('analytics').collection('events').find({ query: {} });
+await use('logs').collection('errors').find({ query: {} });
 ```
 
 ### Q: 连接失败后如何重试？

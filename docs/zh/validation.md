@@ -74,8 +74,8 @@ await collection.setValidator({
 ### 示例
 
 ```javascript
-const { collection } = await db.connect();
-const users = collection('users');
+await msq.connect();
+const users = msq.collection('users');
 
 // 设置验证规则
 await users.setValidator({
@@ -217,14 +217,13 @@ console.log('验证行为:', validation.validationAction); // 'error'
 import MonSQLize from 'monsqlize';
 
 async function setupValidation() {
-    const db = new MonSQLize({
+    const msq = new MonSQLize({
         type: 'mongodb',
         config: { uri: 'mongodb://localhost:27017/mydb' }
     });
     
-    await db.connect();
-    const { collection } = await db.connect();
-    const users = collection('users');
+    await msq.connect();
+    const users = msq.collection('users');
     
     // 1. 设置验证规则
     await users.setValidator({
@@ -283,7 +282,7 @@ async function setupValidation() {
         console.log('❌ 无效数据被拒绝:', error.message);
     }
     
-    await db.close();
+    await msq.close();
 }
 
 setupValidation().catch(console.error);

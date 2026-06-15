@@ -36,12 +36,12 @@ monSQLize supports both **ES Module (`import`)** and **CommonJS (`require`)** co
 // Traditional CommonJS style.
 const MonSQLize = require('monsqlize');
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   config: { uri: 'mongodb://localhost:27017/mydb' }
 });
 
-await db.connect();
+await msq.connect();
 ```
 
 ### Style 2: ES Module (`import`)
@@ -50,12 +50,12 @@ await db.connect();
 // Modern ES Module style.
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   config: { uri: 'mongodb://localhost:27017/mydb' }
 });
 
-await db.connect();
+await msq.connect();
 ```
 
 ---
@@ -92,7 +92,7 @@ monSQLize exposes CJS, ESM, and TypeScript declaration entries through package e
 const MonSQLize = require('monsqlize');
 
 async function main() {
-  const db = new MonSQLize({
+  const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'myapp',
     config: {
@@ -100,14 +100,14 @@ async function main() {
     }
   });
 
-  await db.connect();
+  await msq.connect();
 
-  const users = db.collection('users');
+  const users = msq.collection('users');
   const user = await users.findOne({ name: 'Alice' });
 
   console.log(user);
 
-  await db.close();
+  await msq.close();
 }
 
 main().catch(console.error);
@@ -129,7 +129,7 @@ node app.cjs
 import MonSQLize from 'monsqlize';
 
 async function main() {
-  const db = new MonSQLize({
+  const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'myapp',
     config: {
@@ -137,14 +137,14 @@ async function main() {
     }
   });
 
-  await db.connect();
+  await msq.connect();
 
-  const users = db.collection('users');
+  const users = msq.collection('users');
   const user = await users.findOne({ name: 'Alice' });
 
   console.log(user);
 
-  await db.close();
+  await msq.close();
 }
 
 main().catch(console.error);
@@ -258,13 +258,13 @@ import MonSQLize from 'monsqlize';
 // ES Module.
 import type { Collection } from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'myapp',
   config: { uri: '...' }
 });
 
-const users: Collection = db.collection('users');
+const users: Collection = msq.collection('users');
 ```
 
 ### 3. Declare the Module Type in package.json
@@ -330,8 +330,8 @@ export default myFunction;
 // ES Module supports top-level await.
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({ /* ... */ });
-await db.connect();
+const msq = new MonSQLize({ /* ... */ });
+await msq.connect();
 ```
 
 ---

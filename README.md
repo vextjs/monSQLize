@@ -98,7 +98,7 @@ The current stable quick start uses the MongoDB adapter.
 ```js
 const MonSQLize = require('monsqlize');
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
   config: {
@@ -110,9 +110,9 @@ const db = new MonSQLize({
   }
 });
 
-await db.connect();
+await msq.connect();
 
-const users = db.collection('users');
+const users = msq.collection('users');
 
 await users.insertOne({
   username: 'john',
@@ -128,7 +128,7 @@ await users.updateOne(
   { $set: { lastLoginAt: new Date() } }
 );
 
-await db.close();
+await msq.close();
 ```
 
 ### ESM and TypeScript
@@ -137,7 +137,7 @@ await db.close();
 import MonSQLize from 'monsqlize';
 import type { Collection } from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
   config: {
@@ -145,12 +145,12 @@ const db = new MonSQLize({
   }
 });
 
-await db.connect();
+await msq.connect();
 
-const users: Collection = db.collection('users');
+const users: Collection = msq.collection('users');
 const activeUsers = await users.find({ status: 'active' }).toArray();
 
-await db.close();
+await msq.close();
 ```
 
 Published entry points:
@@ -212,15 +212,15 @@ Model.define('users', {
   })
 });
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
   config: { uri: 'mongodb://localhost:27017' }
 });
 
-await db.connect();
+await msq.connect();
 
-const User = db.model('users');
+const User = msq.model('users');
 const user = await User.insertOne({
   username: 'john',
   email: 'john@example.com',
@@ -235,16 +235,16 @@ const user = await User.insertOne({
 const path = require('path');
 const MonSQLize = require('monsqlize');
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
   config: { uri: 'mongodb://localhost:27017' },
   models: path.join(__dirname, 'models')
 });
 
-await db.connect();
+await msq.connect();
 
-const User = db.model('users');
+const User = msq.model('users');
 ```
 
 ```js
@@ -272,17 +272,17 @@ Relative model paths are resolved from `process.cwd()`. In production services, 
 Model-declared indexes are still created automatically by default for backward compatibility. Production services can turn off automatic indexing and run an explicit preflight before creating missing indexes:
 
 ```js
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
   config: { uri: 'mongodb://localhost:27017' },
   autoIndex: false
 });
 
-const plan = await db.ensureModelIndexes({ models: ['users'], dryRun: true });
+const plan = await msq.ensureModelIndexes({ models: ['users'], dryRun: true });
 
 if (plan.totals.conflicts === 0) {
-  await db.ensureModelIndexes({ models: ['users'], throwOnError: true });
+  await msq.ensureModelIndexes({ models: ['users'], throwOnError: true });
 }
 ```
 
@@ -315,7 +315,7 @@ Populate is supported by `find()`, `findOne()`, `findByIds()`, `findOneById()`, 
 monSQLize can cache collection queries and arbitrary async functions.
 
 ```js
-const users = db.collection('users');
+const users = msq.collection('users');
 
 const hotUser = await users.findOne(
   { email: 'john@example.com' },
@@ -327,14 +327,14 @@ const hotUser = await users.findOne(
 const { withCache } = require('monsqlize');
 
 async function getUserProfile(userId) {
-  const user = await db.collection('users').findOneById(userId);
-  const orders = await db.collection('orders').find({ userId }).toArray();
+  const user = await msq.collection('users').findOneById(userId);
+  const orders = await msq.collection('orders').find({ userId }).toArray();
   return { user, orders };
 }
 
 const cachedGetUserProfile = withCache(getUserProfile, {
   ttl: 300_000,
-  cache: db.getCache()
+  cache: msq.getCache()
 });
 
 await cachedGetUserProfile('user-1');
@@ -354,9 +354,9 @@ Cache capabilities include:
 ### Transactions
 
 ```js
-await db.withTransaction(async (session) => {
-  await db.collection('orders').insertOne({ userId, status: 'pending' }, { session });
-  await db.collection('users').updateOne(
+await msq.withTransaction(async (session) => {
+  await msq.collection('orders').insertOne({ userId, status: 'pending' }, { session });
+  await msq.collection('users').updateOne(
     { _id: userId },
     { $inc: { orderCount: 1 } },
     { session }
@@ -367,7 +367,7 @@ await db.withTransaction(async (session) => {
 ### Connection Pools
 
 ```js
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'main',
   config: { uri: 'mongodb://primary:27017' },
@@ -376,14 +376,14 @@ const db = new MonSQLize({
   ]
 });
 
-const reports = db.pool('analytics').collection('reports');
+const reports = msq.pool('analytics').collection('reports');
 ```
 
 ### Distributed Locks
 
 ```js
-await db.withLock('inventory:sku-1', async () => {
-  await db.collection('inventory').updateOne(
+await msq.withLock('inventory:sku-1', async () => {
+  await msq.collection('inventory').updateOne(
     { sku: 'sku-1' },
     { $inc: { stock: -1 } }
   );
@@ -393,7 +393,7 @@ await db.withLock('inventory:sku-1', async () => {
 ### Change Streams
 
 ```js
-const watcher = db.collection('orders').watch([
+const watcher = msq.collection('orders').watch([
   { $match: { 'fullDocument.status': 'pending' } }
 ]);
 
@@ -405,7 +405,7 @@ watcher.on('change', (change) => {
 ### Saga Orchestration
 
 ```js
-db.defineSaga('checkout', [
+msq.defineSaga('checkout', [
   {
     name: 'reserveInventory',
     execute: async (ctx) => reserveInventory(ctx),
@@ -418,7 +418,7 @@ db.defineSaga('checkout', [
   }
 ]);
 
-await db.executeSaga('checkout', { orderId });
+await msq.executeSaga('checkout', { orderId });
 ```
 
 ## Migration from the MongoDB Driver
@@ -435,15 +435,15 @@ const nativeUsers = nativeClient.db('mydb').collection('users');
 ```js
 const MonSQLize = require('monsqlize');
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
   config: { uri: 'mongodb://localhost:27017' },
   cache: { enabled: true }
 });
 
-await db.connect();
-const users = db.collection('users');
+await msq.connect();
+const users = msq.collection('users');
 ```
 
 MongoDB-style collection calls can remain unchanged in most cases:

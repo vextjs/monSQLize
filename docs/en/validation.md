@@ -95,8 +95,8 @@ await collection.setValidator({
 ## Example
 
 ```javascript
-const { collection } = await db.connect();
-const users = collection('users');
+await msq.connect();
+const users = msq.collection('users');
 
 //Set validation rules
 await users.setValidator({
@@ -247,14 +247,13 @@ console.log('Verification behavior:', validation.validationAction); // 'error'
 import MonSQLize from 'monsqlize';
 
 async function setupValidation() {
-    const db = new MonSQLize({
+    const msq = new MonSQLize({
         type: 'mongodb',
         config: { uri: 'mongodb://localhost:27017/mydb' }
     });
 
-    await db.connect();
-    const { collection } = await db.connect();
-    const users = collection('users');
+    await msq.connect();
+    const users = msq.collection('users');
 
     //1. Set validation rules
     await users.setValidator({
@@ -313,7 +312,7 @@ async function setupValidation() {
         console.log('❌ Invalid data is rejected:', error.message);
     }
 
-    await db.close();
+    await msq.close();
 }
 
 setupValidation().catch(console.error);
@@ -330,4 +329,3 @@ setupValidation().catch(console.error);
 
 **Last updated**: 2025-12-02
 **Version**: v0.3.0
-

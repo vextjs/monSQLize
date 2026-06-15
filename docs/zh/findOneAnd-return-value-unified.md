@@ -241,9 +241,9 @@ console.log(user.name);
 
 ```javascript
 import MonSQLize from 'monsqlize';
-const db = new MonSQLize({ type: 'mongodb', config: { uri: '...' } });
-await db.connect();
-const collection = db.collection('users');
+const msq = new MonSQLize({ type: 'mongodb', config: { uri: '...' } });
+await msq.connect();
+const collection = msq.collection('users');
 
 // ✅ 直接返回文档
 const user = await collection.findOneAndUpdate(

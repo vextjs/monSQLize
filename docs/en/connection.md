@@ -59,8 +59,8 @@ async connect()
 ```javascript
 {
   collection: Function,      // Collection accessor for the default database.
-  db: Function,              // Cross-database accessor; db(name?) returns a DbAccessor.
-  use: Function,             // Switches database and returns { collection, model }.
+  db: Function,              // Database-level accessor; db(name?) returns a DbAccessor.
+  use: Function,             // Scoped collection/model access for another database.
   instance: MonSQLize        // Current MonSQLize instance.
 }
 ```
@@ -76,7 +76,7 @@ const msq = new MonSQLize({
   config: { uri: 'mongodb://localhost:27017' }
 });
 
-const { db, collection } = await msq.connect();
+const { collection, use } = await msq.connect();
 
 // Connect to the database.
 const users = collection('users');
@@ -85,7 +85,7 @@ const users = collection('users');
 const products = collection('products');
 
 // Cross-database access.
-const analyticsEvents = db('analytics').collection('events');
+const analyticsEvents = use('analytics').collection('events');
 ```
 
 ---
@@ -166,13 +166,13 @@ try {
 
 #### db() Validation
 
-Important: `db()` itself does not validate immediately. It returns an accessor object, and validation happens when `db().collection()` / `db(...).collection(...)` is called.
+Important: `db(name)` validates the database name immediately when `name` is provided. Omit the argument, or pass `undefined`, to use the default database. Pass `null` only if you intentionally want an `INVALID_DATABASE_NAME` error in JavaScript.
 
 Rules:
 
 - If `databaseName` is provided, it must be a non-empty string.
-- `null` and `undefined` are allowed and use the default database.
-- Empty strings and whitespace-only strings are rejected.
+- `undefined` and an omitted argument use the default database.
+- `null`, empty strings, and whitespace-only strings are rejected.
 
 ```javascript
 const { db } = await msq.connect();
@@ -182,25 +182,25 @@ const shopDb = db('shop');
 const analyticsDb = db('analytics');
 
 // Use the default database. This is valid.
-const defaultDb1 = db(null);
+const defaultDb1 = db();
 const defaultDb2 = db(undefined);
 
 // Verify that collections can be obtained normally.
 const shopOrders = shopDb.collection('orders');
 const analyticsEvents = analyticsDb.collection('events');
 
-// Invalid parameters. These throw.
-// Note: db() itself does not validate. Calling collection() triggers validation.
+// Invalid parameters. These throw immediately.
 try {
-  db('').collection('test');
-  db('   ').collection('test');
+  db(null);
+  db('');
+  db('   ');
 } catch (err) {
   console.error(err.code, err.message);
-  // INVALID_DATABASE_NAME Database name must be a non-empty string or null/undefined.
+  // INVALID_DATABASE_NAME Database name must be a non-empty string.
 }
 
-// null and undefined are valid.
-const users1 = db(null).collection('users');
+// Omitted and undefined use the default database.
+const users1 = db().collection('users');
 const users2 = db(undefined).collection('users');
 // No error is thrown.
 console.log('Default database access succeeded.');
@@ -211,13 +211,13 @@ console.log('Default database access succeeded.');
 | Error code | Description | Example |
 |------------|-------------|---------|
 | `INVALID_COLLECTION_NAME` | Invalid collection name. | `collection('')` |
-| `INVALID_DATABASE_NAME` | Invalid database name, such as an empty or whitespace-only string. | `db('').collection('test')` |
+| `INVALID_DATABASE_NAME` | Invalid database name, such as `null`, an empty string, or a whitespace-only string. | `db('')` |
 
 Notes:
 
-- `db(null)` and `db(undefined)` do not throw.
-- Those values use the default database configured on the MonSQLize instance.
-- Only `''` and strings such as `'   '` trigger database-name validation errors.
+- `db()` and `db(undefined)` use the default database configured on the MonSQLize instance.
+- `db(null)` throws `INVALID_DATABASE_NAME` in JavaScript; TypeScript callers should omit the argument instead.
+- `''` and strings such as `'   '` also trigger database-name validation errors.
 
 ---
 
@@ -310,14 +310,14 @@ const msq = new MonSQLize({
   config: { uri: 'mongodb://localhost:27017' }
 });
 
-const { db, collection } = await msq.connect();
+const { collection, use } = await msq.connect();
 
 // 1. Access a collection in the default database.
 const products = await collection('products').find({ query: {} });
 console.log('shop.products ->', products);
 
 // 2. Access a collection in another database.
-const analyticsEvents = await db('analytics').collection('events').findOne({
+const analyticsEvents = await use('analytics').collection('events').findOne({
   query: { type: 'click' },
   cache: 3000,
   maxTimeMS: 1500
@@ -382,17 +382,17 @@ try {
 
 try {
   // Invalid database name: empty string.
-  // Note: db() itself does not validate. Calling collection() triggers validation.
-  db('').collection('users');
+  // db() validates database names immediately.
+  db('');
 } catch (err) {
   if (err.code === 'INVALID_DATABASE_NAME') {
     console.error('Invalid database name:', err.message);
-    console.log('Provide a valid database name, or use null/undefined for the default database.');
+    console.log('Provide a valid database name, or omit it for the default database.');
   }
 }
 
-// Correct usage: use null or undefined for the default database.
-const defaultDb = db(null).collection('users');
+// Correct usage: omit the argument or use undefined for the default database.
+const defaultDb = db().collection('users');
 const defaultDb2 = db(undefined).collection('users');
 ```
 
@@ -1013,12 +1013,12 @@ Call `close()` when:
 No. Cross-database access shares the same MongoDB client connection and only targets different databases.
 
 ```javascript
-const { db } = await msq.connect();
+const { use } = await msq.connect();
 
 // These three operations share the same connection.
-await db('shop').collection('products').find({ query: {} });
-await db('analytics').collection('events').find({ query: {} });
-await db('logs').collection('errors').find({ query: {} });
+await use('shop').collection('products').find({ query: {} });
+await use('analytics').collection('events').find({ query: {} });
+await use('logs').collection('errors').find({ query: {} });
 ```
 
 ### Q: How do I retry after a failed connection?

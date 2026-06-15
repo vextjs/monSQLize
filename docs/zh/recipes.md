@@ -16,18 +16,18 @@
 ```ts
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     config: { uri: 'mongodb://127.0.0.1:27017' },
 });
 
-await db.connect();
+await msq.connect();
 
-const users = db.collection('users');
+const users = msq.collection('users');
 await users.insertOne({ name: 'Ada', createdAt: new Date() });
 
-await db.close();
+await msq.close();
 ```
 
 适合先验证连接、CRUD 和包入口。缺少 `config.uri` 会抛出 `INVALID_CONFIG`，未 `connect()` 直接访问数据会抛出 `NOT_CONNECTED`。
@@ -37,7 +37,7 @@ await db.close();
 ```ts
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     config: { uri: 'mongodb://127.0.0.1:27017' },
@@ -49,7 +49,7 @@ const db = new MonSQLize({
     },
 });
 
-await db.connect();
+await msq.connect();
 ```
 
 内存缓存不需要额外服务，适合单进程或本地快速验证。
@@ -59,7 +59,7 @@ await db.connect();
 ```ts
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     config: { uri: 'mongodb://127.0.0.1:27017' },
@@ -73,7 +73,7 @@ const db = new MonSQLize({
     },
 });
 
-await db.connect();
+await msq.connect();
 ```
 
 `ioredis` 已随 `monsqlize` 默认安装；这里需要配置的是 Redis 地址和是否启用分布式失效，而不是再安装依赖。
@@ -83,7 +83,7 @@ await db.connect();
 ```ts
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     config: {
@@ -96,7 +96,7 @@ const db = new MonSQLize({
     },
 });
 
-await db.connect();
+await msq.connect();
 ```
 
 `ssh2` 已随 `monsqlize` 默认安装。只要传入 `config.ssh`，运行时会建立本地隧道并把 MongoDB 连接转发到内网地址。
@@ -106,7 +106,7 @@ await db.connect();
 ```ts
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     pools: [
@@ -117,8 +117,8 @@ const db = new MonSQLize({
     poolFallback: { enabled: true, fallbackStrategy: 'secondary' },
 });
 
-await db.connect();
-const reports = db.pool('analytics').collection('reports');
+await msq.connect();
+const reports = msq.pool('analytics').collection('reports');
 ```
 
 连接池配置错误会抛出 `INVALID_CONFIG`；指定不存在的池会抛出 `POOL_NOT_FOUND`；所有池不可用会抛出 `INVALID_OPERATION`。
@@ -126,8 +126,8 @@ const reports = db.pool('analytics').collection('reports');
 ## 使用业务锁
 
 ```ts
-await db.withLock('inventory:SKU123', async () => {
-    const inventory = db.collection('inventory');
+await msq.withLock('inventory:SKU123', async () => {
+    const inventory = msq.collection('inventory');
     const item = await inventory.findOne({ sku: 'SKU123' });
     if (item?.stock > 0) {
         await inventory.updateOne({ sku: 'SKU123' }, { $inc: { stock: -1 } });
@@ -153,14 +153,14 @@ Model.define('users', {
     }),
 });
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     config: { uri: 'mongodb://127.0.0.1:27017' },
 });
 
-await db.connect();
-const User = db.model('users');
+await msq.connect();
+const User = msq.model('users');
 await User.insertOne({ name: 'Ada', email: 'ada@example.com' });
 ```
 
@@ -172,7 +172,7 @@ await User.insertOne({ name: 'Ada', email: 'ada@example.com' });
 import { ErrorCodes } from 'monsqlize';
 
 try {
-    await db.connect();
+    await msq.connect();
 } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === ErrorCodes.INVALID_CONFIG) {

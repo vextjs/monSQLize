@@ -271,9 +271,9 @@ console.log(user.name);
 
 ```javascript
 import MonSQLize from 'monsqlize';
-const db = new MonSQLize({ type: 'mongodb', config: { uri: '...' } });
-await db.connect();
-const collection = db.collection('users');
+const msq = new MonSQLize({ type: 'mongodb', config: { uri: '...' } });
+await msq.connect();
+const collection = msq.collection('users');
 
 //✅ Return directly to the document
 const user = await collection.findOneAndUpdate(
@@ -396,4 +396,3 @@ console.log(user.name);
 ---
 
 **Conclusion**: When using the default installation of monSQLize, the `findOneAnd*` method returns the document or `null`. Users do not need to install additional drivers or manually handle `result.value`.
-

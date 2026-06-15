@@ -33,13 +33,13 @@ const isAlive = await db.db().admin().ping();
 ```javascript
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     config: { uri: 'mongodb://localhost:27017/mydb' }
 });
 
-await db.connect();
-const admin = db.db().admin();
+await msq.connect();
+const admin = msq.db().admin();
 
 // 检测连接
 const isAlive = await admin.ping();
@@ -57,9 +57,9 @@ console.log('Database is alive:', isAlive);
 ```javascript
 // 在应用启动时检查连接
 async function startup() {
-    await db.connect();
+    await msq.connect();
     
-    const isAlive = await db.db().admin().ping();
+    const isAlive = await msq.db().admin().ping();
     if (!isAlive) {
         throw new Error('Database connection failed');
     }

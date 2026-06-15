@@ -57,7 +57,7 @@ for (let i = 0; i < 100; i++) {
 
 ```javascript
 // 使用 Count 队列（默认启用）
-const db = new MonSQLize({
+const msq = new MonSQLize({
     countQueue: {
         enabled: true,
         concurrency: 8  // 同时最多 8 个 count
@@ -79,7 +79,7 @@ const db = new MonSQLize({
 ```javascript
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     config: {
         uri: 'mongodb://localhost:27017/mydb'
@@ -87,8 +87,8 @@ const db = new MonSQLize({
     // countQueue 默认启用，无需配置
 });
 
-await db.connect();
-const collection = db.collection('users');
+await msq.connect();
+const collection = msq.collection('users');
 
 // 自动使用队列控制
 await collection.findPage({
@@ -112,7 +112,7 @@ await collection.findPage({
 ### 基本配置
 
 ```javascript
-const db = new MonSQLize({
+const msq = new MonSQLize({
     countQueue: {
         enabled: true,       // 是否启用队列控制
         concurrency: 8,      // 同时执行的 count 数量
@@ -275,7 +275,7 @@ setInterval(async () => {
 const os = require('os');
 const cpuCount = os.cpus().length;
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     countQueue: {
         // 并发数 = CPU 核心数（最少 4，最多 16）
         concurrency: Math.max(4, Math.min(cpuCount, 16))
@@ -286,7 +286,7 @@ const db = new MonSQLize({
 ### 2. 配合缓存使用
 
 ```javascript
-const db = new MonSQLize({
+const msq = new MonSQLize({
     cache: {
         enabled: true,
         ttl: 600000  // 缓存 10 分钟
@@ -309,7 +309,7 @@ await collection.findPage({
 
 ```javascript
 // 推荐：队列 + 分布式锁
-const db = new MonSQLize({
+const msq = new MonSQLize({
     countQueue: {
         concurrency: 8  // 单实例最多 8 个
     },

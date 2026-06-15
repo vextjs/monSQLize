@@ -389,34 +389,34 @@ const events = await analyticsDb.collection('events').find({}).toArray();
 // - 容易出错
 ```
 
-### monSQLize：一行代码跨库
+### monSQLize：显式作用域跨库访问
 
 ```javascript
-// monSQLize：一行代码跨库访问
+// monSQLize：通过作用域访问跨库集合
 const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',  // 默认数据库
   config: { uri: 'mongodb://localhost:27017' }
 });
 
-const { db, collection } = await msq.connect();
+const { collection, use } = await msq.connect();
 
 // 访问默认数据库 (shop)
 const products = await collection('products').find({});
 
-// 跨库访问 analytics（一行代码）
-const events = await db('analytics').collection('events').find({});
-// ✅ 简洁、清晰
+// 通过作用域访问 analytics
+const events = await use('analytics').collection('events').find({});
+// ✅ 简洁、清晰，适合业务集合访问
 
 // 链式跨库
-const logs = await db('logs').collection('access_logs').find({});
+const logs = await use('logs').collection('access_logs').find({});
 ```
 
 ### 跨库访问特性对比
 
 | 特性 | MongoDB 原生 | monSQLize |
 |------|-------------|-----------|
-| **跨库切换** | ❌ 手动 `client.db(name)` | ✅ 一行代码 `db(name)` |
+| **跨库切换** | ❌ 手动 `client.db(name)` | ✅ 使用 `use(name)` 获取跨库集合作用域 |
 | **默认数据库** | ❌ 无概念 | ✅ 自动使用默认库 |
 | **代码简洁性** | ⚠️ 冗长 | ✅ 简洁 |
 | **缓存隔离** | ❌ 无缓存 | ✅ 自动按数据库隔离 |

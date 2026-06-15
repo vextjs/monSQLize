@@ -498,7 +498,7 @@ Make sure you have appropriate indexes on the query and sort fields:
 
 ```javascript
 // Create composite indexes for common queries
-db.collection('orders').createIndex({ status: 1, createdAt: -1 });
+await collection('orders').createIndex({ status: 1, createdAt: -1 });
 
 // Use hint in findPage to specify the index
 const result = await collection('orders').findPage({
@@ -990,7 +990,7 @@ const result = await collection('orders').findPage({
 **2. Specify index for statistical query**
 ```javascript
 // Create index
-await db.collection('orders').createIndex({ year: 1 });
+await collection('orders').createIndex({ year: 1 });
 
 // Use hint to specify index
 const result = await collection('orders').findPage({
@@ -1356,7 +1356,7 @@ Before v2 deployment, clear all persisted cursor data (set database fields to nu
 
 ```ts
 // Cleanup before deployment (pseudocode)
-await db.collection('user_states').updateMany({}, { $unset: { lastCursor: '' } });
+await nativeDb.collection('user_states').updateMany({}, { $unset: { lastCursor: '' } });
 await redis.del('session:cursor:*');
 
 // Then enable signing directly

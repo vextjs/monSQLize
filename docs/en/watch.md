@@ -55,14 +55,14 @@ The `watch()` method directly returns the native `ChangeStream<T>` object of Mon
 
 ```javascript
 import MonSQLize from 'monsqlize';
-const db = new MonSQLize({
+const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
   config: { uri: 'mongodb://localhost:27017' }
 });
 
-await db.connect();
-const collection = db.dbInstance.collection('users');
+await msq.connect();
+const collection = msq.collection('users');
 
 //Listen for all changes
 const watcher = collection.watch();

@@ -16,18 +16,18 @@
 ```ts
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     config: { uri: 'mongodb://127.0.0.1:27017' },
 });
 
-await db.connect();
+await msq.connect();
 
-const users = db.collection('users');
+const users = msq.collection('users');
 await users.insertOne({ name: 'Ada', createdAt: new Date() });
 
-await db.close();
+await msq.close();
 ```
 
 It is suitable to verify the connection, CRUD and package entry first. Missing `config.uri` throws `INVALID_CONFIG`, and directly accessing the data without `connect()` throws `NOT_CONNECTED`.
@@ -37,7 +37,7 @@ It is suitable to verify the connection, CRUD and package entry first. Missing `
 ```ts
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     config: { uri: 'mongodb://127.0.0.1:27017' },
@@ -49,7 +49,7 @@ const db = new MonSQLize({
     },
 });
 
-await db.connect();
+await msq.connect();
 ```
 
 Memory caching requires no additional services and is suitable for single-process or local fast verification.
@@ -59,7 +59,7 @@ Memory caching requires no additional services and is suitable for single-proces
 ```ts
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     config: { uri: 'mongodb://127.0.0.1:27017' },
@@ -73,7 +73,7 @@ const db = new MonSQLize({
     },
 });
 
-await db.connect();
+await msq.connect();
 ```
 
 `ioredis` has been installed by default with `monsqlize`; what needs to be configured here is the Redis address and whether to enable distributed failure, rather than installing dependencies.
@@ -83,7 +83,7 @@ await db.connect();
 ```ts
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     config: {
@@ -96,7 +96,7 @@ const db = new MonSQLize({
     },
 });
 
-await db.connect();
+await msq.connect();
 ```
 
 `ssh2` is installed by default with `monsqlize`. As long as `config.ssh` is passed in, the runtime will establish a local tunnel and forward the MongoDB connection to the intranet address.
@@ -106,7 +106,7 @@ await db.connect();
 ```ts
 import MonSQLize from 'monsqlize';
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     pools: [
@@ -117,8 +117,8 @@ const db = new MonSQLize({
     poolFallback: { enabled: true, fallbackStrategy: 'secondary' },
 });
 
-await db.connect();
-const reports = db.pool('analytics').collection('reports');
+await msq.connect();
+const reports = msq.pool('analytics').collection('reports');
 ```
 
 A connection pool configuration error will throw `INVALID_CONFIG`; specifying a non-existent pool will throw `POOL_NOT_FOUND`; unavailability of all pools will throw `INVALID_OPERATION`.
@@ -126,8 +126,8 @@ A connection pool configuration error will throw `INVALID_CONFIG`; specifying a 
 ## Use business lock
 
 ```ts
-await db.withLock('inventory:SKU123', async () => {
-    const inventory = db.collection('inventory');
+await msq.withLock('inventory:SKU123', async () => {
+    const inventory = msq.collection('inventory');
     const item = await inventory.findOne({ sku: 'SKU123' });
     if (item?.stock > 0) {
         await inventory.updateOne({ sku: 'SKU123' }, { $inc: { stock: -1 } });
@@ -153,14 +153,14 @@ Model.define('users', {
     }),
 });
 
-const db = new MonSQLize({
+const msq = new MonSQLize({
     type: 'mongodb',
     databaseName: 'app',
     config: { uri: 'mongodb://127.0.0.1:27017' },
 });
 
-await db.connect();
-const User = db.model('users');
+await msq.connect();
+const User = msq.model('users');
 await User.insertOne({ name: 'Ada', email: 'ada@example.com' });
 ```
 
@@ -172,7 +172,7 @@ await User.insertOne({ name: 'Ada', email: 'ada@example.com' });
 import { ErrorCodes } from 'monsqlize';
 
 try {
-    await db.connect();
+    await msq.connect();
 } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === ErrorCodes.INVALID_CONFIG) {
