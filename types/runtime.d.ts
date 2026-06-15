@@ -14,22 +14,22 @@ import type {
     CacheStats as HubCacheStats,
     LockManager as HubCacheLockLike,
     MemoryCacheOptions as HubMemoryCacheOptions,
-} from 'cache-hub';
+} from 'cache-hub' with { "resolution-mode": "import" };
 import type {
     RedisCacheAdapter as HubRedisCacheAdapter,
     RedisCacheAdapterOptions as HubRedisCacheAdapterOptions,
-} from 'cache-hub/redis';
+} from 'cache-hub/redis' with { "resolution-mode": "import" };
 import type {
     DistributedInvalidatorOptions as HubDistributedInvalidatorOptions,
     InvalidatorStats as HubInvalidatorStats,
-} from 'cache-hub/distributed';
+} from 'cache-hub/distributed' with { "resolution-mode": "import" };
 import type {
     FunctionCacheOptions as HubFunctionCacheOptions,
     FunctionCacheStats as HubFunctionCacheStats,
     WithCacheOptions as HubWithCacheOptions,
     WithCacheStats as HubWithCacheStats,
     WrappedFunction as HubWrappedFunction,
-} from 'cache-hub/function-cache';
+} from 'cache-hub/function-cache' with { "resolution-mode": "import" };
 
 export { Lock, LockAcquireError, LockTimeoutError, LockManager } from './lock';
 export { ConnectionPoolManager } from './pool';

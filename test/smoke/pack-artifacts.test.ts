@@ -25,6 +25,7 @@ test('npm pack --dry-run includes dist publish artifacts', () => {
     assert.ok(files.includes('dist/cjs/index.cjs'));
     assert.ok(files.includes('dist/esm/index.mjs'));
     assert.ok(files.includes('dist/types/index.d.ts'));
+    assert.ok(files.includes('dist/types/index.d.mts'));
     assert.ok(files.includes('dist/types/base.d.ts'));
     assert.ok(files.includes('dist/types/collection.d.ts'));
     assert.ok(files.includes('dist/types/monsqlize.d.ts'));

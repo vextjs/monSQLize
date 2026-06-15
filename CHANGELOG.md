@@ -1,7 +1,7 @@
 # CHANGELOG
 
-> Summary index — current release details are packaged in [changelogs/v2.0.5.md](./changelogs/v2.0.5.md); historical details live in the repository changelog archive.
-> **Last updated**: 2026-06-13
+> Summary index — current release details are packaged in [changelogs/v2.0.6.md](./changelogs/v2.0.6.md); historical details live in the repository changelog archive.
+> **Last updated**: 2026-06-15
 
 ---
 
@@ -9,6 +9,7 @@
 
 | Version | Date | Summary | Details |
 |---------|------|---------|---------|
+| [v2.0.6](./changelogs/v2.0.6.md) | 2026-06-15 | Patch: dependency alignment to `schema-dsl@2.0.11` so downstream frameworks inherit the ESM/CJS shared custom type registry fix | [View](./changelogs/v2.0.6.md) |
 | [v2.0.5](./changelogs/v2.0.5.md) | 2026-06-13 | Patch: Model schema adapter delegates DSL type authority to `schema-dsl@2.0.10`, removing the duplicated monSQLize allowlist while preserving legacy aliases and business literals | [View](./changelogs/v2.0.5.md) |
 | [v2.0.4](./changelogs/v2.0.4.md) | 2026-06-12 | Patch: production-safe Model index rollout controls, `schema-dsl@2.0.9`, capability-index wording cleanup, and documentation home refinements | [View](./changelogs/v2.0.4.md) |
 | [v2.0.3](./changelogs/v2.0.3.md) | 2026-06-11 | Patch: v1 compatibility fixes, public stats APIs, standalone docs-site link safety, bilingual docs consistency, and release preflight alignment | [View](./changelogs/v2.0.3.md) |
@@ -448,7 +449,8 @@ const result = await msq.collection('orders').insertOne(dataFromMongoose);
 changelogs/
 ├── README.md          # 变更文档说明
 ├── TEMPLATE.md        # 变更文档模板
-├── v2.0.5.md         # 当前发布详细变更
+├── v2.0.6.md         # 当前发布详细变更
+├── v2.0.5.md         # v2.0.5 详细变更
 ├── v2.0.4.md         # v2.0.4 详细变更
 ├── v2.0.3.md         # v2.0.3 详细变更
 ├── v2.0.2.md         # v2.0.2 详细变更
@@ -504,7 +506,8 @@ changelogs/
 
 ## 相关文档
 
-- [changelogs/v2.0.5.md](./changelogs/v2.0.5.md) - 当前发布详细变更文档
+- [changelogs/v2.0.6.md](./changelogs/v2.0.6.md) - 当前发布详细变更文档
+- [changelogs/v2.0.5.md](./changelogs/v2.0.5.md) - v2.0.5 详细变更文档
 - [changelogs/v2.0.4.md](./changelogs/v2.0.4.md) - v2.0.4 详细变更文档
 - [changelogs/v2.0.3.md](./changelogs/v2.0.3.md) - v2.0.3 详细变更文档
 - [changelogs/v2.0.2.md](./changelogs/v2.0.2.md) - v2.0.2 详细变更文档
@@ -514,5 +517,5 @@ changelogs/
 
 ---
 
-**最后更新**: 2026-06-13
+**最后更新**: 2026-06-15
 

@@ -1,7 +1,34 @@
-const { cpSync, mkdirSync, rmSync } = require('node:fs');
+const { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
+const { join } = require('node:path');
 const { build } = require('esbuild');
 
 const emitSourceMaps = process.env.MONSQLIZE_BUILD_SOURCEMAPS === '1';
+
+function toEsmDeclaration(content) {
+    return content
+        .replace(/from '((?:\.\/|\.\.\/)[^']+)'/g, (_match, specifier) => {
+            return specifier.endsWith('.mjs') ? `from '${specifier}'` : `from '${specifier}.mjs'`;
+        })
+        .replace(/import\('((?:\.\/|\.\.\/)[^']+)'\)/g, (_match, specifier) => {
+            return specifier.endsWith('.mjs') ? `import('${specifier}')` : `import('${specifier}.mjs')`;
+        });
+}
+
+function writeEsmDeclarations(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const fullPath = join(dir, entry.name);
+
+        if (entry.isDirectory()) {
+            writeEsmDeclarations(fullPath);
+            continue;
+        }
+
+        if (!entry.name.endsWith('.d.ts')) continue;
+
+        const content = readFileSync(fullPath, 'utf8');
+        writeFileSync(fullPath.replace(/\.d\.ts$/, '.d.mts'), toEsmDeclaration(content));
+    }
+}
 
 async function main() {
     rmSync('lib', { recursive: true, force: true });
@@ -57,6 +84,7 @@ async function main() {
     }
 
     cpSync('types', 'dist/types', { recursive: true });
+    writeEsmDeclarations('dist/types');
 }
 
 main().catch((error) => {

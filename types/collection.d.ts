@@ -1,4 +1,4 @@
-import type { ChangeStream, Document, FindOptions, Sort } from 'mongodb';
+import type { ChangeStream, Document, FindOptions as MongoFindOptions, Sort } from 'mongodb';
 
 /** Meta options for controlling timing/cache info in query results. */
 export interface MetaOptions {
@@ -6,6 +6,50 @@ export interface MetaOptions {
     level?: 'op' | 'sub';
     /** Include cache hit/miss/ttl info in meta */
     includeCache?: boolean;
+}
+
+/** v1-compatible find options exported from the root package. */
+export interface FindOptions {
+    projection?: Record<string, any> | string[];
+    sort?: Record<string, 1 | -1>;
+    limit?: number;
+    skip?: number;
+    cache?: number;
+    maxTimeMS?: number;
+    hint?: any;
+    collation?: any;
+    comment?: string;
+    meta?: boolean | MetaOptions;
+}
+
+/** v1-compatible count options exported from the root package. */
+export interface CountOptions {
+    cache?: number;
+    maxTimeMS?: number;
+    hint?: any;
+    collation?: any;
+    comment?: string;
+    meta?: boolean | MetaOptions;
+}
+
+/** v1-compatible aggregate options exported from the root package. */
+export interface AggregateOptions {
+    cache?: number;
+    maxTimeMS?: number;
+    allowDiskUse?: boolean;
+    collation?: any;
+    hint?: string | object;
+    comment?: string;
+    meta?: boolean | MetaOptions;
+}
+
+/** v1-compatible distinct options exported from the root package. */
+export interface DistinctOptions {
+    cache?: number;
+    maxTimeMS?: number;
+    collation?: any;
+    hint?: string | object;
+    meta?: boolean | MetaOptions;
 }
 
 /** Query options that request the v1 `{ data, meta }` wrapper. */
@@ -213,7 +257,7 @@ export interface FindPageOptions<TSchema = any> {
     explain?: boolean | string;
     /** Query comment for server-side profiling. v1 compat — top-level shortcut for `options.comment`. */
     comment?: string;
-    options?: FindOptions;
+    options?: MongoFindOptions;
     /** Cursor-walking bookmark jump configuration */
     jump?: JumpOptions;
     /** Offset-based fallback for small page ranges */

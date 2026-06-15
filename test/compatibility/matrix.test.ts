@@ -9,6 +9,8 @@ const matrix = require('./matrix.json');
 test('compatibility(matrix): package declaration matches manifest', () => {
     assert.equal(packageJson.engines.node, matrix.support.node.declared);
     assert.equal(packageJson.dependencies.mongodb, matrix.support.mongodbDriver.declaredDependency);
+    assert.equal(packageJson.exports['.'].types.import, './dist/types/index.d.mts');
+    assert.equal(packageJson.exports['.'].types.require, './dist/types/index.d.ts');
     assert.ok(Array.isArray(matrix.support.moduleSystems));
     assert.deepEqual(matrix.support.moduleSystems, ['commonjs', 'esm']);
 });

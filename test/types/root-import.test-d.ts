@@ -30,6 +30,10 @@ import MonSQLize, {
     type InsertOneResult,
     type FunctionCacheStats,
     type FunctionCache,
+    type FindOptions,
+    type CountOptions,
+    type AggregateOptions,
+    type DistinctOptions,
     type LoggerLike,
     type ModelAccessor,
     type ModelInstance,
@@ -82,6 +86,11 @@ expectAssignable<MonSQLizeOptions>({
     countQueue: true,
     log: { formatSlowQuery: (meta) => ({ meta }) },
 });
+
+expectAssignable<FindOptions>({ projection: ['name'], sort: { name: 1 }, cache: 1000, meta: { level: 'op' } });
+expectAssignable<CountOptions>({ cache: 1000, maxTimeMS: 500, meta: true });
+expectAssignable<AggregateOptions>({ allowDiskUse: true, hint: { status: 1 }, comment: 'aggregate' });
+expectAssignable<DistinctOptions>({ collation: { locale: 'en' }, hint: 'name_1', meta: { includeCache: true } });
 
 expectAssignable<SSHConfig>({
     host: 'bastion.example.com',
