@@ -1,5 +1,11 @@
 # Unreleased
 
+- Fixed expression compiler precedence for mixed arithmetic/comparison expressions, preserved `$$` variables in FILTER/MAP/REDUCE, made ObjectId conversion handle shared object references consistently, routed `updateOne` update documents through `autoConvertObjectId` defaults, switched Redis lock scans to SCAN when available, and verified cursor signatures with timing-safe comparison.
+- Added ObjectId conversion escape hatches (`excludeFields`, `{ field: false }`, `maxDepth`) while preserving value-based conversion by default; added `cursorTypes`, `cursorValueNormalizer`, and `requireCursorSecret` for findPage cursor safety and type restoration.
+- Repositioned business lock and Saga APIs as legacy compatibility surfaces: public APIs remain available, but primary README, API index, capability index, examples index, recipes, and website navigation no longer promote them as recommended monSQLize capabilities.
+- Added regression tests for expression variable references and precedence, ObjectId shared-reference conversion, `updateOne` conversion disabling, Redis lock SCAN usage, and cursor signature length mismatch.
+- Clarified business lock, Saga, and cursor pagination documentation around process-local lock boundaries, Saga execution-state durability, unsigned cursor tokens, and ObjectId/Date cursor value normalization.
+- Corrected ObjectId auto-conversion documentation to match the current value-based runtime behavior, including the instance-level `autoConvertObjectId` switch and the lack of stable field include/exclude or conversion-log controls.
 - Clarified the `db()` / `collection()` / `use()` documentation path: quick-start and import examples now name the runtime `msq`, cross-database business examples prefer `use(name).collection(name)`, and `db(null)` validation docs now match the current runtime behavior.
 - Repositioned README, package metadata, and bilingual documentation as a database-native production data runtime layer, with MongoDB stable today and MySQL/PostgreSQL adapters clearly marked as planned.
 - Enhanced the documentation home hero illustration with CSS-driven SVG line flow, moving data packets, staggered node pulses, subtle scene breathing, and reduced-motion-safe visible cues.

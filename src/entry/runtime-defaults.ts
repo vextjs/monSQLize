@@ -48,6 +48,8 @@ export function buildPublicDefaults(options: MonSQLizeOptions): Readonly<Record<
         slowQueryMs: options.slowQueryMs,
         namespace: options.namespace,
         cursorSecret: options.cursorSecret,
+        requireCursorSecret: options.requireCursorSecret,
+        cursorTypes: options.cursorTypes,
         autoConvertObjectId: options.autoConvertObjectId,
         log: options.log as Record<string, unknown> | undefined,
         slowQueryLog: options.slowQueryLog,

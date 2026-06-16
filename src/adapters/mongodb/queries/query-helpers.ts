@@ -4,12 +4,12 @@
  * Extracted from the MongoCollectionAccessor query path to reduce main-file
  * complexity and enable independent testing.
  */
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { Collection, Document, ObjectId, Sort } from 'mongodb';
 
 import { createError, ErrorCodes } from '../../../core/errors';
-import type { CursorPayload, SortShape } from '../../../types/internal/query';
+import type { CursorPayload, CursorValueNormalizationOptions, SortShape } from '../../../types/internal/query';
 
 /**
  * Internal query-layer helpers.
@@ -111,6 +111,76 @@ export function normalizeIdentifier(value: unknown, autoConvert = true): unknown
     return value;
 }
 
+function getAutoConvertConfig(autoConvert: boolean | Record<string, unknown>): {
+    enabled: boolean;
+    excludeFields: string[];
+    maxDepth: number;
+    fieldMap: Record<string, boolean>;
+} {
+    if (autoConvert === false) return { enabled: false, excludeFields: [], maxDepth: 10, fieldMap: {} };
+    if (autoConvert === true) return { enabled: true, excludeFields: [], maxDepth: 10, fieldMap: {} };
+
+    const fieldMap: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(autoConvert)) {
+        if (typeof value === 'boolean' && key !== 'enabled') {
+            fieldMap[key] = value;
+        }
+    }
+
+    return {
+        enabled: autoConvert.enabled !== false,
+        excludeFields: Array.isArray(autoConvert.excludeFields) ? autoConvert.excludeFields.map(String) : [],
+        maxDepth: typeof autoConvert.maxDepth === 'number' && autoConvert.maxDepth >= 0 ? autoConvert.maxDepth : 10,
+        fieldMap,
+    };
+}
+
+function stripArrayIndexes(path: string): string {
+    return path.replace(/\[\d+\]/g, '');
+}
+
+function lastPathSegment(path: string): string {
+    const stripped = stripArrayIndexes(path);
+    const parts = stripped.split('.');
+    return parts[parts.length - 1] ?? stripped;
+}
+
+function matchesFieldPattern(pattern: string, path: string): boolean {
+    const stripped = stripArrayIndexes(path);
+    const fieldName = lastPathSegment(path);
+    if (pattern === stripped || pattern === fieldName) return true;
+    if (!pattern.includes('*')) return false;
+    const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*');
+    const regex = new RegExp(`^${escaped}$`);
+    return regex.test(stripped) || regex.test(fieldName);
+}
+
+function shouldConvertQueryField(autoConvert: boolean | Record<string, unknown>, path: string, depth: number): boolean {
+    const config = getAutoConvertConfig(autoConvert);
+    if (!config.enabled || depth > config.maxDepth) return false;
+    const stripped = stripArrayIndexes(path);
+    const fieldName = lastPathSegment(path);
+    if (config.fieldMap[stripped] === false || config.fieldMap[fieldName] === false) return false;
+    return !config.excludeFields.some((pattern) => matchesFieldPattern(pattern, path));
+}
+
+function normalizeQueryArray(
+    value: unknown[],
+    autoConvert: boolean | Record<string, unknown>,
+    path: string,
+    depth: number,
+): unknown[] {
+    return value.map((item, index) => {
+        if (typeof item === 'string' && item.length === 24 && ObjectId.isValid(item) && shouldConvertQueryField(autoConvert, path, depth)) {
+            return new ObjectId(item);
+        }
+        if (item && typeof item === 'object' && !Array.isArray(item) && !(item instanceof ObjectId)) {
+            return normalizeQueryFilter(item as Record<string, unknown>, autoConvert, `${path}[${index}]`, depth + 1);
+        }
+        return item;
+    });
+}
+
 /**
  * Recursively normalizes a query filter, converting eligible 24-char hex strings to ObjectId.
  *
@@ -122,23 +192,32 @@ export function normalizeIdentifier(value: unknown, autoConvert = true): unknown
 export function normalizeQueryFilter(
     filter: Record<string, unknown>,
     autoConvert: boolean | Record<string, unknown>,
+    fieldPath = '',
+    depth = 0,
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
+    const autoConvertConfig = getAutoConvertConfig(autoConvert);
+    if (!autoConvertConfig.enabled || depth > autoConvertConfig.maxDepth) {
+        return filter;
+    }
 
     for (const [key, value] of Object.entries(filter)) {
         if (key === '$and' || key === '$or' || key === '$nor') {
             result[key] = Array.isArray(value)
                 ? value.map((item) => item && typeof item === 'object'
-                    ? normalizeQueryFilter(item as Record<string, unknown>, autoConvert)
+                    ? normalizeQueryFilter(item as Record<string, unknown>, autoConvert, fieldPath, depth + 1)
                     : item)
                 : value;
             continue;
         }
 
-        const shouldConvert = autoConvert === true || (typeof autoConvert === 'object' && autoConvert[key] !== false);
+        const currentPath = fieldPath ? `${fieldPath}.${key}` : key;
+        const shouldConvert = shouldConvertQueryField(autoConvert, currentPath, depth);
 
         if (typeof value === 'string' && value.length === 24 && ObjectId.isValid(value)) {
             result[key] = shouldConvert ? new ObjectId(value) : value;
+        } else if (Array.isArray(value)) {
+            result[key] = shouldConvert ? normalizeQueryArray(value, autoConvert, currentPath, depth + 1) : value;
         } else if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof ObjectId)) {
             const nested = value as Record<string, unknown>;
             const hasOperators = Object.keys(nested).some((k) => k.startsWith('$'));
@@ -155,14 +234,14 @@ export function normalizeQueryFilter(
                     } else if (shouldConvert && (op === '$eq' || op === '$ne') && typeof opVal === 'string' && opVal.length === 24 && ObjectId.isValid(opVal)) {
                         nestedResult[op] = new ObjectId(opVal);
                     } else if (op === '$elemMatch' && opVal && typeof opVal === 'object' && !Array.isArray(opVal)) {
-                        nestedResult[op] = normalizeQueryFilter(opVal as Record<string, unknown>, autoConvert);
+                        nestedResult[op] = normalizeQueryFilter(opVal as Record<string, unknown>, autoConvert, currentPath, depth + 1);
                     } else {
                         nestedResult[op] = opVal;
                     }
                 }
                 result[key] = nestedResult;
             } else {
-                result[key] = normalizeQueryFilter(nested, autoConvert);
+                result[key] = normalizeQueryFilter(nested, autoConvert, currentPath, depth + 1);
             }
         } else {
             result[key] = value;
@@ -198,7 +277,9 @@ export function decodeCursor(cursor: string, secret?: string): unknown[] {
             const encoded = cursor.slice(0, dotIndex);
             const sig = cursor.slice(dotIndex + 1);
             const expected = createHmac('sha256', secret).update(encoded).digest('base64url');
-            if (sig !== expected) {
+            const sigBuffer = Buffer.from(sig);
+            const expectedBuffer = Buffer.from(expected);
+            if (sigBuffer.length !== expectedBuffer.length || !timingSafeEqual(sigBuffer, expectedBuffer)) {
                 throw createError(ErrorCodes.INVALID_PAGINATION, 'Cursor signature invalid.');
             }
             raw = encoded;
@@ -226,7 +307,45 @@ export function reverseSort(sort: SortShape): SortShape {
  * JSON round-tripping converts Date objects to ISO strings;
  * this function restores them before cursor comparison.
  */
-export function normalizeCursorValue(value: unknown): unknown {
+export function normalizeCursorValue(
+    value: unknown,
+    field = '',
+    options: CursorValueNormalizationOptions = {},
+): unknown {
+    if (typeof options.cursorValueNormalizer === 'function') {
+        return options.cursorValueNormalizer(field, value);
+    }
+
+    const declaredType = field ? options.cursorTypes?.[field] : undefined;
+    if (declaredType === 'raw' || declaredType === 'string') {
+        return value;
+    }
+    if (declaredType === 'objectId') {
+        return normalizeIdentifier(value);
+    }
+    if (declaredType === 'date') {
+        if (value instanceof Date) return value;
+        if (typeof value === 'string') {
+            const d = new Date(value);
+            return isNaN(d.getTime()) ? value : d;
+        }
+        return value;
+    }
+    if (declaredType === 'number') {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string' && value.trim() !== '') {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : value;
+        }
+        return value;
+    }
+    if (declaredType === 'boolean') {
+        if (typeof value === 'boolean') return value;
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        return value;
+    }
+
     if (typeof value === 'string') {
         if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(value)) {
             const d = new Date(value);
@@ -275,13 +394,18 @@ export function buildAggregateDriverOptions<TSchema extends Document = Document>
 }
 
 /** Builds a MongoDB filter that selects documents strictly after or before the given cursor values. */
-export function buildCursorFilter(sort: SortShape, cursorValues: unknown[], direction: 'after' | 'before'): Document {
+export function buildCursorFilter(
+    sort: SortShape,
+    cursorValues: unknown[],
+    direction: 'after' | 'before',
+    options: CursorValueNormalizationOptions = {},
+): Document {
     const entries = Object.entries(sort);
     const clauses: Document[] = [];
 
     for (let index = 0; index < entries.length; index += 1) {
         const equalityPrefix = entries.slice(0, index).reduce<Record<string, unknown>>((carry, [field], prefixIndex) => {
-            carry[field] = normalizeCursorValue(cursorValues[prefixIndex]);
+            carry[field] = normalizeCursorValue(cursorValues[prefixIndex], field, options);
             return carry;
         }, {});
         const [field, sortDirection] = entries[index];
@@ -292,7 +416,7 @@ export function buildCursorFilter(sort: SortShape, cursorValues: unknown[], dire
         clauses.push({
             ...equalityPrefix,
             [field]: {
-                [operator]: normalizeCursorValue(cursorValues[index]),
+                [operator]: normalizeCursorValue(cursorValues[index], field, options),
             },
         });
     }

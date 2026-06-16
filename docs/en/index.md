@@ -34,7 +34,7 @@ features:
     link: /api-index.html
   - icon: 🏢
     title: Shared Production Runtime
-    details: Cache consistency, transactions, locks, pools, Saga workflows, sync, slow-query logging, and explicit external services.
+    details: Cache consistency, transactions, pools, sync, slow-query logging, and explicit external services.
     link: /capability-index.html
   - icon: 🌐
     title: Multi-Pool & Read/Write Split
@@ -49,9 +49,9 @@ features:
     details: MongoDB is stable today; MySQL and PostgreSQL are planned as database-native adapters, not fake MongoDB dialects.
     link: /roadmap-boundaries.html
   - icon: 🔄
-    title: Saga Transactions
-    details: Multi-step workflow orchestration with explicit compensation and rollback semantics across services.
-    link: /saga-transaction.html
+    title: Change Stream Sync
+    details: Resume-token aware synchronization helpers for MongoDB change streams.
+    link: /sync-backup.html
   - icon: 📊
     title: Slow-Query Logging
     details: Configurable slow-query detection with MongoDB and memory storage adapters.

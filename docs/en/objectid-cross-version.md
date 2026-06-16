@@ -116,8 +116,8 @@ const result = await msq.collection('orders').find({
 ## Performance optimization
 
 - **Zero-copy optimization**: If there is no ObjectId that needs to be converted in the object, return the original object (no cloning)
-- **Intelligent Detection**: Only process fields whose field names match `_id`, `*Id`, `*Ids` and other patterns.
-- **Depth Limit**: The recursion depth is limited to 10 levels by default to prevent stack overflow.
+- **Value-based detection**: Valid ObjectId-looking values can be converted regardless of the field name.
+- **Cycle detection**: Circular structures are detected to prevent infinite recursion.
 
 ## Compatibility
 
@@ -135,23 +135,7 @@ If the business really needs to explicitly normalize the data before entering mo
 
 ## Debugging
 
-Enable log viewing of the conversion process:
-
-```javascript
-const msq = new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'mydb',
-  config: { uri: 'mongodb://localhost:27017' },
-  logger: {
-    level: 'debug'  //Enable debug logging
-  }
-});
-
-//Conversion logs will be output when inserting
-await msq.collection('orders').insertOne(dataFromMongoose);
-// [DEBUG] [ObjectId Converter] Cross-version ObjectId converted
-//   { from: 'ObjectId', to: 'ObjectId', hex: '507f1f77bcf86cd799439011' }
-```
+The current v2 converter does not emit per-value conversion logs. To inspect conversion behavior, use an integration test, MongoDB command monitoring, or a focused unit test around the converter.
 
 ## Notes
 

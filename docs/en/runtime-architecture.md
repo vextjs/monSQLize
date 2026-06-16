@@ -15,7 +15,7 @@ MonSQLizeRuntime (src/entry/runtime-core.ts)
 │   ├── pool
 │   ├── sync
 │   ├── slow-query-log
-│   ├── transaction / lock / saga
+│   ├── transaction
 │   └── count-queue
 ├── adapters
 │   └── mongodb/common + writes

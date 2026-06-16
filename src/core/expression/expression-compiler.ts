@@ -48,6 +48,25 @@ export function compileInnerExpression(expression: string): unknown {
         return { $ifNull: [parseValue(nullCoalParts[0].trim()), parseValue(nullCoalParts[1].trim())] };
     }
 
+    const cmpMatch = /^(.+?)\s*(===|!==|>=|<=|>|<)\s*(.+)$/.exec(expr);
+    if (cmpMatch) {
+        const [, left, operator, right] = cmpMatch;
+        const operatorMap: Record<string, string> = {
+            '===': '$eq',
+            '!==': '$ne',
+            '>=': '$gte',
+            '<=': '$lte',
+            '>': '$gt',
+            '<': '$lt',
+        };
+        return {
+            [operatorMap[operator]]: [
+                compileInnerExpression(left.trim()),
+                compileInnerExpression(right.trim()),
+            ],
+        };
+    }
+
     const addSubMatch = /^(.+?)\s*([+\-])\s*(.+)$/.exec(expr);
     if (addSubMatch) {
         const [, left, operator, right] = addSubMatch;
@@ -60,23 +79,6 @@ export function compileInnerExpression(expression: string): unknown {
         const [, left, operator, right] = mulDivMatch;
         const operatorMap: Record<string, string> = { '*': '$multiply', '/': '$divide', '%': '$mod' };
         return { [operatorMap[operator]]: [parseOperand(left.trim()), parseOperand(right.trim())] };
-    }
-
-    const cmpMatch = /^(.+?)\s*(===|!==|>=|<=|>|<)\s*(.+)$/.exec(expr);
-    if (cmpMatch) {
-        const [, left, operator, right] = cmpMatch;
-        const operatorMap: Record<string, string> = {
-            '===': '$eq',
-            '!==': '$ne',
-            '>=': '$gte',
-            '<=': '$lte',
-            '>': '$gt',
-            '<': '$lt',
-        };
-        const leftValue = IS_FUNC_CALL_RE.test(left.trim())
-            ? compileInnerExpression(left.trim())
-            : `$${left.trim()}`;
-        return { [operatorMap[operator]]: [leftValue, parseValue(right.trim())] };
     }
 
     const genericFuncCallRe = /^[A-Za-z_][A-Za-z0-9_]*\s*\(.+\)$/;
@@ -105,6 +107,7 @@ function parseValue(value: string): unknown {
     if (IS_FUNC_CALL_RE.test(normalized)) {
         return compileInnerExpression(normalized);
     }
+    if (normalized.startsWith('$')) return normalized;
     return `$${normalized}`;
 }
 
@@ -174,8 +177,8 @@ function dispatchFunction(name: string, argsStr: string): unknown {
             if (!lambdaMatch) throw createError(ErrorCodes.INVALID_EXPRESSION, 'REDUCE requires a lambda: (acc, item) => expr');
             const [, accVar, itemVar, lambdaExpr] = lambdaMatch;
             const compiledExpr = lambdaExpr
-                .replace(new RegExp(`\\b${accVar}\\b`, 'g'), '$$value')
-                .replace(new RegExp(`\\b${itemVar}\\b`, 'g'), '$$this');
+                .replace(new RegExp(`\\b${accVar}\\b`, 'g'), () => '$$value')
+                .replace(new RegExp(`\\b${itemVar}\\b`, 'g'), () => '$$this');
             return { $reduce: { input: parseValue(args[0]), initialValue: parseValue(args[1]), in: compileInnerExpression(compiledExpr) } };
         }
         case 'ZIP': return { $zip: { inputs: args.map((arg) => parseValue(arg)) } };
@@ -326,12 +329,12 @@ function dispatchFunction(name: string, argsStr: string): unknown {
 }
 
 function compileFilterCondition(condition: string, varName: string): unknown {
-    const replaced = condition.replace(new RegExp(`\\b${varName}\\.`, 'g'), `$$${varName}.`);
+    const replaced = condition.replace(new RegExp(`\\b${varName}\\.`, 'g'), () => `$$${varName}.`);
     return compileInnerExpression(replaced);
 }
 
 function compileMapExpression(exprStr: string, varName: string): unknown {
-    const replaced = exprStr.replace(new RegExp(`\\b${varName}\\.`, 'g'), `$$${varName}.`);
+    const replaced = exprStr.replace(new RegExp(`\\b${varName}\\.`, 'g'), () => `$$${varName}.`);
     return compileInnerExpression(replaced);
 }
 

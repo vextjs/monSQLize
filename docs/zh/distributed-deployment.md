@@ -850,8 +850,14 @@ cache: {
 
 2. 检查锁是否创建
    ```javascript
-   // 在 Redis 中查看锁
-   await redis.keys('myapp:cache:lock:*');
+   // 在 Redis 中查看锁，避免阻塞实例
+   const locks = [];
+   let cursor = '0';
+   do {
+     const [nextCursor, batch] = await redis.scan(cursor, 'MATCH', 'myapp:cache:lock:*', 'COUNT', 500);
+     cursor = nextCursor;
+     locks.push(...batch);
+   } while (cursor !== '0');
    ```
 
 3. 查看事务日志

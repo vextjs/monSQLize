@@ -29,7 +29,7 @@ import type { CacheLike } from '../capabilities/cache';
 export function initAutoConvertConfig(
     config: boolean | { enabled?: boolean; excludeFields?: string[]; customFieldPatterns?: string[]; maxDepth?: number; logLevel?: string; } | Record<string, boolean> | undefined,
     type: string | undefined,
-): { enabled: boolean; excludeFields?: string[]; customFieldPatterns?: string[]; maxDepth?: number; logLevel?: string; } {
+): { enabled: boolean; excludeFields?: string[]; customFieldPatterns?: string[]; maxDepth?: number; logLevel?: string; [field: string]: unknown; } {
     if (type !== 'mongodb') {
         return { enabled: false };
     }
@@ -44,12 +44,18 @@ export function initAutoConvertConfig(
         if (config.enabled === false) {
             return { enabled: false };
         }
+        const fieldMap = Object.fromEntries(
+            Object.entries(config).filter(([key, value]) =>
+                typeof value === 'boolean' && key !== 'enabled',
+            ),
+        );
         return {
             enabled: true,
             excludeFields: Array.isArray(config.excludeFields) ? config.excludeFields : defaults.excludeFields,
             customFieldPatterns: Array.isArray(config.customFieldPatterns) ? config.customFieldPatterns : defaults.customFieldPatterns,
             maxDepth: typeof config.maxDepth === 'number' ? config.maxDepth : defaults.maxDepth,
             logLevel: typeof config.logLevel === 'string' ? config.logLevel : defaults.logLevel,
+            ...fieldMap,
         };
     }
     return defaults;
@@ -65,6 +71,10 @@ export function initAutoConvertConfig(
  */
 export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults {
     const o = options;
+    const autoConvertConfig = initAutoConvertConfig(
+        o.autoConvertObjectId,
+        o.type ?? 'mongodb',
+    );
     const defaults: RuntimeDefaults = {
         maxTimeMS: o.maxTimeMS ?? 2000,
         findLimit: o.findLimit ?? 10,
@@ -74,9 +84,12 @@ export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults
     };
     // v1-compat: autoConvertObjectId defaults to true for MongoDB type (mirrors v1 behaviour)
     defaults.autoConvertObjectId = o.autoConvertObjectId !== undefined
-        ? o.autoConvertObjectId
+        ? (autoConvertConfig.enabled ? autoConvertConfig : false)
         : (o.type === 'mongodb' || !o.type ? true : false);
     if (o.cursorSecret !== undefined) defaults.cursorSecret = o.cursorSecret;
+    if (o.requireCursorSecret !== undefined) defaults.requireCursorSecret = o.requireCursorSecret;
+    if (o.cursorTypes !== undefined) defaults.cursorTypes = o.cursorTypes;
+    if (typeof o.cursorValueNormalizer === 'function') defaults.cursorValueNormalizer = o.cursorValueNormalizer;
     // v1-compat: countQueue defaults to enabled when not explicitly configured.
     const countQueueCfg = o.countQueue === false
         ? { enabled: false }

@@ -34,7 +34,7 @@ features:
     link: /zh/api-index.html
   - icon: 🏢
     title: 共享生产运行时
-    details: 缓存一致性、事务、锁、连接池、Saga 编排、同步、慢查询日志与显式启用的外部服务。
+    details: 缓存一致性、事务、连接池、同步、慢查询日志与显式启用的外部服务。
     link: /zh/capability-index.html
   - icon: 🌐
     title: 多连接池与读写分离
@@ -49,9 +49,9 @@ features:
     details: MongoDB 当前稳定；MySQL 与 PostgreSQL 将以数据库原生 adapter 接入，而不是伪装成 MongoDB 方言。
     link: /zh/roadmap-boundaries.html
   - icon: 🔄
-    title: Saga 事务
-    details: 面向多步骤业务流程的编排能力，支持显式补偿与回滚语义。
-    link: /zh/saga-transaction.html
+    title: Change Stream 同步
+    details: 基于 resume token 的 MongoDB Change Stream 同步辅助能力。
+    link: /zh/sync-backup.html
   - icon: 📊
     title: 慢查询日志
     details: 支持可配置阈值的慢查询检测，并内置 MongoDB 与内存存储适配器。

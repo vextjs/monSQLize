@@ -264,6 +264,13 @@ export class MonSQLizeRuntime {
             : rawCacheInput;
         this._cache = normalizeRuntimeCache(cacheInput as Record<string, unknown> | MemoryCache | undefined);
         this._logger = Logger.create(options.logger ?? null);
+        const cursorSecretWarning = options.cursorSecretWarning ?? 'production';
+        if (
+            !options.cursorSecret &&
+            (cursorSecretWarning === 'always' || (cursorSecretWarning === 'production' && process.env.NODE_ENV === 'production'))
+        ) {
+            this._logger.warn?.('[MonSQLizeRuntime] cursorSecret is not configured; findPage cursor tokens are unsigned.');
+        }
         this._cacheLockManager = new CacheLockManager({
             logger: options.logger ?? null,
             maxDuration: options.transaction?.lockMaxDuration,
@@ -386,6 +393,8 @@ export class MonSQLizeRuntime {
             findPageMaxLimit: d.findPageMaxLimit,
             autoConvertObjectId: d.autoConvertObjectId,
             cursorSecret: this.options.cursorSecret !== undefined ? '***' : undefined,
+            requireCursorSecret: d.requireCursorSecret,
+            cursorTypes: d.cursorTypes,
             namespace: d.namespace,
             log: d.log,
             countQueue: this.options.countQueue,

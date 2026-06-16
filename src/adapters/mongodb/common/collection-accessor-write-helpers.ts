@@ -9,7 +9,6 @@ import type { Collection, Document } from 'mongodb';
 import type { Logger } from '../../../core/logger';
 import { createError, ErrorCodes } from '../../../core/errors';
 import type { RuntimeDefaults } from '../../../types/internal/query';
-import { convertUpdateDocument } from '../utils/objectid-converter';
 import {
     deleteManyDocuments,
     deleteOneDocument,
@@ -232,7 +231,7 @@ export async function updateOneForAccessor<TSchema extends Document = Document>(
     const normalizedFilter = context.cvFilter(filter);
     const finalUpdate = Array.isArray(update)
         ? update
-        : (convertUpdateDocument(update) as typeof update);
+        : context.cvUpdate(update);
     const result = await updateOneDocument(context.collectionRef, normalizedFilter, finalUpdate, options);
     if (result.modifiedCount > 0 || result.upsertedId) {
         await context.invalidateAll();

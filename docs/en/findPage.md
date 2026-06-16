@@ -211,22 +211,33 @@ const page0 = await collection('orders').findPage({
 **Notice**:
 - The cursor contains the value of the sorting field, and the sorting rules must be consistent
 - When `cursorSecret` is not configured, the cursor is purely Base64url encoded, and the client can decode the content; after configuration, an HMAC-SHA256 signature is appended, and the tampered cursor will be rejected by the server.
+- Cursor comparison restores JSON-round-tripped values before building the MongoDB filter: by default, 24-character hexadecimal strings are treated as ObjectId values, and ISO timestamp-like strings are treated as Date values. Use `cursorTypes` or `cursorValueNormalizer` when a string sort field intentionally contains ObjectId-like or ISO-like values.
 - Do not splice or modify the cursor on the client side
 - If you need long-term cross-session persistence of the cursor, please also cooperate with the server's own expiration control.
 
-**Game tag name (recommended to be enabled in production environment)**:
+**Cursor signing (recommended in production)**:
 
 ```ts
 const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
   cursorSecret: process.env.CURSOR_SECRET,  // 32+ bytes random string
+  requireCursorSecret: true
 });
 ```
 
 After enabling, the format of `endCursor` / `startCursor` becomes `<payload>.<signature>`, and the server automatically verifies the signature every time `findPage` is called. Throws `INVALID_ARGUMENT` error when signatures do not match.
 
 > **Upgrade Note**: If you generated cursor tokens during the running of v1 and persisted them (such as saving them to the database), after turning on `cursorSecret` in v2, these old tokens will become invalid due to the lack of signature fields. See the "Cursor Token Upgrade Strategy" section below for the migration plan.
+
+If the sort field is a string that can look like a Date or ObjectId, pin its cursor type:
+
+```ts
+const page = await collection('events').findPage({
+  sort: { token: 1 },
+  cursorTypes: { token: 'string' }
+});
+```
 
 ### 2. Page jump mode
 
@@ -1302,14 +1313,14 @@ const exportStream = await collection('orders').findPage({
 
 ### The role of cursorSecret
 
-`cursorSecret` is an optional instance-level configuration item. When not set, the cursor token is pure Base64url encoded and anyone can decode its contents (including the sort field value). Once set, each token will have an HMAC-SHA256 signature attached:
+`cursorSecret` is an optional instance-level configuration item. When not set, the cursor token is pure Base64url encoded and anyone can decode or construct its contents (including the sort field value). Once set, each token will have an HMAC-SHA256 signature attached:
 
 ```text
 token Format (no signature):  <base64url-payload>
 token Format (with signature):  <base64url-payload>.<base64url-signature>
 ```
 
-The server automatically verifies the signature every time `findPage` is called. If the token has been tampered with (for example, the client manually modified the sorting field value to skip data), the signature does not match and the server throws an `INVALID_ARGUMENT` error.
+The server automatically verifies the signature every time `findPage` is called. If the token has been tampered with (for example, the client manually modified the sorting field value to skip data), the signature does not match and the server throws an `INVALID_ARGUMENT` error. The signature comparison is performed with a timing-safe comparison in the current runtime.
 
 **It is recommended to always configure cursorSecret in production environment**:
 
@@ -1317,8 +1328,35 @@ The server automatically verifies the signature every time `findPage` is called.
 const msq = new MonSQLize({
   type: 'mongodb',
   cursorSecret: process.env.CURSOR_SECRET,  // Random string, 32+ bytes recommended
+  requireCursorSecret: true
 });
 ```
+
+`requireCursorSecret` is optional and defaults to `false` for compatibility. When set to `true`, `findPage()` throws `INVALID_CONFIG` until `cursorSecret` is configured, preventing unsigned cursor tokens from being emitted or accepted.
+
+### Cursor value type hints
+
+Cursor payloads are JSON encoded, so Date and ObjectId values are restored before MongoDB comparison filters are built. The default restoration preserves existing behavior: ISO timestamp-like strings become `Date` values and 24-character hex strings become `ObjectId` values.
+
+Use `cursorTypes` when a sort field should be restored differently:
+
+```ts
+const msq = new MonSQLize({
+  type: 'mongodb',
+  cursorTypes: {
+    createdAt: 'date',
+    _id: 'objectId',
+    token: 'string'
+  }
+});
+
+await collection('events').findPage({
+  sort: { token: 1 },
+  cursorTypes: { token: 'raw' }
+});
+```
+
+For custom conversion logic, pass `cursorValueNormalizer(field, value)` at the instance level or on a single `findPage()` call.
 
 ### Cursor token compatibility issues when upgrading from v1
 

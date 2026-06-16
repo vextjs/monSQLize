@@ -210,6 +210,7 @@ const page0 = await collection('orders').findPage({
 **注意**：
 - 游标包含排序字段的值，排序规则必须保持一致
 - 未配置 `cursorSecret` 时，游标为纯 Base64url 编码，客户端可解码内容；配置后附加 HMAC-SHA256 签名，篡改的游标会被服务端拒绝
+- 游标比较会在构造 MongoDB 过滤条件前恢复 JSON 往返后的值：默认会把 24 位十六进制字符串按 ObjectId 处理，把形如 ISO 时间戳的字符串按 Date 处理。如果字符串排序字段本身可能保存 ObjectId-like 或 ISO-like 值，请使用 `cursorTypes` 或 `cursorValueNormalizer` 固定类型。
 - 不要在客户端自行拼接或修改游标
 - 如需长期跨会话持久化游标，请同时配合服务端自己的过期控制
 
@@ -220,12 +221,22 @@ const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
   cursorSecret: process.env.CURSOR_SECRET,  // 32+ 字节随机字符串
+  requireCursorSecret: true
 });
 ```
 
 启用后，`endCursor` / `startCursor` 的格式变为 `<payload>.<signature>`，服务端在每次 `findPage` 调用时自动验签。签名不匹配时抛出 `INVALID_ARGUMENT` 错误。
 
 > **升级注意**：如果你在 v1 运行期间生成了游标 token 并持久化（如存入数据库），在 v2 中开启 `cursorSecret` 后，这些旧 token 将因缺少签名字段而失效。迁移方案见下方"游标令牌升级策略"章节。
+
+如果排序字段是可能长得像 Date 或 ObjectId 的字符串，请固定游标类型：
+
+```ts
+const page = await collection('events').findPage({
+  sort: { token: 1 },
+  cursorTypes: { token: 'string' }
+});
+```
 
 ### 2. 跳页模式
 
@@ -1301,14 +1312,14 @@ const exportStream = await collection('orders').findPage({
 
 ### cursorSecret 的作用
 
-`cursorSecret` 是一个可选的实例级配置项。未设置时，游标令牌是纯 Base64url 编码，任何人都可以解码其内容（包含排序字段值）。设置后，每个令牌都会附加一个 HMAC-SHA256 签名：
+`cursorSecret` 是一个可选的实例级配置项。未设置时，游标令牌是纯 Base64url 编码，任何人都可以解码或构造其内容（包含排序字段值）。设置后，每个令牌都会附加一个 HMAC-SHA256 签名：
 
 ```text
 token 格式（无签名）:  <base64url-payload>
 token 格式（有签名）:  <base64url-payload>.<base64url-signature>
 ```
 
-服务端在每次 `findPage` 调用时自动验证签名。如果令牌被篡改（例如客户端手动修改了排序字段值来跳过数据），签名不匹配，服务端抛出 `INVALID_ARGUMENT` 错误。
+服务端在每次 `findPage` 调用时自动验证签名。如果令牌被篡改（例如客户端手动修改了排序字段值来跳过数据），签名不匹配，服务端抛出 `INVALID_ARGUMENT` 错误。当前运行时使用 timing-safe comparison 验证签名。
 
 **推荐在生产环境始终配置 cursorSecret**：
 
@@ -1316,8 +1327,35 @@ token 格式（有签名）:  <base64url-payload>.<base64url-signature>
 const msq = new MonSQLize({
   type: 'mongodb',
   cursorSecret: process.env.CURSOR_SECRET,  // 随机字符串，建议 32+ 字节
+  requireCursorSecret: true
 });
 ```
+
+`requireCursorSecret` 是兼容性可选项，默认 `false`。设置为 `true` 后，如果没有配置 `cursorSecret`，`findPage()` 会抛出 `INVALID_CONFIG`，避免继续产生或接受未签名游标。
+
+### 游标值类型提示
+
+游标载荷使用 JSON 编码，因此在构造 MongoDB 比较过滤条件前，需要恢复 Date 与 ObjectId。默认恢复逻辑保持旧行为：形如 ISO 时间戳的字符串会变成 `Date`，24 位十六进制字符串会变成 `ObjectId`。
+
+当排序字段需要不同恢复方式时，可以使用 `cursorTypes`：
+
+```ts
+const msq = new MonSQLize({
+  type: 'mongodb',
+  cursorTypes: {
+    createdAt: 'date',
+    _id: 'objectId',
+    token: 'string'
+  }
+});
+
+await collection('events').findPage({
+  sort: { token: 1 },
+  cursorTypes: { token: 'raw' }
+});
+```
+
+如需自定义转换逻辑，可以在实例级或单次 `findPage()` 调用上提供 `cursorValueNormalizer(field, value)`。
 
 ### 从 v1 升级时的游标令牌兼容问题
 

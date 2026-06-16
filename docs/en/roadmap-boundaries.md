@@ -4,7 +4,7 @@
 
 monSQLize is a **database-native production data runtime layer for TypeScript services**.
 
-The current stable adapter is MongoDB. MySQL and PostgreSQL are planned as future database-native adapters under the same runtime contract. The shared contract is the production runtime layer: cache consistency, connection lifecycle, transaction and lock orchestration, model constraints, workflows, synchronization, and observability.
+The current stable adapter is MongoDB. MySQL and PostgreSQL are planned as future database-native adapters under the same runtime contract. The shared contract is the production runtime layer: cache consistency, connection lifecycle, transaction helpers, model constraints, synchronization, and observability.
 
 ## Adapter status
 
@@ -21,7 +21,7 @@ The current MongoDB adapter includes:
 - MongoDB query extension
 - Cache / Function Cache
 - Model
-- Transaction / Lock / Saga
+- Transaction
 - Pool / Sync / Slow Query Log
 
 ## Currently explicitly not supported

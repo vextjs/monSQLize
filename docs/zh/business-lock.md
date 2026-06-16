@@ -1,5 +1,7 @@
 ﻿# 业务级分布式锁
 
+> **弃用兼容页**：monSQLize 仍保留 `withLock()`、`acquireLock()`、`tryAcquireLock()` 以兼容老调用方，但业务锁不再作为 monSQLize 推荐能力。新的支付、订单等临界区请优先放到应用/框架层（例如 VextJS runtime）处理。本页已从主文档导航隐藏。
+
 > **版本**: v1.0.1  
 > **状态**: ✅ 已实现  
 > **依赖**: Redis (ioredis)
@@ -24,6 +26,8 @@
 ## 概述
 
 monSQLize v1.0.1 引入了业务级分布式锁功能，基于 Redis 实现，用于保护复杂业务逻辑的临界区，防止并发冲突。
+
+> **当前运行时边界**：当前 v2 runtime 的便捷 API `msq.withLock()`、`msq.acquireLock()`、`msq.tryAcquireLock()` 使用内置的进程内 `LockManager`。它只能协调同一个 Node.js 进程内的调用，默认不提供跨 worker / 跨实例互斥。进程内锁也不会在 callback 执行期间自动续租；如果 callback 执行时间超过 `ttl`，锁可能在 callback 返回前过期。Egg.js 多 worker、支付流程、订单去重等跨进程临界区，请显式接入并验证 Redis-backed `DistributedCacheLockManager` 路径，并在业务层配合幂等或 fencing。
 
 ### 核心特性
 

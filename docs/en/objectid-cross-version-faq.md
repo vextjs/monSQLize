@@ -249,34 +249,11 @@ Based on user feedback, ObjectId conversion log:
 So v1.1.1 turns these logs off completely by default.
 
 
-## How to enable logging (for debugging)
+## How to verify conversion in current v2 runtime
 
-If you need to debug, you can temporarily enable it:
+The current converter does not expose `silent` or `verbose` logging controls. If you need to debug conversion, use integration tests, MongoDB command monitoring, or focused converter unit tests.
 
-```javascript
-//Enable summary logging
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' },
-  autoConvertObjectId: {
-    silent: false  //Turn off silence
-  }
-});
-//Output: [DEBUG] Converted 15 cross-version ObjectIds
-
-//or enable verbose logging
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' },
-  autoConvertObjectId: {
-    silent: false,
-    verbose: true
-  }
-});
-//Output: One log for each ObjectId
-```
-
-**Detailed description**: [ObjectId log configuration document](./objectid-logging-optimization.md)
+**Detailed description**: [ObjectId conversion diagnostics](./objectid-logging-optimization.md)
 
 ---
 

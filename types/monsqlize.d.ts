@@ -31,7 +31,7 @@ export interface SSHConfig {
     localPort?: number;
 }
 
-import type { Collection, DbAccessor, HealthView } from './collection';
+import type { Collection, CursorValueNormalizer, CursorValueType, DbAccessor, HealthView } from './collection';
 import type { Lock, LockOptions, LockStats } from './lock';
 import type { ModelAutoIndexOptions, ModelEnsureAllIndexesOptions, ModelIndexEnsureSummary, ModelInstance } from './model';
 import type { MongoConnectConfig } from './mongodb';
@@ -162,9 +162,17 @@ export interface MonSQLizeOptions {
     namespace?: { scope?: 'database' | 'connection'; instanceId?: string; };
     /** HMAC-SHA256 secret used to sign and verify cursor tokens returned by findPage(). @since v1.3.0 */
     cursorSecret?: string;
+    /** Require cursorSecret before findPage can emit or consume cursor tokens. Default: false. @since v2.0.7 */
+    requireCursorSecret?: boolean;
+    /** Controls startup warning when cursorSecret is missing. Default: 'production'. @since v2.0.7 */
+    cursorSecretWarning?: 'off' | 'production' | 'always';
+    /** Global cursor value type hints used when findPage decodes after/before tokens. @since v2.0.7 */
+    cursorTypes?: Record<string, CursorValueType>;
+    /** Global cursor value normalizer used when findPage decodes after/before tokens. @since v2.0.7 */
+    cursorValueNormalizer?: CursorValueNormalizer;
     /** Logging tag configuration applied to slow-query event payloads. @since v1.3.0 */
     log?: { slowQueryTag?: { event?: string; code?: string;[key: string]: unknown }; formatSlowQuery?: (meta: unknown) => unknown; };
-    /** Auto-convert 24-character hex strings to ObjectId in query filters. Pass a field map to selectively enable per field. Default: true for mongodb type (pass `false` to disable). @since v1.3.0 */
+    /** Auto-convert valid 24-character hex strings to ObjectId across query/write paths. Pass `false` to disable, or use `excludeFields`, `maxDepth`, or `{ field: false }` escape hatches. Default: true for mongodb type. @since v1.3.0 */
     autoConvertObjectId?: boolean | {
         enabled?: boolean;
         excludeFields?: string[];
@@ -276,21 +284,24 @@ export interface MonSQLizeInstance {
      */
     withTransaction<T>(callback: (transaction: Transaction) => Promise<T>, options?: TransactionOptions): Promise<T>;
     /**
-     * Execute a callback while holding a distributed lock; the lock is released automatically on completion.
+     * Execute a callback while holding a legacy monSQLize lock; the lock is released automatically on completion.
+     * @deprecated Business locks are retained for compatibility. Prefer application/framework-level locking.
      * @param key Unique lock identifier key.
      * @param callback Async callback executed while the lock is held.
      * @param options Optional lock options.
      */
     withLock<T>(key: string, callback: () => Promise<T>, options?: LockOptions): Promise<T>;
     /**
-     * Acquire a distributed lock, blocking until it is available or the timeout is reached.
+     * Acquire a legacy monSQLize lock, blocking until it is available or the timeout is reached.
+     * @deprecated Business locks are retained for compatibility. Prefer application/framework-level locking.
      * @param key Unique lock identifier key.
      * @param options Optional lock options.
      * @returns The acquired lock instance.
      */
     acquireLock(key: string, options?: LockOptions): Promise<Lock>;
     /**
-     * Try to acquire a distributed lock without blocking; returns `null` if the lock is already held.
+     * Try to acquire a legacy monSQLize lock without blocking; returns `null` if the lock is already held.
+     * @deprecated Business locks are retained for compatibility. Prefer application/framework-level locking.
      * @param key Unique lock identifier key.
      * @param options Optional lock options (`retryTimes` is not supported).
      * @returns The acquired lock instance, or `null` if unavailable.
@@ -300,27 +311,29 @@ export interface MonSQLizeInstance {
     getSyncManager(): ChangeStreamSyncManager | null;
     /** Return the slow-query log manager; `null` when slow-query logging is not enabled. */
     getSlowQueryLogManager(): SlowQueryLogManager | null;
-    /** Return the Saga orchestrator instance. */
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     getSagaOrchestrator(): SagaOrchestrator;
-    /** Shorthand alias for `getSagaOrchestrator()`. */
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     saga(): SagaOrchestrator;
     /**
      * Register a Saga definition.
+     * @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration.
      * @param definition Saga definition object containing steps and compensation logic.
      */
     defineSaga(definition: SagaDefinition): Promise<SagaDefinition>;
     /**
      * Execute the named registered Saga.
+     * @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration.
      * @param name Saga name.
      * @param data Initial data passed into the Saga.
      * @returns The Saga execution result.
      */
     executeSaga(name: string, data: unknown): Promise<SagaResult>;
-    /** List all registered Saga names. */
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     listSagas(): string[];
     /** Return aggregate transaction statistics; `null` before transaction capability initialization. */
     getTransactionStats(): TransactionStats | null;
-    /** Return Saga execution statistics (success / failure / compensation counts, etc.). */
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     getSagaStats(): SagaStats;
     /** Return distributed cache invalidator statistics; `null` when distributed invalidation is not enabled. */
     getDistributedCacheInvalidatorStats(): DistributedCacheInvalidatorStats | null;
@@ -452,17 +465,26 @@ export default class MonSQLize implements MonSQLizeInstance {
     ensureModelIndexes(options?: ModelEnsureAllIndexesOptions): Promise<ModelIndexEnsureSummary>;
     startSession(options?: TransactionOptions): Promise<Transaction>;
     withTransaction<T>(callback: (transaction: Transaction) => Promise<T>, options?: TransactionOptions): Promise<T>;
+    /** @deprecated Business locks are retained for compatibility. Prefer application/framework-level locking. */
     withLock<T>(key: string, callback: () => Promise<T>, options?: LockOptions): Promise<T>;
+    /** @deprecated Business locks are retained for compatibility. Prefer application/framework-level locking. */
     acquireLock(key: string, options?: LockOptions): Promise<Lock>;
+    /** @deprecated Business locks are retained for compatibility. Prefer application/framework-level locking. */
     tryAcquireLock(key: string, options?: Omit<LockOptions, 'retryTimes'>): Promise<Lock | null>;
     getSyncManager(): ChangeStreamSyncManager | null;
     getSlowQueryLogManager(): SlowQueryLogManager | null;
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     getSagaOrchestrator(): SagaOrchestrator;
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     saga(): SagaOrchestrator;
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     defineSaga(definition: SagaDefinition): Promise<SagaDefinition>;
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     executeSaga(name: string, data: unknown): Promise<SagaResult>;
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     listSagas(): string[];
     getTransactionStats(): TransactionStats | null;
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     getSagaStats(): SagaStats;
     getDistributedCacheInvalidatorStats(): DistributedCacheInvalidatorStats | null;
     startSync(): Promise<void>;

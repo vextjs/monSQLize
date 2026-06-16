@@ -22,7 +22,7 @@
 
 ## Overview
 
-Starting from v1.3.0, monSQLize supports **automatic ObjectId string conversion**. When you pass ObjectId-like strings in query filters, update documents, or delete filters, monSQLize converts eligible values to MongoDB `ObjectId` instances before the operation is executed.
+Starting from v1.3.0, monSQLize supports **automatic ObjectId string conversion**. When you pass valid 24-character hexadecimal strings in MongoDB operations, monSQLize can convert those values to MongoDB `ObjectId` instances before the operation is executed.
 
 Key benefits:
 
@@ -30,7 +30,7 @@ Key benefits:
 - Improves developer ergonomics: string IDs can be passed directly.
 - Detects valid ObjectId strings automatically.
 - Handles nested objects and arrays.
-- Keeps conversion controllable through excluded fields and custom field patterns.
+- Preserves legacy behavior where ObjectId-looking values are normalized automatically.
 
 ---
 
@@ -102,17 +102,12 @@ monSQLize converts a string to `ObjectId` only when it satisfies all of these co
 
 1. It is exactly 24 characters long.
 2. It contains only hexadecimal characters (`0-9`, `a-f`, `A-F`).
-3. The field name matches an ObjectId field pattern.
+3. MongoDB accepts it as a valid `ObjectId`.
+4. It is not a MongoDB field reference such as `"$userId"`.
 
-### Default Field Patterns
+Current stable behavior is value-based, not field-whitelist based. Internal helper patterns such as `_id` and `*Id` exist for compatibility with nested object handling, but they do not restrict conversion of valid bare string values. If traversal reaches a valid ObjectId-looking string, it can be converted regardless of the field name.
 
-The following field names are converted by default:
-
-- `_id`
-- `*Id`, such as `userId`, `postId`, or `categoryId`
-- `*_id`, such as `user_id` or `post_id`
-- `*Ids`, such as `userIds` or `postIds`
-- `*_ids`, such as `user_ids` or `post_ids`
+The converter also skips MongoDB expression operators such as `$expr`, `$function`, `$where`, and `$accumulator` to avoid changing executable expressions.
 
 ### Examples
 
@@ -122,6 +117,7 @@ The following field names are converted by default:
     _id: '507f1f77bcf86cd799439011',
     userId: '507f1f77bcf86cd799439011',
     author_id: '507f1f77bcf86cd799439011',
+    code: '1234567890abcdef12345678',
     postIds: ['507f1f77bcf86cd799439011', '508f1f77bcf86cd799439012'],
     category_ids: ['507f1f77bcf86cd799439013', '508f1f77bcf86cd799439014']
 }
@@ -130,7 +126,7 @@ The following field names are converted by default:
 {
     username: 'user123',                       // Regular string.
     email: 'test@example.com',                 // Not an ObjectId string.
-    code: '1234567890abcdef12345678'           // Looks valid, but the field name does not match.
+    ref: '$userId'                             // MongoDB field reference.
 }
 ```
 
@@ -146,33 +142,22 @@ const msq = new MonSQLize({
     databaseName: 'mydb',
     config: { uri: 'mongodb://localhost:27017' },
 
-    // Configure ObjectId auto conversion.
-    autoConvertObjectId: {
-        enabled: true,
-
-        // Do not convert these fields.
-        excludeFields: ['code', 'token'],
-
-        // Additional field-name patterns.
-        customFieldPatterns: [
-            /^ref/,           // Fields starting with ref.
-            /Reference$/      // Fields ending with Reference.
-        ],
-
-        // Maximum traversal depth.
-        maxDepth: 10
-    }
+    // Enable ObjectId auto conversion. This is the default for MongoDB.
+    autoConvertObjectId: true
 });
 ```
 
 ### Option Reference
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `enabled` | boolean | `true` | Enables automatic conversion. |
-| `excludeFields` | string[] | `[]` | Field names that should never be converted. |
-| `customFieldPatterns` | RegExp[] | `[]` | Additional field-name patterns to convert. |
-| `maxDepth` | number | `10` | Maximum recursive traversal depth. |
+| Value | Description |
+|--------|-------------|
+| `true` | Enables automatic conversion. This is the default for MongoDB. |
+| `false` | Disables automatic conversion for the instance. |
+| `{ enabled: true }` | Enables automatic conversion explicitly. |
+| `{ enabled: false }` | Disables automatic conversion explicitly. |
+| `{ excludeFields: ['token'] }` | Keeps matching field names or paths as strings. |
+| `{ token: false }` | Keeps a specific field name or path as a string while preserving conversion elsewhere. |
+| `{ maxDepth: 3 }` | Stops recursive conversion beyond the configured depth. |
 
 ---
 
@@ -311,19 +296,9 @@ ObjectId auto conversion is applied by these methods.
 
 ## Advanced Configuration
 
-### Option Details
+### Current Stable Controls
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `excludeFields` | string[] | `[]` | Field names that should not be converted. |
-| `customFieldPatterns` | RegExp[] | `[]` | Regular expressions for additional convertible field names. |
-| `maxDepth` | number | `10` | Maximum recursion depth for conversion. |
-
-### Usage Examples (Advanced Configuration)
-
-#### 1. Excluding Specific Fields
-
-Some fields may look like ObjectId values but are not MongoDB ObjectIds.
+The default behavior is value-based conversion: any valid 24-character hex string can be converted when traversal reaches it. You can keep the default and add escape hatches for fields that must remain strings:
 
 ```javascript
 const msq = new MonSQLize({
@@ -333,197 +308,26 @@ const msq = new MonSQLize({
 
     autoConvertObjectId: {
         enabled: true,
-        excludeFields: [
-            // Exclude these fields even if they look like ObjectIds.
-            'token',
-            'code',
-            'sessionId',
-            'traceId',
-            'metadata.externalId',
-            'legacyId'
-        ]
+        excludeFields: ['token', 'paymentHash', 'metadata.signature'],
+        externalOrderId: false,
+        maxDepth: 10
     }
 });
-
-// Usage example.
-await collection('sessions').find({
-    userId: userId,          // Converted.
-    sessionId: sessionId     // Not converted.
-});
 ```
 
-Notes:
+Use `autoConvertObjectId: false` or `{ enabled: false }` for collections or code paths that must preserve every 24-character hex string. Use `excludeFields` or `{ fieldName: false }` when only specific business fields such as transaction hashes, idempotency keys, signatures, or external payment numbers must stay as strings.
 
-- `excludeFields` supports dotted paths such as `metadata.externalId`.
-- Exclusions take precedence over default rules and custom patterns.
-- List every non-ObjectId `*Id` field explicitly when possible.
+### Handling Mixed String and ObjectId Identifiers
 
-#### 2. Custom Field Patterns
+When a schema mixes ObjectId fields and business strings that can look like ObjectIds, prefer one of these approaches:
 
-Use custom patterns to extend the default matching rules.
+- Store those business values in a MongoDB type that cannot be confused with ObjectId values.
+- Disable automatic conversion for that monSQLize instance, or exclude only the business fields that must remain strings.
+- Use the underlying MongoDB collection directly for specialized paths that must preserve every string exactly.
 
-```javascript
-const msq = new MonSQLize({
-    type: 'mongodb',
-    databaseName: 'mydb',
-    config: { uri: 'mongodb://localhost:27017' },
+### Scope Notes
 
-    autoConvertObjectId: {
-        enabled: true,
-        // Custom field matching patterns.
-        customFieldPatterns: [
-            /^.*Ref$/,        // userRef, postRef
-            /^ref/,           // refUser, refPost
-            /Reference$/,     // userReference
-            /^parent/,        // parentId, parentNode
-            /^child/,         // childId, childNode
-            /^related\w+Id$/  // relatedUserId
-        ]
-    }
-});
-
-// Usage example.
-await collection('nodes').find({
-    userRef: userId,
-    refUser: userId,
-    userReference: userRefId,
-    parentId: parentId,
-    childId: childId,
-    relatedUserId: relatedId
-});
-```
-
-Priority order:
-
-1. `excludeFields`: never convert.
-2. `customFieldPatterns`: convert fields matched by custom patterns.
-3. Default patterns: `_id`, `*Id`, `*Ids`, `*_id`, and `*_ids`.
-
-#### 3. Limiting Recursion Depth
-
-Use `maxDepth` to avoid expensive traversal in deeply nested objects.
-
-```javascript
-// Example: deeply nested object.
-const msq = new MonSQLize({
-    type: 'mongodb',
-    databaseName: 'mydb',
-    config: { uri: 'mongodb://localhost:27017' },
-
-    autoConvertObjectId: {
-        enabled: true,
-        maxDepth: 5
-    }
-});
-
-await collection('complex').find({
-    level1: {
-        level2: {
-            level3: {
-                level4: {
-                    level5: {
-                        userId: userId  // Converted at depth 5.
-                    }
-                }
-            }
-        }
-    }
-});
-
-await collection('deep').find({
-    level1: { level2: { level3: { level4: { level5: { level6: {
-        // Nested data deeper than maxDepth is not converted.
-        userId: userId  // Not converted beyond maxDepth.
-    }}}}}}
-});
-```
-
-Depth notes:
-
-- The default `maxDepth = 10`, which is enough for most documents.
-- Use a smaller value such as `5` for very deep data structures.
-- Fields beyond the limit are left unchanged.
-
-### Configuration Verification Example
-
-#### Verifying That the Configuration Takes Effect
-
-```javascript
-// Create a test query.
-const query = {
-    userId: '507f1f77bcf86cd799439011',
-    sessionId: '507f1f77bcf86cd799439011',
-    metadata: {
-        externalId: '507f1f77bcf86cd799439011'
-    }
-};
-
-const msq = new MonSQLize({
-    type: 'mongodb',
-    databaseName: 'mydb',
-    config: { uri: 'mongodb://localhost:27017' },
-    logger: console,
-    autoConvertObjectId: {
-        enabled: true,
-        excludeFields: ['sessionId', 'metadata.externalId']
-    }
-});
-
-// Execute the query with logging enabled.
-const result = await collection('users').findOne(query);
-
-// Inspect conversion results.
-console.log('userId converted:', result.userId instanceof ObjectId);
-console.log('sessionId left as string:', typeof result.sessionId === 'string');
-console.log('externalId left as string:', typeof result.metadata.externalId === 'string');
-```
-
-### Common Configuration Scenarios
-
-#### Scenario 1: Third-Party Integrations
-
-```javascript
-// Third-party system IDs may be 24 hex characters but not MongoDB ObjectIds.
-autoConvertObjectId: {
-    enabled: true,
-    excludeFields: [
-        'stripeCustomerId',
-        'paypalOrderId',
-        'externalSystemId',
-        'legacyUserId'
-    ]
-}
-```
-
-#### Scenario 2: Multi-Tenant Systems
-
-```javascript
-// Tenant IDs use a custom format.
-autoConvertObjectId: {
-    enabled: true,
-    excludeFields: [
-        'tenantId',
-        'organizationId'
-    ],
-    customFieldPatterns: [
-        /^.*ResourceId$/
-    ]
-}
-```
-
-#### Scenario 3: Performance-Sensitive Paths
-
-```javascript
-// Limit recursion depth to improve performance.
-autoConvertObjectId: {
-    enabled: true,
-    maxDepth: 3,
-    excludeFields: [
-        'metadata.tracking',
-        'debug.traceId'
-    ]
-}
-```
+Automatic conversion applies to query filters, insert documents, replace documents, common update operator payloads, delete filters, and aggregation pipelines. Update pipelines are left unchanged.
 
 ---
 
@@ -545,9 +349,9 @@ Optimization tips:
    - Keep common query/update structures at five levels or fewer.
    - Consider flattening data that requires deeper traversal.
 
-2. Use `excludeFields` deliberately.
-   - Exclude fields that are clearly not ObjectIds.
-   - Reduce unnecessary checks on mixed identifier fields.
+2. Disable automatic conversion for workloads that must preserve arbitrary 24-character hex strings.
+   - Convert true ObjectId fields manually in those paths.
+   - Keep mixed identifier fields out of automatic conversion paths.
 
 3. Prefer batch methods when appropriate.
    - Use `insertBatch` instead of repeated `insertOne` calls.
@@ -565,17 +369,11 @@ const msq = new MonSQLize({
     databaseName: 'mydb',
     config: { uri: 'mongodb://localhost:27017' },
 
-    autoConvertObjectId: {
-        enabled: false
-    }
+    autoConvertObjectId: false
 });
 ```
 
-Changing the instance after construction is possible but not recommended:
-
-```javascript
-msq.autoConvertConfig.enabled = false;
-```
+You can also use `{ enabled: false }`. Configure this at instance creation time. This setting now applies consistently across query filters, insert/replace documents, common update operator payloads, delete filters, and aggregation pipelines.
 
 ---
 
@@ -584,12 +382,10 @@ msq.autoConvertConfig.enabled = false;
 Some fields can contain either ObjectId values or regular strings.
 
 ```javascript
-// Option 1: exclude the field.
-autoConvertObjectId: {
-    excludeFields: ['externalId']
-}
+// Disable auto conversion for this instance.
+autoConvertObjectId: false
 
-// Option 2: decide manually.
+// Decide manually.
 const { ObjectId } = require('mongodb');
 
 function isValidObjectIdString(str) {
@@ -618,32 +414,14 @@ await collection('external').find({
 Best practice:
 
 - Avoid mixed identifier types in the data model when possible.
-- If mixed types are unavoidable, prefer `excludeFields` plus explicit conversion.
+- If mixed types are unavoidable, disable automatic conversion for that instance or exclude the string-only fields with `excludeFields` / `{ field: false }`.
 - Normalize identifier formats at the application boundary.
 
 ---
 
-### Q3: What is the priority order for custom field patterns?
+### Q3: Are `excludeFields` or field-map escape hatches supported?
 
-Priority from highest to lowest:
-
-1. `excludeFields`: explicitly excluded fields are never converted.
-2. `customFieldPatterns`: custom regular expressions.
-3. Default patterns: `_id`, `*Id`, `*Ids`, `*_id`, and `*_ids`.
-
-```javascript
-// Example: priority demonstration.
-autoConvertObjectId: {
-    excludeFields: ['sessionId'],
-    customFieldPatterns: [/Id$/]
-}
-
-await collection('test').find({
-    userId: '507f1f77bcf86cd799439011',     // Converted.
-    sessionId: '507f1f77bcf86cd799439011',  // Not converted.
-    postId: '507f1f77bcf86cd799439011'      // Converted.
-});
-```
+Yes. Conversion remains value-based by default, but `excludeFields`, `{ fieldName: false }`, and `maxDepth` are supported escape hatches for string-only business fields.
 
 ---
 
@@ -655,7 +433,7 @@ No meaningful MongoDB query-performance impact is expected. Conversion happens b
 
 ### Q5: How can I confirm that a field was converted?
 
-Enable logging and inspect the conversion messages:
+Use integration tests or MongoDB command monitoring to inspect the value that reaches the driver. The current converter does not emit per-field conversion logs.
 
 ```javascript
 const msq = new MonSQLize({
@@ -663,16 +441,12 @@ const msq = new MonSQLize({
     databaseName: 'mydb',
     config: { uri: 'mongodb://localhost:27017' },
 
-    logger: console,
-
-    autoConvertObjectId: {
-        enabled: true
-    }
+    autoConvertObjectId: true
 });
 
-// Logs show conversion details when the query is executed.
-await collection('users').findOne({ _id: '507f1f77bcf86cd799439011' });
-// Example debug output: ObjectId converted: _id
+const result = await collection('users').findOne({
+    _id: '507f1f77bcf86cd799439011'
+});
 ```
 
 ---

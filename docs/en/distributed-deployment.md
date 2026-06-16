@@ -881,8 +881,14 @@ cache: {
 
 2. Check whether the lock is created
    ```javascript
-   //View locks in Redis
-   await redis.keys('myapp:cache:lock:*');
+   // View locks in Redis without blocking the instance
+   const locks = [];
+   let cursor = '0';
+   do {
+     const [nextCursor, batch] = await redis.scan(cursor, 'MATCH', 'myapp:cache:lock:*', 'COUNT', 500);
+     cursor = nextCursor;
+     locks.push(...batch);
+   } while (cursor !== '0');
    ```
 
 3. View the transaction log

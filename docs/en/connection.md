@@ -698,11 +698,7 @@ const msq = new MonSQLize({
   // ObjectId auto conversion.
   // v1.3.0+.
   // ========================================
-  autoConvertObjectId: {
-    enabled: true,
-    mode: 'auto',
-    fields: ['_id', 'userId']
-  },
+  autoConvertObjectId: true,
 
   // ========================================
   // Logging.
@@ -783,23 +779,6 @@ const msq = new MonSQLize({
       storage: 'mongodb',
       collection: 'resume_tokens'
     }
-  },
-
-  // ========================================
-  // Business-level distributed lock.
-  // Enterprise feature.
-  // ========================================
-  businessLock: {
-    enabled: true,
-    redis: {
-      host: 'localhost',
-      port: 6379,
-      password: 'your-password'
-    },
-    keyPrefix: 'lock:',
-    defaultTTL: 30000,
-    retryDelay: 100,
-    retryTimes: 10
   }
 });
 ```
@@ -843,13 +822,15 @@ const msq = new MonSQLize({
 | `namespace` | object | `{ scope: 'database' }` | Namespace settings for cache isolation. |
 | `countQueue` | object | `{ enabled: true }` | Count queue configuration. |
 | `pools` | object | - | Multiple connection-pool configuration. |
-| `autoConvertObjectId` | object | `{ enabled: true }` | ObjectId auto conversion. |
+| `autoConvertObjectId` | boolean \| object | `true` | ObjectId auto conversion. Defaults to value-based conversion; supports `enabled`, `excludeFields`, `{ field: false }`, and `maxDepth` escape hatches. |
+| `cursorSecret` | string | - | HMAC secret for signing `findPage()` cursor tokens. |
+| `requireCursorSecret` | boolean | `false` | When true, `findPage()` rejects usage until `cursorSecret` is configured. |
+| `cursorTypes` | object | - | Field type hints for decoded cursor values, such as `{ token: 'string' }` or `{ createdAt: 'date' }`. |
 | `logger` | object | - | Logging configuration. |
 | `slowQueryLog` | object | - | Persistent slow-query log storage. |
 | `models` | object | - | Model auto-loading configuration. |
 | `sync` | object | - | Change Stream synchronization. |
 | `config.ssh` | object | - | SSH tunnel configuration. `ssh2` is installed with monsqlize. |
-| `businessLock` | object | - | Business-level distributed lock. |
 
 ### Common Configuration Scenarios
 

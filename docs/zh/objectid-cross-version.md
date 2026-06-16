@@ -110,8 +110,8 @@ const result = await msq.collection('orders').find({
 ## 性能优化
 
 - **零拷贝优化**：如果对象中没有需要转换的 ObjectId，返回原对象（不克隆）
-- **智能检测**：只处理字段名匹配 `_id`, `*Id`, `*Ids` 等模式的字段
-- **深度限制**：递归深度默认限制为 10 层，防止栈溢出
+- **按值检测**：合法 ObjectId 形态的值可能被转换，不受字段名限制
+- **环引用检测**：检测循环结构，避免无限递归
 
 ## 兼容性
 
@@ -129,23 +129,7 @@ v2 当前对外承诺的是**自动跨版本 ObjectId 转换**。迁移期 legac
 
 ## 调试
 
-启用日志查看转换过程：
-
-```javascript
-const msq = new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'mydb',
-  config: { uri: 'mongodb://localhost:27017' },
-  logger: {
-    level: 'debug'  // 启用调试日志
-  }
-});
-
-// 插入时会输出转换日志
-await msq.collection('orders').insertOne(dataFromMongoose);
-// [DEBUG] [ObjectId Converter] Cross-version ObjectId converted
-//   { from: 'ObjectId', to: 'ObjectId', hex: '507f1f77bcf86cd799439011' }
-```
+当前 v2 转换器不会输出逐值转换日志。如果需要检查转换行为，请通过集成测试、MongoDB command monitoring，或围绕转换器的聚焦单元测试验证。
 
 ## 注意事项
 

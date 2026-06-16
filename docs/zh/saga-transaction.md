@@ -1,5 +1,7 @@
 # Saga 分布式事务
 
+> **弃用兼容页**：monSQLize 仍保留 Saga API 以兼容老调用方，但 Saga 编排不再作为 monSQLize 推荐能力。新的业务流程请优先放到应用/框架层（例如 VextJS runtime）处理。本页已从主文档导航隐藏。
+
 monSQLize v1.1.0 引入了 Saga 分布式事务模式，用于协调跨服务的事务操作。
 
 ## 目录

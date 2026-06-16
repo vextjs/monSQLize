@@ -1073,6 +1073,7 @@ describe('capability wiring — direct branch coverage', () => {
             maxDepth: 3,
             logLevel: 'warn',
         });
+        assert.equal(initAutoConvertConfig({ token: false }, 'mongodb').token, false);
         assert.equal(initAutoConvertConfig('bad' as any, 'mongodb').enabled, true);
     });
 
@@ -1084,13 +1085,24 @@ describe('capability wiring — direct branch coverage', () => {
             findPageMaxLimit: 50,
             slowQueryMs: 10,
             cursorSecret: 'secret',
+            requireCursorSecret: true,
+            cursorTypes: { token: 'string' },
             namespace: 'ns',
             countQueue: { enabled: true, concurrency: 2, maxQueueSize: 5, timeout: 100 },
         } as any);
 
         assert.equal(defaults.autoConvertObjectId, true);
         assert.equal(defaults.maxTimeMS, 100);
+        assert.equal(defaults.requireCursorSecret, true);
+        assert.deepEqual(defaults.cursorTypes, { token: 'string' });
         assert.ok(defaults.countQueue);
+
+        const fieldMapDefaults = buildRuntimeDefaults({
+            type: 'mongodb',
+            autoConvertObjectId: { token: false },
+            countQueue: { enabled: false },
+        } as any);
+        assert.equal((fieldMapDefaults.autoConvertObjectId as Record<string, unknown>).token, false);
 
         const disabled = buildRuntimeDefaults({ type: 'memory', autoConvertObjectId: false, countQueue: { enabled: false } } as any);
         assert.equal(disabled.autoConvertObjectId, false);

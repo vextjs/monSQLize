@@ -7,7 +7,6 @@
 - [开启 Redis 二级缓存与分布式失效](#开启-redis-二级缓存与分布式失效)
 - [通过 SSH 隧道连接内网 MongoDB](#通过-ssh-隧道连接内网-mongodb)
 - [配置多连接池](#配置多连接池)
-- [使用业务锁](#使用业务锁)
 - [启用 Model 层](#启用-model-层)
 - [按错误码排障](#按错误码排障)
 
@@ -122,24 +121,6 @@ const reports = msq.pool('analytics').collection('reports');
 ```
 
 连接池配置错误会抛出 `INVALID_CONFIG`；指定不存在的池会抛出 `POOL_NOT_FOUND`；所有池不可用会抛出 `INVALID_OPERATION`。
-
-## 使用业务锁
-
-```ts
-await msq.withLock('inventory:SKU123', async () => {
-    const inventory = msq.collection('inventory');
-    const item = await inventory.findOne({ sku: 'SKU123' });
-    if (item?.stock > 0) {
-        await inventory.updateOne({ sku: 'SKU123' }, { $inc: { stock: -1 } });
-    }
-}, {
-    ttl: 10_000,
-    retryTimes: 3,
-    retryDelay: 100,
-});
-```
-
-单进程场景默认使用内存锁；跨实例场景可传入 Redis 相关配置启用分布式锁能力。
 
 ## 启用 Model 层
 

@@ -125,14 +125,17 @@ export interface SagaStats {
     compensationCount: number;
 }
 
-/** Orchestrates the execution and compensation of multi-step Saga workflows. */
+/**
+ * Orchestrates the execution and compensation of multi-step Saga workflows.
+ * @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration.
+ */
 export declare class SagaOrchestrator {
     constructor(options?: SagaOrchestratorOptions);
-    /** Register a Saga definition (sync). */
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     define(definition: SagaDefinition): void;
-    /** Register a Saga definition (async; returns the registered definition). */
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     defineSaga(definition: SagaDefinition): Promise<SagaDefinition>;
-    /** Execute the named Saga with the given initial data. */
+    /** @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration. */
     execute(name: string, data: any): Promise<SagaResult>;
     /** Return the definition for a registered Saga by name. */
     getSaga(name: string): SagaDefinition | undefined;

@@ -242,6 +242,10 @@ export interface DeleteResult {
     deletedCount: number;
 }
 
+export type CursorValueType = 'date' | 'objectId' | 'string' | 'number' | 'boolean' | 'raw';
+
+export type CursorValueNormalizer = (field: string, value: unknown) => unknown;
+
 export interface FindPageOptions<TSchema = any> {
     query?: Document;
     page?: number;
@@ -257,6 +261,10 @@ export interface FindPageOptions<TSchema = any> {
     explain?: boolean | string;
     /** Query comment for server-side profiling. v1 compat — top-level shortcut for `options.comment`. */
     comment?: string;
+    /** Cursor value type hints used when decoding after/before tokens. Keeps ISO-like string fields as strings when set to `string` or `raw`. */
+    cursorTypes?: Record<string, CursorValueType>;
+    /** Custom cursor value normalizer. Receives the sort field name and decoded cursor value. */
+    cursorValueNormalizer?: CursorValueNormalizer;
     options?: MongoFindOptions;
     /** Cursor-walking bookmark jump configuration */
     jump?: JumpOptions;

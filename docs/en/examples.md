@@ -96,10 +96,6 @@ node .generated/examples-dist/examples/docs/find.js
 | `multi-pool-health-check.md` | `examples/docs/multi-pool-health-check.ts` |
 | `sync-backup.md` | `examples/docs/sync.ts` |
 | `failure-recovery-examples.md` | `examples/docs/sync-target-failure.ts` |
-| `business-lock.md` | `examples/docs/lock.ts` |
-| `failure-recovery-examples.md` | `examples/docs/lock-timeout.ts` |
-| `saga-transaction.md` | `examples/docs/saga.ts` |
-| `saga-advanced.md` | `examples/docs/saga-advanced.ts` |
 | `failure-recovery-examples.md` | `examples/docs/transaction-rollback.ts` |
 | `populate.md` | `examples/docs/populate-relations.ts` |
 | `relations.md` | `examples/docs/relations.ts` |

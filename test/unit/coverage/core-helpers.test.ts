@@ -65,6 +65,7 @@ import {
     decodeCursor as decodePageCursor,
     encodeCursor as encodePageCursor,
     normalizeIdentifier,
+    normalizeCursorValue,
     normalizeQueryFilter,
     normalizeSortShape,
     parseRequiredObjectId,
@@ -535,10 +536,17 @@ describe('coverage core helpers', () => {
         assert.equal(typeof normalized.ownerId, 'object');
         assert.equal(normalized.keepId, hex);
         assert.equal(Array.isArray(normalized.$or), true);
+        const escaped = normalizeQueryFilter({ token: hex, userId: hex }, true, '', 0);
+        assert.equal(typeof escaped.token, 'object');
+        assert.equal(typeof escaped.userId, 'object');
+        const excluded = normalizeQueryFilter({ token: hex, userId: hex }, { excludeFields: ['token'] });
+        assert.equal(excluded.token, hex);
+        assert.equal(typeof excluded.userId, 'object');
 
         const signed = encodePageCursor([hex, new Date('2026-01-01T00:00:00.000Z')], 'secret');
         assert.equal(decodePageCursor(signed, 'secret').length, 2);
         assert.throws(() => decodePageCursor(signed.replace(/.$/, 'x'), 'secret'), /signature invalid/);
+        assert.throws(() => decodePageCursor(`${signed.split('.')[0]}.short`, 'secret'), /signature invalid/);
         assert.throws(() => decodePageCursor('bad'), /Invalid pagination cursor/);
         assert.deepEqual(reverseSort({ createdAt: -1, _id: 1 }), { createdAt: 1, _id: -1 });
         assert.deepEqual(buildCursorFilter({ createdAt: -1, _id: 1 }, ['2026-01-01T00:00:00.000Z', hex], 'after'), {
@@ -546,6 +554,14 @@ describe('coverage core helpers', () => {
                 { createdAt: { $lt: new Date('2026-01-01T00:00:00.000Z') } },
                 { createdAt: new Date('2026-01-01T00:00:00.000Z'), _id: { $gt: parseRequiredObjectId(hex) } },
             ],
+        });
+        assert.equal(normalizeCursorValue('2026-01-01T00:00:00.000Z', 'token', { cursorTypes: { token: 'string' } }), '2026-01-01T00:00:00.000Z');
+        assert.ok(normalizeCursorValue(hex, '_id', { cursorTypes: { _id: 'objectId' } }) instanceof Object);
+        assert.equal(normalizeCursorValue('42', 'score', { cursorTypes: { score: 'number' } }), 42);
+        assert.equal(normalizeCursorValue('true', 'active', { cursorTypes: { active: 'boolean' } }), true);
+        assert.equal(normalizeCursorValue('x', 'custom', { cursorValueNormalizer: (field, value) => `${field}:${String(value)}` }), 'custom:x');
+        assert.deepEqual(buildCursorFilter({ token: 1 }, ['2026-01-01T00:00:00.000Z'], 'after', { cursorTypes: { token: 'string' } }), {
+            token: { $gt: '2026-01-01T00:00:00.000Z' },
         });
         assert.deepEqual(buildEffectiveProjection(['name'], { createdAt: -1 }), { name: 1, createdAt: 1 });
         assert.deepEqual(buildEffectiveProjection({ name: 0, createdAt: 0 }, { createdAt: -1 }), { name: 0 });
@@ -821,6 +837,10 @@ describe('coverage core helpers', () => {
         assert.ok(calls.some((call) => call.method === 'aggregate'));
 
         const cursor = encodePageCursor([2]);
+        await assert.rejects(
+            () => executeFindPage(collection as never, { limit: 1 }, { requireCursorSecret: true }),
+            /requires cursorSecret/,
+        );
         const after = await executeFindPage(collection as never, { after: cursor, limit: 1, sort: { createdAt: 1 } }, {});
         assert.equal(after.pageInfo.hasPrev, true);
         const before = await executeFindPage(collection as never, { before: cursor, limit: 1, sort: { createdAt: 1 } }, {});
@@ -921,6 +941,35 @@ describe('coverage core helpers', () => {
         await assert.rejects(() => updateManyForAccessor(context as never, {}, [] as never), /must not be an empty array/);
         await assert.rejects(() => updateManyForAccessor(context as never, {}, [{ a: 1 }] as never), /operator must start/);
         await assert.rejects(() => replaceOneForAccessor(context as never, {}, { $set: { a: 1 } } as never), /must not contain update operators/);
+    });
+
+    it('updateOneForAccessor routes update documents through context.cvUpdate', async () => {
+        const hex = '507f1f77bcf86cd799439011';
+        let capturedUpdate: unknown;
+        let cvUpdateCalls = 0;
+        const collection = {
+            updateOne: async (_filter: unknown, update: unknown) => {
+                capturedUpdate = update;
+                return { modifiedCount: 0, upsertedId: null };
+            },
+        };
+        const context = {
+            dbName: 'db',
+            collectionName: 'items',
+            collectionRef: collection,
+            cvFilter: <T>(value: T) => value,
+            cvDoc: <T>(value: T) => value,
+            cvUpdate: <T>(value: T) => {
+                cvUpdateCalls += 1;
+                return value;
+            },
+            invalidateAll: async () => 0,
+        };
+
+        await updateOneForAccessor(context as never, { name: 'Alice' } as never, { $set: { userId: hex } } as never);
+
+        assert.equal(cvUpdateCalls, 1);
+        assert.equal(((capturedUpdate as Record<string, unknown>).$set as Record<string, unknown>).userId, hex);
     });
 
     it('covers runtime adapter bridge admin methods, safeguards, dynamic properties, and slow-query collection proxy', async () => {

@@ -1,10 +1,19 @@
 /**
  * ObjectId auto-conversion utility — ported from v1 compat layer.
- * Automatically converts 24-char hex strings in whitelist fields to ObjectId.
+ * Automatically converts valid 24-character hex string values to ObjectId.
  * Ported from monSQLize-v1/lib/utils/objectid-converter.js
  */
 
 import { ObjectId } from 'mongodb';
+
+type ObjectIdConversionOptions = boolean | {
+    enabled?: boolean;
+    excludeFields?: string[];
+    customFieldPatterns?: string[];
+    maxDepth?: number;
+    logLevel?: string;
+    [field: string]: unknown;
+} | Record<string, boolean>;
 
 /** Field whitelist patterns */
 const OBJECTID_FIELD_PATTERNS: Array<string | RegExp> = [
@@ -41,8 +50,67 @@ function isFieldReference(value: unknown): boolean {
     return value.startsWith('$');
 }
 
+function normalizeConversionOptions(options: ObjectIdConversionOptions | undefined): {
+    enabled: boolean;
+    excludeFields: string[];
+    maxDepth: number;
+    fieldMap: Record<string, boolean>;
+} {
+    if (options === false) {
+        return { enabled: false, excludeFields: [], maxDepth: 10, fieldMap: {} };
+    }
+    if (options === true || options === undefined) {
+        return { enabled: true, excludeFields: [], maxDepth: 10, fieldMap: {} };
+    }
+    if (typeof options !== 'object' || options === null) {
+        return { enabled: true, excludeFields: [], maxDepth: 10, fieldMap: {} };
+    }
+
+    const optionRecord = options as Record<string, unknown>;
+    const fieldMap: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(optionRecord)) {
+        if (typeof value === 'boolean' && !['enabled'].includes(key)) {
+            fieldMap[key] = value;
+        }
+    }
+
+    return {
+        enabled: optionRecord.enabled !== false,
+        excludeFields: Array.isArray(optionRecord.excludeFields) ? optionRecord.excludeFields.map(String) : [],
+        maxDepth: typeof optionRecord.maxDepth === 'number' && optionRecord.maxDepth >= 0 ? optionRecord.maxDepth : 10,
+        fieldMap,
+    };
+}
+
+function stripArrayIndexes(path: string): string {
+    return path.replace(/\[\d+\]/g, '');
+}
+
+function getLastPathSegment(path: string): string {
+    const stripped = stripArrayIndexes(path);
+    const parts = stripped.split('.');
+    return parts[parts.length - 1] ?? stripped;
+}
+
+function matchesFieldPattern(pattern: string, path: string): boolean {
+    const stripped = stripArrayIndexes(path);
+    const fieldName = getLastPathSegment(path);
+    if (pattern === stripped || pattern === fieldName) return true;
+    if (!pattern.includes('*')) return false;
+    const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*');
+    return new RegExp(`^${escaped}$`).test(stripped) || new RegExp(`^${escaped}$`).test(fieldName);
+}
+
+function shouldConvertPath(path: string, options: ReturnType<typeof normalizeConversionOptions>): boolean {
+    if (!options.enabled) return false;
+    const stripped = stripArrayIndexes(path);
+    const fieldName = getLastPathSegment(path);
+    if (options.fieldMap[stripped] === false || options.fieldMap[fieldName] === false) return false;
+    return !options.excludeFields.some((pattern) => matchesFieldPattern(pattern, path));
+}
+
 /**
- * Recursively convert ObjectId strings in whitelist fields within an object.
+ * Recursively convert eligible ObjectId strings within an object.
  * Returns the original object when no conversion occurs (no cloning).
  */
 export function convertObjectIdStrings(
@@ -50,10 +118,11 @@ export function convertObjectIdStrings(
     fieldPath = '',
     depth = 0,
     visited: WeakSet<object> = new WeakSet(),
+    options?: ObjectIdConversionOptions,
 ): unknown {
-    const MAX_DEPTH = 10;
+    const conversionOptions = normalizeConversionOptions(options);
 
-    if (depth > MAX_DEPTH) return obj;
+    if (depth > conversionOptions.maxDepth) return obj;
     if (obj === null || obj === undefined) return obj;
     if (obj instanceof ObjectId) return obj;
 
@@ -73,7 +142,7 @@ export function convertObjectIdStrings(
     // String: skip field references; convert valid ObjectId strings directly (v1 compat behavior)
     if (typeof obj === 'string') {
         if (isFieldReference(obj)) return obj;
-        if (isValidObjectIdString(obj)) {
+        if (shouldConvertPath(fieldPath, conversionOptions) && isValidObjectIdString(obj)) {
             try { return new ObjectId(obj); } catch { return obj; }
         }
         return obj;
@@ -83,7 +152,7 @@ export function convertObjectIdStrings(
     if (Array.isArray(obj)) {
         let changed = false;
         const converted = (obj as unknown[]).map((item, i) => {
-            const newItem = convertObjectIdStrings(item, `${fieldPath}[${i}]`, depth + 1, visited);
+            const newItem = convertObjectIdStrings(item, `${fieldPath}[${i}]`, depth + 1, visited, options);
             if (newItem !== item) changed = true;
             return newItem;
         });
@@ -96,39 +165,44 @@ export function convertObjectIdStrings(
         if (visited.has(o)) return obj;
         visited.add(o);
 
-        let changed = false;
-        const converted: Record<string, unknown> = {};
+        try {
+            let changed = false;
+            const converted: Record<string, unknown> = {};
 
-        for (const [key, value] of Object.entries(o)) {
-            const currentPath = fieldPath ? `${fieldPath}.${key}` : key;
+            for (const [key, value] of Object.entries(o)) {
+                const currentPath = fieldPath ? `${fieldPath}.${key}` : key;
 
-            // Skip special operators
-            if (SPECIAL_OPERATORS.has(key)) {
-                converted[key] = value;
-                continue;
-            }
-
-            // Matching field name + valid ObjectId string → convert
-            if (
-                typeof value === 'string' &&
-                shouldConvertField(key) &&
-                !isFieldReference(value) &&
-                isValidObjectIdString(value)
-            ) {
-                try {
-                    converted[key] = new ObjectId(value);
-                    changed = true;
-                } catch {
+                // Skip special operators
+                if (SPECIAL_OPERATORS.has(key)) {
                     converted[key] = value;
+                    continue;
                 }
-            } else {
-                const newValue = convertObjectIdStrings(value, currentPath, depth + 1, visited);
-                if (newValue !== value) changed = true;
-                converted[key] = newValue;
-            }
-        }
 
-        return changed ? converted : obj;
+                // Matching field name + valid ObjectId string → convert
+                if (
+                    typeof value === 'string' &&
+                    shouldConvertField(key) &&
+                    shouldConvertPath(currentPath, conversionOptions) &&
+                    !isFieldReference(value) &&
+                    isValidObjectIdString(value)
+                ) {
+                    try {
+                        converted[key] = new ObjectId(value);
+                        changed = true;
+                    } catch {
+                        converted[key] = value;
+                    }
+                } else {
+                    const newValue = convertObjectIdStrings(value, currentPath, depth + 1, visited, options);
+                    if (newValue !== value) changed = true;
+                    converted[key] = newValue;
+                }
+            }
+
+            return changed ? converted : obj;
+        } finally {
+            visited.delete(o);
+        }
     }
 
     return obj;
@@ -141,6 +215,7 @@ export function convertObjectIdStrings(
  */
 export function convertUpdateDocument(
     update: unknown,
+    options?: ObjectIdConversionOptions,
 ): unknown {
     if (!update || typeof update !== 'object' || Array.isArray(update)) return update;
 
@@ -152,7 +227,7 @@ export function convertUpdateDocument(
 
     for (const [op, value] of Object.entries(ops)) {
         if (CONVERT_OPS.has(op)) {
-            const newVal = convertObjectIdStrings(value, `update.${op}`);
+            const newVal = convertObjectIdStrings(value, `update.${op}`, 0, new WeakSet(), options);
             if (newVal !== value) changed = true;
             converted[op] = newVal;
         } else {

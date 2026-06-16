@@ -15,32 +15,39 @@ describe('expression-compiler — uncovered branches', () => {
 
     it('FILTER function produces $filter', () => {
         const result = compile("FILTER(items, 'item', item.price > 10)") as Record<string, unknown>;
-        assert.ok('$filter' in result);
-        const f = result.$filter as Record<string, unknown>;
-        assert.equal(f.input, '$items');
-        assert.equal(f.as, 'item');
-        assert.ok(typeof f.cond === 'object');
+        assert.deepEqual(result, {
+            $filter: {
+                input: '$items',
+                as: 'item',
+                cond: { $gt: ['$$item.price', 10] },
+            },
+        });
     });
 
     // ── MAP ───────────────────────────────────────────────────────────────────
 
     it('MAP function produces $map', () => {
         const result = compile("MAP(items, 'item', item.price)") as Record<string, unknown>;
-        assert.ok('$map' in result);
-        const m = result.$map as Record<string, unknown>;
-        assert.equal(m.input, '$items');
-        assert.equal(m.as, 'item');
+        assert.deepEqual(result, {
+            $map: {
+                input: '$items',
+                as: 'item',
+                in: '$$item.price',
+            },
+        });
     });
 
     // ── REDUCE ────────────────────────────────────────────────────────────────
 
     it('REDUCE function produces $reduce with lambda', () => {
         const result = compile('REDUCE(nums, 0, (acc, item) => acc + item)') as Record<string, unknown>;
-        assert.ok('$reduce' in result);
-        const r = result.$reduce as Record<string, unknown>;
-        assert.equal(r.input, '$nums');
-        assert.equal(r.initialValue, 0);
-        assert.ok(typeof r.in === 'object');
+        assert.deepEqual(result, {
+            $reduce: {
+                input: '$nums',
+                initialValue: 0,
+                in: { $add: ['$$value', '$$this'] },
+            },
+        });
     });
 
     it('REDUCE throws when lambda is missing', () => {
@@ -199,11 +206,13 @@ describe('expression-compiler — uncovered branches', () => {
     // ── parseOperand with arithmetic inside ───────────────────────────────────
 
     it('parseOperand recurses when operand contains arithmetic', () => {
-        // a + b * c: the mulDiv regex fires first: left='a + b', right='c', op='*'
-        // parseOperand('a + b') → sees +/- operator, calls compileInnerExpression → $add
         const result = compile('a + b * c') as Record<string, unknown>;
-        // Either $multiply wraps a $add, or $add wraps a $multiply depending on operator precedence
-        assert.ok('$add' in result || '$multiply' in result);
+        assert.deepEqual(result, { $add: ['$a', { $multiply: ['$b', '$c'] }] });
+    });
+
+    it('comparison wraps arithmetic expressions at lower precedence', () => {
+        assert.deepEqual(compile('a + b === c'), { $eq: [{ $add: ['$a', '$b'] }, '$c'] });
+        assert.deepEqual(compile('price * qty > 100'), { $gt: [{ $multiply: ['$price', '$qty'] }, 100] });
     });
 
     // ── IF_NULL ────────────────────────────────────────────────────────────────

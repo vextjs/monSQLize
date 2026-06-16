@@ -50,14 +50,17 @@ export declare class Lock {
     getHoldTime(): number;
 }
 
-/** Manages distributed locks backed by the in-memory cache or a Redis store. */
+/**
+ * Manages legacy monSQLize locks backed by the in-memory cache or a Redis store.
+ * @deprecated Business locks are retained for compatibility. Prefer application/framework-level locking.
+ */
 export declare class LockManager {
     constructor(options?: { logger?: unknown; lockKeyPrefix?: string; maxDuration?: number; });
-    /** Execute `callback` while holding the lock for `key`; the lock is released automatically on completion. */
+    /** @deprecated Business locks are retained for compatibility. Prefer application/framework-level locking. */
     withLock<T>(key: string, callback: () => Promise<T>, options?: LockOptions): Promise<T>;
-    /** Acquire the lock for `key`, blocking until available or timeout/retries are exhausted. */
+    /** @deprecated Business locks are retained for compatibility. Prefer application/framework-level locking. */
     acquireLock(key: string, options?: LockOptions): Promise<Lock>;
-    /** Try to acquire the lock for `key` without blocking; returns `null` if already held. */
+    /** @deprecated Business locks are retained for compatibility. Prefer application/framework-level locking. */
     tryAcquireLock(key: string, options?: Omit<LockOptions, 'retryTimes'>): Promise<Lock | null>;
     /** Return `true` if `key` is currently locked. */
     isLocked(key: string): boolean;

@@ -7,7 +7,6 @@
 - [Enable Redis second-level cache and distributed invalidation](#enable-redis-second-level-cache-and-distributed-invalidation)
 - [Connect to intranet MongoDB through SSH tunnel](#connect-to-intranet-mongodb-through-ssh-tunnel)
 - [Configuring multiple connection pools](#configure-multiple-connection-pools)
-- [Use business lock](#use-business-lock)
 - [Enable Model layer](#enable-model-layer)
 - [Troubleshooting by error code](#troubleshoot-according-to-error-code)
 
@@ -122,24 +121,6 @@ const reports = msq.pool('analytics').collection('reports');
 ```
 
 A connection pool configuration error will throw `INVALID_CONFIG`; specifying a non-existent pool will throw `POOL_NOT_FOUND`; unavailability of all pools will throw `INVALID_OPERATION`.
-
-## Use business lock
-
-```ts
-await msq.withLock('inventory:SKU123', async () => {
-    const inventory = msq.collection('inventory');
-    const item = await inventory.findOne({ sku: 'SKU123' });
-    if (item?.stock > 0) {
-        await inventory.updateOne({ sku: 'SKU123' }, { $inc: { stock: -1 } });
-    }
-}, {
-    ttl: 10_000,
-    retryTimes: 3,
-    retryDelay: 100,
-});
-```
-
-Single-process scenarios use memory locks by default; cross-instance scenarios can pass in Redis related configurations to enable distributed lock capabilities.
 
 ## Enable Model layer
 

@@ -23,6 +23,13 @@ export interface CountQueueLike {
     execute<T>(fn: () => Promise<T>): Promise<T>;
 }
 
+export type CursorValueType = 'date' | 'objectId' | 'string' | 'number' | 'boolean' | 'raw';
+
+export interface CursorValueNormalizationOptions {
+    cursorTypes?: Record<string, CursorValueType>;
+    cursorValueNormalizer?: (field: string, value: unknown) => unknown;
+}
+
 /**
  * Runtime defaults propagated from MonSQLizeOptions down through
  * DbFacade → CollectionFacade → query functions.
@@ -37,6 +44,9 @@ export interface RuntimeDefaults {
     findPageMaxLimit?: number;
     autoConvertObjectId?: boolean | Record<string, unknown>;
     cursorSecret?: string;
+    requireCursorSecret?: boolean;
+    cursorTypes?: Record<string, CursorValueType>;
+    cursorValueNormalizer?: (field: string, value: unknown) => unknown;
     slowQueryMs?: number;
     namespace?: { scope?: 'database' | 'connection'; instanceId?: string };
     countQueue?: CountQueueLike;

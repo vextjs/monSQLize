@@ -22,10 +22,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [Cache system](cache.md) | Cache system (LRU + TTL) |
 | [Function cache](function-cache.md) | **Function cache: add caching to any async function (v1.1.4+)** |
 | [Transaction management](transaction.md) | Transaction management (automatic retry, cache locks) |
-| [Saga transactions](saga-transaction.md) | **Saga distributed transactions: compensation-based cross-service workflows (v1.0.8+)** |
-| [Advanced Saga](saga-advanced.md) | **Advanced Saga features and implementation details** |
 | [Change Stream sync](sync-backup.md) | **Change Stream data sync: real-time backup to multiple databases (v1.0.8+)** |
-| [Business locks](business-lock.md) | **Business-level distributed locks** |
 | [Transaction optimizations](transaction-optimizations.md) | Transaction optimization strategies |
 | [Distributed deployment](distributed-deployment.md) | **Distributed deployment guide for multi-instance cache consistency** |
 | [Event system](events.md) | Event system |

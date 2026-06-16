@@ -233,34 +233,11 @@ await msq.collection('users').insertOne(dataWithObjectIds);
 
 所以 v1.1.1 默认完全关闭这些日志。
 
-### 如何启用日志（调试用）
+### 当前 v2 运行时如何验证转换？
 
-如果需要调试，可以临时启用：
+当前转换器不提供 `silent` 或 `verbose` 日志控制项。如果需要调试转换，请通过集成测试、MongoDB command monitoring，或聚焦的转换器单元测试验证。
 
-```javascript
-// 启用摘要日志
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' },
-  autoConvertObjectId: {
-    silent: false  // 关闭静默
-  }
-});
-// 输出：[DEBUG] Converted 15 cross-version ObjectIds
-
-// 或启用详细日志
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' },
-  autoConvertObjectId: {
-    silent: false,
-    verbose: true
-  }
-});
-// 输出：每个 ObjectId 都有一条日志
-```
-
-**详细说明**：[ObjectId 日志配置文档](./objectid-logging-optimization.md)
+**详细说明**：[ObjectId 转换诊断说明](./objectid-logging-optimization.md)
 
 ---
 

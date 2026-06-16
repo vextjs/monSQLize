@@ -22,10 +22,7 @@
 | [缓存系统](cache.md) | 缓存系统（LRU + TTL） |
 | [函数缓存](function-cache.md) | **🎉 函数缓存 - 为任意异步函数添加缓存能力（v1.1.4+）🆕** |
 | [事务管理](transaction.md) | 事务管理（自动重试、缓存锁） |
-| [Saga 分布式事务](saga-transaction.md) | **🎉 Saga 分布式事务 - 跨服务事务补偿机制（v1.0.8+）🆕** |
-| [Saga 高级特性](saga-advanced.md) | **Saga 高级特性与实现原理 - 深入解析补偿机制、分布式存储** |
 | [Change Stream 同步](sync-backup.md) | **🎉 Change Stream 数据同步 - 实时备份到多个数据库（v1.0.8+）🆕** |
-| [业务级分布式锁](business-lock.md) | **业务级分布式锁** |
 | [事务优化策略](transaction-optimizations.md) | 事务优化策略 |
 | [分布式部署](distributed-deployment.md) | **分布式部署指南（多实例缓存一致性）⭐** |
 | [事件系统](events.md) | 事件系统 |

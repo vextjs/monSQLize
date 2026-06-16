@@ -257,13 +257,11 @@ const sidebarSource: SidebarGroupSource[] = [
     ]
   },
   {
-    en: 'Transactions and Saga',
-    zh: '事务与 Saga',
+    en: 'Transactions',
+    zh: '事务',
     items: [
       { en: 'Transaction Management', zh: '事务管理', link: '/transaction' },
-      { en: 'Transaction Optimizations', zh: '事务优化', link: '/transaction-optimizations' },
-      { en: 'Saga Distributed Transactions', zh: 'Saga 分布式事务', link: '/saga-transaction' },
-      { en: 'Advanced Saga Features', zh: 'Saga 高级特性', link: '/saga-advanced' }
+      { en: 'Transaction Optimizations', zh: '事务优化', link: '/transaction-optimizations' }
     ]
   },
   {
@@ -314,7 +312,6 @@ const sidebarSource: SidebarGroupSource[] = [
     items: [
       { en: 'Capability Index', zh: '能力索引', link: '/capability-index' },
       { en: 'Slow Query Logging', zh: '慢查询日志', link: '/slow-query-log' },
-      { en: 'Business Locks', zh: '业务锁', link: '/business-lock' },
       { en: 'Bookmark Pagination', zh: '书签分页', link: '/bookmarks' },
       { en: 'Count Queue', zh: '数量队列', link: '/count-queue' },
       { en: 'Event System', zh: '事件系统', link: '/events' },
@@ -508,7 +505,7 @@ export default defineConfig({
   title: 'monSQLize',
   icon: '/favicon.svg',
   globalStyles: path.join(import.meta.dirname, 'styles', 'home.css'),
-  description: 'A database-native TypeScript production data runtime layer with MongoDB stable today, plus cache, pools, transactions, Saga workflows, models, sync, and observability.',
+  description: 'A database-native TypeScript production data runtime layer with MongoDB stable today, plus cache, pools, transactions, models, sync, and observability.',
   outDir: 'dist',
   locales: [
     {

@@ -1942,7 +1942,6 @@ advancedExample().catch(console.error);
 - [monSQLize 主文档](../../README.md)
 - [连接管理](./connection.md)
 - [多连接池健康检查详解](./multi-pool-health-check.md) - 健康检查机制、问题处理、运维通知
-- [Saga 分布式事务](./saga-transaction.md)
 - [事务优化](./transaction-optimizations.md)
 - [分布式部署](./distributed-deployment.md)
 

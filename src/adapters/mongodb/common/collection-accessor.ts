@@ -111,20 +111,23 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
 
     /** When autoConvertObjectId is enabled, auto-converts filter/query values. */
     private _cvFilter<T>(val: T): T {
-        if (!this.management.defaults?.autoConvertObjectId) return val;
-        return convertObjectIdStrings(val as unknown) as T;
+        const autoConvertObjectId = this.management.defaults?.autoConvertObjectId;
+        if (!autoConvertObjectId) return val;
+        return convertObjectIdStrings(val as unknown, '', 0, new WeakSet(), autoConvertObjectId) as T;
     }
 
     /** When autoConvertObjectId is enabled, auto-converts plain documents (insert/replace). */
     private _cvDoc<T>(val: T): T {
-        if (!this.management.defaults?.autoConvertObjectId) return val;
-        return convertObjectIdStrings(val as unknown) as T;
+        const autoConvertObjectId = this.management.defaults?.autoConvertObjectId;
+        if (!autoConvertObjectId) return val;
+        return convertObjectIdStrings(val as unknown, '', 0, new WeakSet(), autoConvertObjectId) as T;
     }
 
     /** When autoConvertObjectId is enabled, auto-converts update documents ($set/$push/etc.). */
     private _cvUpdate<T>(val: T): T {
-        if (!this.management.defaults?.autoConvertObjectId || Array.isArray(val)) return val;
-        return convertUpdateDocument(val as unknown) as T;
+        const autoConvertObjectId = this.management.defaults?.autoConvertObjectId;
+        if (!autoConvertObjectId || Array.isArray(val)) return val;
+        return convertUpdateDocument(val as unknown, autoConvertObjectId) as T;
     }
 
     private async invalidateReadCaches(operation?: 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string): Promise<number> {
@@ -297,7 +300,13 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         options?: Parameters<Collection<TSchema>['aggregate']>[1],
     ) {
         const normalizedPipeline = this.management.defaults?.autoConvertObjectId
-            ? pipeline.map((stage) => convertObjectIdStrings(stage as unknown) as Document)
+            ? pipeline.map((stage) => convertObjectIdStrings(
+                stage as unknown,
+                '',
+                0,
+                new WeakSet(),
+                this.management.defaults?.autoConvertObjectId,
+            ) as Document)
             : pipeline;
         return createAggregateChain(this.collectionRef, normalizedPipeline, options, this.management.defaults);
     }

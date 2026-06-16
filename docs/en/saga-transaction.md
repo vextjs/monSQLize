@@ -1,5 +1,7 @@
 # Saga distributed transactions
 
+> **Deprecated compatibility page**: monSQLize keeps Saga APIs for existing callers, but Saga orchestration is no longer a recommended monSQLize capability. Prefer application/framework-level workflow orchestration, such as the VextJS runtime layer, for new business flows. This page is intentionally hidden from the main documentation navigation.
+
 monSQLize v1.1.0 introduces the Saga distributed transaction mode for coordinating transaction operations across services.
 
 ## Table of Contents

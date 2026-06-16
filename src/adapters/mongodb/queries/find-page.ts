@@ -15,7 +15,13 @@ import { Collection, Document } from 'mongodb';
 
 import { MemoryCache } from '../../../capabilities/cache';
 import { createError, ErrorCodes } from '../../../core/errors';
-import type { QueryCacheLike, RuntimeDefaults, SortShape } from '../../../types/internal/query';
+import type {
+    CursorValueNormalizationOptions,
+    CursorValueType,
+    QueryCacheLike,
+    RuntimeDefaults,
+    SortShape,
+} from '../../../types/internal/query';
 import type {
     FindPageOptions,
     FindPageResult,
@@ -94,6 +100,8 @@ function buildFindPageCacheKey<TSchema extends Document>(
         limit: number;
         page: number;
         maxTimeMS?: number;
+        cursorTypes?: Record<string, CursorValueType>;
+        hasCursorValueNormalizer?: boolean;
     },
 ): { key: string; keyHash: string } {
     const payload = {
@@ -109,6 +117,8 @@ function buildFindPageCacheKey<TSchema extends Document>(
         jump: options.jump,
         offsetJump: options.offsetJump,
         maxTimeMS: normalized.maxTimeMS,
+        cursorTypes: normalized.cursorTypes,
+        hasCursorValueNormalizer: normalized.hasCursorValueNormalizer,
         hint: (options as Record<string, unknown>).hint,
         collation: (options as Record<string, unknown>).collation,
         batchSize: (options as Record<string, unknown>).batchSize,
@@ -318,6 +328,25 @@ export async function executeFindPage<TSchema extends Document = Document>(
     const sort = normalizeSortShape(options.sort);
     const baseQuery = (options.query ?? {}) as Document;
     const cursorSecret = defaults.cursorSecret;
+    if (defaults.requireCursorSecret && !cursorSecret) {
+        throw createError(
+            ErrorCodes.INVALID_CONFIG,
+            'findPage requires cursorSecret because requireCursorSecret is enabled.',
+        );
+    }
+    const rawCursorTypes = ext.cursorTypes;
+    const optionCursorTypes = rawCursorTypes && typeof rawCursorTypes === 'object' && !Array.isArray(rawCursorTypes)
+        ? rawCursorTypes as Record<string, CursorValueType>
+        : undefined;
+    const cursorValueOptions: CursorValueNormalizationOptions = {
+        cursorTypes: {
+            ...(defaults.cursorTypes ?? {}),
+            ...(optionCursorTypes ?? {}),
+        },
+        cursorValueNormalizer: typeof ext.cursorValueNormalizer === 'function'
+            ? ext.cursorValueNormalizer as (field: string, value: unknown) => unknown
+            : defaults.cursorValueNormalizer,
+    };
     const dbName = (collection as Collection<TSchema> & { dbName?: string; namespace?: { db?: string; }; }).dbName
         ?? (collection as Collection<TSchema> & { namespace?: { db?: string; }; }).namespace?.db
         ?? '';
@@ -351,7 +380,15 @@ export async function executeFindPage<TSchema extends Document = Document>(
         && queryCache
         && options.stream !== true
         && (options.explain === undefined || options.explain === false)
-        ? buildFindPageCacheKey(collection, options, { query: baseQuery, sort, limit, page, maxTimeMS: effectiveMaxTimeMS })
+        ? buildFindPageCacheKey(collection, options, {
+            query: baseQuery,
+            sort,
+            limit,
+            page,
+            maxTimeMS: effectiveMaxTimeMS,
+            cursorTypes: cursorValueOptions.cursorTypes,
+            hasCursorValueNormalizer: typeof cursorValueOptions.cursorValueNormalizer === 'function',
+        })
         : null;
     const shouldRefreshAsyncTotals = (options.totals as TotalsOptions | undefined)?.mode === 'async';
     let findPageCacheHit = false;
@@ -431,7 +468,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
     /** Builds the query filter and effective sort from a cursor and direction. */
     const buildPageQuery = (cursor?: string, direction: 'after' | 'before' = 'after') => {
         const cursorFilter = cursor
-            ? buildCursorFilter(sort, decodeCursor(cursor, cursorSecret), direction)
+            ? buildCursorFilter(sort, decodeCursor(cursor, cursorSecret), direction, cursorValueOptions)
             : undefined;
         const effectiveSort = direction === 'before' ? reverseSort(sort) : sort;
         return { queryFilter: mergeFilters(baseQuery, cursorFilter), effectiveSort };

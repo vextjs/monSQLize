@@ -82,6 +82,20 @@ describe('convertObjectIdStrings — branch coverage', () => {
         assert.ok(typeof result === 'object');
     });
 
+    it('shared object references are converted on every non-cyclic path', () => {
+        const hex = new ObjectId().toHexString();
+        const shared = { userId: hex };
+        const result = convertObjectIdStrings({ a: shared, b: shared }) as {
+            a: { userId: unknown };
+            b: { userId: unknown };
+        };
+
+        assert.ok(result.a.userId instanceof ObjectId);
+        assert.ok(result.b.userId instanceof ObjectId);
+        assert.equal(result.a.userId.toString(), hex);
+        assert.equal(result.b.userId.toString(), hex);
+    });
+
     it('object with SPECIAL_OPERATOR key $expr is kept unchanged', () => {
         const val = { some: 'value' };
         const obj = { $expr: val };
@@ -100,6 +114,48 @@ describe('convertObjectIdStrings — branch coverage', () => {
         const result = convertObjectIdStrings({ name: hex }) as Record<string, unknown>;
         // 'name' does not match the pattern so it gets recursed as a string
         assert.ok(result.name instanceof ObjectId); // string recursion converts it
+    });
+
+    it('respects field-level exclusion while keeping value-based conversion elsewhere', () => {
+        const hex = new ObjectId().toHexString();
+        const result = convertObjectIdStrings(
+            { token: hex, nested: { userId: hex }, tags: [hex] },
+            '',
+            0,
+            new WeakSet(),
+            { enabled: true, excludeFields: ['token'] },
+        ) as { token: unknown; nested: { userId: unknown }; tags: unknown[] };
+
+        assert.equal(result.token, hex);
+        assert.ok(result.nested.userId instanceof ObjectId);
+        assert.ok(result.tags[0] instanceof ObjectId);
+    });
+
+    it('respects field-map false escape hatch on arbitrary value-based fields', () => {
+        const hex = new ObjectId().toHexString();
+        const result = convertObjectIdStrings(
+            { token: hex, userId: hex },
+            '',
+            0,
+            new WeakSet(),
+            { token: false },
+        ) as { token: unknown; userId: unknown };
+
+        assert.equal(result.token, hex);
+        assert.ok(result.userId instanceof ObjectId);
+    });
+
+    it('respects maxDepth for nested value-based conversion', () => {
+        const hex = new ObjectId().toHexString();
+        const result = convertObjectIdStrings(
+            { first: { second: { token: hex } } },
+            '',
+            0,
+            new WeakSet(),
+            { enabled: true, maxDepth: 1 },
+        ) as { first: { second: { token: unknown } } };
+
+        assert.equal(result.first.second.token, hex);
     });
 
     it('object with field reference value ($ref) not converted even if field name matches', () => {
@@ -177,6 +233,18 @@ describe('convertUpdateDocument — branch coverage', () => {
         const hex = new ObjectId().toHexString();
         const result = convertUpdateDocument({ $setOnInsert: { userId: hex } }) as Record<string, unknown>;
         const val = result.$setOnInsert as Record<string, unknown>;
+        assert.ok(val.userId instanceof ObjectId);
+    });
+
+    it('passes conversion options through update operators', () => {
+        const hex = new ObjectId().toHexString();
+        const result = convertUpdateDocument(
+            { $set: { token: hex, userId: hex } },
+            { enabled: true, excludeFields: ['token'] },
+        ) as Record<string, unknown>;
+        const val = result.$set as Record<string, unknown>;
+
+        assert.equal(val.token, hex);
         assert.ok(val.userId instanceof ObjectId);
     });
 });

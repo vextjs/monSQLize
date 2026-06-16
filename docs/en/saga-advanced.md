@@ -1,5 +1,7 @@
 # Saga advanced features and implementation principles
 
+> **Deprecated compatibility page**: monSQLize keeps Saga APIs for existing callers, but Saga orchestration is no longer a recommended monSQLize capability. Prefer application/framework-level workflow orchestration, such as the VextJS runtime layer, for new business flows. This page is intentionally hidden from the main documentation navigation.
+
 > **Version**: v1.0.8+
 > **Type**: Technical principle document
 > **Category**: Distributed Transactions
@@ -82,8 +84,10 @@ Saga distributed transactions (microservices)
 - **No time limit**: Break through MongoDB's 60-second transaction limit
 - **Cross-service coordination**: Coordinate the operations of multiple services/databases
 - **Automatic Compensation**: Automatically perform compensation in reverse order when failure occurs
-- **Multi-process support**: Redis storage realizes inter-process sharing
+- **Definition metadata sharing**: Redis storage can share Saga definition metadata across processes
 - **Zero Intrusion**: Separation of business code and transaction logic
+
+> **Durability boundary**: Redis mode currently persists Saga definition metadata only, such as the Saga name and step metadata. Execution state remains process-local: completed steps, step results, compensation progress, and the in-flight context are not written to Redis. If a process exits between steps, monSQLize cannot automatically resume that Saga execution. Payment, order, or fulfillment flows should use an external durable journal/outbox, idempotency keys, and reconciliation if crash recovery is required.
 
 ---
 
@@ -138,7 +142,7 @@ definition phase
 └─────────────────┘
    ↓
 storage definition
-├── Redis mode: metadata → Redis
+├── Redis mode: definition metadata → Redis
 └── Memory Mode: Definition → Map
 
 Execution phase
@@ -601,6 +605,8 @@ Process 2 (Worker) │
 
 ⭐ Each process needs to call the defineSaga() registration function when it starts
 ```
+
+Redis sharing does not make execution state durable. Each process still executes and compensates the current Saga run in memory; only the definition metadata is shared through Redis.
 
 ---
 

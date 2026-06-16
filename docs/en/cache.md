@@ -570,8 +570,13 @@ const remoteCache = {
     return await redis.del(...keys);
   },
   async delPattern(pattern) {
-    //Simplified implementation (SCAN is recommended for production environments)
-    const keys = await redis.keys(pattern);
+    const keys = [];
+    let cursor = '0';
+    do {
+      const [nextCursor, batch] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 500);
+      cursor = nextCursor;
+      keys.push(...batch);
+    } while (cursor !== '0');
     if (keys.length > 0) {
       return await redis.del(...keys);
     }
@@ -581,7 +586,14 @@ const remoteCache = {
     await redis.flushdb();
   },
   async keys(pattern = '*') {
-    return await redis.keys(pattern);
+    const keys = [];
+    let cursor = '0';
+    do {
+      const [nextCursor, batch] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 500);
+      cursor = nextCursor;
+      keys.push(...batch);
+    } while (cursor !== '0');
+    return keys;
   }
 };
 

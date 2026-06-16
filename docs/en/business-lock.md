@@ -1,5 +1,7 @@
 ﻿# Business-level distributed lock
 
+> **Deprecated compatibility page**: monSQLize keeps `withLock()`, `acquireLock()`, and `tryAcquireLock()` for existing callers, but business locking is no longer a recommended monSQLize capability. Prefer application/framework-level locking, such as the VextJS runtime layer, for new payment/order critical sections. This page is intentionally hidden from the main documentation navigation.
+
 > **Version**: v1.0.1
 > **Status**: ✅ Achieved
 > **Dependencies**: Redis (ioredis)
@@ -53,6 +55,8 @@
 ## Overview
 
 monSQLize v1.0.1 introduces a business-level distributed lock function, implemented based on Redis, to protect critical sections of complex business logic and prevent concurrency conflicts.
+
+> **Current runtime boundary**: In the current v2 runtime, the convenience APIs `msq.withLock()`, `msq.acquireLock()`, and `msq.tryAcquireLock()` use the built-in process-local `LockManager`. They coordinate callers inside the same Node.js process, but they do not provide cross-worker or cross-instance mutual exclusion by themselves. The process-local lock also does not auto-renew while the callback is running; if the callback runs longer than `ttl`, the lock can expire before the callback returns. For Egg.js cluster workers, payment flows, order de-duplication, or other cross-process critical sections, wire and verify a Redis-backed `DistributedCacheLockManager` path explicitly and pair it with idempotency or fencing at the business layer.
 
 
 ## Core Features

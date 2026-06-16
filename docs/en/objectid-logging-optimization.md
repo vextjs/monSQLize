@@ -1,190 +1,71 @@
-# ObjectId conversion log configuration instructions
+# ObjectId Conversion Diagnostics
 
-## 📋Default behavior
+## Current Behavior
 
-**v1.1.1 is completely silent by default** - does not output any ObjectId conversion log ✅
+In the current v2 runtime, ObjectId conversion is value-based by default. Valid 24-character hex strings can be converted in query filters, write payloads, and aggregation pipelines when traversal reaches them.
 
-```javascript
-//Default configuration
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' }
-});
-
-await msq.collection('users').insertOne(dataWithObjectIds);
-//✅ No log output (completely silent)
-```
-
-## 🎯 Why is it silent by default?
-
-1. **The log has no practical effect**: ObjectId conversion is automatic and users do not need to care.
-2. **Avoid log pollution**: Too many logs will be generated when a large amount of data is available
-3. **Production environment friendly**: Reduce log storage and performance overhead
-4. **Transparent conversion**: User-free, automatically handles compatibility issues
-
-## 🔧 Configuration options
-
-If you need to debug or understand conversion details, you can enable logging:
-
-
-## Option 1: Enable summary logging (recommended for debugging)
-
-Only one summary is output for each operation:
+Use `autoConvertObjectId` as an instance-level conversion switch:
 
 ```javascript
 const msq = new MonSQLize({
   type: 'mongodb',
   config: { uri: 'mongodb://localhost:27017' },
-  autoConvertObjectId: {
-    silent: false  //Turn off quiesce, enable summary logging
-  }
+  autoConvertObjectId: true
 });
-
-await msq.collection('users').insertOne(dataWithObjectIds);
-//Output: [DEBUG] [ObjectId Converter] Converted 15 cross-version ObjectIds
 ```
 
+Set it to `false`, or use `{ enabled: false }`, when a code path must preserve arbitrary 24-character hexadecimal strings. When only selected fields must remain strings, use `excludeFields`, `{ fieldName: false }`, or `maxDepth`.
 
-## Option 2: Enable verbose logging (only for in-depth debugging)
+## How to Verify Conversion
 
-Output conversion details for each ObjectId:
+Because the converter does not emit conversion logs, verify behavior through one of these routes:
+
+1. Add an integration test that writes or queries a known value and inspects the stored or matched value.
+2. Use MongoDB command monitoring in the application test harness to inspect the command sent to the driver.
+3. Call the converter in a focused unit test when validating adapter behavior.
+
+Example focused check:
 
 ```javascript
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' },
-  autoConvertObjectId: {
-    silent: false,   //Turn off silence
-    verbose: true    //Enable verbose logging
-  }
+import { ObjectId } from 'mongodb';
+import { convertObjectIdStrings } from '../src/adapters/mongodb/utils/objectid-converter';
+
+const converted = convertObjectIdStrings({
+  _id: '507f1f77bcf86cd799439011',
+  code: '1234567890abcdef12345678'
 });
 
-await msq.collection('users').insertOne(dataWithObjectIds);
-//Output: Each ObjectId has a detailed log
+console.log(converted._id instanceof ObjectId);  // true
+console.log(converted.code instanceof ObjectId); // true
 ```
 
-## 📊 Configuration comparison
+## Configuration Reference
 
-| Mode | silent | verbose | Log output | Applicable scenarios |
-|------|--------|---------|---------|---------|
-| **Silent Mode** (Default)✅ | `true` | - | None | Production environment, daily development |
-| **Summary mode** | `false` | `false` | 1 summary | When you need to know the conversion status |
-| **Detailed Mode** | `false` | `true` | N details | In-depth debugging and troubleshooting |
+| Value | Behavior |
+| --- | --- |
+| `true` | Enable automatic conversion. This is the default for MongoDB adapters. |
+| `false` | Disable automatic conversion for the instance. |
+| `{ enabled: true }` | Enable automatic conversion explicitly. |
+| `{ enabled: false }` | Disable automatic conversion explicitly. |
+| `{ excludeFields: ['token'] }` | Keep matching field paths or field names as strings. |
+| `{ token: false }` | Keep a specific field name or path as a string while preserving default value-based conversion elsewhere. |
+| `{ maxDepth: 3 }` | Stop recursive conversion beyond the configured depth. |
 
-## 💡 Complete configuration example
+## FAQ
 
+### Can I enable ObjectId conversion logs?
 
-## Simplest configuration (recommended)
+No. The current converter does not provide conversion log output or `silent` / `verbose` controls.
 
-```javascript
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' }
-  //Completely silent by default, no configuration required
-});
-```
+### Can I exclude specific fields from conversion?
 
+Yes. If a workload contains values such as transaction hashes, idempotency keys, signatures, or external payment numbers that can look like ObjectIds, use `excludeFields` or `{ fieldName: false }`. Use `autoConvertObjectId: false` only when the whole instance should preserve every string exactly.
 
-## Debug configuration (temporarily enabled)
+### Is conversion field-whitelist based?
 
-```javascript
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' },
-  autoConvertObjectId: {
-    silent: false  //Temporarily enable summary logging
-  }
-});
-```
-
-
-## Full configuration (all options)
-
-```javascript
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' },
-  autoConvertObjectId: {
-    enabled: true,           //Whether to enable automatic conversion (default true)
-    silent: true,            //Silent mode (default true, no logs are output)
-    verbose: false,          //Detailed log (default false)
-    excludeFields: [],       //exclude fields
-    customFieldPatterns: [], //Custom field pattern
-    maxDepth: 10            //maximum recursion depth
-  }
-});
-```
-
-## 🎯 Usage suggestions
-
-
-## Production environment
-
-```javascript
-//Just use the default configuration
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' }
-});
-```
-
-
-## Development environment (daily)
-
-```javascript
-//In most cases, the default configuration is used
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' }
-});
-```
-
-
-## Debugging scenario
-
-```javascript
-//Only enable temporarily if you suspect a problem with ObjectId conversion
-const msq = new MonSQLize({
-  type: 'mongodb',
-  config: { uri: 'mongodb://localhost:27017' },
-  autoConvertObjectId: {
-    silent: false  //Temporarily enable summary logging
-  }
-});
-```
-
-## ❓ FAQ
-
-
-## Q: Will there be any problems if the log is not output at all?
-
-A: No. ObjectId conversion is automatic, transparent, and safe. If there is a problem, an exception will be thrown during the actual operation (such as insertOne).
-
-
-## Q: How to know if conversion has occurred?
-
-A: Normally you don't need to know. If you really need, you can temporarily set `silent: false` to view.
-
-
-## Q: What happens if the conversion fails?
-
-A: If the conversion fails, a WARN log will be output (not controlled by silent) and the original value will be returned without interrupting the process.
-
-
-## Q: Can the log be output only when the conversion fails?
-
-A: Yes. The default configuration already implements this:
-- `silent: true`: Do not output logs of successful conversions
-- Conversion failed: always output WARN log (not controlled by silent)
-
-## 📝 Summary
-
-- ✅ **Completely silent by default**: No logs of successful conversions will be output.
-- ✅ **Always prompt on failure**: WARN is always output when conversion fails
-- ✅ **Can be enabled on demand**: Logs can be temporarily enabled during debugging
-- ✅ **Production Friendly**: Reduce log volume and improve performance
+No. Current stable behavior is value-based. A valid ObjectId-looking string can be converted regardless of the field name when traversal reaches it.
 
 ---
 
-**Updated version**: v1.1.1
-**Updated date**: 2026-01-27
+**Updated version**: v2.0.7
+**Updated date**: 2026-06-16

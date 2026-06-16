@@ -319,6 +319,7 @@ export class DistributedCacheLockManager {
         set: (key: string, value: string, ...args: unknown[]) => Promise<string | null>;
         eval: (script: string, numkeys: number, ...args: unknown[]) => Promise<unknown>;
         keys: (pattern: string) => Promise<string[]>;
+        scan?: (cursor: string, ...args: unknown[]) => Promise<[string | number, string[]]>;
         exists: (key: string) => Promise<number>;
     };
     private readonly lockKeyPrefix: string;
@@ -377,10 +378,8 @@ export class DistributedCacheLockManager {
             const lockKey = this.lockKeyPrefix + key;
             const exists = await this.redis.exists(lockKey);
             if (exists) return true;
-            // KEYS scan is only reached when checking wildcard patterns stored in Redis.
-            // Avoid calling isLocked() on hot paths; use tryAcquireLock() for contention checks.
             const pattern = this.lockKeyPrefix + '*';
-            const keys = await this.redis.keys(pattern);
+            const keys = await this._scanKeys(pattern);
             for (const foundKey of keys) {
                 const lockPattern = foundKey.replace(this.lockKeyPrefix, '');
                 if (lockPattern.includes('*')) {
@@ -399,7 +398,7 @@ export class DistributedCacheLockManager {
         const sessionId = String(session.id);
         const pattern = this.lockKeyPrefix + '*';
         try {
-            const keys = await this.redis.keys(pattern);
+            const keys = await this._scanKeys(pattern);
             if (keys.length === 0) return 0;
             const luaScript = `
                 local deletedCount = 0
@@ -412,9 +411,14 @@ export class DistributedCacheLockManager {
                 end
                 return deletedCount
             `;
-            const deleted = await this.redis.eval(luaScript, keys.length, ...keys, sessionId) as number;
-            this.stats.locksReleased += deleted;
-            return deleted;
+            let totalDeleted = 0;
+            for (let index = 0; index < keys.length; index += 500) {
+                const batch = keys.slice(index, index + 500);
+                const deleted = await this.redis.eval(luaScript, batch.length, ...batch, sessionId) as number;
+                totalDeleted += deleted;
+            }
+            this.stats.locksReleased += totalDeleted;
+            return totalDeleted;
         } catch {
             return 0;
         }
@@ -534,6 +538,24 @@ export class DistributedCacheLockManager {
 
     _generateLockId(): string {
         return `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    private async _scanKeys(pattern: string): Promise<string[]> {
+        if (typeof this.redis.scan !== 'function') {
+            return this.redis.keys(pattern);
+        }
+
+        const keys: string[] = [];
+        let cursor = '0';
+        do {
+            const [nextCursor, batch] = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', 500);
+            if (Array.isArray(batch)) {
+                keys.push(...batch.map(String));
+            }
+            cursor = String(nextCursor);
+        } while (cursor !== '0');
+
+        return keys;
     }
 
     private _patternToRegex(pattern: string): RegExp {

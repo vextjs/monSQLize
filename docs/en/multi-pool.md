@@ -2024,7 +2024,6 @@ See [Production environment configuration](#production-environment-configuration
 - [monSQLize Master Document](../../README.md)
 - [Connection Management](./connection.md)
 - [Detailed explanation of multi-connection pool health check] (./multi-pool-health-check.md) - Health check mechanism, problem handling, operation and maintenance notifications
-- [Saga Distributed Transaction](./saga-transaction.md)
 - [Transaction Optimization](./transaction-optimizations.md)
 - [Distributed deployment](./distributed-deployment.md)
 

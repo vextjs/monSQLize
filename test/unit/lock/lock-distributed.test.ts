@@ -187,11 +187,32 @@ describe('DistributedCacheLockManager', () => {
         assert.equal(locked, false);
     });
 
-    it('isLocked matches wildcard pattern via keys scan', async () => {
+    it('isLocked matches wildcard pattern via KEYS fallback when SCAN is unavailable', async () => {
         const redis = createMockRedis({ existsResult: 0, keysResult: ['monsqlize:cache:lock:order:*'] });
         const mgr = new MonSQLize.DistributedCacheLockManager({ redis });
         const locked = await mgr.isLocked('order:123');
         assert.equal(locked, true);
+    });
+
+    it('isLocked uses SCAN instead of KEYS when scan is available', async () => {
+        let keysCalled = 0;
+        let scanCalled = 0;
+        const redis = {
+            ...createMockRedis({ existsResult: 0 }),
+            async keys(_pattern: string) {
+                keysCalled += 1;
+                return [];
+            },
+            async scan(_cursor: string, ..._args: unknown[]) {
+                scanCalled += 1;
+                return ['0', ['monsqlize:cache:lock:order:*']];
+            },
+        };
+        const mgr = new MonSQLize.DistributedCacheLockManager({ redis });
+        const locked = await mgr.isLocked('order:123');
+        assert.equal(locked, true);
+        assert.equal(scanCalled, 1);
+        assert.equal(keysCalled, 0);
     });
 
     it('isLocked returns false on Redis error', async () => {
@@ -223,6 +244,27 @@ describe('DistributedCacheLockManager', () => {
         const count = await mgr.releaseLocks({ id: 'sess' });
         assert.equal(count, 2);
         assert.equal(mgr.getStats().locksReleased, 2);
+    });
+
+    it('releaseLocks uses SCAN instead of KEYS when scan is available', async () => {
+        let keysCalled = 0;
+        let scanCalled = 0;
+        const redis = {
+            ...createMockRedis({ evalResult: 2 }),
+            async keys(_pattern: string) {
+                keysCalled += 1;
+                return [];
+            },
+            async scan(_cursor: string, ..._args: unknown[]) {
+                scanCalled += 1;
+                return ['0', ['monsqlize:cache:lock:k1', 'monsqlize:cache:lock:k2']];
+            },
+        };
+        const mgr = new MonSQLize.DistributedCacheLockManager({ redis });
+        const count = await mgr.releaseLocks({ id: 'sess' });
+        assert.equal(count, 2);
+        assert.equal(scanCalled, 1);
+        assert.equal(keysCalled, 0);
     });
 
     // ── withLock ──────────────────────────────────────────────────────────────

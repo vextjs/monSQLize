@@ -1,6 +1,6 @@
 # monSQLize
 
-Database-native production data runtime layer for TypeScript services. monSQLize keeps database semantics explicit while adding shared runtime capabilities for caching, transactions, locks, connection pools, models, workflows, synchronization, observability, and CommonJS / ESM / TypeScript declaration outputs.
+Database-native production data runtime layer for TypeScript services. monSQLize keeps database semantics explicit while adding shared runtime capabilities for caching, transactions, connection pools, models, synchronization, observability, and CommonJS / ESM / TypeScript declaration outputs.
 
 [![npm version](https://img.shields.io/npm/v/monsqlize.svg)](https://www.npmjs.com/package/monsqlize)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -42,8 +42,6 @@ monSQLize is not an ORM and it is not just a CRUD wrapper. It is a production da
 - Smart caching through `cache-hub`, including local memory caching, optional Redis-backed L2 caching, automatic invalidation, and function-level caching.
 - A lightweight Model layer with `schema-dsl` validation, hooks, relations, populate, custom methods, timestamps, soft delete, optimistic locking, and production-safe index preflight.
 - Multi-connection-pool support, pool health checks, pool-scoped collections/models, and fallback strategies.
-- Business locks and distributed locks for multi-instance deployments.
-- Saga orchestration for multi-step business workflows.
 - Change Stream sync helpers with resume token storage.
 - Slow-query logging and query diagnostics.
 - CommonJS, ESM, and TypeScript declaration outputs from `dist/**`.
@@ -56,7 +54,7 @@ monSQLize is not an ORM and it is not just a CRUD wrapper. It is a production da
 | MySQL | Planned / in development | Not part of the current npm runtime yet |
 | PostgreSQL | Planned / in development | Not part of the current npm runtime yet |
 
-The shared runtime direction is cache consistency, connection lifecycle, transaction and lock orchestration, model constraints, workflow compensation, synchronization, and observability across adapters. Adapter-native query, transaction, and connection semantics will stay explicit.
+The shared runtime direction is cache consistency, connection lifecycle, transaction helpers, model constraints, synchronization, and observability across adapters. Adapter-native query, transaction, and connection semantics will stay explicit.
 
 ## When to Use It
 
@@ -67,7 +65,7 @@ monSQLize is a good fit when you need:
 | High-concurrency reads | Cache hot data and reduce repeated database work. |
 | MongoDB API compatibility today | Keep familiar MongoDB syntax while adding higher-level runtime helpers. |
 | A future multi-database runtime boundary | Prepare for MySQL/PostgreSQL adapters without turning SQL into fake MongoDB syntax. |
-| Multi-instance services | Use Redis invalidation and distributed locks to keep instances coordinated. |
+| Multi-instance services | Use Redis invalidation and pool health checks to keep instances coordinated. |
 | Transaction-heavy flows | Use `withTransaction()` and transaction-aware helpers instead of hand-rolled lifecycle code. |
 | Model-level ergonomics | Add schema validation, hooks, populate, and custom methods only where needed. |
 | Smooth upgrade from v1 | Keep legacy application source stable while adopting the TypeScript rewrite. |
@@ -85,8 +83,7 @@ Runtime dependencies installed with the package:
 - `mongodb` - official MongoDB driver.
 - `schema-dsl` - model schema validation runtime dependency.
 - `cache-hub` - cache and function-cache foundation.
-- `async-lock` - local concurrency lock support.
-- `ioredis` - Redis-backed L2 cache, distributed invalidation, and distributed lock support.
+- `ioredis` - Redis-backed L2 cache and distributed invalidation support.
 - `ssh2` - SSH tunnel support for restricted/private network deployment.
 
 ## Quick Start
@@ -379,17 +376,6 @@ const msq = new MonSQLize({
 const reports = msq.pool('analytics').collection('reports');
 ```
 
-### Distributed Locks
-
-```js
-await msq.withLock('inventory:sku-1', async () => {
-  await msq.collection('inventory').updateOne(
-    { sku: 'sku-1' },
-    { $inc: { stock: -1 } }
-  );
-});
-```
-
 ### Change Streams
 
 ```js
@@ -400,25 +386,6 @@ const watcher = msq.collection('orders').watch([
 watcher.on('change', (change) => {
   console.log('Order changed:', change.fullDocument);
 });
-```
-
-### Saga Orchestration
-
-```js
-msq.defineSaga('checkout', [
-  {
-    name: 'reserveInventory',
-    execute: async (ctx) => reserveInventory(ctx),
-    compensate: async (ctx) => releaseInventory(ctx)
-  },
-  {
-    name: 'chargePayment',
-    execute: async (ctx) => chargePayment(ctx),
-    compensate: async (ctx) => refundPayment(ctx)
-  }
-]);
-
-await msq.executeSaga('checkout', { orderId });
 ```
 
 ## Migration from the MongoDB Driver
@@ -574,7 +541,7 @@ Key release-readiness points:
 ### v2.0.2
 
 - Deterministic dependency metadata patch.
-- `ioredis` and `ssh2` are installed with monSQLize by default, so Redis-backed cache/locks and SSH tunnels no longer require a separate dependency install step.
+- `ioredis` and `ssh2` are installed with monSQLize by default, so Redis-backed cache invalidation and SSH tunnels no longer require a separate dependency install step.
 
 ### v2.0.1
 
@@ -586,7 +553,7 @@ Key release-readiness points:
 - TypeScript-native runtime and declarations.
 - v1 smooth-upgrade compatibility bridge.
 - Multi-level cache and function-cache support through `cache-hub`.
-- Transactions, business locks, distributed locks, Saga orchestration, connection pools, Change Stream sync, and slow-query logging.
+- Transactions, connection pools, Change Stream sync, and slow-query logging.
 - Model layer with `schema-dsl` validation, relations, populate, hooks, and custom methods.
 
 ### v2.x

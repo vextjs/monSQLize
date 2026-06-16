@@ -663,11 +663,7 @@ const msq = new MonSQLize({
   // ========================================
   // ObjectId 自动转换配置（v1.3.0+）
   // ========================================
-  autoConvertObjectId: {
-    enabled: true,                    // 启用自动转换【默认: true】
-    mode: 'auto',                     // 'auto' | 'strict' | 'disabled'【默认: 'auto'】
-    fields: ['_id', 'userId'],        // 需要转换的字段列表【默认: undefined (转换所有)】
-  },
+  autoConvertObjectId: true,          // 启用自动转换【默认: true】
   
   // ========================================
   // 日志配置
@@ -777,22 +773,6 @@ const msq = new MonSQLize({
       keepaliveInterval: 30000,        // 心跳间隔（毫秒）【默认: 30000】
     },
   },
-  
-  // ========================================
-  // 业务级分布式锁配置（企业级功能）
-  // ========================================
-  businessLock: {
-    enabled: true,                    // 启用业务锁【默认: false】
-    redis: {                          // Redis 配置【必需】
-      host: 'localhost',              // Redis 主机【默认: 'localhost'】
-      port: 6379,                     // Redis 端口【默认: 6379】
-      password: 'your-password'       // Redis 密码【默认: undefined】
-    },
-    keyPrefix: 'lock:',              // 锁键前缀【默认: 'business:lock:'】
-    defaultTTL: 30000,               // 默认锁超时时间（毫秒）【默认: 30000】
-    retryDelay: 100,                 // 重试延迟（毫秒）【默认: 100】
-    retryTimes: 10                   // 最大重试次数【默认: 3】
-  }
 });
 ```
 
@@ -835,13 +815,15 @@ const msq = new MonSQLize({
 | `namespace` | object | {scope:'database'} | 命名空间配置（缓存隔离） |
 | `countQueue` | object | {enabled:true} | Count 队列配置 |
 | `pools` | object | - | 多连接池配置 |
-| `autoConvertObjectId` | object | {enabled:true} | ObjectId 自动转换 |
+| `autoConvertObjectId` | boolean \| object | true | ObjectId 自动转换。默认按值转换，支持 `enabled`、`excludeFields`、`{ field: false }` 与 `maxDepth` 逃生开关 |
+| `cursorSecret` | string | - | `findPage()` 游标 token 的 HMAC 签名密钥 |
+| `requireCursorSecret` | boolean | false | 为 true 时，未配置 `cursorSecret` 的 `findPage()` 会拒绝执行 |
+| `cursorTypes` | object | - | 解码游标值时的字段类型提示，例如 `{ token: 'string' }` 或 `{ createdAt: 'date' }` |
 | `logger` | object | - | 日志配置 |
 | `slowQueryLog` | object | - | 慢查询日志持久化 |
 | `models` | object | - | Model 自动加载 |
 | `sync` | object | - | Change Stream 同步 |
 | `config.ssh` | object | - | SSH 隧道配置（`ssh2` 已随 monsqlize 安装） |
-| `businessLock` | object | - | 业务级分布式锁（企业级） |
 
 ### 常用配置场景
 
