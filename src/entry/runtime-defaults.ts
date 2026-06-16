@@ -56,3 +56,9 @@ export function buildPublicDefaults(options: MonSQLizeOptions): Readonly<Record<
         cacheAutoInvalidate: options.cacheAutoInvalidate,
     } as Record<string, unknown>));
 }
+
+export function shouldWarnUnsignedCursorSecret(options: MonSQLizeOptions): boolean {
+    const warning = options.cursorSecretWarning ?? 'production';
+    return !options.cursorSecret
+        && (warning === 'always' || (warning === 'production' && process.env.NODE_ENV === 'production'));
+}

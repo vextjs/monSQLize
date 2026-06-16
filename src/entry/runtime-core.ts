@@ -133,13 +133,7 @@ import {
     initializeDistributedCacheInvalidator,
     loadModelFiles,
 } from './capability-wiring';
-import {
-    buildPublicDefaults,
-    createRuntimeDbFacade,
-    createRuntimeModelInstance,
-    ensureRuntimeModelIndexes,
-    resolveDatabaseName,
-} from './runtime-helpers';
+import { buildPublicDefaults, createRuntimeDbFacade, createRuntimeModelInstance, ensureRuntimeModelIndexes, resolveDatabaseName, shouldWarnUnsignedCursorSecret } from './runtime-helpers';
 import {
     createRuntimeCoreAccessors,
     createRuntimeCoreAdapterBridgeHost,
@@ -245,8 +239,6 @@ export class MonSQLizeRuntime {
         if (options.findPageMaxLimit !== undefined && options.findPageMaxLimit !== null) {
             validateRange(options.findPageMaxLimit, 1, 10000, 'findPageMaxLimit');
         }
-        // Inject a publish proxy before cache construction so MultiLevelCache can broadcast
-        // to the distributed invalidator once it is created in connect().
         const rawCacheInput = options.cache as Record<string, unknown> | MemoryCache | CacheLike | undefined;
         const hasDistributedCfg = rawCacheInput != null
             && typeof rawCacheInput === 'object'
@@ -264,11 +256,7 @@ export class MonSQLizeRuntime {
             : rawCacheInput;
         this._cache = normalizeRuntimeCache(cacheInput as Record<string, unknown> | MemoryCache | undefined);
         this._logger = Logger.create(options.logger ?? null);
-        const cursorSecretWarning = options.cursorSecretWarning ?? 'production';
-        if (
-            !options.cursorSecret &&
-            (cursorSecretWarning === 'always' || (cursorSecretWarning === 'production' && process.env.NODE_ENV === 'production'))
-        ) {
+        if (shouldWarnUnsignedCursorSecret(options)) {
             this._logger.warn?.('[MonSQLizeRuntime] cursorSecret is not configured; findPage cursor tokens are unsigned.');
         }
         this._cacheLockManager = new CacheLockManager({

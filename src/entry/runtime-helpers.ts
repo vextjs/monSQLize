@@ -5,7 +5,7 @@
  * (runtime-defaults / runtime-db-facade / runtime-model), this file
  * maintains a unified export so consumers are unaffected.
  */
-export { buildPublicDefaults } from './runtime-defaults';
+export { buildPublicDefaults, shouldWarnUnsignedCursorSecret } from './runtime-defaults';
 export {
     createRuntimeDbFacade,
     createRuntimeAccessors,
