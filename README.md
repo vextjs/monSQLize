@@ -499,7 +499,7 @@ npm run test:real-env:private
 
 ## Release Status
 
-The current release train targets `v2.0.6`.
+The current release train targets `v2.0.7`.
 
 Key release-readiness points:
 
@@ -518,6 +518,14 @@ Key release-readiness points:
 - MySQL and PostgreSQL adapters will be introduced as database-native adapters under the same production runtime contract.
 - Adapter status will move from planned to alpha/stable only after runtime support, public types, examples, and verification coverage are present.
 - The project does not currently promise production-ready "one query syntax automatically adapts to every database" behavior.
+
+### v2.0.7
+
+- Package metadata and public release indexes now match the current data-runtime positioning without promoting business lock or Saga orchestration as primary package capabilities.
+- Hidden business lock and Saga compatibility pages now make their v2 runtime boundaries explicit for existing callers.
+- `npm run test:unit` uses the maintained unified runner unit group.
+- Validation ledgers now match the current 56 runnable TypeScript documentation examples.
+- Model v1 methods factory warnings now route through the runtime logger instead of direct console output.
 
 ### v2.0.6
 

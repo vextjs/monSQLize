@@ -104,6 +104,8 @@ const UNIT = [
     'test/unit/coverage/model-schema-validate-branches.test.js',
     // Coverage gap fill — Phase P
     'test/unit/coverage/lock-noop-and-extra.test.js',
+    // Coverage gap fill — Phase Q
+    'test/unit/coverage/error-factories-direct.test.js',
 ];
 
 const INTEGRATION = [
@@ -184,8 +186,6 @@ const INTEGRATION = [
     'test/integration/model/model-schema-validation-errors.test.js',
     'test/integration/runtime/runtime-core-branches3.test.js',
     'test/integration/mongodb/collection-advanced-ops.test.js',
-    // Coverage gap fill — Phase Q
-    'test/unit/coverage/error-factories-direct.test.js',
     'test/integration/pool/pool-config-validation.test.js',
     'test/integration/model/populate-promise-coverage.test.js',
     'test/integration/model/model-v1-compatibility-repair.test.js',

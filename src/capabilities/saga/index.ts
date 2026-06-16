@@ -88,8 +88,8 @@ class SagaExecutionContext implements SagaContext {
 }
 
 /**
- * Orchestrates multi-step Saga workflows with compensation support.
- * Each step can define a rollback action that runs when a later step fails.
+ * Legacy-compatible in-process Saga orchestrator with compensation support.
+ * New durable workflow orchestration should live in the application/framework layer.
  * @since v1.8.0
  */
 export class SagaOrchestrator {

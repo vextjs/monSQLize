@@ -1,5 +1,6 @@
 # Unreleased
 
+- Prepared v2.0.7 release-readiness metadata, aligned package metadata with the legacy lock/Saga positioning, routed Model v1 methods factory warnings through the runtime logger, and aligned the unit runner plus validation ledgers with the current maintained suites.
 - Fixed expression compiler precedence for mixed arithmetic/comparison expressions, preserved `$$` variables in FILTER/MAP/REDUCE, made ObjectId conversion handle shared object references consistently, routed `updateOne` update documents through `autoConvertObjectId` defaults, switched Redis lock scans to SCAN when available, and verified cursor signatures with timing-safe comparison.
 - Added ObjectId conversion escape hatches (`excludeFields`, `{ field: false }`, `maxDepth`) while preserving value-based conversion by default; added `cursorTypes`, `cursorValueNormalizer`, and `requireCursorSecret` for findPage cursor safety and type restoration.
 - Repositioned business lock and Saga APIs as legacy compatibility surfaces: public APIs remain available, but primary README, API index, capability index, examples index, recipes, and website navigation no longer promote them as recommended monSQLize capabilities.

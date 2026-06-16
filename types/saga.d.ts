@@ -126,7 +126,7 @@ export interface SagaStats {
 }
 
 /**
- * Orchestrates the execution and compensation of multi-step Saga workflows.
+ * Legacy-compatible in-process Saga orchestrator with compensation support.
  * @deprecated Saga APIs are retained for compatibility. Prefer application/framework-level workflow orchestration.
  */
 export declare class SagaOrchestrator {

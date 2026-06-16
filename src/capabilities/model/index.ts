@@ -174,7 +174,11 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
             collectionName: options.collectionName,
             autoIndex: (this.runtime as { options?: { autoIndex?: ModelAutoIndexOptions } }).options?.autoIndex,
         });
-        this._v1InstanceMethods = initializeModelV1Methods(this, options.definition);
+        this._v1InstanceMethods = initializeModelV1Methods(
+            this,
+            options.definition,
+            (this.runtime as { logger?: { warn?: (...args: unknown[]) => void } }).logger ?? null,
+        );
     }
 
     getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; } {

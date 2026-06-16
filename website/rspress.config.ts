@@ -68,8 +68,8 @@ const navSource: NavSource[] = [
     zh: '版本',
     items: [
       {
-        en: 'v2.0.6 (Current TS)',
-        zh: 'v2.0.6（当前 TS）',
+        en: 'v2.0.7 (Current TS)',
+        zh: 'v2.0.7（当前 TS）',
         link: '/getting-started'
       },
       {

@@ -12,7 +12,7 @@
 
 - [Overview](#overview)
 - [Core Concept](#core-concept)
-- [Design goals](#design-goals)
+- [Legacy design scope](#legacy-design-scope)
 - [Core architecture](#core-architecture)
 - [Class diagram](#class-diagram)
 - [Execution flow chart](#execution-flow-chart)
@@ -59,7 +59,7 @@
 
 ## Overview
 
-Saga is a distributed transaction solution proposed by Hector Garcia-Molina and Kenneth Salem in 1987. monSQLize implements a complete Saga orchestration mode (Orchestration-based Saga) and provides enterprise-level distributed transaction coordination capabilities.
+Saga is a distributed transaction solution proposed by Hector Garcia-Molina and Kenneth Salem in 1987. monSQLize keeps a legacy in-process Saga orchestration API for existing callers. Treat it as a compatibility helper, not a crash-recoverable enterprise Saga coordinator.
 
 
 ## Core Concept
@@ -79,13 +79,13 @@ Saga distributed transactions (microservices)
 ```
 
 
-## Design goals
+## Legacy design scope
 
-- **No time limit**: Break through MongoDB's 60-second transaction limit
-- **Cross-service coordination**: Coordinate the operations of multiple services/databases
-- **Automatic Compensation**: Automatically perform compensation in reverse order when failure occurs
-- **Definition metadata sharing**: Redis storage can share Saga definition metadata across processes
-- **Zero Intrusion**: Separation of business code and transaction logic
+- **No MongoDB transaction time limit**: Steps run outside a single MongoDB transaction.
+- **Step orchestration compatibility**: Existing code can coordinate multiple local operations through the legacy API.
+- **Automatic compensation attempt**: Completed steps are compensated in reverse order when a later step fails.
+- **Definition metadata sharing**: Redis storage can share Saga definition metadata across processes.
+- **Application-owned durability**: Execution-state persistence, recovery, and reconciliation belong in the application/framework layer.
 
 > **Durability boundary**: Redis mode currently persists Saga definition metadata only, such as the Saga name and step metadata. Execution state remains process-local: completed steps, step results, compensation progress, and the in-flight context are not written to Redis. If a process exits between steps, monSQLize cannot automatically resume that Saga execution. Payment, order, or fulfillment flows should use an external durable journal/outbox, idempotency keys, and reconciliation if crash recovery is required.
 

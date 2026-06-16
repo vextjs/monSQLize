@@ -2,7 +2,7 @@
 
 > **项目**: monSQLize
 > **阶段**: TypeScript 全量重写完成后的持续治理阶段（历史 compat 主链已收口，当前进入 `withCache()` 性能基线与 v1 对比口径收口）
-> **更新日期**: 2026-06-10
+> **更新日期**: 2026-06-16
 > **当前原则**: 只把“本仓库当前已恢复且可执行”的资产标为 ✅；跨版本 / 实机矩阵未补齐前保持 ⚠️ 待验证。
 
 ---
@@ -39,7 +39,7 @@
 | V-13 | 内存服务端矩阵探测与执行入口 | `npm run probe:server-matrix` + `npm run test:server-matrix`（Node 20/22 × Driver 6/7 × MongoDB 6/7） | ✅ | 2026-05-17 |
 | V-14 | v1 ↔ TS 完整功能兼容性对照表（历史批次基线）| `.devcodex/requirements/TypeScript全量重写兼容现有/FEATURE-PARITY.md`（历史批次记录 237 项 API 覆盖）| ✅ | 2026-05-17 |
 | V-15 | v1 compat 全量断言套件（历史批次基线） | `npm run test` → 历史批次记录 2543/2543 v1 compat assertions pass（含 objectid-conversion 61 项） | ✅ | 2026-05-17 |
-| V-16 | TS 文档示例套件（43 个）| `npm run test:examples` → 当前 43 个可执行 TypeScript 示例全部编译并执行；runner 复用 shared standalone + replica set，并复用项目内 memory-server 缓存 / dbPath 策略；`examples/helpers/bootstrap.ts` 是辅助模块，不单独执行 | ✅ | 2026-06-10 |
+| V-16 | TS 文档示例套件（56 个）| `npm run test:examples` → 当前 56 个可执行 TypeScript 示例全部编译并执行；runner 复用 shared standalone + replica set，并复用项目内 memory-server 缓存 / dbPath 策略；`examples/helpers/bootstrap.ts` 是辅助模块，不单独执行 | ✅ | 2026-06-16 |
 | V-17 | 当前 v1 parity 差异台账 | `test/regression/v1-parity-issues.md`（当前保留 9 条历史修复记录 + 2 条撤销误记，用于追溯，不再表示存在主链待修复差异） | ✅ | 2026-05-28 |
 | V-18 | 当前 coverage 补测主链 | `npm run test:coverage` → 2387 passed / 0 failed；published CJS runtime 覆盖率为 statements 90.59%、branches 90.01%、functions 95.21%、lines 90.59%，已达 90% 门禁 | ✅ | 2026-06-10 |
 

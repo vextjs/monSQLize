@@ -2,7 +2,7 @@
 
 > **Deprecated compatibility page**: monSQLize keeps Saga APIs for existing callers, but Saga orchestration is no longer a recommended monSQLize capability. Prefer application/framework-level workflow orchestration, such as the VextJS runtime layer, for new business flows. This page is intentionally hidden from the main documentation navigation.
 
-monSQLize v1.1.0 introduces the Saga distributed transaction mode for coordinating transaction operations across services.
+monSQLize v1.1.0 introduced a Saga API that is now kept for legacy compatibility. For new workflows, put orchestration, durability, recovery, and reconciliation in the application/framework layer.
 
 ## Table of Contents
 
@@ -46,11 +46,11 @@ Saga is a distributed transaction model that decomposes long transactions into m
 
 ## Core Features
 
-- ✅ **Cross-service transaction coordination**: Coordinate the operations of multiple services
-- ✅ **Automatic compensation mechanism**: Automatically perform compensation in reverse order when failure occurs
-- ✅ **NO TIME LIMIT**: Break MongoDB’s 60-second transaction limit
-- ✅ **Redis Distributed Support**: Sharing Saga definitions in a multi-process environment
-- ✅ **Detailed Log**: Complete execution and compensation log
+- **Step orchestration compatibility**: Existing code can still coordinate multiple local operations through the legacy API.
+- **Automatic compensation attempt**: Completed steps are compensated in reverse order when a later step fails.
+- **No MongoDB transaction time limit**: Steps run outside one long MongoDB transaction.
+- **Redis definition sharing**: Redis mode shares Saga definitions, not execution state.
+- **Execution logs**: Existing logging hooks remain available for diagnosis.
 
 ---
 

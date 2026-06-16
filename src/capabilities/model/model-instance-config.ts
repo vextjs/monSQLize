@@ -28,6 +28,8 @@ type ModelMethodsFactory = (
     static?: Record<string, (...args: unknown[]) => unknown>;
 };
 
+type ModelWarningLogger = { warn?: (...args: unknown[]) => void };
+
 export type ModelTimestampsConfig = { createdAt: string | false; updatedAt: string | false };
 export type ModelSoftDeleteConfig = { enabled: boolean; field: string; type: string; ttl: number | null };
 export type ModelVersionConfig = { enabled: boolean; field: string };
@@ -598,6 +600,7 @@ export function summarizeModelIndexEnsureResults(
 export function initializeModelV1Methods<TDocument>(
     target: object,
     definition: ModelDefinition<TDocument>,
+    logger?: ModelWarningLogger | null,
 ): Record<string, (...args: unknown[]) => unknown> {
     const methods = toCompatDefinition(definition).methods;
     if (typeof methods !== 'function') {
@@ -617,8 +620,7 @@ export function initializeModelV1Methods<TDocument>(
         }
         return customMethods.instance ?? {};
     } catch (error) {
-        // v1 compat: methods() factory errors are non-fatal, but log them so they are diagnosable.
-        console.warn('[MonSQLize] initializeModelV1Methods: methods() factory threw an error', error);
+        logger?.warn?.('[MonSQLize] initializeModelV1Methods: methods() factory threw an error', error);
         return {};
     }
 }

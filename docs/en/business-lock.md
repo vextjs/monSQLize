@@ -3,7 +3,7 @@
 > **Deprecated compatibility page**: monSQLize keeps `withLock()`, `acquireLock()`, and `tryAcquireLock()` for existing callers, but business locking is no longer a recommended monSQLize capability. Prefer application/framework-level locking, such as the VextJS runtime layer, for new payment/order critical sections. This page is intentionally hidden from the main documentation navigation.
 
 > **Version**: v1.0.1
-> **Status**: ✅ Achieved
+> **Status**: Legacy compatibility
 > **Dependencies**: Redis (ioredis)
 
 ---
@@ -11,10 +11,10 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Core Features](#core-features)
-- [Applicable scenarios](#applicable-scenarios)
+- [Compatibility Scope](#compatibility-scope)
+- [Legacy scenarios](#legacy-scenarios)
 - [Not applicable scenarios](#not-applicable-scenarios)
-- [Quick start](#quick-start)
+- [Legacy usage example](#legacy-usage-example)
 - [1. Install dependencies](#1-install-dependencies)
 - [2. Configuration](#2-configuration)
 - [3. Use](#3-use)
@@ -54,29 +54,27 @@
 
 ## Overview
 
-monSQLize v1.0.1 introduces a business-level distributed lock function, implemented based on Redis, to protect critical sections of complex business logic and prevent concurrency conflicts.
+monSQLize v1.0.1 introduced business lock APIs for historical callers. In the current v2 runtime these APIs are compatibility helpers, not the recommended boundary for new cross-process critical sections.
 
 > **Current runtime boundary**: In the current v2 runtime, the convenience APIs `msq.withLock()`, `msq.acquireLock()`, and `msq.tryAcquireLock()` use the built-in process-local `LockManager`. They coordinate callers inside the same Node.js process, but they do not provide cross-worker or cross-instance mutual exclusion by themselves. The process-local lock also does not auto-renew while the callback is running; if the callback runs longer than `ttl`, the lock can expire before the callback returns. For Egg.js cluster workers, payment flows, order de-duplication, or other cross-process critical sections, wire and verify a Redis-backed `DistributedCacheLockManager` path explicitly and pair it with idempotency or fencing at the business layer.
 
 
-## Core Features
+## Compatibility Scope
 
-- ✅ **Atomic Operation**: Based on Redis SET NX PX atomic command
-- ✅ **Auto-release**: Supports TTL automatic expiration to prevent deadlocks
-- ✅ **Retry Mechanism**: Configurable retry times and intervals
-- ✅ **Error Handling**: Redis connection interruption detection and downgrade strategy
-- ✅ **Statistics Monitoring**: Built-in lock operation statistics
-- ✅ **Works with affairs**: Can be combined seamlessly with `withTransaction`
+- `withLock()`, `acquireLock()`, and `tryAcquireLock()` remain available for existing monSQLize callers.
+- The convenience APIs use the built-in process-local `LockManager` unless an application explicitly wires a Redis-backed lock manager.
+- Redis-backed compatibility integrations can use TTL and retry options, but there is no automatic watchdog renewal or fencing-token contract.
+- New payment, order, or fulfillment critical sections should put locking, idempotency, and recovery in the application/framework layer.
 
 
-## Applicable scenarios
+## Legacy scenarios
 
-| Scene | Description |
+| Previously used for | Current guidance |
 |------|------|
-| Complex order creation | Query → Calculate discount → Multi-table update |
-| Inventory deduction | Complex business logic (not simple -1) |
-| Prevent duplication of scheduled tasks | Prevent repeated execution in multi-instance environments |
-| External API call | Update database after calling third party |
+| Complex order creation | Keep only for existing compatibility code; prefer framework-level locks plus idempotency for new code |
+| Inventory deduction | Prefer database conditions, transactions, or application-level coordination depending on consistency needs |
+| Scheduled task deduplication | Prefer the scheduler/framework lease mechanism when available |
+| External API call | Prefer durable outbox/idempotency handling around the external side effect |
 
 
 ## Not applicable scenarios
@@ -89,7 +87,7 @@ monSQLize v1.0.1 introduces a business-level distributed lock function, implemen
 
 ---
 
-## Quick start
+## Legacy usage example
 
 
 ## 1. Install dependencies
@@ -126,7 +124,7 @@ const msq = new MonSQLize({
 ```javascript
 await msq.connect();
 
-//Use business lock
+// Existing compatibility code can still use the legacy business lock API.
 await msq.withLock('inventory:SKU123', async () => {
     const product = await inventory.findOne({ sku: 'SKU123' });
     if (product.stock >= 1) {
@@ -145,7 +143,7 @@ await msq.withLock('inventory:SKU123', async () => {
 
 ## withLock(key, callback, options?)
 
-Automatically manage lock lifecycle (recommended).
+Legacy convenience wrapper for managing a lock around a callback.
 
 **Signature**:
 ```typescript
@@ -617,22 +615,23 @@ setInterval(() => {
 | **Key management** | session binding | user specified |
 
 
-## Q2: When is a business lock required?
+## Q2: When might legacy code keep using a business lock?
 
-**Scenarios that require business locks**:
-- ✅ Complex business (query → calculation → multi-table update)
-- ✅ Prevent duplication of scheduled tasks
-- ✅ Update database after external API call
+**Existing code sometimes kept business locks for**:
+- Complex business flows (query → calculation → multi-table update)
+- Scheduled-task deduplication
+- Database updates after an external API call
 
-**Scenarios where business locks are not required**:
-- ❌ Simple deduction (updated with transaction + condition)
-- ❌ Prevent users from clicking repeatedly (with rate limiting)
+**New code should usually prefer other boundaries for**:
+- Simple deduction (database condition + transaction)
+- Repeated user clicks (rate limiting)
+- Payment/order critical sections that need cross-process guarantees, renewal, recovery, or fencing
 
 
 ## Q3: What should I do if Redis is unavailable?
 
 ```javascript
-//Method 1: Throw an exception (recommended)
+//Method 1: Throw an exception
 try {
     await msq.withLock('key', callback);
 } catch (error) {
@@ -655,9 +654,10 @@ The lock will be released automatically (TTL mechanism) and will not cause deadl
 
 ## Q5: How to avoid deadlock?
 
-- ✅ Use `withLock` (auto release)
-- ✅ Use `try...finally` when manually acquiring the lock
-- ✅ Set a reasonable TTL
+- Prefer application/framework-level coordination for new critical sections.
+- Existing compatibility code can use `withLock` for auto release inside one process.
+- Use `try...finally` when manually acquiring the lock.
+- Set a reasonable TTL and keep callback execution shorter than the TTL.
 
 
 ## Q6: Does lock renewal support?
@@ -679,19 +679,19 @@ try {
 
 ## Comparison with professional lock library
 
-| Features | monSQLize business lock | Redlock | node-redis-warlock |
+| Features | monSQLize legacy lock | Redlock | node-redis-warlock |
 |------|----------------|---------|-------------------|
 | **Installation** | Redis dependencies are installed with the package; Redis service is required | Additional installation | Additional installation |
 | **Redis Node** | Single node | Multi-node | Single node |
 | **Consistency** | Eventually consistent | Strong consistency | Eventually consistent |
 | **Complexity** | Simple | Complex | Simple |
-| **Applicable scenarios** | 80% business scenarios | Finance/core | Simple scenarios |
-| **Integrated with monSQLize** | ✅ Seamless | Manual required | Manual required |
+| **Applicable scenarios** | Existing monSQLize callers | Finance/core | Simple scenarios |
+| **Integrated with monSQLize** | Built-in compatibility API | Manual required | Manual required |
 
-**Suggestions**:
-- Most scenarios use monSQLize business locks
-- Use Redlock for core scenarios such as finance/payment
-- For simple scenarios, other lightweight libraries can be considered
+**Current guidance**:
+- Keep monSQLize business locks only for existing compatibility code.
+- Use application/framework-level locking, idempotency, or a dedicated distributed-lock library for new payment/order critical sections.
+- For finance/payment paths, verify Redlock, consensus, or fencing semantics outside monSQLize.
 
 ---
 

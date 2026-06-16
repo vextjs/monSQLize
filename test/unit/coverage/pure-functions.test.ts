@@ -1256,10 +1256,15 @@ describe('source error factories and model config helpers — function coverage'
         assert.deepEqual(initializeModelV1Methods({}, {} as any), {});
 
         const originalWarn = console.warn;
-        const warnings: unknown[] = [];
-        console.warn = (...args: unknown[]) => { warnings.push(args); };
+        const warnings: unknown[][] = [];
+        console.warn = () => { throw new Error('console.warn should not be called'); };
         try {
-            assert.deepEqual(initializeModelV1Methods({}, { methods: () => { throw new Error('bad factory'); } } as any), {});
+            assert.deepEqual(initializeModelV1Methods(
+                {},
+                { methods: () => { throw new Error('bad factory'); } } as any,
+                { warn: (...args: unknown[]) => { warnings.push(args); } },
+            ), {});
+            assert.deepEqual(initializeModelV1Methods({}, { methods: () => { throw new Error('silent factory'); } } as any), {});
         } finally {
             console.warn = originalWarn;
         }
