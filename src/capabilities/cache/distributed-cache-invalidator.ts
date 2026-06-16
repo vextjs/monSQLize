@@ -43,9 +43,11 @@ export class DistributedCacheInvalidator {
             this.pub = options._connections.pub;
             this.sub = options._connections.sub;
         } else if (options.redis) {
-            // v1 compat: pub === sub so close() calls quit twice on the same instance
             this.pub = options.redis;
-            this.sub = options.redis;
+            if (typeof options.redis.duplicate !== 'function') {
+                throw createError(ErrorCodes.INVALID_CONFIG, 'DistributedCacheInvalidator requires redis.duplicate() for pub/sub compatibility');
+            }
+            this.sub = options.redis.duplicate();
         } else if (options.redisUrl) {
             // Use require (not createRequire) so Module.prototype.require mocks intercept it
             // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -60,7 +62,12 @@ export class DistributedCacheInvalidator {
     }
 
     private _setupSubscription(): void {
-        this.sub.subscribe(this.channel, () => {});
+        this.sub.subscribe(this.channel, (err: Error | null | undefined) => {
+            if (err) {
+                this._stats.errors++;
+                this._logger?.error(`[DistributedCacheInvalidator] Subscribe failed: ${err.message}`);
+            }
+        });
         this.sub.on('message', async (channel: string, rawMessage: string) => {
             if (channel !== this.channel) return;
 
@@ -134,7 +141,9 @@ export class DistributedCacheInvalidator {
         try {
             await this.sub.unsubscribe();
             await this.sub.quit();
-            await this.pub.quit();
+            if (this.pub !== this.sub) {
+                await this.pub.quit();
+            }
         } catch (err: any) {
             this._logger?.error(`[DistributedCacheInvalidator] Error closing connections: ${err.message}`);
         }

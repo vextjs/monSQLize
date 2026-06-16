@@ -54,6 +54,8 @@ export interface PopulateConfig {
     sort?: Record<string, 1 | -1>;
     limit?: number;
     skip?: number;
+    /** Maximum nested populate depth for this branch. Defaults to 5. */
+    maxDepth?: number;
     populate?: string | PopulateConfig | Array<string | PopulateConfig>;
 }
 

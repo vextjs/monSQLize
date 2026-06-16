@@ -14,6 +14,7 @@ function makeMockConnection() {
         publish: async (_ch: string, _msg: string) => {},
         quit: async () => {},
         unsubscribe: async () => {},
+        duplicate: () => makeMockConnection(),
         _emit: (event: string, ...args: unknown[]) => {
             (subscribers[event] ?? []).forEach((cb) => cb(...args as [string, string]));
         },
@@ -56,7 +57,7 @@ describe('DistributedCacheInvalidator — branch coverage', () => {
         const pub = makeMockConnection();
         const inv = new DistributedCacheInvalidator({ cache: {}, redis: pub });
         assert.equal(inv.pub, pub);
-        assert.equal(inv.sub, pub); // v1 compat: same object
+        assert.notEqual(inv.sub, pub);
     });
 
     it('uses custom channel from options', () => {

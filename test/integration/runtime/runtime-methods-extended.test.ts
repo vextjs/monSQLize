@@ -131,7 +131,7 @@ describe('Runtime — extended methods coverage', () => {
     it('initializes distributed cache invalidator with injected Redis-like connections', async () => {
         const warnings: unknown[][] = [];
         const publishedPatterns: string[] = [];
-        const fakeRedis = {
+        const makeFakeRedis = (): any => ({
             subscribe(_channel: string, callback?: () => void) {
                 callback?.();
             },
@@ -142,7 +142,9 @@ describe('Runtime — extended methods coverage', () => {
             },
             unsubscribe: async () => {},
             quit: async () => {},
-        };
+            duplicate: () => makeFakeRedis(),
+        });
+        const fakeRedis = makeFakeRedis();
         const distributedRuntime = new MonSQLize({
             type: 'mongodb',
             databaseName: 'test_runtime_distributed_invalidator',

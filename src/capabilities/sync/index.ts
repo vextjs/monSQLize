@@ -238,6 +238,7 @@ export class ChangeStreamSyncManager {
     private readonly clientFactory: (uri: string, options?: MongoClientOptions) => Promise<MongoClient>;
     private readonly targets: ResolvedTarget[] = [];
     private changeStream: ChangeStream | null = null;
+    private changeQueue: Promise<void> = Promise.resolve();
     private running = false;
     private readonly stats = {
         eventCount: 0,
@@ -282,7 +283,7 @@ export class ChangeStreamSyncManager {
 
         const stream = this.db.watch(this.buildPipeline(), options as Parameters<Db['watch']>[1]);
         stream.on('change', (event) => {
-            void this.handleChange(event as SyncChangeEvent<Document>);
+            this.enqueueChange(event as SyncChangeEvent<Document>);
         });
         stream.on('error', (error) => {
             this.stats.errorCount += 1;
@@ -307,6 +308,7 @@ export class ChangeStreamSyncManager {
             await this.changeStream.close();
             this.changeStream = null;
         }
+        await this.changeQueue.catch(() => undefined);
         while (this.targets.length > 0) {
             const target = this.targets.pop();
             await target?.close();
@@ -459,6 +461,15 @@ export class ChangeStreamSyncManager {
             this.stats.syncedCount += 1;
             await this.tokenStore.save(event._id);
         }
+    }
+
+    private enqueueChange(event: SyncChangeEvent<Document>): void {
+        this.changeQueue = this.changeQueue
+            .then(() => this.handleChange(event))
+            .catch((error) => {
+                this.stats.errorCount += 1;
+                this.logger?.error?.('[Sync] change handling failed', error);
+            });
     }
 }
 

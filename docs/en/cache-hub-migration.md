@@ -102,6 +102,8 @@ const invalidator = new MonSQLize.DistributedCacheInvalidator({
 });
 ```
 
+When `redis` is provided, it must be an ioredis-compatible instance with `duplicate()` support. monSQLize uses the original connection for publishing and a duplicated connection for subscription so the subscriber mode does not block publish commands.
+
 Or inject connections in test/custom scenarios:
 
 ```ts
@@ -258,4 +260,3 @@ npm run verify:fast
 - `docs/cache-and-function-cache.md`
 - `docs/function-cache.md`
 - `examples/docs/cache-multilevel.ts`
-

@@ -154,7 +154,7 @@ describe('Model version increment — branch coverage', () => {
         });
         const m = runtime.model('ver_inc');
         const result = await m.insertOne({ name: 'Alice' });
-        await m.updateOne({ _id: result.insertedId }, { $set: { name: 'Alice2' } });
+        await m.updateOne({ _id: result.insertedId, version: 0 }, { $set: { name: 'Alice2' } });
         const doc = await m.findOne({ _id: result.insertedId });
         assert.ok(doc !== null);
         assert.ok(typeof doc.version === 'number');
@@ -167,7 +167,7 @@ describe('Model version increment — branch coverage', () => {
         });
         const m = runtime.model('ver_existing_inc');
         const result = await m.insertOne({ name: 'Bob', version: 5 });
-        await m.updateOne({ _id: result.insertedId }, { $inc: { version: 10 }, $set: { name: 'Bob2' } });
+        await m.updateOne({ _id: result.insertedId, version: 5 }, { $inc: { version: 10 }, $set: { name: 'Bob2' } });
         const doc = await m.findOne({ _id: result.insertedId });
         assert.ok(doc !== null);
         // Should have been incremented by 10 (not overridden)

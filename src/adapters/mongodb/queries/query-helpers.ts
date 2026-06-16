@@ -358,39 +358,115 @@ export function normalizeCursorValue(
     return value;
 }
 
-/** Extracts known MongoDB driver `find` options from a raw options bag, discarding unknown keys. */
+const QUERY_CONTROL_OPTION_KEYS = new Set(['cache', 'explain', 'meta', 'stream', 'preserveOrder', 'withDeleted', 'onlyDeleted']);
+const RESULT_CACHE_KEY_OPTION_FIELDS = [
+    'projection',
+    'sort',
+    'skip',
+    'limit',
+    'hint',
+    'collation',
+    'readConcern',
+    'readPreference',
+    'min',
+    'max',
+    'returnKey',
+    'showRecordId',
+    'tailable',
+    'awaitData',
+    'noCursorTimeout',
+    'allowDiskUse',
+    'let',
+];
+
+function stripControlOptions(options: Record<string, unknown> = {}): Record<string, unknown> {
+    const driverOptions = { ...options };
+    for (const key of QUERY_CONTROL_OPTION_KEYS) {
+        delete driverOptions[key];
+    }
+    return driverOptions;
+}
+
+function normalizeCacheKeyValue(value: unknown): unknown {
+    if (value === undefined || typeof value === 'function' || typeof value === 'symbol') {
+        return undefined;
+    }
+    if (value instanceof Date) {
+        return { $date: value.toISOString() };
+    }
+    if (value instanceof ObjectId) {
+        return { $oid: value.toHexString() };
+    }
+    if (Array.isArray(value)) {
+        return value.map((item) => normalizeCacheKeyValue(item));
+    }
+    if (value && typeof value === 'object') {
+        const sorted: Record<string, unknown> = {};
+        for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+            const normalized = normalizeCacheKeyValue((value as Record<string, unknown>)[key]);
+            if (normalized !== undefined) {
+                sorted[key] = normalized;
+            }
+        }
+        return sorted;
+    }
+    return value;
+}
+
+export function stableCacheKeyString(value: unknown): string {
+    return JSON.stringify(normalizeCacheKeyValue(value));
+}
+
+export function buildResultCacheKeyOptions(options: Record<string, unknown> = {}): Record<string, unknown> {
+    const keyOptions: Record<string, unknown> = {};
+    for (const field of RESULT_CACHE_KEY_OPTION_FIELDS) {
+        if (options[field] !== undefined) {
+            keyOptions[field] = options[field];
+        }
+    }
+    return keyOptions;
+}
+
+export function hasSessionOption(options: Record<string, unknown> | undefined): boolean {
+    return options?.session !== undefined;
+}
+
+/** Builds MongoDB driver `find` options, preserving native options while removing monSQLize control flags. */
 export function buildFindDriverOptions<TSchema extends Document = Document>(
     options: Record<string, unknown> = {},
 ): Parameters<Collection<TSchema>['find']>[1] {
-    const driverOptions: Record<string, unknown> = {
-        ...(options.projection ? { projection: options.projection } : {}),
-        ...(options.sort ? { sort: options.sort } : {}),
-        ...(options.skip !== undefined ? { skip: options.skip } : {}),
-        ...(options.limit !== undefined ? { limit: options.limit } : {}),
-        ...(options.hint ? { hint: options.hint } : {}),
-        ...(options.collation ? { collation: options.collation } : {}),
-        ...(options.maxTimeMS !== undefined ? { maxTimeMS: options.maxTimeMS } : {}),
-        ...(options.batchSize !== undefined ? { batchSize: options.batchSize } : {}),
-        ...(options.comment ? { comment: options.comment } : {}),
-    };
-
-    return driverOptions as Parameters<Collection<TSchema>['find']>[1];
+    return stripControlOptions(options) as Parameters<Collection<TSchema>['find']>[1];
 }
 
-/** Extracts known MongoDB driver `aggregate` options from a raw options bag, discarding unknown keys. */
+/** Builds MongoDB driver `aggregate` options, preserving native options while removing monSQLize control flags. */
 export function buildAggregateDriverOptions<TSchema extends Document = Document>(
     options: Record<string, unknown> = {},
 ): Parameters<Collection<TSchema>['aggregate']>[1] {
-    const driverOptions: Record<string, unknown> = {
-        ...(options.hint ? { hint: options.hint } : {}),
-        ...(options.collation ? { collation: options.collation } : {}),
-        ...(options.comment ? { comment: options.comment } : {}),
-        ...(options.maxTimeMS !== undefined ? { maxTimeMS: options.maxTimeMS } : {}),
-        ...(options.allowDiskUse !== undefined ? { allowDiskUse: options.allowDiskUse } : {}),
-        ...(options.batchSize !== undefined ? { batchSize: options.batchSize } : {}),
-    };
+    return stripControlOptions(options) as Parameters<Collection<TSchema>['aggregate']>[1];
+}
 
-    return driverOptions as Parameters<Collection<TSchema>['aggregate']>[1];
+/** Builds MongoDB driver `countDocuments` options, preserving native consistency options. */
+export function buildCountDriverOptions<TSchema extends Document = Document>(
+    options: Record<string, unknown> = {},
+): Parameters<Collection<TSchema>['countDocuments']>[1] {
+    const driverOptions = stripControlOptions(options);
+    const allowed = new Set([
+        'limit',
+        'skip',
+        'hint',
+        'maxTimeMS',
+        'collation',
+        'comment',
+        'session',
+        'readConcern',
+        'readPreference',
+    ]);
+    for (const key of Object.keys(driverOptions)) {
+        if (!allowed.has(key)) {
+            delete driverOptions[key];
+        }
+    }
+    return driverOptions as Parameters<Collection<TSchema>['countDocuments']>[1];
 }
 
 /** Builds a MongoDB filter that selects documents strictly after or before the given cursor values. */

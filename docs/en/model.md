@@ -1366,7 +1366,7 @@ await User.deleteMany({ status: 'inactive' });
 
 ## Query automatic filtering
 
-When soft deletion is enabled, query operations automatically filter deleted documents:
+When soft deletion is enabled, standard read operations automatically filter deleted documents. This includes `find`, `findOne`, `findOneById`, `findByIds`, `findPage`, `findAndCount`, `count`, `distinct`, `aggregate`, `stream`, and `explain`.
 
 ```javascript
 //Default query does not return deleted data
@@ -1378,7 +1378,12 @@ const user = await User.findOne({ username: 'john' });
 
 const count = await User.count({ status: 'active' });
 //Actual execution: count({ status: 'active', deletedAt: null })
+
+const page = await User.findPage({ limit: 20 });
+//Actual execution adds the soft-delete filter to the page query
 ```
+
+For aggregation, monSQLize prepends a soft-delete `$match` stage, or places it after a leading `$geoNear` stage. Soft-delete filtering inside custom `$lookup` pipelines must be added by the application.
 
 
 ## Query deleted data
@@ -1642,20 +1647,30 @@ console.log(user);
 ```
 
 
-## Automatically increment when updating
+## Expected version required when updating
 
 ```javascript
-//first update
-await User.updateOne({ _id }, { $set: { status: 'active' } });
-//Actual execution: { $set: { status: 'active' }, $inc: { version: 1 } }
-
 const user = await User.findOne({ _id });
-console.log(user.version);  // 1
+
+//first update
+await User.updateOne(
+    { _id, version: user.version },
+    { $set: { status: 'active' } }
+);
+//Actual execution includes { _id, version: 0 } and { $inc: { version: 1 } }
+
+const updated = await User.findOne({ _id });
+console.log(updated.version);  // 1
 
 //second update
-await User.updateOne({ _id }, { $set: { status: 'inactive' } });
-console.log(user.version);  // 2
+await User.updateOne(
+    { _id },
+    { $set: { status: 'inactive' } },
+    { expectedVersion: updated.version }
+);
 ```
+
+Versioned `updateOne`, `replaceOne`, `findOneAndUpdate`, and `findOneAndReplace` require the expected version in the filter or as `expectedVersion`. `updateMany` is not supported for versioned models because optimistic locking is a single-document contract.
 
 
 ## Concurrency conflict detection
@@ -1676,12 +1691,15 @@ const resultA = await User.updateOne(
 );
 console.log(resultA.modifiedCount);  // 1
 
-//User B update failed
-const resultB = await User.updateOne(
-    { _id, version: userB.version },  //Version number has expired
-    { $set: { status: 'inactive' } }
-);
-console.log(resultB.modifiedCount);  //0 (version number does not match)
+//User B update fails with WRITE_CONFLICT
+try {
+    await User.updateOne(
+        { _id, version: userB.version },  //Version number has expired
+        { $set: { status: 'inactive' } }
+    );
+} catch (error) {
+    console.log(error.code);  // WRITE_CONFLICT
+}
 ```
 
 
@@ -1716,14 +1734,16 @@ async function updateUserStatus(userId, newStatus) {
         const user = await User.findOne({ _id: userId });
         if (!user) throw new Error('User not found');
 
-        const result = await User.updateOne(
-            { _id: userId, version: user.version },
-            { $set: { status: newStatus } }
-        );
-
-        if (result.modifiedCount > 0) return { success: true };
-
-        console.log(`Retry ${i + 1}/${maxRetries} (version conflict)`);
+        try {
+            await User.updateOne(
+                { _id: userId, version: user.version },
+                { $set: { status: newStatus } }
+            );
+            return { success: true };
+        } catch (error) {
+            if (error.code !== 'WRITE_CONFLICT') throw error;
+            console.log(`Retry ${i + 1}/${maxRetries} (version conflict)`);
+        }
     }
 
     throw new Error('Update failed due to concurrent modification');

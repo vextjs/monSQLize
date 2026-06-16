@@ -23,6 +23,29 @@ type PopulateContext<TDocument> = {
     poolName?: string;
 };
 
+export type PopulateTraversalState = {
+    depth: number;
+    maxDepth: number;
+    activeConfigs: WeakSet<object>;
+};
+
+const DEFAULT_POPULATE_MAX_DEPTH = 5;
+
+function resolvePopulateState(config: PopulateConfig, state?: PopulateTraversalState): PopulateTraversalState {
+    const maxDepth = typeof config.maxDepth === 'number' && config.maxDepth >= 0
+        ? config.maxDepth
+        : state?.maxDepth ?? DEFAULT_POPULATE_MAX_DEPTH;
+    const depth = state?.depth ?? 0;
+    if (depth > maxDepth) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, `populate maxDepth exceeded: ${maxDepth}`);
+    }
+    return {
+        depth,
+        maxDepth,
+        activeConfigs: state?.activeConfigs ?? new WeakSet<object>(),
+    };
+}
+
 function resolveRegisteredCollectionName<TDocument>(
     registered: { collectionName: string; definition: ModelDefinition<TDocument> } | undefined,
     fallback: string,
@@ -41,8 +64,18 @@ export async function populateModelPath<TDocument>(
     context: PopulateContext<TDocument>,
     docs: Array<TDocument & Record<string, unknown>>,
     path: PopulatePath,
+    traversalState?: PopulateTraversalState,
 ): Promise<Array<TDocument & Record<string, unknown>>> {
     const config = normalizePopulateConfig(path);
+    const state = resolvePopulateState(config, traversalState);
+    const configObject = typeof path === 'object' && path !== null ? path as object : null;
+    if (configObject) {
+        if (state.activeConfigs.has(configObject)) {
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `populate cycle detected: ${config.path}`);
+        }
+        state.activeConfigs.add(configObject);
+    }
+    try {
     if (docs.length === 0) {
         return docs;
     }
@@ -84,12 +117,6 @@ export async function populateModelPath<TDocument>(
     if (config.sort) {
         hydrated = applySort(hydrated, config.sort);
     }
-    if (config.skip) {
-        hydrated = hydrated.slice(config.skip);
-    }
-    if (config.limit !== undefined) {
-        hydrated = hydrated.slice(0, config.limit);
-    }
     if (config.select) {
         const select = config.select;
         hydrated = hydrated.map((item: TDocument & Record<string, unknown>) => pickFields(item, select, [relation.foreignField]));
@@ -106,19 +133,37 @@ export async function populateModelPath<TDocument>(
             throw createError(ErrorCodes.INVALID_ARGUMENT, 'nested populate must be a string, array, or object');
         }
         if (relatedModel) {
+            if (state.depth + 1 > state.maxDepth) {
+                throw createError(ErrorCodes.INVALID_ARGUMENT, `populate maxDepth exceeded: ${state.maxDepth}`);
+            }
             const nestedPaths = Array.isArray(config.populate) ? config.populate : [config.populate];
-            hydrated = await relatedModel.populateDocuments(hydrated, nestedPaths);
+            hydrated = await relatedModel.populateDocuments(hydrated, nestedPaths, {
+                depth: state.depth + 1,
+                maxDepth: state.maxDepth,
+                activeConfigs: state.activeConfigs,
+            });
         }
     }
 
     const grouped = groupBy(hydrated, (item) => getByPath(item as Record<string, unknown>, relation.foreignField));
     for (const doc of docs) {
         const localValue = getByPath(doc, relation.localField);
-        const matches = grouped.get(toKey(localValue)) ?? [];
+        let matches = grouped.get(toKey(localValue)) ?? [];
+        if (config.skip) {
+            matches = matches.slice(config.skip);
+        }
+        if (config.limit !== undefined) {
+            matches = matches.slice(0, config.limit);
+        }
         (doc as Record<string, unknown>)[config.path] = relation.single ? (matches[0] ?? null) : [...matches];
     }
 
     return docs;
+    } finally {
+        if (configObject) {
+            state.activeConfigs.delete(configObject);
+        }
+    }
 }
 
 type HydrateContext<TDocument> = {

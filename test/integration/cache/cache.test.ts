@@ -12,6 +12,7 @@ type FakeConnection = {
     unsubscribe(channel: string): void;
     quit(): Promise<void>;
     publish(channel: string, message: string): Promise<number>;
+    duplicate(): FakeConnection;
     handlers: Map<string, MessageHandler[]>;
     subscriptions: Set<string>;
 };
@@ -64,6 +65,11 @@ describe('P3-A cache facade integration', () => {
                     subscriptions.delete(channel);
                 },
                 async quit() {},
+                duplicate() {
+                    const duplicated = createConnection();
+                    peers.push(duplicated);
+                    return duplicated;
+                },
                 publish(channel: string, message: string) {
                     for (const peer of peers) {
                         if (!peer.subscriptions.has(channel)) continue;

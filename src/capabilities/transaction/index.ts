@@ -198,12 +198,16 @@ export class Transaction {
             throw createError(ErrorCodes.INVALID_OPERATION, `Cannot commit transaction in state: ${this.state}`);
         }
         if (typeof (this.session as unknown as Record<string, unknown>).commitTransaction === 'function') {
-            await this.session.commitTransaction();
+            await commitTransactionWithRetry(this.session, this.options.logger);
         }
         this.state = 'committed';
-        this.options.lockManager?.releaseLocks(this.id);
-        this.pendingInvalidations.clear();
-        this.clearTimeout();
+        try {
+            await this.flushPendingInvalidations();
+        } finally {
+            this.options.lockManager?.releaseLocks(this.id);
+            this.pendingInvalidations.clear();
+            this.clearTimeout();
+        }
     }
 
     /**
@@ -242,7 +246,13 @@ export class Transaction {
     async recordInvalidation(pattern: string): Promise<void> {
         this.pendingInvalidations.add(pattern);
         this.options.lockManager?.addLock(pattern, this.id);
-        if (this.options.cache?.delPattern) {
+    }
+
+    private async flushPendingInvalidations(): Promise<void> {
+        if (!this.options.cache?.delPattern) {
+            return;
+        }
+        for (const pattern of this.pendingInvalidations) {
             await this.options.cache.delPattern(pattern);
         }
     }
@@ -462,6 +472,9 @@ export class TransactionManager {
                 lastError = error;
                 await transaction.abort();
                 this.recordStats(transaction, Date.now() - startedAt, false);
+                if (transaction.state === 'committed') {
+                    throw error;
+                }
                 if (!enableRetry || attempt === maxRetries || !isTransientTransactionError(error)) {
                     throw error;
                 }
@@ -586,6 +599,30 @@ function isTransientTransactionError(error: unknown): boolean {
         return true;
     }
     return candidate.code === 112 || candidate.code === 117;
+}
+
+function isUnknownTransactionCommitResult(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+        return false;
+    }
+    const candidate = error as { hasErrorLabel?: (label: string) => boolean; };
+    return typeof candidate.hasErrorLabel === 'function' && candidate.hasErrorLabel('UnknownTransactionCommitResult');
+}
+
+async function commitTransactionWithRetry(session: MongoSession, logger?: LoggerLike | null): Promise<void> {
+    const maxAttempts = 3;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        try {
+            await session.commitTransaction();
+            return;
+        } catch (error) {
+            if (!isUnknownTransactionCommitResult(error) || attempt === maxAttempts - 1) {
+                throw error;
+            }
+            logger?.warn?.(`[Transaction] retrying commit after UnknownTransactionCommitResult (attempt ${attempt + 2}/${maxAttempts})`);
+            await sleep(100 * (attempt + 1));
+        }
+    }
 }
 
 function escapeRegExp(value: string): string {

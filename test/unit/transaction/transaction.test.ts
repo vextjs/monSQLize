@@ -62,7 +62,7 @@ describe('P4-A transaction', () => {
 
         await transaction.recordInvalidation('users:*');
         assert.equal(cacheLockManager.isLocked('users:1'), true);
-        assert.equal(cache.get('users:1'), undefined);
+        assert.deepEqual(cache.get('users:1'), { id: 1 });
         assert.equal(transaction.getInfo().status, 'started');
         assert.deepEqual({
             state: transaction.getStats().state,
@@ -78,10 +78,35 @@ describe('P4-A transaction', () => {
 
         await transaction.commit();
         assert.equal(transaction.getInfo().status, 'committed');
+        assert.equal(cache.get('users:1'), undefined);
         assert.equal(cacheLockManager.isLocked('users:1'), false);
 
         await transaction.end();
         cacheLockManager.stop();
+    });
+
+    it('retries UnknownTransactionCommitResult during commit', async () => {
+        let commits = 0;
+        const session = {
+            ...createFakeSession(),
+            commitTransaction() {
+                commits += 1;
+                if (commits === 1) {
+                    return Promise.reject({
+                        hasErrorLabel: (label: string) => label === 'UnknownTransactionCommitResult',
+                    });
+                }
+                return Promise.resolve();
+            },
+        };
+        const transaction = new MonSQLize.Transaction(session);
+
+        await transaction.start();
+        await transaction.commit();
+
+        assert.equal(commits, 2);
+        assert.equal(transaction.getInfo().status, 'committed');
+        await transaction.end();
     });
 
     it('supports TransactionManager startSession / withTransaction / retry / stats', async () => {

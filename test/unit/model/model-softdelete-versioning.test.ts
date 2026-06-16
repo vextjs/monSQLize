@@ -112,6 +112,39 @@ describe('Model softDelete / versioning behavior', () => {
             assert.equal(await model.count({}), 1);
         });
 
+        it('all standard read paths exclude soft-deleted documents by default', async () => {
+            const model = runtime.model('sd_docs');
+            const deleted = await model.insertOne({ name: 'soft-gone', group: 'read-paths' });
+            const active = await model.insertOne({ name: 'soft-live', group: 'read-paths' });
+            await model.deleteOne({ _id: deleted.insertedId });
+
+            assert.equal(await model.findOneById(deleted.insertedId), null);
+            assert.equal((await model.findOneById(deleted.insertedId, { withDeleted: true })).name, 'soft-gone');
+
+            const byIds = await model.findByIds([deleted.insertedId, active.insertedId]);
+            assert.deepEqual(byIds.map((doc: any) => doc.name), ['soft-live']);
+
+            const page = await model.findPage({ query: { group: 'read-paths' }, sort: { name: 1 }, limit: 10 });
+            assert.deepEqual(page.items.map((doc: any) => doc.name), ['soft-live']);
+
+            assert.deepEqual(await model.distinct('name', { group: 'read-paths' }), ['soft-live']);
+
+            const aggregateRows = await model.aggregate([
+                { $match: { group: 'read-paths' } },
+                { $group: { _id: null, names: { $push: '$name' } } },
+            ]);
+            assert.deepEqual(aggregateRows[0].names, ['soft-live']);
+
+            const streamed: string[] = [];
+            await new Promise<void>((resolve, reject) => {
+                model.stream({ group: 'read-paths' })
+                    .on('data', (doc: any) => streamed.push(doc.name))
+                    .on('error', reject)
+                    .on('end', resolve);
+            });
+            assert.deepEqual(streamed, ['soft-live']);
+        });
+
         it('boolean type sets field to true instead of a Date', async () => {
             const model = runtime.model('sd_bool');
             await model.insertOne({ name: 'frank' });
@@ -232,7 +265,7 @@ describe('Model softDelete / versioning behavior', () => {
         it('updateOne increments version by 1', async () => {
             const model = runtime.model('ver_items');
             const result = await model.insertOne({ name: 'victor' });
-            await model.updateOne({ _id: result.insertedId }, { $set: { x: 1 } });
+            await model.updateOne({ _id: result.insertedId, version: 0 }, { $set: { x: 1 } });
             const doc = await model.findOneById(result.insertedId);
             assert.equal(doc.version, 1);
         });
@@ -240,10 +273,51 @@ describe('Model softDelete / versioning behavior', () => {
         it('multiple updates increment version cumulatively', async () => {
             const model = runtime.model('ver_items');
             const result = await model.insertOne({ name: 'wendy' });
-            await model.updateOne({ _id: result.insertedId }, { $set: { x: 1 } });
-            await model.updateOne({ _id: result.insertedId }, { $set: { x: 2 } });
+            await model.updateOne({ _id: result.insertedId, version: 0 }, { $set: { x: 1 } });
+            await model.updateOne({ _id: result.insertedId, version: 1 }, { $set: { x: 2 } });
             const doc = await model.findOneById(result.insertedId);
             assert.equal(doc.version, 2);
+        });
+
+        it('updateOne rejects stale expected versions', async () => {
+            const model = runtime.model('ver_items');
+            const result = await model.insertOne({ name: 'stale' });
+            await model.updateOne({ _id: result.insertedId, version: 0 }, { $set: { x: 1 } });
+            await assert.rejects(
+                () => model.updateOne({ _id: result.insertedId, version: 0 }, { $set: { x: 2 } }),
+                /optimistic lock conflict/i,
+            );
+        });
+
+        it('findOneAndReplace enforces expected version and advances the replacement version', async () => {
+            const model = runtime.model('ver_items');
+            const result = await model.insertOne({ name: 'replace-occ' });
+
+            await model.findOneAndReplace(
+                { _id: result.insertedId },
+                { name: 'replace-occ-next' },
+                { expectedVersion: 0, returnDocument: 'after' },
+            );
+
+            const doc = await model.findOneById(result.insertedId);
+            assert.equal(doc.name, 'replace-occ-next');
+            assert.equal(doc.version, 1);
+            await assert.rejects(
+                () => model.findOneAndReplace(
+                    { _id: result.insertedId },
+                    { name: 'replace-occ-stale' },
+                    { expectedVersion: 0 },
+                ),
+                /optimistic lock conflict/i,
+            );
+        });
+
+        it('updateMany is rejected for versioned models', async () => {
+            const model = runtime.model('ver_items');
+            await assert.rejects(
+                () => model.updateMany({}, { $set: { x: 1 } }),
+                /single-document only/i,
+            );
         });
     });
 });

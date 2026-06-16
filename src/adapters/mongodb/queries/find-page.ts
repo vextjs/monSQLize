@@ -31,10 +31,13 @@ import type {
     TotalsOptions,
 } from '../../../../types/collection';
 import {
+    buildAggregateDriverOptions,
+    buildCountDriverOptions,
     buildCursorFilter,
     buildEffectiveProjection,
     decodeCursor,
     encodeCursor,
+    hasSessionOption,
     normalizeSortShape,
     reverseSort,
 } from './query-helpers';
@@ -196,14 +199,18 @@ async function computeTotals<TSchema extends Document = Document>(
     totals: TotalsOptions,
     defaults: RuntimeDefaults = {},
     queryCache?: QueryCacheLike | null,
+    driverOptions: Record<string, unknown> = {},
 ): Promise<TotalsInfo> {
     const mode = (totals.mode ?? 'sync') as TotalsInfo['mode'];
-    const cache = queryCache ?? _asyncTotalsCache;
+    const cacheEnabled = !hasSessionOption(driverOptions);
+    const cache = cacheEnabled ? queryCache ?? _asyncTotalsCache : null;
     const ttlMs = getPositiveTtl(totals.ttlMs, 10 * 60_000);
     const { key: cacheKey, token } = buildTotalsCacheKey(coll, query, limit, totals);
 
     const buildCountOptions = (fallbackMaxTimeMS: number): Record<string, unknown> => {
-        const countOpts: Record<string, unknown> = {};
+        const countOpts: Record<string, unknown> = {
+            ...(buildCountDriverOptions(driverOptions) as Record<string, unknown>),
+        };
         const maxTimeMS = totals.maxTimeMS ?? fallbackMaxTimeMS;
         if (maxTimeMS !== undefined) {
             countOpts.maxTimeMS = maxTimeMS;
@@ -244,22 +251,27 @@ async function computeTotals<TSchema extends Document = Document>(
     });
 
     if (mode === 'sync') {
-        const cached = cache.get(cacheKey) as TotalsInfo | undefined;
-        if (cached !== undefined) {
-            return { ...cached, mode: 'sync' };
+        if (cache) {
+            const cached = cache.get(cacheKey) as TotalsInfo | undefined;
+            if (cached !== undefined) {
+                return { ...cached, mode: 'sync' };
+            }
         }
         try {
             const payload = buildPayload(await countWithOptions());
-            await Promise.resolve(cache.set(cacheKey, payload, ttlMs));
+            await Promise.resolve(cache?.set(cacheKey, payload, ttlMs));
             return { ...payload, mode: 'sync' };
         } catch {
             const payload = buildFailurePayload('count_failed');
-            await Promise.resolve(cache.set(cacheKey, payload, ttlMs));
+            await Promise.resolve(cache?.set(cacheKey, payload, ttlMs));
             return { ...payload, mode: 'sync' };
         }
     }
 
     if (mode === 'async') {
+        if (!cache) {
+            return { mode: 'async', total: null, token };
+        }
         const cached = cache.get(cacheKey) as TotalsInfo | undefined;
         if (cached !== undefined) {
             return { ...cached, mode: 'async', token };
@@ -278,22 +290,24 @@ async function computeTotals<TSchema extends Document = Document>(
     }
 
     if (mode === 'approx') {
-        const cached = cache.get(cacheKey) as TotalsInfo | undefined;
-        if (cached !== undefined) {
-            return { ...cached, mode: 'approx' };
+        if (cache) {
+            const cached = cache.get(cacheKey) as TotalsInfo | undefined;
+            if (cached !== undefined) {
+                return { ...cached, mode: 'approx' };
+            }
         }
         try {
-            const total = Object.keys(query ?? {}).length > 0
+            const total = Object.keys(query ?? {}).length > 0 || hasSessionOption(driverOptions)
                 ? await countWithOptions()
                 : await coll.estimatedDocumentCount({
                     maxTimeMS: totals.maxTimeMS ?? 1000,
                 } as Parameters<Collection<TSchema>['estimatedDocumentCount']>[0]);
             const payload = buildPayload(total, true);
-            await Promise.resolve(cache.set(cacheKey, payload, ttlMs));
+            await Promise.resolve(cache?.set(cacheKey, payload, ttlMs));
             return { ...payload, mode: 'approx' };
         } catch {
             const payload = buildFailurePayload('approx_failed');
-            await Promise.resolve(cache.set(cacheKey, payload, ttlMs));
+            await Promise.resolve(cache?.set(cacheKey, payload, ttlMs));
             return { ...payload, mode: 'approx' };
         }
     }
@@ -370,6 +384,12 @@ export async function executeFindPage<TSchema extends Document = Document>(
     if (ext.hint !== undefined) driverOpts.hint = ext.hint;
     if (ext.collation !== undefined) driverOpts.collation = ext.collation;
     if (ext.batchSize !== undefined) driverOpts.batchSize = ext.batchSize;
+    if (ext.comment !== undefined) driverOpts.comment = ext.comment;
+    if (ext.session !== undefined) driverOpts.session = ext.session;
+    if (ext.readConcern !== undefined) driverOpts.readConcern = ext.readConcern;
+    if (ext.readPreference !== undefined) driverOpts.readPreference = ext.readPreference;
+    if (ext.allowDiskUse !== undefined) driverOpts.allowDiskUse = ext.allowDiskUse;
+    if (ext.let !== undefined) driverOpts.let = ext.let;
     if (options.projection !== undefined) {
         driverOpts.projection = buildEffectiveProjection(options.projection, sort);
     }
@@ -380,6 +400,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         && queryCache
         && options.stream !== true
         && (options.explain === undefined || options.explain === false)
+        && !hasSessionOption(driverOpts)
         ? buildFindPageCacheKey(collection, options, {
             query: baseQuery,
             sort,
@@ -491,10 +512,8 @@ export async function executeFindPage<TSchema extends Document = Document>(
             if (extra.skip) stages.push({ $skip: extra.skip });
             stages.push({ $limit: fetchLimit });
             stages.push(...(options.pipeline as Document[]));
-            const aggOpts: Record<string, unknown> = {};
-            if (driverOpts.maxTimeMS !== undefined) aggOpts.maxTimeMS = driverOpts.maxTimeMS;
-            if (driverOpts.hint !== undefined) aggOpts.hint = driverOpts.hint;
-            if (driverOpts.collation !== undefined) aggOpts.collation = driverOpts.collation;
+            const aggOpts = buildAggregateDriverOptions<TSchema>(driverOpts) as Record<string, unknown>;
+            delete aggOpts.projection;
             rows = await collection
                 .aggregate(stages, aggOpts as Parameters<Collection<TSchema>['aggregate']>[1])
                 .toArray() as TSchema[];
@@ -529,7 +548,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
 
     const timedComputeTotals = async (): Promise<TotalsInfo> => {
         const stepStartTs = Date.now();
-        const result = await computeTotals(collection, baseQuery, limit, options.totals as TotalsOptions, defaults, queryCache);
+        const result = await computeTotals(collection, baseQuery, limit, options.totals as TotalsOptions, defaults, queryCache, driverOpts);
         pushMetaStep('computeTotals', Date.now() - stepStartTs, 'totals');
         return result;
     };

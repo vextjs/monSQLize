@@ -328,13 +328,16 @@ await msq.withTransaction(async (tx) => {
         //No need to specify cache: 0, no caching by default
     );
 
-    //✅ Intra-transaction writing: automatically invalidate related cache + add cache lock
+    //✅ Intra-transaction writing: record cache invalidation intent + add cache lock
     await collection('users').updateOne(
         { _id: 1 },
         { $set: { balance: 100 } },
         { session: tx.session }
     );
 });
+
+// Cache invalidation is flushed only after the transaction commits successfully.
+// If the transaction aborts, the pending invalidation intent is discarded.
 
 //✅ Query outside transaction: use cache normally
 const user = await collection('users').findOne(
@@ -366,8 +369,8 @@ await msq.withTransaction(async (tx) => {
         { session: tx.session, cache: 60000 }
     );
 
-    //✅ After submission: cache automatically expires
-    //❌ After rollback: cache automatically expires
+    //✅ After commit: recorded cache invalidations are flushed
+    //❌ After rollback: recorded cache invalidations are discarded
 });
 ```
 
@@ -575,6 +578,8 @@ If performance optimization is required, the `cache` option can be enabled expli
 3. **Is the timeout reasonable? ** - Default 30 seconds
 4. **Is the callback idempotent? ** - may retry multiple times
 
+`withTransaction()` retries transient transaction errors and retries `commitTransaction()` when the driver marks the result as `UnknownTransactionCommitResult`.
+
 
 ## Q4: Will cache locks affect performance?
 
@@ -582,6 +587,8 @@ If performance optimization is required, the `cache` option can be enabled expli
 - The lock is only in effect for the duration of the transaction (usually a short period of time)
 - The lock is memory level (no I/O involved)
 - Checking of locks is very fast (O(1) hash lookup)
+
+The cache lock is process-local. Cross-instance cache coherence is handled by distributed invalidation after commit; use application/framework-level coordination when a critical section must be mutually exclusive across processes.
 
 
 ## Q5: Can multiple databases be operated within a transaction?

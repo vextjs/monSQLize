@@ -14,6 +14,36 @@ import type {
 } from '../../../../types/collection';
 import { sleep, splitIntoBatches } from './write-utils';
 
+function getWriteErrorIndexes(error: unknown): number[] {
+    const candidates = [
+        (error as { writeErrors?: unknown })?.writeErrors,
+        (error as { result?: { writeErrors?: unknown } })?.result?.writeErrors,
+        (error as { result?: { result?: { writeErrors?: unknown } } })?.result?.result?.writeErrors,
+    ];
+    for (const value of candidates) {
+        if (Array.isArray(value)) {
+            return value
+                .map((item) => Number((item as { index?: unknown }).index))
+                .filter((index) => Number.isInteger(index) && index >= 0);
+        }
+    }
+    return [];
+}
+
+function getInsertedIdsFromError(error: unknown): Record<string, unknown> {
+    const candidates = [
+        (error as { insertedIds?: unknown })?.insertedIds,
+        (error as { result?: { insertedIds?: unknown } })?.result?.insertedIds,
+        (error as { result?: { result?: { insertedIds?: unknown } } })?.result?.result?.insertedIds,
+    ];
+    for (const value of candidates) {
+        if (value && typeof value === 'object') {
+            return value as Record<string, unknown>;
+        }
+    }
+    return {};
+}
+
 export async function insertBatchDocuments<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     documents: TSchema[],
@@ -72,19 +102,23 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
 
     let offset = 0;
     for (const [batchIndex, batch] of batches.entries()) {
+        const batchOffset = offset;
+        offset += batch.length;
+        let pendingBatch = batch;
+        let pendingIndexes = batch.map((_, index) => index);
         let attempts = 0;
 
         while (true) {
             try {
-                const batchResult = await collection.insertMany(batch as unknown as Parameters<Collection<TSchema>['insertMany']>[0], {
+                const batchResult = await collection.insertMany(pendingBatch as unknown as Parameters<Collection<TSchema>['insertMany']>[0], {
                     ...driverOptions,
                     ordered,
                 });
                 result.insertedCount += batchResult.insertedCount;
                 for (const [key, value] of Object.entries(batchResult.insertedIds)) {
-                    result.insertedIds[offset + Number.parseInt(key, 10)] = value;
+                    const localIndex = pendingIndexes[Number.parseInt(key, 10)];
+                    result.insertedIds[batchOffset + localIndex] = value;
                 }
-                offset += batch.length;
                 onProgress?.({
                     currentBatch: batchIndex + 1,
                     totalBatches: batches.length,
@@ -103,6 +137,35 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
                 };
 
                 if (onError === 'retry' && attempts < retryAttempts) {
+                    const failedIndexes = getWriteErrorIndexes(cause);
+                    if (failedIndexes.length > 0) {
+                        const retryLocalIndexes = ordered
+                            ? pendingIndexes.filter((_, index) => index >= Math.min(...failedIndexes))
+                            : pendingIndexes.filter((_, index) => failedIndexes.includes(index));
+                        const retryIndexSet = new Set(retryLocalIndexes);
+                        const insertedIds = getInsertedIdsFromError(cause);
+                        const confirmedSuccessCount = pendingIndexes.length - retryLocalIndexes.length;
+                        result.insertedCount += confirmedSuccessCount;
+                        for (const [key, value] of Object.entries(insertedIds)) {
+                            const localIndex = pendingIndexes[Number.parseInt(key, 10)];
+                            if (!retryIndexSet.has(localIndex)) {
+                                result.insertedIds[batchOffset + localIndex] = value;
+                            }
+                        }
+                        pendingBatch = pendingBatch.filter((_, index) => retryIndexSet.has(pendingIndexes[index]));
+                        pendingIndexes = retryLocalIndexes;
+                        if (pendingBatch.length === 0) {
+                            onProgress?.({
+                                currentBatch: batchIndex + 1,
+                                totalBatches: batches.length,
+                                inserted: result.insertedCount,
+                                total: documents.length,
+                                percentage: Math.round((result.insertedCount / documents.length) * 100),
+                                retries: result.retries.length,
+                            });
+                            break;
+                        }
+                    }
                     attempts += 1;
                     const retryInfo = {
                         batchIndex,

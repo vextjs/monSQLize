@@ -178,9 +178,11 @@ Add related queries to the query chain.
 | Options | Type | Default | Description |
 |------|------|--------|------|
 | `select` | String[] | All fields | Select returned fields |
-| `limit` | Number | Unlimited | Limit the number returned (hasMany) |
+| `skip` | Number | `0` | Skip related records per parent document (hasMany) |
+| `limit` | Number | Unlimited | Limit related records per parent document (hasMany) |
 | `sort` | Object | No sorting | Sorting rules |
 | `cache` | Number | Inherit the main query | Cache time (milliseconds) |
+| `maxDepth` | Number | `5` | Maximum nested populate depth for this branch |
 
 **Example**:
 
@@ -477,6 +479,13 @@ const students = await Student.find()
     .populate({ path: 'enrollments', populate: 'course' });
 ```
 
+Nested populate is capped by `maxDepth` (default `5`) to protect self-referencing relations from unbounded recursion:
+
+```javascript
+const categories = await Category.find()
+    .populate({ path: 'children', populate: 'children', maxDepth: 3 });
+```
+
 
 ## Q4: Will populate affect performance?
 
@@ -504,7 +513,7 @@ const users = await User.find().populate('posts');
 
 ## Q6: Does populate support conditional filtering?
 
-**A**: Supported. Use options such as `match`, `limit` to constrain the populated data.
+**A**: Supported. Use options such as `match`, `skip`, and `limit` to constrain the populated data. For has-many relations, `skip` and `limit` are applied per parent document after related records are grouped.
 
 ```javascript
 const users = await User.find()

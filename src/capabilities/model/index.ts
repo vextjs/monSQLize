@@ -28,6 +28,7 @@ import {
     applyModelDefaults,
     hydrateModelDocument,
     populateModelPath,
+    type PopulateTraversalState,
     removeModelDocument,
     saveModelDocument,
     validateModelDocument,
@@ -223,6 +224,50 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         return result as TResult;
     }
 
+    private isVisibleBySoftDelete(doc: TDocument | null | undefined, options?: unknown): doc is TDocument {
+        if (!doc || !this._softDeleteConfig?.enabled) {
+            return Boolean(doc);
+        }
+        const rawOptions = (options ?? {}) as Record<string, unknown>;
+        if (rawOptions.withDeleted) {
+            return true;
+        }
+        const value = (doc as Record<string, unknown>)[this._softDeleteConfig.field];
+        if (rawOptions.onlyDeleted) {
+            return value !== undefined && value !== null;
+        }
+        return value === undefined || value === null;
+    }
+
+    private filterVisibleBySoftDelete(docs: Array<TDocument | null | undefined>, options?: unknown): TDocument[] {
+        return docs.filter((doc): doc is TDocument => this.isVisibleBySoftDelete(doc, options));
+    }
+
+    private applySoftDeleteFindPageOptions(options?: unknown): unknown {
+        const rawOptions = (options ?? {}) as Record<string, unknown>;
+        return {
+            ...rawOptions,
+            query: applyModelSoftDeleteFilter(rawOptions.query, rawOptions, this._softDeleteConfig),
+        };
+    }
+
+    private applySoftDeleteAggregatePipeline(pipeline?: unknown[], options?: unknown): unknown[] {
+        if (!this._softDeleteConfig?.enabled) {
+            return pipeline ?? [];
+        }
+        const rawOptions = (options ?? {}) as Record<string, unknown>;
+        if (rawOptions.withDeleted) {
+            return pipeline ?? [];
+        }
+        const softDeleteMatch = applyModelSoftDeleteFilter({}, rawOptions, this._softDeleteConfig) as Record<string, unknown>;
+        const matchStage = { $match: softDeleteMatch };
+        const stages = [...(pipeline ?? [])];
+        if (stages.length > 0 && stages[0] && typeof stages[0] === 'object' && '$geoNear' in (stages[0] as Record<string, unknown>)) {
+            return [stages[0], matchStage, ...stages.slice(1)];
+        }
+        return [matchStage, ...stages];
+    }
+
     // ── public API ────────────────────────────────────────────────────────────────
 
     find(query?: unknown, options?: unknown): PopulateProxy<Array<TDocument & Record<string, unknown>>> {
@@ -270,7 +315,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
             const doc = this._v1HooksFactory
                 ? await this.runV1HookedOperation('find', [id, options], (nextId, nextOptions) => this.collection.findOneById(nextId, nextOptions) as Promise<TDocument | null | undefined>)
                 : await this.collection.findOneById(id, options) as TDocument | null | undefined;
-            return this.populateSingle(this.hydrateDocument(doc), paths);
+            return this.populateSingle(this.hydrateDocument(this.isVisibleBySoftDelete(doc, options) ? doc : null), paths);
         });
     }
 
@@ -283,7 +328,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
             const docs = this._v1HooksFactory
                 ? await this.runV1HookedOperation('find', [ids, options], (nextIds, nextOptions) => this.collection.findByIds(nextIds as unknown[], nextOptions) as Promise<Array<TDocument | null | undefined>>)
                 : await this.collection.findByIds(ids, options) as Array<TDocument | null | undefined>;
-            return this.populateDocuments(this.hydrateDocuments(docs), paths);
+            return this.populateDocuments(this.hydrateDocuments(this.filterVisibleBySoftDelete(docs, options)), paths);
         });
     }
 
@@ -299,9 +344,10 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         totals?: Record<string, unknown>;
     }> {
         return new PopulatePromise(async (paths) => {
+            const filteredOptions = this.applySoftDeleteFindPageOptions(options);
             const result = this._v1HooksFactory
-                ? await this.runV1HookedOperation('find', [options], (nextOptions) => this.collection.findPage(nextOptions))
-                : await this.collection.findPage(options);
+                ? await this.runV1HookedOperation('find', [filteredOptions], (nextOptions) => this.collection.findPage(nextOptions))
+                : await this.collection.findPage(filteredOptions);
             return {
                 ...result,
                 items: await this.populateDocuments(this.hydrateDocuments(result.items), paths),
@@ -473,19 +519,21 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     }
 
     distinct(key: string, query?: unknown, options?: unknown): Promise<unknown[]> {
-        return this.runV1HookedOperation('find', [key, query, options], (nextKey, nextQuery, nextOptions) => this.collection.distinct(nextKey as string, nextQuery, nextOptions));
+        const filteredQuery = applyModelSoftDeleteFilter(query, options, this._softDeleteConfig);
+        return this.runV1HookedOperation('find', [key, filteredQuery, options], (nextKey, nextQuery, nextOptions) => this.collection.distinct(nextKey as string, nextQuery, nextOptions));
     }
 
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]> {
-        return this.runV1HookedOperation('find', [pipeline, options], (nextPipeline, nextOptions) => this.collection.aggregate(nextPipeline as unknown[] | undefined, nextOptions));
+        const filteredPipeline = this.applySoftDeleteAggregatePipeline(pipeline, options);
+        return this.runV1HookedOperation('find', [filteredPipeline, options], (nextPipeline, nextOptions) => this.collection.aggregate(nextPipeline as unknown[] | undefined, nextOptions));
     }
 
     stream(query?: unknown, options?: unknown): NodeJS.ReadableStream {
-        return this.extendedCollection().stream(query, options);
+        return this.extendedCollection().stream(applyModelSoftDeleteFilter(query, options, this._softDeleteConfig), options);
     }
 
     explain(query?: unknown, options?: unknown): Promise<unknown> {
-        return this.extendedCollection().explain(query, options);
+        return this.extendedCollection().explain(applyModelSoftDeleteFilter(query, options, this._softDeleteConfig), options);
     }
 
     invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'aggregate' | 'distinct'): Promise<number> {
@@ -566,10 +614,11 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     async populateDocuments(
         docs: Array<TDocument & Record<string, unknown>>,
         paths: PopulatePath[],
+        traversalState?: PopulateTraversalState,
     ): Promise<Array<TDocument & Record<string, unknown>>> {
         let current = docs;
         for (const path of paths) {
-            current = await this.populatePath(current, path);
+            current = await this.populatePath(current, path, traversalState);
         }
         return current;
     }
@@ -577,13 +626,14 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     private async populatePath(
         docs: Array<TDocument & Record<string, unknown>>,
         path: PopulatePath,
+        traversalState?: PopulateTraversalState,
     ): Promise<Array<TDocument & Record<string, unknown>>> {
         return populateModelPath({
             relations: this.relations,
             runtime: this.runtime,
             dbName: this.dbName,
             poolName: this.poolName,
-        }, docs, path);
+        }, docs, path, traversalState);
     }
 
     hydrateDocuments(docs: Array<TDocument | null | undefined>): Array<TDocument & Record<string, unknown>> {

@@ -14,6 +14,7 @@ import { Collection, Document } from 'mongodb';
 import { normalizeProjection } from '../../../utils/normalize';
 import type { RuntimeDefaults } from '../../../types/internal/query';
 import type { FindAndCountResult } from '../../../../types/collection';
+import { buildCountDriverOptions, buildFindDriverOptions } from './query-helpers';
 
 /**
  * Queries all matching documents and fetches the total count concurrently.
@@ -36,28 +37,27 @@ export async function findAndCountDocuments<TSchema extends Document = Document>
 
     // Build driver options (limit/skip/sort/projection apply to data; total uses query only)
     const rawOptions = (options ?? {}) as Record<string, unknown>;
-    const driverOptions: Record<string, unknown> = {};
-
     const projection = normalizeProjection(rawOptions.projection as string[] | Record<string, unknown> | null | undefined);
-    if (projection) driverOptions.projection = projection;
-    if (rawOptions.sort !== undefined) driverOptions.sort = rawOptions.sort;
-    // v1 compat: limit/skip apply to data only, not to total
-    if (rawOptions.limit !== undefined) driverOptions.limit = rawOptions.limit;
-    if (rawOptions.skip !== undefined) driverOptions.skip = rawOptions.skip;
-    if (rawOptions.maxTimeMS !== undefined) {
-        driverOptions.maxTimeMS = rawOptions.maxTimeMS;
-    } else if (defaults?.maxTimeMS !== undefined) {
-        driverOptions.maxTimeMS = defaults.maxTimeMS;
-    }
-    if (rawOptions.comment !== undefined) driverOptions.comment = rawOptions.comment;
-    if (rawOptions.hint !== undefined) driverOptions.hint = rawOptions.hint;
+    const baseOptions = {
+        ...(defaults?.maxTimeMS !== undefined ? { maxTimeMS: defaults.maxTimeMS } : {}),
+        ...rawOptions,
+        ...(projection ? { projection } : {}),
+    };
+    const driverOptions = buildFindDriverOptions(baseOptions);
+    const countOptions = buildCountDriverOptions(baseOptions);
+    // v1 compat: limit/skip apply to data only, not to total.
+    delete (countOptions as Record<string, unknown>).limit;
+    delete (countOptions as Record<string, unknown>).skip;
 
     const [data, total] = await Promise.all([
         collection.find(
             normalizedQuery,
             driverOptions as Parameters<Collection<TSchema>['find']>[1],
         ).toArray() as Promise<TSchema[]>,
-        collection.countDocuments(normalizedQuery as Parameters<Collection<TSchema>['countDocuments']>[0]),
+        collection.countDocuments(
+            normalizedQuery as Parameters<Collection<TSchema>['countDocuments']>[0],
+            countOptions,
+        ),
     ]);
 
     // v1 compat: expose `documents` as an alias for `data`

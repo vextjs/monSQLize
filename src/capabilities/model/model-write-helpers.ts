@@ -195,6 +195,89 @@ export function applyModelVersionIncrement(
     };
 }
 
+export function resolveModelOptimisticLock(
+    filter: unknown,
+    options: unknown,
+    versionConfig: ModelVersionConfig,
+): { filter: unknown; expectedVersion: unknown; driverOptions: unknown } {
+    if (!versionConfig?.enabled) {
+        return { filter, expectedVersion: undefined, driverOptions: options };
+    }
+    const resolvedFilter = { ...((filter as Record<string, unknown>) ?? {}) };
+    const rawOptions = (options ?? {}) as Record<string, unknown>;
+    const expectedVersion = rawOptions.expectedVersion ?? rawOptions.version ?? resolvedFilter[versionConfig.field];
+    const { expectedVersion: _expectedVersion, version: _version, ...driverOptions } = rawOptions;
+    void _expectedVersion;
+    void _version;
+
+    if (expectedVersion === undefined) {
+        throw createError(
+            ErrorCodes.INVALID_ARGUMENT,
+            `Model optimistic locking requires expectedVersion or ${versionConfig.field} in the filter.`,
+        );
+    }
+    if (resolvedFilter[versionConfig.field] === undefined) {
+        resolvedFilter[versionConfig.field] = expectedVersion;
+    }
+    return {
+        filter: resolvedFilter,
+        expectedVersion,
+        driverOptions: options === undefined ? undefined : driverOptions,
+    };
+}
+
+export function assertModelOptimisticLockMatched(
+    result: { matchedCount?: number } | null | undefined,
+    versionConfig: ModelVersionConfig,
+): void {
+    if (!versionConfig?.enabled) {
+        return;
+    }
+    if ((result?.matchedCount ?? 0) === 0) {
+        throw createError(ErrorCodes.WRITE_CONFLICT, 'Model optimistic lock conflict.');
+    }
+}
+
+export function assertModelOptimisticLockDocument(
+    document: unknown,
+    versionConfig: ModelVersionConfig,
+): void {
+    if (!versionConfig?.enabled) {
+        return;
+    }
+    if (document == null) {
+        throw createError(ErrorCodes.WRITE_CONFLICT, 'Model optimistic lock conflict.');
+    }
+}
+
+export function applyModelReplaceVersion(
+    replacement: unknown,
+    versionConfig: ModelVersionConfig,
+    expectedVersion: unknown,
+): unknown {
+    if (!versionConfig?.enabled) {
+        return replacement;
+    }
+    if (typeof expectedVersion !== 'number') {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Model optimistic locking requires a numeric expectedVersion for replaceOne.');
+    }
+    const resolvedReplacement = { ...((replacement as Record<string, unknown>) ?? {}) };
+    if (resolvedReplacement[versionConfig.field] === undefined) {
+        resolvedReplacement[versionConfig.field] = expectedVersion + 1;
+    }
+    return resolvedReplacement;
+}
+
+export function assertModelVersionedMultiUpdateAllowed(versionConfig: ModelVersionConfig, operation: string): void {
+    if (!versionConfig?.enabled) {
+        return;
+    }
+    throw createError(
+        ErrorCodes.INVALID_OPERATION,
+        `${operation} is not supported for versioned models because optimistic locking is single-document only.`,
+    );
+}
+
 export function applyModelUpsertTimestamps(
     update: unknown,
     timestampsConfig: ModelTimestampConfig,

@@ -964,6 +964,25 @@ describe('model-instance helpers — direct branch coverage', () => {
         await assert.rejects(() => populateModelPath(context as any, docs, { path: 'author', populate: 123 } as any), /nested populate/);
         const populated = await populateModelPath(context as any, docs, { path: 'author', select: 'name', sort: { name: 1 }, skip: 0, limit: 1 } as any);
         assert.deepEqual(populated[0].author, { name: 'Ada', _id: 'u1' });
+
+        const perParentRuntime = {
+            scopedCollection: () => ({
+                find: async () => [
+                    { postId: 'p1', body: 'p1-second', order: 2 },
+                    { postId: 'p1', body: 'p1-first', order: 1 },
+                    { postId: 'p2', body: 'p2-second', order: 2 },
+                    { postId: 'p2', body: 'p2-first', order: 1 },
+                ],
+            }),
+        };
+        const perParentDocs: Array<Record<string, unknown>> = [{ _id: 'p1' }, { _id: 'p2' }];
+        const perParentContext = {
+            relations: new Map([['comments', { localField: '_id', foreignField: 'postId', from: 'Comment', single: false }]]),
+            runtime: perParentRuntime,
+            dbName: 'db',
+        };
+        const perParent = await populateModelPath(perParentContext as any, perParentDocs, { path: 'comments', sort: { order: 1 }, limit: 1 } as any);
+        assert.deepEqual(perParent.map((doc) => (doc.comments as Array<Record<string, unknown>>).map((comment) => comment.body)), [['p1-first'], ['p2-first']]);
     });
 
     it('hydrateModelDocument covers null docs, virtuals, v1 methods, v2 methods and document helpers', async () => {
@@ -1132,6 +1151,13 @@ describe('capability wiring — direct branch coverage', () => {
             publish: async () => undefined,
             unsubscribe: async () => undefined,
             quit: async () => undefined,
+            duplicate: () => ({
+                subscribe: (_channel: string, callback: () => void) => callback(),
+                on: () => undefined,
+                publish: async () => undefined,
+                unsubscribe: async () => undefined,
+                quit: async () => undefined,
+            }),
         };
         const invalidator = await initializeDistributedCacheInvalidator({ cache: { distributed: { redis, channel: 'test-channel' } } } as any, runtimeCache as any, logger);
         assert.ok(invalidator);
@@ -2155,7 +2181,7 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
             nowDate: () => new Date('2024-01-01T00:00:00Z'),
             timestampsConfig: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
             softDeleteConfig: { enabled: true, field: 'deletedAt', type: 'date', ttl: null },
-            versionConfig: { enabled: true, field: '__v' },
+            versionConfig: null,
             validateEnabled: false,
             schemaCache: null,
             schemaValidateFn: null,
@@ -2249,7 +2275,7 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
         assert.equal(calls.includes('insert:after'), true);
 
         await orchestrateModelInsertMany({ ...baseContext, hooksFactory: null } as any, undefined);
-        await orchestrateModelUpdateOne(baseContext, { id: 1 }, { $set: { name: 'Ada' } });
+        await orchestrateModelUpdateOne(baseContext, { id: 1, __v: 0 }, { $set: { name: 'Ada' } });
         await orchestrateModelIncrementOne(baseContext, { id: 1 }, 'count', 1, { $set: { custom: true } });
         assert.deepEqual(incrementOptions?.$set, { custom: true, updatedAt: new Date('2024-01-01T00:00:00Z') });
 
@@ -2366,8 +2392,9 @@ describe('public saga and transaction APIs — additional branch coverage', () =
         await manual.start();
         await assert.rejects(() => manual.start(), /Cannot start/);
         await manual.recordInvalidation('users:*');
-        assert.equal(invalidations.includes('users:*'), true);
+        assert.equal(invalidations.includes('users:*'), false);
         await manual.commit();
+        assert.equal(invalidations.includes('users:*'), true);
         await assert.rejects(() => manual.commit(), /Cannot commit/);
         await manual.end();
 

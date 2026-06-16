@@ -76,6 +76,11 @@ import {
 } from '../writes';
 import { convertObjectIdStrings, convertUpdateDocument } from '../utils/objectid-converter';
 import {
+    buildResultCacheKeyOptions,
+    hasSessionOption,
+    stableCacheKeyString,
+} from '../queries/query-helpers';
+import {
     deleteBatchForAccessor,
     incrementOneForAccessor,
     insertBatchForAccessor,
@@ -199,19 +204,11 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         const rawOptions: Record<string, unknown> = { ...(maxTimeMS !== undefined ? { maxTimeMS } : {}), ...((options ?? {}) as Record<string, unknown>) };
         const projection = normalizeProjection(rawOptions.projection as string[] | Record<string, unknown> | null | undefined);
         const cacheTTL = rawOptions.explain ? 0 : typeof rawOptions.cache === 'number' ? rawOptions.cache : 0;
-        const driverOptions: Record<string, unknown> = {};
-        if (projection) driverOptions.projection = projection;
-        if (rawOptions.maxTimeMS !== undefined) driverOptions.maxTimeMS = rawOptions.maxTimeMS;
-        if (rawOptions.comment !== undefined) driverOptions.comment = rawOptions.comment;
-        if (rawOptions.sort !== undefined) driverOptions.sort = rawOptions.sort;
-        if (rawOptions.hint !== undefined) driverOptions.hint = rawOptions.hint;
-        if (rawOptions.collation !== undefined) driverOptions.collation = rawOptions.collation;
-        if (rawOptions.explain !== undefined) driverOptions.explain = rawOptions.explain;
+        const driverOptions: Record<string, unknown> = { ...rawOptions, ...(projection ? { projection } : {}) };
 
-        if (cacheTTL > 0 && this.management.queryCache) {
-            const { cache: _cache, ...keyOptions } = rawOptions;
-            void _cache;
-            const cacheKey = `findOne:${this.collectionRef.namespace}:${JSON.stringify(normalizedQuery ?? {})}:${JSON.stringify({ ...keyOptions, projection })}`;
+        if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(rawOptions)) {
+            const keyOptions = buildResultCacheKeyOptions({ ...rawOptions, ...(projection ? { projection } : {}) });
+            const cacheKey = `findOne:${this.collectionRef.namespace}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(keyOptions)}`;
             const cached = this.management.queryCache.get(cacheKey) as TSchema | null | undefined;
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'findOne', rawOptions, startTs, cached) as never) as ReturnType<Collection<TSchema>['findOne']>;
@@ -278,8 +275,8 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         void _cache;
         const executeCount = () => countDocuments(this.collectionRef, normalizedQuery ?? {}, keyOptions as Parameters<Collection<TSchema>['countDocuments']>[1]);
         const countQueue = this.management.defaults?.countQueue;
-        if (cacheTTL > 0 && this.management.queryCache) {
-            const cacheKey = `count:${this.collectionRef.namespace}:${JSON.stringify(normalizedQuery ?? {})}:${JSON.stringify(keyOptions)}`;
+        if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(keyOptions)) {
+            const cacheKey = `count:${this.collectionRef.namespace}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(buildResultCacheKeyOptions(keyOptions))}`;
             const cached = this.management.queryCache.get(cacheKey);
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'count', merged, startTs, cached as number) as never) as ReturnType<Collection<TSchema>['countDocuments']>;
@@ -319,8 +316,23 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
     ): ReturnType<Collection<TSchema>['distinct']> {
         const startTs = Date.now();
         const rawOptions = (options ?? {}) as Record<string, unknown>;
-        const { meta: _meta, ...driverOptions } = rawOptions;
+        const {
+            meta: _meta,
+            cache: _cache,
+            explain: _explain,
+            stream: _stream,
+            preserveOrder: _preserveOrder,
+            withDeleted: _withDeleted,
+            onlyDeleted: _onlyDeleted,
+            ...driverOptions
+        } = rawOptions;
         void _meta;
+        void _cache;
+        void _explain;
+        void _stream;
+        void _preserveOrder;
+        void _withDeleted;
+        void _onlyDeleted;
         const result = await distinctValues(
             this.collectionRef,
             key,

@@ -285,6 +285,25 @@ if (plan.totals.conflicts === 0) {
 
 `ensureModelIndexes()` creates only missing indexes. It does not drop, rename, or rebuild conflicting indexes.
 
+### Versioned Writes
+
+Models with `options.version` use single-document optimistic concurrency control. Pass the expected version either in the filter or as `expectedVersion`:
+
+```js
+await User.updateOne(
+  { _id: userId, version: user.version },
+  { $set: { status: 'active' } }
+);
+
+await User.replaceOne(
+  { _id: userId },
+  nextUser,
+  { expectedVersion: user.version }
+);
+```
+
+Successful `updateOne()`, `replaceOne()`, `findOneAndUpdate()`, and `findOneAndReplace()` advance the version. Stale writes throw a `WRITE_CONFLICT` error. `updateMany()` is rejected for versioned models because optimistic locking is a single-document contract.
+
 ### Populate
 
 ```js
@@ -306,6 +325,14 @@ const userWithPosts = await User.findOne({ username: 'john' })
 ```
 
 Populate is supported by `find()`, `findOne()`, `findByIds()`, `findOneById()`, `findAndCount()`, and `findPage()`.
+
+For has-many relations, `skip` and `limit` are applied per parent document after related records are grouped. Nested populate has a default `maxDepth` of `5`; set `maxDepth` on a populate branch when a self-referencing relation needs a different cap.
+
+### Soft Delete Visibility
+
+When `softDelete` is enabled, standard model read paths hide deleted documents by default: `find()`, `findOne()`, `findOneById()`, `findByIds()`, `findPage()`, `findAndCount()`, `count()`, `distinct()`, `aggregate()`, `stream()`, and `explain()`. Pass `withDeleted: true` to include deleted documents or `onlyDeleted: true` to query only deleted documents.
+
+For aggregation, monSQLize prepends a soft-delete `$match` stage before the user pipeline, or after `$geoNear` when that stage is first. Soft-delete filtering inside user-authored `$lookup` pipelines remains the application's responsibility.
 
 ## Caching and Performance
 
@@ -351,15 +378,19 @@ Cache capabilities include:
 ### Transactions
 
 ```js
-await msq.withTransaction(async (session) => {
-  await msq.collection('orders').insertOne({ userId, status: 'pending' }, { session });
+await msq.withTransaction(async (tx) => {
+  await msq.collection('orders').insertOne({ userId, status: 'pending' }, { session: tx.session });
   await msq.collection('users').updateOne(
     { _id: userId },
     { $inc: { orderCount: 1 } },
-    { session }
+    { session: tx.session }
   );
 });
 ```
+
+Read options such as `session`, `readConcern`, `readPreference`, `collation`, `hint`, `maxTimeMS`, and `allowDiskUse` are forwarded to the MongoDB driver. Query caches are bypassed while a `session` is present, so transaction reads use the driver snapshot instead of a shared cache entry.
+
+Transaction cache invalidations are recorded during the transaction and flushed only after a successful commit. If the transaction aborts, pending invalidations are discarded.
 
 ### Connection Pools
 

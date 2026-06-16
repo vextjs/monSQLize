@@ -52,6 +52,7 @@ import {
     createFindChain,
     distinctValues,
     explainDocuments,
+    findAndCountDocuments,
     findDocuments,
     findOneDocument,
     streamDocuments,
@@ -125,13 +126,13 @@ function createCollection(): FakeCollection {
         find: record('find', [{ id: 1 }, { id: 2 }]),
         findOne: record('findOne', { id: 1 }),
         count: record('count', 2),
-        updateOne: record('updateOne', { modifiedCount: 1 }),
+        updateOne: record('updateOne', { matchedCount: 1, modifiedCount: 1 }),
         updateMany: record('updateMany', { modifiedCount: 2 }),
         deleteOne: record('deleteOne', { deletedCount: 1 }),
         deleteMany: record('deleteMany', { deletedCount: 2 }),
         insertOne: record('insertOne', { acknowledged: true, insertedId: 'new-id' }),
         insertMany: record('insertMany', { insertedCount: 2 }),
-        replaceOne: record('replaceOne', { modifiedCount: 1 }),
+        replaceOne: record('replaceOne', { matchedCount: 1, modifiedCount: 1 }),
         findOneAndUpdate: record('findOneAndUpdate', { id: 3 }),
         findOneAndDelete: record('findOneAndDelete', { id: 4 }),
         upsertOne: record('upsertOne', { upsertedCount: 1 }),
@@ -197,7 +198,7 @@ describe('coverage core helpers', () => {
         assert.deepEqual(await findOneOnlyDeletedDocument(context as never, { id: 1 }), { id: 1, hydrated: true, populated: 0 });
         assert.equal(await countWithDeletedDocuments(context as never, { role: 'admin' }), 2);
         assert.equal(await countOnlyDeletedDocuments(context as never, { role: 'admin' }), 2);
-        assert.deepEqual(await restoreSoftDeletedDocuments(context as never, { id: 1 }), { modifiedCount: 1 });
+        assert.deepEqual(await restoreSoftDeletedDocuments(context as never, { id: 1 }), { matchedCount: 1, modifiedCount: 1 });
         assert.deepEqual(await restoreManySoftDeletedDocuments(context as never, { org: 'acme' }), { modifiedCount: 2 });
         assert.deepEqual(await forceDeleteDocument(context as never, { id: 1 }), { deletedCount: 1 });
         assert.deepEqual(await forceDeleteManyDocuments(context as never, { org: 'acme' }), { deletedCount: 2 });
@@ -216,16 +217,16 @@ describe('coverage core helpers', () => {
 
         assert.deepEqual(await orchestrateModelInsertOne(context, { name: 'Ada' }), { acknowledged: true, insertedId: 'new-id' });
         assert.deepEqual(await orchestrateModelInsertMany(context, [{ name: 'Ada' }, { name: 'Lin' }]), { insertedCount: 2 });
-        assert.deepEqual(await orchestrateModelUpdateOne(context, { id: 1 }, { $set: { name: 'Grace' } }), { modifiedCount: 1 });
-        assert.deepEqual(await orchestrateModelUpdateMany(context, { org: 'acme' }, { $set: { active: false } }), { modifiedCount: 2 });
-        assert.deepEqual(await orchestrateModelReplaceOne(context, { id: 1 }, { name: 'New' }), { modifiedCount: 1 });
-        assert.deepEqual(await orchestrateModelFindOneAndUpdate(context, { id: 1 }, { $set: { name: 'N' } }), { id: 3 });
-        assert.deepEqual(await orchestrateModelFindOneAndReplace(context, { id: 1 }, { name: 'R' }), { id: 5 });
+        assert.deepEqual(await orchestrateModelUpdateOne(context, { id: 1, __v: 0 }, { $set: { name: 'Grace' } }), { matchedCount: 1, modifiedCount: 1 });
+        assert.deepEqual(await orchestrateModelUpdateMany({ ...context, versionConfig: null }, { org: 'acme' }, { $set: { active: false } }), { modifiedCount: 2 });
+        assert.deepEqual(await orchestrateModelReplaceOne(context, { id: 1, __v: 0 }, { name: 'New' }), { matchedCount: 1, modifiedCount: 1 });
+        assert.deepEqual(await orchestrateModelFindOneAndUpdate(context, { id: 1, __v: 0 }, { $set: { name: 'N' } }), { id: 3 });
+        assert.deepEqual(await orchestrateModelFindOneAndReplace(context, { id: 1, __v: 0 }, { name: 'R' }), { id: 5 });
         assert.deepEqual(await orchestrateModelUpsertOne(context, { id: 1 }, { $set: { name: 'U' } }), { upsertedCount: 1 });
         assert.deepEqual(await orchestrateModelIncrementOne(context, { id: 1 }, 'visits', 1, { $set: { source: 'test' } }), { modifiedCount: 1 });
         assert.deepEqual(await orchestrateModelInsertBatch(context, [{ a: 1 }, { b: 2 }]), { insertedCount: 2 });
         assert.deepEqual(await orchestrateModelUpdateBatch(context, { org: 'acme' }, { $set: { x: 1 } }), { modifiedCount: 2 });
-        assert.deepEqual(await orchestrateModelDeleteOne(context, { id: 1 }), { modifiedCount: 1 });
+        assert.deepEqual(await orchestrateModelDeleteOne(context, { id: 1 }), { matchedCount: 1, modifiedCount: 1 });
         assert.deepEqual(await orchestrateModelDeleteMany(context, { org: 'acme' }), { modifiedCount: 2 });
         assert.deepEqual(await orchestrateModelDeleteOne(context, { id: 1 }, { _forceDelete: true }), { deletedCount: 1 });
         assert.deepEqual(await orchestrateModelDeleteMany(context, { org: 'acme' }, { _forceDelete: true }), { deletedCount: 2 });
@@ -265,7 +266,7 @@ describe('coverage core helpers', () => {
         });
 
         await orchestrateModelInsertOne(context, { name: 'Ada' });
-        await orchestrateModelUpdateOne(context, { id: 1 }, { $set: { name: 'Grace' } });
+        await orchestrateModelUpdateOne(context, { id: 1, __v: 0 }, { $set: { name: 'Grace' } });
         await orchestrateModelDeleteOne(context, { id: 1 });
 
         assert.deepEqual(calls, ['insert:before', 'insert:after', 'update:before', 'update:after', 'delete:before', 'delete:after']);
@@ -565,8 +566,50 @@ describe('coverage core helpers', () => {
         });
         assert.deepEqual(buildEffectiveProjection(['name'], { createdAt: -1 }), { name: 1, createdAt: 1 });
         assert.deepEqual(buildEffectiveProjection({ name: 0, createdAt: 0 }, { createdAt: -1 }), { name: 0 });
-        assert.deepEqual(buildFindDriverOptions({ projection: { name: 1 }, sort: { name: 1 }, skip: 1, limit: 2, hint: 'idx', collation: { locale: 'en' }, maxTimeMS: 10, batchSize: 5, comment: 'q', ignored: true }), { projection: { name: 1 }, sort: { name: 1 }, skip: 1, limit: 2, hint: 'idx', collation: { locale: 'en' }, maxTimeMS: 10, batchSize: 5, comment: 'q' });
-        assert.deepEqual(buildAggregateDriverOptions({ hint: 'idx', collation: { locale: 'en' }, comment: 'agg', maxTimeMS: 10, allowDiskUse: true, batchSize: 5, ignored: true }), { hint: 'idx', collation: { locale: 'en' }, comment: 'agg', maxTimeMS: 10, allowDiskUse: true, batchSize: 5 });
+        assert.deepEqual(buildFindDriverOptions({ projection: { name: 1 }, sort: { name: 1 }, skip: 1, limit: 2, hint: 'idx', collation: { locale: 'en' }, maxTimeMS: 10, batchSize: 5, comment: 'q', session: 's', ignored: true, cache: 1000, explain: true }), { projection: { name: 1 }, sort: { name: 1 }, skip: 1, limit: 2, hint: 'idx', collation: { locale: 'en' }, maxTimeMS: 10, batchSize: 5, comment: 'q', session: 's', ignored: true });
+        assert.deepEqual(buildAggregateDriverOptions({ hint: 'idx', collation: { locale: 'en' }, comment: 'agg', maxTimeMS: 10, allowDiskUse: true, batchSize: 5, session: 's', ignored: true, stream: true }), { hint: 'idx', collation: { locale: 'en' }, comment: 'agg', maxTimeMS: 10, allowDiskUse: true, batchSize: 5, session: 's', ignored: true });
+    });
+
+    it('query helpers forward session options while stripping monSQLize controls', async () => {
+        const findOneCalls: unknown[] = [];
+        const findAndCountCalls: Array<{ method: string; args: unknown[] }> = [];
+        const collection = {
+            namespace: 'db.users',
+            collectionName: 'users',
+            findOne: async (...args: unknown[]) => {
+                findOneCalls.push(args);
+                return null;
+            },
+            find: (...args: unknown[]) => {
+                findAndCountCalls.push({ method: 'find', args });
+                return { toArray: async () => [] };
+            },
+            countDocuments: async (...args: unknown[]) => {
+                findAndCountCalls.push({ method: 'countDocuments', args });
+                return 0;
+            },
+        };
+
+        await findOneDocument(collection as never, { active: true }, { session: 'session-1', readConcern: { level: 'majority' }, withDeleted: true, cache: 1000 } as never);
+        assert.deepEqual((findOneCalls[0] as unknown[])[1], { session: 'session-1', readConcern: { level: 'majority' } });
+
+        await findAndCountDocuments(collection as never, { active: true } as never, {
+            session: 'session-2',
+            collation: { locale: 'en', strength: 2 },
+            limit: 5,
+            skip: 10,
+            withDeleted: true,
+        } as never);
+        const findOptions = findAndCountCalls.find((call) => call.method === 'find')?.args[1] as Record<string, unknown>;
+        const countOptions = findAndCountCalls.find((call) => call.method === 'countDocuments')?.args[1] as Record<string, unknown>;
+        assert.equal(findOptions.session, 'session-2');
+        assert.equal(findOptions.limit, 5);
+        assert.equal(findOptions.skip, 10);
+        assert.equal(countOptions.session, 'session-2');
+        assert.deepEqual(countOptions.collation, { locale: 'en', strength: 2 });
+        assert.equal('limit' in countOptions, false);
+        assert.equal('skip' in countOptions, false);
+        assert.equal('withDeleted' in countOptions, false);
     });
 
     it('covers batch write helpers with retry, progress, collect, and validation branches', async () => {
@@ -607,6 +650,36 @@ describe('coverage core helpers', () => {
         await assert.rejects(() => updateBatchDocuments(collection as never, { a: 1 } as never, {} as never), /update operators/);
         await assert.rejects(() => deleteBatchDocuments(collection as never, [] as never), /filter/);
         await assert.rejects(() => deleteBatchDocuments(collection as never, { a: 1 } as never, { onError: 'bad' as never }), /onError/);
+    });
+
+    it('insertBatch retries only failed unordered items after partial success', async () => {
+        const insertCalls: unknown[][] = [];
+        const collection = {
+            insertMany: async (docs: unknown[]) => {
+                insertCalls.push(docs);
+                if (insertCalls.length === 1) {
+                    throw Object.assign(new Error('partial insert failure'), {
+                        writeErrors: [{ index: 1 }],
+                        insertedIds: { 0: 'id-a', 2: 'id-c' },
+                    });
+                }
+                return { insertedCount: docs.length, insertedIds: { 0: 'id-b' } };
+            },
+        };
+
+        const result = await insertBatchDocuments(collection as never, [{ name: 'a' }, { name: 'b' }, { name: 'c' }] as never, {
+            batchSize: 3,
+            ordered: false,
+            onError: 'retry',
+            retryAttempts: 1,
+            retryDelay: 0,
+        } as never);
+
+        assert.equal(insertCalls.length, 2);
+        assert.equal(insertCalls[1].length, 1);
+        assert.deepEqual(insertCalls[1][0], { name: 'b' });
+        assert.equal(result.insertedCount, 3);
+        assert.deepEqual(result.insertedIds, { 0: 'id-a', 1: 'id-b', 2: 'id-c' });
     });
 
     it('covers collection management helper validation and command branches', async () => {

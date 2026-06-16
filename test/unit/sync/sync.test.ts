@@ -104,4 +104,68 @@ describe('P4-C sync', () => {
         await manager.stop();
         assert.equal(manager.getStats().isRunning, false);
     });
+
+    it('processes change events serially before saving resume tokens', async () => {
+        const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };
+        liveStream.close = () => Promise.resolve(true);
+        const applied: number[] = [];
+        const savedTokens: number[] = [];
+
+        const db = {
+            databaseName: 'source_db',
+            watch(_pipeline: unknown[], options: Record<string, unknown>) {
+                if (options?.maxAwaitTimeMS === 1) {
+                    return { close: () => Promise.resolve(true) };
+                }
+                return liveStream;
+            },
+        };
+
+        const manager = new MonSQLize.ChangeStreamSyncManager({
+            db,
+            config: {
+                enabled: true,
+                collections: ['users'],
+                targets: [
+                    {
+                        name: 'ordered-target',
+                        apply: async (event: ChangeEvent) => {
+                            if (event._id.token === 1) {
+                                await wait(30);
+                            }
+                            applied.push(event._id.token);
+                        },
+                    },
+                ],
+            },
+            tokenStore: {
+                load: () => Promise.resolve(null),
+                save: (token: ChangeEvent['_id']) => {
+                    savedTokens.push(token.token);
+                    return Promise.resolve();
+                },
+                clear: () => Promise.resolve(),
+            },
+        });
+
+        await manager.start();
+        liveStream.emit('change', {
+            _id: { token: 1 },
+            operationType: 'insert',
+            ns: { db: 'source_db', coll: 'users' },
+            documentKey: { _id: 1 },
+            fullDocument: { _id: 1, name: 'Ada' },
+        });
+        liveStream.emit('change', {
+            _id: { token: 2 },
+            operationType: 'update',
+            ns: { db: 'source_db', coll: 'users' },
+            documentKey: { _id: 1 },
+            fullDocument: { _id: 1, name: 'Ada2' },
+        });
+
+        await manager.stop();
+        assert.deepEqual(applied, [1, 2]);
+        assert.deepEqual(savedTokens, [1, 2]);
+    });
 });

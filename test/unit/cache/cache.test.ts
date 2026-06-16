@@ -39,6 +39,7 @@ type FakeConnection = {
     unsubscribe(channel: string): void;
     quit(): Promise<void>;
     publish(channel: string, message: string): Promise<number>;
+    duplicate(): FakeConnection;
     handlers: Map<string, MessageHandler[]>;
     subscriptions: Set<string>;
 };
@@ -59,6 +60,11 @@ function createConnection(bus: FakeConnection[]): FakeConnection {
             subscriptions.delete(channel);
         },
         async quit() { },
+        duplicate() {
+            const duplicated = createConnection(bus);
+            bus.push(duplicated);
+            return duplicated;
+        },
         publish(channel: string, message: string) {
             for (const conn of bus) {
                 if (!conn.subscriptions.has(channel)) continue;

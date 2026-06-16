@@ -11,10 +11,15 @@ import type { ExtendedModelCollectionLike, ModelCollectionLike } from './populat
 import {
     applyModelInsertTimestamps,
     applyModelInsertVersion,
+    applyModelReplaceVersion,
     applyModelReplaceTimestamps,
     applyModelUpdateTimestamps,
     applyModelUpsertTimestamps,
     applyModelVersionIncrement,
+    assertModelOptimisticLockDocument,
+    assertModelOptimisticLockMatched,
+    assertModelVersionedMultiUpdateAllowed,
+    resolveModelOptimisticLock,
     type ModelSchemaValidateFn,
     type ModelSoftDeleteConfig,
     type ModelTimestampConfig,
@@ -184,7 +189,9 @@ export async function orchestrateModelUpdateOne<TDocument = Record<string, unkno
         applyModelUpdateTimestamps(nextUpdate, context.timestampsConfig, () => context.nowDate()),
         context.versionConfig,
     );
-    const result = await context.collection.updateOne(filter, nextUpdate, options);
+    const lock = resolveModelOptimisticLock(filter, options, context.versionConfig);
+    const result = await context.collection.updateOne(lock.filter, nextUpdate, lock.driverOptions);
+    assertModelOptimisticLockMatched(result, context.versionConfig);
 
     if (context.hooksFactory) {
         try {
@@ -210,6 +217,7 @@ export async function orchestrateModelUpdateMany<TDocument = Record<string, unkn
     options?: unknown,
 ): Promise<UpdateResult> {
     const hookContext: Record<string, unknown> = {};
+    assertModelVersionedMultiUpdateAllowed(context.versionConfig, 'updateMany');
     let nextUpdate = update;
     if (context.hooksFactory) {
         await invokeV1Hook(context, 'update', 'before', hookContext, filter, nextUpdate);
@@ -241,8 +249,14 @@ export async function orchestrateModelReplaceOne<TDocument = Record<string, unkn
     } else {
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'replaceOne', collection: context.collectionName, filter, update: replacement });
     }
-    const nextReplacement = applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate());
-    const result = await context.collection.replaceOne(filter, nextReplacement, options);
+    const lock = resolveModelOptimisticLock(filter, options, context.versionConfig);
+    const nextReplacement = applyModelReplaceVersion(
+        applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate()),
+        context.versionConfig,
+        lock.expectedVersion,
+    );
+    const result = await context.collection.replaceOne(lock.filter, nextReplacement, lock.driverOptions);
+    assertModelOptimisticLockMatched(result, context.versionConfig);
     if (context.hooksFactory) {
         try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
     } else {
@@ -263,8 +277,13 @@ export async function orchestrateModelFindOneAndUpdate<TDocument = Record<string
     } else {
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'findOneAndUpdate', collection: context.collectionName, filter, update });
     }
-    const nextUpdate = applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate());
-    const result = await context.collection.findOneAndUpdate(filter, nextUpdate, options);
+    const nextUpdate = applyModelVersionIncrement(
+        applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate()),
+        context.versionConfig,
+    );
+    const lock = resolveModelOptimisticLock(filter, options, context.versionConfig);
+    const result = await context.collection.findOneAndUpdate(lock.filter, nextUpdate, lock.driverOptions);
+    assertModelOptimisticLockDocument(result, context.versionConfig);
     if (context.hooksFactory) {
         try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
     } else {
@@ -285,8 +304,14 @@ export async function orchestrateModelFindOneAndReplace<TDocument = Record<strin
     } else {
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'findOneAndReplace', collection: context.collectionName, filter, update: replacement });
     }
-    const nextReplacement = applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate());
-    const result = await context.extendedCollection().findOneAndReplace(filter, nextReplacement, options);
+    const lock = resolveModelOptimisticLock(filter, options, context.versionConfig);
+    const nextReplacement = applyModelReplaceVersion(
+        applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate()),
+        context.versionConfig,
+        lock.expectedVersion,
+    );
+    const result = await context.extendedCollection().findOneAndReplace(lock.filter, nextReplacement, lock.driverOptions);
+    assertModelOptimisticLockDocument(result, context.versionConfig);
     if (context.hooksFactory) {
         try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
     } else {

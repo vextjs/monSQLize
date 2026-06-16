@@ -807,6 +807,8 @@ const operations = await db.admin().command({
 For Model-declared indexes, prefer the Model ensure API:
 
 ```javascript
+// Production services should usually set autoIndex: false in the MonSQLize
+// or model configuration, then run explicit preflight/ensure during deployment.
 const plan = await User.ensureIndexes({ dryRun: true });
 
 if (plan.conflicts.length === 0) {

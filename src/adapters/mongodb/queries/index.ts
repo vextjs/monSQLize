@@ -26,8 +26,12 @@ import type {
 } from '../../../../types/collection';
 import {
     buildAggregateDriverOptions,
+    buildCountDriverOptions,
     buildFindDriverOptions,
+    buildResultCacheKeyOptions,
+    hasSessionOption,
     normalizeQueryFilter,
+    stableCacheKeyString,
 } from './query-helpers';
 
 // ── Re-exports from extracted modules (backwards compatibility) ───────────────
@@ -201,9 +205,8 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
     }
 
     private buildCacheKey(): string {
-        // Strip non-query options from cache key (mirrors v1's key generation)
-        const { cache: _c, explain: _e, stream: _s, meta: _m, ...keyOpts } = this.options;
-        return `find:${this.collection.namespace}:${JSON.stringify(this.normalizedQuery)}:${JSON.stringify(keyOpts)}`;
+        const keyOptions = buildResultCacheKeyOptions(this.buildExecuteOptions());
+        return `find:${this.collection.namespace}:${stableCacheKeyString(this.normalizedQuery)}:${stableCacheKeyString(keyOptions)}`;
     }
 
     private wrapResult<TResult>(op: string, startTs: number, result: TResult): TResult | ResultWithMeta<TResult> {
@@ -237,7 +240,8 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
 
         // v1 compat: cache option (TTL in ms) — read-through cache
         const cacheTTL = typeof this.options.cache === 'number' ? this.options.cache : 0;
-        if (cacheTTL > 0 && this.queryCache) {
+        const executeOptions = this.buildExecuteOptions();
+        if (cacheTTL > 0 && this.queryCache && !hasSessionOption(executeOptions)) {
             const cacheKey = this.buildCacheKey();
             const cached = this.queryCache.get(cacheKey);
             if (cached !== undefined) {
@@ -438,13 +442,7 @@ export async function findOneDocument<TSchema extends Document = Document>(
 ): ReturnType<Collection<TSchema>['findOne']> {
     const [query, options] = args;
     const rawOptions = (options ?? {}) as FindOptions & { explain?: boolean | string; };
-    const findOptions: FindOptions = {};
-    if (rawOptions.projection !== undefined) findOptions.projection = rawOptions.projection;
-    if (rawOptions.sort !== undefined) findOptions.sort = rawOptions.sort;
-    if (rawOptions.maxTimeMS !== undefined) findOptions.maxTimeMS = rawOptions.maxTimeMS;
-    if (rawOptions.comment !== undefined) findOptions.comment = rawOptions.comment;
-    if (rawOptions.hint !== undefined) findOptions.hint = rawOptions.hint;
-    if (rawOptions.collation !== undefined) findOptions.collation = rawOptions.collation;
+    const findOptions = buildFindDriverOptions<TSchema>(rawOptions as Record<string, unknown>) as FindOptions;
 
     if (rawOptions.explain) {
         const verbosity = rawOptions.explain === true ? 'queryPlanner' : rawOptions.explain;
@@ -472,12 +470,21 @@ export async function countDocuments<TSchema extends Document = Document>(
     const rawOptions = (options ?? {}) as Record<string, unknown>;
     const isEmptyQuery = Object.keys(rawQuery).length === 0;
     const explain = rawOptions.explain;
+    const countOptions = buildCountDriverOptions<TSchema>(rawOptions);
     const maxTimeMS = rawOptions.maxTimeMS as number | undefined;
     const comment = rawOptions.comment as string | undefined;
+    const canUseEstimatedCount = isEmptyQuery
+        && !hasSessionOption(rawOptions)
+        && rawOptions.collation === undefined
+        && rawOptions.hint === undefined
+        && rawOptions.skip === undefined
+        && rawOptions.limit === undefined
+        && rawOptions.readConcern === undefined
+        && rawOptions.readPreference === undefined;
 
     if (explain) {
         const verbosity = typeof explain === 'string' ? explain : 'queryPlanner';
-        if (isEmptyQuery) {
+        if (canUseEstimatedCount) {
             return {
                 queryPlanner: { plannerVersion: 1, namespace: collection.namespace },
                 executionStats: { executionSuccess: true, estimatedCount: true },
@@ -486,28 +493,17 @@ export async function countDocuments<TSchema extends Document = Document>(
         }
 
         const pipeline = [{ $match: rawQuery }, { $count: 'total' }];
-        const aggregateOptions: Record<string, unknown> = {};
-        if (maxTimeMS !== undefined) aggregateOptions.maxTimeMS = maxTimeMS;
-        if (rawOptions.hint !== undefined) aggregateOptions.hint = rawOptions.hint;
-        if (rawOptions.collation !== undefined) aggregateOptions.collation = rawOptions.collation;
-        if (comment) aggregateOptions.comment = comment;
+        const aggregateOptions = buildAggregateDriverOptions<TSchema>(rawOptions);
         return collection.aggregate(pipeline, aggregateOptions).explain(verbosity);
     }
 
-    if (isEmptyQuery) {
+    if (canUseEstimatedCount) {
         const estimatedOptions: Record<string, unknown> = {};
         if (maxTimeMS !== undefined) estimatedOptions.maxTimeMS = maxTimeMS;
         if (comment) estimatedOptions.comment = comment;
         return collection.estimatedDocumentCount(estimatedOptions as Parameters<Collection<TSchema>['estimatedDocumentCount']>[0]);
     }
 
-    const countOptions: Record<string, unknown> = {};
-    if (maxTimeMS !== undefined) countOptions.maxTimeMS = maxTimeMS;
-    if (rawOptions.hint !== undefined) countOptions.hint = rawOptions.hint;
-    if (rawOptions.collation !== undefined) countOptions.collation = rawOptions.collation;
-    if (typeof rawOptions.skip === 'number') countOptions.skip = rawOptions.skip;
-    if (typeof rawOptions.limit === 'number') countOptions.limit = rawOptions.limit;
-    if (comment) countOptions.comment = comment;
     return collection.countDocuments(rawQuery as Parameters<Collection<TSchema>['countDocuments']>[0], countOptions as Parameters<Collection<TSchema>['countDocuments']>[1]);
 }
 
