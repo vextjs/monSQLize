@@ -19,6 +19,8 @@ Hooks provides a life cycle hook mechanism, allowing you to execute custom logic
 - ✅ **ERROR HANDLING** - Errors thrown in hooks block operations
 - ✅ **Context Delivery** - Provides rich contextual information
 
+> Compatibility note: monSQLize supports two hook shapes. The legacy v1 `hooks: (model) => ({ insert/update/delete/find })` factory may return modified arguments or results where the v1 compatibility layer consumes them. The standard object form (`hooks: { beforeCreate, beforeUpdate, ... }`) is observer/mutate-in-place oriented: its TypeScript contract returns `void`, and returned values are ignored.
+
 ---
 
 ## 🚀 Quick Start
@@ -1141,4 +1143,3 @@ after: async (ctx, result) => {
 **Document version**: v1.0.6
 **Last updated**: 2026-01-08
 **Maintainer**: monSQLize Team
-

@@ -31,6 +31,31 @@ export type PopulateTraversalState = {
 
 const DEFAULT_POPULATE_MAX_DEPTH = 5;
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+
+function cloneModelDefaultValue(value: unknown): unknown {
+    if (value instanceof Date) {
+        return new Date(value.getTime());
+    }
+    if (Array.isArray(value)) {
+        return value.map((item) => cloneModelDefaultValue(item));
+    }
+    if (isPlainObject(value)) {
+        const cloned: Record<string, unknown> = {};
+        for (const [key, item] of Object.entries(value)) {
+            cloned[key] = cloneModelDefaultValue(item);
+        }
+        return cloned;
+    }
+    return value;
+}
+
 function resolvePopulateState(config: PopulateConfig, state?: PopulateTraversalState): PopulateTraversalState {
     const maxDepth = typeof config.maxDepth === 'number' && config.maxDepth >= 0
         ? config.maxDepth
@@ -303,9 +328,10 @@ export function applyModelDefaults<TDocument>(
     const payload = { ...(document ?? {}) };
     for (const [key, value] of Object.entries(definition.defaults ?? {})) {
         if (payload[key] === undefined) {
-            payload[key] = typeof value === 'function'
+            const resolved = typeof value === 'function'
                 ? (value as (context?: unknown, doc?: Record<string, unknown>) => unknown)(undefined, payload)
                 : value;
+            payload[key] = cloneModelDefaultValue(resolved);
         }
     }
     return payload;

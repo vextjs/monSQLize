@@ -1154,7 +1154,10 @@ describe('coverage core helpers', () => {
         assert.equal(stats.eventCount, 1);
         assert.equal(stats.errorCount, 2);
         assert.equal(stats.targets.length, 3);
-        assert.ok(applied.length >= 2);
+        assert.deepEqual(applied, [{
+            event: { _id: { t: 1 }, operationType: 'insert', ns: { coll: 'items' }, fullDocument: { _id: 1 } },
+            doc: { _id: 1, transformed: true },
+        }]);
         assert.ok(errors.length >= 2);
         await manager.stop();
         assert.equal(manager.getStats().isRunning, false);

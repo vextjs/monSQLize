@@ -191,6 +191,33 @@ describe('aggregate() / distinct() / count() / explain()', () => {
             const result = await col.aggregate([{ $match: {} }], { explain: true });
             assert.ok(result !== null && typeof result === 'object');
         });
+
+        it('supports cache option and aggregate invalidation', async () => {
+            const db = runtime._adapter.db;
+            const pipeline = [
+                { $match: { category: 'electronics' } },
+                { $group: { _id: null, total: { $sum: 1 } } },
+            ];
+
+            const first = await col.aggregate(pipeline, { cache: 60_000 });
+            assert.equal(first[0].total, 20);
+
+            await db.collection('products').insertOne({
+                sku: 'SKU-CACHE-AGG',
+                category: 'electronics',
+                price: 1,
+                stock: 1,
+                rating: 5,
+                active: true,
+            });
+
+            const second = await col.aggregate(pipeline, { cache: 60_000 });
+            assert.equal(second[0].total, 20);
+
+            await col.invalidate('aggregate');
+            const third = await col.aggregate(pipeline, { cache: 60_000 });
+            assert.equal(third[0].total, 21);
+        });
     });
 
     // ── distinct() ────────────────────────────────────────────────────────────
@@ -235,6 +262,29 @@ describe('aggregate() / distinct() / count() / explain()', () => {
             const values = await col.distinct('category', {}, { maxTimeMS: 5000 });
             assert.ok(Array.isArray(values));
             assert.equal(values.length, 3);
+        });
+
+        it('supports cache option and distinct invalidation', async () => {
+            const db = runtime._adapter.db;
+
+            const first = await col.distinct('category', {}, { cache: 60_000 });
+            assert.equal(first.includes('books'), false);
+
+            await db.collection('products').insertOne({
+                sku: 'SKU-CACHE-DISTINCT',
+                category: 'books',
+                price: 1,
+                stock: 1,
+                rating: 5,
+                active: true,
+            });
+
+            const second = await col.distinct('category', {}, { cache: 60_000 });
+            assert.equal(second.includes('books'), false);
+
+            await col.invalidate('distinct');
+            const third = await col.distinct('category', {}, { cache: 60_000 });
+            assert.equal(third.includes('books'), true);
         });
     });
 

@@ -45,6 +45,8 @@ type ModelSchemaValidationContext = {
     schemaValidateFn: ModelSchemaValidateFn;
 };
 
+type UpdatePipelineStage = Record<string, unknown>;
+
 function withModelErrorMetadata<TError extends Error>(
     error: TError,
     metadata: Record<string, unknown>,
@@ -166,6 +168,12 @@ export function applyModelUpdateTimestamps(
     if (!timestampsConfig || timestampsConfig.updatedAt === false) {
         return update;
     }
+    if (Array.isArray(update)) {
+        return [
+            ...update,
+            { $set: { [timestampsConfig.updatedAt]: nowFactory() } },
+        ];
+    }
     const resolvedUpdate = (update ?? {}) as Record<string, unknown>;
     const $set = {
         ...((resolvedUpdate.$set ?? {}) as Record<string, unknown>),
@@ -180,6 +188,22 @@ export function applyModelVersionIncrement(
 ): unknown {
     if (!versionConfig?.enabled) {
         return update;
+    }
+    if (Array.isArray(update)) {
+        const versionPath = `$${versionConfig.field}`;
+        return [
+            ...update,
+            {
+                $set: {
+                    [versionConfig.field]: {
+                        $add: [
+                            { $ifNull: [versionPath, 0] },
+                            1,
+                        ],
+                    },
+                },
+            },
+        ];
     }
     const resolvedUpdate = (update ?? {}) as Record<string, unknown>;
     const $inc = (resolvedUpdate.$inc ?? {}) as Record<string, unknown>;
@@ -287,6 +311,18 @@ export function applyModelUpsertTimestamps(
         return update;
     }
     const now = nowFactory();
+    if (Array.isArray(update)) {
+        const $set: UpdatePipelineStage = {};
+        if (timestampsConfig.updatedAt !== false) {
+            $set[timestampsConfig.updatedAt] = now;
+        }
+        if (timestampsConfig.createdAt !== false) {
+            $set[timestampsConfig.createdAt] = { $ifNull: [`$${timestampsConfig.createdAt}`, now] };
+        }
+        return Object.keys($set).length > 0
+            ? [...update, { $set }]
+            : update;
+    }
     const resolvedUpdate = (update ?? {}) as Record<string, unknown>;
     const result: Record<string, unknown> = { ...resolvedUpdate };
     if (timestampsConfig.updatedAt !== false) {

@@ -26,6 +26,10 @@ describe('Model softDelete / versioning behavior', () => {
             schema: (dsl: any) => dsl({}),
             options: { version: true },
         });
+        MonSQLize.Model.define('pipeline_ts_items', {
+            schema: (dsl: any) => dsl({}),
+            options: { timestamps: true },
+        });
 
         runtime = new MonSQLize({
             type: 'mongodb',
@@ -46,6 +50,7 @@ describe('Model softDelete / versioning behavior', () => {
             db.collection('sd_docs').deleteMany({}),
             db.collection('sd_bool').deleteMany({}),
             db.collection('ver_items').deleteMany({}),
+            db.collection('pipeline_ts_items').deleteMany({}),
         ]);
     });
 
@@ -317,6 +322,48 @@ describe('Model softDelete / versioning behavior', () => {
             await assert.rejects(
                 () => model.updateMany({}, { $set: { x: 1 } }),
                 /single-document only/i,
+            );
+        });
+
+        it('updateOne preserves pipeline updates while advancing version', async () => {
+            const model = runtime.model('ver_items');
+            const result = await model.insertOne({ name: 'pipeline-version', score: 1 });
+
+            await model.updateOne(
+                { _id: result.insertedId, version: 0 },
+                [{ $set: { score: { $add: ['$score', 4] } } }],
+            );
+
+            const doc = await model.findOneById(result.insertedId);
+            assert.equal(doc.score, 5);
+            assert.equal(doc.version, 1);
+        });
+    });
+
+    describe('pipeline update timestamps', () => {
+        it('updateOne preserves pipeline updates while appending updatedAt', async () => {
+            const model = runtime.model('pipeline_ts_items');
+            const result = await model.insertOne({ name: 'pipeline-ts', score: 1 });
+
+            await model.updateOne(
+                { _id: result.insertedId },
+                [{ $set: { score: { $add: ['$score', 2] } } }],
+            );
+
+            const doc = await model.findOneById(result.insertedId);
+            assert.equal(doc.score, 3);
+            assert.ok(doc.updatedAt instanceof Date);
+        });
+
+        it('upsertOne rejects pipeline updates instead of rewriting them into update documents', async () => {
+            const model = runtime.model('pipeline_ts_items');
+
+            await assert.rejects(
+                () => model.upsertOne(
+                    { name: 'pipeline-upsert' },
+                    [{ $set: { score: 9 } }],
+                ),
+                /update must be a non-empty object/,
             );
         });
     });

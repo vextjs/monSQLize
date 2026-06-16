@@ -284,6 +284,7 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
         private readonly pipeline: Document[] = [],
         initialOptions: Record<string, unknown> = {},
         private readonly defaults: RuntimeDefaults = {},
+        private readonly queryCache?: QueryCacheLike | null,
     ) {
         this.options = { ...initialOptions };
     }
@@ -325,6 +326,11 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
         return this;
     }
 
+    private buildCacheKey(): string {
+        const keyOptions = buildResultCacheKeyOptions(this.buildExecuteOptions());
+        return `aggregate:${this.collection.namespace}:${stableCacheKeyString(this.pipeline)}:${stableCacheKeyString(keyOptions)}`;
+    }
+
     explain(verbosity: boolean | string = 'queryPlanner'): Promise<unknown> {
         return this.collection.aggregate(this.pipeline, buildAggregateDriverOptions<TSchema>(this.buildExecuteOptions())).explain(verbosity === true ? 'queryPlanner' : verbosity);
     }
@@ -356,6 +362,20 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
         // v1 compat: stream option routes to .stream() instead of toArray()
         if (this.options.stream === true) {
             return Promise.resolve(this.stream());
+        }
+        const cacheTTL = typeof this.options.cache === 'number' ? this.options.cache : 0;
+        const executeOptions = this.buildExecuteOptions();
+        if (cacheTTL > 0 && this.queryCache && !hasSessionOption(executeOptions)) {
+            const cacheKey = this.buildCacheKey();
+            const cached = this.queryCache.get(cacheKey);
+            if (cached !== undefined) {
+                return Promise.resolve(this.wrapResult('aggregate', startTs, cached as TResult[]) as TResult[] | ResultWithMeta<TResult[]>);
+            }
+            const qc = this.queryCache;
+            return this.toArray().then((result) => {
+                void qc.set(cacheKey, result, cacheTTL);
+                return this.wrapResult('aggregate', startTs, result) as TResult[] | ResultWithMeta<TResult[]>;
+            });
         }
         return this.toArray().then((result) => this.wrapResult('aggregate', startTs, result) as TResult[] | ResultWithMeta<TResult[]>);
     }
@@ -410,12 +430,13 @@ export function createAggregateChain<TSchema extends Document = Document, TResul
     pipeline: Document[] = [],
     options?: Parameters<Collection<TSchema>['aggregate']>[1],
     defaults?: RuntimeDefaults,
+    queryCache?: QueryCacheLike | null,
 ): AggregateChainContract<TResult> {
     const processedPipeline = hasExpressionInPipeline(pipeline)
         ? compilePipelineExpressions(pipeline)
         : pipeline;
 
-    return new AggregateChain<TResult, TSchema>(collection, processedPipeline, (options ?? {}) as Record<string, unknown>, defaults ?? {});
+    return new AggregateChain<TResult, TSchema>(collection, processedPipeline, (options ?? {}) as Record<string, unknown>, defaults ?? {}, queryCache);
 }
 
 /**

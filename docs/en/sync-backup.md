@@ -100,6 +100,8 @@ await msq.close();
 | `filter` | Function | ❌ | - | Event filtering function |
 | `transform` | Function | ❌ | - | Data conversion function |
 
+`transform` is a manager-level conversion hook. It runs once for each accepted change event before the event is delivered to all matching targets, so all targets receive the same transformed document. Delete events usually do not include `fullDocument`; custom targets should handle an `undefined` document and use `event.documentKey` for delete handling.
+
 
 ## targets[].Configuration
 

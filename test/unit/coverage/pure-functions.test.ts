@@ -1055,10 +1055,29 @@ describe('model-instance helpers — direct branch coverage', () => {
         const withDefaults = applyModelDefaults({
             defaults: {
                 role: 'reader',
+                tags: ['default'],
+                meta: { active: true, createdAt: new Date('2026-01-01T00:00:00.000Z') },
                 slug: (_context: unknown, document: Record<string, unknown>) => `${document.name}-slug`,
             },
         } as any, { name: 'ada', role: 'admin' });
-        assert.deepEqual(withDefaults, { name: 'ada', role: 'admin', slug: 'ada-slug' });
+        assert.deepEqual(withDefaults, {
+            name: 'ada',
+            role: 'admin',
+            tags: ['default'],
+            meta: { active: true, createdAt: new Date('2026-01-01T00:00:00.000Z') },
+            slug: 'ada-slug',
+        });
+        const secondDefaults = applyModelDefaults({
+            defaults: {
+                tags: ['default'],
+                meta: { active: true },
+            },
+        } as any, {});
+        assert.notEqual(withDefaults.tags, secondDefaults.tags);
+        assert.notEqual(withDefaults.meta, secondDefaults.meta);
+        (withDefaults.tags as string[]).push('mutated');
+        (withDefaults.meta as Record<string, unknown>).active = false;
+        assert.deepEqual(secondDefaults, { tags: ['default'], meta: { active: true } });
 
         const calls: unknown[] = [];
         const collection = {
@@ -1599,8 +1618,16 @@ describe('model populate and schema helpers — additional branch coverage', () 
     });
 
     it('model document helpers cover default, replace and delete fallback branches', async () => {
-        const withDefaults = applyModelDefaults({ defaults: { literal: 'x', computed: (_ctx: unknown, doc: Record<string, unknown>) => `${doc.literal}:ok` } } as any, {});
-        assert.deepEqual(withDefaults, { literal: 'x', computed: 'x:ok' });
+        const withDefaults = applyModelDefaults({
+            defaults: {
+                literal: 'x',
+                nested: () => ({ values: ['a'] }),
+                computed: (_ctx: unknown, doc: Record<string, unknown>) => `${doc.literal}:ok`,
+            },
+        } as any, {});
+        const secondDefaults = applyModelDefaults({ defaults: { nested: () => ({ values: ['a'] }) } } as any, {});
+        assert.deepEqual(withDefaults, { literal: 'x', nested: { values: ['a'] }, computed: 'x:ok' });
+        assert.notEqual(withDefaults.nested, secondDefaults.nested);
 
         const replaced: unknown[] = [];
         await saveModelDocument({

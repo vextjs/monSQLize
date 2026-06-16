@@ -168,4 +168,156 @@ describe('P4-C sync', () => {
         assert.deepEqual(applied, [1, 2]);
         assert.deepEqual(savedTokens, [1, 2]);
     });
+
+    it('does not save a shared resume token when any eligible target fails', async () => {
+        const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };
+        liveStream.close = () => Promise.resolve(true);
+        const applied: string[] = [];
+        const savedTokens: number[] = [];
+
+        const db = {
+            databaseName: 'source_db',
+            watch(_pipeline: unknown[], options: Record<string, unknown>) {
+                if (options?.maxAwaitTimeMS === 1) {
+                    return { close: () => Promise.resolve(true) };
+                }
+                return liveStream;
+            },
+        };
+
+        const manager = new MonSQLize.ChangeStreamSyncManager({
+            db,
+            config: {
+                enabled: true,
+                collections: ['users'],
+                targets: [
+                    {
+                        name: 'ok',
+                        collections: ['users'],
+                        apply: async () => {
+                            applied.push('ok');
+                        },
+                    },
+                    {
+                        name: 'bad',
+                        collections: ['users'],
+                        apply: async () => {
+                            throw new Error('target failed');
+                        },
+                    },
+                    {
+                        name: 'skipped',
+                        collections: ['orders'],
+                        apply: async () => {
+                            applied.push('skipped');
+                        },
+                    },
+                ],
+            },
+            tokenStore: {
+                load: () => Promise.resolve(null),
+                save: (token: ChangeEvent['_id']) => {
+                    savedTokens.push(token.token);
+                    return Promise.resolve();
+                },
+                clear: () => Promise.resolve(),
+            },
+            logger: { error: () => undefined, warn: () => undefined, info: () => undefined, debug: () => undefined },
+        });
+
+        await manager.start();
+        liveStream.emit('change', {
+            _id: { token: 3 },
+            operationType: 'insert',
+            ns: { db: 'source_db', coll: 'users' },
+            documentKey: { _id: 1 },
+            fullDocument: { _id: 1, name: 'Ada' },
+        });
+
+        await wait(20);
+        await manager.stop();
+
+        assert.deepEqual(applied, ['ok']);
+        assert.deepEqual(savedTokens, []);
+        const stats = manager.getStats();
+        assert.equal(stats.syncedCount, 0);
+        assert.equal(stats.errorCount, 1);
+    });
+
+    it('applies the manager transform once and passes undefined documents for delete events', async () => {
+        const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };
+        liveStream.close = () => Promise.resolve(true);
+        let transformCalls = 0;
+        const seen: Array<{ target: string; document: unknown }> = [];
+
+        const db = {
+            databaseName: 'source_db',
+            watch(_pipeline: unknown[], options: Record<string, unknown>) {
+                if (options?.maxAwaitTimeMS === 1) {
+                    return { close: () => Promise.resolve(true) };
+                }
+                return liveStream;
+            },
+        };
+
+        const manager = new MonSQLize.ChangeStreamSyncManager({
+            db,
+            config: {
+                enabled: true,
+                collections: ['users'],
+                transform: (doc: unknown) => {
+                    transformCalls += 1;
+                    if (doc === undefined) {
+                        return undefined;
+                    }
+                    return { ...(doc as Record<string, unknown>), transformed: true };
+                },
+                targets: [
+                    {
+                        name: 'a',
+                        apply: async (_event: ChangeEvent, document: unknown) => {
+                            seen.push({ target: 'a', document });
+                        },
+                    },
+                    {
+                        name: 'b',
+                        apply: async (_event: ChangeEvent, document: unknown) => {
+                            seen.push({ target: 'b', document });
+                        },
+                    },
+                ],
+            },
+            tokenStore: {
+                load: () => Promise.resolve(null),
+                save: () => Promise.resolve(),
+                clear: () => Promise.resolve(),
+            },
+        });
+
+        await manager.start();
+        liveStream.emit('change', {
+            _id: { token: 4 },
+            operationType: 'insert',
+            ns: { db: 'source_db', coll: 'users' },
+            documentKey: { _id: 1 },
+            fullDocument: { _id: 1, name: 'Ada' },
+        });
+        liveStream.emit('change', {
+            _id: { token: 5 },
+            operationType: 'delete',
+            ns: { db: 'source_db', coll: 'users' },
+            documentKey: { _id: 1 },
+            fullDocument: undefined as never,
+        });
+
+        await manager.stop();
+
+        assert.equal(transformCalls, 2);
+        assert.deepEqual(seen, [
+            { target: 'a', document: { _id: 1, name: 'Ada', transformed: true } },
+            { target: 'b', document: { _id: 1, name: 'Ada', transformed: true } },
+            { target: 'a', document: undefined },
+            { target: 'b', document: undefined },
+        ]);
+    });
 });

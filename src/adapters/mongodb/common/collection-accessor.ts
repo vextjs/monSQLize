@@ -151,6 +151,8 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             `bookmark:${bookmarkNamespace}:*`,
             `${bookmarkNamespace}:bm:*`,
         ];
+        const aggregatePatterns = [`aggregate:${namespace}:*`];
+        const distinctPatterns = [`distinct:${namespace}:*`];
         const patterns = operation === 'find'
             ? [`find:${namespace}:*`]
             : operation === 'findOne'
@@ -159,12 +161,18 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
                     ? [`count:${namespace}:*`]
                     : operation === 'findPage'
                         ? findPagePatterns
-                        : [
-                            `find:${namespace}:*`,
-                            `findOne:${namespace}:*`,
-                            `count:${namespace}:*`,
-                            ...findPagePatterns,
-                        ];
+                        : operation === 'aggregate'
+                            ? aggregatePatterns
+                            : operation === 'distinct'
+                                ? distinctPatterns
+                                : [
+                                    `find:${namespace}:*`,
+                                    `findOne:${namespace}:*`,
+                                    `count:${namespace}:*`,
+                                    ...findPagePatterns,
+                                    ...aggregatePatterns,
+                                    ...distinctPatterns,
+                                ];
         patterns.push(...legacyNamespacePatterns);
 
 
@@ -305,7 +313,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
                 this.management.defaults?.autoConvertObjectId,
             ) as Document)
             : pipeline;
-        return createAggregateChain(this.collectionRef, normalizedPipeline, options, this.management.defaults);
+        return createAggregateChain(this.collectionRef, normalizedPipeline, options, this.management.defaults, this.management.queryCache);
     }
 
     /** Returns an array of distinct values for the given field key. */
@@ -318,7 +326,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         const rawOptions = (options ?? {}) as Record<string, unknown>;
         const {
             meta: _meta,
-            cache: _cache,
+            cache,
             explain: _explain,
             stream: _stream,
             preserveOrder: _preserveOrder,
@@ -327,18 +335,30 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             ...driverOptions
         } = rawOptions;
         void _meta;
-        void _cache;
         void _explain;
         void _stream;
         void _preserveOrder;
         void _withDeleted;
         void _onlyDeleted;
-        const result = await distinctValues(
+        const normalizedQuery = this._cvFilter(query);
+        const cacheTTL = typeof cache === 'number' ? cache : 0;
+        const executeDistinct = () => distinctValues(
             this.collectionRef,
             key,
-            this._cvFilter(query),
+            normalizedQuery,
             options === undefined ? undefined : driverOptions as Parameters<Collection<TSchema>['distinct']>[2],
         );
+        if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(driverOptions)) {
+            const cacheKey = `distinct:${this.collectionRef.namespace}:${stableCacheKeyString({ key, query: normalizedQuery ?? {} })}:${stableCacheKeyString(buildResultCacheKeyOptions(driverOptions))}`;
+            const cached = this.management.queryCache.get(cacheKey);
+            if (cached !== undefined) {
+                return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'distinct', rawOptions, startTs, cached) as never) as ReturnType<Collection<TSchema>['distinct']>;
+            }
+            const result = await executeDistinct();
+            this.management.queryCache.set(cacheKey, result, cacheTTL);
+            return wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'distinct', rawOptions, startTs, result) as never;
+        }
+        const result = await executeDistinct();
         return wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'distinct', rawOptions, startTs, result) as never;
     }
 

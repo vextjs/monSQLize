@@ -434,11 +434,13 @@ export class ChangeStreamSyncManager {
             document = this.config.transform(document, event);
         }
 
+        let eligibleTargets = 0;
         let succeeded = 0;
         for (const target of this.targets) {
             if (target.collections && !target.collections.has(event.ns.coll)) {
                 continue;
             }
+            eligibleTargets += 1;
             try {
                 await target.apply(event, document);
                 target.stats.syncCount += 1;
@@ -457,7 +459,7 @@ export class ChangeStreamSyncManager {
             }
         }
 
-        if (succeeded > 0) {
+        if (eligibleTargets > 0 && succeeded === eligibleTargets) {
             this.stats.syncedCount += 1;
             await this.tokenStore.save(event._id);
         }

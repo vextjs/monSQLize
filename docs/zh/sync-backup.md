@@ -96,6 +96,8 @@ await msq.close();
 | `filter` | Function | ❌ | - | 事件过滤函数 |
 | `transform` | Function | ❌ | - | 数据转换函数 |
 
+`transform` 是 manager 级转换钩子。每个通过过滤的 change event 只会在分发到匹配 targets 前执行一次，因此所有 target 会收到同一个转换后的 document。Delete 事件通常没有 `fullDocument`；自定义 target 应能处理 `document === undefined`，并使用 `event.documentKey` 完成删除处理。
+
 ### targets[].配置
 
 | 选项 | 类型 | 必需 | 说明 |

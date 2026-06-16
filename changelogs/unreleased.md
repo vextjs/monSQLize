@@ -1,5 +1,7 @@
 # Unreleased
 
+- Fixed model mutable defaults cloning, preserved model aggregation-pipeline updates when timestamps/versioning are enabled, restored aggregate/distinct read-through cache plus targeted invalidation, and prevented sync resume tokens from advancing when any eligible target fails.
+- Clarified hooks return-value compatibility and sync transform/delete-event boundaries in bilingual documentation, with regression coverage for the documented behavior.
 - Prepared v2.0.7 release-readiness metadata, aligned package metadata with the legacy lock/Saga positioning, routed Model v1 methods factory warnings through the runtime logger, and aligned the unit runner plus validation ledgers with the current maintained suites.
 - Fixed expression compiler precedence for mixed arithmetic/comparison expressions, preserved `$$` variables in FILTER/MAP/REDUCE, made ObjectId conversion handle shared object references consistently, routed `updateOne` update documents through `autoConvertObjectId` defaults, switched Redis lock scans to SCAN when available, and verified cursor signatures with timing-safe comparison.
 - Added ObjectId conversion escape hatches (`excludeFields`, `{ field: false }`, `maxDepth`) while preserving value-based conversion by default; added `cursorTypes`, `cursorValueNormalizer`, and `requireCursorSecret` for findPage cursor safety and type restoration.
