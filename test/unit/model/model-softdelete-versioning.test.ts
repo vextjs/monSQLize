@@ -305,6 +305,46 @@ describe('Model softDelete / versioning behavior', () => {
             assert.equal(doc.version, 0);
         });
 
+        it('updateOne automatic version lookup forwards session to the pre-read', async () => {
+            const model = runtime.model('ver_items');
+            const result = await model.insertOne({ name: 'session-lookup' });
+            const session = runtime._client.startSession();
+            const originalFindOne = model.collection.findOne.bind(model.collection);
+            const originalUpdateOne = model.collection.updateOne.bind(model.collection);
+            let lookupOptions: any = null;
+            let writeOptions: any = null;
+
+            model.collection.findOne = async (query: any, options: any) => {
+                if (String(query?._id) === String(result.insertedId)) {
+                    lookupOptions = options;
+                }
+                return originalFindOne(query, options);
+            };
+            model.collection.updateOne = async (filter: any, update: any, options: any) => {
+                if (String(filter?._id) === String(result.insertedId)) {
+                    writeOptions = options;
+                }
+                return originalUpdateOne(filter, update, options);
+            };
+
+            try {
+                await model.updateOne(
+                    { _id: result.insertedId },
+                    { $set: { x: 10 } },
+                    { session, comment: 'occ-session-lookup' },
+                );
+            } finally {
+                model.collection.findOne = originalFindOne;
+                model.collection.updateOne = originalUpdateOne;
+                await session.endSession();
+            }
+
+            assert.equal(lookupOptions?.session, session);
+            assert.equal(lookupOptions?.comment, 'occ-session-lookup');
+            assert.deepEqual(lookupOptions?.projection, { version: 1 });
+            assert.equal(writeOptions?.session, session);
+        });
+
         it('updateOne without version or direct _id rejects unsafe automatic lookup', async () => {
             const model = runtime.model('ver_items');
             await model.insertOne({ name: 'unsafe-filter' });
@@ -378,6 +418,40 @@ describe('Model softDelete / versioning behavior', () => {
             assert.equal((result as any).conflictedIds.length, 1);
             const docs = await model.find({ group: 'strict' });
             assert.deepEqual(docs.map((doc: any) => doc.version).sort(), [1, 1]);
+        });
+
+        it('updateMany strict mode forwards session to the version pre-read', async () => {
+            const model = runtime.model('ver_items');
+            await model.insertMany([
+                { group: 'strict-session', n: 1 },
+                { group: 'strict-session', n: 2 },
+            ]);
+            const session = runtime._client.startSession();
+            const originalFind = model.collection.find.bind(model.collection);
+            let lookupOptions: any = null;
+
+            model.collection.find = async (filter: any, options: any) => {
+                if (filter?.group === 'strict-session') {
+                    lookupOptions = options;
+                }
+                return originalFind(filter, options);
+            };
+
+            try {
+                const result = await model.updateMany(
+                    { group: 'strict-session' },
+                    { $set: { x: 1 } },
+                    { versionMode: 'strict', session, comment: 'strict-session-lookup' },
+                );
+                assert.equal(result.matchedCount, 2);
+            } finally {
+                model.collection.find = originalFind;
+                await session.endSession();
+            }
+
+            assert.equal(lookupOptions?.session, session);
+            assert.equal(lookupOptions?.comment, 'strict-session-lookup');
+            assert.deepEqual(lookupOptions?.projection, { _id: 1, version: 1 });
         });
 
         it('updateOne preserves pipeline updates while advancing version', async () => {

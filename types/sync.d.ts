@@ -47,6 +47,8 @@ export interface ResumeTokenConfig {
     path?: string;
     redis?: ResumeTokenRedisLike;
     key?: string;
+    /** Throw when a stored resume token cannot be loaded or parsed. Defaults to strictSave. */
+    strictLoad?: boolean;
     /** Throw when resume-token persistence fails. Defaults to true for reliable CDC. */
     strictSave?: boolean;
     /** Number of retry attempts after a failed token save. Defaults to 0. */
@@ -76,6 +78,7 @@ export interface SyncStats {
     errorCount: number;
     startTime: Date | null;
     lastEventTime: Date | null;
+    lastError: Error | null;
     tokenSaveErrorCount: number;
     lastTokenSaveError: Error | null;
     targets: Array<{

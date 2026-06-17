@@ -1,6 +1,7 @@
 # Unreleased
 
 - Added automatic optimistic locking for versioned Model single-document writes, including automatic direct-`_id` version lookup, explicit `expectedVersion` overrides, versioned `save()` replacement guards, and configurable `updateMany` version modes.
+- Forwarded transaction/read options such as `session` into automatic model OCC version pre-reads, hardened file-backed Change Stream resume tokens with atomic replacement plus strict load validation, and made unexpected Change Stream closes visible through `isRunning: false` / `lastError`.
 - Awaited async query-cache reads/writes so Redis/MultiLevel cache backends no longer make first cached reads resolve to `undefined`, and made Change Stream resume-token saves strict by default with retry knobs plus explicit `strictSave: false` legacy mode.
 - Fixed `findPage` cursor anchors for nested dot-path sort fields, accepted `project` as a query projection alias across read helpers, and documented process-level Model registration plus ObjectId `maxDepth` conversion boundaries.
 - Fixed `incrementOne` driver-option forwarding, closed runtime-owned Redis cache adapters on `runtime.close()`, made SSH tunnels fail fast for multi-host/SRV MongoDB URIs and post-ready disconnects, enforced slow-query batch `maxBufferSize` during in-flight flushes, wired prewarmed `findPage` bookmarks into page-jump reads, and reduced redundant rebuilds in the memory-server validation matrix.

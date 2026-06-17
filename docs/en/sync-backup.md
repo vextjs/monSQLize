@@ -120,11 +120,12 @@ await msq.close();
 | `storage` | string | ❌ | `'file'` | Storage type: `'file'` or `'redis'` |
 | `path` | string | ❌ | `./.sync-resume-token` | File path (file mode) |
 | `redis` | Object | ❌ | - | Redis instance (Redis mode) |
+| `strictLoad` | boolean | ❌ | same as `strictSave` | Treat unreadable or corrupted stored tokens as fatal instead of starting from no token |
 | `strictSave` | boolean | ❌ | `true` | Treat token save failures as fatal so CDC never advances without a persisted token |
 | `saveRetries` | number | ❌ | `0` | Retry attempts before a strict token save fails |
 | `saveRetryDelayMs` | number | ❌ | `100` | Delay between token-save retries |
 
-Resume token persistence is strict by default. After all eligible targets apply an event successfully, monSQLize saves the event resume token; `syncedCount` advances only after that save succeeds. If token persistence fails after the configured retries, the manager records `tokenSaveErrorCount` / `lastTokenSaveError`, closes the live stream, marks `isRunning: false`, and does not process later queued events. Set `strictSave: false` only for legacy best-effort behavior, where a restart may replay already-applied events. Built-in MongoDB targets are idempotent (`replaceOne(..., { upsert: true })` / `deleteOne()`); custom `apply` targets should still deduplicate by change event `_id`.
+Resume token persistence is strict by default. File storage writes to a same-directory temporary file, fsyncs it, keeps the previous token as `<path>.bak`, and then atomically renames the temporary file into place. Startup also validates the stored token: a corrupted token fails fast when `strictLoad` is true, instead of silently starting without a resume token. After all eligible targets apply an event successfully, monSQLize saves the event resume token; `syncedCount` advances only after that save succeeds. If token persistence fails after the configured retries, the manager records `tokenSaveErrorCount` / `lastTokenSaveError`, closes the live stream, marks `isRunning: false`, and does not process later queued events. Set `strictSave: false` and `strictLoad: false` only for legacy best-effort behavior, where a restart may replay already-applied events or start without the previously stored token. Built-in MongoDB targets are idempotent (`replaceOne(..., { upsert: true })` / `deleteOne()`); custom `apply` targets should still deduplicate by change event `_id`.
 
 ---
 
@@ -241,6 +242,9 @@ console.log(stats);
 //   errorCount: 4,
 //   startTime: 2026-01-17T...,
 //   lastEventTime: 2026-01-17T...,
+//   lastError: null,
+//   tokenSaveErrorCount: 0,
+//   lastTokenSaveError: null,
 //   targets: [...]
 // }
 ```
@@ -303,13 +307,14 @@ rs.initiate()
 **Automatic processing**:
 - Failure of a single target does not affect other targets
 - A resume-token save failure stops the sync manager before the token can advance
-- Change Stream driver errors are logged and reflected in stats; monitor `isRunning` / `errorCount` and restart the manager or runtime from your supervisor when needed
+- Change Stream driver errors and unexpected stream closes are logged and reflected in stats; monitor `isRunning`, `errorCount`, and `lastError`, then restart the manager or runtime from your supervisor when needed
 
 **Manual processing**:
 ```javascript
 // View error statistics
 const stats = msq.getSyncStats();
 console.log(stats.errorCount);
+console.log(stats.lastError);
 console.log(stats.targets[0].lastError);
 ```
 

@@ -13,9 +13,12 @@ npm run release:preflight
 1. 检查 `package-lock.json` 是否与当前 `package.json` 版本一致，且不包含 `file:` / `workspace:` / sibling 本地路径残留。
 2. 检查当前 `package.json` 版本对应的 changelog 文件是否存在。
 3. 检查工程治理必需文档是否存在：
-   - `docs/support-matrix.md`
-   - `docs/file-dependency-governance.md`
-   - `docs/verification-entrypoints.md`
+   - `docs/en/support-matrix.md`
+   - `docs/en/file-dependency-governance.md`
+   - `docs/en/verification-entrypoints.md`
+   - `docs/zh/support-matrix.md`
+   - `docs/zh/file-dependency-governance.md`
+   - `docs/zh/verification-entrypoints.md`
 4. 运行 `npm run verify:fast`
 5. 运行 `npm test`
 6. 运行 `npm pack --dry-run`

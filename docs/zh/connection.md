@@ -746,6 +746,7 @@ const msq = new MonSQLize({
     resumeToken: {
       storage: 'file',                // 'file' | 'redis'【默认: 'file'】
       path: './.sync-resume-token',   // 文件模式 token 路径
+      strictLoad: true,               // token 损坏或不可读时停止启动【默认: 同 strictSave】
       strictSave: true                // token 保存失败时停止同步【默认: true】
     }
   },
@@ -830,6 +831,7 @@ const msq = new MonSQLize({
 | `slowQueryLog` | object | - | 慢查询日志持久化 |
 | `models` | object | - | Model 自动加载 |
 | `sync` | object | - | Change Stream 同步 |
+| `sync.resumeToken.strictLoad` | boolean | 同 `strictSave` | 为 true 时，已保存 token 损坏或不可读会阻止 Change Stream 启动，而不是按无 token 启动 |
 | `sync.resumeToken.strictSave` | boolean | `true` | 为 true 时，token 保存失败会在 resume token 推进前停止 Change Stream 同步 |
 | `sync.resumeToken.saveRetries` | number | `0` | strict token save 失败前的重试次数 |
 | `sync.resumeToken.saveRetryDelayMs` | number | `100` | token 保存重试间隔（毫秒） |

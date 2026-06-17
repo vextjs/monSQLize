@@ -54,6 +54,19 @@ type VersionLookupCollection = {
     findOne(query?: unknown, options?: unknown): Promise<unknown>;
 };
 
+const VERSION_LOOKUP_OPTION_KEYS = [
+    'session',
+    'readConcern',
+    'readPreference',
+    'maxTimeMS',
+    'collation',
+    'hint',
+    'comment',
+    'let',
+    'timeoutMS',
+    'signal',
+] as const;
+
 function isOperatorObject(value: unknown): boolean {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
         return false;
@@ -77,6 +90,25 @@ function stripModelVersionOptions(options: unknown): unknown {
     void _version;
     void _versionMode;
     return driverOptions;
+}
+
+export function buildModelVersionLookupOptions(
+    options: unknown,
+    projection: Record<string, unknown>,
+): Record<string, unknown> {
+    const rawOptions = stripModelVersionOptions(options) as Record<string, unknown> | undefined;
+    const lookupOptions: Record<string, unknown> = {};
+    if (rawOptions) {
+        for (const key of VERSION_LOOKUP_OPTION_KEYS) {
+            if (rawOptions[key] !== undefined) {
+                lookupOptions[key] = rawOptions[key];
+            }
+        }
+    }
+    return {
+        ...lookupOptions,
+        projection,
+    };
 }
 
 export function assertNumericExpectedVersion(expectedVersion: unknown, operation = 'write'): number {
@@ -316,7 +348,7 @@ export async function resolveModelOptimisticLockAsync(
         }
         const current = await collection.findOne(
             { _id: id },
-            { projection: { [versionConfig.field]: 1 } },
+            buildModelVersionLookupOptions(options, { [versionConfig.field]: 1 }),
         ) as Record<string, unknown> | null | undefined;
         if (!current) {
             throw createError(ErrorCodes.WRITE_CONFLICT, 'Model optimistic lock conflict.');

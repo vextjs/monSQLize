@@ -20,6 +20,7 @@ const config: SyncConfig = {
     collections: ['users'],
     resumeToken: {
         storage: 'file',
+        strictLoad: true,
         strictSave: true,
         saveRetries: 1,
         saveRetryDelayMs: 10,

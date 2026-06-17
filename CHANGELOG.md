@@ -1,6 +1,6 @@
 # CHANGELOG
 
-> Summary index — current release details are packaged in [changelogs/v2.0.7.md](./changelogs/v2.0.7.md); historical details live in the repository changelog archive.
+> Summary index — current v2.0.7 release-candidate details are packaged in [changelogs/v2.0.7.md](./changelogs/v2.0.7.md); historical details live in the repository changelog archive.
 > **Last updated**: 2026-06-17
 
 ---
@@ -9,7 +9,7 @@
 
 | Version | Date | Summary | Details |
 |---------|------|---------|---------|
-| [v2.0.7](./changelogs/v2.0.7.md) | 2026-06-16 | Patch: release-readiness alignment plus core correctness fixes for model OCC, transaction cache invalidation, sync ordering, soft-delete reads, driver option forwarding, distributed invalidation, query bounds, and aggregate write-cache invalidation | [View](./changelogs/v2.0.7.md) |
+| [v2.0.7](./changelogs/v2.0.7.md) | 2026-06-16 | Patch candidate: release-readiness alignment plus core correctness fixes for model OCC, transaction cache invalidation, sync ordering, soft-delete reads, driver option forwarding, distributed invalidation, query bounds, and aggregate write-cache invalidation | [View](./changelogs/v2.0.7.md) |
 | [v2.0.6](./changelogs/v2.0.6.md) | 2026-06-15 | Patch: dependency alignment to `schema-dsl@2.0.11` so downstream frameworks inherit the ESM/CJS shared custom type registry fix | [View](./changelogs/v2.0.6.md) |
 | [v2.0.5](./changelogs/v2.0.5.md) | 2026-06-13 | Patch: Model schema adapter delegates DSL type authority to `schema-dsl@2.0.10`, removing the duplicated monSQLize allowlist while preserving legacy aliases and business literals | [View](./changelogs/v2.0.5.md) |
 | [v2.0.4](./changelogs/v2.0.4.md) | 2026-06-12 | Patch: production-safe Model index rollout controls, `schema-dsl@2.0.9`, capability-index wording cleanup, and documentation home refinements | [View](./changelogs/v2.0.4.md) |

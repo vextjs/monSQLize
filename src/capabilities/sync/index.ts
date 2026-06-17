@@ -6,7 +6,7 @@
  * - Public and shared types are managed by `types/sync.d.ts`; only runtime implementation and internal helper types are kept here.
  */
 
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { ChangeStream, Db, Document, MongoClient, MongoClientOptions } from 'mongodb';
 import { MongoClient as MongoDriverClient } from 'mongodb';
@@ -73,6 +73,19 @@ function delay(ms: number): Promise<void> {
     });
 }
 
+async function syncDirectory(directory: string): Promise<void> {
+    try {
+        const handle = await open(directory, 'r');
+        try {
+            await handle.sync();
+        } finally {
+            await handle.close();
+        }
+    } catch {
+        // Directory fsync is best-effort and unsupported on some platforms.
+    }
+}
+
 /**
  * Validates a single sync target configuration entry.
  * @param target - Target config to validate.
@@ -133,6 +146,9 @@ export function validateResumeTokenConfig(config: ResumeTokenConfig | null | und
     if (config.strictSave !== undefined && typeof config.strictSave !== 'boolean') {
         throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.strictSave must be a boolean.');
     }
+    if (config.strictLoad !== undefined && typeof config.strictLoad !== 'boolean') {
+        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.strictLoad must be a boolean.');
+    }
     if (config.saveRetries !== undefined && (!Number.isInteger(config.saveRetries) || config.saveRetries < 0)) {
         throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.saveRetries must be a non-negative integer.');
     }
@@ -190,6 +206,7 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
     private readonly redis?: ResumeTokenRedisLike;
     private readonly redisKey: string;
     private readonly logger: LoggerLike | null;
+    private readonly strictLoad: boolean;
     private readonly strictSave: boolean;
     private readonly saveRetries: number;
     private readonly saveRetryDelayMs: number;
@@ -201,6 +218,7 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
         this.redisKey = options.key ?? 'monsqlize:sync:resume-token';
         this.logger = options.logger ?? null;
         this.strictSave = options.strictSave ?? true;
+        this.strictLoad = options.strictLoad ?? this.strictSave;
         this.saveRetries = options.saveRetries ?? 0;
         this.saveRetryDelayMs = options.saveRetryDelayMs ?? 100;
         validateResumeTokenConfig(options);
@@ -218,6 +236,14 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
             const code = (error as NodeJS.ErrnoException)?.code;
             if (code !== 'ENOENT') {
                 this.logger?.warn?.('[Sync] failed to load resume token', error);
+            }
+            if (code !== 'ENOENT' && this.strictLoad) {
+                throw createError(
+                    ErrorCodes.DATABASE_ERROR,
+                    '[Sync] failed to load resume token',
+                    undefined,
+                    normalizeError(error),
+                );
             }
             return null;
         }
@@ -260,8 +286,37 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
             await Promise.resolve(this.redis.set(this.redisKey, payload));
             return;
         }
-        await mkdir(path.dirname(this.path), { recursive: true });
-        await writeFile(this.path, payload, 'utf8');
+        const directory = path.dirname(this.path);
+        const basename = path.basename(this.path);
+        const tempPath = path.join(directory, `.${basename}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`);
+
+        await mkdir(directory, { recursive: true });
+        try {
+            const handle = await open(tempPath, 'w');
+            try {
+                await handle.writeFile(payload, 'utf8');
+                await handle.sync();
+            } finally {
+                await handle.close();
+            }
+            await this.backupCurrentFile();
+            await rename(tempPath, this.path);
+            await syncDirectory(directory);
+        } catch (error) {
+            await unlink(tempPath).catch(() => undefined);
+            throw error;
+        }
+    }
+
+    private async backupCurrentFile(): Promise<void> {
+        try {
+            await copyFile(this.path, `${this.path}.bak`);
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException)?.code;
+            if (code !== 'ENOENT') {
+                throw error;
+            }
+        }
     }
 
     async clear(): Promise<void> {
@@ -303,6 +358,7 @@ export class ChangeStreamSyncManager {
         errorCount: 0,
         startTime: null as Date | null,
         lastEventTime: null as Date | null,
+        lastError: null as Error | null,
         tokenSaveErrorCount: 0,
         lastTokenSaveError: null as Error | null,
     };
@@ -346,11 +402,22 @@ export class ChangeStreamSyncManager {
             this.enqueueChange(event as SyncChangeEvent<Document>);
         });
         stream.on('error', (error) => {
+            const normalized = normalizeError(error);
             this.stats.errorCount += 1;
-            this.logger?.error?.('[Sync] change stream error', error);
+            this.stats.lastError = normalized;
+            this.logger?.error?.('[Sync] change stream error', normalized);
         });
         stream.on('close', () => {
-            this.logger?.warn?.('[Sync] change stream closed');
+            if (!this.running || this.changeStream !== stream) {
+                this.logger?.debug?.('[Sync] change stream closed');
+                return;
+            }
+            const error = createError(ErrorCodes.CONNECTION_CLOSED, '[Sync] change stream closed unexpectedly');
+            this.running = false;
+            this.changeStream = null;
+            this.stats.errorCount += 1;
+            this.stats.lastError = error;
+            this.logger?.warn?.('[Sync] change stream closed unexpectedly', error);
         });
 
         this.changeStream = stream;
@@ -387,6 +454,7 @@ export class ChangeStreamSyncManager {
             errorCount: this.stats.errorCount,
             startTime: this.stats.startTime,
             lastEventTime: this.stats.lastEventTime,
+            lastError: this.stats.lastError,
             tokenSaveErrorCount: this.stats.tokenSaveErrorCount,
             lastTokenSaveError: this.stats.lastTokenSaveError,
             targets: this.targets.map((target) => ({
@@ -518,6 +586,7 @@ export class ChangeStreamSyncManager {
                 target.stats.errorCount += 1;
                 target.stats.lastError = normalized;
                 this.stats.errorCount += 1;
+                this.stats.lastError = normalized;
                 this.logger?.error?.('[Sync] target apply failed', {
                     target: target.name,
                     error: normalized,
@@ -532,6 +601,7 @@ export class ChangeStreamSyncManager {
                 const normalized = normalizeError(error);
                 this.stats.tokenSaveErrorCount += 1;
                 this.stats.lastTokenSaveError = normalized;
+                this.stats.lastError = normalized;
                 this.stopAfterFatalSyncError(normalized);
                 throw normalized;
             }
@@ -555,8 +625,10 @@ export class ChangeStreamSyncManager {
         this.changeQueue = this.changeQueue
             .then(() => this.handleChange(event))
             .catch((error) => {
+                const normalized = normalizeError(error);
                 this.stats.errorCount += 1;
-                this.logger?.error?.('[Sync] change handling failed', error);
+                this.stats.lastError = normalized;
+                this.logger?.error?.('[Sync] change handling failed', normalized);
             });
     }
 }

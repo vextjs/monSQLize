@@ -782,6 +782,7 @@ const msq = new MonSQLize({
       // Resume Token configuration.
       storage: 'file',
       path: './.sync-resume-token',
+      strictLoad: true,
       strictSave: true
     }
   }
@@ -837,6 +838,7 @@ const msq = new MonSQLize({
 | `slowQueryLog` | object | - | Persistent slow-query log storage. |
 | `models` | object | - | Model auto-loading configuration. |
 | `sync` | object | - | Change Stream synchronization. |
+| `sync.resumeToken.strictLoad` | boolean | same as `strictSave` | When true, unreadable or corrupted stored tokens stop Change Stream startup instead of starting from no token. |
 | `sync.resumeToken.strictSave` | boolean | `true` | When true, token save failures stop Change Stream sync before the resume token can advance. |
 | `sync.resumeToken.saveRetries` | number | `0` | Retry attempts before a strict token save fails. |
 | `sync.resumeToken.saveRetryDelayMs` | number | `100` | Delay between token-save retries. |

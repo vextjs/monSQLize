@@ -1236,7 +1236,9 @@ describe('coverage core helpers', () => {
         listeners['close']?.();
         const stats = manager.getStats();
         assert.equal(stats.eventCount, 1);
-        assert.equal(stats.errorCount, 2);
+        assert.equal(stats.errorCount, 3);
+        assert.equal(stats.isRunning, false);
+        assert.match(stats.lastError?.message ?? '', /closed unexpectedly/);
         assert.equal(stats.targets.length, 3);
         assert.deepEqual(applied, [{
             event: { _id: { t: 1 }, operationType: 'insert', ns: { coll: 'items' }, fullDocument: { _id: 1 } },
@@ -1268,6 +1270,7 @@ describe('coverage core helpers', () => {
         const fileStore = new ResumeTokenStore({
             storage: 'file',
             path: tokenPath,
+            strictLoad: false,
             logger: { warn: (...args: unknown[]) => warnings.push(args), error: () => undefined },
         });
         await fileStore.save({ token: 2 });

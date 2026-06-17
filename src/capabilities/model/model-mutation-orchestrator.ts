@@ -20,6 +20,7 @@ import {
     assertModelOptimisticLockDocument,
     assertModelOptimisticLockMatched,
     assertNumericExpectedVersion,
+    buildModelVersionLookupOptions,
     resolveModelOptimisticLockAsync,
     resolveModelUpdateManyVersionMode,
     type ModelSchemaValidateFn,
@@ -109,10 +110,10 @@ async function runStrictUpdateMany<TDocument>(
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'versionMode "strict" does not support upsert.');
     }
     const docs = await context.collection.find(filter, {
-        projection: {
+        ...buildModelVersionLookupOptions(rawOptions, {
             _id: 1,
             [context.versionConfig.field]: 1,
-        },
+        }),
     }) as Array<Record<string, unknown>>;
     let matchedCount = 0;
     let modifiedCount = 0;

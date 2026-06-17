@@ -126,9 +126,10 @@ describe('validateResumeTokenConfig — edge cases', () => {
 
     it('strict save options validate', () => {
         assert.throws(() => validateResumeTokenConfig({ strictSave: 'yes' } as any), /strictSave/);
+        assert.throws(() => validateResumeTokenConfig({ strictLoad: 'yes' } as any), /strictLoad/);
         assert.throws(() => validateResumeTokenConfig({ saveRetries: -1 } as any), /saveRetries/);
         assert.throws(() => validateResumeTokenConfig({ saveRetryDelayMs: 1.5 } as any), /saveRetryDelayMs/);
-        assert.doesNotThrow(() => validateResumeTokenConfig({ strictSave: false, saveRetries: 1, saveRetryDelayMs: 0 }));
+        assert.doesNotThrow(() => validateResumeTokenConfig({ strictSave: false, strictLoad: false, saveRetries: 1, saveRetryDelayMs: 0 }));
     });
 });
 

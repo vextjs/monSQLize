@@ -34,6 +34,34 @@ describe('P4-C sync', () => {
         await fs.rm(tokenPath, { force: true });
     });
 
+    it('keeps a backup and rejects corrupted file tokens in strict mode', async () => {
+        const tokenPath = path.join(os.tmpdir(), `monsqlize-sync-atomic-${Date.now()}.json`);
+        const store = new MonSQLize.ResumeTokenStore({
+            storage: 'file',
+            path: tokenPath,
+            logger: { warn: () => undefined, error: () => undefined },
+        });
+
+        await store.save({ token: 1 });
+        await store.save({ token: 2 });
+        assert.deepEqual(await store.load(), { token: 2 });
+        assert.deepEqual(JSON.parse(await fs.readFile(`${tokenPath}.bak`, 'utf8')), { token: 1 });
+
+        await fs.writeFile(tokenPath, '{ invalid json', 'utf8');
+        await assert.rejects(() => store.load(), /failed to load resume token/i);
+
+        const legacyStore = new MonSQLize.ResumeTokenStore({
+            storage: 'file',
+            path: tokenPath,
+            strictLoad: false,
+            logger: { warn: () => undefined, error: () => undefined },
+        });
+        assert.equal(await legacyStore.load(), null);
+
+        await fs.rm(tokenPath, { force: true });
+        await fs.rm(`${tokenPath}.bak`, { force: true });
+    });
+
     it('supports minimal Change Stream manager start, event handling, and stats', async () => {
         let watchCount = 0;
         const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };
@@ -103,6 +131,54 @@ describe('P4-C sync', () => {
 
         await manager.stop();
         assert.equal(manager.getStats().isRunning, false);
+    });
+
+    it('marks the manager stopped when the live change stream closes unexpectedly', async () => {
+        let watchCount = 0;
+        const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };
+        liveStream.close = () => Promise.resolve(true);
+
+        const db = {
+            databaseName: 'source_db',
+            watch() {
+                watchCount += 1;
+                if (watchCount === 1) {
+                    return {
+                        close: () => Promise.resolve(true),
+                    };
+                }
+                return liveStream;
+            },
+        };
+
+        const manager = new MonSQLize.ChangeStreamSyncManager({
+            db,
+            config: {
+                enabled: true,
+                targets: [
+                    {
+                        name: 'backup-users',
+                        apply: () => Promise.resolve(),
+                    },
+                ],
+            },
+            tokenStore: {
+                load: () => Promise.resolve(null),
+                save: () => Promise.resolve(),
+                clear: () => Promise.resolve(),
+            },
+            logger: { warn: () => undefined, error: () => undefined, info: () => undefined, debug: () => undefined },
+        });
+
+        await manager.start();
+        liveStream.emit('close');
+
+        const stats = manager.getStats();
+        assert.equal(stats.isRunning, false);
+        assert.equal(stats.errorCount, 1);
+        assert.match(stats.lastError?.message ?? '', /closed unexpectedly/i);
+
+        await manager.stop();
     });
 
     it('processes change events serially before saving resume tokens', async () => {

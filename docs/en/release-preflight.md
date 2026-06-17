@@ -13,9 +13,12 @@ You can also manually trigger the **Release Preflight** workflow through GitHub 
 1. Check whether `package-lock.json` is consistent with the current `package.json` version and does not contain `file:` / `workspace:` / sibling local path residue.
 2. Check whether the changelog file corresponding to the current `package.json` version exists.
 3. Check whether the necessary documents for project management exist:
-   - `docs/support-matrix.md`
-   - `docs/file-dependency-governance.md`
-   - `docs/verification-entrypoints.md`
+   - `docs/en/support-matrix.md`
+   - `docs/en/file-dependency-governance.md`
+   - `docs/en/verification-entrypoints.md`
+   - `docs/zh/support-matrix.md`
+   - `docs/zh/file-dependency-governance.md`
+   - `docs/zh/verification-entrypoints.md`
 4. Run `npm run verify:fast`
 5. Run `npm test`
 6. Run `npm pack --dry-run`
