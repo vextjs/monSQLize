@@ -123,7 +123,7 @@ await msq.connect();
 const { collection } = msq;
 
 // Query operations automatically read from the primary node
-const users = await collection('users').find({ query: {} });
+const users = await collection('users').find({});
 console.log(`✅ Read ${users.length} documents from the primary node`);
 
 await msq.close();
@@ -150,9 +150,7 @@ await msq.connect();
 const { collection } = msq;
 
 // Queries read from secondary nodes first (reduces load on the primary)
-const products = await collection('products').find({
-    query: { category: 'electronics' }
-});
+const products = await collection('products').find({ category: 'electronics' });
 console.log(`✅ Read ${products.length} products from secondary nodes`);
 
 // NOTE: secondary nodes may have replication lag
@@ -213,9 +211,7 @@ await msq.connect();
 const { collection } = msq;
 
 // Applicable scenario: strong consistency with a fallback when the primary is unavailable
-const orders = await collection('orders').find({
-    query: { status: 'pending' }
-});
+const orders = await collection('orders').find({ status: 'pending' });
 console.log(`✅ Read ${orders.length} orders from the primary node first`);
 console.log('✅ If the primary is unavailable, reads can fall back to a secondary');
 
@@ -243,10 +239,10 @@ await msq.connect();
 const { collection } = msq;
 
 // Applicable scenario: global deployments where nearby reads reduce latency
-const articles = await collection('articles').find({
-    query: { published: true },
-    limit: 10
-});
+const articles = await collection('articles').find(
+    { published: true },
+    { limit: 10 }
+);
 console.log(`✅ Read ${articles.length} articles from the node with the lowest latency`);
 console.log('✅ Suitable for global distributed deployment scenarios');
 
@@ -277,12 +273,14 @@ await msq.connect();
 const { collection } = msq;
 
 // readPreference is compatible with other options (hint, collation, comment)
-const results = await collection('products').find({
-    query: { price: { $gt: 100 } },
-    hint: { category: 1, price: 1 },  // Index hint
-    comment: 'expensive-products-query',  // Query comment
-    maxTimeMS: 2000  // Per-query timeout
-});
+const results = await collection('products').find(
+    { price: { $gt: 100 } },
+    {
+        hint: { category: 1, price: 1 },  // Index hint
+        comment: 'expensive-products-query',  // Query comment
+        maxTimeMS: 2000  // Per-query timeout
+    }
+);
 console.log(`✅ Query with multiple options returned ${results.length} results`);
 
 await msq.close();
@@ -330,7 +328,7 @@ await msq.close();
    await collection('users').insertOne({ name: 'Alice' });  // Write to primary
 
    // The newly written data may not be visible yet because of replication lag
-   const users = await collection('users').find({ query: { name: 'Alice' } });
+   const users = await collection('users').find({ name: 'Alice' });
 
    // Solution: use 'primary' for read-after-write or wait for replication to complete
    ```

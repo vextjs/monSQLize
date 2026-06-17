@@ -486,12 +486,14 @@ const { collection } = await msq.connect();
 const defaults = msq.getDefaults();
 
 // 查询时未指定参数，使用默认值
-const products = await collection('products').find({
-  query: { status: 'active' }
-  // limit: 使用 defaults.limit (50)
-  // cache: 使用 defaults.cache (10000)
-  // maxTimeMS: 使用 defaults.maxTimeMS (5000)
-});
+const products = await collection('products').find(
+  { status: 'active' },
+  {
+    // limit: 使用 defaults.limit (50)
+    // cache: 使用 defaults.cache (10000)
+    // maxTimeMS: 使用 defaults.maxTimeMS (5000)
+  }
+);
 
 console.log(`查询结果: ${products.length} 个文档`);
 console.log(`应用的默认限制: ${defaults.limit}`);
@@ -630,10 +632,10 @@ const { collection } = await msq.connect();
 const namespace = collection('products').getNamespace();
 console.log(`[${new Date().toISOString()}] 查询集合: ${namespace}`);
 
-const result = await collection('products').find({
-  query: { status: 'active' },
-  limit: 10
-});
+const result = await collection('products').find(
+  { status: 'active' },
+  { limit: 10 }
+);
 
 console.log(`[${new Date().toISOString()}] 查询完成: ${namespace}, 结果: ${result.length} 个文档`);
 
@@ -821,10 +823,10 @@ function logWithNamespace(collectionName, level, message, data) {
 // 使用示例
 logWithNamespace('products', 'INFO', '开始查询', { query: { status: 'active' } });
 
-const result = await collection('products').find({
-  query: { status: 'active' },
-  limit: 10
-});
+const result = await collection('products').find(
+  { status: 'active' },
+  { limit: 10 }
+);
 
 logWithNamespace('products', 'INFO', '查询完成', { count: result.length });
 
@@ -849,20 +851,24 @@ if (cache) {
     console.log('开始缓存预热...');
     
     // 预热热门产品
-    const hotProducts = await collection('products').find({
-      query: { featured: true },
-      limit: 100,
-      cache: 3600000  // 1小时
-    });
+    const hotProducts = await collection('products').find(
+      { featured: true },
+      {
+        limit: 100,
+        cache: 3600000  // 1小时
+      }
+    );
     
     console.log(`✅ 已预热 ${hotProducts.length} 个热门产品`);
     
     // 预热用户配置
-    const userConfigs = await collection('configs').find({
-      query: { type: 'user' },
-      limit: 50,
-      cache: 7200000  // 2小时
-    });
+    const userConfigs = await collection('configs').find(
+      { type: 'user' },
+      {
+        limit: 50,
+        cache: 7200000  // 2小时
+      }
+    );
     
     console.log(`✅ 已预热 ${userConfigs.length} 个用户配置`);
     
@@ -919,11 +925,13 @@ console.log(cacheEnabled);  // MultiLevelCache 实例
 const { collection } = await msq.connect();
 
 // 查询会自动生成缓存键
-const result = await collection('products').find({
-  query: { status: 'active' },
-  limit: 10,
-  cache: 5000
-});
+const result = await collection('products').find(
+  { status: 'active' },
+  {
+    limit: 10,
+    cache: 5000
+  }
+);
 
 // 缓存键示例: "shop.products:hash({"status":"active"},10,{})"
 // 包含: 命名空间 + 查询参数哈希
@@ -967,10 +975,10 @@ console.log('默认 limit:', defaults.limit);  // 20
 // defaults.limit = 50;  // 无效
 
 // ✅ 在查询时覆盖默认值
-const result = await collection('products').find({
-  query: {},
-  limit: 50  // 覆盖默认的 20
-});
+const result = await collection('products').find(
+  {},
+  { limit: 50 }  // 覆盖默认的 20
+);
 ```
 
 如果需要修改全局默认值，应该重新创建 MonSQLize 实例。

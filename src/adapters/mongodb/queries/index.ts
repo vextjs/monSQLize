@@ -276,7 +276,7 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
         return this.collection.find(this.normalizedQuery, buildFindDriverOptions<TSchema>(this.buildExecuteOptions())).toArray() as Promise<TSchema[]>;
     }
 
-    private executeResult(): Promise<TSchema[] | ResultWithMeta<TSchema[]>> {
+    private async executeResult(): Promise<TSchema[] | ResultWithMeta<TSchema[]>> {
         const startTs = Date.now();
 
         // v1 compat: explain option routes to .explain() instead of toArray()
@@ -290,15 +290,14 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
         const executeOptions = this.buildExecuteOptions();
         if (cacheTTL > 0 && this.queryCache && !hasSessionOption(executeOptions)) {
             const cacheKey = this.buildCacheKey();
-            const cached = this.queryCache.get(cacheKey);
+            const cached = await Promise.resolve(this.queryCache.get(cacheKey));
             if (cached !== undefined) {
-                return Promise.resolve(this.wrapResult('find', startTs, cached as TSchema[]) as TSchema[] | ResultWithMeta<TSchema[]>);
+                return this.wrapResult('find', startTs, cached as TSchema[]) as TSchema[] | ResultWithMeta<TSchema[]>;
             }
             const qc = this.queryCache;
-            return this.toArray().then((result) => {
-                void qc.set(cacheKey, result, cacheTTL);
-                return this.wrapResult('find', startTs, result) as TSchema[] | ResultWithMeta<TSchema[]>;
-            });
+            const result = await this.toArray();
+            await Promise.resolve(qc.set(cacheKey, result, cacheTTL));
+            return this.wrapResult('find', startTs, result) as TSchema[] | ResultWithMeta<TSchema[]>;
         }
 
         return this.toArray().then((result) => this.wrapResult('find', startTs, result) as TSchema[] | ResultWithMeta<TSchema[]>);
@@ -411,7 +410,7 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
             });
     }
 
-    private executeResult(): Promise<TResult[] | ResultWithMeta<TResult[]> | NodeJS.ReadableStream> {
+    private async executeResult(): Promise<TResult[] | ResultWithMeta<TResult[]> | NodeJS.ReadableStream> {
         const startTs = Date.now();
 
         // v1 compat: explain option routes to .explain() instead of toArray()
@@ -427,15 +426,14 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
         const executeOptions = this.buildExecuteOptions();
         if (cacheTTL > 0 && this.queryCache && !hasSessionOption(executeOptions) && !this.writePipelineHooks?.onWriteComplete) {
             const cacheKey = this.buildCacheKey();
-            const cached = this.queryCache.get(cacheKey);
+            const cached = await Promise.resolve(this.queryCache.get(cacheKey));
             if (cached !== undefined) {
-                return Promise.resolve(this.wrapResult('aggregate', startTs, cached as TResult[]) as TResult[] | ResultWithMeta<TResult[]>);
+                return this.wrapResult('aggregate', startTs, cached as TResult[]) as TResult[] | ResultWithMeta<TResult[]>;
             }
             const qc = this.queryCache;
-            return this.toArray().then((result) => {
-                void qc.set(cacheKey, result, cacheTTL);
-                return this.wrapResult('aggregate', startTs, result) as TResult[] | ResultWithMeta<TResult[]>;
-            });
+            const result = await this.toArray();
+            await Promise.resolve(qc.set(cacheKey, result, cacheTTL));
+            return this.wrapResult('aggregate', startTs, result) as TResult[] | ResultWithMeta<TResult[]>;
         }
         return this.toArray().then((result) => this.wrapResult('aggregate', startTs, result) as TResult[] | ResultWithMeta<TResult[]>);
     }

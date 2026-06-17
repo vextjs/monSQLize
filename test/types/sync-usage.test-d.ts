@@ -18,6 +18,12 @@ const config: SyncConfig = {
     enabled: true,
     targets: [target],
     collections: ['users'],
+    resumeToken: {
+        storage: 'file',
+        strictSave: true,
+        saveRetries: 1,
+        saveRetryDelayMs: 10,
+    },
 };
 
 validateSyncConfig(config);

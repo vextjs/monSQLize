@@ -1,6 +1,7 @@
 import { beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { MongoCollectionAccessor } from '../../../src/adapters/mongodb/common/collection-accessor';
+import { ObjectId } from 'mongodb';
 
 const MonSQLize = require('../../../dist/cjs/index.cjs');
 
@@ -404,5 +405,74 @@ describe('P6 runtime compat mock path', () => {
             limit: 2,
             projection: { name: 1, email: 1 },
         });
+    });
+
+    it('awaits async query-cache get/set across read helpers', async () => {
+        const id = new ObjectId();
+        const values = new Map<string, unknown>();
+        const queryCache = {
+            get: async (key: string) => values.get(key),
+            set: async (key: string, value: unknown) => {
+                values.set(key, value);
+                return true;
+            },
+            delPattern: async () => 0,
+        };
+        const calls: Record<string, number> = {
+            find: 0,
+            findOne: 0,
+            countDocuments: 0,
+            distinct: 0,
+        };
+        const nativeCollection = {
+            namespace: 'compat_db.users',
+            dbName: 'compat_db',
+            collectionName: 'users',
+            find() {
+                calls.find += 1;
+                return {
+                    toArray: () => resolved([{ _id: id, name: 'Ada' }]),
+                };
+            },
+            findOne() {
+                calls.findOne += 1;
+                return resolved({ _id: id, name: 'Ada' });
+            },
+            countDocuments() {
+                calls.countDocuments += 1;
+                return resolved(1);
+            },
+            distinct() {
+                calls.distinct += 1;
+                return resolved(['Ada']);
+            },
+        };
+        const accessor = new MongoCollectionAccessor(
+            'compat_db',
+            'users',
+            nativeCollection as never,
+            { queryCache, defaults: { findLimit: 500 } },
+        );
+        const cacheOptions = { cache: 1000 } as never;
+
+        assert.deepEqual(await accessor.find({ active: true }, { cache: 1000, limit: 1 }), [{ _id: id, name: 'Ada' }]);
+        assert.deepEqual(await accessor.find({ active: true }, { cache: 1000, limit: 1 }), [{ _id: id, name: 'Ada' }]);
+        assert.deepEqual(await accessor.findOne({ active: true }, cacheOptions), { _id: id, name: 'Ada' });
+        assert.deepEqual(await accessor.findOne({ active: true }, cacheOptions), { _id: id, name: 'Ada' });
+        assert.deepEqual(await accessor.findOneById(id, cacheOptions), { _id: id, name: 'Ada' });
+        assert.deepEqual(await accessor.findOneById(id, cacheOptions), { _id: id, name: 'Ada' });
+        assert.deepEqual(await accessor.findByIds([id], cacheOptions), [{ _id: id, name: 'Ada' }]);
+        assert.deepEqual(await accessor.findByIds([id], cacheOptions), [{ _id: id, name: 'Ada' }]);
+        assert.equal(await accessor.count({ active: true }, { cache: 1000 } as never), 1);
+        assert.equal(await accessor.count({ active: true }, { cache: 1000 } as never), 1);
+        assert.deepEqual(await accessor.distinct('name', { active: true }, { cache: 1000 } as never), ['Ada']);
+        assert.deepEqual(await accessor.distinct('name', { active: true }, { cache: 1000 } as never), ['Ada']);
+        assert.deepEqual((await accessor.findPage({ query: { active: true }, limit: 1, cache: 1000, sort: { _id: 1 } })).items, [{ _id: id, name: 'Ada' }]);
+        assert.deepEqual((await accessor.findPage({ query: { active: true }, limit: 1, cache: 1000, sort: { _id: 1 } })).items, [{ _id: id, name: 'Ada' }]);
+
+        assert.equal(calls.find, 3, 'find, findByIds, and findPage should each hit the database once');
+        assert.equal(calls.findOne, 2, 'findOne and findOneById should each hit the database once');
+        assert.equal(calls.countDocuments, 1);
+        assert.equal(calls.distinct, 1);
     });
 });

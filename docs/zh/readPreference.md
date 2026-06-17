@@ -100,7 +100,7 @@ await msq.connect();
 const { collection } = msq;
 
 // 查询操作会自动从主节点读取
-const users = await collection('users').find({ query: {} });
+const users = await collection('users').find({});
 console.log(`✅ 从主节点读取到 ${users.length} 条数据`);
 
 await msq.close();
@@ -126,9 +126,7 @@ await msq.connect();
 const { collection } = msq;
 
 // 查询优先从从节点读取（降低主节点负载）
-const products = await collection('products').find({
-    query: { category: 'electronics' }
-});
+const products = await collection('products').find({ category: 'electronics' });
 console.log(`✅ 从从节点读取到 ${products.length} 条产品数据`);
 
 // ⚠️ 注意：从节点可能有复制延迟
@@ -187,9 +185,7 @@ await msq.connect();
 const { collection } = msq;
 
 // 适用场景：需要强一致性，但希望主节点故障时有备用方案
-const orders = await collection('orders').find({
-    query: { status: 'pending' }
-});
+const orders = await collection('orders').find({ status: 'pending' });
 console.log(`✅ 优先从主节点读取 ${orders.length} 条订单`);
 console.log('✅ 如果主节点故障，自动切换到从节点');
 
@@ -216,10 +212,10 @@ await msq.connect();
 const { collection } = msq;
 
 // 适用场景：全球分布式部署，就近读取降低延迟
-const articles = await collection('articles').find({
-    query: { published: true },
-    limit: 10
-});
+const articles = await collection('articles').find(
+    { published: true },
+    { limit: 10 }
+);
 console.log(`✅ 从延迟最低的节点读取 ${articles.length} 篇文章`);
 console.log('✅ 适用于全球分布式部署场景');
 
@@ -248,12 +244,14 @@ await msq.connect();
 const { collection } = msq;
 
 // readPreference 与其他选项（hint, collation, comment）兼容
-const results = await collection('products').find({
-    query: { price: { $gt: 100 } },
-    hint: { category: 1, price: 1 },  // 索引提示
-    comment: 'expensive-products-query',  // 查询注释
-    maxTimeMS: 2000  // 单次查询超时
-});
+const results = await collection('products').find(
+    { price: { $gt: 100 } },
+    {
+        hint: { category: 1, price: 1 },  // 索引提示
+        comment: 'expensive-products-query',  // 查询注释
+        maxTimeMS: 2000  // 单次查询超时
+    }
+);
 console.log(`✅ 使用多个选项组合查询: ${results.length} 条结果`);
 
 await msq.close();
@@ -299,7 +297,7 @@ await msq.close();
    await collection('users').insertOne({ name: 'Alice' });  // ← 写入主节点
    
    // ⚠️ 可能读不到刚写入的数据（复制延迟）
-   const users = await collection('users').find({ query: { name: 'Alice' } });
+   const users = await collection('users').find({ name: 'Alice' });
    
    // ✅ 解决：写入后立即读取使用 'primary' 或等待复制完成
    ```

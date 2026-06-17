@@ -158,7 +158,7 @@ Explicitly get the next change event (iterator pattern).
 
 **Return value**: `Promise<ChangeStreamDocument<T>>`
 
-> 💡 If you want to resume interrupted downloads, multi-target synchronization or automatic reconnection, please use [`ChangeStreamSyncManager`](./sync-backup.md).
+> 💡 If you want resume-token persistence, multi-target synchronization, and lifecycle stats for supervised restarts, use [`ChangeStreamSyncManager`](./sync-backup.md).
 
 ---
 

@@ -272,12 +272,12 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(driverOptions)) {
             const keyOptions = buildResultCacheKeyOptions(driverOptions);
             const cacheKey = `findOne:${this.collectionRef.namespace}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(keyOptions)}`;
-            const cached = this.management.queryCache.get(cacheKey) as TSchema | null | undefined;
+            const cached = await Promise.resolve(this.management.queryCache.get(cacheKey)) as TSchema | null | undefined;
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'findOne', rawOptions, startTs, cached) as never) as ReturnType<Collection<TSchema>['findOne']>;
             }
             const result = await findOneDocument(this.collectionRef, normalizedQuery, driverOptions as Parameters<Collection<TSchema>['findOne']>[1]);
-            this.management.queryCache.set(cacheKey, result, cacheTTL);
+            await Promise.resolve(this.management.queryCache.set(cacheKey, result, cacheTTL));
             return wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'findOne', rawOptions, startTs, result) as never;
         }
 
@@ -340,13 +340,13 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         const countQueue = this.management.defaults?.countQueue;
         if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(keyOptions)) {
             const cacheKey = `count:${this.collectionRef.namespace}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(buildResultCacheKeyOptions(keyOptions))}`;
-            const cached = this.management.queryCache.get(cacheKey);
+            const cached = await Promise.resolve(this.management.queryCache.get(cacheKey));
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'count', merged, startTs, cached as number) as never) as ReturnType<Collection<TSchema>['countDocuments']>;
             }
             const runner = countQueue ? countQueue.execute(executeCount) : executeCount();
-            return runner.then((result) => {
-                this.management.queryCache?.set(cacheKey, result, cacheTTL);
+            return runner.then(async (result) => {
+                await Promise.resolve(this.management.queryCache?.set(cacheKey, result, cacheTTL));
                 return wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'count', merged, startTs, result) as number;
             }) as ReturnType<Collection<TSchema>['countDocuments']>;
         }
@@ -423,12 +423,12 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         );
         if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(driverOptions)) {
             const cacheKey = `distinct:${this.collectionRef.namespace}:${stableCacheKeyString({ key, query: normalizedQuery ?? {} })}:${stableCacheKeyString(buildResultCacheKeyOptions(driverOptions))}`;
-            const cached = this.management.queryCache.get(cacheKey);
+            const cached = await Promise.resolve(this.management.queryCache.get(cacheKey));
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'distinct', rawOptions, startTs, cached) as never) as ReturnType<Collection<TSchema>['distinct']>;
             }
             const result = await executeDistinct();
-            this.management.queryCache.set(cacheKey, result, cacheTTL);
+            await Promise.resolve(this.management.queryCache.set(cacheKey, result, cacheTTL));
             return wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'distinct', rawOptions, startTs, result) as never;
         }
         const result = await executeDistinct();

@@ -346,11 +346,11 @@ const users = await User.find().populate('posts');
 
 ```javascript
 // 第一次查询
-const users = await User.find({ cache: 60000 }).populate('posts');
+const users = await User.find({}, { cache: 60000 }).populate('posts');
 // 2次数据库查询（用户+文章）
 
 // 后续查询（60秒内）
-const users2 = await User.find({ cache: 60000 }).populate('posts');
+const users2 = await User.find({}, { cache: 60000 }).populate('posts');
 // 0次数据库查询（全部命中缓存）⚡ 100x faster
 ```
 
@@ -367,10 +367,10 @@ const users2 = await User.find({ cache: 60000 }).populate('posts');
 
 ```javascript
 // 主查询和 populate 使用相同缓存时间
-const users = await User.find({ cache: 60000 }).populate('posts');
+const users = await User.find({}, { cache: 60000 }).populate('posts');
 
 // 主查询和 populate 使用不同缓存时间
-const users = await User.find({ cache: 60000 })
+const users = await User.find({}, { cache: 60000 })
     .populate('posts', { cache: 300000 });  // 文章缓存5分钟
 
 // 只缓存 populate，不缓存主查询
@@ -402,8 +402,8 @@ const users = await User.find().populate('posts');  // 50ms
 const users2 = await User.find().populate('posts'); // 50ms（每次都查询）
 
 // monSQLize
-const users = await User.find({ cache: 60000 }).populate('posts');  // 50ms
-const users2 = await User.find({ cache: 60000 }).populate('posts'); // 0.5ms ⚡ 100x
+const users = await User.find({}, { cache: 60000 }).populate('posts');  // 50ms
+const users2 = await User.find({}, { cache: 60000 }).populate('posts'); // 0.5ms ⚡ 100x
 ```
 
 ### API 对比
@@ -430,10 +430,10 @@ User.find()
 
 ```javascript
 // populate 结果会被缓存
-const users = await User.find({ cache: 60000 }).populate('posts');
+const users = await User.find({}, { cache: 60000 }).populate('posts');
 
 // 后续查询直接从缓存读取，包括 populate 的数据
-const users2 = await User.find({ cache: 60000 }).populate('posts');
+const users2 = await User.find({}, { cache: 60000 }).populate('posts');
 // 0次数据库查询 ⚡
 ```
 
@@ -586,7 +586,7 @@ const Comment = msq.model('comments');
 // 3. 使用场景
 
 // 场景A: 获取用户及其文章
-const users = await User.find({ cache: 60000 })
+const users = await User.find({}, { cache: 60000 })
     .populate('posts', {
         select: ['title', 'createdAt', 'status'],
         limit: 5,
@@ -679,7 +679,7 @@ const posts = await Post.find().populate('comments', {
 const users = await User.find().populate('posts');
 
 // ✅ 好：启用缓存（适合读多写少的数据）
-const users = await User.find({ cache: 60000 }).populate('posts');
+const users = await User.find({}, { cache: 60000 }).populate('posts');
 ```
 
 ### 4. 按需 populate

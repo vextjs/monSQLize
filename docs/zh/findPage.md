@@ -1275,11 +1275,13 @@ app.post('/api/orders', async (req, res) => {
 **示例对比**：
 ```javascript
 // 场景 1：获取用户的前 10 个订单 -> 使用 find
-const recentOrders = await collection('orders').find({
-  query: { userId: '123' },
-  sort: { createdAt: -1 },
-  limit: 10
-});
+const recentOrders = await collection('orders').find(
+  { userId: '123' },
+  {
+    sort: { createdAt: -1 },
+    limit: 10
+  }
+);
 
 // 场景 2：分页浏览所有订单 -> 使用 findPage
 const ordersPage = await collection('orders').findPage({

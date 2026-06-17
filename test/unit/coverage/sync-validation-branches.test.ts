@@ -123,6 +123,13 @@ describe('validateResumeTokenConfig — edge cases', () => {
     it('default storage (undefined) uses file → passes', () => {
         assert.doesNotThrow(() => validateResumeTokenConfig({}));
     });
+
+    it('strict save options validate', () => {
+        assert.throws(() => validateResumeTokenConfig({ strictSave: 'yes' } as any), /strictSave/);
+        assert.throws(() => validateResumeTokenConfig({ saveRetries: -1 } as any), /saveRetries/);
+        assert.throws(() => validateResumeTokenConfig({ saveRetryDelayMs: 1.5 } as any), /saveRetryDelayMs/);
+        assert.doesNotThrow(() => validateResumeTokenConfig({ strictSave: false, saveRetries: 1, saveRetryDelayMs: 0 }));
+    });
 });
 
 // ── validateSyncConfig — extra branches ───────────────────────────────────────
@@ -233,6 +240,51 @@ describe('ResumeTokenStore — redis storage path', () => {
         await store.save({ token: 1 });
         await store.clear();
         assert.equal(await store.load(), null);
+    });
+
+    it('redis save failure rejects by default and retries configured attempts', async () => {
+        let setCalls = 0;
+        const errors: unknown[] = [];
+        const warns: unknown[] = [];
+        const redis = {
+            get: async () => null,
+            set: async () => {
+                setCalls += 1;
+                throw new Error('redis down');
+            },
+            del: async () => {},
+        };
+        const store = new ResumeTokenStore({
+            storage: 'redis',
+            redis,
+            saveRetries: 1,
+            saveRetryDelayMs: 0,
+            logger: {
+                error: (...args: unknown[]) => { errors.push(args); },
+                warn: (...args: unknown[]) => { warns.push(args); },
+            },
+        });
+
+        await assert.rejects(() => store.save({ token: 1 }), /failed to save resume token/);
+        assert.equal(setCalls, 2);
+        assert.equal(warns.length, 1);
+        assert.equal(errors.length, 1);
+    });
+
+    it('redis save failure can opt into legacy best-effort mode', async () => {
+        const redis = {
+            get: async () => null,
+            set: async () => { throw new Error('redis down'); },
+            del: async () => {},
+        };
+        const store = new ResumeTokenStore({
+            storage: 'redis',
+            redis,
+            strictSave: false,
+            logger: { error: () => undefined },
+        });
+
+        await assert.doesNotReject(() => store.save({ token: 1 }));
     });
 
     it('redis without del method: clear does not throw', async () => {

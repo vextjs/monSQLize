@@ -14,11 +14,11 @@
 
 - ✅ **实时同步**：基于 MongoDB Change Stream，延迟 10-500ms
 - ✅ **解耦设计**：主库写操作不受影响，异步同步
-- ✅ **断点续传**：Resume Token 自动保存，重启后继续
+- ✅ **断点续传**：匹配的目标全部同步成功后保存 Resume Token，重启后从最近一次成功持久化的 token 继续
 - ✅ **多目标支持**：同时同步到多个备份库
 - ✅ **数据过滤**：自定义过滤逻辑
 - ✅ **数据转换**：支持脱敏、字段转换
-- ✅ **自动重连**：网络中断自动恢复
+- ✅ **生命周期可观测**：同步统计暴露运行状态与错误计数，便于监控和重启
 - ✅ **健康检查**：复用 ConnectionPoolManager
 
 ---
@@ -114,6 +114,11 @@ await msq.close();
 | `storage` | string | ❌ | `'file'` | 存储类型：`'file'` 或 `'redis'` |
 | `path` | string | ❌ | `./.sync-resume-token` | 文件路径（文件模式） |
 | `redis` | Object | ❌ | - | Redis 实例（Redis 模式） |
+| `strictSave` | boolean | ❌ | `true` | 将 token 保存失败视为致命错误，避免 CDC 在 token 未持久化时继续推进 |
+| `saveRetries` | number | ❌ | `0` | strict token save 失败前的重试次数 |
+| `saveRetryDelayMs` | number | ❌ | `100` | token 保存重试间隔（毫秒） |
+
+Resume Token 持久化默认是 strict。匹配的 target 全部成功应用事件后，monSQLize 会先保存该事件的 resume token；只有保存成功后才推进 `syncedCount`。如果 token 保存在配置的重试后仍失败，manager 会记录 `tokenSaveErrorCount` / `lastTokenSaveError`，关闭当前 change stream，将 `isRunning` 标记为 `false`，并停止处理后续排队事件。只有兼容旧 best-effort 行为时才设置 `strictSave: false`；此时进程重启后可能重放已应用事件。内置 MongoDB target 是幂等的（`replaceOne(..., { upsert: true })` / `deleteOne()`）；自定义 `apply` target 仍建议按 change event `_id` 做幂等或去重。
 
 ---
 
@@ -190,7 +195,10 @@ const redis = new Redis();
         targets: [...],
         resumeToken: {
             storage: 'redis',
-            redis: redis
+            redis: redis,
+            strictSave: true,
+            saveRetries: 3,
+            saveRetryDelayMs: 100
         }
     }
 }
@@ -277,7 +285,8 @@ rs.initiate()
 
 **自动处理**:
 - 单个目标失败不影响其他目标
-- Change Stream 中断自动重连（最多5次）
+- Resume Token 保存失败会在推进 token 前停止 sync manager
+- Change Stream driver 错误会记录日志并体现在 stats 中；生产应监控 `isRunning` / `errorCount`，必要时由进程管理器或应用重启 manager/runtime
 
 **手动处理**:
 ```javascript

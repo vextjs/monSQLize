@@ -1,57 +1,8 @@
 ﻿# ObjectId 跨版本兼容性 - 常见问题解答（FAQ）
 
-## Q1: 为什么连接时提示"[DEBUG] [Saga] 使用 Redis 存储"，明明没连接 Redis？
+## Q1: 自动将旧版本 ObjectId 转换为 bson@6.x，会不会影响旧版本 mongoose？
 
 ### 问题描述
-
-即使没有配置 Redis，初始化 monSQLize 时仍然输出：
-```text
-[DEBUG] [Saga] 使用 Redis 存储（多进程共享）
-```
-
-### 根本原因
-
-monSQLize 的 Saga 协调器（SagaOrchestrator）判断逻辑有误：
-- **错误逻辑**：只要有 `cache` 实例且有 `set()` 方法，就认为是 Redis
-- **实际情况**：monSQLize 默认启用内存缓存（MemoryCache），也有 `set()` 方法
-
-### 解决方案
-
-修改 Saga 协调器的判断逻辑，通过检测 Redis 特有的方法来识别：
-
-```javascript
-// ❌ 旧逻辑（错误）
-if (this.cache && typeof this.cache.set === 'function') {
-    this.useRedis = true;
-    this.logger?.debug('[Saga] 使用 Redis 存储（多进程共享）');
-}
-
-// ✅ 新逻辑（正确）
-const isRedis = typeof this.cache.keys === 'function' && 
-               typeof this.cache.publish === 'function';
-
-if (isRedis) {
-    this.useRedis = true;
-    this.logger?.debug('[Saga] 使用 Redis 存储（多进程共享）');
-} else {
-    this.sagas = new Map();
-    this.useRedis = false;
-    this.logger?.debug('[Saga] 使用内存缓存（单进程，Saga 元数据不共享）');
-}
-```
-
-### 验证结果
-
-修复后的日志输出：
-```text
-[DEBUG] [Saga] 使用内存缓存（单进程，Saga 元数据不共享）  ✅ 正确
-```
-
----
-
-## Q2: 自动将旧版本 ObjectId 转换为 bson@6.x，会不会影响旧版本 mongoose？
-
-### 问题描述（Q2: 自动将旧版本 ObjectId 转换为 bson@6.x，会不会）
 
 担心 monSQLize 转换 ObjectId 后，mongoose 读取数据时会出现问题。
 
@@ -207,7 +158,7 @@ const bob = await User.findOne({ username: 'bob' });
 
 ---
 
-## Q3: 为什么有这么多转换日志？如何关闭？
+## Q2: 为什么有这么多转换日志？如何关闭？
 
 ### 已解决 ✅
 
@@ -241,7 +192,7 @@ await msq.collection('users').insertOne(dataWithObjectIds);
 
 ---
 
-## Q4: 如何验证我的项目是否存在兼容性问题？
+## Q3: 如何验证我的项目是否存在兼容性问题？
 
 运行以下测试脚本：
 
@@ -255,20 +206,35 @@ npm test
 
 ---
 
-## Q5: 如果我不想自动转换，可以禁用吗？
+## Q4: 如果我不想自动转换，可以禁用吗？
 
-目前自动转换是默认启用的，暂无配置项禁用。
+可以。MongoDB 默认启用自动转换，但可以全局关闭，也可以只针对特定业务字段保留字符串。
 
-**原因**：
-- 这是一个 Bug 修复，不是新功能
-- 转换是安全的，不会影响任何现有功能
-- 性能影响极小（~0.01ms/ObjectId）
+```javascript
+// 全局关闭 ObjectId 自动转换。
+const msq = new MonSQLize({
+  type: 'mongodb',
+  autoConvertObjectId: false,
+  config: { uri: 'mongodb://localhost:27017' }
+});
 
-如果您确实需要禁用，请提交 Issue 说明您的场景。
+// 或者保持自动转换，但让部分业务字段继续以字符串保存。
+const msq2 = new MonSQLize({
+  type: 'mongodb',
+  autoConvertObjectId: {
+    enabled: true,
+    excludeFields: ['transactionHash', 'idempotencyKey'],
+    signature: false
+  },
+  config: { uri: 'mongodb://localhost:27017' }
+});
+```
+
+当字段可能合法保存 24 位十六进制字符串，但它不是 MongoDB ObjectId 时，建议使用这些配置。
 
 ---
 
-## Q6: 如果遇到其他 BSON 类型冲突，如何处理？
+## Q5: 如果遇到其他 BSON 类型冲突，如何处理？
 
 目前只处理了 ObjectId 的跨版本兼容。如果遇到其他类型（如 Decimal128, Binary 等）的冲突，请：
 
@@ -281,5 +247,4 @@ npm test
 ## 相关文档
 
 - [ObjectId 跨版本兼容性指南](./objectid-cross-version.md)
-- [修复报告]
 - [CHANGELOG](../../CHANGELOG.md)

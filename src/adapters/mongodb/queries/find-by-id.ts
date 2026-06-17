@@ -56,7 +56,7 @@ export async function findOneByIdDocument<TSchema extends Document = Document>(
     if (cacheTTL > 0 && queryCache && !hasSessionOption(baseOptions)) {
         const keyOptions = buildResultCacheKeyOptions(baseOptions);
         const cacheKey = `findOneById:${collection.namespace}:${objectId.toString()}:${stableCacheKeyString(keyOptions)}`;
-        const cached = queryCache.get(cacheKey) as TSchema | null | undefined;
+        const cached = await Promise.resolve(queryCache.get(cacheKey)) as TSchema | null | undefined;
         if (cached !== undefined) {
             return cached;
         }
@@ -64,7 +64,7 @@ export async function findOneByIdDocument<TSchema extends Document = Document>(
             { _id: objectId } as Parameters<Collection<TSchema>['findOne']>[0],
             findOptions as Parameters<Collection<TSchema>['findOne']>[1],
         ) as unknown as TSchema | null;
-        void queryCache.set(cacheKey, result, cacheTTL);
+        await Promise.resolve(queryCache.set(cacheKey, result, cacheTTL));
         return result;
     }
 
@@ -158,14 +158,14 @@ export async function findByIdsDocuments<TSchema extends Document = Document>(
 
     let results: TSchema[];
     if (cacheKey && queryCache) {
-        const cached = queryCache.get(cacheKey) as TSchema[] | undefined;
+        const cached = await Promise.resolve(queryCache.get(cacheKey)) as TSchema[] | undefined;
         if (cached !== undefined) {
             results = cached;
         } else {
             results = await collection.find({
                 _id: { $in: uniqueIds },
             } as Parameters<Collection<TSchema>['find']>[0], driverOptions as Parameters<Collection<TSchema>['find']>[1]).toArray() as TSchema[];
-            void queryCache.set(cacheKey, results, cacheTTL);
+            await Promise.resolve(queryCache.set(cacheKey, results, cacheTTL));
         }
     } else {
         results = await collection.find({

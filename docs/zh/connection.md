@@ -250,7 +250,7 @@ const msq = new MonSQLize({
 const { collection } = await msq.connect();
 
 // 使用连接...
-await collection('test').find({ query: {} });
+await collection('test').find({});
 
 // 关闭连接
 await msq.close();
@@ -272,7 +272,7 @@ for (let i = 0; i < 5; i++) {
   const { collection } = await msq.connect();
   
   // 使用连接...
-  await collection('test').find({ query: {} });
+  await collection('test').find({});
   
   // 关闭连接
   await msq.close();
@@ -308,21 +308,23 @@ const msq = new MonSQLize({
 const { collection, use } = await msq.connect();
 
 // 1. 访问默认数据库的集合
-const products = await collection('products').find({ query: {} });
+const products = await collection('products').find({});
 console.log('shop.products ->', products);
 
 // 2. 访问其他数据库的集合
-const analyticsEvents = await use('analytics').collection('events').findOne({
-  query: { type: 'click' },
-  cache: 3000,
-  maxTimeMS: 1500
-});
+const analyticsEvents = await use('analytics').collection('events').findOne(
+  { type: 'click' },
+  {
+    cache: 3000,
+    maxTimeMS: 1500
+  }
+);
 console.log('analytics.events ->', analyticsEvents);
 
 // 3. 多次跨库查询
 const [user1, user2] = await Promise.all([
-  db('users_db').collection('users').findOne({ query: { name: 'Alice' }, cache: 2000 }),
-  db('users_db').collection('users').findOne({ query: { name: 'Bob' } })
+  db('users_db').collection('users').findOne({ name: 'Alice' }, { cache: 2000 }),
+  db('users_db').collection('users').findOne({ name: 'Bob' })
 ]);
 console.log(user1, user2);
 ```
@@ -431,7 +433,7 @@ const { getConnection } = require('./db-connection');
 
 async function queryUsers() {
   const { collection } = await getConnection();
-  return await collection('users').find({ query: {} });
+  return await collection('users').find({});
 }
 ```
 
@@ -544,7 +546,7 @@ describe('用户服务测试', () => {
   });
   
   it('应该查询用户', async () => {
-    const users = await collection('users').find({ query: {} });
+    const users = await collection('users').find({});
     console.log('找到用户:', users.length);
   });
 });
@@ -742,8 +744,9 @@ const msq = new MonSQLize({
     
     // Resume Token 配置
     resumeToken: {
-      storage: 'mongodb',             // 'mongodb' | 'redis' | 'memory'【默认: 'mongodb'】
-      collection: 'resume_tokens'     // Token 集合名【默认: 'resume_tokens'】
+      storage: 'file',                // 'file' | 'redis'【默认: 'file'】
+      path: './.sync-resume-token',   // 文件模式 token 路径
+      strictSave: true                // token 保存失败时停止同步【默认: true】
     }
   },
   
@@ -827,6 +830,9 @@ const msq = new MonSQLize({
 | `slowQueryLog` | object | - | 慢查询日志持久化 |
 | `models` | object | - | Model 自动加载 |
 | `sync` | object | - | Change Stream 同步 |
+| `sync.resumeToken.strictSave` | boolean | `true` | 为 true 时，token 保存失败会在 resume token 推进前停止 Change Stream 同步 |
+| `sync.resumeToken.saveRetries` | number | `0` | strict token save 失败前的重试次数 |
+| `sync.resumeToken.saveRetryDelayMs` | number | `100` | token 保存重试间隔（毫秒） |
 | `config.ssh` | object | - | SSH 隧道配置（`ssh2` 已随 monsqlize 安装） |
 
 ### 常用配置场景
@@ -996,9 +1002,9 @@ console.log(conn1 === conn2);  // true
 const { use } = await msq.connect();
 
 // 这三个操作共享同一个连接
-await use('shop').collection('products').find({ query: {} });
-await use('analytics').collection('events').find({ query: {} });
-await use('logs').collection('errors').find({ query: {} });
+await use('shop').collection('products').find({});
+await use('analytics').collection('events').find({});
+await use('logs').collection('errors').find({});
 ```
 
 ### Q: 连接失败后如何重试？

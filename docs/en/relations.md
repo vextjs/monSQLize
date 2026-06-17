@@ -859,7 +859,7 @@ for (const order of user.orders) {
 }
 
 //Scenario 2: Get products and categories
-const products = await Product.find({ cache: 60000 })
+const products = await Product.find({}, { cache: 60000 })
     .populate('category')
     .populate('reviews', { limit: 5 });
 

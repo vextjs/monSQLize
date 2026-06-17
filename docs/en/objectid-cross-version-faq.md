@@ -1,62 +1,9 @@
 ﻿# ObjectId Cross-version Compatibility - Frequently Asked Questions (FAQ)
 
-## Q1: Why does it prompt "[DEBUG] [Saga] Use Redis storage" when connecting, but it is clearly not connected to Redis?
+## Q1: Will automatically converting the old version ObjectId to bson@6.x affect the old version of mongoose?
 
 
 ## Problem description
-
-Even if Redis is not configured, the output is still output when initializing monSQLize:
-```text
-[DEBUG] [Saga] Use Redis storage (shared by multiple processes)
-```
-
-
-## Root cause
-
-The judgment logic of monSQLize's Saga Orchestrator (SagaOrchestrator) is incorrect:
-- **Wrong logic**: As long as there is a `cache` instance and a `set()` method, it is considered Redis
-- **Actual situation**: monSQLize enables memory cache (MemoryCache) by default, and also has the `set()` method
-
-
-## Solution
-
-Modify the judgment logic of the Saga coordinator and identify it by detecting Redis-specific methods:
-
-```javascript
-//❌ Old logic (wrong)
-if (this.cache && typeof this.cache.set === 'function') {
-    this.useRedis = true;
-    this.logger?.debug('[Saga] Use Redis storage (shared by multiple processes)');
-}
-
-//✅ New logic (correct)
-const isRedis = typeof this.cache.keys === 'function' &&
-               typeof this.cache.publish === 'function';
-
-if (isRedis) {
-    this.useRedis = true;
-    this.logger?.debug('[Saga] Use Redis storage (shared by multiple processes)');
-} else {
-    this.sagas = new Map();
-    this.useRedis = false;
-    this.logger?.debug('[Saga] Use memory cache (single process, Saga metadata is not shared)');
-}
-```
-
-
-## Verification results
-
-Repaired log output:
-```text
-[DEBUG] [Saga] Use memory cache (single process, Saga metadata is not shared) ✅ Correct
-```
-
----
-
-## Q2: Will automatically converting the old version ObjectId to bson@6.x affect the old version of mongoose?
-
-
-## Problem description (Q2: Will it automatically convert the old version ObjectId to bson@6.x?)
 
 Worry that after monSQLize converts ObjectId, mongoose will have problems reading data.
 
@@ -220,7 +167,7 @@ const bob = await User.findOne({ username: 'bob' });
 
 ---
 
-## Q3: Why are there so many conversion logs? How to close?
+## Q2: Why are there so many conversion logs? How to close?
 
 
 ## Solved ✅
@@ -257,7 +204,7 @@ The current converter does not expose `silent` or `verbose` logging controls. If
 
 ---
 
-## Q4: How to verify whether my project has compatibility issues?
+## Q3: How to verify whether my project has compatibility issues?
 
 Run the following test script:
 
@@ -271,20 +218,35 @@ npm test
 
 ---
 
-## Q5: If I don’t want automatic conversion, can I disable it?
+## Q4: If I don’t want automatic conversion, can I disable it?
 
-Currently, automatic conversion is enabled by default and there is no configuration item to disable it.
+Yes. Automatic conversion is enabled by default for MongoDB, but you can disable it globally or narrow it for specific fields.
 
-**Reason**:
-- This is a bug fix, not a new feature
-- Conversion is safe and will not affect any existing functionality
-- Minimal performance impact (~0.01ms/ObjectId)
+```javascript
+// Disable ObjectId auto conversion globally.
+const msq = new MonSQLize({
+  type: 'mongodb',
+  autoConvertObjectId: false,
+  config: { uri: 'mongodb://localhost:27017' }
+});
 
-If you really need to disable it, please submit an Issue describing your scenario.
+// Or keep conversion enabled but preserve selected business fields as strings.
+const msq2 = new MonSQLize({
+  type: 'mongodb',
+  autoConvertObjectId: {
+    enabled: true,
+    excludeFields: ['transactionHash', 'idempotencyKey'],
+    signature: false
+  },
+  config: { uri: 'mongodb://localhost:27017' }
+});
+```
+
+Use these options for fields that can legitimately contain 24-character hexadecimal strings but are not MongoDB ObjectId values.
 
 ---
 
-## Q6: How to deal with conflicts with other BSON types?
+## Q5: How to deal with conflicts with other BSON types?
 
 Currently, only cross-version compatibility of ObjectId is handled. If you encounter conflicts with other types (such as Decimal128, Binary, etc.), please:
 
@@ -297,5 +259,4 @@ Currently, only cross-version compatibility of ObjectId is handled. If you encou
 ## Related documents
 
 - [ObjectId Cross-version Compatibility Guide](./objectid-cross-version.md)
--[Fix Report]
 - [CHANGELOG](../../CHANGELOG.md)

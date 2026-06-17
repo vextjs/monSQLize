@@ -244,10 +244,10 @@ msq.on('slow-query', (data) => {
 const { collection } = await msq.connect();
 
 //Execute slow query (assuming more than 100ms)
-const products = await collection('products').find({
-  query: { category: 'electronics' },
-  maxTimeMS: 3000
-});
+const products = await collection('products').find(
+  { category: 'electronics' },
+  { maxTimeMS: 3000 }
+);
 ```
 
 **Example output**:
@@ -304,18 +304,22 @@ msq.on('query', (data) => {
 const { collection } = await msq.connect();
 
 //First query (cache miss)
-await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 5000,
-  maxTimeMS: 3000
-});
+await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 5000,
+    maxTimeMS: 3000
+  }
+);
 
 //Second query (cache hit)
-await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 5000,
-  maxTimeMS: 3000
-});
+await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 5000,
+    maxTimeMS: 3000
+  }
+);
 ```
 
 **Example output**:
@@ -754,7 +758,7 @@ it('The slow-query event should be triggered', (done) => {
   });
 
   //Execute slow query
-  collection('test').find({ query: {}, maxTimeMS: 3000 });
+  collection('test').find({}, { maxTimeMS: 3000 });
 });
 
 //Or use Promise

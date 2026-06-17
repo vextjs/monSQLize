@@ -1276,11 +1276,13 @@ app.post('/api/orders', async (req, res) => {
 **Example comparison**:
 ```javascript
 // Scenario 1: Get the user’s first 10 orders -> use find
-const recentOrders = await collection('orders').find({
-  query: { userId: '123' },
-  sort: { createdAt: -1 },
-  limit: 10
-});
+const recentOrders = await collection('orders').find(
+  { userId: '123' },
+  {
+    sort: { createdAt: -1 },
+    limit: 10
+  }
+);
 
 // Scenario 2: Browse all orders by page -> use findPage
 const ordersPage = await collection('orders').findPage({

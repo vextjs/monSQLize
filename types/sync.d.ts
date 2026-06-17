@@ -47,6 +47,12 @@ export interface ResumeTokenConfig {
     path?: string;
     redis?: ResumeTokenRedisLike;
     key?: string;
+    /** Throw when resume-token persistence fails. Defaults to true for reliable CDC. */
+    strictSave?: boolean;
+    /** Number of retry attempts after a failed token save. Defaults to 0. */
+    saveRetries?: number;
+    /** Delay between token-save retries in milliseconds. Defaults to 100. */
+    saveRetryDelayMs?: number;
 }
 
 export interface SyncConfig {
@@ -70,6 +76,8 @@ export interface SyncStats {
     errorCount: number;
     startTime: Date | null;
     lastEventTime: Date | null;
+    tokenSaveErrorCount: number;
+    lastTokenSaveError: Error | null;
     targets: Array<{
         name: string;
         syncCount: number;

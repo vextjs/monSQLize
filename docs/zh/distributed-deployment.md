@@ -461,10 +461,10 @@ await msq.connect();
 
 // 使用
 const { collection } = await msq.connect();
-const users = await collection('users').find({
-  query: { active: true },
-  cache: 60000  // 缓存 60 秒
-});
+const users = await collection('users').find(
+  { active: true },
+  { cache: 60000 }  // 缓存 60 秒
+);
 
 // 关闭（清理资源）
 await msq.close();

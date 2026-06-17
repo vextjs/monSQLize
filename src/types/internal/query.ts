@@ -14,7 +14,7 @@
  * to avoid circular dependencies.
  */
 export interface QueryCacheLike {
-    get(key: string): unknown;
+    get(key: string): unknown | Promise<unknown>;
     set(key: string, value: unknown, ttl: number): void | boolean | Promise<void> | Promise<boolean>;
     delPattern?: (pattern: string) => number | Promise<number>;
     keys?: (pattern?: string) => string[] | Promise<string[]>;

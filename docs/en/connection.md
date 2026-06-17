@@ -254,7 +254,7 @@ const msq = new MonSQLize({
 const { collection } = await msq.connect();
 
 // Use the connection.
-await collection('test').find({ query: {} });
+await collection('test').find({});
 
 // Close the connection.
 await msq.close();
@@ -275,7 +275,7 @@ for (let i = 0; i < 5; i++) {
   const { collection } = await msq.connect();
 
   // Use the connection.
-  await collection('test').find({ query: {} });
+  await collection('test').find({});
 
   // Close the connection.
   await msq.close();
@@ -313,21 +313,23 @@ const msq = new MonSQLize({
 const { collection, use } = await msq.connect();
 
 // 1. Access a collection in the default database.
-const products = await collection('products').find({ query: {} });
+const products = await collection('products').find({});
 console.log('shop.products ->', products);
 
 // 2. Access a collection in another database.
-const analyticsEvents = await use('analytics').collection('events').findOne({
-  query: { type: 'click' },
-  cache: 3000,
-  maxTimeMS: 1500
-});
+const analyticsEvents = await use('analytics').collection('events').findOne(
+  { type: 'click' },
+  {
+    cache: 3000,
+    maxTimeMS: 1500
+  }
+);
 console.log('analytics.events ->', analyticsEvents);
 
 // 3. Query another database multiple times.
 const [user1, user2] = await Promise.all([
-  db('users_db').collection('users').findOne({ query: { name: 'Alice' }, cache: 2000 }),
-  db('users_db').collection('users').findOne({ query: { name: 'Bob' } })
+  db('users_db').collection('users').findOne({ name: 'Alice' }, { cache: 2000 }),
+  db('users_db').collection('users').findOne({ name: 'Bob' })
 ]);
 console.log(user1, user2);
 ```
@@ -434,7 +436,7 @@ import { getConnection } from './db-connection.js';
 // Use the singleton connection.
 async function queryUsers() {
   const { collection } = await getConnection();
-  return await collection('users').find({ query: {} });
+  return await collection('users').find({});
 }
 ```
 
@@ -546,7 +548,7 @@ describe('user service', () => {
   });
 
   it('queries users', async () => {
-    const users = await collection('users').find({ query: {} });
+    const users = await collection('users').find({});
     console.log('Users found:', users.length);
   });
 });
@@ -778,8 +780,9 @@ const msq = new MonSQLize({
 
     resumeToken: {
       // Resume Token configuration.
-      storage: 'mongodb',
-      collection: 'resume_tokens'
+      storage: 'file',
+      path: './.sync-resume-token',
+      strictSave: true
     }
   }
 });
@@ -834,6 +837,9 @@ const msq = new MonSQLize({
 | `slowQueryLog` | object | - | Persistent slow-query log storage. |
 | `models` | object | - | Model auto-loading configuration. |
 | `sync` | object | - | Change Stream synchronization. |
+| `sync.resumeToken.strictSave` | boolean | `true` | When true, token save failures stop Change Stream sync before the resume token can advance. |
+| `sync.resumeToken.saveRetries` | number | `0` | Retry attempts before a strict token save fails. |
+| `sync.resumeToken.saveRetryDelayMs` | number | `100` | Delay between token-save retries. |
 | `config.ssh` | object | - | SSH tunnel configuration. `ssh2` is installed with monsqlize. |
 
 ### Common Configuration Scenarios
@@ -1003,9 +1009,9 @@ No. Cross-database access shares the same MongoDB client connection and only tar
 const { use } = await msq.connect();
 
 // These three operations share the same connection.
-await use('shop').collection('products').find({ query: {} });
-await use('analytics').collection('events').find({ query: {} });
-await use('logs').collection('errors').find({ query: {} });
+await use('shop').collection('products').find({});
+await use('analytics').collection('events').find({});
+await use('logs').collection('errors').find({});
 ```
 
 ### Q: How do I retry after a failed connection?

@@ -547,12 +547,14 @@ const { collection } = await msq.connect();
 const defaults = msq.getDefaults();
 
 //No parameters are specified when querying, and default values are used.
-const products = await collection('products').find({
-  query: { status: 'active' }
-  //limit: use defaults.limit (50)
-  //cache: use defaults.cache (10000)
-  //maxTimeMS: use defaults.maxTimeMS (5000)
-});
+const products = await collection('products').find(
+  { status: 'active' },
+  {
+    //limit: use defaults.limit (50)
+    //cache: use defaults.cache (10000)
+    //maxTimeMS: use defaults.maxTimeMS (5000)
+  }
+);
 
 console.log(`Query results: ${products.length} documents`);
 console.log(`Default limits applied: ${defaults.limit}`);
@@ -700,10 +702,10 @@ const { collection } = await msq.connect();
 const namespace = collection('products').getNamespace();
 console.log(`[${new Date().toISOString()}] Query collection: ${namespace}`);
 
-const result = await collection('products').find({
-  query: { status: 'active' },
-  limit: 10
-});
+const result = await collection('products').find(
+  { status: 'active' },
+  { limit: 10 }
+);
 
 console.log(`[${new Date().toISOString()}] Query completed: ${namespace}, result: ${result.length} documents`);
 
@@ -897,10 +899,10 @@ function logWithNamespace(collectionName, level, message, data) {
 //Usage example
 logWithNamespace('products', 'INFO', 'Start query', { query: { status: 'active' } });
 
-const result = await collection('products').find({
-  query: { status: 'active' },
-  limit: 10
-});
+const result = await collection('products').find(
+  { status: 'active' },
+  { limit: 10 }
+);
 
 logWithNamespace('products', 'INFO', 'Query completed', { count: result.length });
 
@@ -926,20 +928,24 @@ if (cache) {
     console.log('Start cache warm-up...');
 
     //Warm up popular products
-    const hotProducts = await collection('products').find({
-      query: { featured: true },
-      limit: 100,
-      cache: 3600000  //1 hour
-    });
+    const hotProducts = await collection('products').find(
+      { featured: true },
+      {
+        limit: 100,
+        cache: 3600000  //1 hour
+      }
+    );
 
     console.log(`✅ ${hotProducts.length} hot products have been preheated`);
 
     //Warm up user configuration
-    const userConfigs = await collection('configs').find({
-      query: { type: 'user' },
-      limit: 50,
-      cache: 7200000  //2 hours
-    });
+    const userConfigs = await collection('configs').find(
+      { type: 'user' },
+      {
+        limit: 50,
+        cache: 7200000  //2 hours
+      }
+    );
 
     console.log(`✅ ${userConfigs.length} user configurations have been warmed up`);
 
@@ -998,11 +1004,13 @@ console.log(cacheEnabled);  //MultiLevelCache instance
 const { collection } = await msq.connect();
 
 //The query automatically generates a cache key
-const result = await collection('products').find({
-  query: { status: 'active' },
-  limit: 10,
-  cache: 5000
-});
+const result = await collection('products').find(
+  { status: 'active' },
+  {
+    limit: 10,
+    cache: 5000
+  }
+);
 
 //Cache key example: "shop.products:hash({"status":"active"},10,{})"
 //Contains: namespace + query parameter hash
@@ -1048,10 +1056,10 @@ console.log('Default limit:', defaults.limit);  // 20
 //defaults.limit = 50; // invalid
 
 //✅ Override default value when querying
-const result = await collection('products').find({
-  query: {},
-  limit: 50  //Override the default 20
-});
+const result = await collection('products').find(
+  {},
+  { limit: 50 }  //Override the default 20
+);
 ```
 
 If you need to modify the global defaults, you should recreate the MonSQLize instance.

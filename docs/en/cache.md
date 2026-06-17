@@ -198,11 +198,10 @@ await collection('products').find(
   { limit: 10, sort: { price: 1 }, cache: 5000 }  //← There is sort
 );
 
-await collection('products').find({
-  query: { category: 'books' },  //different queries
-  limit: 10,
-  cache: 5000
-});
+await collection('products').find(
+  { category: 'books' },  //different query
+  { limit: 10, cache: 5000 }
+);
 ```
 
 ---
@@ -218,29 +217,35 @@ Cache entries automatically expire after the TTL expires:
 const { collection } = await msq.connect();
 
 //First query: cache miss, read from database
-const products1 = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 3000,           //Cache for 3 seconds
-  maxTimeMS: 3000
-});
+const products1 = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 3000,           //Cache for 3 seconds
+    maxTimeMS: 3000
+  }
+);
 console.log('First query: read from database');
 
 //Query after 2 seconds: cache hit, read from cache
 await new Promise(r => setTimeout(r, 2000));
-const products2 = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 3000,
-  maxTimeMS: 3000
-});
+const products2 = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 3000,
+    maxTimeMS: 3000
+  }
+);
 console.log('Query after 2 seconds: read from cache (cache hit)');
 
 //Wait another 2 seconds (total 4 seconds): cache expires, read from database again
 await new Promise(r => setTimeout(r, 2000));
-const products3 = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 3000,
-  maxTimeMS: 3000
-});
+const products3 = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 3000,
+    maxTimeMS: 3000
+  }
+);
 console.log('Query after 4 seconds: cache expires, read from database again');
 ```
 
@@ -282,11 +287,13 @@ const { collection } = await msq.connect();
 
 //Cache 1001 different queries
 for (let i = 0; i < 1001; i++) {
-  await collection('products').find({
-    query: { id: i },
-    cache: 60000,           //Cache for 1 minute
-    maxTimeMS: 3000
-  });
+  await collection('products').find(
+    { id: i },
+    {
+      cache: 60000,           //Cache for 1 minute
+      maxTimeMS: 3000
+    }
+  );
 }
 
 //View elimination statistics
@@ -302,15 +309,15 @@ console.log('Current number of cache entries:', stats.entries);  //Should be 100
 //Scenario: maxEntries = 3
 
 //1. Add 3 caches
-await collection('test').find({ query: { a: 1 }, cache: 60000 });  //cache[a:1]
-await collection('test').find({ query: { b: 2 }, cache: 60000 });  //cache [a:1, b:2]
-await collection('test').find({ query: { c: 3 }, cache: 60000 });  //cache [a:1, b:2, c:3]
+await collection('test').find({ a: 1 }, { cache: 60000 });  //cache[a:1]
+await collection('test').find({ b: 2 }, { cache: 60000 });  //cache [a:1, b:2]
+await collection('test').find({ c: 3 }, { cache: 60000 });  //cache [a:1, b:2, c:3]
 
 //2. Access the first cache (refresh LRU order)
-await collection('test').find({ query: { a: 1 }, cache: 60000 });  //cache [b:2, c:3, a:1]
+await collection('test').find({ a: 1 }, { cache: 60000 });  //cache [b:2, c:3, a:1]
 
 //3. Add 4th cache (eliminate least used b:2)
-await collection('test').find({ query: { d: 4 }, cache: 60000 });  //cache [c:3, a:1, d:4]
+await collection('test').find({ d: 4 }, { cache: 60000 });  //cache [c:3, a:1, d:4]
 ```
 
 ---
@@ -390,11 +397,13 @@ const msq = new MonSQLize({
 const { collection } = await msq.connect();
 
 //All query caches are stored directly in Redis
-const products = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 10000,                           //Cache for 10 seconds
-  maxTimeMS: 3000
-});
+const products = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 10000,                           //Cache for 10 seconds
+    maxTimeMS: 3000
+  }
+);
 ```
 
 **Applicable scenarios**:
@@ -450,11 +459,13 @@ const { collection } = await msq.connect();
 //1. Check the local cache → return if hit (0.001ms)
 //2. Local miss → check Redis → if hit, return (1-2ms) + backfill local
 //3. Redis miss → Query MongoDB → Store locally + Redis
-const products = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 10000,
-  maxTimeMS: 3000
-});
+const products = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 10000,
+    maxTimeMS: 3000
+  }
+);
 ```
 
 **Applicable scenarios**:
@@ -642,11 +653,13 @@ const msq = new MonSQLize({
 const { collection } = await msq.connect();
 
 //Use cached query (automatically use local + remote layers)
-const products = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 5000,           //Cache for 5 seconds
-  maxTimeMS: 3000
-});
+const products = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 5000,           //Cache for 5 seconds
+    maxTimeMS: 3000
+  }
+);
 
 //Hit process:
 //1. Check local cache → return if hit (fastest)
@@ -736,18 +749,22 @@ const msq = new MonSQLize({
 const { collection } = await msq.connect();
 
 //find query cache
-const products = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 5000,           //Cache for 5 seconds
-  maxTimeMS: 3000
-});
+const products = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 5000,           //Cache for 5 seconds
+    maxTimeMS: 3000
+  }
+);
 
 //findOne query cache
-const user = await collection('users').findOne({
-  query: { email: 'user@example.com' },
-  cache: 30000,          //Cache for 30 seconds
-  maxTimeMS: 3000
-});
+const user = await collection('users').findOne(
+  { email: 'user@example.com' },
+  {
+    cache: 30000,          //Cache for 30 seconds
+    maxTimeMS: 3000
+  }
+);
 
 //aggregate query cache
 const stats = await collection('orders').aggregate({
@@ -760,12 +777,14 @@ const stats = await collection('orders').aggregate({
 });
 
 //distinct query cache
-const categories = await collection('products').distinct({
-  field: 'category',
-  query: { inStock: true },
-  cache: 10000,          //Cache for 10 seconds
-  maxTimeMS: 3000
-});
+const categories = await collection('products').distinct(
+  'category',
+  { inStock: true },
+  {
+    cache: 10000,          //Cache for 10 seconds
+    maxTimeMS: 3000
+  }
+);
 ```
 
 
@@ -986,9 +1005,9 @@ console.log('✅ Bookmarks for specific queries have been cleared');
 const { collection } = await msq.connect();
 
 //execute some queries
-await collection('products').find({ query: {}, cache: 5000, maxTimeMS: 3000 });
-await collection('products').find({ query: {}, cache: 5000, maxTimeMS: 3000 });  //cache hit
-await collection('users').find({ query: {}, cache: 5000, maxTimeMS: 3000 });
+await collection('products').find({}, { cache: 5000, maxTimeMS: 3000 });
+await collection('products').find({}, { cache: 5000, maxTimeMS: 3000 });  //cache hit
+await collection('users').find({}, { cache: 5000, maxTimeMS: 3000 });
 
 //Get statistics
 const stats = msq.getCache().getStats();
@@ -1135,32 +1154,40 @@ Speedup: 278.0x
 const { collection } = await msq.connect();
 
 //Static configuration: long-term caching
-const siteConfig = await collection('config').findOne({
-  query: { key: 'site_settings' },
-  cache: 3600000,        //1 hour
-  maxTimeMS: 3000
-});
+const siteConfig = await collection('config').findOne(
+  { key: 'site_settings' },
+  {
+    cache: 3600000,        //1 hour
+    maxTimeMS: 3000
+  }
+);
 
 //User Information: Medium Cache
-const user = await collection('users').findOne({
-  query: { id: userId },
-  cache: 300000,         //5 minutes
-  maxTimeMS: 3000
-});
+const user = await collection('users').findOne(
+  { id: userId },
+  {
+    cache: 300000,         //5 minutes
+    maxTimeMS: 3000
+  }
+);
 
 //Product List: Short-Term Caching
-const products = await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 60000,          //1 minute
-  maxTimeMS: 3000
-});
+const products = await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 60000,          //1 minute
+    maxTimeMS: 3000
+  }
+);
 
 //Live orders: disable caching
-const orders = await collection('orders').find({
-  query: { status: 'pending' },
-  cache: 0,              //Do not cache
-  maxTimeMS: 3000
-});
+const orders = await collection('orders').find(
+  { status: 'pending' },
+  {
+    cache: 0,              //Do not cache
+    maxTimeMS: 3000
+  }
+);
 ```
 
 
@@ -1230,11 +1257,13 @@ async function prewarmCache(collection, queries) {
   console.log('Start cache warm-up...');
 
   for (const [index, query] of queries.entries()) {
-    await collection('products').find({
+    await collection('products').find(
       query,
-      cache: 300000,     //Cache for 5 minutes
-      maxTimeMS: 3000
-    });
+      {
+        cache: 300000,     //Cache for 5 minutes
+        maxTimeMS: 3000
+      }
+    );
 
     if ((index + 1) % 10 === 0) {
       console.log(`Warm-up progress: ${index + 1}/${queries.length}`);
@@ -1261,18 +1290,22 @@ await prewarmCache(collection, hotQueries);
 
 ```javascript
 //Queries that may return empty results should also be cached
-const product = await collection('products').findOne({
-  query: { id: 'non-existent' },
-  cache: 60000,          //Cache empty results for 1 minute
-  maxTimeMS: 3000
-});
+const product = await collection('products').findOne(
+  { id: 'non-existent' },
+  {
+    cache: 60000,          //Cache empty results for 1 minute
+    maxTimeMS: 3000
+  }
+);
 
 //Query the same ID for the second time and return null from the cache to avoid repeatedly querying the database.
-const product2 = await collection('products').findOne({
-  query: { id: 'non-existent' },
-  cache: 60000,
-  maxTimeMS: 3000
-});
+const product2 = await collection('products').findOne(
+  { id: 'non-existent' },
+  {
+    cache: 60000,
+    maxTimeMS: 3000
+  }
+);
 ```
 
 ---
@@ -1362,17 +1395,21 @@ const msq = new MonSQLize({
 });
 
 //Method 2: Query-level disable
-await collection('orders').find({
-  query: {},
-  cache: 0,              //cache: 0 means no caching
-  maxTimeMS: 3000
-});
+await collection('orders').find(
+  {},
+  {
+    cache: 0,              //cache: 0 means no caching
+    maxTimeMS: 3000
+  }
+);
 
 //Method 3: Do not pass cache parameters
-await collection('orders').find({
-  query: {},
-  maxTimeMS: 3000        //Do not pass cache parameters
-});
+await collection('orders').find(
+  {},
+  {
+    maxTimeMS: 3000        //Do not pass cache parameters
+  }
+);
 ```
 
 
@@ -1384,10 +1421,12 @@ await collection('orders').find({
 
 ```javascript
 //Cache query results (store complete data)
-const products = await collection('products').find({
-  query: {},
-  cache: 60000           //Cache the complete products list
-});
+const products = await collection('products').find(
+  {},
+  {
+    cache: 60000           //Cache the complete products list
+  }
+);
 
 //Bookmark paging (only stores cursor position)
 const page1 = await collection('products').findPage({
@@ -1515,10 +1554,10 @@ await clearAllCache();
 ```javascript
 //❌ Not recommended: clear cache before each query
 await collection('products').invalidate();
-const products = await collection('products').find({
-  query: {},
-  cache: 60000
-});
+const products = await collection('products').find(
+  {},
+  { cache: 60000 }
+);
 
 //✅ Recommended: Clear cache only when necessary
 //Only clear manually when data is modified externally or when there are special needs

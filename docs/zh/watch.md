@@ -127,7 +127,7 @@ watcher.on('change', (change) => {
 
 **返回值**: `Promise<ChangeStreamDocument<T>>`
 
-> 💡 如需断点续传、多目标同步或自动重连，请使用 [`ChangeStreamSyncManager`](./sync-backup.md)。
+> 💡 如需 Resume Token 持久化、多目标同步和便于监控重启的生命周期统计，请使用 [`ChangeStreamSyncManager`](./sync-backup.md)。
 
 ---
 

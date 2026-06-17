@@ -249,7 +249,7 @@ async function computeTotals<TSchema extends Document = Document>(
 
     if (mode === 'sync') {
         if (cache) {
-            const cached = cache.get(cacheKey) as TotalsInfo | undefined;
+            const cached = await Promise.resolve(cache.get(cacheKey)) as TotalsInfo | undefined;
             if (cached !== undefined) {
                 return { ...cached, mode: 'sync' };
             }
@@ -269,7 +269,7 @@ async function computeTotals<TSchema extends Document = Document>(
         if (!cache) {
             return { mode: 'async', total: null, token };
         }
-        const cached = cache.get(cacheKey) as TotalsInfo | undefined;
+        const cached = await Promise.resolve(cache.get(cacheKey)) as TotalsInfo | undefined;
         if (cached !== undefined) {
             return { ...cached, mode: 'async', token };
         }
@@ -288,7 +288,7 @@ async function computeTotals<TSchema extends Document = Document>(
 
     if (mode === 'approx') {
         if (cache) {
-            const cached = cache.get(cacheKey) as TotalsInfo | undefined;
+            const cached = await Promise.resolve(cache.get(cacheKey)) as TotalsInfo | undefined;
             if (cached !== undefined) {
                 return { ...cached, mode: 'approx' };
             }
@@ -611,7 +611,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         };
     };
 
-    const writePageResultCache = (result: FindPageResult<TSchema>): void => {
+    const writePageResultCache = async (result: FindPageResult<TSchema>): Promise<void> => {
         if (!pageResultCache || !queryCache) {
             return;
         }
@@ -620,16 +620,16 @@ export async function executeFindPage<TSchema extends Document = Document>(
         if (shouldRefreshAsyncTotals) {
             delete cacheValue.totals;
         }
-        void queryCache.set(pageResultCache.key, cacheValue, cacheTTL);
+        await Promise.resolve(queryCache.set(pageResultCache.key, cacheValue, cacheTTL));
     };
 
-    const finishAndCache = (result: FindPageResult<TSchema>): FindPageResult<TSchema> => {
-        writePageResultCache(result);
+    const finishAndCache = async (result: FindPageResult<TSchema>): Promise<FindPageResult<TSchema>> => {
+        await writePageResultCache(result);
         return finishResult(result);
     };
 
     if (pageResultCache && queryCache) {
-        const cached = queryCache.get(pageResultCache.key) as FindPageResult<TSchema> | undefined;
+        const cached = await Promise.resolve(queryCache.get(pageResultCache.key)) as FindPageResult<TSchema> | undefined;
         if (cached !== undefined) {
             findPageCacheHit = true;
             const result = cloneFindPageResult(cached);

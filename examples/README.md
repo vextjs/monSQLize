@@ -95,10 +95,6 @@ npm run test:examples
 | [`docs/slow-query-log.ts`](docs/slow-query-log.ts) | Slow query log configuration |
 | [`docs/events.ts`](docs/events.ts) | Runtime events: `on`, `once`, `off`, `emit`, slow-query, and close |
 | [`docs/watch.ts`](docs/watch.ts) | Change streams — native ChangeStream events |
-| [`docs/lock.ts`](docs/lock.ts) | Distributed lock — acquire/release/try-lock |
-| [`docs/lock-timeout.ts`](docs/lock-timeout.ts) | Lock contention / timeout / recovery flow |
-| [`docs/saga.ts`](docs/saga.ts) | Saga / multi-step transactional workflow with rollback |
-| [`docs/saga-advanced.ts`](docs/saga-advanced.ts) | Saga retry, timeout, context, compensation, and stats |
 | [`docs/populate-relations.ts`](docs/populate-relations.ts) | Cross-collection populate relations |
 | [`docs/relations.ts`](docs/relations.ts) | Focused hasOne / hasMany / belongsTo relation definitions |
 | [`docs/nested-populate.ts`](docs/nested-populate.ts) | Nested populate chain: author -> posts -> comments -> author |
@@ -117,6 +113,17 @@ npm run test:examples
 | [`docs/multi-pool-health-check.ts`](docs/multi-pool-health-check.ts) | Multi-pool health status, degradation, recovery, and stats |
 | [`docs/sync.ts`](docs/sync.ts) | ChangeStreamSyncManager + ResumeTokenStore — resume-token-based change stream sync |
 | [`docs/sync-target-failure.ts`](docs/sync-target-failure.ts) | Sync target failure accounting and recovery path |
+
+### Docs — Legacy Compatibility
+
+These examples remain runnable for existing users, but they are not primary monSQLize capabilities. New business locks and Saga orchestration should live in the application or framework runtime.
+
+| File | Description |
+|------|-------------|
+| [`docs/lock.ts`](docs/lock.ts) | Legacy lock compatibility — acquire/release/try-lock |
+| [`docs/lock-timeout.ts`](docs/lock-timeout.ts) | Legacy lock contention / timeout / recovery flow |
+| [`docs/saga.ts`](docs/saga.ts) | Legacy Saga compatibility — multi-step workflow with rollback |
+| [`docs/saga-advanced.ts`](docs/saga-advanced.ts) | Legacy Saga retry, timeout, context, compensation, and stats |
 
 ## Running Individual Examples
 
@@ -163,10 +170,6 @@ node .generated/examples-dist/examples/docs/transaction-optimizations.js
 node .generated/examples-dist/examples/docs/slow-query-log.js
 node .generated/examples-dist/examples/docs/events.js
 node .generated/examples-dist/examples/docs/watch.js
-node .generated/examples-dist/examples/docs/lock.js
-node .generated/examples-dist/examples/docs/lock-timeout.js
-node .generated/examples-dist/examples/docs/saga.js
-node .generated/examples-dist/examples/docs/saga-advanced.js
 node .generated/examples-dist/examples/docs/soft-delete.js
 node .generated/examples-dist/examples/docs/populate-relations.js
 node .generated/examples-dist/examples/docs/relations.js
@@ -180,4 +183,10 @@ node .generated/examples-dist/examples/docs/pool-fallback.js
 node .generated/examples-dist/examples/docs/multi-pool-health-check.js
 node .generated/examples-dist/examples/docs/sync.js
 node .generated/examples-dist/examples/docs/sync-target-failure.js
+
+# Legacy compatibility examples
+node .generated/examples-dist/examples/docs/lock.js
+node .generated/examples-dist/examples/docs/lock-timeout.js
+node .generated/examples-dist/examples/docs/saga.js
+node .generated/examples-dist/examples/docs/saga-advanced.js
 ```

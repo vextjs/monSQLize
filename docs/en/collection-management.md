@@ -296,10 +296,10 @@ await collection('users').createView(
 console.log('✅ View created successfully');
 
 //Query view (use like a normal collection)
-const activeUsers = await collection('activeUsers').find({
-  query: {},
-  limit: 10
-});
+const activeUsers = await collection('activeUsers').find(
+  {},
+  { limit: 10 }
+);
 
 console.log('Active users:', activeUsers);
 ```
@@ -330,10 +330,10 @@ await collection('orders').createView(
 );
 
 //Query statistical view
-const stats = await collection('orderStats').find({
-  query: {},
-  limit: 10
-});
+const stats = await collection('orderStats').find(
+  {},
+  { limit: 10 }
+);
 
 console.log('Order statistics:', stats);
 ```
@@ -373,10 +373,10 @@ await collection('orders').createView(
 );
 
 //Query order details view
-const orderDetails = await collection('orderDetails').find({
-  query: { status: 'completed' },
-  limit: 20
-});
+const orderDetails = await collection('orderDetails').find(
+  { status: 'completed' },
+  { limit: 20 }
+);
 
 console.log('Order details:', orderDetails);
 ```
@@ -430,11 +430,13 @@ await collection('sales').createView(
 );
 
 //Query daily sales statistics
-const dailyStats = await collection('dailySales').find({
-  query: {},
-  limit: 30,
-  sort: { date: -1 }
-});
+const dailyStats = await collection('dailySales').find(
+  {},
+  {
+    limit: 30,
+    sort: { date: -1 }
+  }
+);
 
 console.log('Daily sales statistics:', dailyStats);
 ```
@@ -585,7 +587,7 @@ const count = await collection('oldCollection').count({ query: {} });
 console.log(`Collection contains ${count} documents`);
 
 //3. Optional: Back up data
-const backup = await collection('oldCollection').find({ query: {} });
+const backup = await collection('oldCollection').find({});
 //... save to file or other collection
 
 //4. Delete after confirmation
@@ -631,7 +633,7 @@ console.log('✅ View updated');
 
 ```javascript
 //✅ Operations supported by fixed collections
-await collection('logs').find({ query: {} });     //Query
+await collection('logs').find({});     //Query
 await collection('logs').insertOne({ ... });      //Insert
 
 //❌ Operations not supported by fixed collections

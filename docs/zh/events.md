@@ -217,10 +217,10 @@ msq.on('slow-query', (data) => {
 const { collection } = await msq.connect();
 
 // 执行慢查询（假设超过 100ms）
-const products = await collection('products').find({
-  query: { category: 'electronics' },
-  maxTimeMS: 3000
-});
+const products = await collection('products').find(
+  { category: 'electronics' },
+  { maxTimeMS: 3000 }
+);
 ```
 
 **输出示例**：
@@ -276,18 +276,22 @@ msq.on('query', (data) => {
 const { collection } = await msq.connect();
 
 // 第一次查询（缓存 miss）
-await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 5000,
-  maxTimeMS: 3000
-});
+await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 5000,
+    maxTimeMS: 3000
+  }
+);
 
 // 第二次查询（缓存 hit）
-await collection('products').find({
-  query: { category: 'electronics' },
-  cache: 5000,
-  maxTimeMS: 3000
-});
+await collection('products').find(
+  { category: 'electronics' },
+  {
+    cache: 5000,
+    maxTimeMS: 3000
+  }
+);
 ```
 
 **输出示例**：
@@ -708,7 +712,7 @@ it('应该触发 slow-query 事件', (done) => {
   });
   
   // 执行慢查询
-  collection('test').find({ query: {}, maxTimeMS: 3000 });
+  collection('test').find({}, { maxTimeMS: 3000 });
 });
 
 // 或使用 Promise

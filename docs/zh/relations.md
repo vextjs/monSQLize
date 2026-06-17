@@ -836,7 +836,7 @@ for (const order of user.orders) {
 }
 
 // 场景2: 获取商品及分类
-const products = await Product.find({ cache: 60000 })
+const products = await Product.find({}, { cache: 60000 })
     .populate('category')
     .populate('reviews', { limit: 5 });
 

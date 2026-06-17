@@ -244,10 +244,10 @@ await collection('users').createView(
 console.log('✅ 视图创建成功');
 
 // 查询视图（像普通集合一样使用）
-const activeUsers = await collection('activeUsers').find({
-  query: {},
-  limit: 10
-});
+const activeUsers = await collection('activeUsers').find(
+  {},
+  { limit: 10 }
+);
 
 console.log('活跃用户:', activeUsers);
 ```
@@ -277,10 +277,10 @@ await collection('orders').createView(
 );
 
 // 查询统计视图
-const stats = await collection('orderStats').find({
-  query: {},
-  limit: 10
-});
+const stats = await collection('orderStats').find(
+  {},
+  { limit: 10 }
+);
 
 console.log('订单统计:', stats);
 ```
@@ -319,10 +319,10 @@ await collection('orders').createView(
 );
 
 // 查询订单详情视图
-const orderDetails = await collection('orderDetails').find({
-  query: { status: 'completed' },
-  limit: 20
-});
+const orderDetails = await collection('orderDetails').find(
+  { status: 'completed' },
+  { limit: 20 }
+);
 
 console.log('订单详情:', orderDetails);
 ```
@@ -375,11 +375,13 @@ await collection('sales').createView(
 );
 
 // 查询每日销售统计
-const dailyStats = await collection('dailySales').find({
-  query: {},
-  limit: 30,
-  sort: { date: -1 }
-});
+const dailyStats = await collection('dailySales').find(
+  {},
+  {
+    limit: 30,
+    sort: { date: -1 }
+  }
+);
 
 console.log('每日销售统计:', dailyStats);
 ```
@@ -524,7 +526,7 @@ const count = await collection('oldCollection').count({ query: {} });
 console.log(`集合包含 ${count} 个文档`);
 
 // 3. 可选：备份数据
-const backup = await collection('oldCollection').find({ query: {} });
+const backup = await collection('oldCollection').find({});
 // ... 保存到文件或其他集合
 
 // 4. 确认后删除
@@ -568,7 +570,7 @@ console.log('✅ 视图已更新');
 
 ```javascript
 // ✅ 固定集合支持的操作
-await collection('logs').find({ query: {} });     // 查询
+await collection('logs').find({});     // 查询
 await collection('logs').insertOne({ ... });      // 插入
 
 // ❌ 固定集合不支持的操作

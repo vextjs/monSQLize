@@ -59,6 +59,20 @@ interface ChangeStreamSyncManagerOptions {
     clientFactory?: (uri: string, options?: MongoClientOptions) => Promise<MongoClient>;
 }
 
+function normalizeError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error));
+}
+
+function delay(ms: number): Promise<void> {
+    if (ms <= 0) {
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        timer.unref?.();
+    });
+}
+
 /**
  * Validates a single sync target configuration entry.
  * @param target - Target config to validate.
@@ -116,6 +130,15 @@ export function validateResumeTokenConfig(config: ResumeTokenConfig | null | und
     if (storage === 'redis' && config.redis && typeof config.redis !== 'object') {
         throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.redis must be an object.');
     }
+    if (config.strictSave !== undefined && typeof config.strictSave !== 'boolean') {
+        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.strictSave must be a boolean.');
+    }
+    if (config.saveRetries !== undefined && (!Number.isInteger(config.saveRetries) || config.saveRetries < 0)) {
+        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.saveRetries must be a non-negative integer.');
+    }
+    if (config.saveRetryDelayMs !== undefined && (!Number.isInteger(config.saveRetryDelayMs) || config.saveRetryDelayMs < 0)) {
+        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] resumeToken.saveRetryDelayMs must be a non-negative integer.');
+    }
 }
 
 /**
@@ -167,6 +190,9 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
     private readonly redis?: ResumeTokenRedisLike;
     private readonly redisKey: string;
     private readonly logger: LoggerLike | null;
+    private readonly strictSave: boolean;
+    private readonly saveRetries: number;
+    private readonly saveRetryDelayMs: number;
 
     constructor(options: ResumeTokenConfig & { logger?: LoggerLike | null; } = {}) {
         this.storage = options.storage ?? 'file';
@@ -174,6 +200,9 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
         this.redis = options.redis;
         this.redisKey = options.key ?? 'monsqlize:sync:resume-token';
         this.logger = options.logger ?? null;
+        this.strictSave = options.strictSave ?? true;
+        this.saveRetries = options.saveRetries ?? 0;
+        this.saveRetryDelayMs = options.saveRetryDelayMs ?? 100;
         validateResumeTokenConfig(options);
     }
 
@@ -195,17 +224,44 @@ export class ResumeTokenStore implements ResumeTokenStoreLike {
     }
 
     async save(token: unknown): Promise<void> {
-        try {
-            const payload = JSON.stringify(token, null, 2);
-            if (this.storage === 'redis' && this.redis) {
-                await Promise.resolve(this.redis.set(this.redisKey, payload));
+        const payload = JSON.stringify(token, null, 2);
+        let lastError: Error | null = null;
+
+        for (let attempt = 0; attempt <= this.saveRetries; attempt += 1) {
+            try {
+                await this.writePayload(payload);
                 return;
+            } catch (error) {
+                lastError = normalizeError(error);
+                if (attempt < this.saveRetries) {
+                    this.logger?.warn?.('[Sync] failed to save resume token; retrying', {
+                        attempt: attempt + 1,
+                        retries: this.saveRetries,
+                        error: lastError,
+                    });
+                    await delay(this.saveRetryDelayMs);
+                }
             }
-            await mkdir(path.dirname(this.path), { recursive: true });
-            await writeFile(this.path, payload, 'utf8');
-        } catch (error) {
-            this.logger?.error?.('[Sync] failed to save resume token', error);
         }
+
+        this.logger?.error?.('[Sync] failed to save resume token', lastError);
+        if (this.strictSave) {
+            throw createError(
+                ErrorCodes.DATABASE_ERROR,
+                '[Sync] failed to save resume token',
+                undefined,
+                lastError ?? undefined,
+            );
+        }
+    }
+
+    private async writePayload(payload: string): Promise<void> {
+        if (this.storage === 'redis' && this.redis) {
+            await Promise.resolve(this.redis.set(this.redisKey, payload));
+            return;
+        }
+        await mkdir(path.dirname(this.path), { recursive: true });
+        await writeFile(this.path, payload, 'utf8');
     }
 
     async clear(): Promise<void> {
@@ -240,12 +296,15 @@ export class ChangeStreamSyncManager {
     private changeStream: ChangeStream | null = null;
     private changeQueue: Promise<void> = Promise.resolve();
     private running = false;
+    private fatalSyncError: Error | null = null;
     private readonly stats = {
         eventCount: 0,
         syncedCount: 0,
         errorCount: 0,
         startTime: null as Date | null,
         lastEventTime: null as Date | null,
+        tokenSaveErrorCount: 0,
+        lastTokenSaveError: null as Error | null,
     };
 
     constructor(options: ChangeStreamSyncManagerOptions) {
@@ -269,6 +328,7 @@ export class ChangeStreamSyncManager {
         if (this.running || !this.config.enabled) {
             return;
         }
+        this.fatalSyncError = null;
 
         await this.validateEnvironment();
         await this.initializeTargets();
@@ -327,6 +387,8 @@ export class ChangeStreamSyncManager {
             errorCount: this.stats.errorCount,
             startTime: this.stats.startTime,
             lastEventTime: this.stats.lastEventTime,
+            tokenSaveErrorCount: this.stats.tokenSaveErrorCount,
+            lastTokenSaveError: this.stats.lastTokenSaveError,
             targets: this.targets.map((target) => ({
                 name: target.name,
                 syncCount: target.stats.syncCount,
@@ -422,6 +484,10 @@ export class ChangeStreamSyncManager {
     }
 
     private async handleChange(event: SyncChangeEvent<Document>): Promise<void> {
+        if (this.fatalSyncError) {
+            this.logger?.warn?.('[Sync] skipping queued change after fatal sync error', this.fatalSyncError);
+            return;
+        }
         this.stats.eventCount += 1;
         this.stats.lastEventTime = new Date();
 
@@ -460,8 +526,28 @@ export class ChangeStreamSyncManager {
         }
 
         if (eligibleTargets > 0 && succeeded === eligibleTargets) {
+            try {
+                await this.tokenStore.save(event._id);
+            } catch (error) {
+                const normalized = normalizeError(error);
+                this.stats.tokenSaveErrorCount += 1;
+                this.stats.lastTokenSaveError = normalized;
+                this.stopAfterFatalSyncError(normalized);
+                throw normalized;
+            }
             this.stats.syncedCount += 1;
-            await this.tokenStore.save(event._id);
+        }
+    }
+
+    private stopAfterFatalSyncError(error: Error): void {
+        this.fatalSyncError = error;
+        this.running = false;
+        const stream = this.changeStream;
+        this.changeStream = null;
+        if (stream) {
+            void stream.close().catch((closeError) => {
+                this.logger?.warn?.('[Sync] failed to close change stream after fatal error', closeError);
+            });
         }
     }
 

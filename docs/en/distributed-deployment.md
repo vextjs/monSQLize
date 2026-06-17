@@ -472,10 +472,10 @@ await msq.connect();
 
 //use
 const { collection } = await msq.connect();
-const users = await collection('users').find({
-  query: { active: true },
-  cache: 60000  //Cache for 60 seconds
-});
+const users = await collection('users').find(
+  { active: true },
+  { cache: 60000 }  //Cache for 60 seconds
+);
 
 //Close (clean up resources)
 await msq.close();

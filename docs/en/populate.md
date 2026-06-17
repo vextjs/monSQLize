@@ -361,11 +361,11 @@ const users = await User.find().populate('posts');
 
 ```javascript
 //First query
-const users = await User.find({ cache: 60000 }).populate('posts');
+const users = await User.find({}, { cache: 60000 }).populate('posts');
 //2 database queries (user + article)
 
 //Subsequent query (within 60 seconds)
-const users2 = await User.find({ cache: 60000 }).populate('posts');
+const users2 = await User.find({}, { cache: 60000 }).populate('posts');
 //0 database queries (all cache hits) ⚡ 100x faster
 ```
 
@@ -383,10 +383,10 @@ const users2 = await User.find({ cache: 60000 }).populate('posts');
 
 ```javascript
 //The main query and populate use the same cache time
-const users = await User.find({ cache: 60000 }).populate('posts');
+const users = await User.find({}, { cache: 60000 }).populate('posts');
 
 //Main query and populate use different cache times
-const users = await User.find({ cache: 60000 })
+const users = await User.find({}, { cache: 60000 })
     .populate('posts', { cache: 300000 });  //Article cache for 5 minutes
 
 //Only cache populate, not the main query
@@ -420,8 +420,8 @@ const users = await User.find().populate('posts');  // 50ms
 const users2 = await User.find().populate('posts'); //50ms (query every time)
 
 // monSQLize
-const users = await User.find({ cache: 60000 }).populate('posts');  // 50ms
-const users2 = await User.find({ cache: 60000 }).populate('posts'); // 0.5ms ⚡ 100x
+const users = await User.find({}, { cache: 60000 }).populate('posts');  // 50ms
+const users2 = await User.find({}, { cache: 60000 }).populate('posts'); // 0.5ms ⚡ 100x
 ```
 
 
@@ -450,10 +450,10 @@ User.find()
 
 ```javascript
 //populate results will be cached
-const users = await User.find({ cache: 60000 }).populate('posts');
+const users = await User.find({}, { cache: 60000 }).populate('posts');
 
 //Subsequent queries read directly from the cache, including populate data
-const users2 = await User.find({ cache: 60000 }).populate('posts');
+const users2 = await User.find({}, { cache: 60000 }).populate('posts');
 //0 database queries ⚡
 ```
 
@@ -619,7 +619,7 @@ const Comment = msq.model('comments');
 //3. Usage scenarios
 
 //Scenario A: Get users and their articles
-const users = await User.find({ cache: 60000 })
+const users = await User.find({}, { cache: 60000 })
     .populate('posts', {
         select: ['title', 'createdAt', 'status'],
         limit: 5,
@@ -715,7 +715,7 @@ const posts = await Post.find().populate('comments', {
 const users = await User.find().populate('posts');
 
 //✅ Good: Enable caching (suitable for reading more data and writing less data)
-const users = await User.find({ cache: 60000 }).populate('posts');
+const users = await User.find({}, { cache: 60000 }).populate('posts');
 ```
 
 

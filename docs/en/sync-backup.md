@@ -15,11 +15,11 @@
 
 - ✅ **Real-time synchronization**: Based on MongoDB Change Stream, delay 10-500ms
 - ✅ **Decoupled design**: Primary database write operations are not affected; synchronization runs asynchronously
-- ✅ **Resume breakpoint**: Resume Token is automatically saved and will continue after restarting
+- ✅ **Resume breakpoint**: Resume Token is saved after all matching targets succeed, so restarts can resume from the latest persisted token
 - ✅ **Multi-target support**: Sync to multiple backup databases at the same time
 - ✅ **Data Filtering**: Custom filtering logic
 - ✅ **Data conversion**: Support desensitization and field conversion
-- ✅ **Automatic reconnect**: Automatically recover from network interruptions
+- ✅ **Observable lifecycle**: Sync stats expose running state and error counters for monitoring/restart workflows
 - ✅ **Health Check**: Reuse ConnectionPoolManager
 
 ---
@@ -120,6 +120,11 @@ await msq.close();
 | `storage` | string | ❌ | `'file'` | Storage type: `'file'` or `'redis'` |
 | `path` | string | ❌ | `./.sync-resume-token` | File path (file mode) |
 | `redis` | Object | ❌ | - | Redis instance (Redis mode) |
+| `strictSave` | boolean | ❌ | `true` | Treat token save failures as fatal so CDC never advances without a persisted token |
+| `saveRetries` | number | ❌ | `0` | Retry attempts before a strict token save fails |
+| `saveRetryDelayMs` | number | ❌ | `100` | Delay between token-save retries |
+
+Resume token persistence is strict by default. After all eligible targets apply an event successfully, monSQLize saves the event resume token; `syncedCount` advances only after that save succeeds. If token persistence fails after the configured retries, the manager records `tokenSaveErrorCount` / `lastTokenSaveError`, closes the live stream, marks `isRunning: false`, and does not process later queued events. Set `strictSave: false` only for legacy best-effort behavior, where a restart may replay already-applied events. Built-in MongoDB targets are idempotent (`replaceOne(..., { upsert: true })` / `deleteOne()`); custom `apply` targets should still deduplicate by change event `_id`.
 
 ---
 
@@ -200,7 +205,10 @@ const redis = new Redis();
         targets: [...],
         resumeToken: {
             storage: 'redis',
-            redis: redis
+            redis: redis,
+            strictSave: true,
+            saveRetries: 3,
+            saveRetryDelayMs: 100
         }
     }
 }
@@ -294,7 +302,8 @@ rs.initiate()
 
 **Automatic processing**:
 - Failure of a single target does not affect other targets
-- Change Stream interrupts and automatically reconnects (up to 5 times)
+- A resume-token save failure stops the sync manager before the token can advance
+- Change Stream driver errors are logged and reflected in stats; monitor `isRunning` / `errorCount` and restart the manager or runtime from your supervisor when needed
 
 **Manual processing**:
 ```javascript
