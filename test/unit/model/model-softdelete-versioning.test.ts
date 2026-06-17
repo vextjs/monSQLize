@@ -270,7 +270,7 @@ describe('Model softDelete / versioning behavior', () => {
         it('updateOne increments version by 1', async () => {
             const model = runtime.model('ver_items');
             const result = await model.insertOne({ name: 'victor' });
-            await model.updateOne({ _id: result.insertedId, version: 0 }, { $set: { x: 1 } });
+            await model.updateOne({ _id: result.insertedId }, { $set: { x: 1 } });
             const doc = await model.findOneById(result.insertedId);
             assert.equal(doc.version, 1);
         });
@@ -278,8 +278,8 @@ describe('Model softDelete / versioning behavior', () => {
         it('multiple updates increment version cumulatively', async () => {
             const model = runtime.model('ver_items');
             const result = await model.insertOne({ name: 'wendy' });
-            await model.updateOne({ _id: result.insertedId, version: 0 }, { $set: { x: 1 } });
-            await model.updateOne({ _id: result.insertedId, version: 1 }, { $set: { x: 2 } });
+            await model.updateOne({ _id: result.insertedId }, { $set: { x: 1 } });
+            await model.updateOne({ _id: result.insertedId }, { $set: { x: 2 } });
             const doc = await model.findOneById(result.insertedId);
             assert.equal(doc.version, 2);
         });
@@ -294,6 +294,26 @@ describe('Model softDelete / versioning behavior', () => {
             );
         });
 
+        it('updateOne honors explicit expectedVersion over automatic lookup', async () => {
+            const model = runtime.model('ver_items');
+            const result = await model.insertOne({ name: 'explicit-wins' });
+            await assert.rejects(
+                () => model.updateOne({ _id: result.insertedId }, { $set: { x: 1 } }, { expectedVersion: 1 }),
+                /optimistic lock conflict/i,
+            );
+            const doc = await model.findOneById(result.insertedId);
+            assert.equal(doc.version, 0);
+        });
+
+        it('updateOne without version or direct _id rejects unsafe automatic lookup', async () => {
+            const model = runtime.model('ver_items');
+            await model.insertOne({ name: 'unsafe-filter' });
+            await assert.rejects(
+                () => model.updateOne({ name: 'unsafe-filter' }, { $set: { x: 1 } }),
+                /direct _id filter/i,
+            );
+        });
+
         it('findOneAndReplace enforces expected version and advances the replacement version', async () => {
             const model = runtime.model('ver_items');
             const result = await model.insertOne({ name: 'replace-occ' });
@@ -301,7 +321,7 @@ describe('Model softDelete / versioning behavior', () => {
             await model.findOneAndReplace(
                 { _id: result.insertedId },
                 { name: 'replace-occ-next' },
-                { expectedVersion: 0, returnDocument: 'after' },
+                { returnDocument: 'after' },
             );
 
             const doc = await model.findOneById(result.insertedId);
@@ -317,12 +337,47 @@ describe('Model softDelete / versioning behavior', () => {
             );
         });
 
-        it('updateMany is rejected for versioned models', async () => {
+        it('updateMany counter mode increments all matched document versions', async () => {
             const model = runtime.model('ver_items');
-            await assert.rejects(
-                () => model.updateMany({}, { $set: { x: 1 } }),
-                /single-document only/i,
-            );
+            await model.insertMany([
+                { group: 'counter', n: 1 },
+                { group: 'counter', n: 2 },
+            ]);
+            const result = await model.updateMany({ group: 'counter' }, { $set: { x: 1 } });
+            assert.equal(result.matchedCount, 2);
+            const docs = await model.find({ group: 'counter' });
+            assert.deepEqual(docs.map((doc: any) => doc.version).sort(), [1, 1]);
+        });
+
+        it('updateMany off mode skips version increments', async () => {
+            const model = runtime.model('ver_items');
+            await model.insertMany([
+                { group: 'off', n: 1 },
+                { group: 'off', n: 2 },
+            ]);
+            await model.updateMany({ group: 'off' }, { $set: { x: 1 } }, { versionMode: 'off' });
+            const docs = await model.find({ group: 'off' });
+            assert.deepEqual(docs.map((doc: any) => doc.version).sort(), [0, 0]);
+        });
+
+        it('updateMany strict mode reports conflicting documents', async () => {
+            const model = runtime.model('ver_items');
+            const first = await model.insertOne({ group: 'strict', n: 1 });
+            await model.insertOne({ group: 'strict', n: 2 });
+            let firstAttempt = true;
+            const originalUpdateOne = model.collection.updateOne.bind(model.collection);
+            model.collection.updateOne = async (filter: any, update: any, options: any) => {
+                if (firstAttempt && String(filter._id) === String(first.insertedId)) {
+                    firstAttempt = false;
+                    await originalUpdateOne({ _id: filter._id }, { $inc: { version: 1 } });
+                }
+                return originalUpdateOne(filter, update, options);
+            };
+            const result = await model.updateMany({ group: 'strict' }, { $set: { x: 1 } }, { versionMode: 'strict' });
+            assert.equal((result as any).conflictCount, 1);
+            assert.equal((result as any).conflictedIds.length, 1);
+            const docs = await model.find({ group: 'strict' });
+            assert.deepEqual(docs.map((doc: any) => doc.version).sort(), [1, 1]);
         });
 
         it('updateOne preserves pipeline updates while advancing version', async () => {

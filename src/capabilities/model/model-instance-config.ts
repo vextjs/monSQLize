@@ -32,7 +32,8 @@ type ModelWarningLogger = { warn?: (...args: unknown[]) => void };
 
 export type ModelTimestampsConfig = { createdAt: string | false; updatedAt: string | false };
 export type ModelSoftDeleteConfig = { enabled: boolean; field: string; type: string; ttl: number | null };
-export type ModelVersionConfig = { enabled: boolean; field: string };
+export type ModelVersionUpdateManyMode = 'counter' | 'strict' | 'off';
+export type ModelVersionConfig = { enabled: boolean; field: string; updateMany: ModelVersionUpdateManyMode };
 
 type ModelDefinitionCompat<TDocument> = ModelDefinition<TDocument> & {
     enums?: Record<string, string>;
@@ -56,6 +57,7 @@ type ModelDefinitionCompat<TDocument> = ModelDefinition<TDocument> & {
         version?: true | {
             enabled?: boolean;
             field?: string;
+            updateMany?: ModelVersionUpdateManyMode;
         };
         autoIndex?: ModelAutoIndexOptions;
     };
@@ -431,11 +433,22 @@ export function resolveModelVersionConfig<TDocument>(
         return {
             enabled: true,
             field: 'version',
+            updateMany: 'counter',
         };
+    }
+    const updateMany = version.updateMany;
+    if (
+        updateMany !== undefined
+        && updateMany !== 'counter'
+        && updateMany !== 'strict'
+        && updateMany !== 'off'
+    ) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'version.updateMany must be "counter", "strict", or "off".');
     }
     return {
         enabled: version.enabled !== false,
         field: version.field ?? 'version',
+        updateMany: updateMany ?? 'counter',
     };
 }
 

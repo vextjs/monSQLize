@@ -7,6 +7,7 @@
  */
 import type { HookContext } from '../../../types/model';
 import type { IncrementOneResult, InsertBatchResult, InsertManyResult, UpdateBatchResult, UpdateResult } from '../../../types/collection';
+import { ErrorCodes, createError } from '../../core/errors';
 import type { ExtendedModelCollectionLike, ModelCollectionLike } from './populate-promise';
 import {
     applyModelInsertTimestamps,
@@ -18,8 +19,9 @@ import {
     applyModelVersionIncrement,
     assertModelOptimisticLockDocument,
     assertModelOptimisticLockMatched,
-    assertModelVersionedMultiUpdateAllowed,
-    resolveModelOptimisticLock,
+    assertNumericExpectedVersion,
+    resolveModelOptimisticLockAsync,
+    resolveModelUpdateManyVersionMode,
     type ModelSchemaValidateFn,
     type ModelSoftDeleteConfig,
     type ModelTimestampConfig,
@@ -31,6 +33,11 @@ import {
 
 type HookOperation = 'find' | 'insert' | 'update' | 'delete';
 type HookPhase = 'before' | 'after';
+
+type StrictUpdateManyResult = UpdateResult & {
+    conflictCount: number;
+    conflictedIds: unknown[];
+};
 
 export type ModelMutationContext<TDocument = Record<string, unknown>> = {
     collectionName: string;
@@ -86,6 +93,54 @@ async function invokeStandardOperationHook<TDocument>(
     if (alias !== canonical) {
         await invokeStandardHook(context, alias, payload);
     }
+}
+
+async function runStrictUpdateMany<TDocument>(
+    context: ModelMutationContext<TDocument>,
+    filter: unknown,
+    update: unknown,
+    options: unknown,
+): Promise<StrictUpdateManyResult> {
+    if (!context.versionConfig?.enabled) {
+        return context.collection.updateMany(filter, update, options) as Promise<StrictUpdateManyResult>;
+    }
+    const rawOptions = (options ?? {}) as Record<string, unknown>;
+    if (rawOptions.upsert === true) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'versionMode "strict" does not support upsert.');
+    }
+    const docs = await context.collection.find(filter, {
+        projection: {
+            _id: 1,
+            [context.versionConfig.field]: 1,
+        },
+    }) as Array<Record<string, unknown>>;
+    let matchedCount = 0;
+    let modifiedCount = 0;
+    const conflictedIds: unknown[] = [];
+    for (const doc of docs) {
+        const id = doc._id;
+        const expectedVersion = assertNumericExpectedVersion(doc[context.versionConfig.field], 'updateMany');
+        const result = await context.collection.updateOne(
+            { _id: id, [context.versionConfig.field]: expectedVersion },
+            update,
+            options,
+        );
+        if ((result?.matchedCount ?? 0) === 0) {
+            conflictedIds.push(id);
+            continue;
+        }
+        matchedCount += result.matchedCount ?? 0;
+        modifiedCount += result.modifiedCount ?? 0;
+    }
+    return {
+        acknowledged: true,
+        matchedCount,
+        modifiedCount,
+        upsertedCount: 0,
+        upsertedId: null,
+        conflictCount: conflictedIds.length,
+        conflictedIds,
+    };
 }
 
 export async function orchestrateModelInsertOne<TDocument = Record<string, unknown>>(
@@ -189,7 +244,7 @@ export async function orchestrateModelUpdateOne<TDocument = Record<string, unkno
         applyModelUpdateTimestamps(nextUpdate, context.timestampsConfig, () => context.nowDate()),
         context.versionConfig,
     );
-    const lock = resolveModelOptimisticLock(filter, options, context.versionConfig);
+    const lock = await resolveModelOptimisticLockAsync(context.collection, filter, options, context.versionConfig, 'updateOne');
     const result = await context.collection.updateOne(lock.filter, nextUpdate, lock.driverOptions);
     assertModelOptimisticLockMatched(result, context.versionConfig);
 
@@ -217,18 +272,20 @@ export async function orchestrateModelUpdateMany<TDocument = Record<string, unkn
     options?: unknown,
 ): Promise<UpdateResult> {
     const hookContext: Record<string, unknown> = {};
-    assertModelVersionedMultiUpdateAllowed(context.versionConfig, 'updateMany');
     let nextUpdate = update;
     if (context.hooksFactory) {
         await invokeV1Hook(context, 'update', 'before', hookContext, filter, nextUpdate);
     } else {
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'updateMany', collection: context.collectionName, filter, update: nextUpdate });
     }
-    nextUpdate = applyModelVersionIncrement(
-        applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate()),
-        context.versionConfig,
-    );
-    const result = await context.collection.updateMany(filter, nextUpdate, options);
+    const versionMode = resolveModelUpdateManyVersionMode(options, context.versionConfig);
+    const timestampedUpdate = applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate());
+    nextUpdate = versionMode.mode === 'off'
+        ? timestampedUpdate
+        : applyModelVersionIncrement(timestampedUpdate, context.versionConfig);
+    const result = versionMode.mode === 'strict'
+        ? await runStrictUpdateMany(context, filter, nextUpdate, versionMode.driverOptions)
+        : await context.collection.updateMany(filter, nextUpdate, versionMode.driverOptions);
     if (context.hooksFactory) {
         try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
     } else {
@@ -249,7 +306,7 @@ export async function orchestrateModelReplaceOne<TDocument = Record<string, unkn
     } else {
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'replaceOne', collection: context.collectionName, filter, update: replacement });
     }
-    const lock = resolveModelOptimisticLock(filter, options, context.versionConfig);
+    const lock = await resolveModelOptimisticLockAsync(context.collection, filter, options, context.versionConfig, 'replaceOne');
     const nextReplacement = applyModelReplaceVersion(
         applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate()),
         context.versionConfig,
@@ -281,7 +338,7 @@ export async function orchestrateModelFindOneAndUpdate<TDocument = Record<string
         applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate()),
         context.versionConfig,
     );
-    const lock = resolveModelOptimisticLock(filter, options, context.versionConfig);
+    const lock = await resolveModelOptimisticLockAsync(context.collection, filter, options, context.versionConfig, 'findOneAndUpdate');
     const result = await context.collection.findOneAndUpdate(lock.filter, nextUpdate, lock.driverOptions);
     assertModelOptimisticLockDocument(result, context.versionConfig);
     if (context.hooksFactory) {
@@ -304,7 +361,7 @@ export async function orchestrateModelFindOneAndReplace<TDocument = Record<strin
     } else {
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'findOneAndReplace', collection: context.collectionName, filter, update: replacement });
     }
-    const lock = resolveModelOptimisticLock(filter, options, context.versionConfig);
+    const lock = await resolveModelOptimisticLockAsync(context.collection, filter, options, context.versionConfig, 'findOneAndReplace');
     const nextReplacement = applyModelReplaceVersion(
         applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate()),
         context.versionConfig,

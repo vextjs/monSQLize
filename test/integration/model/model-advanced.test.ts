@@ -237,6 +237,32 @@ describe('Model hydrated document save/remove', () => {
         assert.equal(updated.score, 2);
     });
 
+    it('hydrated doc.save() on a versioned model enforces optimistic locking', async () => {
+        MonSQLize.Model.define('save_versioned', {
+            schema: {},
+            options: { version: true },
+        });
+        const m = runtime.model('save_versioned');
+        const result = await m.insertOne({ name: 'Versioned', score: 1 });
+        const first = await m.findOne({ _id: result.insertedId });
+        const second = await m.findOne({ _id: result.insertedId });
+        assert.ok(first !== null);
+        assert.ok(second !== null);
+
+        first.score = 2;
+        await first.save();
+        assert.equal(first.version, 1);
+
+        second.score = 3;
+        await assert.rejects(
+            () => second.save(),
+            /optimistic lock conflict/i,
+        );
+        const stored = await m.findOne({ _id: result.insertedId });
+        assert.equal(stored!.score, 2);
+        assert.equal(stored!.version, 1);
+    });
+
     it('hydrated doc.save() without _id performs insertOne', async () => {
         MonSQLize.Model.define('save_insert', { schema: {} });
         const m = runtime.model('save_insert');

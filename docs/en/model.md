@@ -1626,7 +1626,8 @@ Model.define('users', {
     options: {
         version: {
             enabled: true,      //Whether to enable
-            field: '__v' // Custom field name (default 'version')
+            field: '__v',       // Custom field name (default 'version')
+            updateMany: 'counter' // 'counter' | 'strict' | 'off'
         }
     }
 });
@@ -1649,14 +1650,14 @@ console.log(user);
 ```
 
 
-## Expected version required when updating
+## Automatic version handling when updating
 
 ```javascript
 const user = await User.findOne({ _id });
 
 //first update
 await User.updateOne(
-    { _id, version: user.version },
+    { _id },
     { $set: { status: 'active' } }
 );
 //Actual execution includes { _id, version: 0 } and { $inc: { version: 1 } }
@@ -1672,7 +1673,21 @@ await User.updateOne(
 );
 ```
 
-Versioned `updateOne`, `replaceOne`, `findOneAndUpdate`, and `findOneAndReplace` require the expected version in the filter or as `expectedVersion`. `updateMany` is not supported for versioned models because optimistic locking is a single-document contract.
+Versioned `save`, `updateOne`, `replaceOne`, `findOneAndUpdate`, and `findOneAndReplace` use true optimistic concurrency control. When the filter contains a direct `_id`, monSQLize reads the current version automatically. Explicit `expectedVersion`, `version`, or a version field in the filter still wins over automatic lookup.
+
+For `updateMany`, choose the batch version behavior with `versionMode`:
+
+```javascript
+await User.updateMany(
+    { status: 'pending' },
+    { $set: { status: 'active' } },
+    { versionMode: 'strict' } // 'counter' | 'strict' | 'off'
+);
+```
+
+- `counter` (default): native batch update plus version increment. This is a version counter, not optimistic locking.
+- `strict`: pre-read matching `_id` and version values, update each document with `{ _id, version }`, and return `conflictCount` / `conflictedIds`.
+- `off`: skip version handling for this batch update.
 
 
 ## Concurrency conflict detection
@@ -1688,7 +1703,7 @@ console.log(userB.version);  // 0
 
 //User A updated successfully first
 const resultA = await User.updateOne(
-    { _id, version: userA.version },
+    { _id },
     { $set: { status: 'active' } }
 );
 console.log(resultA.modifiedCount);  // 1
@@ -1738,8 +1753,9 @@ async function updateUserStatus(userId, newStatus) {
 
         try {
             await User.updateOne(
-                { _id: userId, version: user.version },
-                { $set: { status: newStatus } }
+                { _id: userId },
+                { $set: { status: newStatus } },
+                { expectedVersion: user.version }
             );
             return { success: true };
         } catch (error) {

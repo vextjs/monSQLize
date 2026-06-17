@@ -157,7 +157,7 @@ function createMutationContext(overrides: Partial<ModelMutationContext<Record<st
         nowDate: () => now,
         timestampsConfig: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
         softDeleteConfig: { enabled: true, field: 'deletedAt', type: 'date', ttl: null },
-        versionConfig: { enabled: true, field: '__v' },
+        versionConfig: { enabled: true, field: '__v', updateMany: 'counter' },
         validateEnabled: true,
         schemaCache: { validate: () => true },
         schemaValidateFn: () => ({ valid: true, errors: [] }),

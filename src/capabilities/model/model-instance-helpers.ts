@@ -15,6 +15,16 @@ import { PopulatePromise, type ModelCollectionLike, type ModelRuntimeLike, type 
 import { normalizePopulateConfig } from './definition-validator';
 import { Model } from './model-registry';
 import { applySort, getByPath, groupBy, pickFields, serializeDocument, toKey, unique } from './model-utils';
+import {
+    applyModelInsertTimestamps,
+    applyModelInsertVersion,
+    applyModelReplaceTimestamps,
+    applyModelReplaceVersion,
+    assertModelOptimisticLockMatched,
+    assertNumericExpectedVersion,
+    type ModelTimestampConfig,
+    type ModelVersionConfig,
+} from './model-write-helpers';
 
 type PopulateContext<TDocument> = {
     relations: Map<string, RelationConfig>;
@@ -340,13 +350,40 @@ export function applyModelDefaults<TDocument>(
 export async function saveModelDocument<TDocument>(
     collection: ModelCollectionLike<TDocument>,
     document: TDocument & Record<string, unknown>,
+    options: {
+        timestampsConfig?: ModelTimestampConfig;
+        versionConfig?: ModelVersionConfig;
+        nowFactory?: () => Date;
+    } = {},
 ): Promise<TDocument & Record<string, unknown>> {
-    const payload = serializeDocument(document);
+    const nowFactory = options.nowFactory ?? (() => new Date());
+    let payload = serializeDocument(document);
     if (payload._id !== undefined) {
+        if (options.versionConfig?.enabled) {
+            const expectedVersion = assertNumericExpectedVersion(payload[options.versionConfig.field], 'save');
+            const replacement = applyModelReplaceVersion(
+                applyModelReplaceTimestamps(payload, options.timestampsConfig ?? null, nowFactory),
+                options.versionConfig,
+                expectedVersion,
+            ) as Record<string, unknown>;
+            const result = await collection.replaceOne(
+                { _id: payload._id, [options.versionConfig.field]: expectedVersion },
+                replacement,
+                { upsert: false },
+            );
+            assertModelOptimisticLockMatched(result, options.versionConfig);
+            Object.assign(document, replacement);
+            return document;
+        }
         await collection.replaceOne({ _id: payload._id }, payload, { upsert: true });
         return document;
     }
+    payload = applyModelInsertVersion(
+        applyModelInsertTimestamps(payload, options.timestampsConfig ?? null, nowFactory),
+        options.versionConfig ?? null,
+    );
     const result = await collection.insertOne(payload);
+    Object.assign(document, payload);
     (document as Record<string, unknown>)._id = result.insertedId;
     return document;
 }

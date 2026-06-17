@@ -21,7 +21,10 @@ export type ModelSoftDeleteConfig = {
 export type ModelVersionConfig = {
     enabled: boolean;
     field: string;
+    updateMany: ModelVersionUpdateManyMode;
 } | null;
+
+export type ModelVersionUpdateManyMode = 'counter' | 'strict' | 'off';
 
 export type ModelHookOperation = 'find' | 'insert' | 'update' | 'delete';
 export type ModelHookPhase = 'before' | 'after';
@@ -46,6 +49,45 @@ type ModelSchemaValidationContext = {
 };
 
 type UpdatePipelineStage = Record<string, unknown>;
+
+type VersionLookupCollection = {
+    findOne(query?: unknown, options?: unknown): Promise<unknown>;
+};
+
+function isOperatorObject(value: unknown): boolean {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return false;
+    }
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+
+function stripModelVersionOptions(options: unknown): unknown {
+    if (options === undefined) {
+        return undefined;
+    }
+    const rawOptions = (options ?? {}) as Record<string, unknown>;
+    const {
+        expectedVersion: _expectedVersion,
+        version: _version,
+        versionMode: _versionMode,
+        ...driverOptions
+    } = rawOptions;
+    void _expectedVersion;
+    void _version;
+    void _versionMode;
+    return driverOptions;
+}
+
+export function assertNumericExpectedVersion(expectedVersion: unknown, operation = 'write'): number {
+    if (typeof expectedVersion !== 'number' || !Number.isFinite(expectedVersion)) {
+        throw createError(
+            ErrorCodes.INVALID_ARGUMENT,
+            `Model optimistic locking requires a numeric expectedVersion for ${operation}.`,
+        );
+    }
+    return expectedVersion;
+}
 
 function withModelErrorMetadata<TError extends Error>(
     error: TError,
@@ -250,6 +292,49 @@ export function resolveModelOptimisticLock(
     };
 }
 
+export async function resolveModelOptimisticLockAsync(
+    collection: VersionLookupCollection,
+    filter: unknown,
+    options: unknown,
+    versionConfig: ModelVersionConfig,
+    operation: string,
+): Promise<{ filter: unknown; expectedVersion: number; driverOptions: unknown }> {
+    if (!versionConfig?.enabled) {
+        return { filter, expectedVersion: 0, driverOptions: options };
+    }
+    const resolvedFilter = { ...((filter as Record<string, unknown>) ?? {}) };
+    const rawOptions = (options ?? {}) as Record<string, unknown>;
+    let expectedVersion = rawOptions.expectedVersion ?? rawOptions.version ?? resolvedFilter[versionConfig.field];
+
+    if (expectedVersion === undefined) {
+        const id = resolvedFilter._id;
+        if (id === undefined || isOperatorObject(id)) {
+            throw createError(
+                ErrorCodes.INVALID_ARGUMENT,
+                `Model optimistic locking requires expectedVersion, ${versionConfig.field} in the filter, or a direct _id filter for automatic version lookup.`,
+            );
+        }
+        const current = await collection.findOne(
+            { _id: id },
+            { projection: { [versionConfig.field]: 1 } },
+        ) as Record<string, unknown> | null | undefined;
+        if (!current) {
+            throw createError(ErrorCodes.WRITE_CONFLICT, 'Model optimistic lock conflict.');
+        }
+        expectedVersion = current[versionConfig.field];
+    }
+
+    const numericVersion = assertNumericExpectedVersion(expectedVersion, operation);
+    if (resolvedFilter[versionConfig.field] === undefined) {
+        resolvedFilter[versionConfig.field] = numericVersion;
+    }
+    return {
+        filter: resolvedFilter,
+        expectedVersion: numericVersion,
+        driverOptions: stripModelVersionOptions(options),
+    };
+}
+
 export function assertModelOptimisticLockMatched(
     result: { matchedCount?: number } | null | undefined,
     versionConfig: ModelVersionConfig,
@@ -282,14 +367,30 @@ export function applyModelReplaceVersion(
     if (!versionConfig?.enabled) {
         return replacement;
     }
-    if (typeof expectedVersion !== 'number') {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'Model optimistic locking requires a numeric expectedVersion for replaceOne.');
-    }
+    const numericVersion = assertNumericExpectedVersion(expectedVersion, 'replaceOne');
     const resolvedReplacement = { ...((replacement as Record<string, unknown>) ?? {}) };
-    if (resolvedReplacement[versionConfig.field] === undefined) {
-        resolvedReplacement[versionConfig.field] = expectedVersion + 1;
-    }
+    resolvedReplacement[versionConfig.field] = numericVersion + 1;
     return resolvedReplacement;
+}
+
+export function resolveModelUpdateManyVersionMode(
+    options: unknown,
+    versionConfig: ModelVersionConfig,
+): { mode: ModelVersionUpdateManyMode; driverOptions: unknown } {
+    const rawOptions = (options ?? {}) as Record<string, unknown>;
+    const requested = rawOptions.versionMode;
+    if (
+        requested !== undefined
+        && requested !== 'counter'
+        && requested !== 'strict'
+        && requested !== 'off'
+    ) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'versionMode must be "counter", "strict", or "off".');
+    }
+    return {
+        mode: versionConfig?.enabled ? (requested as ModelVersionUpdateManyMode | undefined ?? versionConfig.updateMany) : 'off',
+        driverOptions: stripModelVersionOptions(options),
+    };
 }
 
 export function assertModelVersionedMultiUpdateAllowed(versionConfig: ModelVersionConfig, operation: string): void {

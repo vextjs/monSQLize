@@ -45,7 +45,12 @@ expectAssignable<ModelDefinition<UserDoc>>({
     relations: { posts: relation },
     virtuals: { displayName: virtual },
     connection: { database: 'tenant_a' },
-    options: { validate: true, timestamps: { createdAt: true, updatedAt: 'updatedAt' }, autoIndex: false },
+    options: {
+        validate: true,
+        timestamps: { createdAt: true, updatedAt: 'updatedAt' },
+        autoIndex: false,
+        version: { enabled: true, field: 'version', updateMany: 'strict' },
+    },
 });
 
 expectAssignable<ModelAutoIndexOptions>({ enabled: false, emitEvents: true });
@@ -98,7 +103,8 @@ expectType<Promise<ModelIndexEnsureResult>>(users.ensureIndexes({ dryRun: true, 
 expectType<Promise<ModelIndexEnsureSummary>>(runtime.ensureModelIndexes({ models: ['users'], dryRun: true }));
 expectType<Promise<import('monsqlize').InsertManyResult>>(users.insertMany([{ firstName: 'Ada', lastName: 'Lovelace' }]));
 expectType<Promise<import('monsqlize').UpdateResult>>(users.updateOne({ firstName: 'Ada' }, { $set: { nickname: 'Countess' } }));
-expectType<Promise<import('monsqlize').UpdateResult>>(users.updateMany({}, { $set: { nickname: 'Analyst' } }));
+expectType<Promise<import('monsqlize').UpdateResult>>(users.updateOne({ firstName: 'Ada' }, { $set: { nickname: 'Countess' } }, { expectedVersion: 1 }));
+expectType<Promise<import('monsqlize').UpdateResult>>(users.updateMany({}, { $set: { nickname: 'Analyst' } }, { versionMode: 'counter' }));
 expectType<Promise<import('monsqlize').UpdateResult>>(users.replaceOne({ firstName: 'Ada' }, { firstName: 'Ada', lastName: 'Byron' }));
 expectType<Promise<import('monsqlize').IncrementOneResult<UserDoc>>>(users.incrementOne({ firstName: 'Ada' }, 'visits', 1));
 expectType<Promise<import('monsqlize').RestoreResult>>(users.restore({ firstName: 'Ada' }));

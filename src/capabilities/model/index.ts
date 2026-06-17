@@ -132,7 +132,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     private _validateEnabled = true; // true = validate on insert; false = skip globally
     private _timestampsConfig: { createdAt: string | false; updatedAt: string | false } | null = null;
     private _softDeleteConfig: { enabled: boolean; field: string; type: string; ttl: number | null } | null = null;
-    private _versionConfig: { enabled: boolean; field: string } | null = null;
+    private _versionConfig: { enabled: boolean; field: string; updateMany: 'counter' | 'strict' | 'off' } | null = null;
     private _v1HooksFactory: ModelV1HooksFactory = null;
     private _v1InstanceMethods: Record<string, (...args: unknown[]) => unknown> = {};
     // Expose softDeleteConfig for v1 test assertions
@@ -661,7 +661,11 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         };
     }
     private async saveDocument(document: TDocument & Record<string, unknown>): Promise<TDocument & Record<string, unknown>> {
-        return saveModelDocument(this.collection, document);
+        return saveModelDocument(this.collection, document, {
+            timestampsConfig: this._timestampsConfig,
+            versionConfig: this._versionConfig,
+            nowFactory: () => this.nowDate(),
+        });
     }
     private async removeDocument(document: TDocument & Record<string, unknown>): Promise<boolean> {
         return removeModelDocument(this.collection, document);

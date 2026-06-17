@@ -1547,7 +1547,8 @@ Model.define('users', {
     options: {
         version: {
             enabled: true,      // 是否启用
-            field: '__v'        // 自定义字段名（默认 'version'）
+            field: '__v',       // 自定义字段名（默认 'version'）
+            updateMany: 'counter' // counter | strict | off
         }
     }
 });
@@ -1568,20 +1569,37 @@ console.log(user);
 // { _id: '...', username: 'john', email: 'john@example.com', version: 0 }
 ```
 
-### 更新时自动递增
+### 更新时自动处理版本
 
 ```javascript
 // 第一次更新
 await User.updateOne({ _id }, { $set: { status: 'active' } });
-// 实际执行：{ $set: { status: 'active' }, $inc: { version: 1 } }
+// 实际执行会先读取当前 version，再写入 { _id, version: 0 } + { $inc: { version: 1 } }
 
 const user = await User.findOne({ _id });
 console.log(user.version);  // 1
 
 // 第二次更新
 await User.updateOne({ _id }, { $set: { status: 'inactive' } });
-console.log(user.version);  // 2
+const updatedAgain = await User.findOne({ _id });
+console.log(updatedAgain.version);  // 2
 ```
+
+启用 version 后，`save`、`updateOne`、`replaceOne`、`findOneAndUpdate`、`findOneAndReplace` 使用真正的乐观锁。filter 中有直接 `_id` 时，monSQLize 会自动读取当前 version；显式传入 `expectedVersion`、`version` 或 filter 中的 version 字段时，显式值优先。
+
+`updateMany` 通过 `versionMode` 控制批量版本行为：
+
+```javascript
+await User.updateMany(
+    { status: 'pending' },
+    { $set: { status: 'active' } },
+    { versionMode: 'strict' } // counter | strict | off
+);
+```
+
+- `counter`（默认）：原生批量更新并递增 version，只是版本计数器，不是乐观锁。
+- `strict`：先读取匹配文档的 `_id` 和 version，再逐条按 `{ _id, version }` 条件更新，并在结果中返回 `conflictCount` / `conflictedIds`。
+- `off`：本次批量更新跳过 version 处理。
 
 ### 并发冲突检测
 
@@ -1596,17 +1614,20 @@ console.log(userB.version);  // 0
 
 // 用户 A 先更新成功
 const resultA = await User.updateOne(
-    { _id, version: userA.version },
+    { _id },
     { $set: { status: 'active' } }
 );
 console.log(resultA.modifiedCount);  // 1
 
 // 用户 B 更新失败
-const resultB = await User.updateOne(
-    { _id, version: userB.version },  // 版本号已过期
-    { $set: { status: 'inactive' } }
-);
-console.log(resultB.modifiedCount);  // 0（版本号不匹配）
+try {
+    await User.updateOne(
+        { _id, version: userB.version },  // 版本号已过期
+        { $set: { status: 'inactive' } }
+    );
+} catch (error) {
+    console.log(error.code);  // WRITE_CONFLICT
+}
 ```
 
 ### 与其他功能协同
@@ -1638,15 +1659,18 @@ async function updateUserStatus(userId, newStatus) {
     for (let i = 0; i < maxRetries; i++) {
         const user = await User.findOne({ _id: userId });
         if (!user) throw new Error('User not found');
-        
-        const result = await User.updateOne(
-            { _id: userId, version: user.version },
-            { $set: { status: newStatus } }
-        );
-        
-        if (result.modifiedCount > 0) return { success: true };
-        
-        console.log(`Retry ${i + 1}/${maxRetries} (version conflict)`);
+
+        try {
+            await User.updateOne(
+                { _id: userId },
+                { $set: { status: newStatus } },
+                { expectedVersion: user.version }
+            );
+            return { success: true };
+        } catch (error) {
+            if (error.code !== 'WRITE_CONFLICT') throw error;
+            console.log(`Retry ${i + 1}/${maxRetries} (version conflict)`);
+        }
     }
     
     throw new Error('Update failed due to concurrent modification');

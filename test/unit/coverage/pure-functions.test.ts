@@ -1317,8 +1317,8 @@ describe('source error factories and model config helpers — function coverage'
         assert.deepEqual(resolveModelSoftDeleteConfig({ options: { softDelete: { enabled: false, field: 'removedAt', type: 'flag', ttl: 10 } } } as any), { enabled: false, field: 'removedAt', type: 'flag', ttl: 10 });
 
         assert.equal(resolveModelVersionConfig({} as any), null);
-        assert.deepEqual(resolveModelVersionConfig({ options: { version: true } } as any), { enabled: true, field: 'version' });
-        assert.deepEqual(resolveModelVersionConfig({ options: { version: { enabled: false, field: 'rev' } } } as any), { enabled: false, field: 'rev' });
+        assert.deepEqual(resolveModelVersionConfig({ options: { version: true } } as any), { enabled: true, field: 'version', updateMany: 'counter' });
+        assert.deepEqual(resolveModelVersionConfig({ options: { version: { enabled: false, field: 'rev' } } } as any), { enabled: false, field: 'rev', updateMany: 'counter' });
 
         const hooksFactory = () => ({ save: { before: () => undefined } });
         assert.equal(resolveModelHooksFactory({ hooks: hooksFactory } as any), hooksFactory);
@@ -1648,7 +1648,7 @@ describe('model populate and schema helpers — additional branch coverage', () 
     it('model config helpers cover default object branches', () => {
         assert.deepEqual(resolveModelTimestampsConfig({ options: { timestamps: { createdAt: true } } } as any), { createdAt: 'createdAt', updatedAt: 'updatedAt' });
         assert.deepEqual(resolveModelSoftDeleteConfig({ options: { softDelete: {} } } as any), { enabled: true, field: 'deletedAt', type: 'timestamp', ttl: null });
-        assert.deepEqual(resolveModelVersionConfig({ options: { version: {} } } as any), { enabled: true, field: 'version' });
+        assert.deepEqual(resolveModelVersionConfig({ options: { version: {} } } as any), { enabled: true, field: 'version', updateMany: 'counter' });
         assert.deepEqual(initializeModelV1Methods({}, { methods: () => ({ static: {}, instance: undefined }) } as any), {});
     });
 

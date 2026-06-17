@@ -102,15 +102,16 @@ describe('resolveModelVersionConfig — branch coverage', () => {
 
     it('returns defaults when version is true', () => {
         const result = resolveModelVersionConfig({ name: 'M', collection: 'c', options: { version: true } });
-        assert.deepEqual(result, { enabled: true, field: 'version' });
+        assert.deepEqual(result, { enabled: true, field: 'version', updateMany: 'counter' });
     });
 
-    it('uses custom field when version is object', () => {
+    it('uses custom field and updateMany mode when version is object', () => {
         const result = resolveModelVersionConfig({
             name: 'M', collection: 'c',
-            options: { version: { enabled: true, field: '__v' } },
+            options: { version: { enabled: true, field: '__v', updateMany: 'strict' } },
         });
         assert.equal(result?.field, '__v');
+        assert.equal(result?.updateMany, 'strict');
     });
 
     it('enabled=false when version.enabled is false', () => {
@@ -127,6 +128,18 @@ describe('resolveModelVersionConfig — branch coverage', () => {
             options: { version: {} },
         });
         assert.equal(result?.field, 'version');
+        assert.equal(result?.updateMany, 'counter');
+    });
+
+    it('rejects invalid updateMany mode', () => {
+        assert.throws(
+            () => resolveModelVersionConfig({
+                name: 'M',
+                collection: 'c',
+                options: { version: { updateMany: 'invalid' as any } },
+            }),
+            /version\.updateMany/,
+        );
     });
 });
 

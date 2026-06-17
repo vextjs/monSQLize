@@ -71,6 +71,34 @@ export type ModelAutoIndexOptions = boolean | {
     emitEvents?: boolean;
 };
 
+export type ModelVersionUpdateManyMode = 'counter' | 'strict' | 'off';
+
+export interface ModelVersionOptions {
+    enabled?: boolean;
+    field?: string;
+    /**
+     * Version handling for updateMany on versioned models.
+     * - counter: native batch update plus version increment; not optimistic locking.
+     * - strict: pre-read IDs/versions and conditionally update each document.
+     * - off: skip version handling for this batch update.
+     */
+    updateMany?: ModelVersionUpdateManyMode;
+}
+
+export type ModelWriteOptions = Record<string, unknown> & {
+    expectedVersion?: number;
+    version?: number;
+};
+
+export type ModelUpdateManyOptions = ModelWriteOptions & {
+    versionMode?: ModelVersionUpdateManyMode;
+};
+
+export type ModelStrictUpdateManyResult = UpdateResult & {
+    conflictCount: number;
+    conflictedIds: unknown[];
+};
+
 export type ModelIndexSource = 'definition' | 'softDelete';
 
 export interface ModelDeclaredIndex {
@@ -202,10 +230,7 @@ export interface ModelDefinitionOptions {
         type?: string;
         ttl?: number | null;
     };
-    version?: boolean | {
-        enabled?: boolean;
-        field?: string;
-    };
+    version?: boolean | ModelVersionOptions;
 }
 
 export interface ModelDefinition<TDocument = Record<string, unknown>> {
@@ -381,21 +406,21 @@ export interface ModelInstance<TDocument = any> {
      * @param update Update operator document, such as `$set` or `$inc`.
      * @param options Optional update options.
      */
-    updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    updateOne(filter?: unknown, update?: unknown, options?: ModelWriteOptions): Promise<UpdateResult>;
     /**
      * Updates all documents matching the filter.
      * @param filter Filter.
      * @param update Update operator document.
      * @param options Optional update options.
      */
-    updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult>;
+    updateMany(filter?: unknown, update?: unknown, options?: ModelUpdateManyOptions): Promise<UpdateResult>;
     /**
      * Replaces the first document matching the filter with a full replacement document.
      * @param filter Filter.
      * @param replacement Full replacement document.
      * @param options Optional replacement options.
      */
-    replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<UpdateResult>;
+    replaceOne(filter?: unknown, replacement?: unknown, options?: ModelWriteOptions): Promise<UpdateResult>;
     /**
      * Atomically finds and updates one document.
      * @param filter Filter.
@@ -403,7 +428,7 @@ export interface ModelInstance<TDocument = any> {
      * @param options Optional options such as `returnDocument: 'after'`.
      * @returns Updated document, or `null` when none is found.
      */
-    findOneAndUpdate(filter?: unknown, update?: unknown, options?: unknown): Promise<TDocument | null>;
+    findOneAndUpdate(filter?: unknown, update?: unknown, options?: ModelWriteOptions): Promise<TDocument | null>;
     /**
      * Atomically finds and replaces one document.
      * @param filter Filter.
@@ -411,7 +436,7 @@ export interface ModelInstance<TDocument = any> {
      * @param options Optional options.
      * @returns Replaced document, or `null` when none is found.
      */
-    findOneAndReplace(filter?: unknown, replacement?: unknown, options?: unknown): Promise<TDocument | null>;
+    findOneAndReplace(filter?: unknown, replacement?: unknown, options?: ModelWriteOptions): Promise<TDocument | null>;
     /**
      * Atomically finds and deletes one document.
      * @param filter Filter.

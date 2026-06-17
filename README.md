@@ -287,11 +287,11 @@ if (plan.totals.conflicts === 0) {
 
 ### Versioned Writes
 
-Models with `options.version` use single-document optimistic concurrency control. Pass the expected version either in the filter or as `expectedVersion`:
+Models with `options.version` use single-document optimistic concurrency control. When the filter contains a direct `_id`, monSQLize reads the current version automatically. You can still pass an explicit version in the filter or as `expectedVersion` when you want to control the expected version yourself:
 
 ```js
 await User.updateOne(
-  { _id: userId, version: user.version },
+  { _id: userId },
   { $set: { status: 'active' } }
 );
 
@@ -302,7 +302,17 @@ await User.replaceOne(
 );
 ```
 
-Successful `updateOne()`, `replaceOne()`, `findOneAndUpdate()`, and `findOneAndReplace()` advance the version. Stale writes throw a `WRITE_CONFLICT` error. `updateMany()` is rejected for versioned models because optimistic locking is a single-document contract.
+Successful `save()`, `updateOne()`, `replaceOne()`, `findOneAndUpdate()`, and `findOneAndReplace()` advance the version. Stale writes throw a `WRITE_CONFLICT` error.
+
+For `updateMany()`, choose the batch version behavior explicitly when needed:
+
+```js
+await User.updateMany({ status: 'pending' }, { $set: { status: 'active' } }, {
+  versionMode: 'strict' // 'counter' | 'strict' | 'off'
+});
+```
+
+`counter` is the default and only increments the version counter; it is not optimistic locking. `strict` pre-reads matching document IDs and versions, conditionally updates each document, and returns `conflictCount` / `conflictedIds` on the result object.
 
 ### Populate
 
