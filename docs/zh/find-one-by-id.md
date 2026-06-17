@@ -66,7 +66,7 @@ async findOneById(id, options = {})
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `projection` | Object/Array | 否 | - | 字段投影配置 |
+| `projection` / `project` | Object/Array | 否 | - | 字段投影配置。`project` 是 `projection` 的别名；两者同时存在时 `projection` 优先。 |
 | `cache` | Number | 否 | `0` | 缓存 TTL（毫秒） |
 | `maxTimeMS` | Number | 否 | 全局配置 | 查询超时时间（毫秒） |
 | `comment` | String | 否 | - | 查询注释（用于日志追踪） |

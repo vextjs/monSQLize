@@ -112,6 +112,15 @@ describe('findOne() / findOneById() / findByIds()', () => {
             assert.ok(result.role !== undefined);
             assert.equal(result.score, undefined);
         });
+
+        it('applies project alias projection', async () => {
+            const result = await col.findOne({}, { project: ['name', 'role'] });
+            assert.ok(result !== null);
+            assert.ok(result.name !== undefined);
+            assert.ok(result.role !== undefined);
+            assert.equal(result.score, undefined);
+            assert.equal(result.email, undefined);
+        });
     });
 
     describe('findOne() filter operators', () => {
@@ -267,6 +276,16 @@ describe('findOne() / findOneById() / findByIds()', () => {
             assert.equal(result.userId, undefined);
         });
 
+        it('applies project alias projection', async () => {
+            const id = insertedIds[4];
+            const result = await col.findOneById(id, { project: ['name', 'email'] });
+            assert.ok(result !== null);
+            assert.ok(typeof result.name === 'string');
+            assert.ok(typeof result.email === 'string');
+            assert.equal(result.userId, undefined);
+            assert.equal(result.score, undefined);
+        });
+
         it('maxTimeMS is accepted without error', async () => {
             const result = await col.findOneById(insertedIds[4], { maxTimeMS: 5000 });
             assert.ok(result !== null);
@@ -362,6 +381,18 @@ describe('findOne() / findOneById() / findByIds()', () => {
                 assert.ok(typeof doc.name === 'string');
                 assert.ok(typeof doc.age === 'number');
                 assert.equal(doc.userId, undefined);
+            }
+        });
+
+        it('applies project alias projection', async () => {
+            const ids = insertedIds.slice(0, 2).map(id => id.toString());
+            const results = await col.findByIds(ids, { project: ['name', 'age'] });
+            assert.equal(results.length, 2);
+            for (const doc of results) {
+                assert.ok(typeof doc.name === 'string');
+                assert.ok(typeof doc.age === 'number');
+                assert.equal(doc.userId, undefined);
+                assert.equal(doc.email, undefined);
             }
         });
 

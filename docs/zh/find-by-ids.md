@@ -70,7 +70,7 @@ async findByIds(
 |------|------|------|------|
 | `ids` | Array<string \| ObjectId> | ✅ | _id 数组（支持字符串和 ObjectId 混合） |
 | `options` | Object | ❌ | 查询选项 |
-| `options.projection` | Object | ❌ | 字段投影（同 find） |
+| `options.projection` / `options.project` | Object | ❌ | 字段投影（同 find）。`project` 是 `projection` 的别名；两者同时存在时 `projection` 优先。 |
 | `options.sort` | Object | ❌ | 排序方式 |
 | `options.cache` | number | ❌ | 缓存时间（毫秒） |
 | `options.maxTimeMS` | number | ❌ | 查询超时（毫秒） |

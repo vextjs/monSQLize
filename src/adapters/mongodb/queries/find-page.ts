@@ -36,9 +36,12 @@ import {
     buildEffectiveProjection,
     decodeCursor,
     encodeCursor,
+    getSortValues,
     hasSessionOption,
+    normalizeFindProjectionOptions,
     normalizeSortShape,
     reverseSort,
+    resolveProjectionOption,
 } from './query-helpers';
 import {
     DEFAULT_FIND_PAGE_LIMIT,
@@ -100,6 +103,7 @@ function buildFindPageCacheKey<TSchema extends Document>(
         hasCursorValueNormalizer?: boolean;
     },
 ): { key: string; keyHash: string } {
+    const projection = normalizeFindProjectionOptions(options as Record<string, unknown>).projection;
     const payload = {
         query: normalized.query,
         sort: normalized.sort,
@@ -107,7 +111,7 @@ function buildFindPageCacheKey<TSchema extends Document>(
         page: normalized.page,
         after: options.after,
         before: options.before,
-        projection: options.projection,
+        projection,
         pipeline: options.pipeline ?? [],
         totals: options.totals,
         jump: options.jump,
@@ -371,7 +375,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
     };
 
     let effectiveMaxTimeMS: number | undefined;
-    const driverOpts: Record<string, unknown> = { ...(options.options ?? {}) };
+    const driverOpts: Record<string, unknown> = normalizeFindProjectionOptions({ ...(options.options ?? {}) });
     effectiveMaxTimeMS = (ext.maxTimeMS as number | undefined) ?? defaults.maxTimeMS;
     if (effectiveMaxTimeMS !== undefined) driverOpts.maxTimeMS = effectiveMaxTimeMS;
     if (ext.hint !== undefined) driverOpts.hint = ext.hint;
@@ -383,8 +387,9 @@ export async function executeFindPage<TSchema extends Document = Document>(
     if (ext.readPreference !== undefined) driverOpts.readPreference = ext.readPreference;
     if (ext.allowDiskUse !== undefined) driverOpts.allowDiskUse = ext.allowDiskUse;
     if (ext.let !== undefined) driverOpts.let = ext.let;
-    if (options.projection !== undefined) {
-        driverOpts.projection = buildEffectiveProjection(options.projection, sort);
+    const projection = resolveProjectionOption(ext);
+    if (projection !== undefined) {
+        driverOpts.projection = buildEffectiveProjection(projection, sort);
     }
 
     const jumpOpts = ext.jump as { step: number; maxHops: number } | undefined;
@@ -595,10 +600,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         const last = items[items.length - 1] ?? null;
         const enc = (item: TSchema | null) =>
             item
-                ? encodeCursor(
-                    Object.keys(sort).map((f) => (item as Record<string, unknown>)[f]),
-                    cursorSecret,
-                )
+                ? encodeCursor(getSortValues(item, sort), cursorSecret)
                 : null;
         return {
             hasNext: hasMore,
@@ -702,7 +704,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         const first = items[0] ?? null;
         const last = items[items.length - 1] ?? null;
         const enc = (item: TSchema | null) =>
-            item ? encodeCursor(Object.keys(sort).map((f) => (item as Record<string, unknown>)[f]), cursorSecret) : null;
+            item ? encodeCursor(getSortValues(item, sort), cursorSecret) : null;
         const result: FindPageResult<TSchema> = {
             items,
             pageInfo: {
@@ -759,10 +761,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
             }
             return finishAndCache(result);
         }
-        const endCursor = encodeCursor(
-            Object.keys(sort).map((f) => (lastItem as Record<string, unknown>)[f]),
-            cursorSecret,
-        );
+        const endCursor = encodeCursor(getSortValues(lastItem, sort), cursorSecret);
         const { queryFilter: qN, effectiveSort: esN } = buildPageQuery(endCursor, 'after');
         const next = await timedFetchItems(`hop-${cp}`, 'hop', qN as Document, esN, {}, cp);
         items = next.items;

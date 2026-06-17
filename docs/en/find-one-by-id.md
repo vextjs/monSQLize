@@ -66,7 +66,7 @@ async findOneById(id, options = {})
 
 | Parameters | Type | Required | Default value | Description |
 |------|------|------|--------|------|
-| `projection` | Object/Array | No | - | Field projection configuration |
+| `projection` / `project` | Object/Array | No | - | Field projection configuration. `project` is an alias for `projection`; `projection` wins when both are provided. |
 | `cache` | Number | No | `0` | Cache TTL (milliseconds) |
 | `maxTimeMS` | Number | No | Global configuration | Query timeout (milliseconds) |
 | `comment` | String | No | - | Query comments (for log tracking) |

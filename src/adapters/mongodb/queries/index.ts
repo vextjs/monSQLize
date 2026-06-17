@@ -30,6 +30,7 @@ import {
     buildFindDriverOptions,
     buildResultCacheKeyOptions,
     hasSessionOption,
+    normalizeFindProjectionOptions,
     normalizeQueryFilter,
     stableCacheKeyString,
 } from './query-helpers';
@@ -199,7 +200,7 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
         if (skip !== undefined) {
             options.skip = skip;
         }
-        return options;
+        return normalizeFindProjectionOptions(options);
     }
 
     limit(value: number): FindChain<TSchema> {

@@ -156,7 +156,9 @@ const msq = new MonSQLize({
 | `{ enabled: false }` | 显式禁用自动转换。 |
 | `{ excludeFields: ['token'] }` | 让匹配的字段名或字段路径保持字符串。 |
 | `{ token: false }` | 让指定字段名或路径保持字符串，同时保留其他位置的自动转换。 |
-| `{ maxDepth: 3 }` | 超过指定递归深度后停止转换。 |
+| `{ maxDepth: 3 }` | 超过指定递归深度后停止转换；超过深度限制的值会保持原样。 |
+
+`maxDepth` 是遍历保护上限。如果非常深的 `$and` / `$or` 树或嵌套文档在该深度之后仍包含像 ObjectId 的字符串，monSQLize 会保持字符串不变。确实需要深层自动转换时，请提高 `maxDepth`。
 
 ---
 

@@ -13,13 +13,13 @@
 import { Collection, Document, FindOptions, ObjectId } from 'mongodb';
 
 import { createError, ErrorCodes } from '../../../core/errors';
-import { normalizeProjection } from '../../../utils/normalize';
 import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/query';
 import {
     buildFindDriverOptions,
     buildResultCacheKeyOptions,
     hasSessionOption,
     isHexObjectIdString,
+    normalizeFindProjectionOptions,
     parseRequiredObjectId,
     stableCacheKeyString,
 } from './query-helpers';
@@ -46,21 +46,15 @@ export async function findOneByIdDocument<TSchema extends Document = Document>(
 ): Promise<TSchema | null> {
     const objectId = parseRequiredObjectId(id);
     const rawOptions = (options ?? {}) as Record<string, unknown>;
-
-    const projection = normalizeProjection(rawOptions.projection as string[] | Record<string, unknown> | null | undefined);
-    const findOptions = buildFindDriverOptions({
+    const baseOptions = normalizeFindProjectionOptions({
         ...(defaults.maxTimeMS !== undefined ? { maxTimeMS: defaults.maxTimeMS } : {}),
         ...rawOptions,
-        ...(projection ? { projection } : {}),
-    }) as FindOptions;
+    });
+    const findOptions = buildFindDriverOptions(baseOptions) as FindOptions;
 
     const cacheTTL = getCacheTtl(rawOptions);
-    if (cacheTTL > 0 && queryCache && !hasSessionOption(rawOptions)) {
-        const keyOptions = buildResultCacheKeyOptions({
-            ...(defaults.maxTimeMS !== undefined ? { maxTimeMS: defaults.maxTimeMS } : {}),
-            ...rawOptions,
-            ...(projection ? { projection } : {}),
-        });
+    if (cacheTTL > 0 && queryCache && !hasSessionOption(baseOptions)) {
+        const keyOptions = buildResultCacheKeyOptions(baseOptions);
         const cacheKey = `findOneById:${collection.namespace}:${objectId.toString()}:${stableCacheKeyString(keyOptions)}`;
         const cached = queryCache.get(cacheKey) as TSchema | null | undefined;
         if (cached !== undefined) {
@@ -148,23 +142,17 @@ export async function findByIdsDocuments<TSchema extends Document = Document>(
 
     const uniqueIds = [...new Set(objectIds.map((item) => item.toString()))].map((item) => new ObjectId(item));
     const rawOptions = (options ?? {}) as Record<string, unknown>;
-
-    const projection = normalizeProjection(rawOptions.projection as string[] | Record<string, unknown> | null | undefined);
-    const driverOptions = buildFindDriverOptions({
+    const baseOptions = normalizeFindProjectionOptions({
         ...(defaults.maxTimeMS !== undefined ? { maxTimeMS: defaults.maxTimeMS } : {}),
         ...rawOptions,
-        ...(projection ? { projection } : {}),
     });
+    const driverOptions = buildFindDriverOptions(baseOptions);
 
     const cacheTTL = getCacheTtl(rawOptions);
-    const cacheKey = cacheTTL > 0 && queryCache && !hasSessionOption(rawOptions)
+    const cacheKey = cacheTTL > 0 && queryCache && !hasSessionOption(baseOptions)
         ? `findByIds:${collection.namespace}:${stableCacheKeyString({
             ids: uniqueIds.map((item) => item.toString()),
-            options: buildResultCacheKeyOptions({
-                ...(defaults.maxTimeMS !== undefined ? { maxTimeMS: defaults.maxTimeMS } : {}),
-                ...rawOptions,
-                ...(projection ? { projection } : {}),
-            }),
+            options: buildResultCacheKeyOptions(baseOptions),
         })}`
         : null;
 

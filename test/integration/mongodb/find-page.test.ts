@@ -11,6 +11,7 @@ type Order = {
     status: string;
     customerId: string;
     priority: number;
+    metrics: { rank: number };
     createdAt: Date;
 };
 
@@ -50,6 +51,7 @@ describe('findPage() / findAndCount()', () => {
                 status: i % 3 === 0 ? 'completed' : i % 3 === 1 ? 'paid' : 'pending',
                 customerId: `CUST-${Math.floor(i / 10)}`,
                 priority: i % 5,
+                metrics: { rank: i },
                 createdAt: new Date(Date.now() - i * 86400000),
             });
         }
@@ -107,6 +109,17 @@ describe('findPage() / findAndCount()', () => {
 
         it('applies projection to data', async () => {
             const result = await col.findAndCount({}, { projection: { orderId: 1, amount: 1 }, limit: 5 });
+            assert.equal(result.data.length, 5);
+            for (const doc of result.data) {
+                assert.ok(doc._id !== undefined);
+                assert.ok(typeof doc.orderId === 'string');
+                assert.ok(typeof doc.amount === 'number');
+                assert.equal(doc.status, undefined);
+            }
+        });
+
+        it('applies project alias to data projection', async () => {
+            const result = await col.findAndCount({}, { project: { orderId: 1, amount: 1 }, limit: 5 });
             assert.equal(result.data.length, 5);
             for (const doc of result.data) {
                 assert.ok(doc._id !== undefined);
@@ -196,6 +209,19 @@ describe('findPage() / findAndCount()', () => {
             for (const doc of page2.items) {
                 assert.equal(ids1.has(String(doc._id)), false);
             }
+        });
+
+        it('paginates correctly with nested sort fields', async () => {
+            const page1 = await col.findPage({ query: {}, sort: { 'metrics.rank': 1 }, limit: 10 });
+            assert.deepEqual(page1.items.map((doc: any) => doc.metrics.rank), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+            const page2 = await col.findPage({
+                query: {},
+                sort: { 'metrics.rank': 1 },
+                limit: 10,
+                after: page1.pageInfo.endCursor,
+            });
+            assert.deepEqual(page2.items.map((doc: any) => doc.metrics.rank), [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
         });
 
         it('last page has hasNext: false', async () => {

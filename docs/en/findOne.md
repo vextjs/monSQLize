@@ -45,7 +45,7 @@ MongoDB query criteria object. All MongoDB query operators are supported.
 
 | Parameter | Type | Required | Default | Source | Description |
 |------|------|------|--------|------|------|
-| `projection` | Object/Array | No | - | MongoDB native ✅ | Field projection configuration that controls which fields are returned |
+| `projection` / `project` | Object/Array | No | - | MongoDB native ✅ | Field projection configuration that controls which fields are returned. `project` is an alias for `projection`; `projection` wins when both are provided. |
 | `sort` | Object | No | - | MongoDB native ✅ | Sort rules, such as `{ createdAt: -1, name: 1 }` |
 | `hint` | Object/String | No | - | MongoDB native ✅ | Specifies the index to use for the query |
 | `collation` | Object | No | - | MongoDB native ✅ | Specifies collation rules for string comparison and sorting |

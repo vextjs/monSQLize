@@ -9,6 +9,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Collection, Document, ObjectId, Sort } from 'mongodb';
 
 import { createError, ErrorCodes } from '../../../core/errors';
+import { normalizeProjection } from '../../../utils/normalize';
 import type { CursorPayload, CursorValueNormalizationOptions, SortShape } from '../../../types/internal/query';
 
 /**
@@ -387,6 +388,39 @@ function stripControlOptions(options: Record<string, unknown> = {}): Record<stri
     return driverOptions;
 }
 
+export function resolveProjectionOption(options: Record<string, unknown> = {}): string[] | Record<string, unknown> | null | undefined {
+    return (options.projection ?? options.project) as string[] | Record<string, unknown> | null | undefined;
+}
+
+export function normalizeFindProjectionOptions(options: Record<string, unknown> = {}): Record<string, unknown> {
+    const driverOptions = { ...options };
+    const projection = normalizeProjection(resolveProjectionOption(driverOptions));
+    delete driverOptions.projection;
+    delete driverOptions.project;
+    if (projection !== undefined) {
+        driverOptions.projection = projection;
+    }
+    return driverOptions;
+}
+
+export function getValueByPath(source: unknown, path: string): unknown {
+    if (!path) {
+        return undefined;
+    }
+    let current = source;
+    for (const segment of path.split('.')) {
+        if (current === null || typeof current !== 'object') {
+            return undefined;
+        }
+        current = (current as Record<string, unknown>)[segment];
+    }
+    return current;
+}
+
+export function getSortValues(source: unknown, sort: SortShape): unknown[] {
+    return Object.keys(sort).map((field) => getValueByPath(source, field));
+}
+
 function normalizeCacheKeyValue(value: unknown): unknown {
     if (value === undefined || typeof value === 'function' || typeof value === 'symbol') {
         return undefined;
@@ -435,7 +469,7 @@ export function hasSessionOption(options: Record<string, unknown> | undefined): 
 export function buildFindDriverOptions<TSchema extends Document = Document>(
     options: Record<string, unknown> = {},
 ): Parameters<Collection<TSchema>['find']>[1] {
-    return stripControlOptions(options) as Parameters<Collection<TSchema>['find']>[1];
+    return normalizeFindProjectionOptions(stripControlOptions(options)) as Parameters<Collection<TSchema>['find']>[1];
 }
 
 /** Builds MongoDB driver `aggregate` options, preserving native options while removing monSQLize control flags. */

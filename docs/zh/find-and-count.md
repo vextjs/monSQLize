@@ -35,7 +35,7 @@ console.log(`总计: ${total}, 当前页: ${data.length}`);
 ### options (Object)
 查询选项：
 
-- `projection` (Object) - 字段投影
+- `projection` / `project` (Object) - 字段投影。`project` 是 `projection` 的别名；两者同时存在时 `projection` 优先。
 - `sort` (Object) - 排序规则
 - `limit` (Number) - 限制返回数量（undefined 表示不限制）
 - `skip` (Number) - 跳过数量

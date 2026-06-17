@@ -134,7 +134,7 @@ MongoDB 标准查询条件对象，支持所有 MongoDB 查询操作符。
 
 | 参数 | 类型 | 必填 | 默认值 | 来源 | 说明 |
 |------|------|------|--------|------|------|
-| `projection` | Object/Array | 否 | - | MongoDB 原生 ✅ | 字段投影配置，指定返回的字段 |
+| `projection` / `project` | Object/Array | 否 | - | MongoDB 原生 ✅ | 字段投影配置，指定返回的字段。`project` 是 `projection` 的别名；两者同时存在时 `projection` 优先。 |
 | `sort` | Object | 否 | - | MongoDB 原生 ✅ | 排序规则，如 `{ createdAt: -1, name: 1 }` |
 | `limit` | Number | 否 | 全局配置 | MongoDB 原生 ✅ | 限制返回的文档数量 |
 | `skip` | Number | 否 | - | MongoDB 原生 ✅ | 跳过指定数量的文档（不推荐大数据量使用） |

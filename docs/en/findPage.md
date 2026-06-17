@@ -37,7 +37,7 @@ async findPage(options = {})
 | `after` | String | No | - | Cursor paging: Get the data after the specified cursor |
 | `before` | String | No | - | Cursor paging: Get the data before the specified cursor |
 | `page` | Number | No | - | Page jump mode: Specify the page number to be obtained (starting from 1) |
-| `projection` | Object/Array | No | - | Field projection: Specifies the fields returned. Supports inclusive type `{ field: 1 }` and exclusive type `{ field: 0 }`, and also supports array form `['field1', 'field2']`. **NOTE**: The sort field is automatically preserved to ensure the cursor is generated correctly, no manual inclusion is required. |
+| `projection` / `project` | Object/Array | No | - | Field projection: Specifies the fields returned. `project` is an alias for `projection`; `projection` wins when both are provided. Supports inclusive type `{ field: 1 }` and exclusive type `{ field: 0 }`, and also supports array form `['field1', 'field2']`. **NOTE**: The sort field is automatically preserved to ensure the cursor is generated correctly, no manual inclusion is required. |
 | `pipeline` | Array | No | `[]` | Additional MongoDB aggregation pipeline stage (only effective for current page data, executed before projection) |
 | `hint` | Object/String | No | - | Specify the index used by the query |
 | `collation` | Object | No | - | Specify collation |
@@ -212,6 +212,7 @@ const page0 = await collection('orders').findPage({
 - The cursor contains the value of the sorting field, and the sorting rules must be consistent
 - When `cursorSecret` is not configured, the cursor is purely Base64url encoded, and the client can decode the content; after configuration, an HMAC-SHA256 signature is appended, and the tampered cursor will be rejected by the server.
 - Cursor comparison restores JSON-round-tripped values before building the MongoDB filter: by default, 24-character hexadecimal strings are treated as ObjectId values, and ISO timestamp-like strings are treated as Date values. Use `cursorTypes` or `cursorValueNormalizer` when a string sort field intentionally contains ObjectId-like or ISO-like values.
+- Cursor anchors read sort values by dot path, so nested sort fields such as `{ 'metrics.rank': 1 }` are supported.
 - Do not splice or modify the cursor on the client side
 - If you need long-term cross-session persistence of the cursor, please also cooperate with the server's own expiration control.
 

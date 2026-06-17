@@ -329,6 +329,8 @@ await User.insertOne({ username: 'alice' }); //Actual writing to the MongoDB use
 
 `definition.name` is mainly compatible with the automatic loading file format; during manual registration, `collection` is preferred to express the actual collection name. The Model instance cache key contains pool, database, registration name and actual collection name at the same time to avoid reusing the same instance for different routes or different actual collections.
 
+Model registration is process-level, similar to Mongoose model registration. `Model.define('users', ...)` can be called only once for a given registered name in the process; a second definition with the same name throws `MODEL_ALREADY_EXISTS`. For multi-tenant or multi-database applications that need different schemas with the same MongoDB collection name, use distinct registered names and set `definition.collection`, or explicitly use `Model.redefine()` / `Model.undefine()` in test or development flows.
+
 If `relations.from` points to a registered Model, populate will use the actual collection name of the Model; if there is no Model with the same name, `from` will be used as the original collection name. This is compatible with the common "reference relationship by model name" in v1, and also retains the method of directly writing the MongoDB collection name.
 
 ---

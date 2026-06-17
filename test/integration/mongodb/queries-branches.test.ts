@@ -200,12 +200,12 @@ describe('queries — branch coverage', () => {
 
     it('FindChain.limit() throws for negative number', () => {
         const chain = col.find({}) as any;
-        assert.throws(() => chain.limit(-1), /limit\(\) requires a non-negative number/);
+        assert.throws(() => chain.limit(-1), /limit\(\) requires a non-negative integer/);
     });
 
     it('FindChain.skip() throws for negative number', () => {
         const chain = col.find({}) as any;
-        assert.throws(() => chain.skip(-1), /skip\(\) requires a non-negative number/);
+        assert.throws(() => chain.skip(-1), /skip\(\) requires a non-negative integer/);
     });
 
     // ── watchDocuments with expressions ──────────────────────────────────────

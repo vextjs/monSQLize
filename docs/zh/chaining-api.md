@@ -306,8 +306,8 @@ const results = await collection("products")
 .sort({ price: -1 })
 
 // ❌ 错误 - 会抛出异常
-.limit(-1)        // Error: limit() requires a non-negative number
-.skip("5")        // Error: skip() requires a non-negative number
+.limit(-1)        // Error: limit() requires a non-negative integer
+.skip("5")        // Error: skip() requires a non-negative integer
 .sort("invalid")  // Error: sort() requires an object or array
 ```
 

@@ -134,7 +134,7 @@ MongoDB standard query condition object, supporting all MongoDB query operators.
 
 | Parameters | Type | Required | Default | Source | Description |
 |------|------|------|--------|------|------|
-| `projection` | Object/Array | No | - | MongoDB native ✅ | Field projection configuration, specify the returned fields |
+| `projection` / `project` | Object/Array | No | - | MongoDB native ✅ | Field projection configuration, specify the returned fields. `project` is an alias for `projection`; `projection` wins when both are provided. |
 | `sort` | Object | No | - | MongoDB native ✅ | Collation, such as `{ createdAt: -1, name: 1 }` |
 | `limit` | Number | No | Global Configuration | MongoDB Native ✅ | Limit the number of documents returned |
 | `skip` | Number | No | - | MongoDB native ✅ | Skip the specified number of documents (not recommended for large data volumes) |

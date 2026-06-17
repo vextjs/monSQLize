@@ -1,5 +1,6 @@
 # Unreleased
 
+- Fixed `findPage` cursor anchors for nested dot-path sort fields, accepted `project` as a query projection alias across read helpers, and documented process-level Model registration plus ObjectId `maxDepth` conversion boundaries.
 - Fixed `incrementOne` driver-option forwarding, closed runtime-owned Redis cache adapters on `runtime.close()`, made SSH tunnels fail fast for multi-host/SRV MongoDB URIs and post-ready disconnects, enforced slow-query batch `maxBufferSize` during in-flight flushes, wired prewarmed `findPage` bookmarks into page-jump reads, and reduced redundant rebuilds in the memory-server validation matrix.
 - Fixed model mutable defaults cloning, preserved model aggregation-pipeline updates when timestamps/versioning are enabled, restored aggregate/distinct read-through cache plus targeted invalidation, and prevented sync resume tokens from advancing when any eligible target fails.
 - Clarified hooks return-value compatibility and sync transform/delete-event boundaries in bilingual documentation, with regression coverage for the documented behavior.

@@ -11,10 +11,9 @@
 
 import { Collection, Document } from 'mongodb';
 
-import { normalizeProjection } from '../../../utils/normalize';
 import type { RuntimeDefaults } from '../../../types/internal/query';
 import type { FindAndCountResult } from '../../../../types/collection';
-import { buildCountDriverOptions, buildFindDriverOptions } from './query-helpers';
+import { buildCountDriverOptions, buildFindDriverOptions, normalizeFindProjectionOptions } from './query-helpers';
 
 /**
  * Queries all matching documents and fetches the total count concurrently.
@@ -37,12 +36,10 @@ export async function findAndCountDocuments<TSchema extends Document = Document>
 
     // Build driver options (limit/skip/sort/projection apply to data; total uses query only)
     const rawOptions = (options ?? {}) as Record<string, unknown>;
-    const projection = normalizeProjection(rawOptions.projection as string[] | Record<string, unknown> | null | undefined);
-    const baseOptions = {
+    const baseOptions = normalizeFindProjectionOptions({
         ...(defaults?.maxTimeMS !== undefined ? { maxTimeMS: defaults.maxTimeMS } : {}),
         ...rawOptions,
-        ...(projection ? { projection } : {}),
-    };
+    });
     const driverOptions = buildFindDriverOptions(baseOptions);
     const countOptions = buildCountDriverOptions(baseOptions);
     // v1 compat: limit/skip apply to data only, not to total.

@@ -70,7 +70,7 @@ async findByIds(
 |------|------|------|------|
 | `ids` | Array<string \| ObjectId> | ✅ | _id array (supports mixed string and ObjectId) |
 | `options` | Object | ❌ | Query Options |
-| `options.projection` | Object | ❌ | Field projection (same as find) |
+| `options.projection` / `options.project` | Object | ❌ | Field projection (same as find). `project` is an alias for `projection`; `projection` wins when both are provided. |
 | `options.sort` | Object | ❌ | Sort by |
 | `options.cache` | number | ❌ | cache time (milliseconds) |
 | `options.maxTimeMS` | number | ❌ | Query timeout (milliseconds) |
@@ -652,4 +652,3 @@ const users = await collection('users').findByIds(ids, {
 - [find()](./find.md) - Basic query method
 - [findOne()](./findOne.md) - Query a single document
 - [MongoDB official documentation: $in operator](https://www.mongodb.com/docs/manual/reference/operator/query/in/)
-

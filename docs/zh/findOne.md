@@ -45,7 +45,7 @@ MongoDB 查询条件对象，支持所有 MongoDB 查询操作符。
 
 | 参数 | 类型 | 必填 | 默认值 | 来源 | 说明 |
 |------|------|------|--------|------|------|
-| `projection` | Object/Array | 否 | - | MongoDB 原生 ✅ | 字段投影配置，指定返回的字段 |
+| `projection` / `project` | Object/Array | 否 | - | MongoDB 原生 ✅ | 字段投影配置，指定返回的字段。`project` 是 `projection` 的别名；两者同时存在时 `projection` 优先。 |
 | `sort` | Object | 否 | - | MongoDB 原生 ✅ | 排序规则，如 `{ createdAt: -1, name: 1 }` |
 | `hint` | Object/String | 否 | - | MongoDB 原生 ✅ | 指定查询使用的索引 |
 | `collation` | Object | 否 | - | MongoDB 原生 ✅ | 指定排序规则（用于字符串排序） |

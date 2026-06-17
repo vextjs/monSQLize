@@ -35,7 +35,7 @@ Query criteria, identical to `find()`.
 ### options (Object)
 Query options:
 
-- `projection` (Object) - field projection
+- `projection` / `project` (Object) - field projection. `project` is an alias for `projection`; `projection` wins when both are provided.
 - `sort` (Object) - sort rules
 - `limit` (Number) - maximum number of returned documents (`undefined` means no limit)
 - `skip` (Number) - number of documents to skip

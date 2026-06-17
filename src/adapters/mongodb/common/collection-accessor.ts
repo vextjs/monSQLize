@@ -78,6 +78,7 @@ import { convertObjectIdStrings, convertUpdateDocument } from '../utils/objectid
 import {
     buildResultCacheKeyOptions,
     hasSessionOption,
+    normalizeFindProjectionOptions,
     stableCacheKeyString,
 } from '../queries/query-helpers';
 import {
@@ -265,12 +266,11 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         const normalizedQuery = this._cvFilter(query);
         const maxTimeMS = this.management.defaults?.maxTimeMS;
         const rawOptions: Record<string, unknown> = { ...(maxTimeMS !== undefined ? { maxTimeMS } : {}), ...((options ?? {}) as Record<string, unknown>) };
-        const projection = normalizeProjection(rawOptions.projection as string[] | Record<string, unknown> | null | undefined);
+        const driverOptions: Record<string, unknown> = normalizeFindProjectionOptions(rawOptions);
         const cacheTTL = rawOptions.explain ? 0 : typeof rawOptions.cache === 'number' ? rawOptions.cache : 0;
-        const driverOptions: Record<string, unknown> = { ...rawOptions, ...(projection ? { projection } : {}) };
 
-        if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(rawOptions)) {
-            const keyOptions = buildResultCacheKeyOptions({ ...rawOptions, ...(projection ? { projection } : {}) });
+        if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(driverOptions)) {
+            const keyOptions = buildResultCacheKeyOptions(driverOptions);
             const cacheKey = `findOne:${this.collectionRef.namespace}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(keyOptions)}`;
             const cached = this.management.queryCache.get(cacheKey) as TSchema | null | undefined;
             if (cached !== undefined) {

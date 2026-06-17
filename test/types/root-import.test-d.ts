@@ -88,6 +88,7 @@ expectAssignable<MonSQLizeOptions>({
 });
 
 expectAssignable<FindOptions>({ projection: ['name'], sort: { name: 1 }, cache: 1000, meta: { level: 'op' } });
+expectAssignable<FindOptions>({ project: ['name'], sort: { name: 1 } });
 expectAssignable<CountOptions>({ cache: 1000, maxTimeMS: 500, meta: true });
 expectAssignable<AggregateOptions>({ allowDiskUse: true, hint: { status: 1 }, comment: 'aggregate' });
 expectAssignable<DistinctOptions>({ collation: { locale: 'en' }, hint: 'name_1', meta: { includeCache: true } });
@@ -184,6 +185,7 @@ expectType<Promise<{ name: string; } | null>>(users.findOneById('507f1f77bcf86cd
 expectType<Promise<{ name: string; }[]>>(users.findByIds(['507f1f77bcf86cd799439011']));
 expectType<Promise<import('../..').FindAndCountResult<{ name: string; }>>>(users.findAndCount({ name: 'Ada' }));
 expectType<Promise<import('../..').FindPageResult<{ name: string; }>>>(users.findPage({ page: 1, limit: 10 }));
+expectType<Promise<import('../..').FindPageResult<{ name: string; }>>>(users.findPage({ page: 1, limit: 10, project: ['name'] }));
 expectType<Promise<PageResult<{ name: string; }>>>(users.findPage({ page: 1, limit: 10 }));
 const syncTotalsPage = users.findPage({ page: 1, limit: 10, totals: { mode: 'sync' } });
 expectAssignable<Promise<Omit<PageResult<{ name: string; }>, 'totals'> & {

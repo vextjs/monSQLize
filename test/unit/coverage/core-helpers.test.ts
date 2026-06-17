@@ -66,6 +66,7 @@ import {
     buildFindDriverOptions,
     decodeCursor as decodePageCursor,
     encodeCursor as encodePageCursor,
+    getSortValues,
     normalizeIdentifier,
     normalizeCursorValue,
     normalizeQueryFilter,
@@ -579,9 +580,11 @@ describe('coverage core helpers', () => {
         assert.deepEqual(buildCursorFilter({ token: 1 }, ['2026-01-01T00:00:00.000Z'], 'after', { cursorTypes: { token: 'string' } }), {
             token: { $gt: '2026-01-01T00:00:00.000Z' },
         });
+        assert.deepEqual(getSortValues({ nested: { rank: 2 }, _id: 'b' }, { 'nested.rank': 1, _id: 1 }), [2, 'b']);
         assert.deepEqual(buildEffectiveProjection(['name'], { createdAt: -1 }), { name: 1, createdAt: 1 });
         assert.deepEqual(buildEffectiveProjection({ name: 0, createdAt: 0 }, { createdAt: -1 }), { name: 0 });
         assert.deepEqual(buildFindDriverOptions({ projection: { name: 1 }, sort: { name: 1 }, skip: 1, limit: 2, hint: 'idx', collation: { locale: 'en' }, maxTimeMS: 10, batchSize: 5, comment: 'q', session: 's', ignored: true, cache: 1000, explain: true }), { projection: { name: 1 }, sort: { name: 1 }, skip: 1, limit: 2, hint: 'idx', collation: { locale: 'en' }, maxTimeMS: 10, batchSize: 5, comment: 'q', session: 's', ignored: true });
+        assert.deepEqual(buildFindDriverOptions({ project: ['name'], cache: 1000 }), { projection: { name: 1 } });
         assert.deepEqual(buildAggregateDriverOptions({ hint: 'idx', collation: { locale: 'en' }, comment: 'agg', maxTimeMS: 10, allowDiskUse: true, batchSize: 5, session: 's', ignored: true, stream: true }), { hint: 'idx', collation: { locale: 'en' }, comment: 'agg', maxTimeMS: 10, allowDiskUse: true, batchSize: 5, session: 's', ignored: true });
     });
 
@@ -605,12 +608,13 @@ describe('coverage core helpers', () => {
             },
         };
 
-        await findOneDocument(collection as never, { active: true }, { session: 'session-1', readConcern: { level: 'majority' }, withDeleted: true, cache: 1000 } as never);
-        assert.deepEqual((findOneCalls[0] as unknown[])[1], { session: 'session-1', readConcern: { level: 'majority' } });
+        await findOneDocument(collection as never, { active: true }, { session: 'session-1', readConcern: { level: 'majority' }, project: ['name'], withDeleted: true, cache: 1000 } as never);
+        assert.deepEqual((findOneCalls[0] as unknown[])[1], { session: 'session-1', readConcern: { level: 'majority' }, projection: { name: 1 } });
 
         await findAndCountDocuments(collection as never, { active: true } as never, {
             session: 'session-2',
             collation: { locale: 'en', strength: 2 },
+            project: { name: 1 },
             limit: 5,
             skip: 10,
             withDeleted: true,
@@ -620,6 +624,8 @@ describe('coverage core helpers', () => {
         assert.equal(findOptions.session, 'session-2');
         assert.equal(findOptions.limit, 5);
         assert.equal(findOptions.skip, 10);
+        assert.deepEqual(findOptions.projection, { name: 1 });
+        assert.equal('project' in findOptions, false);
         assert.equal(countOptions.session, 'session-2');
         assert.deepEqual(countOptions.collation, { locale: 'en', strength: 2 });
         assert.equal('limit' in countOptions, false);
@@ -889,7 +895,7 @@ describe('coverage core helpers', () => {
     it('covers findPage cursor, offset, totals, explain, stream, and validation branches', async () => {
         const rows = [{ _id: 'a', createdAt: 1 }, { _id: 'b', createdAt: 2 }, { _id: 'c', createdAt: 3 }];
         const calls: Call[] = [];
-        const makeCursor = (items = rows) => ({
+        const makeCursor = <T>(items: T[] = rows as unknown as T[]) => ({
             toArray: async () => items,
             explain: async (verbosity: unknown) => ({ verbosity }),
             stream: () => ({ streamed: true }),
@@ -919,6 +925,19 @@ describe('coverage core helpers', () => {
         assert.equal(first.items.length, 2);
         assert.equal(first.totals?.total, 42);
         assert.equal(first.meta?.ns.iid, 'iid');
+
+        const nestedRows = [{ _id: 'a', nested: { rank: 1 } }, { _id: 'b', nested: { rank: 2 } }, { _id: 'c', nested: { rank: 3 } }];
+        const nestedCollection = {
+            ...collection,
+            find: (...args: unknown[]) => {
+                calls.push({ method: 'findNested', args });
+                return makeCursor(nestedRows);
+            },
+        };
+        const nested = await executeFindPage(nestedCollection as never, { limit: 2, sort: { 'nested.rank': 1 }, project: { name: 1 } } as never, {});
+        assert.deepEqual(decodePageCursor(nested.pageInfo.endCursor as string), [2, 'b']);
+        const nestedFindOptions = calls.find((call) => call.method === 'findNested')?.args[1] as Record<string, unknown>;
+        assert.deepEqual(nestedFindOptions.projection, { name: 1, 'nested.rank': 1, _id: 1 });
 
         const approx = await executeFindPage(collection as never, { limit: 2, offsetJump: { enable: true }, page: 2, totals: { mode: 'approx' }, pipeline: [{ $project: { _id: 1 } }] } as never, {});
         assert.equal(approx.totals?.total, 50);
@@ -978,6 +997,11 @@ describe('coverage core helpers', () => {
         assert.deepEqual(await createFindChain(collection as never, { _id: '507f1f77bcf86cd799439011' } as never, { cache: 100, limit: 1 } as never, { autoConvertObjectId: true, maxTimeMS: 5 }, cache).then((value) => value), [{ id: 1 }]);
         assert.deepEqual(await createFindChain(collection as never, {}, { cache: 100 } as never, {}, cache).then((value) => value), [{ id: 1 }]);
         assert.deepEqual(await createFindChain(collection as never).limit(0).then((value) => value), [{ id: 1 }]);
+        calls.length = 0;
+        await createFindChain(collection as never, {}, { project: ['id'] } as never).toArray();
+        const projectAliasOptions = calls.find((call) => call.method === 'find')?.args[1] as Record<string, unknown>;
+        assert.deepEqual(projectAliasOptions.projection, { id: 1 });
+        assert.equal('project' in projectAliasOptions, false);
         assert.throws(() => createFindChain(collection as never).limit(-1), /non-negative/);
         assert.throws(() => createFindChain(collection as never).skip(-1), /non-negative/);
         assert.throws(() => createFindChain(collection as never).limit(Number.NaN), /non-negative integer/);

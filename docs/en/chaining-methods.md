@@ -241,8 +241,8 @@ const results = await collection('products')
 .skip(5)
 
 //❌ Error - automatically throw exception
-.limit(-1)        // Error: limit() requires a non-negative number
-.skip("invalid")  // Error: skip() requires a non-negative number
+.limit(-1)        // Error: limit() requires a non-negative integer
+.skip("invalid")  // Error: skip() requires a non-negative integer
 .sort("invalid")  // Error: sort() requires an object or array
 ```
 

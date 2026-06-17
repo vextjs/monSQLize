@@ -117,6 +117,16 @@ describe('find() method', () => {
             }
         });
 
+        it('applies project alias projection', async () => {
+            const result = await col.find({}, { project: ['name', 'price'], limit: 5 });
+            for (const doc of result) {
+                assert.ok(doc.name !== undefined);
+                assert.ok(doc.price !== undefined);
+                assert.equal(doc.category, undefined);
+                assert.equal(doc.sales, undefined);
+            }
+        });
+
         it('respects limit', async () => {
             const result = await col.find({}, { limit: 7 });
             assert.ok(result.length <= 7);
@@ -206,9 +216,11 @@ describe('find() method', () => {
             assert.equal(allIds.length, new Set(allIds).size);
         });
 
-        it('large skip returns empty array', async () => {
-            const result = await col.find({}, { sort: { price: 1 }, skip: 1_000_000, limit: 10 });
-            assert.equal(result.length, 0);
+        it('large skip above the configured cap is rejected', async () => {
+            await assert.rejects(
+                () => col.find({}, { sort: { price: 1 }, skip: 1_000_000, limit: 10 }),
+                /findMaxSkip/,
+            );
         });
     });
 

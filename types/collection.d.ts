@@ -11,6 +11,8 @@ export interface MetaOptions {
 /** v1-compatible find options exported from the root package. */
 export interface FindOptions {
     projection?: Record<string, any> | string[];
+    /** Alias for `projection`; `projection` wins when both are provided. */
+    project?: Record<string, any> | string[];
     sort?: Record<string, 1 | -1>;
     limit?: number;
     skip?: number;
@@ -157,6 +159,8 @@ export interface TotalsOptions {
 /** Stream query options for collection.stream(). */
 export interface StreamOptions {
     projection?: Record<string, unknown> | string[];
+    /** Alias for `projection`; `projection` wins when both are provided. */
+    project?: Record<string, unknown> | string[];
     sort?: Record<string, 1 | -1>;
     limit?: number;
     skip?: number;
@@ -171,6 +175,8 @@ export interface StreamOptions {
 /** Explain/query plan options for collection.explain(). */
 export interface ExplainOptions {
     projection?: Record<string, unknown>;
+    /** Alias for `projection`; `projection` wins when both are provided. */
+    project?: Record<string, unknown>;
     sort?: Record<string, 1 | -1>;
     limit?: number;
     skip?: number;
@@ -253,7 +259,9 @@ export interface FindPageOptions<TSchema = any> {
     after?: string;
     before?: string;
     sort?: Sort;
-    projection?: Document;
+    projection?: Document | string[];
+    /** Alias for `projection`; `projection` wins when both are provided. */
+    project?: Document | string[];
     pipeline?: Document[];
     /** Totals/count configuration */
     totals?: TotalsOptions;

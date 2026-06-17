@@ -36,7 +36,7 @@ async findPage(options = {})
 | `after` | String | 否 | - | 游标分页：获取指定游标之后的数据 |
 | `before` | String | 否 | - | 游标分页：获取指定游标之前的数据 |
 | `page` | Number | 否 | - | 跳页模式：指定要获取的页码（从 1 开始） |
-| `projection` | Object/Array | 否 | - | 字段投影：指定返回的字段。支持包含型 `{ field: 1 }` 和排除型 `{ field: 0 }`，也支持数组形式 `['field1', 'field2']`。**注意**：排序字段会被自动保留以确保游标正确生成，无需手动包含。 |
+| `projection` / `project` | Object/Array | 否 | - | 字段投影：指定返回的字段。`project` 是 `projection` 的别名；两者同时存在时 `projection` 优先。支持包含型 `{ field: 1 }` 和排除型 `{ field: 0 }`，也支持数组形式 `['field1', 'field2']`。**注意**：排序字段会被自动保留以确保游标正确生成，无需手动包含。 |
 | `pipeline` | Array | 否 | `[]` | 附加的 MongoDB 聚合管道阶段（仅对当页数据生效，在 projection 之前执行） |
 | `hint` | Object/String | 否 | - | 指定查询使用的索引 |
 | `collation` | Object | 否 | - | 指定排序规则 |
@@ -211,6 +211,7 @@ const page0 = await collection('orders').findPage({
 - 游标包含排序字段的值，排序规则必须保持一致
 - 未配置 `cursorSecret` 时，游标为纯 Base64url 编码，客户端可解码内容；配置后附加 HMAC-SHA256 签名，篡改的游标会被服务端拒绝
 - 游标比较会在构造 MongoDB 过滤条件前恢复 JSON 往返后的值：默认会把 24 位十六进制字符串按 ObjectId 处理，把形如 ISO 时间戳的字符串按 Date 处理。如果字符串排序字段本身可能保存 ObjectId-like 或 ISO-like 值，请使用 `cursorTypes` 或 `cursorValueNormalizer` 固定类型。
+- 游标锚点会按点路径读取排序值，因此支持 `{ 'metrics.rank': 1 }` 这类嵌套排序字段。
 - 不要在客户端自行拼接或修改游标
 - 如需长期跨会话持久化游标，请同时配合服务端自己的过期控制
 

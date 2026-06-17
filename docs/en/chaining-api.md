@@ -347,8 +347,8 @@ Chained methods automatically validate parameter types and values:
 .sort({ price: -1 })
 
 //❌ Error - will throw an exception
-.limit(-1)        // Error: limit() requires a non-negative number
-.skip("5")        // Error: skip() requires a non-negative number
+.limit(-1)        // Error: limit() requires a non-negative integer
+.skip("5")        // Error: skip() requires a non-negative integer
 .sort("invalid")  // Error: sort() requires an object or array
 ```
 
