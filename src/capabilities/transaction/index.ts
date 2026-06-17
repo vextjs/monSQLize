@@ -182,7 +182,9 @@ export class Transaction {
             this.timeoutTimer = setTimeout(() => {
                 if (this.state === 'active') {
                     this.options.logger?.warn?.(`[Transaction] auto-abort on timeout: ${this.id}`);
-                    void this.abort();
+                    void this.abort().catch((error: unknown) => {
+                        this.options.logger?.warn?.('[Transaction] auto-abort failed.', error);
+                    });
                 }
             }, timeout);
             this.timeoutTimer.unref?.();
@@ -218,15 +220,20 @@ export class Transaction {
         if (this.state !== 'pending' && this.state !== 'active') {
             return;
         }
-        if (this.state === 'active') {
-            if (typeof (this.session as unknown as Record<string, unknown>).abortTransaction === 'function') {
-                await this.session.abortTransaction();
+        try {
+            if (this.state === 'active') {
+                if (typeof (this.session as unknown as Record<string, unknown>).abortTransaction === 'function') {
+                    await this.session.abortTransaction();
+                }
             }
+        } catch (error) {
+            this.options.logger?.warn?.('[Transaction] abortTransaction failed.', error);
+        } finally {
+            this.state = 'aborted';
+            this.options.lockManager?.releaseLocks(this.id);
+            this.pendingInvalidations.clear();
+            this.clearTimeout();
         }
-        this.state = 'aborted';
-        this.options.lockManager?.releaseLocks(this.id);
-        this.pendingInvalidations.clear();
-        this.clearTimeout();
     }
 
     /**

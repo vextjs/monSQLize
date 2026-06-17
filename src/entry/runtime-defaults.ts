@@ -29,13 +29,15 @@ function deepMerge(base: Record<string, unknown>, patch: Record<string, unknown>
 /**
  * Build a frozen public defaults object from `MonSQLizeOptions`.
  *
- * Built-in defaults (maxTimeMS: 2000 / findLimit: 10 / slowQueryMs: 500, etc.)
+ * Built-in defaults (maxTimeMS: 2000 / findLimit: 500 / slowQueryMs: 500, etc.)
  * are overridden by the corresponding options fields (undefined preserves the built-in value).
  */
 export function buildPublicDefaults(options: MonSQLizeOptions): Readonly<Record<string, unknown>> {
     return Object.freeze(deepMerge({
         maxTimeMS: 2000,
-        findLimit: 10,
+        findLimit: 500,
+        findMaxLimit: 10000,
+        findMaxSkip: 50000,
         slowQueryMs: 500,
         namespace: { scope: 'database' },
         findPageMaxLimit: 500,
@@ -44,6 +46,8 @@ export function buildPublicDefaults(options: MonSQLizeOptions): Readonly<Record<
     }, {
         maxTimeMS: options.maxTimeMS,
         findLimit: options.findLimit,
+        findMaxLimit: options.findMaxLimit,
+        findMaxSkip: options.findMaxSkip,
         findPageMaxLimit: options.findPageMaxLimit,
         slowQueryMs: options.slowQueryMs,
         namespace: options.namespace,

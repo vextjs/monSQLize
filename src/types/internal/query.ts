@@ -42,6 +42,8 @@ export interface CursorValueNormalizationOptions {
 export interface RuntimeDefaults {
     maxTimeMS?: number;
     findLimit?: number;
+    findMaxLimit?: number;
+    findMaxSkip?: number;
     findPageMaxLimit?: number;
     autoConvertObjectId?: boolean | Record<string, unknown>;
     cursorSecret?: string;

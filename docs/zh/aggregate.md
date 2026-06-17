@@ -48,6 +48,7 @@ async aggregate(pipeline = [], options = {})
 | `$addFields` | 添加新字段 | `{ $addFields: { fullName: { $concat: ['$firstName', ' ', '$lastName'] } } }` |
 | `$count` | 统计文档数量 | `{ $count: 'total' }` |
 | `$facet` | 多路聚合 | `{ $facet: { stats: [...], list: [...] } }` |
+| `$out` / `$merge` | 将聚合结果写入集合 | `{ $merge: { into: 'summary' } }` |
 
 ### options 对象属性
 
@@ -67,6 +68,8 @@ async aggregate(pipeline = [], options = {})
 **图例说明**:
 - ✅ **MongoDB 原生**: 该参数是 MongoDB 官方支持的标准功能
 - 🔧 **monSQLize 扩展**: monSQLize 独有的扩展功能
+
+当聚合管道最后一个阶段是 `$out` 或 `$merge` 时，monSQLize 会把该 aggregate 视为写入型管道：跳过 aggregate 结果缓存，并在成功执行后失效目标集合的读缓存。
 
 **MongoDB 参考文档**: 
 - [aggregate() 方法](https://www.mongodb.com/docs/manual/reference/method/db.collection.aggregate/)

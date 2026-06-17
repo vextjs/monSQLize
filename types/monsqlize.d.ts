@@ -152,8 +152,12 @@ export interface MonSQLizeOptions {
     };
     /** Global query timeout in milliseconds applied to all find/aggregate operations. Default: 2000. @since v1.3.0 */
     maxTimeMS?: number;
-    /** Default limit for find() when caller does not specify one. Default: 10. @since v1.3.0 */
+    /** Default limit for find() when caller does not specify one. Default: 500. @since v1.3.0 */
     findLimit?: number;
+    /** Maximum allowed explicit limit for find(). limit(0) keeps MongoDB's unlimited semantics. Default: 10000. @since v2.0.7 */
+    findMaxLimit?: number;
+    /** Maximum allowed explicit skip for find() and offsetJump. Default: 50000. @since v2.0.7 */
+    findMaxSkip?: number;
     /** Slow query threshold in milliseconds; populates slowQueryLog.filter.minExecutionTimeMs when slowQueryLog is enabled. Default: 500. @since v1.3.0 */
     slowQueryMs?: number;
     /** Maximum allowed limit for findPage() operations. Requests exceeding this cap are silently clamped. Default: 500. @since v1.3.0 */

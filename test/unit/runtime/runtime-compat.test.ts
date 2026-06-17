@@ -74,10 +74,16 @@ describe('P6 runtime compat mock path', () => {
             databaseName: 'compat_db',
             maxTimeMS: 100,
             findLimit: 50,
+            findMaxLimit: 100,
+            findMaxSkip: 500,
             findPageMaxLimit: 25,
         }));
         assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', maxTimeMS: 0 }), /maxTimeMS/);
         assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findLimit: 0 }), /findLimit/);
+        assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findMaxLimit: 0 }), /findMaxLimit/);
+        assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findMaxSkip: -1 }), /findMaxSkip/);
+        assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findMaxLimit: 100 }), /findMaxLimit/);
+        assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findLimit: 20, findMaxLimit: 10 }), /findMaxLimit/);
         assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findPageMaxLimit: 0 }), /findPageMaxLimit/);
     });
 

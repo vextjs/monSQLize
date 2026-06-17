@@ -6,6 +6,7 @@
  * maintains a unified export so consumers are unaffected.
  */
 export { buildPublicDefaults, shouldWarnUnsignedCursorSecret } from './runtime-defaults';
+export { validateRuntimeNumericOptions } from './runtime-options-validation';
 export {
     createRuntimeDbFacade,
     createRuntimeAccessors,

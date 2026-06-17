@@ -585,7 +585,9 @@ const msq = new MonSQLize({
   // 查询默认配置
   // ========================================
   maxTimeMS: 3000,                    // 全局查询超时时间（毫秒），默认 2000
-  findLimit: 20,                      // find 默认 limit，默认 10
+  findLimit: 500,                     // find 默认 limit，默认 500
+  findMaxLimit: 10000,                // find 显式 limit 上限，默认 10000
+  findMaxSkip: 50000,                 // find 显式 skip 与 offsetJump.maxSkip 上限，默认 50000
   slowQueryMs: 500,                   // 慢查询阈值（毫秒），默认 500
   
   // ========================================
@@ -792,7 +794,9 @@ const msq = new MonSQLize({
 | 配置项 | 类型 | 默认值 | 范围 | 说明 |
 |--------|------|--------|------|------|
 | `maxTimeMS` | number | 2000 | 1-300000 | 全局查询超时时间（毫秒） |
-| `findLimit` | number | 10 | 1-10000 | find 查询默认 limit |
+| `findLimit` | number | 500 | 1-10000 | find 查询未显式指定 limit 时的默认 limit |
+| `findMaxLimit` | number | 10000 | 1-100000 | find 显式 `limit(n)` 的最大允许值；`limit(0)` 保留 MongoDB 的无限制语义。若该值低于默认 `findLimit` 500，也需要同步设置 `findLimit` 到上限以内 |
+| `findMaxSkip` | number | 50000 | 0-10000000 | find 显式 `skip(n)` 的最大允许值，也是 `offsetJump.maxSkip` 的全局上限 |
 | `findPageMaxLimit` | number | 500 | 1-10000 | findPage 最大 limit |
 | `slowQueryMs` | number | 500 | 0-60000 | 慢查询阈值（毫秒），-1 禁用 |
 
@@ -908,6 +912,8 @@ const msq = new MonSQLize({
 |--------|--------|--------|----------|
 | `maxTimeMS` | 1 | 300000 | maxTimeMS must be between 1 and 300000 |
 | `findLimit` | 1 | 10000 | findLimit must be between 1 and 10000 |
+| `findMaxLimit` | 1 | 100000 | findMaxLimit must be between 1 and 100000 |
+| `findMaxSkip` | 0 | 10000000 | findMaxSkip must be between 0 and 10000000 |
 | `findPageMaxLimit` | 1 | 10000 | findPageMaxLimit must be between 1 and 10000 |
 | `slowQueryMs` | 0 | 60000 | slowQueryMs must be between 0 and 60000 |
 

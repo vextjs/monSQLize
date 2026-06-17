@@ -118,7 +118,6 @@ import {
     type ExpressionObject,
 } from '../core/expression';
 import { ErrorCodes, createError, createConnectionError, createValidationError, createCursorError, createQueryTimeoutError } from '../core/errors';
-import { validateRange } from '../utils/validation';
 import { Logger, type LoggerLike } from '../core/logger';
 import { encodeCursor, decodeCursor } from '../utils/cursor';
 import type { HealthView } from '../../types/collection';
@@ -133,7 +132,7 @@ import {
     initializeDistributedCacheInvalidator,
     loadModelFiles,
 } from './capability-wiring';
-import { buildPublicDefaults, createRuntimeDbFacade, createRuntimeModelInstance, ensureRuntimeModelIndexes, resolveDatabaseName, shouldWarnUnsignedCursorSecret } from './runtime-helpers';
+import { buildPublicDefaults, createRuntimeDbFacade, createRuntimeModelInstance, ensureRuntimeModelIndexes, resolveDatabaseName, shouldWarnUnsignedCursorSecret, validateRuntimeNumericOptions } from './runtime-helpers';
 import {
     createRuntimeCoreAccessors,
     createRuntimeCoreAdapterBridgeHost,
@@ -232,15 +231,7 @@ export class MonSQLizeRuntime {
             type,
         };
         // v1 compat: validate critical parameters at construction time.
-        if (options.maxTimeMS !== undefined && options.maxTimeMS !== null) {
-            validateRange(options.maxTimeMS, 1, 300000, 'maxTimeMS');
-        }
-        if (options.findLimit !== undefined && options.findLimit !== null) {
-            validateRange(options.findLimit, 1, 10000, 'findLimit');
-        }
-        if (options.findPageMaxLimit !== undefined && options.findPageMaxLimit !== null) {
-            validateRange(options.findPageMaxLimit, 1, 10000, 'findPageMaxLimit');
-        }
+        validateRuntimeNumericOptions(options);
         const rawCacheInput = options.cache as Record<string, unknown> | MemoryCache | CacheLike | undefined;
         const hasDistributedCfg = rawCacheInput != null
             && typeof rawCacheInput === 'object'
@@ -252,7 +243,9 @@ export class MonSQLizeRuntime {
             ? {
                 ...(rawCacheInput as Record<string, unknown>),
                 publish: (msg: { type: string; pattern: string; ts: number }) => {
-                    void this._distributedInvalidator?.invalidate(msg.pattern);
+                    void this._distributedInvalidator?.invalidate(msg.pattern).catch((error: unknown) => {
+                        this._logger?.warn?.('[Cache] distributed invalidation publish failed.', error);
+                    });
                 },
             }
             : rawCacheInput;
@@ -369,6 +362,8 @@ export class MonSQLizeRuntime {
             slowQueryLog: d.slowQueryLog ?? this.options.slowQueryLog ?? false,
             maxTimeMS: d.maxTimeMS,
             findLimit: d.findLimit,
+            findMaxLimit: d.findMaxLimit,
+            findMaxSkip: d.findMaxSkip,
             findPageMaxLimit: d.findPageMaxLimit,
             autoConvertObjectId: d.autoConvertObjectId,
             cursorSecret: this.options.cursorSecret !== undefined ? '***' : undefined,

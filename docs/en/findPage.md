@@ -75,7 +75,7 @@ Use the traditional offset method to jump pages (suitable for small data volumes
 | Properties | Type | Default Value | Description |
 |------|------|--------|------|
 | `enable` | Boolean | `false` | Whether to enable offset page jump |
-| `maxSkip` | Number | `50000` | Maximum skip value, beyond which the bookmark mechanism will be used |
+| `maxSkip` | Number | `50000` | Maximum skip value, beyond which the bookmark mechanism will be used. This value cannot exceed the runtime `findMaxSkip` cap. |
 
 **Performance Suggestion**: Although offset page jumping is simple, its performance is poor on large data sets, and it is only suitable for scenarios where the amount of data is less than 100,000.
 

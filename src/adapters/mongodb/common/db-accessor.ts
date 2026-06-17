@@ -15,6 +15,7 @@ import {
     type ServerStatusView,
 } from '../management';
 import { MongoCollectionAccessor } from './collection-accessor';
+import { isProductionEnvironment } from './drop-database-safety';
 
 type DbAccessorManagement = {
     cache?: BookmarkCacheLike | null;
@@ -110,7 +111,7 @@ export class MongoDbAccessor {
             err.code = 'CONFIRMATION_REQUIRED';
             throw err;
         }
-        const isProduction = process.env['NODE_ENV'] === 'production';
+        const isProduction = isProductionEnvironment();
         if (isProduction && !options.allowProduction) {
             const err = new Error('dropDatabase is blocked in production. Pass { allowProduction: true } to override.') as Error & { code: string };
             err.code = 'PRODUCTION_BLOCKED';

@@ -67,7 +67,7 @@ export function initAutoConvertConfig(
 
 /**
  * Build the runtime defaults object from options.
- * Includes maxTimeMS, findLimit, autoConvertObjectId, countQueue, and related fields.
+ * Includes maxTimeMS, findLimit, find bounds, autoConvertObjectId, countQueue, and related fields.
  */
 export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults {
     const o = options;
@@ -77,7 +77,9 @@ export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults
     );
     const defaults: RuntimeDefaults = {
         maxTimeMS: o.maxTimeMS ?? 2000,
-        findLimit: o.findLimit ?? 10,
+        findLimit: o.findLimit ?? 500,
+        findMaxLimit: o.findMaxLimit ?? 10000,
+        findMaxSkip: o.findMaxSkip ?? 50000,
         findPageMaxLimit: o.findPageMaxLimit ?? 500,
         slowQueryMs: o.slowQueryMs ?? 500,
         namespace: o.namespace ?? { scope: 'database' },

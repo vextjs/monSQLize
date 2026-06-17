@@ -617,7 +617,9 @@ const msq = new MonSQLize({
   // Query defaults.
   // ========================================
   maxTimeMS: 3000,
-  findLimit: 20,
+  findLimit: 500,
+  findMaxLimit: 10000,
+  findMaxSkip: 50000,
   slowQueryMs: 500,
 
   // ========================================
@@ -799,7 +801,9 @@ const msq = new MonSQLize({
 | Option | Type | Default | Range | Description |
 |--------|------|---------|-------|-------------|
 | `maxTimeMS` | number | 2000 | 1-300000 | Global query timeout in milliseconds. |
-| `findLimit` | number | 10 | 1-10000 | Default limit for `find`. |
+| `findLimit` | number | 500 | 1-10000 | Default limit for `find` when no explicit limit is provided. |
+| `findMaxLimit` | number | 10000 | 1-100000 | Maximum allowed explicit `find().limit(n)` value. `limit(0)` keeps MongoDB's unlimited semantics. If this is lower than the default `findLimit` 500, set `findLimit` to a value within the cap too. |
+| `findMaxSkip` | number | 50000 | 0-10000000 | Maximum allowed explicit `find().skip(n)` value and the global cap for `offsetJump.maxSkip`. |
 | `findPageMaxLimit` | number | 500 | 1-10000 | Maximum limit for `findPage`. |
 | `slowQueryMs` | number | 500 | 0-60000 | Slow-query threshold in milliseconds; `-1` disables it. |
 
@@ -915,6 +919,8 @@ Some options have range limits and throw if the provided value is outside the al
 |--------|---------|---------|---------------|
 | `maxTimeMS` | 1 | 300000 | maxTimeMS must be between 1 and 300000 |
 | `findLimit` | 1 | 10000 | findLimit must be between 1 and 10000 |
+| `findMaxLimit` | 1 | 100000 | findMaxLimit must be between 1 and 100000 |
+| `findMaxSkip` | 0 | 10000000 | findMaxSkip must be between 0 and 10000000 |
 | `findPageMaxLimit` | 1 | 10000 | findPageMaxLimit must be between 1 and 10000 |
 | `slowQueryMs` | 0 | 60000 | slowQueryMs must be between 0 and 60000 |
 

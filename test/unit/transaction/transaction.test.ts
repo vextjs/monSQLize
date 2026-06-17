@@ -109,6 +109,31 @@ describe('P4-A transaction', () => {
         await transaction.end();
     });
 
+    it('logs and cleans up when abortTransaction fails', async () => {
+        const warnings: unknown[] = [];
+        const cacheLockManager = new MonSQLize.CacheLockManager();
+        const session = {
+            ...createFakeSession(),
+            abortTransaction() {
+                return Promise.reject(new Error('abort failed'));
+            },
+        };
+        const transaction = new MonSQLize.Transaction(session, {
+            lockManager: cacheLockManager,
+            logger: { warn: (...args: unknown[]) => warnings.push(args) },
+        });
+
+        await transaction.start();
+        await transaction.recordInvalidation('users:*');
+        await assert.doesNotReject(() => transaction.abort());
+
+        assert.equal(transaction.getInfo().status, 'aborted');
+        assert.equal(cacheLockManager.isLocked('users:1'), false);
+        assert.ok(warnings.some((entry) => String((entry as unknown[])[0]).includes('abortTransaction failed')));
+        await transaction.end();
+        cacheLockManager.stop();
+    });
+
     it('supports TransactionManager startSession / withTransaction / retry / stats', async () => {
         const cacheLockManager = new MonSQLize.CacheLockManager();
         const manager = new MonSQLize.TransactionManager({

@@ -86,6 +86,8 @@ All methods are **MongoDB natively supported** ✅
 | **`.stream()`** | - | ✅ | Return to stream | `.stream()` |
 | **`.toArray()`** | - | ✅ | Explicit execution | `.toArray()` |
 
+`limit(0)` intentionally matches MongoDB: it removes the result limit and may return all matches. Positive explicit limits are bounded by `findMaxLimit`, and explicit skips are bounded by `findMaxSkip`.
+
 **MongoDB reference documentation**:
 - [cursor.limit()](https://www.mongodb.com/docs/manual/reference/method/cursor.limit/)
 - [cursor.skip()](https://www.mongodb.com/docs/manual/reference/method/cursor.skip/)
@@ -598,4 +600,3 @@ console.log("Query plan:", plan);
 ---
 
 **Feedback and Suggestions**: If you have questions or suggestions, please submit [GitHub Issue](https://github.com/vextjs/monSQLize/issues).
-

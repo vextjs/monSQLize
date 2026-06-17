@@ -85,7 +85,7 @@ console.log(dbNames); // ['admin', 'config', 'local', 'mydb']
 ## Security mechanism
 
 1. **Must be explicitly confirmed**: `{ confirm: true }` must be passed in
-2. **Production environment protection**: The production environment is prohibited by default and requires additional input of `{ allowProduction: true }`
+2. **Production environment protection**: `NODE_ENV=production`, `prod`, or `live` is blocked by default and requires `{ allowProduction: true }`
 3. **Audit Log**: All deletion attempts will be logged
 
 
@@ -145,7 +145,7 @@ console.log('Timestamp:', result.timestamp);
 ### ⚠️ Production environment: additional confirmation required
 
 ```javascript
-//In a production environment (NODE_ENV=production)
+// In a production-like environment (NODE_ENV=production, prod, or live)
 const result = await db.db('prod_db').dropDatabase({
     confirm: true,
     allowProduction: true,

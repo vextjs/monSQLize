@@ -51,6 +51,8 @@
 | **`.stream()`** | `.stream()` | 返回流式结果 | `find()` query chain |
 | **`.toArray()`** | `.toArray()` | 显式转换为数组 | `find()` query chain |
 
+`limit(0)` 会保留 MongoDB 游标语义：表示“不限制返回数量”，可能返回全部匹配文档。需要有界读取时请使用正整数 limit；显式正整数 limit 会受 `findMaxLimit` 限制。
+
 #### 📝 使用示例
 
 ```javascript

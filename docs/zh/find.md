@@ -84,6 +84,8 @@ const results = await collection('products')
 - `.stream()` - 流式返回
 - `.toArray()` - 显式转换为数组
 
+`limit(0)` 保留 MongoDB 语义，表示不限制返回数量。显式正整数 limit 受 `findMaxLimit` 限制，显式 skip 受 `findMaxSkip` 限制。
+
 📚 **详细文档**: 查看 [链式调用完整 API 文档](./chaining-api.md)
 
 ### 方式 2: options 参数（传统方式，完全兼容）

@@ -84,6 +84,8 @@ const results = await collection('products')
 - `.stream()` - streaming return
 - `.toArray()` - explicit conversion to array
 
+`limit(0)` keeps MongoDB semantics and means no limit. Positive explicit limits are bounded by `findMaxLimit`, and explicit skips are bounded by `findMaxSkip`.
+
 📚 **Detailed Documentation**: View [Chain Call Complete API Document](./chaining-api.md)
 
 ### Method 2: options parameter (traditional method, fully compatible)

@@ -59,6 +59,24 @@ function normalizePositiveInteger(value: number | undefined, fallback: number, f
     return value;
 }
 
+const DEFAULT_FIND_MAX_SKIP = 50000;
+
+function normalizeNonNegativeInteger(value: unknown, field: string): number {
+    if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
+        throw createError(ErrorCodes.INVALID_PAGINATION, `${field} must be a non-negative integer.`);
+    }
+    return value;
+}
+
+function resolveFindMaxSkip(defaults: RuntimeDefaults): number {
+    return typeof defaults.findMaxSkip === 'number'
+        && Number.isFinite(defaults.findMaxSkip)
+        && Number.isInteger(defaults.findMaxSkip)
+        && defaults.findMaxSkip >= 0
+        ? defaults.findMaxSkip
+        : DEFAULT_FIND_MAX_SKIP;
+}
+
 function mergeFilters(base: Document, extra?: Document): Document {
     if (!extra || Object.keys(extra).length === 0) {
         return base;
@@ -371,6 +389,26 @@ export async function executeFindPage<TSchema extends Document = Document>(
 
     const jumpOpts = ext.jump as { step: number; maxHops: number } | undefined;
     const offsetJumpOpts = ext.offsetJump as { enable?: boolean; maxSkip?: number } | undefined;
+    let offsetJumpSkipCount = 0;
+    let useOffsetJump = false;
+    if (offsetJumpOpts?.enable === true) {
+        const offsetJumpGlobalMaxSkip = resolveFindMaxSkip(defaults);
+        let offsetJumpMaxSkip = offsetJumpGlobalMaxSkip;
+        if (offsetJumpOpts.maxSkip !== undefined) {
+            offsetJumpMaxSkip = normalizeNonNegativeInteger(offsetJumpOpts.maxSkip, 'offsetJump.maxSkip');
+            if (offsetJumpMaxSkip > offsetJumpGlobalMaxSkip) {
+                throw createError(
+                    ErrorCodes.INVALID_PAGINATION,
+                    `offsetJump.maxSkip exceeds findMaxSkip (${offsetJumpGlobalMaxSkip}).`,
+                );
+            }
+        }
+        offsetJumpSkipCount = page > 1 ? (page - 1) * limit : 0;
+        if (!Number.isSafeInteger(offsetJumpSkipCount)) {
+            throw createError(ErrorCodes.INVALID_PAGINATION, 'offsetJump skip count exceeds the safe integer range.');
+        }
+        useOffsetJump = offsetJumpSkipCount <= offsetJumpMaxSkip;
+    }
     const cacheTTL = typeof ext.cache === 'number' && ext.cache > 0 ? ext.cache : 0;
     const pageResultCache = cacheTTL > 0
         && queryCache
@@ -461,7 +499,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         && !options.before
         && options.stream !== true
         && (options.explain === undefined || options.explain === false)
-        && !offsetJumpOpts?.enable
+        && !useOffsetJump
         ? await readNearestBookmark(queryCache, `${dbName}:${collectionName}`, {
             query: baseQuery,
             sort,
@@ -617,16 +655,15 @@ export async function executeFindPage<TSchema extends Document = Document>(
     // ── Explain mode: return the raw MongoDB explain document ────────────────
     if (options.explain !== undefined && options.explain !== false) {
         const verbosity = typeof options.explain === 'string' ? options.explain : 'queryPlanner';
-        const offsetJumpOpts2 = ext.offsetJump as { enable?: boolean } | undefined;
         let explainQueryFilter: Document;
         const explainExtra: Record<string, unknown> = {};
 
         if (options.after || options.before) {
             const dir = options.after ? 'after' : 'before';
             explainQueryFilter = buildPageQuery(options.after ?? options.before, dir).queryFilter as Document;
-        } else if (offsetJumpOpts2?.enable && page > 1) {
+        } else if (useOffsetJump && page > 1) {
             explainQueryFilter = baseQuery;
-            explainExtra.skip = (page - 1) * limit;
+            explainExtra.skip = offsetJumpSkipCount;
         } else {
             explainQueryFilter = baseQuery;
         }
@@ -643,10 +680,9 @@ export async function executeFindPage<TSchema extends Document = Document>(
     }
 
     // ── offsetJump mode: skip-based pagination ────────────────────────────────
-    if (offsetJumpOpts?.enable) {
-        const skipCount = page > 1 ? (page - 1) * limit : 0;
+    if (useOffsetJump) {
         const { queryFilter, effectiveSort } = buildPageQuery();
-        const { items, hasMore } = await timedFetchItems('offsetFetch', 'offset', queryFilter as Document, effectiveSort, { skip: skipCount });
+        const { items, hasMore } = await timedFetchItems('offsetFetch', 'offset', queryFilter as Document, effectiveSort, { skip: offsetJumpSkipCount });
         const result: FindPageResult<TSchema> = {
             items,
             pageInfo: buildPageInfo(items, hasMore, { hasPrev: page > 1, currentPage: page }),

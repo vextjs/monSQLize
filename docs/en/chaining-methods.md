@@ -65,6 +65,8 @@ Now you can build queries using chained calls just like you would with the nativ
 | **`.stream()`** | `.stream()` | Return streaming results | `find()` query chain |
 | **`.toArray()`** | `.toArray()` | Explicit conversion to array | `find()` query chain |
 
+`limit(0)` intentionally keeps the MongoDB cursor semantics: it means "no limit" and may return all matching documents. Use a positive limit for bounded reads; explicit positive limits are capped by `findMaxLimit`.
+
 
 
 ## 📝 Usage example
@@ -323,4 +325,3 @@ monSQLize will automatically detect the calling method:
 ---
 
 **Feedback and Suggestions**: If you have questions or suggestions, please submit [GitHub Issue](https://github.com/vextjs/monSQLize/issues).
-

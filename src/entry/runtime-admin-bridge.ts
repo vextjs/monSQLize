@@ -26,6 +26,7 @@ import type { RuntimeDefaults } from '../types/internal/query';
 import type { AdapterBridgeLike, LegacyAdapterBridgeLike } from '../types/internal/runtime';
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type { MongoDbAccessor as DbFacade } from '../adapters/mongodb/common/accessors';
+import { isProductionEnvironment } from '../adapters/mongodb/common/drop-database-safety';
 
 /**
  * Internal configuration for `createAdapterBridge`.
@@ -293,7 +294,7 @@ export function createRuntimeAdapterBridge(host: RuntimeAdapterBridgeHost): Lega
                 error.code = 'CONFIRMATION_REQUIRED';
                 throw error;
             }
-            const isProduction = process.env['NODE_ENV'] === 'production';
+            const isProduction = isProductionEnvironment();
             if (isProduction && !adminOptions.allowProduction) {
                 const error = new Error('dropDatabase is blocked in production. Pass { allowProduction: true } to override.') as Error & { code: string };
                 error.code = 'PRODUCTION_BLOCKED';

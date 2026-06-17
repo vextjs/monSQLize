@@ -58,6 +58,8 @@ monSQLize 现已支持完整的 MongoDB 风格链式调用 API，提供更直观
 | **`.stream()`** | - | ✅ | 返回流 | `.stream()` |
 | **`.toArray()`** | - | ✅ | 显式执行 | `.toArray()` |
 
+`limit(0)` 明确沿用 MongoDB 语义：取消结果数量限制，可能返回全部匹配文档。显式正整数 limit 受 `findMaxLimit` 限制，显式 skip 受 `findMaxSkip` 限制。
+
 **MongoDB 参考文档**:
 - [cursor.limit()](https://www.mongodb.com/docs/manual/reference/method/cursor.limit/)
 - [cursor.skip()](https://www.mongodb.com/docs/manual/reference/method/cursor.skip/)

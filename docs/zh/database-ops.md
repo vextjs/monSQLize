@@ -61,7 +61,7 @@ console.log(dbNames); // ['admin', 'config', 'local', 'mydb']
 ### 安全机制
 
 1. **必须显式确认**: 必须传入 `{ confirm: true }`
-2. **生产环境保护**: 生产环境默认禁止，需额外传入 `{ allowProduction: true }`
+2. **生产环境保护**: `NODE_ENV=production`、`prod` 或 `live` 默认禁止，需额外传入 `{ allowProduction: true }`
 3. **审计日志**: 所有删除尝试都会记录
 
 ### 语法（dropDatabase()）
@@ -114,7 +114,7 @@ console.log('Timestamp:', result.timestamp);
 #### ⚠️ 生产环境：需要额外确认
 
 ```javascript
-// 在生产环境（NODE_ENV=production）
+// 在生产类环境（NODE_ENV=production、prod 或 live）
 const result = await db.db('prod_db').dropDatabase({
     confirm: true,
     allowProduction: true,

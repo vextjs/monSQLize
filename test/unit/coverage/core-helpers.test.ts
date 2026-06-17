@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -935,6 +936,16 @@ describe('coverage core helpers', () => {
 
         const explained = await executeFindPage(collection as never, { explain: 'executionStats', page: 2, offsetJump: { enable: true }, limit: 1 } as never, {});
         assert.deepEqual(explained, { verbosity: 'executionStats' });
+        calls.length = 0;
+        await executeFindPage(collection as never, { page: 2, limit: 1, offsetJump: { enable: true, maxSkip: 0 }, sort: { createdAt: 1 } } as never, { findMaxSkip: 5 });
+        assert.equal(calls.some((call) => {
+            const options = call.args[1] as Record<string, unknown> | undefined;
+            return options?.skip !== undefined;
+        }), false);
+        await assert.rejects(
+            () => executeFindPage(collection as never, { page: 2, limit: 1, offsetJump: { enable: true, maxSkip: 6 } } as never, { findMaxSkip: 5 }),
+            /offsetJump\.maxSkip/,
+        );
         const streamed = await executeFindPage(collection as never, { stream: true, limit: 1 } as never, {});
         assert.deepEqual(streamed, { streamed: true });
 
@@ -966,10 +977,32 @@ describe('coverage core helpers', () => {
         const cache = new MemoryCache({ maxEntries: 10 });
         assert.deepEqual(await createFindChain(collection as never, { _id: '507f1f77bcf86cd799439011' } as never, { cache: 100, limit: 1 } as never, { autoConvertObjectId: true, maxTimeMS: 5 }, cache).then((value) => value), [{ id: 1 }]);
         assert.deepEqual(await createFindChain(collection as never, {}, { cache: 100 } as never, {}, cache).then((value) => value), [{ id: 1 }]);
+        assert.deepEqual(await createFindChain(collection as never).limit(0).then((value) => value), [{ id: 1 }]);
         assert.throws(() => createFindChain(collection as never).limit(-1), /non-negative/);
         assert.throws(() => createFindChain(collection as never).skip(-1), /non-negative/);
+        assert.throws(() => createFindChain(collection as never).limit(Number.NaN), /non-negative integer/);
+        assert.throws(() => createFindChain(collection as never, {}, {}, { findMaxLimit: 5 }).limit(6), /findMaxLimit/);
+        assert.throws(() => createFindChain(collection as never, {}, {}, { findMaxSkip: 5 }).skip(6), /findMaxSkip/);
+        assert.throws(() => createFindChain(collection as never, {}, { limit: 6 } as never, { findMaxLimit: 5 }).toArray(), /findMaxLimit/);
+        assert.throws(() => createFindChain(collection as never, {}, { skip: 6 } as never, { findMaxSkip: 5 }).toArray(), /findMaxSkip/);
         assert.deepEqual(await createFindChain(collection as never, {}, { explain: true } as never).then((value) => value), { explain: 'queryPlanner' });
         assert.deepEqual(await createAggregateChain(collection as never, [{ $match: { ok: true } }], { stream: true } as never).then((value) => value), { stream: true });
+        let streamInvalidations = 0;
+        const aggregateStream = new EventEmitter() as NodeJS.ReadableStream;
+        const streamCollection = {
+            ...collection,
+            aggregate: (...args: unknown[]) => {
+                calls.push({ method: 'aggregateStream', args });
+                return { ...cursor, stream: () => aggregateStream };
+            },
+        };
+        const writeStream = await createAggregateChain(streamCollection as never, [{ $merge: 'out' }], { stream: true } as never, {}, null, {
+            onWriteComplete: () => { streamInvalidations += 1; },
+        }).then((value) => value);
+        assert.equal(writeStream, aggregateStream);
+        aggregateStream.emit('end');
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(streamInvalidations, 1);
         assert.deepEqual(await aggregateDocuments(collection as never, [{ $match: { ok: true } }]), [{ id: 1 }]);
         assert.deepEqual(await findDocuments(collection as never, {}), [{ id: 1 }]);
         assert.deepEqual(await findOneDocument(collection as never, {}, { explain: true } as never), { explain: 'queryPlanner' });
@@ -1111,10 +1144,23 @@ describe('coverage core helpers', () => {
         assert.deepEqual(await bridge.runCommand({ ping: 1 }), { cmd: { ping: 1 } });
         await assert.rejects(() => bridge.dropDatabase('', { confirm: true }), /Database name is required/);
         await assert.rejects(() => bridge.dropDatabase('db'), /requires explicit confirmation/);
-        process.env['NODE_ENV'] = 'production';
-        await assert.rejects(() => bridge.dropDatabase('db', { confirm: true }), /blocked in production/);
-        process.env['NODE_ENV'] = 'test';
-        assert.equal((await bridge.dropDatabase('db', { confirm: true, allowProduction: true })).dropped, true);
+        const previousNodeEnv = process.env['NODE_ENV'];
+        try {
+            process.env['NODE_ENV'] = 'production';
+            await assert.rejects(() => bridge.dropDatabase('db', { confirm: true }), /blocked in production/);
+            process.env['NODE_ENV'] = 'prod';
+            await assert.rejects(() => bridge.dropDatabase('db', { confirm: true }), /blocked in production/);
+            process.env['NODE_ENV'] = 'live';
+            await assert.rejects(() => bridge.dropDatabase('db', { confirm: true }), /blocked in production/);
+            process.env['NODE_ENV'] = 'test';
+            assert.equal((await bridge.dropDatabase('db', { confirm: true, allowProduction: true })).dropped, true);
+        } finally {
+            if (previousNodeEnv === undefined) {
+                delete process.env['NODE_ENV'];
+            } else {
+                process.env['NODE_ENV'] = previousNodeEnv;
+            }
+        }
         await bridge.collection('db', 'items').find({ a: 1 });
         await bridge.collection('db', 'items').insertOne({ a: 1 });
         assert.ok(saved.length >= 2);

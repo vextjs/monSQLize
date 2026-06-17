@@ -112,6 +112,49 @@ export function wrapQueryResultWithMeta<TData, TSchema extends Document = Docume
     };
 }
 
+const DEFAULT_FIND_MAX_LIMIT = 10000;
+const DEFAULT_FIND_MAX_SKIP = 50000;
+
+function normalizeNonNegativeInteger(value: unknown, field: string): number {
+    if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, `${field} requires a non-negative integer, got: ${typeof value} (${value})`);
+    }
+    return value;
+}
+
+function resolveNonNegativeBound(value: unknown, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value) && value >= 0
+        ? value
+        : fallback;
+}
+
+function validateFindLimitOption(value: unknown, defaults: RuntimeDefaults): number | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    const limit = normalizeNonNegativeInteger(value, 'limit()');
+    const maxLimit = Math.max(1, resolveNonNegativeBound(defaults.findMaxLimit, DEFAULT_FIND_MAX_LIMIT));
+    if (limit > 0 && limit > maxLimit) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, `limit() exceeds findMaxLimit (${maxLimit}), got: ${limit}`);
+    }
+    return limit;
+}
+
+function validateFindSkipOption(value: unknown, defaults: RuntimeDefaults): number | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    const skip = normalizeNonNegativeInteger(value, 'skip()');
+    const maxSkip = resolveNonNegativeBound(defaults.findMaxSkip, DEFAULT_FIND_MAX_SKIP);
+    if (skip > maxSkip) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, `skip() exceeds findMaxSkip (${maxSkip}), got: ${skip}`);
+    }
+    return skip;
+}
+
+type AggregateWritePipelineHooks = {
+    onWriteComplete?: () => void | Promise<void>;
+};
 
 /**
  * Chainable wrapper around MongoDB `find()`.
@@ -143,26 +186,29 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
     }
 
     private buildExecuteOptions(): Record<string, unknown> {
-        return {
+        const options: Record<string, unknown> = {
             ...(this.defaults.maxTimeMS !== undefined ? { maxTimeMS: this.defaults.maxTimeMS } : {}),
             ...(this.defaults.findLimit !== undefined ? { limit: this.defaults.findLimit } : {}),
             ...this.options,
         };
+        const limit = validateFindLimitOption(options.limit, this.defaults);
+        if (limit !== undefined) {
+            options.limit = limit;
+        }
+        const skip = validateFindSkipOption(options.skip, this.defaults);
+        if (skip !== undefined) {
+            options.skip = skip;
+        }
+        return options;
     }
 
     limit(value: number): FindChain<TSchema> {
-        if (typeof value !== 'number' || value < 0) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, `limit() requires a non-negative number, got: ${typeof value} (${value})`);
-        }
-        this.options.limit = value;
+        this.options.limit = validateFindLimitOption(value, this.defaults);
         return this;
     }
 
     skip(value: number): FindChain<TSchema> {
-        if (typeof value !== 'number' || value < 0) {
-            throw createError(ErrorCodes.INVALID_ARGUMENT, `skip() requires a non-negative number, got: ${typeof value} (${value})`);
-        }
-        this.options.skip = value;
+        this.options.skip = validateFindSkipOption(value, this.defaults);
         return this;
     }
 
@@ -285,6 +331,7 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
         initialOptions: Record<string, unknown> = {},
         private readonly defaults: RuntimeDefaults = {},
         private readonly queryCache?: QueryCacheLike | null,
+        private readonly writePipelineHooks?: AggregateWritePipelineHooks,
     ) {
         this.options = { ...initialOptions };
     }
@@ -336,7 +383,14 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
     }
 
     stream(): NodeJS.ReadableStream {
-        return this.collection.aggregate(this.pipeline, buildAggregateDriverOptions<TSchema>(this.buildExecuteOptions())).stream();
+        const stream = this.collection.aggregate(this.pipeline, buildAggregateDriverOptions<TSchema>(this.buildExecuteOptions())).stream();
+        const onWriteComplete = this.writePipelineHooks?.onWriteComplete;
+        if (onWriteComplete) {
+            stream.once('end', () => {
+                void Promise.resolve(onWriteComplete()).catch(() => undefined);
+            });
+        }
+        return stream;
     }
 
     private wrapResult<TData>(op: string, startTs: number, result: TData): TData | ResultWithMeta<TData> {
@@ -348,7 +402,12 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
             throw createError(ErrorCodes.INVALID_OPERATION, 'Query already executed.');
         }
         this.executed = true;
-        return this.collection.aggregate(this.pipeline, buildAggregateDriverOptions<TSchema>(this.buildExecuteOptions())).toArray() as Promise<TResult[]>;
+        return this.collection.aggregate(this.pipeline, buildAggregateDriverOptions<TSchema>(this.buildExecuteOptions()))
+            .toArray()
+            .then(async (result) => {
+                await this.writePipelineHooks?.onWriteComplete?.();
+                return result as TResult[];
+            });
     }
 
     private executeResult(): Promise<TResult[] | ResultWithMeta<TResult[]> | NodeJS.ReadableStream> {
@@ -365,7 +424,7 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
         }
         const cacheTTL = typeof this.options.cache === 'number' ? this.options.cache : 0;
         const executeOptions = this.buildExecuteOptions();
-        if (cacheTTL > 0 && this.queryCache && !hasSessionOption(executeOptions)) {
+        if (cacheTTL > 0 && this.queryCache && !hasSessionOption(executeOptions) && !this.writePipelineHooks?.onWriteComplete) {
             const cacheKey = this.buildCacheKey();
             const cached = this.queryCache.get(cacheKey);
             if (cached !== undefined) {
@@ -431,12 +490,20 @@ export function createAggregateChain<TSchema extends Document = Document, TResul
     options?: Parameters<Collection<TSchema>['aggregate']>[1],
     defaults?: RuntimeDefaults,
     queryCache?: QueryCacheLike | null,
+    writePipelineHooks?: AggregateWritePipelineHooks,
 ): AggregateChainContract<TResult> {
     const processedPipeline = hasExpressionInPipeline(pipeline)
         ? compilePipelineExpressions(pipeline)
         : pipeline;
 
-    return new AggregateChain<TResult, TSchema>(collection, processedPipeline, (options ?? {}) as Record<string, unknown>, defaults ?? {}, queryCache);
+    return new AggregateChain<TResult, TSchema>(
+        collection,
+        processedPipeline,
+        (options ?? {}) as Record<string, unknown>,
+        defaults ?? {},
+        queryCache,
+        writePipelineHooks,
+    );
 }
 
 /**

@@ -100,6 +100,54 @@ import {
     upsertOneForAccessor,
 } from './collection-accessor-write-helpers';
 
+type AggregateWriteTarget = {
+    dbName?: string;
+    collectionName: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function resolveCollectionTarget(value: unknown): AggregateWriteTarget | null {
+    if (typeof value === 'string' && value.length > 0) {
+        return { collectionName: value };
+    }
+    if (!isRecord(value)) {
+        return null;
+    }
+    const coll = value['coll'] ?? value['collection'];
+    if (typeof coll !== 'string' || coll.length === 0) {
+        return null;
+    }
+    const db = value['db'];
+    return {
+        collectionName: coll,
+        ...(typeof db === 'string' && db.length > 0 ? { dbName: db } : {}),
+    };
+}
+
+function resolveAggregateWriteTarget(pipeline: Document[]): AggregateWriteTarget | null {
+    const lastStage = pipeline[pipeline.length - 1];
+    if (!isRecord(lastStage)) {
+        return null;
+    }
+    if (Object.prototype.hasOwnProperty.call(lastStage, '$out')) {
+        return resolveCollectionTarget(lastStage['$out']);
+    }
+    if (!Object.prototype.hasOwnProperty.call(lastStage, '$merge')) {
+        return null;
+    }
+    const mergeStage = lastStage['$merge'];
+    if (typeof mergeStage === 'string') {
+        return { collectionName: mergeStage };
+    }
+    if (isRecord(mergeStage)) {
+        return resolveCollectionTarget(mergeStage['into']);
+    }
+    return null;
+}
+
 /**
  * Low-level MongoDB collection accessor.
  * Provides CRUD, query, and management operations for a single collection.
@@ -135,15 +183,19 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return convertUpdateDocument(val as unknown, autoConvertObjectId) as T;
     }
 
-    private async invalidateReadCaches(operation?: 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string): Promise<number> {
+    private async invalidateReadCachesForNamespace(
+        dbName: string,
+        collectionName: string,
+        operation?: 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string,
+    ): Promise<number> {
         if (!this.management.queryCache?.delPattern) {
             return 0;
         }
 
-        const namespace = this.collectionRef.namespace;
-        const bookmarkNamespace = `${this.dbName}:${this.collectionName}`;
+        const namespace = `${dbName}.${collectionName}`;
+        const bookmarkNamespace = `${dbName}:${collectionName}`;
         const legacyNamespacePatterns = [
-            `${String(this.management.defaults?.namespace?.instanceId)}:mongodb:${this.dbName}:${this.collectionName}:*`,
+            `${String(this.management.defaults?.namespace?.instanceId)}:mongodb:${dbName}:${collectionName}:*`,
         ];
         const findPagePatterns = [
             `findPage:${namespace}:*`,
@@ -181,6 +233,10 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             deleted += d;
         }
         return deleted;
+    }
+
+    private async invalidateReadCaches(operation?: 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string): Promise<number> {
+        return this.invalidateReadCachesForNamespace(this.dbName, this.collectionName, operation);
     }
 
     getNamespace(): CollectionNamespaceView {
@@ -312,7 +368,25 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
                 this.management.defaults?.autoConvertObjectId,
             ) as Document)
             : pipeline;
-        return createAggregateChain(this.collectionRef, normalizedPipeline, options, this.management.defaults, this.management.queryCache);
+        const writeTarget = resolveAggregateWriteTarget(normalizedPipeline);
+        return createAggregateChain(
+            this.collectionRef,
+            normalizedPipeline,
+            options,
+            this.management.defaults,
+            this.management.queryCache,
+            writeTarget
+                ? {
+                    onWriteComplete: async () => {
+                        await this.invalidateReadCachesForNamespace(
+                            writeTarget.dbName ?? this.dbName,
+                            writeTarget.collectionName,
+                            'all',
+                        );
+                    },
+                }
+                : undefined,
+        );
     }
 
     /** Returns an array of distinct values for the given field key. */

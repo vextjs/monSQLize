@@ -48,6 +48,7 @@ An aggregation pipeline is an array of stages, each stage performs specific proc
 | `$addFields` | Add new field | `{ $addFields: { fullName: { $concat: ['$firstName', ' ', '$lastName'] } } }` |
 | `$count` | Number of statistical documents | `{ $count: 'total' }` |
 | `$facet` | Multi-channel aggregation | `{ $facet: { stats: [...], list: [...] } }` |
+| `$out` / `$merge` | Write the pipeline output to a collection | `{ $merge: { into: 'summary' } }` |
 
 ### options object properties
 
@@ -67,6 +68,8 @@ An aggregation pipeline is an array of stages, each stage performs specific proc
 **Legend description**:
 - ✅ **MongoDB native**: This parameter is a standard function officially supported by MongoDB
 - 🔧 **monSQLize extension**: monSQLize’s unique extension function
+
+When the final pipeline stage is `$out` or `$merge`, monSQLize treats the aggregate as a write pipeline: aggregate result caching is skipped, and read caches for the target collection are invalidated after successful execution.
 
 **MongoDB reference documentation**:
 - [aggregate() method ](https://www.mongodb.com/docs/manual/reference/method/db.collection.aggregate/)

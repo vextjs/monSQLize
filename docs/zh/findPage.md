@@ -74,7 +74,7 @@ async findPage(options = {})
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `enable` | Boolean | `false` | 是否启用 offset 跳页 |
-| `maxSkip` | Number | `50000` | 最大 skip 值，超过此值将使用书签机制 |
+| `maxSkip` | Number | `50000` | 最大 skip 值，超过此值将使用书签机制；该值不能超过运行时 `findMaxSkip` 上限 |
 
 **性能建议**：offset 跳页虽然简单，但在大数据集上性能较差，仅适合数据量小于 10 万条的场景。
 

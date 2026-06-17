@@ -1181,7 +1181,9 @@ describe('capability wiring — direct branch coverage', () => {
 
         const builtIn = buildRuntimeDefaults({} as any);
         assert.equal(builtIn.maxTimeMS, 2000);
-        assert.equal(builtIn.findLimit, 10);
+        assert.equal(builtIn.findLimit, 500);
+        assert.equal(builtIn.findMaxLimit, 10000);
+        assert.equal(builtIn.findMaxSkip, 50000);
         assert.equal(builtIn.findPageMaxLimit, 500);
         assert.equal(builtIn.slowQueryMs, 500);
     });
