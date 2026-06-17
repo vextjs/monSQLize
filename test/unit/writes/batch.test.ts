@@ -79,11 +79,22 @@ describe('P2-C writes-batch extension', () => {
             },
         };
 
+        const session = { id: 's1' };
         const users = runtime.collection('users');
         const inserted = await users.insertBatch([{ name: 'Ada' }, { name: 'Grace' }, { name: 'Linus' }], { batchSize: 2 });
         const updated = await users.updateBatch({ active: true }, { $set: { active: false } }, { batchSize: 2 });
         const deleted = await users.deleteBatch({ stale: true }, { batchSize: 2 });
-        const incremented = await users.incrementOne({ _id: 1 }, 'count', 2, { $set: { touched: true } });
+        const incremented = await users.incrementOne({ _id: 1 }, 'count', 2, {
+            $set: { touched: true },
+            projection: { count: 1 },
+            returnDocument: 'before',
+            session,
+            collation: { locale: 'en', strength: 2 },
+            hint: { _id: 1 },
+            comment: 'increment-driver-options',
+            maxTimeMS: 250,
+            writeConcern: { w: 'majority' },
+        });
 
         assert.equal(inserted.insertedCount, 3);
         assert.equal(inserted.batchCount, 2);
@@ -99,6 +110,17 @@ describe('P2-C writes-batch extension', () => {
         assert.deepEqual(calls.findOneAndUpdate[0].update, {
             $inc: { count: 2 },
             $set: { touched: true },
+        });
+        assert.deepEqual(calls.findOneAndUpdate[0].options, {
+            session,
+            collation: { locale: 'en', strength: 2 },
+            hint: { _id: 1 },
+            comment: 'increment-driver-options',
+            maxTimeMS: 250,
+            writeConcern: { w: 'majority' },
+            returnDocument: 'before',
+            includeResultMetadata: true,
+            projection: { count: 1 },
         });
     });
 });

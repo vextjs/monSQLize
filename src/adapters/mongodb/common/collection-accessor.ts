@@ -148,7 +148,6 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         const findPagePatterns = [
             `findPage:${namespace}:*`,
             `findPageTotals:${namespace}:*`,
-            `bookmark:${bookmarkNamespace}:*`,
             `${bookmarkNamespace}:bm:*`,
         ];
         const aggregatePatterns = [`aggregate:${namespace}:*`];

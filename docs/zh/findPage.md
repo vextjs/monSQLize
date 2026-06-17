@@ -276,6 +276,8 @@ const page3 = await collection('products').findPage({
 3. 从书签页逐页跳转到目标页
 4. 跳转次数不超过 `maxHops` 限制
 
+`prewarmBookmarks()` 创建的 bookmark 会被 `findPage()` 在页码导航时读取。存在匹配 bookmark 时，`maxHops` 按“bookmark 页到目标页”的剩余跳数计算，而不是始终从第 1 页计算。
+
 **适用场景**：
 - 需要显示页码导航
 - 用户可能跳转到任意页

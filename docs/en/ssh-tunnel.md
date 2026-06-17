@@ -407,6 +407,8 @@ config: {
 }
 ```
 
+The built-in SSH tunnel supports one MongoDB host in the URI. Multi-host replica set URIs and `mongodb+srv://` SRV URIs are rejected with `INVALID_CONFIG`; use an external SSH tunnel, bastion proxy, or MongoDB-side network access for those topologies.
+
 
 ## Problem 4: Port conflict
 
@@ -599,7 +601,7 @@ await msq2.connect();  //SSH Tunnel 2 (standalone)
 
 ## Q3: Will the SSH tunnel automatically reconnect after it is disconnected?
 
-**A**: No. Requires manual reconnection.
+**A**: No. Requires manual reconnection. If the SSH connection closes after it was ready, monSQLize marks the tunnel as disconnected and closes the local forwarding server so subsequent use fails fast instead of silently using a dead tunnel.
 
 It is recommended to implement reconnection logic:
 

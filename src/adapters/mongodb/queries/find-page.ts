@@ -10,7 +10,6 @@
  * Does not depend on FindChain/AggregateChain to avoid circular references.
  */
 
-import { createHash } from 'node:crypto';
 import { Collection, Document } from 'mongodb';
 
 import { MemoryCache } from '../../../capabilities/cache';
@@ -41,6 +40,12 @@ import {
     normalizeSortShape,
     reverseSort,
 } from './query-helpers';
+import {
+    DEFAULT_FIND_PAGE_LIMIT,
+    hashPayload,
+    readNearestBookmark,
+    type BookmarkResumePoint,
+} from './find-page-cache-helpers';
 
 // ── Internal utilities ────────────────────────────────────────────────────────
 
@@ -62,36 +67,6 @@ function mergeFilters(base: Document, extra?: Document): Document {
         return extra;
     }
     return { $and: [base, extra] };
-}
-
-function stableStringify(value: unknown): string {
-    if (value === undefined) {
-        return '"__undefined__"';
-    }
-    if (value === null) {
-        return 'null';
-    }
-    if (Array.isArray(value)) {
-        return `[${value.map((item) => stableStringify(item)).join(',')}]`;
-    }
-    if (value instanceof Date) {
-        return JSON.stringify(value.toISOString());
-    }
-    if (typeof value === 'object') {
-        const customJson = (value as { toJSON?: () => unknown }).toJSON;
-        if (typeof customJson === 'function' && value.constructor?.name !== 'Object') {
-            return stableStringify(customJson.call(value));
-        }
-        const entries = Object.entries(value as Record<string, unknown>)
-            .sort(([left], [right]) => left.localeCompare(right))
-            .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`);
-        return `{${entries.join(',')}}`;
-    }
-    return JSON.stringify(value);
-}
-
-function hashPayload(payload: unknown): string {
-    return createHash('sha256').update(stableStringify(payload)).digest('hex');
 }
 
 function buildFindPageCacheKey<TSchema extends Document>(
@@ -335,7 +310,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
     const metaSteps: NonNullable<MetaInfo['steps']> = [];
     const ext = options as Record<string, unknown>;
     const page = normalizePositiveInteger(options.page, 1, 'page');
-    const rawLimit = normalizePositiveInteger(options.limit, 20, 'limit');
+    const rawLimit = normalizePositiveInteger(options.limit, DEFAULT_FIND_PAGE_LIMIT, 'limit');
     const limit = defaults.findPageMaxLimit !== undefined && rawLimit > defaults.findPageMaxLimit
         ? defaults.findPageMaxLimit
         : rawLimit;
@@ -395,6 +370,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
     }
 
     const jumpOpts = ext.jump as { step: number; maxHops: number } | undefined;
+    const offsetJumpOpts = ext.offsetJump as { enable?: boolean; maxSkip?: number } | undefined;
     const cacheTTL = typeof ext.cache === 'number' && ext.cache > 0 ? ext.cache : 0;
     const pageResultCache = cacheTTL > 0
         && queryCache
@@ -413,6 +389,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         : null;
     const shouldRefreshAsyncTotals = (options.totals as TotalsOptions | undefined)?.mode === 'async';
     let findPageCacheHit = false;
+    let bookmarkResume: BookmarkResumePoint | null = null;
 
     const finishResult = (result: FindPageResult<TSchema>): FindPageResult<TSchema> => {
         if (!metaEnabled) {
@@ -451,7 +428,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
             page,
             after: Boolean(options.after),
             before: Boolean(options.before),
-            hops: options.after || options.before ? 1 : Math.max(0, page - 1),
+            hops: options.after || options.before ? 1 : Math.max(0, page - (bookmarkResume?.page ?? 1)),
             ...(jumpOpts ? { step: jumpOpts.step } : {}),
             ...(metaLevel === 'sub' ? { steps: metaSteps } : {}),
         };
@@ -477,10 +454,27 @@ export async function executeFindPage<TSchema extends Document = Document>(
         }
     }
 
+    bookmarkResume = page > 1
+        && queryCache
+        && !hasSessionOption(driverOpts)
+        && !options.after
+        && !options.before
+        && options.stream !== true
+        && (options.explain === undefined || options.explain === false)
+        && !offsetJumpOpts?.enable
+        ? await readNearestBookmark(queryCache, `${dbName}:${collectionName}`, {
+            query: baseQuery,
+            sort,
+            limit,
+            pipeline: options.pipeline as Document[] | undefined,
+        }, page)
+        : null;
+
     // ── Page jump validation ───────────────────────────────────────────────────
-    if (jumpOpts && page > 1 && (page - 1) > jumpOpts.maxHops) {
+    const requestedHops = page > 1 ? page - (bookmarkResume?.page ?? 1) : 0;
+    if (jumpOpts && page > 1 && requestedHops > jumpOpts.maxHops) {
         throw createError(ErrorCodes.JUMP_TOO_FAR, 'Page jump exceeds maxHops limit.', [
-            { page, maxHops: jumpOpts.maxHops, requestedHops: page - 1 },
+            { page, maxHops: jumpOpts.maxHops, requestedHops },
         ]);
     }
 
@@ -649,7 +643,6 @@ export async function executeFindPage<TSchema extends Document = Document>(
     }
 
     // ── offsetJump mode: skip-based pagination ────────────────────────────────
-    const offsetJumpOpts = ext.offsetJump as { enable?: boolean; maxSkip?: number } | undefined;
     if (offsetJumpOpts?.enable) {
         const skipCount = page > 1 ? (page - 1) * limit : 0;
         const { queryFilter, effectiveSort } = buildPageQuery();
@@ -690,13 +683,27 @@ export async function executeFindPage<TSchema extends Document = Document>(
     }
 
     // ── Page navigation: cursor stepping ─────────────────────────────────────
-    const { queryFilter: q0, effectiveSort: es0 } = buildPageQuery();
-    let { items, hasMore } = await timedFetchItems('initialFetch', page > 1 ? 'hop' : 'fetch', q0 as Document, es0, {}, 1);
+    let currentPage = 1;
+    let items: TSchema[];
+    let hasMore: boolean;
 
-    if (page === 1) {
+    if (bookmarkResume) {
+        const { queryFilter: qb, effectiveSort: esb } = buildPageQuery(bookmarkResume.endCursor, 'after');
+        const next = await timedFetchItems(`bookmark-${bookmarkResume.page}`, 'hop', qb as Document, esb, {}, bookmarkResume.page + 1);
+        items = next.items;
+        hasMore = next.hasMore;
+        currentPage = bookmarkResume.page + 1;
+    } else {
+        const { queryFilter: q0, effectiveSort: es0 } = buildPageQuery();
+        const first = await timedFetchItems('initialFetch', page > 1 ? 'hop' : 'fetch', q0 as Document, es0, {}, 1);
+        items = first.items;
+        hasMore = first.hasMore;
+    }
+
+    if (page === currentPage) {
         const result: FindPageResult<TSchema> = {
             items,
-            pageInfo: buildPageInfo(items, hasMore, { currentPage: 1 }),
+            pageInfo: buildPageInfo(items, hasMore, { hasPrev: currentPage > 1, currentPage }),
         };
         if (options.totals && (options.totals as TotalsOptions).mode !== 'none') {
             result.totals = await timedComputeTotals();
@@ -704,12 +711,12 @@ export async function executeFindPage<TSchema extends Document = Document>(
         return finishAndCache(result);
     }
 
-    for (let cp = 2; cp <= page; cp++) {
+    for (let cp = currentPage + 1; cp <= page; cp++) {
         const lastItem = items[items.length - 1];
         if (!lastItem) {
             const result: FindPageResult<TSchema> = {
                 items,
-                pageInfo: buildPageInfo(items, false, { hasPrev: cp > 2, currentPage: cp - 1 }),
+                pageInfo: buildPageInfo(items, false, { hasPrev: currentPage > 1, currentPage }),
             };
             if (options.totals && (options.totals as TotalsOptions).mode !== 'none') {
                 result.totals = await timedComputeTotals();
@@ -724,6 +731,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         const next = await timedFetchItems(`hop-${cp}`, 'hop', qN as Document, esN, {}, cp);
         items = next.items;
         hasMore = next.hasMore;
+        currentPage = cp;
     }
 
     const result: FindPageResult<TSchema> = {

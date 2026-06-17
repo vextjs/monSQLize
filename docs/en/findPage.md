@@ -277,6 +277,8 @@ const page3 = await collection('products').findPage({
 3. Jump from bookmark page to target page page by page
 4. The number of jumps does not exceed the `maxHops` limit
 
+Bookmarks created by `prewarmBookmarks()` are read by `findPage()` during page navigation. When a matching bookmark exists, `maxHops` is evaluated from that bookmark page to the requested page, not from page 1.
+
 **Applicable scenarios**:
 - Need to display page number navigation
 - Users may jump to any page

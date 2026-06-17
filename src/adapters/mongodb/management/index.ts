@@ -25,6 +25,8 @@ import type {
     ServerStatusView,
 } from '../../../../types/collection';
 
+const DEFAULT_FIND_PAGE_LIMIT = 20;
+
 export type {
     AdminBuildInfoView,
     BookmarkCacheLike,
@@ -405,7 +407,9 @@ function normalizeBookmarkKeyDims<TSchema extends Document = Document>(
     if (!('_id' in sort)) {
         sort._id = 1;
     }
-    normalized.sort = Object.fromEntries(Object.entries(sort).sort(([left], [right]) => left.localeCompare(right))) as typeof normalized.sort;
+    normalized.sort = sort as typeof normalized.sort;
+    normalized.limit = normalized.limit ?? DEFAULT_FIND_PAGE_LIMIT;
+    normalized.query = normalized.query ?? {};
     return normalized;
 }
 
@@ -427,22 +431,41 @@ function buildBookmarkBaseKey(namespace: string, keyDims: BookmarkKeyDims): stri
 }
 
 function stableStringify(value: unknown): string {
-    if (value === null || value === undefined) {
-        return JSON.stringify(value);
+    return stableStringifyValue(value, new WeakSet<object>());
+}
+
+function stableStringifyValue(value: unknown, seen: WeakSet<object>): string {
+    if (value === undefined) {
+        return 'u';
+    }
+    if (value === null) {
+        return 'l';
     }
     if (Array.isArray(value)) {
-        return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+        return `a[${value.map((item) => stableStringifyValue(item, seen)).join(',')}]`;
     }
     if (value instanceof Date) {
-        return JSON.stringify(value.toISOString());
+        return `d${JSON.stringify(value.toISOString())}`;
     }
     if (typeof value === 'object') {
-        const entries = Object.entries(value as Record<string, unknown>)
-            .sort(([left], [right]) => left.localeCompare(right))
-            .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`);
-        return `{${entries.join(',')}}`;
+        if (seen.has(value)) {
+            throw createError(ErrorCodes.INVALID_ARGUMENT, 'Cannot build a stable bookmark key for a circular value.');
+        }
+        seen.add(value);
+        const customJson = (value as { toJSON?: () => unknown }).toJSON;
+        try {
+            if (typeof customJson === 'function' && value.constructor?.name !== 'Object') {
+                return stableStringifyValue(customJson.call(value), seen);
+            }
+            const entries = Object.entries(value as Record<string, unknown>)
+                .sort(([left], [right]) => left.localeCompare(right))
+                .map(([key, item]) => `${JSON.stringify(key)}:${stableStringifyValue(item, seen)}`);
+            return `o{${entries.join(',')}}`;
+        } finally {
+            seen.delete(value);
+        }
     }
-    return JSON.stringify(value);
+    return `${typeof value}:${JSON.stringify(value)}`;
 }
 
 async function resolveKeys(cache: BookmarkCacheLike, pattern: string): Promise<string[]> {

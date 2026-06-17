@@ -389,6 +389,8 @@ config: {
 }
 ```
 
+内置 SSH 隧道只支持 URI 中包含一个 MongoDB host。多 host 副本集 URI 和 `mongodb+srv://` SRV URI 会以 `INVALID_CONFIG` 拒绝；这类拓扑请使用外部 SSH 隧道、跳板代理，或在 MongoDB 网络层开放对应访问。
+
 ### 问题4：端口冲突
 
 **错误信息**：
@@ -571,7 +573,7 @@ await msq2.connect();  // SSH隧道2（独立）
 
 ### Q3: SSH隧道断开后会自动重连吗？
 
-**A**: 不会。需要手动重连。
+**A**: 不会。需要手动重连。如果 SSH 连接在 ready 之后断开，monSQLize 会将隧道标记为未连接并关闭本地转发服务，让后续使用快速失败，而不是静默继续使用已经失效的隧道。
 
 建议实现重连逻辑：
 

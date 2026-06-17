@@ -39,12 +39,34 @@ type RuntimeCachePublishMessage = {
 
 type RuntimeCachePublish = (msg: RuntimeCachePublishMessage) => void;
 
-function buildMemoryCache(input: unknown, fallback: Record<string, unknown> = {}): CacheLike {
-    if (input instanceof MemoryCache) return input;
-    if (isCacheLike(input)) return input;
+export type NormalizedRuntimeCache = {
+    cache: CacheLike;
+    close?: () => Promise<void>;
+};
+
+type ClosableCache = {
+    close?: () => void | Promise<void>;
+    destroy?: () => void | Promise<void>;
+};
+
+async function closeOwnedCache(cache: unknown): Promise<void> {
+    if (!cache || typeof cache !== 'object') return;
+    const closable = cache as ClosableCache;
+    if (typeof closable.close === 'function') {
+        await closable.close();
+        return;
+    }
+    if (typeof closable.destroy === 'function') {
+        await closable.destroy();
+    }
+}
+
+function buildMemoryCache(input: unknown, fallback: Record<string, unknown> = {}): NormalizedRuntimeCache {
+    if (input instanceof MemoryCache) return { cache: input };
+    if (isCacheLike(input)) return { cache: input };
 
     const opts = isObjectRecord(input) ? input : {};
-    return new MemoryCache({
+    const cache = new MemoryCache({
         maxEntries: toOptionalNumber(opts.maxEntries ?? opts.maxSize ?? fallback.maxEntries ?? fallback.maxSize),
         maxMemory: toOptionalNumber(opts.maxMemory ?? fallback.maxMemory),
         defaultTtl: toOptionalNumber(opts.defaultTtl ?? opts.ttl ?? fallback.defaultTtl ?? fallback.ttl),
@@ -53,6 +75,7 @@ function buildMemoryCache(input: unknown, fallback: Record<string, unknown> = {}
         cleanupInterval: toOptionalNumber(opts.cleanupInterval ?? fallback.cleanupInterval),
         enabled: toOptionalBoolean(opts.enabled ?? fallback.enabled),
     });
+    return { cache, close: () => closeOwnedCache(cache) };
 }
 
 function prefixKey(prefix: string | undefined, key: string): string {
@@ -125,21 +148,21 @@ function wrapRemoteCache(
     });
 }
 
-function buildRedisCache(input: unknown): CacheLike | undefined {
+function buildRedisCache(input: unknown): NormalizedRuntimeCache | undefined {
     if (!input || !isObjectRecord(input)) return undefined;
 
     const prefix = typeof input.prefix === 'string' ? input.prefix : undefined;
     const defaultTtl = toOptionalNumber(input.defaultTtl ?? input.ttl);
 
     if (isCacheLike(input)) {
-        return wrapRemoteCache(input, { prefix, defaultTtl });
+        return { cache: wrapRemoteCache(input, { prefix, defaultTtl }) };
     }
 
     if (input.enabled === false) return undefined;
 
     const embeddedCache = input.cache ?? input.adapter;
     if (isCacheLike(embeddedCache)) {
-        return wrapRemoteCache(embeddedCache, { prefix, defaultTtl });
+        return { cache: wrapRemoteCache(embeddedCache, { prefix, defaultTtl }) };
     }
 
     const redisTarget = input.url ?? input.uri ?? input.instance ?? input.client ?? input.redis;
@@ -148,7 +171,10 @@ function buildRedisCache(input: unknown): CacheLike | undefined {
     }
 
     const redisCache = createRedisCacheAdapter(redisTarget as string | object | undefined);
-    return wrapRemoteCache(redisCache, { prefix, defaultTtl });
+    return {
+        cache: wrapRemoteCache(redisCache, { prefix, defaultTtl }),
+        close: () => closeOwnedCache(redisCache),
+    };
 }
 
 function isVextCacheShape(input: Record<string, unknown>): boolean {
@@ -158,8 +184,14 @@ function isVextCacheShape(input: Record<string, unknown>): boolean {
 export function normalizeRuntimeCache(
     cache?: Record<string, unknown> | MemoryCache | CacheLike,
 ): CacheLike {
-    if (cache instanceof MemoryCache) return cache;
-    if (isCacheLike(cache)) return cache;
+    return normalizeRuntimeCacheWithLifecycle(cache).cache;
+}
+
+export function normalizeRuntimeCacheWithLifecycle(
+    cache?: Record<string, unknown> | MemoryCache | CacheLike,
+): NormalizedRuntimeCache {
+    if (cache instanceof MemoryCache) return { cache };
+    if (isCacheLike(cache)) return { cache };
 
     const input = (cache ?? {}) as Record<string, unknown>;
 
@@ -175,9 +207,9 @@ export function normalizeRuntimeCache(
         );
         const remote = buildRedisCache(input.redis);
         const policy = (input.policy ?? {}) as Record<string, unknown>;
-        return new MultiLevelCache({
-            local,
-            remote,
+        const multi = new MultiLevelCache({
+            local: local.cache,
+            remote: remote?.cache,
             writePolicy: (policy.writePolicy as 'both' | 'local-first-async-remote') ?? 'both',
             backfillOnRemoteHit: (policy.backfillLocalOnRemoteHit as boolean | undefined) ?? true,
             remoteTimeoutMs: isObjectRecord(input.redis)
@@ -185,6 +217,13 @@ export function normalizeRuntimeCache(
                 : undefined,
             publish: input.publish as RuntimeCachePublish | undefined,
         });
+        return {
+            cache: multi,
+            close: async () => {
+                await local.close?.();
+                await remote?.close?.();
+            },
+        };
     }
 
     // v1 compat: `cache: { local, remote, policy }` without explicit `multiLevel: true`
@@ -192,14 +231,14 @@ export function normalizeRuntimeCache(
         const local = buildMemoryCache(input.local);
         const remoteInput = input.remote;
         const remote = isCacheLike(remoteInput)
-            ? remoteInput
+            ? { cache: remoteInput }
             : remoteInput
                 ? buildMemoryCache(remoteInput)
                 : undefined;
         const policy = (input.policy ?? {}) as Record<string, unknown>;
-        return new MultiLevelCache({
-            local,
-            remote,
+        const multi = new MultiLevelCache({
+            local: local.cache,
+            remote: remote?.cache,
             writePolicy: (policy.writePolicy as 'both' | 'local-first-async-remote') ?? 'both',
             backfillOnRemoteHit: (policy.backfillLocalOnRemoteHit as boolean | undefined) ?? true,
             remoteTimeoutMs: remoteInput && !isCacheLike(remoteInput)
@@ -207,6 +246,13 @@ export function normalizeRuntimeCache(
                 : undefined,
             publish: input.publish as RuntimeCachePublish | undefined,
         });
+        return {
+            cache: multi,
+            close: async () => {
+                await local.close?.();
+                await remote?.close?.();
+            },
+        };
     }
 
     return buildMemoryCache(input);

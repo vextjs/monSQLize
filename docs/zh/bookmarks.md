@@ -501,7 +501,8 @@ async function checkCacheHealth() {
 2. **缓存可用性**：所有 API 在缓存不可用时抛出 `CACHE_UNAVAILABLE` 错误，使用前需确保缓存已配置
 3. **内存管理**：预热过多页面会占用大量内存，建议只预热常用的前几页
 4. **失败页面**：`prewarmBookmarks` 自动检测超出范围的页面，失败页面不会影响成功页面的预热
-5. **全局清理**：`clearBookmarks()` 不传参数会清除集合的所有 bookmark，使用时需谨慎
+5. **读路径使用**：匹配的 bookmark 会被 `findPage()` 页码导航读取，用于从最近的预热页继续跳转。
+6. **全局清理**：`clearBookmarks()` 不传参数会清除集合的所有 bookmark，使用时需谨慎
 
 ---
 

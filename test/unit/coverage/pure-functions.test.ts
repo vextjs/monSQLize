@@ -596,9 +596,9 @@ describe('BatchQueue — branch coverage', () => {
 
         await queue.add(log);
         const firstFlush = queue.flush();
-        await queue.flush();
+        const secondFlush = queue.flush();
         release();
-        await firstFlush;
+        await Promise.all([firstFlush, secondFlush]);
 
         assert.equal(calls, 1);
     });
@@ -617,6 +617,39 @@ describe('BatchQueue — branch coverage', () => {
         await queue.add({ ...log, collection: 'after_error' });
 
         assert.equal(errors.length, 1);
+    });
+
+    it('keeps maxBufferSize as a hard cap while a flush is in flight', async () => {
+        let release!: () => void;
+        const pending = new Promise<void>((resolve) => { release = resolve; });
+        const warnings: unknown[][] = [];
+        const batches: Array<Array<{ query: { id: number } }>> = [];
+        const queue = new MonSQLize.BatchQueue({
+            saveBatch: async (rows: Array<{ query: { id: number } }>) => {
+                batches.push(rows);
+                if (batches.length === 1) {
+                    await pending;
+                }
+            },
+        }, { size: 1, interval: 10000, maxBufferSize: 2 }, {
+            warn: (...args: unknown[]) => warnings.push(args),
+            debug: () => { },
+            error: () => { },
+        });
+
+        const makeLog = (id: number) => ({ ...log, collection: `col_${id}`, query: { id } });
+        const firstFlush = queue.add(makeLog(1));
+        await new Promise((resolve) => setImmediate(resolve));
+        await queue.add(makeLog(2));
+        await queue.add(makeLog(3));
+        await queue.add(makeLog(4));
+
+        release();
+        await firstFlush;
+        await queue.close();
+
+        assert.ok(warnings.some(([message]) => String(message).includes('buffer overflow')));
+        assert.deepEqual(batches.flat().map((row) => row.query.id), [1, 3, 4]);
     });
 });
 

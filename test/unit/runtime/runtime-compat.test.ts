@@ -198,8 +198,9 @@ describe('P6 runtime compat mock path', () => {
         );
     });
 
-    it('close() logs cleanup and SSH tunnel close failures', async () => {
+    it('close() logs cleanup and invokes owned cache lifecycle', async () => {
         const warnings: unknown[][] = [];
+        let cacheClosed = false;
         const runtime = new MonSQLize({
             type: 'mongodb',
             databaseName: 'compat_db',
@@ -213,11 +214,57 @@ describe('P6 runtime compat mock path', () => {
 
         runtime._syncManager = { stop: () => Promise.reject(new Error('sync cleanup failed')) };
         runtime._sshTunnel = { close: () => Promise.reject(new Error('ssh close failed')) };
+        Object.defineProperty(runtime, '_cacheClose', {
+            configurable: true,
+            value: async () => {
+                cacheClosed = true;
+            },
+        });
 
         await runtime.close();
 
+        assert.equal(cacheClosed, true);
         assert.ok(warnings.some(([message]) => String(message).includes('cleanup error during close')));
         assert.ok(warnings.some(([message]) => String(message).includes('Error closing SSH tunnel')));
+    });
+
+    it('close() does not destroy externally supplied nested cache instances', async () => {
+        const externalMemory = new MonSQLize.MemoryCache({ maxEntries: 1 });
+        let externalDestroyed = false;
+        const originalDestroy = externalMemory.destroy.bind(externalMemory);
+        externalMemory.destroy = () => {
+            externalDestroyed = true;
+            originalDestroy();
+        };
+        const externalRemote = {
+            get: async () => undefined,
+            set: async () => undefined,
+            del: async () => false,
+            exists: async () => false,
+            has: async () => false,
+            getMany: async () => ({}),
+            setMany: async () => true,
+            delMany: async () => 0,
+            delPattern: async () => 0,
+            keys: async () => [],
+            destroy: () => {
+                throw new Error('external remote must not be destroyed');
+            },
+        };
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'compat_db',
+            cache: {
+                multiLevel: true,
+                local: externalMemory,
+                remote: externalRemote,
+            },
+        });
+
+        await runtime.close();
+
+        assert.equal(externalDestroyed, false);
+        originalDestroy();
     });
 
     it('throws MODEL_NOT_DEFINED for pre-connect model lookup misses', () => {

@@ -107,7 +107,7 @@ import {
     type MongoSession,
 } from '../capabilities/transaction';
 import { closeMongo, connectMongo } from '../adapters/mongodb/common/connect';
-import { SSHTunnelSSH2, parseHostFromUri, parsePortFromUri } from '../capabilities/ssh';
+import type { SSHTunnelSSH2 } from '../capabilities/ssh';
 import {
     createExpression,
     compilePipelineExpressions,
@@ -165,7 +165,8 @@ import {
     requireRuntimePoolManager,
 } from './runtime-capability-factories';
 import { resolveScopedCollection } from './runtime-scoped-collection';
-import { normalizeRuntimeCache } from './runtime-cache-normalizer';
+import { normalizeRuntimeCacheWithLifecycle } from './runtime-cache-normalizer';
+import { prepareSshTunnelConnectConfig } from './runtime-ssh';
 
 // All public symbols are re-exported from the barrel file to keep the public API unchanged
 export * from './runtime-exports';
@@ -186,6 +187,7 @@ type RuntimeAdapterSurface = LegacyAdapterBridgeLike;
 export class MonSQLizeRuntime {
     private _connected = false;
     private readonly _cache: CacheLike;
+    private readonly _cacheClose?: () => Promise<void>;
     private _adapterCacheOverride: CacheLike | null | undefined;
     private readonly _adapterBridge: RuntimeAdapterSurface;
     private readonly _logger: Logger;
@@ -254,7 +256,9 @@ export class MonSQLizeRuntime {
                 },
             }
             : rawCacheInput;
-        this._cache = normalizeRuntimeCache(cacheInput as Record<string, unknown> | MemoryCache | undefined);
+        const normalizedCache = normalizeRuntimeCacheWithLifecycle(cacheInput as Record<string, unknown> | MemoryCache | undefined);
+        this._cache = normalizedCache.cache;
+        this._cacheClose = normalizedCache.close;
         this._logger = Logger.create(options.logger ?? null);
         if (shouldWarnUnsignedCursorSecret(options)) {
             this._logger.warn?.('[MonSQLizeRuntime] cursorSecret is not configured; findPage cursor tokens are unsigned.');
@@ -285,22 +289,9 @@ export class MonSQLizeRuntime {
         this._connectionPromise = (async () => {
             const databaseName = resolveDatabaseName(this.options);
             let connectConfig = this.options.config;
-            const sshCfg = (connectConfig as Record<string, unknown> | undefined)?.['ssh'];
-            if (sshCfg && typeof sshCfg === 'object') {
-                const cfg = sshCfg as Record<string, unknown>;
-                const rawCfg = connectConfig as Record<string, unknown>;
-                const remoteHost = String(cfg['dstHost'] ?? rawCfg['remoteHost'] ?? rawCfg['mongoHost'] ?? parseHostFromUri(String(connectConfig?.uri ?? '')));
-                const remotePort = Number(cfg['dstPort'] ?? rawCfg['remotePort'] ?? rawCfg['mongoPort'] ?? parsePortFromUri(String(connectConfig?.uri ?? '')));
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const tunnel = new SSHTunnelSSH2(sshCfg as any, remoteHost, remotePort, { name: databaseName });
-                this._logger.info?.(`[SSH] Establishing tunnel to ${remoteHost}:${remotePort} via ${String(cfg['host'])}`);
-                await tunnel.connect();
-                this._sshTunnel = tunnel;
-                this._logger.info?.(`[SSH] Tunnel ready — local address: ${tunnel.getLocalAddress()}`);
-                if (connectConfig?.uri) {
-                    connectConfig = { ...connectConfig, uri: tunnel.getTunnelUri('mongodb', connectConfig.uri) };
-                }
-            }
+            const sshPrepared = await prepareSshTunnelConnectConfig(connectConfig, databaseName, this._logger);
+            connectConfig = sshPrepared.connectConfig;
+            this._sshTunnel = sshPrepared.tunnel;
             const { client } = await connectMongo({
                 databaseName,
                 config: connectConfig,
@@ -408,6 +399,11 @@ export class MonSQLizeRuntime {
         // Synchronous cleanup — order matters: locks before mongo client.
         this._cacheLockManager.stop();
         this._lockManager?.close();
+        if (this._cacheClose) {
+            await this._cacheClose().catch((err) => {
+                this._logger.warn('[MonSQLizeRuntime] cache cleanup error during close', err);
+            });
+        }
         await closeMongo(this._client, this._logger);
         // Close SSH tunnel after MongoDB — the driver used the tunnel, so tear it down last.
         if (this._sshTunnel) {

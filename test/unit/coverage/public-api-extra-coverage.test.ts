@@ -649,6 +649,23 @@ describe('public API — Redis adapter and SSH branch coverage', () => {
         await assert.rejects(() => runtime.connect(), /SSH authentication required/);
         await runtime.close();
     });
+
+    it('rejects multi-host SSH tunnel URIs before attempting SSH authentication', async () => {
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'ssh_public_api',
+            config: {
+                uri: 'mongodb://mongo-a.internal:27017,mongo-b.internal:27017/app',
+                ssh: {
+                    host: 'bastion.local',
+                    username: 'deploy',
+                },
+            },
+        });
+
+        await assert.rejects(() => runtime.connect(), /single MongoDB host/i);
+        await runtime.close();
+    });
 });
 
 describe('public API — ConnectionPoolManager branch coverage', () => {

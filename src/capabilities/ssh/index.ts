@@ -26,6 +26,7 @@ interface SshClientLike {
     end(): void;
     on(event: 'ready', handler: () => void): this;
     on(event: 'error', handler: (err: Error) => void): this;
+    on(event: 'close' | 'end', handler: () => void): this;
 }
 interface SshClientConstructor {
     new(): SshClientLike;
@@ -54,9 +55,9 @@ export interface SSHConfigInput {
     /** Path to an SSH private key file (supports ~ for home directory). v1 compat. */
     privateKeyPath?: string;
     passphrase?: string;
-    /** SSH handshake timeout in milliseconds (default: 30000). */
+    /** SSH handshake timeout in milliseconds (default: 20000). */
     readyTimeout?: number;
-    /** Keep-alive interval in milliseconds (default: 10000). */
+    /** Keep-alive interval in milliseconds (default: 30000). */
     keepaliveInterval?: number;
     /** Target remote host as seen from the SSH server (overrides URI auto-parse). */
     dstHost?: string;
@@ -88,6 +89,7 @@ export class SSHTunnelSSH2 {
     server: net.Server | null = null;
 
     private readonly _sshConfig: SSHConfigInput;
+    private readonly _activeSockets = new Set<net.Socket>();
 
     constructor(
         sshConfig: SSHConfigInput,
@@ -147,6 +149,8 @@ export class SSHTunnelSSH2 {
             let settled = false;
 
             const server = net.createServer((socket) => {
+                this._activeSockets.add(socket);
+                socket.on('close', () => this._activeSockets.delete(socket));
                 ssh.forwardOut(
                     '127.0.0.1', 0,
                     this.remoteHost, this.remotePort,
@@ -189,8 +193,21 @@ export class SSHTunnelSSH2 {
                         settled = true;
                         server.close();
                         reject(err);
+                        return;
                     }
+                    this.markDisconnected();
                 });
+                const handleDisconnect = () => {
+                    if (!settled) {
+                        settled = true;
+                        server.close();
+                        reject(createError(ErrorCodes.CONNECTION_FAILED, 'SSH connection closed before the tunnel became ready'));
+                        return;
+                    }
+                    this.markDisconnected();
+                };
+                ssh.on('close', handleDisconnect);
+                ssh.on('end', handleDisconnect);
 
                 ssh.connect(authConfig);
             });
@@ -201,10 +218,7 @@ export class SSHTunnelSSH2 {
         if (!this.isConnected || this.localPort === null) {
             throw createError(ErrorCodes.NOT_CONNECTED, `SSH tunnel [${this.remoteHost}:${this.remotePort}] not connected`);
         }
-        return originalUri.replace(
-            `${this.remoteHost}:${this.remotePort}`,
-            `localhost:${this.localPort}`,
-        );
+        return rewriteMongoUriForSshTunnel(originalUri, `localhost:${this.localPort}`);
     }
 
     getLocalAddress(): string {
@@ -222,27 +236,105 @@ export class SSHTunnelSSH2 {
         this.localPort = null;
         this.sshClient = null;
         this.server = null;
+        for (const socket of this._activeSockets) {
+            socket.destroy();
+        }
+        this._activeSockets.clear();
 
-        await new Promise<void>((resolve) => {
-            if (server) {
-                server.close(() => resolve());
-            } else {
-                resolve();
-            }
-        });
+        await closeServer(server);
 
         ssh?.end();
+    }
+
+    private markDisconnected(): void {
+        this.isConnected = false;
+        this.localPort = null;
+        this.sshClient = null;
+        const server = this.server;
+        this.server = null;
+        for (const socket of this._activeSockets) {
+            socket.destroy();
+        }
+        this._activeSockets.clear();
+        void closeServer(server);
     }
 }
 
 /** Extract the first host from a MongoDB URI (handles user:pass@ prefix). */
 export function parseHostFromUri(uri: string): string {
-    const m = uri.match(/mongodb(?:\+srv)?:\/\/(?:[^@]+@)?([^/:?,[\]]+)/);
-    return m?.[1] ?? 'localhost';
+    const host = parseMongoHostToken(parseMongoHostTokens(uri)[0] ?? '');
+    return host.host ?? 'localhost';
 }
 
 /** Extract the port from a MongoDB URI (defaults to 27017). */
 export function parsePortFromUri(uri: string): number {
-    const m = uri.match(/mongodb(?:\+srv)?:\/\/(?:[^@]+@)?[^/:?[\]]+:(\d+)/);
-    return m ? parseInt(m[1], 10) : 27017;
+    const host = parseMongoHostToken(parseMongoHostTokens(uri)[0] ?? '');
+    return host.port ?? 27017;
+}
+
+export function parseMongoHostTokens(uri: string): string[] {
+    const match = uri.match(/^mongodb(?:\+srv)?:\/\/([^/?#]+)/i);
+    if (!match) return [];
+    const authority = match[1];
+    const hostList = authority.includes('@')
+        ? authority.slice(authority.lastIndexOf('@') + 1)
+        : authority;
+    return hostList.split(',').map((host) => host.trim()).filter(Boolean);
+}
+
+export function validateSingleMongoHostUri(uri: string): void {
+    const hosts = parseMongoHostTokens(uri);
+    if (/^mongodb\+srv:\/\//i.test(uri) || hosts.length !== 1) {
+        throw createError(
+            ErrorCodes.INVALID_CONFIG,
+            'SSH tunnel mode supports a single MongoDB host only. Use a direct single-host URI or configure SSH tunneling outside monSQLize for replica set/SRV URIs.',
+        );
+    }
+}
+
+export function rewriteMongoUriForSshTunnel(uri: string, localHostToken: string): string {
+    validateSingleMongoHostUri(uri);
+    const match = uri.match(/^(mongodb:\/\/)([^/?#]+)(.*)$/i);
+    if (!match) {
+        throw createError(ErrorCodes.INVALID_CONFIG, 'Invalid MongoDB URI for SSH tunnel mode.');
+    }
+    const [, prefix, authority, suffix] = match;
+    const at = authority.lastIndexOf('@');
+    const credentials = at >= 0 ? authority.slice(0, at + 1) : '';
+    return `${prefix}${credentials}${localHostToken}${suffix}`;
+}
+
+function parseMongoHostToken(token: string): { host?: string; port?: number } {
+    if (!token) return {};
+    if (token.startsWith('[')) {
+        const end = token.indexOf(']');
+        const host = end >= 0 ? token.slice(1, end) : token;
+        const portPart = end >= 0 && token[end + 1] === ':' ? token.slice(end + 2) : undefined;
+        return { host, port: parsePortPart(portPart) };
+    }
+    const [host, portPart] = token.split(':');
+    return { host, port: parsePortPart(portPart) };
+}
+
+function parsePortPart(value: string | undefined): number | undefined {
+    if (!value) return undefined;
+    const port = Number.parseInt(value, 10);
+    return Number.isFinite(port) ? port : undefined;
+}
+
+function closeServer(server: net.Server | null): Promise<void> {
+    if (!server) return Promise.resolve();
+    return new Promise((resolve) => {
+        const timer = setTimeout(resolve, 1000);
+        timer.unref?.();
+        try {
+            server.close(() => {
+                clearTimeout(timer);
+                resolve();
+            });
+        } catch {
+            clearTimeout(timer);
+            resolve();
+        }
+    });
 }

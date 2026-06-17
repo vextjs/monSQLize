@@ -219,7 +219,7 @@ describe('model — write helpers null-coalescing branches', () => {
         const m = runtime.model('VersionTimestampModel');
         await m.insertOne({ tag: 'vts-test' });
         // Update with minimal payload — no $set means $set is created from scratch
-        await m.updateOne({ tag: 'vts-test' }, { $inc: { counter: 1 } });
+        await m.updateOne({ tag: 'vts-test' }, { $inc: { counter: 1 } }, { expectedVersion: 0 });
         const doc = await m.findOne({ tag: 'vts-test' });
         assert.ok(doc !== null);
     });

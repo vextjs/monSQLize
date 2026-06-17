@@ -256,6 +256,40 @@ describe('findPage() / findAndCount()', () => {
                 (err: any) => err.code === 'JUMP_TOO_FAR' || /jump/i.test(err.message),
             );
         });
+
+        it('uses prewarmed bookmark pages as jump resume points', async () => {
+            const keyDims = { query: {}, sort: { amount: 1 }, limit: 10 };
+            const warmed = await col.prewarmBookmarks(keyDims, [2]);
+            assert.equal(warmed.warmed, 1);
+
+            const page3 = await col.findPage({
+                ...keyDims,
+                page: 3,
+                jump: { step: 10, maxHops: 1 },
+                meta: { level: 'sub' },
+            });
+
+            assert.equal(page3.pageInfo.currentPage, 3);
+            assert.equal(page3.items[0].amount, 2100);
+            assert.ok(page3.meta.steps.some((step: { name: string }) => step.name === 'bookmark-2'));
+        });
+
+        it('uses prewarmed bookmark pages with the default page limit', async () => {
+            const keyDims = { query: {}, sort: { amount: 1 } };
+            const warmed = await col.prewarmBookmarks(keyDims, [2]);
+            assert.equal(warmed.warmed, 1);
+
+            const page3 = await col.findPage({
+                ...keyDims,
+                page: 3,
+                jump: { step: 10, maxHops: 1 },
+                meta: { level: 'sub' },
+            });
+
+            assert.equal(page3.pageInfo.currentPage, 3);
+            assert.equal(page3.items[0].amount, 4100);
+            assert.ok(page3.meta.steps.some((step: { name: string }) => step.name === 'bookmark-2'));
+        });
     });
 
     describe('findPage() empty and edge cases', () => {

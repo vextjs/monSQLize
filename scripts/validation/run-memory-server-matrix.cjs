@@ -32,6 +32,10 @@ const integrationSourceSuites = [
     'test/integration/sync/sync.test.js',
 ];
 const integrationSuites = integrationSourceSuites.map((suite) => path.join(testDistRoot, suite));
+const compatibilitySuites = [
+    'test/compatibility/exports/exports.test.js',
+    'test/compatibility/matrix.test.js',
+].map((suite) => path.join(testDistRoot, suite));
 
 function commandExists(command) {
     const lookupCommand = process.platform === 'win32' ? 'where' : 'which';
@@ -178,7 +182,13 @@ for (const driverScenario of driverScenarios) {
             fail(`${driverScenario.label} build failed under ${nodeScenario.label}`);
         }
 
-        const compatibilityResult = runNpmScenario(nodeScenario, ['run', 'test:compatibility']);
+        const buildTestsResult = runNpmScenario(nodeScenario, ['run', 'build:tests']);
+        if (buildTestsResult.status !== 0) {
+            driverScenario.cleanup();
+            fail(`${driverScenario.label} test build failed under ${nodeScenario.label}`);
+        }
+
+        const compatibilityResult = runNodeScenario(nodeScenario, ['--test', ...compatibilitySuites]);
         if (compatibilityResult.status !== 0) {
             driverScenario.cleanup();
             fail(`${driverScenario.label} compatibility tests failed under ${nodeScenario.label}`);

@@ -148,16 +148,15 @@ export async function incrementOneDocument<TSchema extends Document = Document>(
     }
 
     const updateDocument = createIncrementUpdate(field, increment, options.$set);
-    const { $set, projection, ...driverOptions } = options;
+    const { $set, projection, returnDocument, ...driverOptions } = options;
     void $set;
     const normalizedProjection = normalizeProjection(projection as string[] | Record<string, unknown> | null | undefined);
     const findOptions: Record<string, unknown> = {
-        returnDocument: options.returnDocument ?? 'after',
+        ...driverOptions,
+        returnDocument: returnDocument ?? 'after',
         includeResultMetadata: true,
     };
     if (normalizedProjection) findOptions.projection = normalizedProjection;
-    if (driverOptions.maxTimeMS !== undefined) findOptions.maxTimeMS = driverOptions.maxTimeMS;
-    if (driverOptions.comment !== undefined) findOptions.comment = driverOptions.comment;
 
     const rawResult = await (collection as unknown as Collection<TSchema>).findOneAndUpdate(
         filter as Parameters<Collection<TSchema>['findOneAndUpdate']>[0],

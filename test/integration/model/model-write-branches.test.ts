@@ -114,7 +114,7 @@ describe('model-write-helpers — branch coverage via Model CRUD operations', ()
         defineModel('VersionUpdateItem', { version: true });
         const m = runtime.model('VersionUpdateItem');
         await m.insertOne({ name: 'version-update' });
-        const result = await m.updateOne({ name: 'version-update' }, { $set: { x: 1 } });
+        const result = await m.updateOne({ name: 'version-update', version: 0 }, { $set: { x: 1 } });
         assert.ok(result !== null);
     });
 
@@ -123,7 +123,7 @@ describe('model-write-helpers — branch coverage via Model CRUD operations', ()
         const m = runtime.model('ManualVersionItem');
         await m.insertOne({ name: 'manual-version', __v: 1 });
         const result = await m.updateOne(
-            { name: 'manual-version' },
+            { name: 'manual-version', __v: 1 },
             { $set: { x: 1 }, $inc: { __v: 5 } },
         );
         assert.ok(result !== null);

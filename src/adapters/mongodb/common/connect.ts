@@ -21,6 +21,7 @@ const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'ex
 
 // Singleton memory server (v1 compatible: reuses an already-started instance)
 let _memoryServerInstance: { getUri(): string; stop(cleanupOptions?: { doCleanup?: boolean; force?: boolean }): Promise<boolean | void> } | null = null;
+let _memoryServerStartPromise: Promise<string> | null = null;
 let _memoryServerCleanupOptions: { doCleanup: true; force: boolean } = { doCleanup: true, force: true };
 let _memoryServerDbPath: string | null = null;
 const _memoryServerClients = new Set<MongoClient>();
@@ -198,6 +199,23 @@ async function startMemoryServer(
     if (_memoryServerInstance) {
         return _memoryServerInstance.getUri();
     }
+    if (_memoryServerStartPromise) {
+        return _memoryServerStartPromise;
+    }
+    _memoryServerStartPromise = startMemoryServerCore(logger, memoryServerOptions)
+        .finally(() => {
+            _memoryServerStartPromise = null;
+        });
+    return _memoryServerStartPromise;
+}
+
+async function startMemoryServerCore(
+    logger: Logger | undefined,
+    memoryServerOptions: MongoConnectConfig['memoryServerOptions'] = {},
+): Promise<string> {
+    if (_memoryServerInstance) {
+        return _memoryServerInstance.getUri();
+    }
 
     const binaryVersion = resolveMemoryServerBinaryVersion(memoryServerOptions);
     const { dbRoot, downloadDir } = resolveMemoryServerPolicy(binaryVersion);
@@ -259,6 +277,9 @@ async function startMemoryServer(
 }
 
 async function stopMemoryServer(logger?: Logger): Promise<void> {
+    if (_memoryServerStartPromise) {
+        await _memoryServerStartPromise.catch(() => undefined);
+    }
     if (!_memoryServerInstance) {
         return;
     }

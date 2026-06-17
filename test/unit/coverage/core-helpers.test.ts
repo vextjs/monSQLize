@@ -39,7 +39,7 @@ import { Logger } from '../../../src/core/logger';
 import { compileInnerExpression } from '../../../src/core/expression/expression-compiler';
 import { createRuntimeAdapterBridge } from '../../../src/entry/runtime-admin-bridge';
 import { normalizeRuntimeCache } from '../../../src/entry/runtime-cache-normalizer';
-import { SSHTunnelSSH2, parseHostFromUri, parsePortFromUri } from '../../../src/capabilities/ssh';
+import { SSHTunnelSSH2, parseHostFromUri, parseMongoHostTokens, parsePortFromUri, rewriteMongoUriForSshTunnel } from '../../../src/capabilities/ssh';
 import { ResumeTokenStore, ChangeStreamSyncManager, validateResumeTokenConfig, validateSyncConfig, validateTargetConfig } from '../../../src/capabilities/sync';
 import { SlowQueryLogMemoryStorage, MongoDBSlowQueryLogStorage } from '../../../src/capabilities/slow-query-log/slow-query-log-storage';
 import { encodeCursor, decodeCursor } from '../../../src/utils/cursor';
@@ -442,6 +442,20 @@ describe('coverage core helpers', () => {
         tunnel.isConnected = true;
         tunnel.localPort = 37017;
         assert.equal(tunnel.getTunnelUri('mongodb', 'mongodb://mongo.internal:27017/app'), 'mongodb://localhost:37017/app');
+        assert.equal(tunnel.getTunnelUri('mongodb', 'mongodb://mongo.internal/app'), 'mongodb://localhost:37017/app');
+        assert.equal(
+            rewriteMongoUriForSshTunnel('mongodb://mongo.internal:secret@mongo.internal/app', 'localhost:37017'),
+            'mongodb://mongo.internal:secret@localhost:37017/app',
+        );
+        assert.deepEqual(parseMongoHostTokens('mongodb://user:pass@a:27017,b:27018/db'), ['a:27017', 'b:27018']);
+        assert.throws(
+            () => tunnel.getTunnelUri('mongodb', 'mongodb://mongo.internal:27017,mongo2.internal:27017/app'),
+            /single MongoDB host/i,
+        );
+        assert.throws(
+            () => tunnel.getTunnelUri('mongodb+srv', 'mongodb+srv://cluster.example.com/app'),
+            /single MongoDB host/i,
+        );
         assert.equal(tunnel.getLocalAddress(), 'localhost:37017');
         await tunnel.close();
         assert.equal(tunnel.isConnected, false);

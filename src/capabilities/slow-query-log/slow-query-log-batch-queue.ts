@@ -16,6 +16,7 @@ export class BatchQueue {
     private readonly logger: LoggerLike | null;
     private timer: NodeJS.Timeout | null = null;
     private flushing = false;
+    private flushPromise: Promise<void> | null = null;
 
     constructor(
         private readonly storage: Pick<SlowQueryLogStorage, 'saveBatch'>,
@@ -30,31 +31,34 @@ export class BatchQueue {
 
     async add(log: SlowQueryLogEntry): Promise<void> {
         this.buffer.push(log);
+        this.enforceMaxBufferSize();
         if (this.buffer.length >= this.maxBufferSize || this.buffer.length >= this.batchSize) {
-            await this.flush();
+            if (!this.flushing) {
+                await this.flush();
+            }
             return;
         }
         if (!this.timer) {
-            this.timer = setTimeout(() => {
-                this.timer = null;
-                void this.flush();
-            }, this.flushInterval);
-            this.timer.unref?.();
+            this.scheduleTimer();
         }
     }
 
     async flush(): Promise<void> {
-        if (this.flushing || this.buffer.length === 0) {
+        if (this.flushPromise) {
+            return this.flushPromise;
+        }
+        if (this.buffer.length === 0) {
             return;
         }
 
+        this.flushPromise = this.flushOnce();
+        return this.flushPromise;
+    }
+
+    private async flushOnce(): Promise<void> {
         this.flushing = true;
         const payload = this.buffer.splice(0, this.buffer.length);
-        if (this.timer) {
-            clearTimeout(this.timer);
-            this.timer = null;
-        }
-
+        this.clearTimer();
         try {
             await this.storage.saveBatch(payload);
             this.logger?.debug?.('[SlowQueryLog] batch flushed', { count: payload.length });
@@ -62,14 +66,40 @@ export class BatchQueue {
             this.logger?.error?.('[SlowQueryLog] batch flush failed', error);
         } finally {
             this.flushing = false;
+            this.flushPromise = null;
+            if (this.buffer.length >= this.batchSize) {
+                void this.flush();
+            } else if (this.buffer.length > 0 && !this.timer) {
+                this.scheduleTimer();
+            }
         }
     }
 
     async close(): Promise<void> {
-        if (this.timer) {
-            clearTimeout(this.timer);
-            this.timer = null;
+        this.clearTimer();
+        while (this.flushPromise || this.buffer.length > 0) {
+            await (this.flushPromise ?? this.flush());
         }
-        await this.flush();
+    }
+
+    private enforceMaxBufferSize(): void {
+        const overflow = this.buffer.length - this.maxBufferSize;
+        if (overflow <= 0) return;
+        this.buffer.splice(0, overflow);
+        this.logger?.warn?.('[SlowQueryLog] batch buffer overflow, dropped oldest entries', { dropped: overflow });
+    }
+
+    private scheduleTimer(): void {
+        this.timer = setTimeout(() => {
+            this.timer = null;
+            void this.flush();
+        }, this.flushInterval);
+        this.timer.unref?.();
+    }
+
+    private clearTimer(): void {
+        if (!this.timer) return;
+        clearTimeout(this.timer);
+        this.timer = null;
     }
 }

@@ -549,7 +549,8 @@ async function checkCacheHealth() {
 2. **Cache Availability**: All APIs throw `CACHE_UNAVAILABLE` errors when the cache is unavailable. Make sure the cache is configured before use.
 3. **Memory Management**: Warming up too many pages will occupy a lot of memory. It is recommended to only warm up the first few pages that are commonly used.
 4. **Failure page**: `prewarmBookmarks` automatically detects pages out of range. Failure pages will not affect the warm-up of successful pages.
-5. **Global Cleanup**: `clearBookmarks()` If no parameters are passed, all bookmarks in the collection will be cleared. Please be careful when using them.
+5. **Read path usage**: matching bookmarks are consumed by `findPage()` page navigation to resume from the nearest warmed page.
+6. **Global Cleanup**: `clearBookmarks()` If no parameters are passed, all bookmarks in the collection will be cleared. Please be careful when using them.
 
 ---
 
