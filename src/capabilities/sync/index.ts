@@ -73,6 +73,13 @@ function delay(ms: number): Promise<void> {
     });
 }
 
+function normalizeCollectionFilter(collections: string[] | undefined): Set<string> | null {
+    if (!collections?.length || collections.includes('*')) {
+        return null;
+    }
+    return new Set(collections);
+}
+
 async function syncDirectory(directory: string): Promise<void> {
     try {
         const handle = await open(directory, 'r');
@@ -114,6 +121,9 @@ export function validateTargetConfig(target: SyncTargetConfig | null | undefined
     }
     if (target.collections !== undefined && (!Array.isArray(target.collections) || target.collections.length === 0)) {
         throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].collections must be a non-empty array when provided.`);
+    }
+    if (target.collections?.some((item) => typeof item !== 'string' || item.trim() === '')) {
+        throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].collections must contain non-empty strings.`);
     }
     if (target.apply !== undefined && typeof target.apply !== 'function') {
         throw createError(ErrorCodes.INVALID_CONFIG, `[Sync] targets[${index}].apply must be a function when provided.`);
@@ -178,6 +188,9 @@ export function validateSyncConfig(config: SyncConfig): void {
     }
     if (config.collections !== undefined && (!Array.isArray(config.collections) || config.collections.length === 0)) {
         throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] collections must be a non-empty array when provided.');
+    }
+    if (config.collections?.some((item) => typeof item !== 'string' || item.trim() === '')) {
+        throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] collections must contain non-empty strings.');
     }
     if (config.filter !== undefined && typeof config.filter !== 'function') {
         throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] filter must be a function.');
@@ -495,10 +508,11 @@ export class ChangeStreamSyncManager {
             },
         ];
 
-        if (this.config.collections?.length) {
+        const collections = normalizeCollectionFilter(this.config.collections);
+        if (collections) {
             pipeline.unshift({
                 $match: {
-                    'ns.coll': { $in: this.config.collections },
+                    'ns.coll': { $in: [...collections] },
                 },
             });
         }
@@ -516,7 +530,7 @@ export class ChangeStreamSyncManager {
     }
 
     private async resolveTarget(target: SyncTargetConfig): Promise<ResolvedTarget> {
-        const collections = target.collections?.length ? new Set(target.collections) : null;
+        const collections = normalizeCollectionFilter(target.collections);
         if (target.apply) {
             return {
                 name: target.name,

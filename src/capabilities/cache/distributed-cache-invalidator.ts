@@ -1,14 +1,34 @@
 import { randomBytes } from 'crypto';
 import { createError, ErrorCodes } from '../../core/errors';
 
+export interface DistributedCacheLike {
+    delPattern?(pattern: string): Promise<unknown> | unknown;
+    local?: DistributedCacheLike;
+    remote?: DistributedCacheLike;
+}
+
+export interface RedisPubSubLike {
+    publish(channel: string, message: string): Promise<unknown> | unknown;
+    subscribe(channel: string, callback: (err?: Error | null) => void): unknown;
+    on(event: 'message', callback: (channel: string, message: string) => void | Promise<void>): unknown;
+    unsubscribe(): Promise<unknown> | unknown;
+    quit(): Promise<unknown> | unknown;
+    duplicate?(): RedisPubSubLike;
+}
+
+export interface DistributedLoggerLike {
+    debug?(message: string): void;
+    error?(message: string): void;
+}
+
 export interface DistributedCacheInvalidatorOptions {
-    cache: any;
-    _connections?: { pub: any; sub: any };
-    redis?: any;
+    cache: DistributedCacheLike;
+    _connections?: { pub: RedisPubSubLike; sub: RedisPubSubLike };
+    redis?: RedisPubSubLike;
     redisUrl?: string;
     channel?: string;
     instanceId?: string;
-    logger?: any;
+    logger?: DistributedLoggerLike;
 }
 
 interface Stats {
@@ -21,11 +41,11 @@ interface Stats {
 export class DistributedCacheInvalidator {
     public channel: string;
     public instanceId: string;
-    public pub: any;
-    public sub: any;
+    public pub: RedisPubSubLike;
+    public sub: RedisPubSubLike;
 
-    private _cache: any;
-    private _logger: any;
+    private _cache: DistributedCacheLike;
+    private _logger: DistributedLoggerLike | null;
     private _stats: Stats;
 
     constructor(options: DistributedCacheInvalidatorOptions) {
@@ -65,13 +85,13 @@ export class DistributedCacheInvalidator {
         this.sub.subscribe(this.channel, (err: Error | null | undefined) => {
             if (err) {
                 this._stats.errors++;
-                this._logger?.error(`[DistributedCacheInvalidator] Subscribe failed: ${err.message}`);
+                this._logger?.error?.(`[DistributedCacheInvalidator] Subscribe failed: ${err.message}`);
             }
         });
         this.sub.on('message', async (channel: string, rawMessage: string) => {
             if (channel !== this.channel) return;
 
-            let message: any;
+            let message: { type?: unknown; instanceId?: unknown; pattern?: unknown };
             try {
                 message = JSON.parse(rawMessage);
             } catch {
@@ -86,19 +106,19 @@ export class DistributedCacheInvalidator {
 
             try {
                 for (const targetCache of this._getTargetCaches()) {
-                    await targetCache.delPattern(message.pattern);
+                    await targetCache.delPattern?.(String(message.pattern));
                 }
-                this._logger?.debug(`[DistributedCacheInvalidator] Invalidated cache targets: ${message.pattern}`);
+                this._logger?.debug?.(`[DistributedCacheInvalidator] Invalidated cache targets: ${String(message.pattern)}`);
                 this._stats.invalidationsTriggered++;
-            } catch (err: any) {
+            } catch (err: unknown) {
                 this._stats.errors++;
-                this._logger?.error(`[DistributedCacheInvalidator] Cache invalidation error: ${err.message}`);
+                this._logger?.error?.(`[DistributedCacheInvalidator] Cache invalidation error: ${err instanceof Error ? err.message : String(err)}`);
             }
         });
     }
 
-    private _getTargetCaches(): any[] {
-        const targets = new Set<any>();
+    private _getTargetCaches(): DistributedCacheLike[] {
+        const targets = new Set<DistributedCacheLike>();
 
         if (typeof this._cache?.delPattern === 'function') {
             targets.add(this._cache);
@@ -126,8 +146,8 @@ export class DistributedCacheInvalidator {
         try {
             await this.pub.publish(this.channel, message);
             this._stats.messagesSent++;
-            this._logger?.debug(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
-        } catch (err: any) {
+            this._logger?.debug?.(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
+        } catch (err: unknown) {
             this._stats.errors++;
             throw err;
         }
@@ -144,8 +164,8 @@ export class DistributedCacheInvalidator {
             if (this.pub !== this.sub) {
                 await this.pub.quit();
             }
-        } catch (err: any) {
-            this._logger?.error(`[DistributedCacheInvalidator] Error closing connections: ${err.message}`);
+        } catch (err: unknown) {
+            this._logger?.error?.(`[DistributedCacheInvalidator] Error closing connections: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 }

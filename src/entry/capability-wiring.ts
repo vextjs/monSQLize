@@ -16,7 +16,7 @@ import { Model } from '../capabilities/model';
 import { CountQueue } from '../capabilities/count-queue';
 import { ConnectionPoolManager } from '../capabilities/pool';
 import { DistributedCacheInvalidator } from '../capabilities/cache';
-import type { CacheLike } from '../capabilities/cache';
+import type { CacheLike, RedisPubSubLike } from '../capabilities/cache';
 
 // ────────────────────────────────────────────────────────
 // AutoConvert config
@@ -167,7 +167,7 @@ export async function initializeDistributedCacheInvalidator(
     try {
         return new DistributedCacheInvalidator({
             redisUrl: distConfig['redisUrl'] as string | undefined,
-            redis: distConfig['redis'] as object | undefined,
+            redis: distConfig['redis'] as RedisPubSubLike | undefined,
             channel: distConfig['channel'] as string | undefined,
             instanceId: distConfig['instanceId'] as string | undefined,
             cache,

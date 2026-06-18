@@ -29,12 +29,14 @@ const doc = await collection("users").findOneAndUpdate(
 |------|--------|---------|--------|
 | **`findOneAndUpdate()`** | Document object | Need to return document content | ⭐⭐⭐⭐⭐ |
 | **`updateOne()`** | Operation result statistics | Just need to know whether it was successful | ⭐⭐⭐⭐ |
-| **`updateMany()`** | Operation result statistics | Batch upsert | ⭐⭐⭐ |
+| **`updateMany()`** | Operation result statistics | Update all matches; insert one document if none match | ⭐⭐⭐ |
 | **`replaceOne()`** | Operation result statistics | Replace the entire document | ⭐⭐ |
 
 ---
 
 ## 💡 Detailed usage
+
+> **About `updateMany()` upsert**: MongoDB supports `updateMany(filter, update, { upsert: true })`, but the no-match branch inserts a single document derived from `filter` and `update`. It is not a per-input bulk upsert. For many independent keys, prefer repeated `upsertOne()` calls or native `bulkWrite` `updateOne` operations with `upsert: true`.
 
 
 ## 1. `findOneAndUpdate()` - Recommended ⭐⭐⭐⭐⭐

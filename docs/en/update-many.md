@@ -8,6 +8,7 @@
 - [update (Object, required)](#update-object-required)
 - [options (Object, optional)](#options-object-optional)
 - [Return value](#return-value)
+- [Upsert semantics](#upsert-semantics)
 - [Example](#example)
 - [Batch update status](#batch-update-status)
 - [Batch increment](#batch-increment)
@@ -69,7 +70,7 @@ For update operations, the update operator must be used.
 
 | Options | Type | Default | Description |
 |------|------|--------|------|
-| `upsert` | Boolean | false | Whether to insert a new document if it does not exist |
+| `upsert` | Boolean | false | Whether to insert one new document when no documents match the filter |
 | `writeConcern` | Object | - | Write follow options |
 | `bypassDocumentValidation` | Boolean | false | Whether to bypass document verification |
 | `comment` | String | - | Operation comments |
@@ -90,6 +91,14 @@ Return `Promise<UpdateResult>`:
   upsertedCount: 0
 }
 ```
+
+## Upsert semantics
+
+`updateMany(filter, update, { upsert: true })` follows MongoDB's native semantics:
+
+- If one or more documents match `filter`, all matching documents are updated.
+- If no documents match `filter`, MongoDB inserts one new document derived from the equality parts of `filter` and the `update` document.
+- It is not a per-input bulk upsert. For multiple independent keys, run separate `upsertOne()` calls or use native `bulkWrite` `updateOne` models with `upsert: true`.
 
 ## Example
 
@@ -535,4 +544,3 @@ console.log(`Completed: ${totalUpdated} documents updated`);
 
 - [MongoDB updateMany Document](https://docs.mongodb.com/manual/reference/method/db.collection.updateMany/)
 - [MongoDB batch write operation](https://docs.mongodb.com/manual/core/bulk-write-operations/)
-

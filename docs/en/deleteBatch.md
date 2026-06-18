@@ -382,7 +382,7 @@ await collection('logs').deleteBatch(
 
 ## Q2: Will deleteBatch cause data inconsistency?
 
-**Answer**: No. `deleteBatch` uses MongoDB's cursor snapshot isolation to ensure data consistency.
+**Answer**: `deleteBatch` processes matching `_id` values through a cursor and deletes them in batches. It does not create a MongoDB transaction or guarantee snapshot isolation by itself. If you need a transactional snapshot, run it inside an explicit transaction and pass the transaction `session`.
 
 ```javascript
 //✅ Security: Even if other operations insert new data at the same time, it will not be deleted accidentally.
@@ -479,4 +479,3 @@ console.log(`Estimated time: ${Math.ceil(estimatedTime)} seconds`);
 
 **Updated date**: 2025-12-30
 **Version**: v1.0
-

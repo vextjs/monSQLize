@@ -133,6 +133,74 @@ describe('P4-C sync', () => {
         assert.equal(manager.getStats().isRunning, false);
     });
 
+    it('treats collections wildcard as all collections for pipelines and target filters', async () => {
+        const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };
+        liveStream.close = () => Promise.resolve(true);
+        const pipelines: unknown[][] = [];
+        const applied: string[] = [];
+        let saved = 0;
+
+        const db = {
+            databaseName: 'source_db',
+            watch(pipeline: unknown[], options: Record<string, unknown>) {
+                if (options?.maxAwaitTimeMS === 1) {
+                    return { close: () => Promise.resolve(true) };
+                }
+                pipelines.push(pipeline);
+                return liveStream;
+            },
+        };
+
+        const manager = new MonSQLize.ChangeStreamSyncManager({
+            db,
+            config: {
+                enabled: true,
+                collections: ['*'],
+                targets: [
+                    {
+                        name: 'all-target',
+                        collections: ['*'],
+                        apply: async (event: ChangeEvent) => {
+                            applied.push(event.ns.coll);
+                        },
+                    },
+                ],
+            },
+            tokenStore: {
+                load: () => Promise.resolve(null),
+                save: () => {
+                    saved += 1;
+                    return Promise.resolve();
+                },
+                clear: () => Promise.resolve(),
+            },
+        });
+
+        await manager.start();
+        liveStream.emit('change', {
+            _id: { token: 9 },
+            operationType: 'insert',
+            ns: { db: 'source_db', coll: 'users' },
+            documentKey: { _id: 1 },
+            fullDocument: { _id: 1, name: 'Ada' },
+        });
+
+        await wait(20);
+        await manager.stop();
+
+        assert.deepEqual(pipelines[0], [
+            {
+                $match: {
+                    operationType: {
+                        $in: ['insert', 'update', 'replace', 'delete'],
+                    },
+                },
+            },
+        ]);
+        assert.deepEqual(applied, ['users']);
+        assert.equal(saved, 1);
+    });
+
     it('marks the manager stopped when the live change stream closes unexpectedly', async () => {
         let watchCount = 0;
         const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };

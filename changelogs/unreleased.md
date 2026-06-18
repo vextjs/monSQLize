@@ -1,5 +1,21 @@
 # Unreleased
 
+## Compatibility-impacting changes
+
+- Versioned Model single-document writes now enforce true optimistic concurrency control: stale writes throw `WRITE_CONFLICT`, and writes without `expectedVersion`, `version`, or a direct `_id` automatic lookup path may throw `INVALID_ARGUMENT`.
+- `find()` now defaults to `findLimit: 500`; explicit positive `limit` and `skip` values are bounded by `findMaxLimit` and `findMaxSkip`. `limit(0)` intentionally keeps MongoDB's unlimited cursor semantics.
+- Change Stream resume token persistence is strict by default: token save/load failures stop synchronization unless `strictSave: false` / `strictLoad: false` is configured for legacy best-effort behavior.
+- `updateBatch({ upsert: true })` is rejected because `updateBatch` walks existing matching `_id` values and cannot express MongoDB's single-document `updateMany(..., { upsert: true })` insert semantics. Use `upsertOne()` or native `updateMany(..., { upsert: true })` instead.
+- `dropDatabase()` treats `NODE_ENV=production`, `prod`, and `live` as production-like environments that require `allowProduction: true`.
+- Soft-delete filtering now covers the standard Model read surface including `findPage`, ID reads, `distinct`, `aggregate`, `stream`, and `explain`.
+- Populate `skip` / `limit` for has-many relations is applied per parent document, and nested populate is capped by `maxDepth` (default `5`).
+- `ConnectionPoolManager.addPool()` now applies the same strict pool config validation as the public validator before opening a client.
+- Change Stream `collections: ['*']` now means all collections rather than a literal collection named `*`.
+
+## Fixed / changed
+
+- Clarified `updateMany(..., { upsert: true })` documentation: MongoDB inserts only one derived document when no documents match, so it is not a per-input bulk upsert replacement for `updateBatch`.
+- Fixed Change Stream sync wildcard collection filters, made `updateBatch` / `deleteBatch` stream matching `_id` values while forwarding read options such as `session` / `collation` / `hint`, hardened pool config validation and health-check timeout cleanup, and aligned release/profile metadata.
 - Added automatic optimistic locking for versioned Model single-document writes, including automatic direct-`_id` version lookup, explicit `expectedVersion` overrides, versioned `save()` replacement guards, and configurable `updateMany` version modes.
 - Forwarded transaction/read options such as `session` into automatic model OCC version pre-reads, hardened file-backed Change Stream resume tokens with atomic replacement plus strict load validation, and made unexpected Change Stream closes visible through `isRunning: false` / `lastError`.
 - Awaited async query-cache reads/writes so Redis/MultiLevel cache backends no longer make first cached reads resolve to `undefined`, and made Change Stream resume-token saves strict by default with retry knobs plus explicit `strictSave: false` legacy mode.

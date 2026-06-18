@@ -71,7 +71,7 @@ collection(name: string).updateBatch(
 | **retryDelay** | `number` | `1000` | 重试延迟时间（毫秒） |
 | **onRetry** | `Function` | - | 重试回调函数 `(retryInfo) => {}` |
 | **writeConcern** | `object` | `{ w: 1 }` | 写确认级别 |
-| **upsert** | `boolean` | `false` | 未匹配时是否插入 |
+| **upsert** | `boolean` | `false` | `updateBatch` 不支持；传入 `true` 会抛错。单文档 upsert 使用 `upsertOne`；只有需要 MongoDB 原生“无匹配时插入单个文档”的语义时才使用 `updateMany(..., { upsert: true })`。 |
 | **arrayFilters** | `Array` | - | 数组过滤器 |
 | **comment** | `string` | - | 操作注释（用于日志追踪） |
 
@@ -83,7 +83,7 @@ collection(name: string).updateBatch(
   totalCount: number | null,  // 总文档数（estimateProgress=true时有值）
   matchedCount: number,       // 匹配文档数
   modifiedCount: number,      // 成功更新数
-  upsertedCount: number,      // 插入数（upsert=true时）
+  upsertedCount: number,      // 始终为 0，因为 updateBatch 会拒绝 upsert=true
   batchCount: number,         // 总批次数
   errors: Array<Object>,      // 错误列表
   retries: Array<Object>      // 重试记录列表
@@ -293,25 +293,27 @@ const result = await collection('users').updateBatch(
 console.log(`更新完成，重试 ${result.retries.length} 次`);
 ```
 
-### 11. upsert - 不存在则插入
+### 11. 不支持 upsert
+
+`updateBatch` 会先通过游标选择匹配文档的 `_id`，再按 `_id` 分批更新。这个模型没有稳定的“未匹配则插入”目标，因此 `upsert: true` 会被拒绝。
+
+单文档 upsert 请使用 `upsertOne()`；如果确实需要 MongoDB 原生多文档 update 语义，请直接使用 `updateMany(..., { upsert: true })`。
+
+MongoDB 原生说明：`updateMany(filter, update, { upsert: true })` 支持 upsert，但如果没有任何文档匹配，MongoDB 只会基于 `filter` 中的等值条件和 `update` 文档插入一个新文档。它不是“按输入列表逐条 upsert”。多条独立 key 的 upsert 请循环调用 `upsertOne()`，或使用原生 `bulkWrite` 的 `updateOne` + `upsert: true` 模型。
 
 ```javascript
-// 批量初始化用户配置（不存在则创建）
-await collection('user_settings').updateBatch(
-    { userId: { $in: userIds } },
+// 正确：单文档 upsert
+await collection('user_settings').upsertOne(
+    { userId: 'user_123' },
     {
-        $setOnInsert: {
+        $set: {
             theme: 'light',
             language: 'zh-CN',
-            createdAt: new Date()
-        },
-        $set: {
             updatedAt: new Date()
+        },
+        $setOnInsert: {
+            createdAt: new Date()
         }
-    },
-    {
-        batchSize: 1000,
-        upsert: true
     }
 );
 ```
@@ -435,10 +437,10 @@ await collection('users').updateBatch(filter, {
 
 ### Q2: updateBatch 会造成数据不一致吗？
 
-**答**: 否。`updateBatch` 使用 MongoDB 的游标快照隔离，保证数据一致性。
+**答**: `updateBatch` 会通过游标读取匹配文档的 `_id`，再按批次写入。它本身不会自动创建 MongoDB 事务，也不承诺快照隔离。如果需要事务快照，请在显式事务中执行并传入事务 `session`。
 
 ```javascript
-// ✅ 安全：即使其他操作同时插入新数据，也不会被误更新
+// 如需事务快照，请在事务中执行，并传入事务 session
 await collection('users').updateBatch(
     { status: 'inactive' },
     { $set: { status: 'archived' } },
@@ -493,7 +495,7 @@ await collection('users').updateBatch(
 - `$set` - 设置字段值
 - `$unset` - 删除字段
 - `$rename` - 重命名字段
-- `$setOnInsert` - upsert 时设置（仅插入时）
+- `$setOnInsert` - MongoDB update 文档可包含该操作符，但只有 upsert 才有实际意义；`updateBatch` 会拒绝 `upsert: true`
 
 **数值操作符**：
 - `$inc` - 增减

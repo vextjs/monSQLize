@@ -639,13 +639,22 @@ describe('coverage core helpers', () => {
         let deleteAttempts = 0;
         const progress: unknown[] = [];
         const retries: unknown[] = [];
+        const idCursor = (items: Array<{ _id: number }>) => ({
+            async *[Symbol.asyncIterator]() {
+                for (const item of items) {
+                    yield item;
+                }
+            },
+            close: async () => true,
+        });
         const collection = {
             insertMany: async (docs: unknown[]) => {
                 insertAttempts += 1;
                 if (insertAttempts === 1) throw new Error('insert transient');
                 return { insertedCount: docs.length, insertedIds: Object.fromEntries(docs.map((_doc, index) => [index, `id-${index}`])) };
             },
-            find: () => ({ map: (fn: (doc: { _id: number }) => number) => ({ toArray: async () => ids.map(fn) }) }),
+            find: () => idCursor(ids),
+            countDocuments: async () => ids.length,
             updateMany: async (_filter: unknown, _update: unknown) => ({ matchedCount: 2, modifiedCount: 2, upsertedCount: 0 }),
             deleteMany: async () => {
                 deleteAttempts += 1;
@@ -669,6 +678,7 @@ describe('coverage core helpers', () => {
         await assert.rejects(() => insertBatchDocuments(collection as never, [{ a: 1 }] as never, { onError: 'bad' } as never), /onError/);
         await assert.rejects(() => updateBatchDocuments(collection as never, null as never, { $set: { a: 1 } } as never), /filter/);
         await assert.rejects(() => updateBatchDocuments(collection as never, { a: 1 } as never, {} as never), /update operators/);
+        await assert.rejects(() => updateBatchDocuments(collection as never, { a: 1 } as never, { $set: { a: 1 } } as never, { upsert: true } as never), /does not support upsert/);
         await assert.rejects(() => deleteBatchDocuments(collection as never, [] as never), /filter/);
         await assert.rejects(() => deleteBatchDocuments(collection as never, { a: 1 } as never, { onError: 'bad' as never }), /onError/);
     });

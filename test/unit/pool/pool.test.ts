@@ -107,4 +107,64 @@ describe('P4-B pool manager', () => {
             },
         }), 'secondary');
     });
+
+    it('rejects invalid addPool configs before opening a client', async () => {
+        let factoryCalled = false;
+        const manager = new MonSQLize.ConnectionPoolManager({
+            clientFactory: async () => {
+                factoryCalled = true;
+                return createFakeClient('bad');
+            },
+        });
+
+        await assert.rejects(
+            () => manager.addPool({
+                name: 'bad',
+                uri: 'mongodb://bad',
+                role: 'replica',
+            }),
+            /role must be one of/,
+        );
+        assert.equal(factoryCalled, false);
+
+        await manager.close();
+    });
+
+    it('clears and unreferences HealthChecker ping timeout handles', async () => {
+        const originalSetTimeout = globalThis.setTimeout;
+        const originalClearTimeout = globalThis.clearTimeout;
+        let unrefCalled = false;
+        let clearCalled = false;
+
+        const patchedSetTimeout = ((callback: Parameters<typeof setTimeout>[0], timeout?: number) => {
+            const handle = originalSetTimeout(callback, timeout) as ReturnType<typeof setTimeout> & { unref?: () => unknown };
+            const originalUnref = handle.unref?.bind(handle);
+            handle.unref = () => {
+                unrefCalled = true;
+                return originalUnref?.() ?? handle;
+            };
+            return handle;
+        }) as unknown as typeof setTimeout;
+        Object.assign(patchedSetTimeout, { __promisify__: originalSetTimeout.__promisify__ });
+        globalThis.setTimeout = patchedSetTimeout;
+        globalThis.clearTimeout = ((handle: Parameters<typeof clearTimeout>[0]) => {
+            clearCalled = true;
+            return originalClearTimeout(handle);
+        }) as typeof clearTimeout;
+
+        try {
+            const checker = new MonSQLize.HealthChecker({ logger: { info: () => undefined } });
+            checker.register(
+                { name: 'fast', healthCheck: { timeout: 1000, retries: 1 } },
+                { db: () => ({ command: async () => ({ ok: 1 }) }) },
+            );
+            await checker.checkPool('fast');
+            assert.equal(checker.getStatus('fast')?.status, 'up');
+            assert.equal(unrefCalled, true);
+            assert.equal(clearCalled, true);
+        } finally {
+            globalThis.setTimeout = originalSetTimeout;
+            globalThis.clearTimeout = originalClearTimeout;
+        }
+    });
 });

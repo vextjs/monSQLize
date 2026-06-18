@@ -21,7 +21,7 @@
 - [8. Multiple operator combinations](#8-multiple-operator-combinations)
 - [9. Using arrayFilters - Update specific elements in an array](#9-using-arrayfilters-update-specific-elements-in-an-array)
 - [10. Error handling - retry strategy (recommended)](#10-error-handling-retry-strategy-recommended)
-- [11. upsert - insert if not present](#11-upsert-insert-if-not-present)
+- [11. Upsert is not supported](#11-upsert-is-not-supported)
 - [12. Complex query conditions](#12-complex-query-conditions)
 - [Performance optimization suggestions](#performance-optimization-suggestions)
 - [1. Batch size selection](#1-batch-size-selection)
@@ -102,7 +102,7 @@ collection(name: string).updateBatch(
 | **retryDelay** | `number` | `1000` | Retry delay time (milliseconds) |
 | **onRetry** | `Function` | - | Retry callback function `(retryInfo) => {}` |
 | **writeConcern** | `object` | `{ w: 1 }` | Write confirmation level |
-| **upsert** | `boolean` | `false` | Whether to insert when there is no match |
+| **upsert** | `boolean` | `false` | Unsupported for `updateBatch`; passing `true` throws. Use `upsertOne` for single-document upserts, or `updateMany(..., { upsert: true })` only when you want MongoDB's native single-insert-on-no-match semantics. |
 | **arrayFilters** | `Array` | - | Array filters |
 | **comment** | `string` | - | Operation comments (for log tracking) |
 
@@ -115,7 +115,7 @@ collection(name: string).updateBatch(
   totalCount: number | null,  //Total number of documents (valid when estimateProgress=true)
   matchedCount: number,       //Number of matching documents
   modifiedCount: number,      //Number of successful updates
-  upsertedCount: number,      //Number of insertions (when upsert=true)
+  upsertedCount: number,      //Always 0 because updateBatch rejects upsert=true
   batchCount: number,         //Total number of batches
   errors: Array<Object>,      //error list
   retries: Array<Object>      //Retry record list
@@ -337,25 +337,27 @@ console.log(`Update completed, retry ${result.retries.length} times`);
 ```
 
 
-## 11. upsert - insert if not present
+## 11. Upsert is not supported
+
+`updateBatch` first selects matching document `_id` values through a cursor and then updates those `_id` batches. That batching model has no stable "insert when none matched" target, so `upsert: true` is rejected.
+
+Use `upsertOne()` for single-document upserts, or MongoDB-native `updateMany(..., { upsert: true })` when you explicitly want server-side multi-update semantics.
+
+MongoDB native note: `updateMany(filter, update, { upsert: true })` is supported, but if no documents match, MongoDB inserts one new document derived from the equality parts of `filter` and the `update` document. It is not a per-input bulk upsert. For multiple independent keys, run separate `upsertOne()` calls or use native `bulkWrite` `updateOne` models with `upsert: true`.
 
 ```javascript
-//Initialize user configuration in batches (create if it does not exist)
-await collection('user_settings').updateBatch(
-    { userId: { $in: userIds } },
+//Correct: single-document upsert
+await collection('user_settings').upsertOne(
+    { userId: 'user_123' },
     {
-        $setOnInsert: {
-            theme: 'light',
-            language: 'zh-CN',
-            createdAt: new Date()
-        },
         $set: {
+            theme: 'light',
+            language: 'en',
             updatedAt: new Date()
+        },
+        $setOnInsert: {
+            createdAt: new Date()
         }
-    },
-    {
-        batchSize: 1000,
-        upsert: true
     }
 );
 ```
@@ -486,10 +488,10 @@ await collection('users').updateBatch(filter, {
 
 ## Q2: Will updateBatch cause data inconsistency?
 
-**Answer**: No. `updateBatch` uses MongoDB's cursor snapshot isolation to ensure data consistency.
+**Answer**: `updateBatch` processes matching `_id` values through a cursor and writes them in batches. It does not create a MongoDB transaction or guarantee snapshot isolation by itself. If you need a transactional snapshot, run it inside an explicit transaction and pass the transaction `session`.
 
 ```javascript
-//✅ Security: Even if other operations insert new data at the same time, it will not be accidentally updated.
+//Use a transaction when the batch must share the same transactional snapshot.
 await collection('users').updateBatch(
     { status: 'inactive' },
     { $set: { status: 'archived' } },
@@ -547,7 +549,7 @@ await collection('users').updateBatch(
 - `$set` - Set field value
 - `$unset` - Delete field
 - `$rename` - Rename fields
-- `$setOnInsert` - Set when upsert (only when inserting)
+- `$setOnInsert` - Accepted by MongoDB update documents, but only meaningful in upsert operations; `updateBatch` rejects `upsert: true`
 
 **Numeric operators**:
 - `$inc` - increase or decrease
@@ -621,4 +623,3 @@ try {
 
 **Updated date**: 2025-12-30
 **Version**: v1.0
-

@@ -19,7 +19,12 @@ export type {
 } from 'cache-hub';
 
 
-export type { DistributedCacheInvalidatorOptions } from './distributed-cache-invalidator';
+export type {
+    DistributedCacheInvalidatorOptions,
+    DistributedCacheLike,
+    DistributedLoggerLike,
+    RedisPubSubLike,
+} from './distributed-cache-invalidator';
 
 import type { CacheLike, LockManager as CacheLockLike } from 'cache-hub';
 

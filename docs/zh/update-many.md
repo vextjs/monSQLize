@@ -5,6 +5,7 @@
 - [语法](#语法)
 - [参数](#参数)
 - [返回值](#返回值)
+- [upsert 语义](#upsert-语义)
 - [示例](#示例)
 - [性能优化](#性能优化)
 - [与 updateOne 的区别](#与-updateone-的区别)
@@ -48,7 +49,7 @@ collection(collectionName).updateMany(filter, update, options)
 
 | 选项 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `upsert` | Boolean | false | 不存在时是否插入新文档 |
+| `upsert` | Boolean | false | 当筛选条件没有匹配任何文档时，是否插入一个新文档 |
 | `writeConcern` | Object | - | 写关注选项 |
 | `bypassDocumentValidation` | Boolean | false | 是否绕过文档验证 |
 | `comment` | String | - | 操作注释 |
@@ -69,6 +70,14 @@ collection(collectionName).updateMany(filter, update, options)
   upsertedCount: 0
 }
 ```
+
+## upsert 语义
+
+`updateMany(filter, update, { upsert: true })` 遵循 MongoDB 原生语义：
+
+- 如果 `filter` 匹配到一个或多个文档，会更新所有匹配文档。
+- 如果 `filter` 没有匹配任何文档，MongoDB 只插入一个由 `filter` 等值条件和 `update` 文档合成的新文档。
+- 它不是“按输入列表逐条 upsert”。多条独立 key 的 upsert 请循环调用 `upsertOne()`，或使用原生 `bulkWrite` 的 `updateOne` + `upsert: true` 模型。
 
 ## 示例
 

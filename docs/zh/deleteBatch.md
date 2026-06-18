@@ -338,7 +338,7 @@ await collection('logs').deleteBatch(
 
 ### Q2: deleteBatch 会造成数据不一致吗？
 
-**答**: 否。`deleteBatch` 使用 MongoDB 的游标快照隔离，保证数据一致性。
+**答**: `deleteBatch` 会通过游标读取匹配文档的 `_id`，再按批次删除。它本身不会自动创建 MongoDB 事务，也不承诺快照隔离。如果需要事务快照，请在显式事务中执行并传入事务 `session`。
 
 ```javascript
 // ✅ 安全：即使其他操作同时插入新数据，也不会被误删

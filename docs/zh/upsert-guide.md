@@ -28,12 +28,14 @@ const doc = await collection("users").findOneAndUpdate(
 |------|--------|---------|--------|
 | **`findOneAndUpdate()`** | 文档对象 | 需要返回文档内容 | ⭐⭐⭐⭐⭐ |
 | **`updateOne()`** | 操作结果统计 | 只需要知道是否成功 | ⭐⭐⭐⭐ |
-| **`updateMany()`** | 操作结果统计 | 批量 upsert | ⭐⭐⭐ |
+| **`updateMany()`** | 操作结果统计 | 更新所有匹配；无匹配时只插入一个文档 | ⭐⭐⭐ |
 | **`replaceOne()`** | 操作结果统计 | 替换整个文档 | ⭐⭐ |
 
 ---
 
 ## 💡 详细用法
+
+> **关于 `updateMany()` upsert**：MongoDB 支持 `updateMany(filter, update, { upsert: true })`，但无匹配分支只会基于 `filter` 和 `update` 插入一个文档。它不是“按输入列表逐条 upsert”。多条独立 key 的 upsert 请优先循环调用 `upsertOne()`，或使用原生 `bulkWrite` 的 `updateOne` + `upsert: true`。
 
 ### 1. `findOneAndUpdate()` - 推荐 ⭐⭐⭐⭐⭐
 

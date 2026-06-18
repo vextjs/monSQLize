@@ -2083,10 +2083,17 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
         const insertStringResult = await insertBatchDocuments(insertStringCollection, [{ name: 'Ada' }] as any, { onError: 'retry', retryDelay: 0 } as any);
         assert.equal(insertStringResult.retries[0].error instanceof Error, true);
 
+        const idCursor = () => ({
+            async *[Symbol.asyncIterator]() {
+                yield { _id: 'id-1' };
+            },
+            close: async () => true,
+        });
         let updateAttempts = 0;
         const updateRetries: unknown[] = [];
         const updateCollection = {
-            find: () => ({ map: () => ({ toArray: async () => ['id-1'] }) }),
+            find: idCursor,
+            countDocuments: async () => 1,
             updateMany: async () => {
                 updateAttempts += 1;
                 if (updateAttempts === 1) throw new Error('transient update');
@@ -2104,7 +2111,8 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
 
         let updateStringAttempts = 0;
         const updateStringCollection = {
-            find: () => ({ map: () => ({ toArray: async () => ['id-1'] }) }),
+            find: idCursor,
+            countDocuments: async () => 1,
             updateMany: async () => {
                 updateStringAttempts += 1;
                 if (updateStringAttempts === 1) throw 'transient update string';
@@ -2117,7 +2125,8 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
 
         let deleteAttempts = 0;
         const deleteCollection = {
-            find: () => ({ map: () => ({ toArray: async () => ['id-1'] }) }),
+            find: idCursor,
+            countDocuments: async () => 1,
             deleteMany: async () => {
                 deleteAttempts += 1;
                 if (deleteAttempts === 1) throw new Error('transient delete');
@@ -2130,7 +2139,8 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
 
         let deleteStringAttempts = 0;
         const deleteStringCollection = {
-            find: () => ({ map: () => ({ toArray: async () => ['id-1'] }) }),
+            find: idCursor,
+            countDocuments: async () => 1,
             deleteMany: async () => {
                 deleteStringAttempts += 1;
                 if (deleteStringAttempts === 1) throw 'transient delete string';
@@ -2146,7 +2156,8 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
         await assert.rejects(() => deleteBatchDocuments(deleteCollection, { stale: true } as any, { retryAttempts: -1 } as any), /retryAttempts/);
 
         const failingCollection = {
-            find: () => ({ map: () => ({ toArray: async () => ['id-1'] }) }),
+            find: idCursor,
+            countDocuments: async () => 1,
             updateMany: async () => { throw new Error('always failing update'); },
             deleteMany: async () => { throw new Error('always failing delete'); },
         } as any;

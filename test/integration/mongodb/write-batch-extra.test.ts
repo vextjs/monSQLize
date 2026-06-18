@@ -5,17 +5,9 @@ import { createMemoryServerBootstrap } from '../../bootstrap/memory-server';
 const MonSQLize = require('../../../dist/cjs/index.cjs');
 
 // Covers uncovered branches in write-batch.ts:
-//   - insertBatch concurrency validation (lines 49-51)
-//   - insertBatch onError validation (lines 52-54)
-//   - insertBatch retryAttempts validation (lines 55-57)
-//   - insertBatch onProgress callback (line 88-95)
-//   - deleteBatch estimateProgress=false → totalCount=null (line 254)
-//   - deleteBatch percentage=null in onProgress (line 274)
-//   - deleteBatch onError validation (lines 237-238)
-//   - deleteBatch retryAttempts validation (lines 240-242)
-//   - updateBatch with array pipeline → !Array.isArray(update) false branch (line 154)
-//   - updateBatch upsertedCount ?? 0 (line 189)
-//   - updateBatch onProgress callback (lines 190-196)
+//   - insertBatch concurrency, onError, retryAttempts, and onProgress branches
+//   - deleteBatch estimateProgress=false, percentage=null, onError, and retryAttempts branches
+//   - updateBatch array pipeline, fixed zero upsertedCount, and onProgress branches
 
 describe('write-batch — insertBatch validation branches', () => {
     const bootstrap = createMemoryServerBootstrap();

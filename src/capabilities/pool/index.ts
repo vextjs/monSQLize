@@ -39,7 +39,6 @@ import {
     defaultClientFactory,
     defaultHealthCheckFn,
     validatePoolConfig,
-    validatePoolConfigInternal,
     validatePoolConfigSafe,
 } from './pool-runtime-helpers';
 
@@ -152,7 +151,7 @@ export class ConnectionPoolManager {
      * @since v1.0.8
      */
     async addPool(config: PoolConfig): Promise<void> {
-        validatePoolConfigInternal(config);
+        validatePoolConfig(config as unknown as Record<string, unknown>);
         if (this.pools.has(config.name) || this._pendingAdds.has(config.name)) {
             throw createError(ErrorCodes.INVALID_CONFIG, `Pool '${config.name}' already exists`);
         }

@@ -29,6 +29,7 @@ export interface SyncTargetConfig {
     uri?: string;
     pool?: string;
     databaseName?: string;
+    /** Collections handled by this target; omit or pass ['*'] to handle all collections. */
     collections?: string[];
     options?: MongoClientOptions;
     apply?: (event: SyncChangeEvent, document: Record<string, unknown> | undefined) => Promise<void>;
@@ -60,6 +61,7 @@ export interface ResumeTokenConfig {
 export interface SyncConfig {
     enabled: boolean;
     targets: SyncTargetConfig[];
+    /** Source collections watched by the manager; omit or pass ['*'] to watch all collections. */
     collections?: string[];
     resumeToken?: ResumeTokenConfig;
     filter?: (event: SyncChangeEvent) => boolean;

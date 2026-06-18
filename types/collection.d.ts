@@ -448,7 +448,7 @@ export interface UpdateBatchResult {
     totalCount: number | null;
     matchedCount: number;
     modifiedCount: number;
-    /** Number of documents upserted across all batches. */
+    /** Always 0; updateBatch rejects `upsert: true` before executing batch writes. */
     upsertedCount: number;
     batchCount: number;
     errors: BatchErrorRecord[];
@@ -495,7 +495,11 @@ export interface UpdateBatchOptions {
     onRetry?: (retryInfo: RetryInfo) => void;
     /** MongoDB write concern. */
     writeConcern?: WriteConcern;
-    /** Upsert documents that do not match the filter. */
+    /**
+     * @deprecated `updateBatch` does not support `upsert: true`; use `upsertOne` for
+     * single-document upserts, or `updateMany(..., { upsert: true })` only when you
+     * want MongoDB's native single-insert-on-no-match semantics. Passing `true` throws.
+     */
     upsert?: boolean;
     /** Array filters for nested array updates. */
     arrayFilters?: unknown[];
@@ -799,7 +803,7 @@ export interface Collection<TSchema = any> {
      * Updates matched documents in configurable batches, walking via a cursor.
      * @param filter - MongoDB filter query.
      * @param update - Update operators.
-     * @param options - UpdateBatchOptions (batchSize, upsert, onProgress, …).
+     * @param options - UpdateBatchOptions (batchSize, onProgress, retry settings; `upsert: true` is rejected).
      * @returns Aggregated update result across all batches.
      * @since v1.2.0
      */

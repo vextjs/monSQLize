@@ -14,6 +14,82 @@ import type {
 } from '../../../../types/collection';
 import { sleep, splitIntoBatches } from './write-utils';
 
+type DriverOptions = Record<string, unknown>;
+type BatchCursor = AsyncIterable<{ _id: unknown }> & { close?: () => Promise<unknown> | unknown };
+
+function validateBatchSize(batchSize: number): void {
+    if (!Number.isInteger(batchSize) || batchSize <= 0) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'batchSize must be a positive integer.');
+    }
+}
+
+function buildBatchReadOptions(driverOptions: DriverOptions): DriverOptions {
+    const {
+        arrayFilters: _arrayFilters,
+        bypassDocumentValidation: _bypassDocumentValidation,
+        upsert: _upsert,
+        writeConcern: _writeConcern,
+        ...readOptions
+    } = driverOptions;
+    return readOptions;
+}
+
+function buildBatchFindOptions(driverOptions: DriverOptions, sort: unknown): FindOptions {
+    return {
+        ...buildBatchReadOptions(driverOptions),
+        projection: { _id: 1 },
+        sort,
+    } as FindOptions;
+}
+
+async function estimateBatchTotal<TSchema extends Document>(
+    collection: Collection<TSchema>,
+    filter: Parameters<Collection<TSchema>['find']>[0],
+    driverOptions: DriverOptions,
+    enabled: boolean,
+): Promise<number | null> {
+    if (!enabled || typeof collection.countDocuments !== 'function') {
+        return null;
+    }
+    return collection.countDocuments(filter, buildBatchReadOptions(driverOptions));
+}
+
+async function processIdBatches<TSchema extends Document>(
+    collection: Collection<TSchema>,
+    filter: Parameters<Collection<TSchema>['find']>[0],
+    findOptions: FindOptions,
+    batchSize: number,
+    onBatch: (batch: unknown[], batchIndex: number, currentBatch: number, selectedCount: number) => Promise<void>,
+): Promise<{ selectedCount: number; batchCount: number }> {
+    validateBatchSize(batchSize);
+    const cursor = collection.find(filter, findOptions) as unknown as BatchCursor;
+    const batch: unknown[] = [];
+    let selectedCount = 0;
+    let batchCount = 0;
+
+    try {
+        for await (const document of cursor) {
+            batch.push(document._id);
+            selectedCount += 1;
+            if (batch.length >= batchSize) {
+                batchCount += 1;
+                await onBatch([...batch], batchCount - 1, batchCount, selectedCount);
+                batch.length = 0;
+            }
+        }
+        if (batch.length > 0) {
+            batchCount += 1;
+            await onBatch([...batch], batchCount - 1, batchCount, selectedCount);
+        }
+    } finally {
+        if (typeof cursor.close === 'function') {
+            await Promise.resolve(cursor.close()).catch(() => undefined);
+        }
+    }
+
+    return { selectedCount, batchCount };
+}
+
 function getWriteErrorIndexes(error: unknown): number[] {
     const candidates = [
         (error as { writeErrors?: unknown })?.writeErrors,
@@ -236,6 +312,7 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
     const {
         batchSize = 1000,
         sort = { _id: 1 },
+        estimateProgress = true,
         onProgress,
         onError = 'stop',
         retryAttempts = 3,
@@ -249,23 +326,26 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
     if (!Number.isInteger(retryAttempts) || retryAttempts < 0) {
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'retryAttempts must be a non-negative integer');
     }
-    const ids = await collection.find(filter, {
-        projection: { _id: 1 },
-        sort,
-    } as FindOptions).map((document) => document._id).toArray();
-    const batches = splitIntoBatches(ids, batchSize);
+    if ((driverOptions as { upsert?: unknown }).upsert !== undefined && (driverOptions as { upsert?: unknown }).upsert !== false) {
+        throw createError(
+            ErrorCodes.INVALID_ARGUMENT,
+            'updateBatch does not support upsert: true; use upsertOne() for single-document upserts, or updateMany(..., { upsert: true }) only for MongoDB native single-insert-on-no-match semantics',
+        );
+    }
+    const estimatedTotal = await estimateBatchTotal(collection, filter, driverOptions, estimateProgress);
+    const totalBatches = estimatedTotal === null ? null : Math.ceil(estimatedTotal / batchSize);
     const result: UpdateBatchResult = {
         acknowledged: true,
-        totalCount: ids.length,
+        totalCount: estimatedTotal,
         matchedCount: 0,
         modifiedCount: 0,
         upsertedCount: 0,
-        batchCount: batches.length,
+        batchCount: 0,
         errors: [],
         retries: [],
     };
 
-    for (const [batchIndex, batch] of batches.entries()) {
+    const processed = await processIdBatches(collection, filter, buildBatchFindOptions(driverOptions, sort), batchSize, async (batch, batchIndex, currentBatch) => {
         let attempts = 0;
         while (true) {
             try {
@@ -276,13 +356,14 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
                 );
                 result.matchedCount += batchResult.matchedCount;
                 result.modifiedCount += batchResult.modifiedCount;
-                result.upsertedCount += (batchResult.upsertedCount ?? 0);
                 onProgress?.({
-                    currentBatch: batchIndex + 1,
-                    totalBatches: batches.length,
+                    currentBatch,
+                    totalBatches: totalBatches ?? currentBatch,
                     modified: result.modifiedCount,
                     matched: result.matchedCount,
-                    percentage: ids.length === 0 ? 100 : Math.round((result.modifiedCount / ids.length) * 100),
+                    total: estimatedTotal,
+                    percentage: estimatedTotal && estimatedTotal > 0 ? Math.round((result.modifiedCount / estimatedTotal) * 100) : null,
+                    errors: result.errors.length,
                     retries: result.retries.length,
                 });
                 break;
@@ -320,6 +401,10 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
                 break;
             }
         }
+    });
+    result.batchCount = processed.batchCount;
+    if (estimateProgress && result.totalCount === null) {
+        result.totalCount = processed.selectedCount;
     }
 
     return result;
@@ -360,24 +445,21 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'retryAttempts must be a non-negative integer');
     }
 
-    const ids = await collection.find(filter, {
-        projection: { _id: 1 },
-        sort,
-    } as FindOptions).map((document) => document._id).toArray();
-    const batches = splitIntoBatches(ids, batchSize);
+    const estimatedTotal = await estimateBatchTotal(collection, filter, driverOptions, estimateProgress);
+    const totalBatches = estimatedTotal === null ? null : Math.ceil(estimatedTotal / batchSize);
     const result: DeleteBatchResult & {
         retries: Array<Record<string, unknown>>;
         errors: Array<Record<string, unknown>>;
     } = {
         acknowledged: true,
-        totalCount: estimateProgress ? ids.length : null,
+        totalCount: estimatedTotal,
         deletedCount: 0,
-        batchCount: batches.length,
+        batchCount: 0,
         errors: [],
         retries: [],
     };
 
-    for (const [batchIndex, batch] of batches.entries()) {
+    const processed = await processIdBatches(collection, filter, buildBatchFindOptions(driverOptions, sort), batchSize, async (batch, batchIndex, currentBatch) => {
         let attempts = 0;
         while (true) {
             try {
@@ -387,10 +469,13 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
                 );
                 result.deletedCount += batchResult.deletedCount;
                 onProgress?.({
-                    currentBatch: batchIndex + 1,
-                    totalBatches: batches.length,
+                    currentBatch,
+                    totalBatches: totalBatches ?? currentBatch,
                     deleted: result.deletedCount,
-                    percentage: estimateProgress && ids.length > 0 ? Math.round((result.deletedCount / ids.length) * 100) : null,
+                    total: estimatedTotal,
+                    percentage: estimatedTotal && estimatedTotal > 0 ? Math.round((result.deletedCount / estimatedTotal) * 100) : null,
+                    errors: result.errors.length,
+                    retries: result.retries.length,
                 });
                 break;
             } catch (cause) {
@@ -427,6 +512,10 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
                 break;
             }
         }
+    });
+    result.batchCount = processed.batchCount;
+    if (estimateProgress && result.totalCount === null) {
+        result.totalCount = processed.selectedCount;
     }
 
     return result;

@@ -143,8 +143,18 @@ export class HealthChecker {
         if (!client) throw createError(ErrorCodes.POOL_NOT_FOUND, `No client for pool: ${poolName}`);
         const db = client.db('admin');
         const pingFn = db.command ? () => db.command!({ ping: 1 }) : () => db.admin!().ping();
-        const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Ping timeout')), timeout));
-        await Promise.race([pingFn(), timeoutPromise]);
+        let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(() => reject(new Error('Ping timeout')), timeout);
+            timeoutHandle.unref?.();
+        });
+        try {
+            await Promise.race([pingFn(), timeoutPromise]);
+        } finally {
+            if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+            }
+        }
     }
 
     getStatus(poolName: string): HealthStatus | null {
