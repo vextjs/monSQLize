@@ -109,6 +109,42 @@ describe('P4-A transaction', () => {
         await transaction.end();
     });
 
+    it('does not throw when post-commit cache invalidation fails', async () => {
+        const warnings: unknown[] = [];
+        const transaction = new MonSQLize.Transaction(createFakeSession(), {
+            cache: {
+                delPattern: async () => {
+                    throw new Error('cache down');
+                },
+            },
+            logger: { warn: (...args: unknown[]) => warnings.push(args) },
+        });
+
+        await transaction.start();
+        await transaction.recordInvalidation('users:*');
+        await assert.doesNotReject(() => transaction.commit());
+
+        assert.equal(transaction.getInfo().status, 'committed');
+        assert.ok(warnings.some((entry) => String((entry as unknown[])[0]).includes('post-commit cache invalidation failed')));
+        await transaction.end();
+    });
+
+    it('records write transaction stats after commit clears pending invalidations', async () => {
+        const manager = new MonSQLize.TransactionManager({
+            client: createFakeClient(),
+            maxRetries: 0,
+            retryDelay: 1,
+        });
+
+        await manager.withTransaction(async (tx: { recordInvalidation(pattern: string): Promise<void> }) => {
+            await tx.recordInvalidation('users:*');
+        });
+
+        const stats = manager.getStats();
+        assert.equal(stats.writeTransactions, 1);
+        assert.equal(stats.readOnlyTransactions, 0);
+    });
+
     it('logs and cleans up when abortTransaction fails', async () => {
         const warnings: unknown[] = [];
         const cacheLockManager = new MonSQLize.CacheLockManager();

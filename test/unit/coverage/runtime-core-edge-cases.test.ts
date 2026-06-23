@@ -125,6 +125,9 @@ describe('MonSQLize pre-connect method calls', () => {
         const h = await r.health();
         assert.equal(h.connected, false);
         assert.equal(h.status, 'down');
+        assert.equal(h.checks?.driver?.status, 'down');
+        assert.equal(h.checks?.cache?.status, 'up');
+        assert.ok(h.capabilities);
     });
 
     it('emit("error") with no listener logs instead of throwing', () => {

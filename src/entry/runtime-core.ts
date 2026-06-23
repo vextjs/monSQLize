@@ -427,14 +427,57 @@ export class MonSQLizeRuntime {
     }
 
     async health(): Promise<HealthView> {
+        let driverConnected = this._connected;
+        let driverError: string | undefined;
+        if (this._connected && this._adapterBridge) {
+            try {
+                driverConnected = await this._adapterBridge.ping();
+            } catch (error) {
+                driverConnected = false;
+                driverError = error instanceof Error ? error.message : String(error);
+            }
+        }
+        const cacheStats = (this._cache as { getStats?: () => unknown }).getStats?.();
+        const poolHealth = this._poolManager?.getHealthStatus();
+        const distributedStats = this._distributedInvalidator?.getStats() ?? null;
+        const connected = this._connected && driverConnected;
         return {
-            status: this._connected ? 'up' : 'down',
-            connected: this._connected,
-            driver: { connected: this._connected },
+            status: connected ? 'up' : 'down',
+            connected,
+            driver: { connected: driverConnected, ...(driverError ? { error: driverError } : {}) },
             defaults: this.getDefaults(),
             cache: {
                 enabled: true,
-                pools: this._poolManager?.getHealthStatus(),
+                stats: cacheStats,
+                pools: poolHealth,
+                distributed: distributedStats,
+            },
+            checks: {
+                driver: {
+                    status: driverConnected ? 'up' : 'down',
+                    connected: driverConnected,
+                    ...(driverError ? { error: driverError } : {}),
+                },
+                cache: {
+                    status: 'up',
+                    enabled: true,
+                    hasStats: cacheStats !== undefined,
+                },
+                distributedCacheInvalidator: {
+                    status: distributedStats ? 'up' : 'unknown',
+                    enabled: distributedStats !== null,
+                    stats: distributedStats,
+                },
+                pools: {
+                    status: poolHealth ? 'up' : 'unknown',
+                    enabled: poolHealth !== undefined,
+                    health: poolHealth,
+                },
+            },
+            capabilities: {
+                models: Model.list().length,
+                sync: this._syncManager?.getStats?.() ?? null,
+                locks: this.getLockStats(),
             },
         };
     }

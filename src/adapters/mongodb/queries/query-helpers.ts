@@ -10,7 +10,7 @@ import { Collection, Document, ObjectId, Sort } from 'mongodb';
 
 import { createError, ErrorCodes } from '../../../core/errors';
 import { normalizeProjection } from '../../../utils/normalize';
-import type { CursorPayload, CursorValueNormalizationOptions, SortShape } from '../../../types/internal/query';
+import type { CursorPayload, CursorValueNormalizationOptions, RuntimeDefaults, SortShape } from '../../../types/internal/query';
 
 /**
  * Internal query-layer helpers.
@@ -421,6 +421,15 @@ export function getSortValues(source: unknown, sort: SortShape): unknown[] {
     return Object.keys(sort).map((field) => getValueByPath(source, field));
 }
 
+export function buildCollectionCacheNamespace<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    defaults: RuntimeDefaults = {},
+): string {
+    const namespace = (collection as unknown as { namespace?: string }).namespace ?? '';
+    const instanceId = defaults.namespace?.instanceId;
+    return instanceId ? `${instanceId}:${namespace}` : namespace;
+}
+
 function normalizeCacheKeyValue(value: unknown): unknown {
     if (value === undefined || typeof value === 'function' || typeof value === 'symbol') {
         return undefined;
@@ -430,6 +439,9 @@ function normalizeCacheKeyValue(value: unknown): unknown {
     }
     if (value instanceof ObjectId) {
         return { $oid: value.toHexString() };
+    }
+    if (value instanceof RegExp) {
+        return { $regex: value.source, $flags: value.flags };
     }
     if (Array.isArray(value)) {
         return value.map((item) => normalizeCacheKeyValue(item));

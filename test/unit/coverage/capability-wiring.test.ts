@@ -279,6 +279,53 @@ describe('capability-wiring coverage', () => {
 
             assert.ok(MonSQLize.Model.has('deep_model'));
         });
+
+        it('runtime._loadModels() loads .mjs model files', async () => {
+            tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'msq-wiring-mjs-'));
+            const modelFile = path.join(tmpDir, 'esm.model.mjs');
+            fs.writeFileSync(modelFile, `
+                export default {
+                    name: 'esm_model_from_file',
+                    schema: {},
+                };
+            `);
+
+            const runtime = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'x',
+                config: { uri: 'mongodb://localhost' },
+                models: tmpDir,
+            });
+
+            await runtime._loadModels();
+
+            assert.ok(MonSQLize.Model.has('esm_model_from_file'));
+        });
+
+        it('runtime._loadModels() skips .ts files without a runtime loader', async () => {
+            tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'msq-wiring-ts-'));
+            const warnings: unknown[] = [];
+            const modelFile = path.join(tmpDir, 'typed.model.ts');
+            fs.writeFileSync(modelFile, 'export default { name: "typed_model_from_file", schema: {} };');
+
+            const runtime = new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'x',
+                config: { uri: 'mongodb://localhost' },
+                logger: {
+                    debug: () => undefined,
+                    info: () => undefined,
+                    warn: (...args: unknown[]) => warnings.push(args),
+                    error: () => undefined,
+                },
+                models: { path: tmpDir, pattern: '*.model.ts' },
+            });
+
+            await runtime._loadModels();
+
+            assert.equal(MonSQLize.Model.has('typed_model_from_file'), false);
+            assert.ok(warnings.some((entry) => String((entry as unknown[])[0]).includes('skipping TypeScript model file')));
+        });
     });
 
     // ── adaptLegacyCacheLike ──────────────────────────────────────────────────

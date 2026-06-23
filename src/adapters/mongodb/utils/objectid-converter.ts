@@ -53,17 +53,18 @@ function isFieldReference(value: unknown): boolean {
 function normalizeConversionOptions(options: ObjectIdConversionOptions | undefined): {
     enabled: boolean;
     excludeFields: string[];
+    customFieldPatterns: string[];
     maxDepth: number;
     fieldMap: Record<string, boolean>;
 } {
     if (options === false) {
-        return { enabled: false, excludeFields: [], maxDepth: 10, fieldMap: {} };
+        return { enabled: false, excludeFields: [], customFieldPatterns: [], maxDepth: 10, fieldMap: {} };
     }
     if (options === true || options === undefined) {
-        return { enabled: true, excludeFields: [], maxDepth: 10, fieldMap: {} };
+        return { enabled: true, excludeFields: [], customFieldPatterns: [], maxDepth: 10, fieldMap: {} };
     }
     if (typeof options !== 'object' || options === null) {
-        return { enabled: true, excludeFields: [], maxDepth: 10, fieldMap: {} };
+        return { enabled: true, excludeFields: [], customFieldPatterns: [], maxDepth: 10, fieldMap: {} };
     }
 
     const optionRecord = options as Record<string, unknown>;
@@ -77,6 +78,7 @@ function normalizeConversionOptions(options: ObjectIdConversionOptions | undefin
     return {
         enabled: optionRecord.enabled !== false,
         excludeFields: Array.isArray(optionRecord.excludeFields) ? optionRecord.excludeFields.map(String) : [],
+        customFieldPatterns: Array.isArray(optionRecord.customFieldPatterns) ? optionRecord.customFieldPatterns.map(String) : [],
         maxDepth: typeof optionRecord.maxDepth === 'number' && optionRecord.maxDepth >= 0 ? optionRecord.maxDepth : 10,
         fieldMap,
     };
@@ -107,6 +109,10 @@ function shouldConvertPath(path: string, options: ReturnType<typeof normalizeCon
     const fieldName = getLastPathSegment(path);
     if (options.fieldMap[stripped] === false || options.fieldMap[fieldName] === false) return false;
     return !options.excludeFields.some((pattern) => matchesFieldPattern(pattern, path));
+}
+
+function shouldConvertFieldByOptions(fieldName: string, path: string, options: ReturnType<typeof normalizeConversionOptions>): boolean {
+    return shouldConvertField(fieldName) || options.customFieldPatterns.some((pattern) => matchesFieldPattern(pattern, path));
 }
 
 /**
@@ -181,7 +187,7 @@ export function convertObjectIdStrings(
                 // Matching field name + valid ObjectId string → convert
                 if (
                     typeof value === 'string' &&
-                    shouldConvertField(key) &&
+                    shouldConvertFieldByOptions(key, currentPath, conversionOptions) &&
                     shouldConvertPath(currentPath, conversionOptions) &&
                     !isFieldReference(value) &&
                     isValidObjectIdString(value)

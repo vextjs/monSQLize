@@ -77,6 +77,7 @@ import {
 import { convertObjectIdStrings, convertUpdateDocument } from '../utils/objectid-converter';
 import {
     buildResultCacheKeyOptions,
+    buildCollectionCacheNamespace,
     hasSessionOption,
     normalizeFindProjectionOptions,
     stableCacheKeyString,
@@ -106,8 +107,32 @@ type AggregateWriteTarget = {
     collectionName: string;
 };
 
+type TransactionInvalidator = {
+    recordInvalidation(pattern: string): Promise<void> | void;
+};
+
+type SessionWithTransaction = {
+    inTransaction?: () => boolean;
+    __monSQLizeTransaction?: TransactionInvalidator;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getTransactionInvalidator(options: unknown): TransactionInvalidator | null {
+    if (!isRecord(options)) {
+        return null;
+    }
+    const session = options.session as SessionWithTransaction | undefined;
+    const transaction = session?.__monSQLizeTransaction;
+    if (!transaction) {
+        return null;
+    }
+    if (typeof session.inTransaction === 'function' && !session.inTransaction()) {
+        return null;
+    }
+    return transaction;
 }
 
 function resolveCollectionTarget(value: unknown): AggregateWriteTarget | null {
@@ -184,6 +209,62 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return convertUpdateDocument(val as unknown, autoConvertObjectId) as T;
     }
 
+    private cacheNamespace(dbName = this.dbName, collectionName = this.collectionName): string {
+        const namespace = `${dbName}.${collectionName}`;
+        const instanceId = this.management.defaults?.namespace?.instanceId;
+        return instanceId ? `${instanceId}:${namespace}` : namespace;
+    }
+
+    private cacheNamespaces(dbName = this.dbName, collectionName = this.collectionName): string[] {
+        const namespace = `${dbName}.${collectionName}`;
+        const scopedNamespace = this.cacheNamespace(dbName, collectionName);
+        return scopedNamespace === namespace ? [namespace] : [scopedNamespace, namespace];
+    }
+
+    private buildReadCacheInvalidationPatterns(
+        dbName: string,
+        collectionName: string,
+        operation?: 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string,
+    ): string[] {
+        const namespaces = this.cacheNamespaces(dbName, collectionName);
+        const bookmarkNamespace = `${dbName}:${collectionName}`;
+        const legacyNamespacePatterns = this.management.defaults?.namespace?.instanceId
+            ? [`${this.management.defaults.namespace.instanceId}:mongodb:${dbName}:${collectionName}:*`]
+            : [];
+        const forNamespaces = (prefix: string) => namespaces.map((namespace) => `${prefix}:${namespace}:*`);
+        const findPagePatterns = [
+            ...forNamespaces('findPage'),
+            ...forNamespaces('findPageTotals'),
+            `${bookmarkNamespace}:bm:*`,
+        ];
+        const aggregatePatterns = forNamespaces('aggregate');
+        const distinctPatterns = forNamespaces('distinct');
+        const patterns = operation === 'find'
+            ? forNamespaces('find')
+            : operation === 'findOne'
+                ? forNamespaces('findOne')
+                : operation === 'count'
+                    ? forNamespaces('count')
+                    : operation === 'findPage'
+                        ? findPagePatterns
+                        : operation === 'aggregate'
+                            ? aggregatePatterns
+                            : operation === 'distinct'
+                                ? distinctPatterns
+                                : [
+                                    ...forNamespaces('find'),
+                                    ...forNamespaces('findOne'),
+                                    ...forNamespaces('count'),
+                                    ...forNamespaces('findOneById'),
+                                    ...forNamespaces('findByIds'),
+                                    ...findPagePatterns,
+                                    ...aggregatePatterns,
+                                    ...distinctPatterns,
+                                ];
+        patterns.push(...legacyNamespacePatterns);
+        return patterns;
+    }
+
     private async invalidateReadCachesForNamespace(
         dbName: string,
         collectionName: string,
@@ -193,39 +274,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             return 0;
         }
 
-        const namespace = `${dbName}.${collectionName}`;
-        const bookmarkNamespace = `${dbName}:${collectionName}`;
-        const legacyNamespacePatterns = [
-            `${String(this.management.defaults?.namespace?.instanceId)}:mongodb:${dbName}:${collectionName}:*`,
-        ];
-        const findPagePatterns = [
-            `findPage:${namespace}:*`,
-            `findPageTotals:${namespace}:*`,
-            `${bookmarkNamespace}:bm:*`,
-        ];
-        const aggregatePatterns = [`aggregate:${namespace}:*`];
-        const distinctPatterns = [`distinct:${namespace}:*`];
-        const patterns = operation === 'find'
-            ? [`find:${namespace}:*`]
-            : operation === 'findOne'
-                ? [`findOne:${namespace}:*`]
-                : operation === 'count'
-                    ? [`count:${namespace}:*`]
-                    : operation === 'findPage'
-                        ? findPagePatterns
-                        : operation === 'aggregate'
-                            ? aggregatePatterns
-                            : operation === 'distinct'
-                                ? distinctPatterns
-                                : [
-                                    `find:${namespace}:*`,
-                                    `findOne:${namespace}:*`,
-                                    `count:${namespace}:*`,
-                                    ...findPagePatterns,
-                                    ...aggregatePatterns,
-                                    ...distinctPatterns,
-                                ];
-        patterns.push(...legacyNamespacePatterns);
+        const patterns = this.buildReadCacheInvalidationPatterns(dbName, collectionName, operation);
 
 
         let deleted = 0;
@@ -238,6 +287,18 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
 
     private async invalidateReadCaches(operation?: 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string): Promise<number> {
         return this.invalidateReadCachesForNamespace(this.dbName, this.collectionName, operation);
+    }
+
+    private async invalidateReadCachesAfterWrite(options?: unknown): Promise<number> {
+        const transaction = getTransactionInvalidator(options);
+        if (transaction) {
+            const patterns = this.buildReadCacheInvalidationPatterns(this.dbName, this.collectionName, 'all');
+            for (const pattern of patterns) {
+                await transaction.recordInvalidation(pattern);
+            }
+            return patterns.length;
+        }
+        return this.invalidateReadCaches('all');
     }
 
     getNamespace(): CollectionNamespaceView {
@@ -271,7 +332,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
 
         if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(driverOptions)) {
             const keyOptions = buildResultCacheKeyOptions(driverOptions);
-            const cacheKey = `findOne:${this.collectionRef.namespace}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(keyOptions)}`;
+            const cacheKey = `findOne:${buildCollectionCacheNamespace(this.collectionRef, this.management.defaults)}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(keyOptions)}`;
             const cached = await Promise.resolve(this.management.queryCache.get(cacheKey)) as TSchema | null | undefined;
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'findOne', rawOptions, startTs, cached) as never) as ReturnType<Collection<TSchema>['findOne']>;
@@ -339,7 +400,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         const executeCount = () => countDocuments(this.collectionRef, normalizedQuery ?? {}, keyOptions as Parameters<Collection<TSchema>['countDocuments']>[1]);
         const countQueue = this.management.defaults?.countQueue;
         if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(keyOptions)) {
-            const cacheKey = `count:${this.collectionRef.namespace}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(buildResultCacheKeyOptions(keyOptions))}`;
+            const cacheKey = `count:${buildCollectionCacheNamespace(this.collectionRef, this.management.defaults)}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(buildResultCacheKeyOptions(keyOptions))}`;
             const cached = await Promise.resolve(this.management.queryCache.get(cacheKey));
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'count', merged, startTs, cached as number) as never) as ReturnType<Collection<TSchema>['countDocuments']>;
@@ -422,7 +483,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             options === undefined ? undefined : driverOptions as Parameters<Collection<TSchema>['distinct']>[2],
         );
         if (cacheTTL > 0 && this.management.queryCache && !hasSessionOption(driverOptions)) {
-            const cacheKey = `distinct:${this.collectionRef.namespace}:${stableCacheKeyString({ key, query: normalizedQuery ?? {} })}:${stableCacheKeyString(buildResultCacheKeyOptions(driverOptions))}`;
+            const cacheKey = `distinct:${buildCollectionCacheNamespace(this.collectionRef, this.management.defaults)}:${stableCacheKeyString({ key, query: normalizedQuery ?? {} })}:${stableCacheKeyString(buildResultCacheKeyOptions(driverOptions))}`;
             const cached = await Promise.resolve(this.management.queryCache.get(cacheKey));
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'distinct', rawOptions, startTs, cached) as never) as ReturnType<Collection<TSchema>['distinct']>;
@@ -677,7 +738,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             cvFilter: <T>(value: T) => this._cvFilter(value),
             cvDoc: <T>(value: T) => this._cvDoc(value),
             cvUpdate: <T>(value: T) => this._cvUpdate(value),
-            invalidateAll: () => this.invalidateReadCaches('all'),
+            invalidateAll: (options?: unknown) => this.invalidateReadCachesAfterWrite(options),
         };
     }
 
@@ -691,7 +752,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             cvFilter: <T>(value: T) => this._cvFilter(value),
             cvDoc: <T>(value: T) => this._cvDoc(value),
             cvUpdate: <T>(value: T) => this._cvUpdate(value),
-            invalidateAll: () => this.invalidateReadCaches('all'),
+            invalidateAll: (options?: unknown) => this.invalidateReadCachesAfterWrite(options),
         };
     }
 

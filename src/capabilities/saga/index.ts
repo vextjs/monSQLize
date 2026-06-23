@@ -31,6 +31,7 @@ export type {
 
 class SagaExecutionContext implements SagaContext {
     private readonly values = new Map<string, unknown>();
+    private _signal: AbortSignal | undefined;
 
     // v1 compat: tracked separately so existing code that reads these fields still works.
     /** @deprecated v1 compat — ordered list of completed step names. */
@@ -44,6 +45,12 @@ class SagaExecutionContext implements SagaContext {
 
     /** @deprecated Use `executionId` — v1 compatibility alias. */
     get sagaId(): string { return this.executionId; }
+
+    get signal(): AbortSignal | undefined { return this._signal; }
+
+    setSignal(signal: AbortSignal | undefined): void {
+        this._signal = signal;
+    }
 
     set(key: string, value: unknown): void {
         this.values.set(key, value);
@@ -353,10 +360,14 @@ async function executeStepWithRetry(
     let attempt = 0;
     while (true) {
         try {
-            const promise = step.execute(context);
             const timeout = step.timeout ?? defaultTimeout;
+            const controller = timeout && timeout > 0 ? new AbortController() : null;
+            (context as SagaExecutionContext).setSignal?.(controller?.signal);
+            const promise = step.execute(context);
             return timeout && timeout > 0
-                ? await withTimeout(step.name, promise, timeout)
+                ? await withTimeout(step.name, promise, timeout, () => {
+                    controller?.abort(createError(ErrorCodes.INVALID_ARGUMENT, `Saga step '${step.name}' timed out after ${timeout}ms.`));
+                })
                 : await promise;
         } catch (cause) {
             if (attempt >= retries) {
@@ -373,7 +384,7 @@ async function executeStepWithRetry(
     }
 }
 
-async function withTimeout<T>(stepName: string, promise: Promise<T>, timeoutMs: number): Promise<T> {
+async function withTimeout<T>(stepName: string, promise: Promise<T>, timeoutMs: number, onTimeout?: () => void): Promise<T> {
     let timer: NodeJS.Timeout | null = null;
     try {
         return await Promise.race([
@@ -381,6 +392,7 @@ async function withTimeout<T>(stepName: string, promise: Promise<T>, timeoutMs: 
             new Promise<T>((_resolve, reject) => {
                 timer = setTimeout(() => {
                     reject(createError(ErrorCodes.INVALID_ARGUMENT, `Saga step '${stepName}' timed out after ${timeoutMs}ms.`));
+                    onTimeout?.();
                 }, timeoutMs);
                 timer.unref?.();
             }),

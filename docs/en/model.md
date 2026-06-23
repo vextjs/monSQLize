@@ -435,7 +435,7 @@ const msq = new MonSQLize({
     models: './models'  //← Autoload
 });
 
-await msq.connect();  //Automatically scan models/*.model.{js,ts,mjs,cjs}
+await msq.connect();  //Automatically scan models/*.model.{js,mjs,cjs}
 
 //Use directly (no Model.define required)
 const User = msq.model('users');
@@ -519,7 +519,7 @@ models/
 - ✅ `.js` - CommonJS
 - ✅ `.mjs` - ES Module
 - ✅ `.cjs` - CommonJS (explicit)
-- ✅ `.ts` - TypeScript (requires ts-node)
+- ⚠️ `.ts` - TypeScript source files must be compiled first or loaded through a runtime loader registered by the application; the default autoloader does not require `.ts` files directly.
 
 
 ## Configuration options
@@ -527,7 +527,7 @@ models/
 | Options | Type | Default | Description |
 |------|------|--------|------|
 | `path` | string | - | Model file directory (required) |
-| `pattern` | string | `*.model.{js,ts,mjs,cjs}` | File name pattern (supports glob) |
+| `pattern` | string | `*.model.{js,mjs,cjs}` | File name pattern (supports glob) |
 | `recursive` | boolean | `false` | Whether to scan subdirectories recursively |
 
 

@@ -421,7 +421,7 @@ const msq = new MonSQLize({
     models: './models'  // ← 自动加载
 });
 
-await msq.connect();  // 自动扫描 models/*.model.{js,ts,mjs,cjs}
+await msq.connect();  // 自动扫描 models/*.model.{js,mjs,cjs}
 
 // 直接使用（无需 Model.define）
 const User = msq.model('users');
@@ -501,14 +501,14 @@ models/
 - ✅ `.js` - CommonJS
 - ✅ `.mjs` - ES Module
 - ✅ `.cjs` - CommonJS（显式）
-- ✅ `.ts` - TypeScript（需要 ts-node）
+- ⚠️ `.ts` - TypeScript 源文件需要先编译，或由应用自行注册运行时 loader；默认自动加载器不会直接 require `.ts` 文件。
 
 ### 配置选项
 
 | 选项 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `path` | string | - | Model 文件目录（必需） |
-| `pattern` | string | `*.model.{js,ts,mjs,cjs}` | 文件名模式（支持 glob） |
+| `pattern` | string | `*.model.{js,mjs,cjs}` | 文件名模式（支持 glob） |
 | `recursive` | boolean | `false` | 是否递归扫描子目录 |
 
 ### 错误处理

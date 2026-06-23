@@ -26,8 +26,15 @@ type BatchAccessorContext<TSchema extends Document> = {
     cvFilter: <T>(value: T) => T;
     cvDoc: <T>(value: T) => T;
     cvUpdate: <T>(value: T) => T;
-    invalidateAll: () => Promise<number>;
+    invalidateAll: (options?: unknown) => Promise<number>;
 };
+
+async function runPostWriteInvalidation<TSchema extends Document>(
+    context: BatchAccessorContext<TSchema>,
+    options?: unknown,
+): Promise<void> {
+    await context.invalidateAll(options).catch(() => undefined);
+}
 
 export async function insertBatchForAccessor<TSchema extends Document>(
     context: BatchAccessorContext<TSchema>,
@@ -38,7 +45,7 @@ export async function insertBatchForAccessor<TSchema extends Document>(
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents must be an array');
     }
     const result = await insertBatchDocuments(context.collectionRef, documents.map((document) => context.cvDoc(document)), options);
-    await context.invalidateAll();
+    await runPostWriteInvalidation(context, options);
     return result;
 }
 
@@ -50,7 +57,7 @@ export async function updateBatchForAccessor<TSchema extends Document>(
 ): Promise<UpdateBatchResult> {
     const result = await updateBatchDocuments(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
     if (result.modifiedCount > 0) {
-        await context.invalidateAll();
+        await runPostWriteInvalidation(context, options);
     }
     return result;
 }
@@ -62,7 +69,7 @@ export async function deleteBatchForAccessor<TSchema extends Document>(
 ): Promise<DeleteBatchResult> {
     const result = await deleteBatchDocuments(context.collectionRef, context.cvFilter(filter), options);
     if (result.deletedCount > 0) {
-        await context.invalidateAll();
+        await runPostWriteInvalidation(context, options);
     }
     return result;
 }
@@ -82,7 +89,10 @@ export async function incrementOneForAccessor<TSchema extends Document>(
         maybeOptions,
     );
     if (result.modifiedCount > 0) {
-        await context.invalidateAll();
+        const options = typeof incrementOrOptions === 'object' && incrementOrOptions !== null
+            ? incrementOrOptions
+            : maybeOptions;
+        await runPostWriteInvalidation(context, options);
     }
     return result;
 }

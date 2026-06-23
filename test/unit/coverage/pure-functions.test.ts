@@ -92,6 +92,7 @@ import { buildQueryMeta, wrapQueryResultWithMeta } from '../../../src/adapters/m
 import { deleteBatchDocuments, insertBatchDocuments, updateBatchDocuments } from '../../../src/adapters/mongodb/writes/write-batch';
 import {
     orchestrateModelDeleteMany,
+    orchestrateModelDeleteBatch,
     orchestrateModelDeleteOne,
     orchestrateModelFindOneAndDelete,
     orchestrateModelFindOneAndReplace,
@@ -2187,6 +2188,7 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
             incrementOne: async () => ({ acknowledged: true, modifiedCount: 1 }),
             insertBatch: async () => ({ acknowledged: true, insertedCount: 1 }),
             updateBatch: async () => ({ acknowledged: true, modifiedCount: 1 }),
+            deleteBatch: async () => ({ acknowledged: true, deletedCount: 1 }),
         };
         const context = {
             collectionName: 'users',
@@ -2224,6 +2226,7 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
         await orchestrateModelIncrementOne(context, { id: 1 }, 'count', 1);
         await orchestrateModelInsertBatch(context, [{ name: 'Ada' }]);
         await orchestrateModelUpdateBatch(context, { active: true }, { $set: { active: false } });
+        await orchestrateModelDeleteBatch(context, { stale: true });
         await orchestrateModelDeleteOne(context, { stale: true });
         await orchestrateModelDeleteMany(context, { stale: true });
 
@@ -2233,8 +2236,8 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
         assert.ok(hookNames.includes('afterInsert'));
         assert.equal(hookNames.filter((name) => name === 'beforeUpdate').length, 7);
         assert.equal(hookNames.filter((name) => name === 'afterUpdate').length, 7);
-        assert.equal(hookNames.filter((name) => name === 'beforeDelete').length, 3);
-        assert.equal(hookNames.filter((name) => name === 'afterDelete').length, 3);
+        assert.equal(hookNames.filter((name) => name === 'beforeDelete').length, 4);
+        assert.equal(hookNames.filter((name) => name === 'afterDelete').length, 4);
     });
 
     it('v1 factory hooks run on bulk write paths and after-hook failures are swallowed', async () => {
@@ -2249,6 +2252,7 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
             extendedCollection: () => ({
                 insertBatch: async () => ({ acknowledged: true, insertedCount: 1 }),
                 updateBatch: async () => ({ acknowledged: true, modifiedCount: 1 }),
+                deleteBatch: async () => ({ acknowledged: true, deletedCount: 1 }),
             }),
             applyDefaults: (document: Record<string, unknown> = {}) => ({ ...document }),
             nowDate: () => new Date('2024-01-01T00:00:00Z'),
@@ -2279,18 +2283,23 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
         await orchestrateModelInsertBatch(context, [{ name: 'Ada' }]);
         await orchestrateModelUpdateMany(context, { active: true }, { $set: { active: false } });
         await orchestrateModelUpdateBatch(context, { active: true }, { $set: { active: false } });
+        await orchestrateModelDeleteBatch(context, { stale: true });
         await orchestrateModelDeleteMany(context, { stale: true });
 
         assert.equal(calls.filter((name) => name === 'insert:before').length, 2);
         assert.equal(calls.filter((name) => name === 'insert:after').length, 2);
         assert.equal(calls.filter((name) => name === 'update:before').length, 2);
         assert.equal(calls.filter((name) => name === 'update:after').length, 2);
-        assert.equal(calls.filter((name) => name === 'delete:before').length, 1);
-        assert.equal(calls.filter((name) => name === 'delete:after').length, 1);
+        assert.equal(calls.filter((name) => name === 'delete:before').length, 2);
+        assert.equal(calls.filter((name) => name === 'delete:after').length, 2);
     });
 
     it('model mutation edge branches preserve v1 hook and soft-delete behavior', async () => {
         let insertedPayload: Record<string, unknown> | undefined;
+        let batchInsertPayload: Array<Record<string, unknown>> | undefined;
+        let batchUpdateFilter: Record<string, unknown> | undefined;
+        let batchUpdatePayload: Record<string, unknown> | undefined;
+        let incrementField: unknown;
         let incrementOptions: Record<string, unknown> | undefined;
         let deleteOneFilter: Record<string, unknown> | undefined;
         let deleteManyFilter: Record<string, unknown> | undefined;
@@ -2317,9 +2326,22 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
                 },
             },
             extendedCollection: () => ({
-                incrementOne: async (_filter: unknown, _field: unknown, _increment: unknown, options: Record<string, unknown>) => {
+                incrementOne: async (_filter: unknown, field: unknown, _increment: unknown, options: Record<string, unknown>) => {
+                    incrementField = field;
                     incrementOptions = options;
                     return { acknowledged: true, modifiedCount: 1 };
+                },
+                insertBatch: async (docs: Array<Record<string, unknown>>) => {
+                    batchInsertPayload = docs;
+                    return { acknowledged: true, insertedCount: docs.length };
+                },
+                updateBatch: async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
+                    batchUpdateFilter = filter;
+                    batchUpdatePayload = update;
+                    return { acknowledged: true, modifiedCount: 1 };
+                },
+                deleteBatch: async () => {
+                    return { acknowledged: true, deletedCount: 1 };
                 },
             }),
             applyDefaults: (document: Record<string, unknown> = {}) => ({ defaulted: true, ...document }),
@@ -2350,10 +2372,21 @@ describe('v1 parity repairs — cache, batch retry and flat model hooks', () => 
         await orchestrateModelInsertMany({ ...baseContext, hooksFactory: null } as any, undefined);
         await orchestrateModelUpdateOne(baseContext, { id: 1, __v: 0 }, { $set: { name: 'Ada' } });
         await orchestrateModelIncrementOne(baseContext, { id: 1 }, 'count', 1, { $set: { custom: true } });
+        assert.deepEqual(incrementField, { count: 1, __v: 1 });
         assert.deepEqual(incrementOptions?.$set, { custom: true, updatedAt: new Date('2024-01-01T00:00:00Z') });
+
+        await orchestrateModelInsertBatch(baseContext, [{ name: 'Batch' }]);
+        assert.equal(batchInsertPayload?.[0].defaulted, true);
+        assert.equal(batchInsertPayload?.[0].__v, 0);
+
+        await orchestrateModelUpdateBatch(baseContext, { id: 1 }, { $set: { name: 'Batch' } });
+        assert.deepEqual((batchUpdatePayload as { $inc?: Record<string, unknown> }).$inc, { __v: 1 });
 
         await orchestrateModelDeleteOne(baseContext, { id: 1 });
         assert.equal(deleteOneFilter?.deletedAt, null);
+
+        await orchestrateModelDeleteBatch(baseContext, { stale: true });
+        assert.equal(batchUpdateFilter?.deletedAt, null);
 
         await orchestrateModelDeleteMany(baseContext, { stale: true }, { _forceDelete: true });
         assert.deepEqual(deleteManyFilter, { stale: true });

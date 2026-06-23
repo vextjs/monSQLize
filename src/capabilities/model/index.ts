@@ -65,6 +65,7 @@ import {
 } from './model-write-helpers';
 import {
     orchestrateModelDeleteMany,
+    orchestrateModelDeleteBatch,
     orchestrateModelDeleteOne,
     orchestrateModelFindOneAndDelete,
     orchestrateModelFindOneAndReplace,
@@ -425,7 +426,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     }
 
     async deleteBatch(filter?: unknown, options?: unknown): Promise<unknown> {
-        return this.runV1HookedOperation('delete', [filter, options], (nextFilter, nextOptions) => this.extendedCollection().deleteBatch(nextFilter, nextOptions));
+        return orchestrateModelDeleteBatch(this.mutationContext(), filter, options);
     }
 
     async deleteOne(filter?: unknown, options?: unknown): Promise<unknown> {

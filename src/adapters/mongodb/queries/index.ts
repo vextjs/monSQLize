@@ -27,6 +27,7 @@ import type {
 import {
     buildAggregateDriverOptions,
     buildCountDriverOptions,
+    buildCollectionCacheNamespace,
     buildFindDriverOptions,
     buildResultCacheKeyOptions,
     hasSessionOption,
@@ -253,7 +254,8 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
 
     private buildCacheKey(): string {
         const keyOptions = buildResultCacheKeyOptions(this.buildExecuteOptions());
-        return `find:${this.collection.namespace}:${stableCacheKeyString(this.normalizedQuery)}:${stableCacheKeyString(keyOptions)}`;
+        const namespace = buildCollectionCacheNamespace(this.collection, this.defaults);
+        return `find:${namespace}:${stableCacheKeyString(this.normalizedQuery)}:${stableCacheKeyString(keyOptions)}`;
     }
 
     private wrapResult<TResult>(op: string, startTs: number, result: TResult): TResult | ResultWithMeta<TResult> {
@@ -268,12 +270,19 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
         return this.collection.find(this.normalizedQuery, buildFindDriverOptions<TSchema>(this.buildExecuteOptions())).stream();
     }
 
-    toArray(): Promise<TSchema[]> {
+    private runToArray(): Promise<TSchema[]> {
         if (this.executed) {
             throw createError(ErrorCodes.INVALID_OPERATION, 'Query already executed.');
         }
         this.executed = true;
         return this.collection.find(this.normalizedQuery, buildFindDriverOptions<TSchema>(this.buildExecuteOptions())).toArray() as Promise<TSchema[]>;
+    }
+
+    toArray(): Promise<TSchema[]> {
+        if (this.executed) {
+            throw createError(ErrorCodes.INVALID_OPERATION, 'Query already executed.');
+        }
+        return this.executeResult() as Promise<TSchema[]>;
     }
 
     private async executeResult(): Promise<TSchema[] | ResultWithMeta<TSchema[]>> {
@@ -295,12 +304,12 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
                 return this.wrapResult('find', startTs, cached as TSchema[]) as TSchema[] | ResultWithMeta<TSchema[]>;
             }
             const qc = this.queryCache;
-            const result = await this.toArray();
+            const result = await this.runToArray();
             await Promise.resolve(qc.set(cacheKey, result, cacheTTL));
             return this.wrapResult('find', startTs, result) as TSchema[] | ResultWithMeta<TSchema[]>;
         }
 
-        return this.toArray().then((result) => this.wrapResult('find', startTs, result) as TSchema[] | ResultWithMeta<TSchema[]>);
+        return this.runToArray().then((result) => this.wrapResult('find', startTs, result) as TSchema[] | ResultWithMeta<TSchema[]>);
     }
 
     then<TResult1 = TSchema[], TResult2 = never>(
@@ -375,7 +384,8 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
 
     private buildCacheKey(): string {
         const keyOptions = buildResultCacheKeyOptions(this.buildExecuteOptions());
-        return `aggregate:${this.collection.namespace}:${stableCacheKeyString(this.pipeline)}:${stableCacheKeyString(keyOptions)}`;
+        const namespace = buildCollectionCacheNamespace(this.collection, this.defaults);
+        return `aggregate:${namespace}:${stableCacheKeyString(this.pipeline)}:${stableCacheKeyString(keyOptions)}`;
     }
 
     explain(verbosity: boolean | string = 'queryPlanner'): Promise<unknown> {

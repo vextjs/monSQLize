@@ -16,6 +16,7 @@ import { createError, ErrorCodes } from '../../../core/errors';
 import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/query';
 import {
     buildFindDriverOptions,
+    buildCollectionCacheNamespace,
     buildResultCacheKeyOptions,
     hasSessionOption,
     isHexObjectIdString,
@@ -55,7 +56,8 @@ export async function findOneByIdDocument<TSchema extends Document = Document>(
     const cacheTTL = getCacheTtl(rawOptions);
     if (cacheTTL > 0 && queryCache && !hasSessionOption(baseOptions)) {
         const keyOptions = buildResultCacheKeyOptions(baseOptions);
-        const cacheKey = `findOneById:${collection.namespace}:${objectId.toString()}:${stableCacheKeyString(keyOptions)}`;
+        const namespace = buildCollectionCacheNamespace(collection, defaults);
+        const cacheKey = `findOneById:${namespace}:${objectId.toString()}:${stableCacheKeyString(keyOptions)}`;
         const cached = await Promise.resolve(queryCache.get(cacheKey)) as TSchema | null | undefined;
         if (cached !== undefined) {
             return cached;
@@ -149,8 +151,9 @@ export async function findByIdsDocuments<TSchema extends Document = Document>(
     const driverOptions = buildFindDriverOptions(baseOptions);
 
     const cacheTTL = getCacheTtl(rawOptions);
+    const namespace = buildCollectionCacheNamespace(collection, defaults);
     const cacheKey = cacheTTL > 0 && queryCache && !hasSessionOption(baseOptions)
-        ? `findByIds:${collection.namespace}:${stableCacheKeyString({
+        ? `findByIds:${namespace}:${stableCacheKeyString({
             ids: uniqueIds.map((item) => item.toString()),
             options: buildResultCacheKeyOptions(baseOptions),
         })}`

@@ -63,4 +63,19 @@ describe('P3-C model registry', () => {
             (error: unknown) => Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'INVALID_ARGUMENT'),
         );
     });
+
+    it('keeps the previous definition when redefine validation fails', () => {
+        MonSQLize.Model.define('users', {
+            schema: (dsl: DslFactory) => dsl({}),
+            defaults: { status: 'active' },
+        });
+
+        assert.throws(
+            () => MonSQLize.Model.redefine('users', { schema: 'bad' }),
+            /Schema/,
+        );
+
+        assert.equal(MonSQLize.Model.has('users'), true);
+        assert.deepEqual(MonSQLize.Model.get('users').definition.defaults, { status: 'active' });
+    });
 });

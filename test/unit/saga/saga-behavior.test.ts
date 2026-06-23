@@ -216,6 +216,31 @@ describe('SagaOrchestrator behavior', () => {
             assert.equal(result.success, false);
             assert.match(result.error?.message ?? '', /timed out/);
         });
+
+        it('aborts the step context signal when a step times out', async () => {
+            const saga = new MonSQLize.SagaOrchestrator();
+            let aborted = false;
+
+            saga.define({
+                name: 'abort-signal-timeout',
+                steps: [
+                    {
+                        name: 'slow-step',
+                        timeout: 20,
+                        execute: (ctx: any) => new Promise<void>((resolve) => {
+                            ctx.signal?.addEventListener('abort', () => {
+                                aborted = true;
+                                resolve();
+                            });
+                        }),
+                    },
+                ],
+            });
+
+            const result = await saga.execute('abort-signal-timeout', {});
+            assert.equal(result.success, false);
+            assert.equal(aborted, true);
+        });
     });
 
     // ── context API ───────────────────────────────────────────────────────────

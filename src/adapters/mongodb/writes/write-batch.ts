@@ -16,6 +16,26 @@ import { sleep, splitIntoBatches } from './write-utils';
 
 type DriverOptions = Record<string, unknown>;
 type BatchCursor = AsyncIterable<{ _id: unknown }> & { close?: () => Promise<unknown> | unknown };
+type InsertBatchPlan<TSchema extends Document> = {
+    batch: TSchema[];
+    batchIndex: number;
+    batchOffset: number;
+};
+
+const NON_IDEMPOTENT_UPDATE_OPERATORS = new Set([
+    '$inc',
+    '$mul',
+    '$rename',
+    '$min',
+    '$max',
+    '$currentDate',
+    '$addToSet',
+    '$pop',
+    '$pull',
+    '$pullAll',
+    '$push',
+    '$bit',
+]);
 
 function validateBatchSize(batchSize: number): void {
     if (!Number.isInteger(batchSize) || batchSize <= 0) {
@@ -120,6 +140,37 @@ function getInsertedIdsFromError(error: unknown): Record<string, unknown> {
     return {};
 }
 
+function isRetrySafeUpdate(update: Parameters<Collection<Document>['updateMany']>[1]): boolean {
+    if (Array.isArray(update)) {
+        return false;
+    }
+    const updateOperators = Object.keys(update as Record<string, unknown>);
+    return updateOperators.every((operator) => !NON_IDEMPOTENT_UPDATE_OPERATORS.has(operator));
+}
+
+async function runWithConcurrency<T>(
+    items: T[],
+    concurrency: number,
+    worker: (item: T) => Promise<void>,
+): Promise<void> {
+    if (concurrency <= 1 || items.length <= 1) {
+        for (const item of items) {
+            await worker(item);
+        }
+        return;
+    }
+
+    let nextIndex = 0;
+    const workerCount = Math.min(concurrency, items.length);
+    await Promise.all(Array.from({ length: workerCount }, async () => {
+        while (nextIndex < items.length) {
+            const item = items[nextIndex];
+            nextIndex += 1;
+            await worker(item);
+        }
+    }));
+}
+
 export async function insertBatchDocuments<TSchema extends Document = Document>(
     collection: Collection<TSchema>,
     documents: TSchema[],
@@ -163,6 +214,13 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
     }
 
     const batches = splitIntoBatches(documents, batchSize);
+    let batchOffset = 0;
+    const batchPlans: Array<InsertBatchPlan<TSchema>> = batches.map((batch, batchIndex) => {
+        const plan = { batch, batchIndex, batchOffset };
+        batchOffset += batch.length;
+        return plan;
+    });
+    const effectiveConcurrency = ordered ? 1 : Math.max(1, concurrency ?? 1);
     const result: InsertBatchResult & {
         retries: Array<Record<string, unknown>>;
         errors: Array<Record<string, unknown>>;
@@ -176,10 +234,7 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
         retries: [],
     };
 
-    let offset = 0;
-    for (const [batchIndex, batch] of batches.entries()) {
-        const batchOffset = offset;
-        offset += batch.length;
+    await runWithConcurrency(batchPlans, effectiveConcurrency, async ({ batchIndex, batch, batchOffset }) => {
         let pendingBatch = batch;
         let pendingIndexes = batch.map((_, index) => index);
         let attempts = 0;
@@ -278,7 +333,7 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
                 break;
             }
         }
-    }
+    });
 
     return result;
 }
@@ -330,6 +385,12 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
         throw createError(
             ErrorCodes.INVALID_ARGUMENT,
             'updateBatch does not support upsert: true; use upsertOne() for single-document upserts, or updateMany(..., { upsert: true }) only for MongoDB native single-insert-on-no-match semantics',
+        );
+    }
+    if (onError === 'retry' && !isRetrySafeUpdate(update as Parameters<Collection<Document>['updateMany']>[1])) {
+        throw createError(
+            ErrorCodes.INVALID_ARGUMENT,
+            'updateBatch retry requires an idempotent update; non-idempotent operators such as $inc/$push cannot be safely replayed',
         );
     }
     const estimatedTotal = await estimateBatchTotal(collection, filter, driverOptions, estimateProgress);

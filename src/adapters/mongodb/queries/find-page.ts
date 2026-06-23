@@ -31,6 +31,7 @@ import type {
 } from '../../../../types/collection';
 import {
     buildAggregateDriverOptions,
+    buildCollectionCacheNamespace,
     buildCountDriverOptions,
     buildCursorFilter,
     buildEffectiveProjection,
@@ -92,6 +93,7 @@ function mergeFilters(base: Document, extra?: Document): Document {
 
 function buildFindPageCacheKey<TSchema extends Document>(
     collection: Collection<TSchema>,
+    defaults: RuntimeDefaults,
     options: FindPageOptions<TSchema>,
     normalized: {
         query: Document;
@@ -125,11 +127,13 @@ function buildFindPageCacheKey<TSchema extends Document>(
         options: options.options,
     };
     const keyHash = hashPayload(payload);
-    return { key: `findPage:${collection.namespace}:${keyHash}`, keyHash };
+    const namespace = buildCollectionCacheNamespace(collection, defaults);
+    return { key: `findPage:${namespace}:${keyHash}`, keyHash };
 }
 
 function buildTotalsCacheKey<TSchema extends Document>(
     collection: Collection<TSchema>,
+    defaults: RuntimeDefaults,
     query: Document,
     limit: number,
     totals: TotalsOptions,
@@ -143,7 +147,8 @@ function buildTotalsCacheKey<TSchema extends Document>(
         maxTimeMS: totals.maxTimeMS,
     };
     const token = hashPayload(payload);
-    return { key: `findPageTotals:${collection.namespace}:${token}`, token };
+    const namespace = buildCollectionCacheNamespace(collection, defaults);
+    return { key: `findPageTotals:${namespace}:${token}`, token };
 }
 
 function cloneFindPageResult<TSchema extends Document>(result: FindPageResult<TSchema>): FindPageResult<TSchema> {
@@ -202,7 +207,7 @@ async function computeTotals<TSchema extends Document = Document>(
     const cacheEnabled = !hasSessionOption(driverOptions);
     const cache = cacheEnabled ? queryCache ?? _asyncTotalsCache : null;
     const ttlMs = getPositiveTtl(totals.ttlMs, 10 * 60_000);
-    const { key: cacheKey, token } = buildTotalsCacheKey(coll, query, limit, totals);
+    const { key: cacheKey, token } = buildTotalsCacheKey(coll, defaults, query, limit, totals);
 
     const buildCountOptions = (fallbackMaxTimeMS: number): Record<string, unknown> => {
         const countOpts: Record<string, unknown> = {
@@ -420,7 +425,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         && options.stream !== true
         && (options.explain === undefined || options.explain === false)
         && !hasSessionOption(driverOpts)
-        ? buildFindPageCacheKey(collection, options, {
+        ? buildFindPageCacheKey(collection, defaults, options, {
             query: baseQuery,
             sort,
             limit,

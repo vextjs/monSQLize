@@ -6,7 +6,7 @@
  * across all write operation paths.
  */
 import type { HookContext } from '../../../types/model';
-import type { IncrementOneResult, InsertBatchResult, InsertManyResult, UpdateBatchResult, UpdateResult } from '../../../types/collection';
+import type { DeleteBatchResult, IncrementOneResult, InsertBatchResult, InsertManyResult, UpdateBatchResult, UpdateResult } from '../../../types/collection';
 import { ErrorCodes, createError } from '../../core/errors';
 import type { ExtendedModelCollectionLike, ModelCollectionLike } from './populate-promise';
 import {
@@ -142,6 +142,49 @@ async function runStrictUpdateMany<TDocument>(
         conflictCount: conflictedIds.length,
         conflictedIds,
     };
+}
+
+function buildSoftDeletePatch(config: ModelSoftDeleteConfig, now: Date): Record<string, unknown> {
+    if (!config?.enabled) {
+        return {};
+    }
+    return { [config.field]: config.type === 'boolean' ? true : now };
+}
+
+function buildSoftDeleteFilter(filter: unknown, config: ModelSoftDeleteConfig): Record<string, unknown> {
+    return {
+        ...((filter as Record<string, unknown>) ?? {}),
+        ...(config?.enabled ? { [config.field]: null } : {}),
+    };
+}
+
+function applyModelIncrementVersion(
+    field: string | Record<string, number> | undefined,
+    increment: number | undefined,
+    versionConfig: ModelVersionConfig,
+): { field: string | Record<string, number> | undefined; increment: number | undefined } {
+    if (!versionConfig?.enabled || field === undefined) {
+        return { field, increment };
+    }
+    if (typeof field === 'string') {
+        if (field === versionConfig.field) {
+            return { field, increment };
+        }
+        return {
+            field: { [field]: increment ?? 1, [versionConfig.field]: 1 },
+            increment: undefined,
+        };
+    }
+    if (field && typeof field === 'object' && !Array.isArray(field)) {
+        if (field[versionConfig.field] !== undefined) {
+            return { field, increment };
+        }
+        return {
+            field: { ...field, [versionConfig.field]: 1 },
+            increment,
+        };
+    }
+    return { field, increment };
 }
 
 export async function orchestrateModelInsertOne<TDocument = Record<string, unknown>>(
@@ -389,7 +432,15 @@ export async function orchestrateModelFindOneAndDelete<TDocument = Record<string
     } else {
         await invokeStandardOperationHook(context, 'delete', 'before', { operation: 'findOneAndDelete', collection: context.collectionName, filter });
     }
-    const result = await context.collection.findOneAndDelete(filter, options);
+    const softDeleteConfig = context.softDeleteConfig;
+    const resolvedOptions = (options ?? {}) as Record<string, unknown>;
+    const result = softDeleteConfig?.enabled && !resolvedOptions._forceDelete
+        ? await context.collection.findOneAndUpdate(
+            buildSoftDeleteFilter(filter, softDeleteConfig),
+            { $set: buildSoftDeletePatch(softDeleteConfig, context.nowDate()) },
+            { ...resolvedOptions, returnDocument: resolvedOptions.returnDocument ?? 'before' },
+        )
+        : await context.collection.findOneAndDelete(filter, options);
     if (context.hooksFactory) {
         try { await invokeV1Hook(context, 'delete', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
     } else {
@@ -435,15 +486,16 @@ export async function orchestrateModelIncrementOne<TDocument = Record<string, un
     }
     const timestamps = context.timestampsConfig;
     let result: IncrementOneResult<TDocument>;
+    const incrementArgs = applyModelIncrementVersion(field, increment, context.versionConfig);
     if (timestamps && timestamps.updatedAt !== false) {
         const resolvedOptions = (options ?? {}) as Record<string, unknown>;
         const $set = {
             ...((resolvedOptions.$set ?? {}) as Record<string, unknown>),
             [timestamps.updatedAt]: context.nowDate(),
         };
-        result = await context.extendedCollection().incrementOne(filter, field, increment, { ...resolvedOptions, $set });
+        result = await context.extendedCollection().incrementOne(filter, incrementArgs.field, incrementArgs.increment, { ...resolvedOptions, $set });
     } else {
-        result = await context.extendedCollection().incrementOne(filter, field, increment, options);
+        result = await context.extendedCollection().incrementOne(filter, incrementArgs.field, incrementArgs.increment, options);
     }
     if (context.hooksFactory) {
         try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
@@ -464,8 +516,14 @@ export async function orchestrateModelInsertBatch<TDocument = Record<string, unk
     } else {
         await invokeStandardOperationHook(context, 'insert', 'before', { operation: 'insertBatch', collection: context.collectionName, data: docs });
     }
-    const docsToInsert = docs.map((doc) => {
-        let record = doc as Record<string, unknown>;
+    const resolvedOptions = (options ?? {}) as Record<string, unknown>;
+    const docsToInsert = docs.map((doc, index) => {
+        let record = context.applyDefaults(doc as Record<string, unknown>);
+        validateModelSchemaPayload({
+            validateEnabled: context.validateEnabled,
+            schemaCache: context.schemaCache,
+            schemaValidateFn: context.schemaValidateFn,
+        }, record, resolvedOptions, { index });
         record = applyModelInsertTimestamps(record, context.timestampsConfig, () => context.nowDate());
         record = applyModelInsertVersion(record, context.versionConfig) as Record<string, unknown>;
         return record;
@@ -491,12 +549,47 @@ export async function orchestrateModelUpdateBatch<TDocument = Record<string, unk
     } else {
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'updateBatch', collection: context.collectionName, filter, update });
     }
-    const nextUpdate = applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate());
-    const result = await context.extendedCollection().updateBatch(filter, nextUpdate, options);
+    const versionMode = resolveModelUpdateManyVersionMode(options, context.versionConfig);
+    if (versionMode.mode === 'strict') {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'updateBatch does not support versionMode "strict"; use updateMany() for strict optimistic locking.');
+    }
+    const timestampedUpdate = applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate());
+    const nextUpdate = versionMode.mode === 'off'
+        ? timestampedUpdate
+        : applyModelVersionIncrement(timestampedUpdate, context.versionConfig);
+    const result = await context.extendedCollection().updateBatch(filter, nextUpdate, versionMode.driverOptions);
     if (context.hooksFactory) {
         try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
     } else {
         await invokeStandardOperationHook(context, 'update', 'after', { operation: 'updateBatch', collection: context.collectionName, filter, update: nextUpdate, result });
+    }
+    return result;
+}
+
+export async function orchestrateModelDeleteBatch<TDocument = Record<string, unknown>>(
+    context: ModelMutationContext<TDocument>,
+    filter?: unknown,
+    options?: unknown,
+): Promise<DeleteBatchResult | UpdateBatchResult> {
+    const softDeleteConfig = context.softDeleteConfig;
+    const resolvedOptions = (options ?? {}) as Record<string, unknown>;
+    const hookContext: Record<string, unknown> = {};
+    if (context.hooksFactory) {
+        await invokeV1Hook(context, 'delete', 'before', hookContext, filter);
+    } else {
+        await invokeStandardOperationHook(context, 'delete', 'before', { operation: 'deleteBatch', collection: context.collectionName, filter });
+    }
+    const result = softDeleteConfig?.enabled && !resolvedOptions._forceDelete
+        ? await context.extendedCollection().updateBatch(
+            buildSoftDeleteFilter(filter, softDeleteConfig),
+            { $set: buildSoftDeletePatch(softDeleteConfig, context.nowDate()) },
+            options,
+        )
+        : await context.extendedCollection().deleteBatch(filter, options);
+    if (context.hooksFactory) {
+        try { await invokeV1Hook(context, 'delete', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
+    } else {
+        await invokeStandardOperationHook(context, 'delete', 'after', { operation: 'deleteBatch', collection: context.collectionName, filter, result });
     }
     return result;
 }

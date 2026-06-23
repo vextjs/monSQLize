@@ -175,7 +175,7 @@ describe('CountQueue', () => {
 
     // ── clear() ───────────────────────────────────────────────────────────────
 
-    it('clear() drains queued tasks, returning undefined from execute()', async () => {
+    it('clear() rejects queued tasks before they run', async () => {
         const q = new CountQueue({ concurrency: 1 });
         const d = deferred<number>();
 
@@ -190,11 +190,19 @@ describe('CountQueue', () => {
         q.clear();
         assert.equal(q.getStats().queuedNow, 0);
 
-        const result2 = await p2;
-        assert.equal(result2, undefined);
+        await assert.rejects(
+            () => p2,
+            (e: unknown) => hasErrorCode(e, 'INVALID_OPERATION'),
+        );
         assert.equal(ranTask2, false);
 
         d.resolve(10);
         await p1;
+    });
+
+    it('rejects invalid constructor options', () => {
+        assert.throws(() => new CountQueue({ concurrency: 0 }), /positive integer/);
+        assert.throws(() => new CountQueue({ maxQueueSize: -1 }), /non-negative integer/);
+        assert.throws(() => new CountQueue({ timeout: 0 }), /positive integer/);
     });
 });

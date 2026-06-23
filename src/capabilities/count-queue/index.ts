@@ -14,8 +14,8 @@
  *    request; timed-out requests are removed from the queue and throw OPERATION_TIMEOUT.
  * 4. Stats monitoring — getStats() returns live state (running / queuedNow) plus
  *    cumulative counters (executed / queued / timeout / rejected / avgWaitTime / maxWaitTime).
- * 5. Graceful drain — clear() resolves all queued requests with reason 'cleared'
- *    to avoid dangling Promises on shutdown.
+ * 5. Graceful drain — clear() rejects all queued requests with a controlled
+ *    error so callers do not mistake a skipped count for a valid result.
  *
  * Usage pattern:
  * - execute() decides automatically whether to run immediately or enqueue based
@@ -64,7 +64,7 @@ export interface CountQueueStats {
 }
 
 interface QueueEntry {
-    resolve: (reason: 'run' | 'cleared') => void;
+    resolve: () => void;
     reject: (err: Error) => void;
     timer: ReturnType<typeof setTimeout>;
     startTime: number;
@@ -97,9 +97,9 @@ export class CountQueue {
     constructor(options: CountQueueOptions = {}) {
         const cpuCount = cpus().length;
         const defaultConcurrency = Math.max(4, Math.min(cpuCount, 16));
-        this.concurrency = options.concurrency ?? defaultConcurrency;
-        this.maxQueueSize = options.maxQueueSize ?? 10000;
-        this.timeout = options.timeout ?? 60000;
+        this.concurrency = this._normalizePositiveInteger(options.concurrency ?? defaultConcurrency, 'concurrency');
+        this.maxQueueSize = this._normalizeNonNegativeInteger(options.maxQueueSize ?? 10000, 'maxQueueSize');
+        this.timeout = this._normalizePositiveInteger(options.timeout ?? 60000, 'timeout');
     }
 
 /**
@@ -126,10 +126,7 @@ async execute<T>(fn: () => Promise<T>): Promise<T> {
                 throw createError(ErrorCodes.INVALID_OPERATION, `Count queue is full (${this.maxQueueSize})`);
             }
             this.stats.queued += 1;
-            const waitResult = await this._waitInQueue(startTime);
-            if (waitResult === 'cleared') {
-                return undefined as T;
-            }
+            await this._waitInQueue(startTime);
         }
 
         this.running += 1;
@@ -180,15 +177,16 @@ async execute<T>(fn: () => Promise<T>): Promise<T> {
             const entry = this.queue.shift();
             if (entry) {
                 clearTimeout(entry.timer);
-                entry.resolve('cleared');
+                entry.reject(createError(ErrorCodes.INVALID_OPERATION, 'Count queue was cleared before execution'));
             }
         }
     }
 
-    private _waitInQueue(startTime: number): Promise<'run' | 'cleared'> {
-        return new Promise<'run' | 'cleared'>((resolve, reject) => {
+    private _waitInQueue(startTime: number): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            let entry: QueueEntry;
             const timer = setTimeout(() => {
-                const index = this.queue.findIndex(item => item.resolve === resolve);
+                const index = this.queue.indexOf(entry);
                 if (index !== -1) {
                     this.queue.splice(index, 1);
                     this.stats.timeout += 1;
@@ -196,16 +194,17 @@ async execute<T>(fn: () => Promise<T>): Promise<T> {
                 }
             }, this.timeout);
 
-            this.queue.push({
-                resolve: (reason) => {
+            entry = {
+                resolve: () => {
                     const waitTime = Date.now() - startTime;
                     this._updateWaitTimeStats(waitTime);
-                    resolve(reason);
+                    resolve();
                 },
                 reject,
                 timer,
                 startTime,
-            });
+            };
+            this.queue.push(entry);
         });
     }
 
@@ -214,9 +213,23 @@ async execute<T>(fn: () => Promise<T>): Promise<T> {
             const entry = this.queue.shift();
             if (entry) {
                 clearTimeout(entry.timer);
-                entry.resolve('run');
+                entry.resolve();
             }
         }
+    }
+
+    private _normalizePositiveInteger(value: unknown, field: string): number {
+        if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `${field} must be a positive integer`);
+        }
+        return value;
+    }
+
+    private _normalizeNonNegativeInteger(value: unknown, field: string): number {
+        if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
+            throw createError(ErrorCodes.INVALID_ARGUMENT, `${field} must be a non-negative integer`);
+        }
+        return value;
     }
 
     private _executeWithTimeout<T>(fn: () => Promise<T>, timeoutMs = this.timeout): Promise<T> {

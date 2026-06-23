@@ -10,8 +10,8 @@
  *   runtime uses revisions to detect model changes for hot-reloading.
  * - _clear() and _redefinedNames are for test frameworks only and are not part of the
  *   public API.
- * - redefine semantics (v1-compat): the old entry is deleted before the new one is
- *   registered; if validation fails the old entry remains deleted (no rollback).
+ * - redefine semantics: the new definition is validated before replacing the old
+ *   entry, so a failed redefine keeps the previous model intact.
  */
 
 import { ErrorCodes, createError } from '../../core/errors';
@@ -101,14 +101,12 @@ export class Model {
     }
 
     /**
-     * Re-register a model (deletes the old entry before registering the new one).
-     * v1-compat: if validation fails the old entry is not restored (it stays deleted).
+     * Re-register a model atomically.
+     * If validation fails, the previous entry is left intact.
      * Used for hot-reload; the runtime is notified via _redefinedNames.
      */
     static redefine<TDocument = Record<string, unknown>>(collectionName: string, definition: ModelDefinition<TDocument>): void {
         const normalizedName = validateCollectionName(collectionName);
-        // v1-compat: delete first, then validate (if validation fails the old entry is gone)
-        this.registry.delete(normalizedName);
         validateDefinition<TDocument>(definition);
         processTimestamps(definition);
         this._redefinedNames.add(normalizedName);

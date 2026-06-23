@@ -152,6 +152,7 @@ export class Transaction {
     private startedAt: number | null = null;
     private timeoutTimer: NodeJS.Timeout | null = null;
     readonly pendingInvalidations = new Set<string>();
+    private recordedInvalidationCount = 0;
 
     constructor(
         readonly session: MongoSession,
@@ -204,7 +205,11 @@ export class Transaction {
         }
         this.state = 'committed';
         try {
-            await this.flushPendingInvalidations();
+            try {
+                await this.flushPendingInvalidations();
+            } catch (error) {
+                this.options.logger?.warn?.('[Transaction] post-commit cache invalidation failed.', error);
+            }
         } finally {
             this.options.lockManager?.releaseLocks(this.id);
             this.pendingInvalidations.clear();
@@ -251,6 +256,9 @@ export class Transaction {
      * @since v1.4.0
      */
     async recordInvalidation(pattern: string): Promise<void> {
+        if (!this.pendingInvalidations.has(pattern)) {
+            this.recordedInvalidationCount += 1;
+        }
         this.pendingInvalidations.add(pattern);
         this.options.lockManager?.addLock(pattern, this.id);
     }
@@ -304,10 +312,14 @@ export class Transaction {
             id: this.id,
             state: this.state,
             duration: this.getDuration(),
-            hasWriteOperation: this.pendingInvalidations.size > 0,
-            operationCount: this.pendingInvalidations.size,
-            lockedKeysCount: this.pendingInvalidations.size,
+            hasWriteOperation: this.recordedInvalidationCount > 0,
+            operationCount: this.recordedInvalidationCount,
+            lockedKeysCount: this.recordedInvalidationCount,
         };
+    }
+
+    hasWriteOperation(): boolean {
+        return this.recordedInvalidationCount > 0;
     }
 
     private clearTimeout(): void {
@@ -553,7 +565,7 @@ export class TransactionManager {
         } else {
             this.stats.failedTransactions += 1;
         }
-        if (transaction.pendingInvalidations.size > 0) {
+        if (transaction.hasWriteOperation()) {
             this.stats.writeTransactions += 1;
         } else {
             this.stats.readOnlyTransactions += 1;

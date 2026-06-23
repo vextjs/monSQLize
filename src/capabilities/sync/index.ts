@@ -584,6 +584,7 @@ export class ChangeStreamSyncManager {
 
         let eligibleTargets = 0;
         let succeeded = 0;
+        const targetErrors: Error[] = [];
         for (const target of this.targets) {
             if (target.collections && !target.collections.has(event.ns.coll)) {
                 continue;
@@ -605,7 +606,12 @@ export class ChangeStreamSyncManager {
                     target: target.name,
                     error: normalized,
                 });
+                targetErrors.push(normalized);
             }
+        }
+
+        if (targetErrors.length > 0) {
+            return;
         }
 
         if (eligibleTargets > 0 && succeeded === eligibleTargets) {

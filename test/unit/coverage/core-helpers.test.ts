@@ -61,6 +61,7 @@ import {
 } from '../../../src/adapters/mongodb/queries';
 import {
     buildAggregateDriverOptions,
+    buildCollectionCacheNamespace,
     buildCursorFilter,
     buildEffectiveProjection,
     buildFindDriverOptions,
@@ -73,6 +74,7 @@ import {
     normalizeSortShape,
     parseRequiredObjectId,
     reverseSort,
+    stableCacheKeyString,
 } from '../../../src/adapters/mongodb/queries/query-helpers';
 import { executeFindPage } from '../../../src/adapters/mongodb/queries/find-page';
 import {
@@ -559,6 +561,14 @@ describe('coverage core helpers', () => {
         const excluded = normalizeQueryFilter({ token: hex, userId: hex }, { excludeFields: ['token'] });
         assert.equal(excluded.token, hex);
         assert.equal(typeof excluded.userId, 'object');
+        assert.notEqual(
+            stableCacheKeyString({ name: /ada/i }),
+            stableCacheKeyString({ name: /grace/i }),
+        );
+        assert.equal(
+            buildCollectionCacheNamespace({ namespace: 'db.users' } as never, { namespace: { instanceId: 'tenant-a' } }),
+            'tenant-a:db.users',
+        );
 
         const signed = encodePageCursor([hex, new Date('2026-01-01T00:00:00.000Z')], 'secret');
         assert.equal(decodePageCursor(signed, 'secret').length, 2);
@@ -679,8 +689,32 @@ describe('coverage core helpers', () => {
         await assert.rejects(() => updateBatchDocuments(collection as never, null as never, { $set: { a: 1 } } as never), /filter/);
         await assert.rejects(() => updateBatchDocuments(collection as never, { a: 1 } as never, {} as never), /update operators/);
         await assert.rejects(() => updateBatchDocuments(collection as never, { a: 1 } as never, { $set: { a: 1 } } as never, { upsert: true } as never), /does not support upsert/);
+        await assert.rejects(() => updateBatchDocuments(collection as never, { a: 1 } as never, { $inc: { count: 1 } } as never, { onError: 'retry' } as never), /idempotent update/);
         await assert.rejects(() => deleteBatchDocuments(collection as never, [] as never), /filter/);
         await assert.rejects(() => deleteBatchDocuments(collection as never, { a: 1 } as never, { onError: 'bad' as never }), /onError/);
+    });
+
+    it('insertBatch honors concurrency for unordered batches', async () => {
+        let active = 0;
+        let maxActive = 0;
+        const collection = {
+            insertMany: async (docs: unknown[]) => {
+                active += 1;
+                maxActive = Math.max(maxActive, active);
+                await new Promise((resolve) => setTimeout(resolve, 5));
+                active -= 1;
+                return { insertedCount: docs.length, insertedIds: Object.fromEntries(docs.map((_doc, index) => [index, `id-${index}`])) };
+            },
+        };
+
+        const result = await insertBatchDocuments(collection as never, [{ a: 1 }, { a: 2 }, { a: 3 }, { a: 4 }] as never, {
+            batchSize: 1,
+            concurrency: 2,
+            ordered: false,
+        } as never);
+
+        assert.equal(result.insertedCount, 4);
+        assert.equal(maxActive, 2);
     });
 
     it('insertBatch retries only failed unordered items after partial success', async () => {
@@ -774,7 +808,7 @@ describe('coverage core helpers', () => {
         clearQueue.clear();
         releaseClear();
         assert.equal(await running, 'running');
-        assert.equal(await cleared, undefined);
+        await assert.rejects(() => cleared, /Count queue was cleared/);
 
         const timeoutQueue = new CountQueue({ concurrency: 1, maxQueueSize: 1, timeout: 1 });
         await assert.rejects(() => timeoutQueue.execute(async () => new Promise((resolve) => setTimeout(resolve, 20))), /Count execution timeout/);
@@ -1017,8 +1051,8 @@ describe('coverage core helpers', () => {
         assert.throws(() => createFindChain(collection as never).limit(Number.NaN), /non-negative integer/);
         assert.throws(() => createFindChain(collection as never, {}, {}, { findMaxLimit: 5 }).limit(6), /findMaxLimit/);
         assert.throws(() => createFindChain(collection as never, {}, {}, { findMaxSkip: 5 }).skip(6), /findMaxSkip/);
-        assert.throws(() => createFindChain(collection as never, {}, { limit: 6 } as never, { findMaxLimit: 5 }).toArray(), /findMaxLimit/);
-        assert.throws(() => createFindChain(collection as never, {}, { skip: 6 } as never, { findMaxSkip: 5 }).toArray(), /findMaxSkip/);
+        await assert.rejects(createFindChain(collection as never, {}, { limit: 6 } as never, { findMaxLimit: 5 }).toArray(), /findMaxLimit/);
+        await assert.rejects(createFindChain(collection as never, {}, { skip: 6 } as never, { findMaxSkip: 5 }).toArray(), /findMaxSkip/);
         assert.deepEqual(await createFindChain(collection as never, {}, { explain: true } as never).then((value) => value), { explain: 'queryPlanner' });
         assert.deepEqual(await createAggregateChain(collection as never, [{ $match: { ok: true } }], { stream: true } as never).then((value) => value), { stream: true });
         let streamInvalidations = 0;

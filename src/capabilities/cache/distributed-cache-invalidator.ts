@@ -26,6 +26,8 @@ export interface DistributedCacheInvalidatorOptions {
     _connections?: { pub: RedisPubSubLike; sub: RedisPubSubLike };
     redis?: RedisPubSubLike;
     redisUrl?: string;
+    url?: string;
+    uri?: string;
     channel?: string;
     instanceId?: string;
     logger?: DistributedLoggerLike;
@@ -68,12 +70,13 @@ export class DistributedCacheInvalidator {
                 throw createError(ErrorCodes.INVALID_CONFIG, 'DistributedCacheInvalidator requires redis.duplicate() for pub/sub compatibility');
             }
             this.sub = options.redis.duplicate();
-        } else if (options.redisUrl) {
+        } else if (options.redisUrl ?? options.url ?? options.uri) {
             // Use require (not createRequire) so Module.prototype.require mocks intercept it
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const Redis = require('ioredis');
-            this.pub = new Redis(options.redisUrl);
-            this.sub = new Redis(options.redisUrl);
+            const redisUrl = options.redisUrl ?? options.url ?? options.uri;
+            this.pub = new Redis(redisUrl);
+            this.sub = new Redis(redisUrl);
         } else {
             throw createError(ErrorCodes.INVALID_CONFIG, 'DistributedCacheInvalidator requires either redis or redisUrl');
         }

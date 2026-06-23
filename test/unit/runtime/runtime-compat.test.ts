@@ -475,4 +475,71 @@ describe('P6 runtime compat mock path', () => {
         assert.equal(calls.countDocuments, 1);
         assert.equal(calls.distinct, 1);
     });
+
+    it('records write cache invalidation on the active transaction session', async () => {
+        const recorded: string[] = [];
+        let deletedPatterns = 0;
+        const session = {
+            inTransaction: () => true,
+            __monSQLizeTransaction: {
+                recordInvalidation: async (pattern: string) => {
+                    recorded.push(pattern);
+                },
+            },
+        };
+        const nativeCollection = {
+            namespace: 'compat_db.users',
+            insertOne: async () => ({ acknowledged: true, insertedId: new ObjectId() }),
+        };
+        const accessor = new MongoCollectionAccessor(
+            'compat_db',
+            'users',
+            nativeCollection as never,
+            {
+                defaults: { namespace: { instanceId: 'tenant-a' } },
+                queryCache: {
+                    get: () => undefined,
+                    set: () => true,
+                    delPattern: () => {
+                        deletedPatterns += 1;
+                        return 1;
+                    },
+                },
+            },
+        );
+
+        await accessor.insertOne({ name: 'Ada' } as never, { session } as never);
+
+        assert.equal(deletedPatterns, 0);
+        assert.ok(recorded.includes('find:tenant-a:compat_db.users:*'));
+        assert.ok(recorded.includes('find:compat_db.users:*'));
+    });
+
+    it('does not fail a committed write when cache invalidation throws', async () => {
+        const warnings: unknown[] = [];
+        const nativeCollection = {
+            namespace: 'compat_db.users',
+            insertOne: async () => ({ acknowledged: true, insertedId: new ObjectId() }),
+        };
+        const accessor = new MongoCollectionAccessor(
+            'compat_db',
+            'users',
+            nativeCollection as never,
+            {
+                logger: { warn: (...args: unknown[]) => warnings.push(args) } as never,
+                queryCache: {
+                    get: () => undefined,
+                    set: () => true,
+                    delPattern: () => {
+                        throw new Error('cache unavailable');
+                    },
+                },
+            },
+        );
+
+        const result = await accessor.insertOne({ name: 'Ada' } as never);
+
+        assert.equal(result.acknowledged, true);
+        assert.ok(warnings.some((entry) => String((entry as unknown[])[0]).includes('post-write cache invalidation failed')));
+    });
 });

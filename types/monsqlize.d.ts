@@ -112,11 +112,15 @@ export interface MonSQLizeOptions {
          * @since v2.0.0
          */
         distributed?: {
-            /** Redis URL for the Pub/Sub connection. Defaults to `"redis://localhost:6379"`. */
+            /** Redis URL for the Pub/Sub connection. */
             redisUrl?: string;
+            /** Alias for `redisUrl`. */
+            url?: string;
+            /** Alias for `redisUrl`. */
+            uri?: string;
             /** Existing ioredis `Redis` instance to use for publishing. */
             redis?: unknown;
-            /** Pub/Sub channel name shared across instances. Default: `"cache-hub:invalidate"`. */
+            /** Pub/Sub channel name shared across instances. Default: `"monsqlize:cache:invalidate"`. */
             channel?: string;
             /** Unique ID for this instance; used to filter self-published messages. Auto-generated if omitted. */
             instanceId?: string;

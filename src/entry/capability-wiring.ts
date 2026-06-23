@@ -166,7 +166,7 @@ export async function initializeDistributedCacheInvalidator(
 
     try {
         return new DistributedCacheInvalidator({
-            redisUrl: distConfig['redisUrl'] as string | undefined,
+            redisUrl: (distConfig['redisUrl'] ?? distConfig['url'] ?? distConfig['uri']) as string | undefined,
             redis: distConfig['redis'] as RedisPubSubLike | undefined,
             channel: distConfig['channel'] as string | undefined,
             instanceId: distConfig['instanceId'] as string | undefined,
@@ -187,7 +187,7 @@ export async function initializeDistributedCacheInvalidator(
  * Auto-load Model definition files from the configured path (mirrors v1 models auto-load behaviour).
  *
  * Supports two formats:
- * - String: `models: './models'` — scans `*.model.{js,ts,mjs,cjs}`, non-recursive
+ * - String: `models: './models'` — scans `*.model.{js,mjs,cjs}`, non-recursive
  * - Object: `models: { path, pattern?, recursive? }` — full control
  *
  * Each file must export an object with a `name` field (i.e. the argument to Model.define()).
@@ -204,6 +204,7 @@ export async function loadModelFiles(
     const { readdirSync } = await import('node:fs');
     const { resolve, join, isAbsolute } = await import('node:path');
     const { createRequire } = await import('node:module');
+    const { pathToFileURL } = await import('node:url');
 
     let targetPath: string;
     let pattern: string;
@@ -211,12 +212,12 @@ export async function loadModelFiles(
 
     if (typeof modelsConfig === 'string') {
         targetPath = isAbsolute(modelsConfig) ? modelsConfig : resolve(process.cwd(), modelsConfig);
-        pattern = '*.model.{js,ts,mjs,cjs}';
+        pattern = '*.model.{js,mjs,cjs}';
         recursive = false;
     } else {
         const p = modelsConfig.path;
         targetPath = isAbsolute(p) ? p : resolve(process.cwd(), p);
-        pattern = modelsConfig.pattern ?? '*.model.{js,ts,mjs,cjs}';
+        pattern = modelsConfig.pattern ?? '*.model.{js,mjs,cjs}';
         recursive = modelsConfig.recursive ?? false;
     }
 
@@ -256,9 +257,17 @@ export async function loadModelFiles(
     const req = createRequire(resolve(process.cwd(), 'package.json'));
     for (const file of files) {
         try {
-            delete req.cache[req.resolve(file)];
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const mod = req(file) as Record<string, unknown>;
+            if (file.endsWith('.ts')) {
+                logger.warn?.(`[Models] skipping TypeScript model file without a registered runtime loader: ${file}`);
+                continue;
+            }
+            const mod = file.endsWith('.mjs')
+                ? await import(pathToFileURL(file).href)
+                : (() => {
+                    delete req.cache[req.resolve(file)];
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports
+                    return req(file) as Record<string, unknown>;
+                })();
             const definition = (mod.default ?? mod) as { name?: string;[key: string]: unknown };
             if (!definition?.name) {
                 logger.warn?.(`[Models] ${file}: exported object must have a 'name' field`);

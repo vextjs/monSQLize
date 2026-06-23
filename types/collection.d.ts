@@ -219,9 +219,11 @@ export interface HealthView {
     status: 'up' | 'down';
     connected: boolean;
     /** @since v1 — driver connection state alias */
-    driver?: { connected: boolean };
+    driver?: { connected: boolean; error?: string };
     defaults?: Record<string, unknown>;
     cache?: Record<string, unknown>;
+    checks?: Record<string, Record<string, unknown> & { status: 'up' | 'down' | 'unknown' }>;
+    capabilities?: Record<string, unknown>;
 }
 
 export interface InsertOneResult {

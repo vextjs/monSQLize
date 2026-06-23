@@ -145,6 +145,19 @@ describe('convertObjectIdStrings — branch coverage', () => {
         assert.ok(result.userId instanceof ObjectId);
     });
 
+    it('applies custom field patterns during ObjectId conversion', () => {
+        const hex = new ObjectId().toHexString();
+        const result = convertObjectIdStrings(
+            { nested: { ownerKey: hex } },
+            '',
+            0,
+            new WeakSet(),
+            { customFieldPatterns: ['*.ownerKey'] },
+        ) as { nested: { ownerKey: unknown } };
+
+        assert.ok(result.nested.ownerKey instanceof ObjectId);
+    });
+
     it('respects maxDepth for nested value-based conversion', () => {
         const hex = new ObjectId().toHexString();
         const result = convertObjectIdStrings(

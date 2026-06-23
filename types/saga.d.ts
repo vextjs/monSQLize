@@ -14,6 +14,8 @@ export interface SagaContext {
     readonly sagaId?: string;
     /** Initial data passed to `executeSaga`. */
     readonly data: any;
+    /** Abort signal for the currently executing step. It is aborted when the step timeout fires. */
+    readonly signal?: AbortSignal;
     /** Store a value in the shared step context. */
     set(key: string, value: any): void;
     /** Retrieve a previously stored value. v1 compat — default generic is `any` to match v1 callers that did not annotate. */
