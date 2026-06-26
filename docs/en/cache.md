@@ -415,7 +415,7 @@ const products = await collection('products').find(
 **Performance Features**:
 - Read latency: 1-2ms (network + Redis query)
 - Cache capacity: depends on Redis memory (up to GB level)
-- Cache consistency: shared across instances, strong consistency
+- Cache consistency: shared across instances; invalidation is eventually coherent and is not atomic with database commits
 
 ---
 
@@ -706,7 +706,7 @@ const msq = new MonSQLize({
 | Scenario | Recommended strategy | Reason |
 |------|---------|------|
 | Stand-alone application, low QPS | Local cache (MemoryCache) | Simple and efficient, no Redis dependency required |
-| Multi-instance deployment, consistency required | Remote cache (Redis) | Cross-node sharing, strong consistency |
+| Multi-instance deployment, shared cache required | Remote cache (Redis) | Cross-node sharing with best-effort write invalidation |
 | High QPS, concentrated hot data | Double-layer cache (MultiLevel) | Hot spot 0.001ms, cold data 1-2ms |
 | Memory constrained server | Remote cache (Redis) | Save local memory, large capacity |
 | Data persistence requirements | Remote or dual-tier | Redis supports RDB/AOF persistence |
@@ -718,7 +718,7 @@ const msq = new MonSQLize({
 | Hotspot data | 0.1ms | 0.1ms | No difference |
 | Cold data (local miss) | Query MongoDB (10ms+) | Query Redis (1-2ms) | **5-10 times** |
 | Cache capacity | Limited by memory (10,000-100,000) | Redis can reach millions | **10-100 times** |
-| Cluster consistency | Each node is independent | Shared Redis, strong consistency | ✅ |
+| Cluster consistency | Each node is independent | Shared Redis, eventual coherence after invalidation | ✅ |
 
 
 ### Best Practices
@@ -733,7 +733,7 @@ const msq = new MonSQLize({
    - Monitor Redis memory usage
 
 3. **Writing strategy selection**
-   - Strong consistency scenario: use `both` (default)
+   - Two-tier cache synchronization: use `both` (default); strict read paths should bypass cache or use transaction/business-layer coordination
    - High concurrent writing: use `local-first-async-remote`
 
 4. **Fault degradation**

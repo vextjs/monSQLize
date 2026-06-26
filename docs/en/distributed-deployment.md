@@ -162,7 +162,7 @@ const msq = new MonSQLize({
 ---
 
 
-## 4. Multiple instances + distributed transaction locks (🟢 Recommended: Finance/Trading)
+## 4. Multiple instances + explicit business coordination (🟡 Finance/Trading)
 
 ```text
 ┌───────────────────┐    ┌───────────────────┐
@@ -176,7 +176,7 @@ const msq = new MonSQLize({
                 ▼
          ┌─────────────┐
          │   Redis     │
-│ (cache + lock) │
+│ (cache + explicit business lock) │
          └──────┬──────┘
                 │
                 ▼
@@ -184,16 +184,16 @@ MongoDB (replica set)
 ```
 
 **Features**:
-- ✅ Strong consistency
-- ✅ Transaction isolation guarantee
-- ✅ Suitable for financial/trading scenarios
-- ⚠️ Slight performance degradation (Redis network requests)
+- ✅ Shared cache invalidation across instances
+- ✅ Explicit application/framework-level lock and idempotency choices
+- ✅ Suitable for financial/trading scenarios when paired with durable business safeguards
+- ⚠️ Cache invalidation remains best-effort and is not atomic with database commits
 
 **Applicable scenarios**:
 - financial system
 - Payment/Transfer
 - Inventory deductions
-- Any scenario requiring strong consistency
+- Any scenario where the business layer already provides idempotency, fencing, or cache bypassing for strict reads
 
 **Configuration Example**:
 ```javascript
@@ -217,16 +217,20 @@ const msq = new MonSQLize({
       //redis // ❌ Optional: automatically reused from remote by default (ES6 abbreviation)
     },
 
-    //🆕 Distributed transaction lock
-    transaction: {
-      distributedLock: {
-        redis,                                 //✅ Required: Redis instance (transaction lock must be configured explicitly)
-        keyPrefix: 'myapp:cache:lock:'         //❌ Optional: lock key prefix
-      }
-    }
   }
 });
+
+const businessLock = new MonSQLize.DistributedCacheLockManager({
+  redis,
+  lockKeyPrefix: 'myapp:business:lock:'
+});
+
+await businessLock.withLock(`payment:${paymentId}`, async () => {
+  // Keep the critical section idempotent and use fencing/outbox where external effects are involved.
+});
 ```
+
+`transaction.distributedLock` is retained as a v1 compatibility configuration placeholder in the v2 runtime, but it is not wired into transaction cache-lock interception. Disable cache on strict read paths or coordinate at the business/framework layer when cross-instance strict consistency is required.
 
 ---
 
@@ -311,7 +315,7 @@ await msq.withTransaction(async (tx) => {
 - There may be dirty data in the cache
 - Transaction isolation failure
 
-**Solution**: Enable **Distributed Transaction Lock**
+**Solution**: Use explicit business coordination and bypass cache when strict freshness is required
 
 ---
 
@@ -362,18 +366,18 @@ cache: {
 ---
 
 
-## Solution 2: Distributed transaction lock (recommended: strong consistency)
+## Solution 2: Explicit business lock and cache bypass
 
-**Principle**: Use Redis to store transaction lock information, shared by all instances
+**Principle**: Keep cache invalidation best-effort, and protect critical side effects with an explicit business lock plus idempotency/fencing.
 
 **Workflow**:
 ```text
-1. Instance A starts a transaction
-2. Add cache lock (key + sessionId) in Redis
-3. Instance B queries data
-4. Check Redis lock → found lock → do not write to cache
-5. Instance A commits the transaction
-6. Release the Redis lock
+1. Instance A acquires a business lock, for example payment:order-123
+2. Instance A performs an idempotent transaction and records any external side effect in an outbox/journal
+3. Reads that require strict freshness bypass cache or read with an application-level freshness check
+4. Instance A commits the database transaction
+5. Cache invalidation is published after commit on a best-effort basis
+6. Instance A releases the business lock
 ```
 
 **Configuration**:
@@ -381,24 +385,26 @@ cache: {
 const Redis = require('ioredis');
 const redis = new Redis('redis://localhost:6379');
 
-cache: {
-  transaction: {
-    distributedLock: {
-      redis,                           //✅ Required: Redis instance (transaction lock must be configured explicitly)
-      keyPrefix: 'myapp:cache:lock:'// ❌ optional: default'monsqlize:cache:lock:'
-    }
-  }
-}
+const businessLock = new MonSQLize.DistributedCacheLockManager({
+  redis,
+  lockKeyPrefix: 'myapp:business:lock:',
+  maxDuration: 300000
+});
+
+await businessLock.withLock(`order:${orderId}`, async () => {
+  // Idempotent transaction + fencing/outbox.
+});
 ```
 
 **Advantages**:
-- ✅ Real distributed lock
-- ✅ Transaction isolation guarantee
+- ✅ The consistency contract is explicit at the business boundary
+- ✅ Works with external effects such as payments, inventory, and fulfillment
 - ✅ Suitable for financial/trading scenarios
 
 **Disadvantages**:
-- ⚠️ Slight performance degradation (Redis network requests)
-- ⚠️ Depends on Redis availability
+- ⚠️ Requires application-level idempotency and recovery design
+- ⚠️ Does not make cache invalidation transaction-atomic
+- ⚠️ Depends on Redis availability when Redis locking is used
 
 ---
 
@@ -411,7 +417,7 @@ cache: {
 import MonSQLize from 'monsqlize';
 const Redis = require('ioredis');
 
-//Create a Redis instance (reused for caching, broadcasting, and locking)
+//Create a Redis instance (reused for remote cache and broadcasting)
 const redis = new Redis({
   host: 'localhost',
   port: 6379,
@@ -456,14 +462,6 @@ const msq = new MonSQLize({
       //redis // ❌ Optional: automatically reused from remote by default (ES6 abbreviation)
     },
 
-    //🆕 Distributed transaction lock
-    transaction: {
-      distributedLock: {
-        redis,                                 //✅ Required: Redis instance (transaction lock must be configured explicitly)
-        keyPrefix: 'myapp:cache:lock:',        //❌ Optional: lock key prefix
-        maxDuration: 300000                    //❌ Optional: lock maximum duration (milliseconds)
-      }
-    }
   }
 });
 
@@ -484,7 +482,7 @@ await msq.close();
 **💡 Configuration instructions**:
 - ✅ **Required**: Must be configured, otherwise the function will not work
 - ❌ **Optional**: You can not configure it, use the default value
-- **One Redis instance**: used for three purposes: caching, broadcasting, and locking (recommended for reuse)
+- **One Redis instance**: used for remote cache and broadcasting; if you also use business locks, wire that path explicitly.
 
 ---
 
@@ -513,13 +511,9 @@ await msq.close();
   - It is recommended to use environment variables: `process.env.INSTANCE_ID` or `process.env.HOSTNAME`
 
 
-### transaction.distributedLock (distributed transaction lock)
+### transaction.distributedLock (compatibility placeholder)
 
-| Options | Type | Required | Default | Description |
-|-----|------|------|--------|------|
-| `redis` | Object | ✅ | - | ioredis instance (**required**) |
-| `keyPrefix` | String | ❌ | `'monsqlize:cache:lock:'` | Lock key prefix |
-| `maxDuration` | Number | ❌ | `300000` | Maximum lock duration (milliseconds) |
+`transaction.distributedLock` is retained for v1 configuration compatibility, but the v2 runtime does not wire it into transaction cache-lock interception. Transaction cache locks remain process-local. Use `DistributedCacheLockManager` explicitly for business critical sections, pair it with idempotency/fencing, or disable cache for strict read paths.
 
 ---
 
@@ -749,7 +743,7 @@ const cache = isDistributedEnvironment() ? {
 | Business type | Recommended solution | Configuration |
 |---------|---------|------|
 | **General Application** | Distributed Cache Invalidation | `distributed.enabled = true` |
-| **Finance/Payment** | Cache invalidation + transaction lock | `distributed.enabled = true`<br>`transaction.distributedLock = {...}` |
+| **Finance/Payment** | Cache invalidation + explicit business coordination | `distributed.enabled = true`<br>Business lock + idempotency/fencing |
 | **Strong Consistency** | Disable caching | `maxSize = 0` |
 | **Development Environment** | Local Cache | Default Configuration |
 
@@ -808,11 +802,11 @@ cache: {
 - **Impact**: Negligible impact on overall performance
 
 
-## 2. Distributed transaction lock performance
+## 2. Explicit business lock performance
 
 - **Latency**: ~2-10ms (Redis SET/DEL)
 - **Throughput**: Slight decrease (~10-20%)
-- **RECOMMENDED**: Enable only when strong consistency is required
+- **RECOMMENDED**: Use only around business critical sections that need cross-instance coordination
 
 
 ## 3. Comparison of caching strategies
@@ -821,8 +815,8 @@ cache: {
 |-----|------|--------|---------|
 | **Local Only** | Minimum | Low | Single Instance |
 | **Local + Redis** | Low | Medium | Multiple instances |
-| **Local + Redis + Broadcast** | Low | High | Recommended |
-| **Local + Redis + Broadcast + Lock** | Medium | Highest | Finance/Trading |
+| **Local + Redis + Broadcast** | Low | Eventual after invalidation | Recommended |
+| **Local + Redis + Broadcast + Business Lock** | Medium | Explicit business boundary | Finance/Trading |
 | **Disable Cache** | High | Highest | Strong Consistency |
 
 ---
@@ -865,37 +859,30 @@ cache: {
 ---
 
 
-## Problem 2: Distributed transaction lock does not take effect
+## Problem 2: `transaction.distributedLock` does not take effect
 
 **Symptom**: Other instances still write to cache during transaction
 
 **Troubleshooting steps**:
-1. Confirm that the configuration is correct
+1. Confirm the runtime boundary
    ```javascript
-   transaction: {
-     distributedLock: {
-       redis  //✅ Required: The transaction lock must be explicitly passed into the Redis instance
-     }
-   }
+   // v2 compatibility note:
+   // transaction.distributedLock is not wired into transaction cache-lock interception.
    ```
 
-2. Check whether the lock is created
+2. Use an explicit business lock for critical sections
    ```javascript
-   // View locks in Redis without blocking the instance
-   const locks = [];
-   let cursor = '0';
-   do {
-     const [nextCursor, batch] = await redis.scan(cursor, 'MATCH', 'myapp:cache:lock:*', 'COUNT', 500);
-     cursor = nextCursor;
-     locks.push(...batch);
-   } while (cursor !== '0');
+   const lock = new MonSQLize.DistributedCacheLockManager({
+     redis,
+     lockKeyPrefix: 'myapp:business:lock:'
+   });
+
+   await lock.withLock(`payment:${paymentId}`, async () => {
+     // Idempotent critical section.
+   });
    ```
 
-3. View the transaction log
-   ```javascript
-   logger: { level: 'debug' }
-   //Find the "Lock acquired" log
-   ```
+3. Disable cache or bypass cache for strict freshness paths.
 
 ---
 
@@ -941,7 +928,7 @@ redis.on('connect', () => {
 | **Development Environment** | Local cache (default) |
 | **Production environment (single instance)** | Local cache + Redis |
 | **Production environment (multiple instances)** | Local + Redis + distributed failure |
-| **Financial/Trading System** | Local + Redis + Invalidation + Lock |
+| **Financial/Trading System** | Local + Redis + Invalidation + explicit business coordination |
 
 
 ## Quick Start

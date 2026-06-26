@@ -157,7 +157,7 @@ const msq = new MonSQLize({
 
 ---
 
-### 4. 多实例 + 分布式事务锁（🟢 推荐：金融/交易）
+### 4. 多实例 + 显式业务协调（🟡 金融/交易）
 
 ```text
 ┌───────────────────┐    ┌───────────────────┐
@@ -171,7 +171,7 @@ const msq = new MonSQLize({
                 ▼
          ┌─────────────┐
          │   Redis     │
-         │ (缓存+锁)    │
+         │ (缓存+显式业务锁) │
          └──────┬──────┘
                 │
                 ▼
@@ -179,16 +179,16 @@ const msq = new MonSQLize({
 ```
 
 **特点**：
-- ✅ 强一致性
-- ✅ 事务隔离性保障
-- ✅ 适合金融/交易场景
-- ⚠️ 性能略有下降（Redis 网络请求）
+- ✅ 多实例共享缓存失效
+- ✅ 应用/框架层显式选择业务锁与幂等策略
+- ✅ 配合持久化业务保护后适合金融/交易场景
+- ⚠️ 缓存失效仍是 best-effort，不与数据库提交原子绑定
 
 **适用场景**：
 - 金融系统
 - 支付/转账
 - 库存扣减
-- 任何需要强一致性的场景
+- 业务层已经具备幂等、fencing 或关键读路径绕过缓存的场景
 
 **配置示例**：
 ```javascript
@@ -212,16 +212,20 @@ const msq = new MonSQLize({
       // redis                    // ❌ 可选：默认自动从 remote 复用（ES6 简写）
     },
     
-    // 🆕 分布式事务锁
-    transaction: {
-      distributedLock: {
-        redis,                                 // ✅ 必需：Redis 实例（事务锁必须显式配置）
-        keyPrefix: 'myapp:cache:lock:'         // ❌ 可选：锁键前缀
-      }
-    }
   }
 });
+
+const businessLock = new MonSQLize.DistributedCacheLockManager({
+  redis,
+  lockKeyPrefix: 'myapp:business:lock:'
+});
+
+await businessLock.withLock(`payment:${paymentId}`, async () => {
+  // 临界区保持幂等；涉及外部副作用时配合 fencing / outbox。
+});
 ```
+
+`transaction.distributedLock` 在 v2 runtime 中仅作为 v1 兼容配置占位保留，并未接入事务缓存锁。跨实例强一致需要禁用关键读路径缓存，或在业务/框架层显式协调。
 
 ---
 
@@ -303,7 +307,7 @@ await msq.withTransaction(async (tx) => {
 - 缓存中可能有脏数据
 - 事务隔离性失效
 
-**解决方案**：启用**分布式事务锁**
+**解决方案**：对关键路径使用显式业务协调，并在需要严格新鲜度时绕过缓存
 
 ---
 
@@ -352,18 +356,18 @@ cache: {
 
 ---
 
-### 方案 2: 分布式事务锁（推荐：强一致性）
+### 方案 2: 显式业务锁与缓存绕过
 
-**原理**：使用 Redis 存储事务锁信息，所有实例共享
+**原理**：缓存失效保持 best-effort，对关键业务副作用使用显式业务锁，并配合幂等 / fencing。
 
 **工作流程**：
 ```text
-1. 实例 A 开启事务
-2. 在 Redis 中添加缓存锁（key + sessionId）
-3. 实例 B 查询数据
-4. 检查 Redis 锁 → 发现锁定 → 不写入缓存
-5. 实例 A 提交事务
-6. 释放 Redis 锁
+1. 实例 A 获取业务锁，例如 payment:order-123
+2. 实例 A 执行幂等事务，并把外部副作用写入 outbox / journal
+3. 需要严格新鲜度的读路径绕过缓存，或使用应用层新鲜度校验
+4. 实例 A 提交数据库事务
+5. commit 后 best-effort 发布缓存失效
+6. 实例 A 释放业务锁
 ```
 
 **配置**：
@@ -371,24 +375,26 @@ cache: {
 const Redis = require('ioredis');
 const redis = new Redis('redis://localhost:6379');
 
-cache: {
-  transaction: {
-    distributedLock: {
-      redis,                           // ✅ 必需：Redis 实例（事务锁必须显式配置）
-      keyPrefix: 'myapp:cache:lock:'   // ❌ 可选：默认 'monsqlize:cache:lock:'
-    }
-  }
-}
+const businessLock = new MonSQLize.DistributedCacheLockManager({
+  redis,
+  lockKeyPrefix: 'myapp:business:lock:',
+  maxDuration: 300000
+});
+
+await businessLock.withLock(`order:${orderId}`, async () => {
+  // 幂等事务 + fencing / outbox。
+});
 ```
 
 **优点**：
-- ✅ 真正的分布式锁
-- ✅ 事务隔离性保障
+- ✅ 一致性边界明确落在业务层
+- ✅ 可覆盖支付、库存、履约等外部副作用
 - ✅ 适合金融/交易场景
 
 **缺点**：
-- ⚠️ 性能略有下降（Redis 网络请求）
-- ⚠️ 依赖 Redis 可用性
+- ⚠️ 需要应用层幂等与恢复设计
+- ⚠️ 不会让缓存失效与数据库事务变成原子提交
+- ⚠️ 使用 Redis 锁时依赖 Redis 可用性
 
 ---
 
@@ -400,7 +406,7 @@ cache: {
 import MonSQLize from 'monsqlize';
 const Redis = require('ioredis');
 
-// 创建 Redis 实例（复用于缓存、广播、锁）
+// 创建 Redis 实例（复用于远端缓存与广播）
 const redis = new Redis({
   host: 'localhost',
   port: 6379,
@@ -445,14 +451,6 @@ const msq = new MonSQLize({
       // redis                                // ❌ 可选：默认自动从 remote 复用（ES6 简写）
     },
     
-    // 🆕 分布式事务锁
-    transaction: {
-      distributedLock: {
-        redis,                                 // ✅ 必需：Redis 实例（事务锁必须显式配置）
-        keyPrefix: 'myapp:cache:lock:',        // ❌ 可选：锁键前缀
-        maxDuration: 300000                    // ❌ 可选：锁最大持续时间（毫秒）
-      }
-    }
   }
 });
 
@@ -473,7 +471,7 @@ await msq.close();
 **💡 配置说明**：
 - ✅ **必需项**：必须配置，否则功能不工作
 - ❌ **可选项**：可以不配置，使用默认值
-- **一个 Redis 实例**：用于缓存、广播、锁三个用途（推荐复用）
+- **一个 Redis 实例**：用于远端缓存与广播；如需业务锁，请显式接入对应业务锁路径。
 
 ---
 
@@ -499,13 +497,9 @@ await msq.close();
   - **每个实例的 `instanceId` 必须不同**，否则会导致缓存失效广播失败
   - 推荐使用环境变量：`process.env.INSTANCE_ID` 或 `process.env.HOSTNAME`
 
-#### transaction.distributedLock（分布式事务锁）
+#### transaction.distributedLock（兼容配置占位）
 
-| 选项 | 类型 | 必需 | 默认值 | 说明 |
-|-----|------|------|--------|------|
-| `redis` | Object | ✅ | - | ioredis 实例（**必需**） |
-| `keyPrefix` | String | ❌ | `'monsqlize:cache:lock:'` | 锁键前缀 |
-| `maxDuration` | Number | ❌ | `300000` | 锁最大持续时间（毫秒） |
+`transaction.distributedLock` 为 v1 配置兼容保留，但 v2 runtime 不会把它接入事务缓存锁。事务缓存锁仍是进程内语义。跨实例关键临界区请显式使用 `DistributedCacheLockManager` 等业务锁，并配合幂等 / fencing；严格新鲜度读路径请禁用或绕过缓存。
 
 ---
 
@@ -725,7 +719,7 @@ const cache = isDistributedEnvironment() ? {
 | 业务类型 | 推荐方案 | 配置 |
 |---------|---------|------|
 | **一般应用** | 分布式缓存失效 | `distributed.enabled = true` |
-| **金融/支付** | 缓存失效 + 事务锁 | `distributed.enabled = true`<br>`transaction.distributedLock = {...}` |
+| **金融/支付** | 缓存失效 + 显式业务协调 | `distributed.enabled = true`<br>业务锁 + 幂等 / fencing |
 | **强一致性** | 禁用缓存 | `maxSize = 0` |
 | **开发环境** | 本地缓存 | 默认配置 |
 
@@ -780,11 +774,11 @@ cache: {
 - **带宽**：每次失效 ~100 bytes
 - **影响**：对总体性能影响可忽略
 
-### 2. 分布式事务锁性能
+### 2. 显式业务锁性能
 
 - **延迟**：~2-10ms（Redis SET/DEL）
 - **吞吐量**：略有下降（~10-20%）
-- **推荐**：仅在需要强一致性时启用
+- **推荐**：仅包裹需要跨实例协调的业务临界区
 
 ### 3. 缓存策略对比
 
@@ -792,8 +786,8 @@ cache: {
 |-----|------|--------|---------|
 | **仅本地** | 最低 | 低 | 单实例 |
 | **本地 + Redis** | 低 | 中 | 多实例 |
-| **本地 + Redis + 广播** | 低 | 高 | 推荐 |
-| **本地 + Redis + 广播 + 锁** | 中 | 最高 | 金融/交易 |
+| **本地 + Redis + 广播** | 低 | 失效后最终收敛 | 推荐 |
+| **本地 + Redis + 广播 + 业务锁** | 中 | 显式业务边界 | 金融/交易 |
 | **禁用缓存** | 高 | 最高 | 强一致性 |
 
 ---
@@ -834,37 +828,30 @@ cache: {
 
 ---
 
-### 问题 2: 分布式事务锁不生效
+### 问题 2: `transaction.distributedLock` 不生效
 
 **症状**：事务期间其他实例仍写入缓存
 
 **排查步骤**：
-1. 确认配置正确
+1. 先确认运行时边界
    ```javascript
-   transaction: {
-     distributedLock: {
-       redis  // ✅ 必需：事务锁必须显式传入 Redis 实例
-     }
-   }
+   // v2 兼容说明：
+   // transaction.distributedLock 未接入事务缓存锁。
    ```
 
-2. 检查锁是否创建
+2. 关键临界区使用显式业务锁
    ```javascript
-   // 在 Redis 中查看锁，避免阻塞实例
-   const locks = [];
-   let cursor = '0';
-   do {
-     const [nextCursor, batch] = await redis.scan(cursor, 'MATCH', 'myapp:cache:lock:*', 'COUNT', 500);
-     cursor = nextCursor;
-     locks.push(...batch);
-   } while (cursor !== '0');
+   const lock = new MonSQLize.DistributedCacheLockManager({
+     redis,
+     lockKeyPrefix: 'myapp:business:lock:'
+   });
+
+   await lock.withLock(`payment:${paymentId}`, async () => {
+     // 幂等临界区。
+   });
    ```
 
-3. 查看事务日志
-   ```javascript
-   logger: { level: 'debug' }
-   // 查找 "Lock acquired" 日志
-   ```
+3. 严格新鲜度读路径禁用或绕过缓存。
 
 ---
 
@@ -908,7 +895,7 @@ redis.on('connect', () => {
 | **开发环境** | 本地缓存（默认） |
 | **生产环境（单实例）** | 本地缓存 + Redis |
 | **生产环境（多实例）** | 本地 + Redis + 分布式失效 |
-| **金融/交易系统** | 本地 + Redis + 失效 + 锁 |
+| **金融/交易系统** | 本地 + Redis + 失效 + 显式业务协调 |
 
 ### 快速开始
 

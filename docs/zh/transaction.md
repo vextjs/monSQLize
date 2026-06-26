@@ -380,8 +380,11 @@ await msq.withTransaction(async (tx) => {
     // 3. 事务提交
     await tx.commit();
     // 🔓 自动释放锁 + 失效缓存
+    // commit 后缓存失效是 best-effort；缓存失败不会回滚数据库提交
 });
 ```
+
+缓存锁是进程内机制。跨实例缓存收敛依赖 commit 后的分布式失效广播，且属于 best-effort；需要跨进程互斥的关键路径应在应用/框架层显式协调。
 
 ### 缓存策略对比
 

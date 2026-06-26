@@ -9,6 +9,19 @@ function resolved<T>(value?: T): Promise<T | undefined> {
     return Promise.resolve(value);
 }
 
+function createLoggerCapture() {
+    const warnings: unknown[][] = [];
+    return {
+        warnings,
+        logger: {
+            debug: () => {},
+            info: () => {},
+            warn: (...args: unknown[]) => warnings.push(args),
+            error: () => {},
+        },
+    };
+}
+
 function createMockCollection(name: string) {
     return {
         getNamespace() {
@@ -86,6 +99,42 @@ describe('P6 runtime compat mock path', () => {
         assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findMaxLimit: 100 }), /findMaxLimit/);
         assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findLimit: 20, findMaxLimit: 10 }), /findMaxLimit/);
         assert.throws(() => new MonSQLize({ type: 'mongodb', databaseName: 'compat_db', findPageMaxLimit: 0 }), /findPageMaxLimit/);
+    });
+
+    it('warns when transaction.distributedLock is configured because v2 transaction cache locks are process-local', () => {
+        const { warnings, logger } = createLoggerCapture();
+
+        assert.doesNotThrow(() => new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'compat_db',
+            logger,
+            transaction: {
+                distributedLock: {
+                    redis: {},
+                },
+            },
+        }));
+
+        assert.ok(warnings.some(([message]) => String(message).includes('transaction.distributedLock')));
+        assert.ok(warnings.some(([message]) => String(message).includes('process-local')));
+    });
+
+    it('keeps disabled transaction.distributedLock compatibility config silent', () => {
+        const { warnings, logger } = createLoggerCapture();
+
+        assert.doesNotThrow(() => new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'compat_db',
+            logger,
+            transaction: {
+                distributedLock: {
+                    enabled: false,
+                    redis: {},
+                },
+            },
+        }));
+
+        assert.equal(warnings.some(([message]) => String(message).includes('transaction.distributedLock')), false);
     });
 
     it('accepts a custom cache without a lock-manager hook', () => {

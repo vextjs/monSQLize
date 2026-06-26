@@ -152,6 +152,17 @@ export interface MonSQLizeOptions {
         lockMaxDuration?: number;
         lockCleanupInterval?: number;
         maxStatsSamples?: number;
+        /**
+         * v1 compatibility placeholder. The current v2 transaction cache lock is process-local
+         * and this option is not wired into distributed cache-lock interception.
+         *
+         * Use `DistributedCacheLockManager` explicitly for business critical sections, pair it
+         * with idempotency/fencing, or disable cache where cross-instance strict consistency is
+         * required.
+         *
+         * @deprecated This option is retained for compatibility only and does not enable a
+         * distributed transaction cache lock in the v2 runtime.
+         */
         distributedLock?: Record<string, unknown>;
     };
     /** Global query timeout in milliseconds applied to all find/aggregate operations. Default: 2000. @since v1.3.0 */

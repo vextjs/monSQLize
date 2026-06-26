@@ -19,6 +19,7 @@ MongoDB is the first complete adapter. MySQL and PostgreSQL adapters are planned
 
 - [Why monSQLize](#why-monsqlize)
 - [Adapter Status](#adapter-status)
+- [Runtime Consistency Contract](#runtime-consistency-contract)
 - [When to Use It](#when-to-use-it)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -55,6 +56,10 @@ monSQLize is not an ORM and it is not just a CRUD wrapper. It is a production da
 | PostgreSQL | Planned / in development | Not part of the current npm runtime yet |
 
 The shared runtime direction is cache consistency, connection lifecycle, transaction helpers, model constraints, synchronization, and observability across adapters. Adapter-native query, transaction, and connection semantics will stay explicit.
+
+## Runtime Consistency Contract
+
+monSQLize coordinates cache, transactions, sync, and queues inside the runtime, but it does not provide a global strict-consistency kernel. MongoDB transactions keep MongoDB session ACID semantics. Cache invalidation runs after writes or transaction commit and is best-effort; Redis/L2 cache and Pub/Sub invalidation provide shared cache state and eventual cross-instance coherence, not atomic cache/DB commits. Change Stream sync is at-least-once, so custom targets should be idempotent by change event `_id`. Transaction cache locks are process-local in the v2 runtime; use explicit business coordination, idempotency/fencing, or cache bypassing for cross-instance strict flows.
 
 ## When to Use It
 

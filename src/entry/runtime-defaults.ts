@@ -66,3 +66,18 @@ export function shouldWarnUnsignedCursorSecret(options: MonSQLizeOptions): boole
     return !options.cursorSecret
         && (warning === 'always' || (warning === 'production' && process.env.NODE_ENV === 'production'));
 }
+
+function isEnabledDistributedLockConfig(value: unknown): boolean {
+    if (value === null || typeof value !== 'object') return false;
+    return (value as Record<string, unknown>).enabled !== false;
+}
+
+export function shouldWarnTransactionDistributedLock(options: MonSQLizeOptions): boolean {
+    if (isEnabledDistributedLockConfig(options.transaction?.distributedLock)) return true;
+
+    const cacheOptions = options.cache;
+    if (cacheOptions === null || typeof cacheOptions !== 'object') return false;
+    const nestedTransaction = (cacheOptions as Record<string, unknown>).transaction;
+    if (nestedTransaction === null || typeof nestedTransaction !== 'object') return false;
+    return isEnabledDistributedLockConfig((nestedTransaction as Record<string, unknown>).distributedLock);
+}

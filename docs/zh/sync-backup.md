@@ -119,7 +119,7 @@ await msq.close();
 | `saveRetries` | number | ❌ | `0` | strict token save 失败前的重试次数 |
 | `saveRetryDelayMs` | number | ❌ | `100` | token 保存重试间隔（毫秒） |
 
-Resume Token 持久化默认是 strict。文件模式会先写入同目录临时文件、fsync、把上一份 token 备份为 `<path>.bak`，再通过原子 rename 替换正式文件。启动时也会校验已保存 token：`strictLoad` 为 true 时，损坏 token 会快速失败，而不是静默按无 resume token 启动。匹配的 target 全部成功应用事件后，monSQLize 会先保存该事件的 resume token；只有保存成功后才推进 `syncedCount`。如果 token 保存在配置的重试后仍失败，或任一匹配 target 应用事件失败，manager 会记录错误、关闭当前 change stream、将 `isRunning` 标记为 `false`，并停止处理后续排队事件。只有兼容旧 best-effort token 存储行为时才设置 `strictSave: false` 与 `strictLoad: false`；此时进程重启后可能重放已应用事件，或在旧 token 损坏时按无 token 启动。内置 MongoDB target 是幂等的（`replaceOne(..., { upsert: true })` / `deleteOne()`）；自定义 `apply` target 仍建议按 change event `_id` 做幂等或去重。
+Resume Token 持久化默认是 strict。文件模式会先写入同目录临时文件、fsync、把上一份 token 备份为 `<path>.bak`，再通过原子 rename 替换正式文件。启动时也会校验已保存 token：`strictLoad` 为 true 时，损坏 token 会快速失败，而不是静默按无 resume token 启动。匹配的 target 全部成功应用事件后，monSQLize 会先保存该事件的 resume token；只有保存成功后才推进 `syncedCount`。如果 token 保存在配置的重试后仍失败，或任一匹配 target 应用事件失败，manager 会记录错误、关闭当前 change stream、将 `isRunning` 标记为 `false`，并停止处理后续排队事件。这是 at-least-once 契约，不是 exactly-once：target apply 成功但 token 保存前崩溃时，同一事件可能重放。只有兼容旧 best-effort token 存储行为时才设置 `strictSave: false` 与 `strictLoad: false`；此时进程重启后可能重放已应用事件，或在旧 token 损坏时按无 token 启动。内置 MongoDB target 是幂等的（`replaceOne(..., { upsert: true })` / `deleteOne()`）；自定义 `apply` target 仍建议按 change event `_id` 做幂等或去重。
 
 ---
 

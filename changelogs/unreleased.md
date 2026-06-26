@@ -14,6 +14,7 @@
 
 ## Fixed / changed
 
+- Clarified the runtime consistency contract across cache, transactions, Change Stream sync, and CountQueue; `transaction.distributedLock` now warns as a v1 compatibility placeholder because v2 transaction cache locks remain process-local.
 - Added an event-level barrier for Change Stream sync target failures, passed a cooperative `AbortSignal` through `CountQueue.execute()` timeouts, and unified ObjectId auto-conversion field matching across query/write paths including nested array path segments.
 - Clarified `updateMany(..., { upsert: true })` documentation: MongoDB inserts only one derived document when no documents match, so it is not a per-input bulk upsert replacement for `updateBatch`.
 - Fixed Change Stream sync wildcard collection filters, made `updateBatch` / `deleteBatch` stream matching `_id` values while forwarding read options such as `session` / `collation` / `hint`, hardened pool config validation and health-check timeout cleanup, and aligned release/profile metadata.

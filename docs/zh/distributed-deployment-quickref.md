@@ -59,12 +59,11 @@ const msq = new MonSQLize({
 | `instanceId` | ❌ 否 | `instance-${timestamp}-${random}` |
 | `channel` | ❌ 否 | `'monsqlize:cache:invalidate'` |
 
-### transaction.distributedLock（事务锁）
+### transaction.distributedLock（兼容配置占位）
 
-| 参数 | 必需？ | 默认值 |
-|-----|-------|--------|
-| `redis` | ✅ 是 | - |
-| `keyPrefix` | ❌ 否 | `'monsqlize:cache:lock:'` |
+`transaction.distributedLock` 为 v1 配置兼容保留。v2 runtime 不会把它接入事务缓存锁，事务缓存锁仍是进程内语义。
+
+跨实例临界区请使用显式业务协调，例如 `DistributedCacheLockManager` + 幂等 / fencing；严格新鲜度读路径请绕过缓存。
 
 ---
 
@@ -82,15 +81,26 @@ distributed: {
 ### 场景2: 金融/支付系统
 
 ```javascript
-distributed: {
-  enabled: true,
-  instanceId: process.env.INSTANCE_ID
-},
-transaction: {
-  distributedLock: {
-    redis  // 必须显式配置（ES6 简写）
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  cache: {
+    distributed: {
+      enabled: true,
+      instanceId: process.env.INSTANCE_ID
+    }
   }
-}
+});
+
+// 显式业务协调，而不是 transaction.distributedLock。
+const lock = new MonSQLize.DistributedCacheLockManager({
+  redis,
+  lockKeyPrefix: 'myapp:business:lock:'
+});
+
+await lock.withLock(`payment:${paymentId}`, async () => {
+  // 幂等临界区。
+});
 ```
 
 ### 场景3: Kubernetes部署
@@ -143,7 +153,7 @@ env:
 1. **`enabled: true`** - 唯一必需的配置
 2. **`redis`** - 自动从 `remote` 复用，无需重复配置
 3. **`instanceId`** - 可选但建议设置，便于调试
-4. **事务锁的 `redis`** - 必须显式配置
+4. **跨实例强一致流程** - 使用显式业务协调，或绕过缓存
 
 ---
 

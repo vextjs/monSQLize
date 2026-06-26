@@ -26,6 +26,20 @@ MonSQLizeRuntime (src/entry/runtime-core.ts)
 
 ## 维护边界
 
+## 运行时一致性契约
+
+monSQLize 提供运行时协同辅助能力，不提供全局强一致内核。当前保证如下：
+
+| 区域 | 契约 | 边界 |
+|------|------|------|
+| MongoDB 事务 | MongoDB session 范围内的 ACID 语义 | 缓存失效在 commit 后刷新，属于 best-effort；commit 后缓存失效失败不会回滚数据库事务。 |
+| 查询缓存 | 读穿缓存 + 写入触发失效 | Redis/L2 与 Pub/Sub 失效提供共享缓存状态和跨实例最终收敛，不提供缓存/数据库原子提交。 |
+| 事务缓存锁 | 事务期间的进程内缓存写入抑制 | `transaction.distributedLock` 在 v2 中仅作为兼容配置占位保留，并未接入事务缓存锁。 |
+| Change Stream sync | 默认 strict resume token 的 at-least-once 投递 | target apply 成功但 token 保存前崩溃时可能重放事件；自定义 target 需要按 change event `_id` 做幂等。 |
+| Batch / CountQueue | 协作式并发与超时控制 | 超时会 abort 传入的 signal，但 JavaScript 不能强制终止忽略 signal 的任务。 |
+
+如果业务流程需要跨实例强一致，请在应用/框架层使用显式的 `DistributedCacheLockManager` 业务锁、幂等键、fencing token、durable outbox/journal，或对关键路径绕过缓存。
+
 ### `runtime-core.ts`
 
 只负责：

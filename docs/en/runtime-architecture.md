@@ -26,6 +26,20 @@ MonSQLizeRuntime (src/entry/runtime-core.ts)
 
 ## Maintain boundaries
 
+## Runtime consistency contract
+
+monSQLize provides runtime coordination helpers, not a global strict-consistency kernel. Current guarantees are:
+
+| Area | Contract | Boundary |
+|------|----------|----------|
+| MongoDB transactions | MongoDB session-bound ACID semantics | Cache invalidation is flushed after commit and is best-effort; a post-commit cache failure does not roll back the database transaction. |
+| Query cache | Read-through cache with write-triggered invalidation | Redis/L2 cache and Pub/Sub invalidation provide shared cache state and eventual cross-instance coherence, not atomic cache/DB commits. |
+| Transaction cache lock | Process-local cache write suppression during a transaction | `transaction.distributedLock` is kept as a compatibility config placeholder in v2 and is not wired into the transaction cache lock. |
+| Change Stream sync | At-least-once delivery with strict resume-token persistence by default | A crash after target apply and before token save can replay the event; custom targets must be idempotent by change event `_id`. |
+| Batch / CountQueue | Cooperative concurrency and timeout control | Timeouts abort the provided signal, but JavaScript cannot force-stop a task that ignores the signal. |
+
+Use application/framework-level coordination, explicit `DistributedCacheLockManager` business locks, idempotency keys, fencing tokens, durable outbox/journals, or cache bypassing when a flow requires cross-instance strict consistency.
+
 
 ## `runtime-core.ts`
 

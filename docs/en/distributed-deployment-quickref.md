@@ -8,7 +8,7 @@
 - [Complete configuration (recommended)](#complete-configuration-recommended)
 - [Parameter quick lookup table](#parameter-quick-lookup-table)
 - [distributed (distributed cache invalidation)](#distributed-distributed-cache-invalidation)
-- [transaction.distributedLock (transaction lock)](#transactiondistributedlock-transaction-lock)
+- [transaction.distributedLock (compatibility placeholder)](#transactiondistributedlock-compatibility-placeholder)
 - [Common scenarios](#common-scenarios)
 - [Scenario 1: General Web application (recommended)](#scenario-1-general-web-application-recommended)
 - [Scenario 2: Financial/payment system](#scenario-2-financial-payment-system)
@@ -67,12 +67,11 @@ const msq = new MonSQLize({
 | `channel` | ❌ No | `'monsqlize:cache:invalidate'` |
 
 
-## transaction.distributedLock (transaction lock)
+## transaction.distributedLock (compatibility placeholder)
 
-| Parameters | Required? |Default value|
-|-----|-------|--------|
-| `redis` | ✅ YES | - |
-| `keyPrefix` | ❌ No | `'monsqlize:cache:lock:'` |
+`transaction.distributedLock` is retained for v1 configuration compatibility. In the v2 runtime, it is not wired into transaction cache-lock interception and transaction cache locks remain process-local.
+
+For cross-instance critical sections, use explicit business coordination such as `DistributedCacheLockManager` plus idempotency/fencing, or bypass cache for strict freshness paths.
 
 ---
 
@@ -92,15 +91,26 @@ distributed: {
 ## Scenario 2: Financial/payment system
 
 ```javascript
-distributed: {
-  enabled: true,
-  instanceId: process.env.INSTANCE_ID
-},
-transaction: {
-  distributedLock: {
-    redis  //Must be configured explicitly (ES6 shorthand)
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  cache: {
+    distributed: {
+      enabled: true,
+      instanceId: process.env.INSTANCE_ID
+    }
   }
-}
+});
+
+// Explicit business coordination, not transaction.distributedLock.
+const lock = new MonSQLize.DistributedCacheLockManager({
+  redis,
+  lockKeyPrefix: 'myapp:business:lock:'
+});
+
+await lock.withLock(`payment:${paymentId}`, async () => {
+  // Idempotent critical section.
+});
 ```
 
 
@@ -157,7 +167,7 @@ fieldPath: metadata.name # Use Pod name
 1. **`enabled: true`** - the only required configuration
 2. **`redis`** - Automatically reused from `remote`, no need to repeat configuration
 3. **`instanceId`** - Optional but recommended setting for easy debugging
-4. **Transaction lock `redis`** - must be configured explicitly
+4. **Strict cross-instance flows** - use explicit business coordination or bypass cache
 
 ---
 

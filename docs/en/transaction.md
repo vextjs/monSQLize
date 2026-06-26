@@ -338,6 +338,7 @@ await msq.withTransaction(async (tx) => {
 
 // Cache invalidation is flushed only after the transaction commits successfully.
 // If the transaction aborts, the pending invalidation intent is discarded.
+// Post-commit cache invalidation is best-effort; a cache failure does not roll back the database commit.
 
 //✅ Query outside transaction: use cache normally
 const user = await collection('users').findOne(
@@ -588,7 +589,7 @@ If performance optimization is required, the `cache` option can be enabled expli
 - The lock is memory level (no I/O involved)
 - Checking of locks is very fast (O(1) hash lookup)
 
-The cache lock is process-local. Cross-instance cache coherence is handled by distributed invalidation after commit; use application/framework-level coordination when a critical section must be mutually exclusive across processes.
+The cache lock is process-local. Cross-instance cache coherence is handled by distributed invalidation after commit on a best-effort basis; use application/framework-level coordination when a critical section must be mutually exclusive across processes.
 
 
 ## Q5: Can multiple databases be operated within a transaction?

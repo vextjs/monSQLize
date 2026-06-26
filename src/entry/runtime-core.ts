@@ -122,7 +122,7 @@ import {
     initializeDistributedCacheInvalidator,
     loadModelFiles,
 } from './capability-wiring';
-import { buildPublicDefaults, createRuntimeDbFacade, createRuntimeModelInstance, ensureRuntimeModelIndexes, resolveDatabaseName, shouldWarnUnsignedCursorSecret, validateRuntimeNumericOptions } from './runtime-helpers';
+import { buildPublicDefaults, createRuntimeDbFacade, createRuntimeModelInstance, ensureRuntimeModelIndexes, resolveDatabaseName, shouldWarnTransactionDistributedLock, shouldWarnUnsignedCursorSecret, validateRuntimeNumericOptions } from './runtime-helpers';
 import {
     createRuntimeCoreAccessors,
     createRuntimeCoreAdapterBridgeHost,
@@ -227,9 +227,8 @@ export class MonSQLizeRuntime {
         this._cache = normalizedCache.cache;
         this._cacheClose = normalizedCache.close;
         this._logger = Logger.create(options.logger ?? null);
-        if (shouldWarnUnsignedCursorSecret(options)) {
-            this._logger.warn?.('[MonSQLizeRuntime] cursorSecret is not configured; findPage cursor tokens are unsigned.');
-        }
+        if (shouldWarnUnsignedCursorSecret(options)) this._logger.warn?.('[MonSQLizeRuntime] cursorSecret is not configured; findPage cursor tokens are unsigned.');
+        if (shouldWarnTransactionDistributedLock(options)) this._logger.warn?.('[MonSQLizeRuntime] transaction.distributedLock is a compatibility configuration and is not wired into the transaction cache lock in the v2 runtime. Transaction cache locks remain process-local; use explicit business locking with idempotency/fencing or disable cache when cross-instance strict consistency is required.');
         this._cacheLockManager = new CacheLockManager({
             logger: options.logger ?? null,
             maxDuration: options.transaction?.lockMaxDuration,
