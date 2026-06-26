@@ -32,9 +32,37 @@ export interface SyncTargetConfig {
     /** Collections handled by this target; omit or pass ['*'] to handle all collections. */
     collections?: string[];
     options?: MongoClientOptions;
-    apply?: (event: SyncChangeEvent, document: Record<string, unknown> | undefined) => Promise<void>;
+    apply?: (event: SyncChangeEvent, document: Record<string, unknown> | undefined, context?: SyncTargetApplyContext) => Promise<void>;
     /** Target node health check configuration. @since v1.0.8 */
     healthCheck?: SyncTargetHealthCheckConfig;
+}
+
+export interface SyncTargetApplyContext {
+    targetName: string;
+    idempotencyKey?: string;
+}
+
+export interface SyncIdempotencyStoreLike {
+    get(key: string): Promise<unknown> | unknown;
+    set(key: string, value: unknown, ttl?: number): Promise<unknown> | unknown;
+    del?(key: string): Promise<unknown> | unknown;
+}
+
+export type SyncIdempotencyMarkMode = 'success' | 'start';
+
+export interface SyncIdempotencyConfig {
+    /** Enable runtime per-target idempotency checks. Defaults to false. */
+    enabled?: boolean;
+    /** Optional durable store; when omitted, an in-memory store is used. */
+    store?: SyncIdempotencyStoreLike;
+    /** Cache/store key prefix. Defaults to monsqlize:sync:idempotency. */
+    keyPrefix?: string;
+    /** Marker TTL in milliseconds. Store implementations may ignore it. */
+    ttl?: number;
+    /** Mark after target success by default; start mode requires target-owned recovery for post-mark failures. */
+    markMode?: SyncIdempotencyMarkMode;
+    /** Custom event key builder. Return null/undefined to disable idempotency for that event. */
+    keyBuilder?: (event: SyncChangeEvent, targetName: string) => string | null | undefined;
 }
 
 export interface ResumeTokenRedisLike {
@@ -65,6 +93,8 @@ export interface SyncConfig {
     collections?: string[];
     resumeToken?: ResumeTokenConfig;
     filter?: (event: SyncChangeEvent) => boolean;
+    /** Optional per-target idempotency gate for replay protection. */
+    idempotency?: SyncIdempotencyConfig;
     /**
      * Transform a change-stream document before forwarding to sync targets.
      * v1 form took a single argument (`doc => ...`); v2 added a second `event` argument.
@@ -83,10 +113,13 @@ export interface SyncStats {
     lastError: Error | null;
     tokenSaveErrorCount: number;
     lastTokenSaveError: Error | null;
+    duplicateEventCount: number;
+    duplicateTargetCount: number;
     targets: Array<{
         name: string;
         syncCount: number;
         errorCount: number;
+        duplicateCount: number;
         lastSyncTime: Date | null;
         lastError: Error | null;
         successRate: string;

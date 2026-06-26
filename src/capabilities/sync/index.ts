@@ -18,27 +18,44 @@ import type {
     ResumeTokenRedisLike,
     SyncChangeEvent,
     SyncConfig,
+    SyncIdempotencyConfig,
+    SyncIdempotencyMarkMode,
+    SyncIdempotencyStoreLike,
+    SyncTargetApplyContext,
     SyncStats,
     SyncTargetConfig,
 } from '../../../types/sync';
+import {
+    defaultSyncEventIdentity,
+    normalizeSyncKeyValue,
+    resolveSyncIdempotencyRuntime,
+    stableSyncKeyString,
+    type SyncIdempotencyRuntime,
+    validateSyncIdempotencyConfig,
+} from './idempotency';
 
 export type {
     ResumeTokenConfig,
     ResumeTokenRedisLike,
     SyncChangeEvent,
     SyncConfig,
+    SyncIdempotencyConfig,
+    SyncIdempotencyMarkMode,
+    SyncIdempotencyStoreLike,
+    SyncTargetApplyContext,
     SyncStats,
     SyncTargetConfig,
 } from '../../../types/sync';
 
 interface ResolvedTarget {
     name: string;
-    apply(event: SyncChangeEvent, document: Document | undefined): Promise<void>;
+    apply(event: SyncChangeEvent, document: Document | undefined, context?: SyncTargetApplyContext): Promise<void>;
     close(): Promise<void>;
     collections: Set<string> | null;
     stats: {
         syncCount: number;
         errorCount: number;
+        duplicateCount: number;
         lastSyncTime: Date | null;
         lastError: Error | null;
     };
@@ -198,6 +215,7 @@ export function validateSyncConfig(config: SyncConfig): void {
     if (config.transform !== undefined && typeof config.transform !== 'function') {
         throw createError(ErrorCodes.INVALID_CONFIG, '[Sync] transform must be a function.');
     }
+    validateSyncIdempotencyConfig(config.idempotency);
 
     config.targets.forEach((target, index) => {
         validateTargetConfig(target as SyncTargetConfig | null, index);
@@ -360,6 +378,7 @@ export class ChangeStreamSyncManager {
     private readonly logger: LoggerLike | null;
     private readonly tokenStore: ResumeTokenStoreLike;
     private readonly clientFactory: (uri: string, options?: MongoClientOptions) => Promise<MongoClient>;
+    private readonly idempotency: SyncIdempotencyRuntime;
     private readonly targets: ResolvedTarget[] = [];
     private changeStream: ChangeStream | null = null;
     private changeQueue: Promise<void> = Promise.resolve();
@@ -374,6 +393,8 @@ export class ChangeStreamSyncManager {
         lastError: null as Error | null,
         tokenSaveErrorCount: 0,
         lastTokenSaveError: null as Error | null,
+        duplicateEventCount: 0,
+        duplicateTargetCount: 0,
     };
 
     constructor(options: ChangeStreamSyncManagerOptions) {
@@ -387,6 +408,7 @@ export class ChangeStreamSyncManager {
             logger: options.logger ?? null,
         });
         this.clientFactory = options.clientFactory ?? defaultClientFactory;
+        this.idempotency = resolveSyncIdempotencyRuntime(options.config.idempotency);
     }
 
     /**
@@ -470,10 +492,13 @@ export class ChangeStreamSyncManager {
             lastError: this.stats.lastError,
             tokenSaveErrorCount: this.stats.tokenSaveErrorCount,
             lastTokenSaveError: this.stats.lastTokenSaveError,
+            duplicateEventCount: this.stats.duplicateEventCount,
+            duplicateTargetCount: this.stats.duplicateTargetCount,
             targets: this.targets.map((target) => ({
                 name: target.name,
                 syncCount: target.stats.syncCount,
                 errorCount: target.stats.errorCount,
+                duplicateCount: target.stats.duplicateCount,
                 lastSyncTime: target.stats.lastSyncTime,
                 lastError: target.stats.lastError,
                 successRate: target.stats.syncCount + target.stats.errorCount === 0
@@ -540,6 +565,7 @@ export class ChangeStreamSyncManager {
                 stats: {
                     syncCount: 0,
                     errorCount: 0,
+                    duplicateCount: 0,
                     lastSyncTime: null,
                     lastError: null,
                 },
@@ -584,6 +610,7 @@ export class ChangeStreamSyncManager {
 
         let eligibleTargets = 0;
         let succeeded = 0;
+        let duplicateTargets = 0;
         const targetErrors: Error[] = [];
         for (const target of this.targets) {
             if (target.collections && !target.collections.has(event.ns.coll)) {
@@ -591,7 +618,24 @@ export class ChangeStreamSyncManager {
             }
             eligibleTargets += 1;
             try {
-                await target.apply(event, document);
+                const idempotencyKey = this.buildTargetIdempotencyKey(target.name, event);
+                if (idempotencyKey && await this.hasAppliedTargetEvent(idempotencyKey)) {
+                    target.stats.duplicateCount += 1;
+                    this.stats.duplicateTargetCount += 1;
+                    duplicateTargets += 1;
+                    succeeded += 1;
+                    continue;
+                }
+                if (idempotencyKey && this.idempotency.markMode === 'start') {
+                    await this.markTargetEventApplied(idempotencyKey, event, target.name, 'start');
+                }
+                await target.apply(event, document, {
+                    targetName: target.name,
+                    ...(idempotencyKey ? { idempotencyKey } : {}),
+                });
+                if (idempotencyKey && this.idempotency.markMode === 'success') {
+                    await this.markTargetEventApplied(idempotencyKey, event, target.name, 'success');
+                }
                 target.stats.syncCount += 1;
                 target.stats.lastSyncTime = new Date();
                 target.stats.lastError = null;
@@ -627,7 +671,42 @@ export class ChangeStreamSyncManager {
                 throw normalized;
             }
             this.stats.syncedCount += 1;
+            if (duplicateTargets > 0 && duplicateTargets === eligibleTargets) {
+                this.stats.duplicateEventCount += 1;
+            }
         }
+    }
+
+    private buildTargetIdempotencyKey(targetName: string, event: SyncChangeEvent<Document>): string | null {
+        if (!this.idempotency.enabled) {
+            return null;
+        }
+        const rawKey = this.idempotency.keyBuilder
+            ? this.idempotency.keyBuilder(event, targetName)
+            : stableSyncKeyString(defaultSyncEventIdentity(event));
+        if (rawKey === null || rawKey === undefined || rawKey === '') {
+            return null;
+        }
+        return `${this.idempotency.keyPrefix}:${targetName}:${rawKey}`;
+    }
+
+    private async hasAppliedTargetEvent(key: string): Promise<boolean> {
+        const value = await Promise.resolve(this.idempotency.store.get(key));
+        return value !== undefined && value !== null && value !== false;
+    }
+
+    private async markTargetEventApplied(
+        key: string,
+        event: SyncChangeEvent<Document>,
+        targetName: string,
+        phase: SyncIdempotencyMarkMode,
+    ): Promise<void> {
+        await Promise.resolve(this.idempotency.store.set(key, {
+            phase,
+            target: targetName,
+            eventId: normalizeSyncKeyValue(defaultSyncEventIdentity(event)),
+            ts: Date.now(),
+        }, this.idempotency.ttl));
     }
 
     private stopAfterFatalSyncError(error: Error): void {
@@ -688,6 +767,7 @@ function createMongoTarget(
         stats: {
             syncCount: 0,
             errorCount: 0,
+            duplicateCount: 0,
             lastSyncTime: null,
             lastError: null,
         },

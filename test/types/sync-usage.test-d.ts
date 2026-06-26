@@ -4,6 +4,7 @@ import MonSQLize, {
     ResumeTokenStore,
     validateSyncConfig,
     type SyncConfig,
+    type SyncIdempotencyConfig,
     type SyncStats,
     type SyncTargetConfig,
 } from 'monsqlize';
@@ -26,6 +27,27 @@ const config: SyncConfig = {
         saveRetryDelayMs: 10,
     },
 };
+
+const idempotency: SyncIdempotencyConfig = {
+    enabled: true,
+    keyPrefix: 'sync:dedupe',
+    ttl: 60_000,
+    markMode: 'success',
+    store: {
+        get: (key) => key,
+        set: (_key, _value, _ttl) => undefined,
+    },
+    keyBuilder: (event, targetName) => `${targetName}:${String(event._id)}`,
+};
+expectAssignable<SyncIdempotencyConfig>(idempotency);
+
+const contextTarget: SyncTargetConfig = {
+    name: 'context-target',
+    apply: async (_event, _document, context) => {
+        expectType<string | undefined>(context?.idempotencyKey);
+    },
+};
+expectAssignable<SyncTargetConfig>(contextTarget);
 
 validateSyncConfig(config);
 expectAssignable<SyncConfig>(config);

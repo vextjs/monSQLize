@@ -19,6 +19,7 @@ import {
     buildCollectionCacheNamespace,
     buildResultCacheKeyOptions,
     hasSessionOption,
+    isCollectionCacheBarrierActive,
     isHexObjectIdString,
     normalizeFindProjectionOptions,
     parseRequiredObjectId,
@@ -54,7 +55,12 @@ export async function findOneByIdDocument<TSchema extends Document = Document>(
     const findOptions = buildFindDriverOptions(baseOptions) as FindOptions;
 
     const cacheTTL = getCacheTtl(rawOptions);
-    if (cacheTTL > 0 && queryCache && !hasSessionOption(baseOptions)) {
+    if (
+        cacheTTL > 0
+        && queryCache
+        && !hasSessionOption(baseOptions)
+        && !(await isCollectionCacheBarrierActive(queryCache, collection, defaults))
+    ) {
         const keyOptions = buildResultCacheKeyOptions(baseOptions);
         const namespace = buildCollectionCacheNamespace(collection, defaults);
         const cacheKey = `findOneById:${namespace}:${objectId.toString()}:${stableCacheKeyString(keyOptions)}`;
@@ -152,7 +158,10 @@ export async function findByIdsDocuments<TSchema extends Document = Document>(
 
     const cacheTTL = getCacheTtl(rawOptions);
     const namespace = buildCollectionCacheNamespace(collection, defaults);
-    const cacheKey = cacheTTL > 0 && queryCache && !hasSessionOption(baseOptions)
+    const cacheKey = cacheTTL > 0
+        && queryCache
+        && !hasSessionOption(baseOptions)
+        && !(await isCollectionCacheBarrierActive(queryCache, collection, defaults))
         ? `findByIds:${namespace}:${stableCacheKeyString({
             ids: uniqueIds.map((item) => item.toString()),
             options: buildResultCacheKeyOptions(baseOptions),

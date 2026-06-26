@@ -456,6 +456,10 @@ export interface UpdateBatchResult {
     errors: BatchErrorRecord[];
     /** Per-batch retry records. */
     retries: BatchRetryRecord[];
+    /** Number of documents skipped by strict model version conflict handling. */
+    conflictCount?: number;
+    /** Document ids skipped by strict model version conflict handling. */
+    conflictedIds?: unknown[];
 }
 
 export interface DeleteBatchResult {

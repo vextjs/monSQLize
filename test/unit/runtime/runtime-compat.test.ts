@@ -564,7 +564,7 @@ describe('P6 runtime compat mock path', () => {
         assert.ok(recorded.includes('find:compat_db.users:*'));
     });
 
-    it('does not fail a committed write when cache invalidation throws', async () => {
+    it('blocks writes before commit when the pre-write cache barrier fails', async () => {
         const warnings: unknown[] = [];
         const nativeCollection = {
             namespace: 'compat_db.users',
@@ -586,9 +586,73 @@ describe('P6 runtime compat mock path', () => {
             },
         );
 
-        const result = await accessor.insertOne({ name: 'Ada' } as never);
+        await assert.rejects(
+            () => accessor.insertOne({ name: 'Ada' } as never),
+            /pre-write cache invalidation failed/,
+        );
 
-        assert.equal(result.acknowledged, true);
-        assert.ok(warnings.some((entry) => String((entry as unknown[])[0]).includes('post-write cache invalidation failed')));
+        assert.ok(warnings.some((entry) => String((entry as unknown[])[0]).includes('pre-write cache invalidation failed')));
+    });
+
+    it('keeps dirty cache reads from refilling stale entries while a write is in flight', async () => {
+        const values = new Map<string, unknown>();
+        const queryCache = {
+            get: async (key: string) => values.get(key),
+            set: async (key: string, value: unknown) => {
+                values.set(key, value);
+                return true;
+            },
+            del: async (key: string) => {
+                values.delete(key);
+                return true;
+            },
+            delPattern: async (pattern: string) => {
+                const prefix = pattern.replace('*', '');
+                let deleted = 0;
+                for (const key of [...values.keys()]) {
+                    if (key.startsWith(prefix)) {
+                        values.delete(key);
+                        deleted += 1;
+                    }
+                }
+                return deleted;
+            },
+        };
+        let resolveUpdate!: () => void;
+        let updateStarted = false;
+        let findOneCalls = 0;
+        const nativeCollection = {
+            namespace: 'compat_db.users',
+            findOne: async () => {
+                findOneCalls += 1;
+                return { name: findOneCalls === 1 ? 'old' : 'during-write' };
+            },
+            updateOne: async () => {
+                updateStarted = true;
+                await new Promise<void>((resolve) => { resolveUpdate = resolve; });
+                return { acknowledged: true, matchedCount: 1, modifiedCount: 1, upsertedId: null };
+            },
+        };
+        const accessor = new MongoCollectionAccessor(
+            'compat_db',
+            'users',
+            nativeCollection as never,
+            { queryCache },
+        );
+
+        assert.deepEqual(await accessor.findOne({ active: true } as never, { cache: 1000 } as never), { name: 'old' });
+        assert.equal(findOneCalls, 1);
+
+        const write = accessor.updateOne({ active: true } as never, { $set: { active: false } } as never);
+        while (!updateStarted) {
+            await new Promise((resolve) => setImmediate(resolve));
+        }
+
+        assert.deepEqual(await accessor.findOne({ active: true } as never, { cache: 1000 } as never), { name: 'during-write' });
+        assert.equal(findOneCalls, 2);
+        assert.equal([...values.keys()].some((key) => key.startsWith('findOne:compat_db.users:')), false);
+
+        resolveUpdate();
+        await write;
     });
 });

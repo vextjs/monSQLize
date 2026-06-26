@@ -31,6 +31,7 @@ import {
     buildFindDriverOptions,
     buildResultCacheKeyOptions,
     hasSessionOption,
+    isCollectionCacheBarrierActive,
     normalizeFindProjectionOptions,
     normalizeQueryFilter,
     stableCacheKeyString,
@@ -297,7 +298,12 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
         // v1 compat: cache option (TTL in ms) — read-through cache
         const cacheTTL = typeof this.options.cache === 'number' ? this.options.cache : 0;
         const executeOptions = this.buildExecuteOptions();
-        if (cacheTTL > 0 && this.queryCache && !hasSessionOption(executeOptions)) {
+        if (
+            cacheTTL > 0
+            && this.queryCache
+            && !hasSessionOption(executeOptions)
+            && !(await isCollectionCacheBarrierActive(this.queryCache, this.collection, this.defaults))
+        ) {
             const cacheKey = this.buildCacheKey();
             const cached = await Promise.resolve(this.queryCache.get(cacheKey));
             if (cached !== undefined) {
@@ -434,7 +440,13 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
         }
         const cacheTTL = typeof this.options.cache === 'number' ? this.options.cache : 0;
         const executeOptions = this.buildExecuteOptions();
-        if (cacheTTL > 0 && this.queryCache && !hasSessionOption(executeOptions) && !this.writePipelineHooks?.onWriteComplete) {
+        if (
+            cacheTTL > 0
+            && this.queryCache
+            && !hasSessionOption(executeOptions)
+            && !this.writePipelineHooks?.onWriteComplete
+            && !(await isCollectionCacheBarrierActive(this.queryCache, this.collection, this.defaults))
+        ) {
             const cacheKey = this.buildCacheKey();
             const cached = await Promise.resolve(this.queryCache.get(cacheKey));
             if (cached !== undefined) {

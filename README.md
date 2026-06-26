@@ -59,7 +59,7 @@ The shared runtime direction is cache consistency, connection lifecycle, transac
 
 ## Runtime Consistency Contract
 
-monSQLize coordinates cache, transactions, sync, and queues inside the runtime, but it does not provide a global strict-consistency kernel. MongoDB transactions keep MongoDB session ACID semantics. Cache invalidation runs after writes or transaction commit and is best-effort; Redis/L2 cache and Pub/Sub invalidation provide shared cache state and eventual cross-instance coherence, not atomic cache/DB commits. Change Stream sync is at-least-once, so custom targets should be idempotent by change event `_id`. Transaction cache locks are process-local in the v2 runtime; use explicit business coordination, idempotency/fencing, or cache bypassing for cross-instance strict flows.
+monSQLize coordinates cache, transactions, sync, and queues inside the runtime, but it does not provide a global strict-consistency kernel. MongoDB transactions keep MongoDB session ACID semantics. Cache invalidation runs around writes or transaction commit and is best-effort; a short-lived dirty barrier makes cached reads bypass and avoid refilling cache while a namespace is being invalidated, but Redis/L2 cache and Pub/Sub invalidation still provide eventual cross-instance coherence rather than atomic cache/DB commits. Change Stream sync is at-least-once; custom targets should be idempotent by change event `_id`, and `sync.idempotency` can record per-target replay markers when a durable store is provided. Transaction cache locks are process-local in the v2 runtime; use explicit business coordination, idempotency/fencing, or cache bypassing for cross-instance strict flows.
 
 ## When to Use It
 
@@ -309,7 +309,7 @@ await User.replaceOne(
 
 Successful `save()`, `updateOne()`, `replaceOne()`, `findOneAndUpdate()`, and `findOneAndReplace()` advance the version. Stale writes throw a `WRITE_CONFLICT` error.
 
-For `updateMany()`, choose the batch version behavior explicitly when needed:
+For `updateMany()` and `updateBatch()`, choose the batch version behavior explicitly when needed:
 
 ```js
 await User.updateMany({ status: 'pending' }, { $set: { status: 'active' } }, {

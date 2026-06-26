@@ -109,12 +109,47 @@ describe('P4-A transaction', () => {
         await transaction.end();
     });
 
+    it('rejects commit before database commit when cache prepare invalidation fails', async () => {
+        let commits = 0;
+        const session = {
+            ...createFakeSession(),
+            commitTransaction() {
+                commits += 1;
+                return Promise.resolve();
+            },
+        };
+        const transaction = new MonSQLize.Transaction(session, {
+            cache: {
+                set: async () => undefined,
+                delPattern: async () => {
+                    throw new Error('cache prepare down');
+                },
+            },
+        });
+
+        await transaction.start();
+        await transaction.recordInvalidation('users:*');
+        await assert.rejects(() => transaction.commit(), /cache prepare down/);
+
+        assert.equal(commits, 0);
+        assert.equal(transaction.getInfo().status, 'started');
+        await transaction.abort();
+        await transaction.end();
+    });
+
     it('does not throw when post-commit cache invalidation fails', async () => {
         const warnings: unknown[] = [];
+        let delPatternCalls = 0;
         const transaction = new MonSQLize.Transaction(createFakeSession(), {
             cache: {
+                set: async () => undefined,
+                del: async () => undefined,
                 delPattern: async () => {
-                    throw new Error('cache down');
+                    delPatternCalls += 1;
+                    if (delPatternCalls > 1) {
+                        throw new Error('cache down');
+                    }
+                    return 1;
                 },
             },
             logger: { warn: (...args: unknown[]) => warnings.push(args) },

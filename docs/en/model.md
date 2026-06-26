@@ -1675,7 +1675,7 @@ await User.updateOne(
 
 Versioned `save`, `updateOne`, `replaceOne`, `findOneAndUpdate`, and `findOneAndReplace` use true optimistic concurrency control. When the filter contains a direct `_id`, monSQLize reads the current version automatically. Explicit `expectedVersion`, `version`, or a version field in the filter still wins over automatic lookup.
 
-For `updateMany`, choose the batch version behavior with `versionMode`:
+For `updateMany` and `updateBatch`, choose the batch version behavior with `versionMode`:
 
 ```javascript
 await User.updateMany(

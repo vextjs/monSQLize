@@ -415,7 +415,7 @@ const products = await collection('products').find(
 **Performance Features**:
 - Read latency: 1-2ms (network + Redis query)
 - Cache capacity: depends on Redis memory (up to GB level)
-- Cache consistency: shared across instances; invalidation is eventually coherent and is not atomic with database commits
+- Cache consistency: shared across instances; a short-lived dirty barrier makes reads bypass and avoid refilling query cache while invalidation is in progress, but invalidation is still eventually coherent and is not atomic with database commits
 
 ---
 

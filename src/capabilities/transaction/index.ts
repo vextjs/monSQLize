@@ -9,6 +9,10 @@
 import { randomBytes } from 'node:crypto';
 import type { MongoClient, ClientSession } from 'mongodb';
 import type { CacheLike } from '../cache';
+import {
+    clearCacheInvalidationBarrier,
+    markCacheInvalidationBarrier,
+} from '../../core/cache-invalidation-barrier';
 import { createError, ErrorCodes } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
 import type {
@@ -200,6 +204,7 @@ export class Transaction {
         if (this.state !== 'active') {
             throw createError(ErrorCodes.INVALID_OPERATION, `Cannot commit transaction in state: ${this.state}`);
         }
+        await this.preparePendingInvalidations();
         if (typeof (this.session as unknown as Record<string, unknown>).commitTransaction === 'function') {
             await commitTransactionWithRetry(this.session, this.options.logger);
         }
@@ -211,6 +216,9 @@ export class Transaction {
                 this.options.logger?.warn?.('[Transaction] post-commit cache invalidation failed.', error);
             }
         } finally {
+            await this.clearPendingInvalidationBarriers().catch((error) => {
+                this.options.logger?.warn?.('[Transaction] failed to clear cache invalidation barrier.', error);
+            });
             this.options.lockManager?.releaseLocks(this.id);
             this.pendingInvalidations.clear();
             this.clearTimeout();
@@ -270,6 +278,29 @@ export class Transaction {
         for (const pattern of this.pendingInvalidations) {
             await this.options.cache.delPattern(pattern);
         }
+    }
+
+    private async preparePendingInvalidations(): Promise<void> {
+        if (!this.options.cache?.delPattern || this.pendingInvalidations.size === 0) {
+            return;
+        }
+        const patterns = [...this.pendingInvalidations];
+        try {
+            await markCacheInvalidationBarrier(this.options.cache, patterns);
+            for (const pattern of patterns) {
+                await this.options.cache.delPattern(pattern);
+            }
+        } catch (error) {
+            await clearCacheInvalidationBarrier(this.options.cache, patterns).catch(() => undefined);
+            throw error;
+        }
+    }
+
+    private async clearPendingInvalidationBarriers(): Promise<void> {
+        if (!this.options.cache || this.pendingInvalidations.size === 0) {
+            return;
+        }
+        await clearCacheInvalidationBarrier(this.options.cache, this.pendingInvalidations);
     }
 
     /**

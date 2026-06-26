@@ -16,6 +16,8 @@
 export interface QueryCacheLike {
     get(key: string): unknown | Promise<unknown>;
     set(key: string, value: unknown, ttl: number): void | boolean | Promise<void> | Promise<boolean>;
+    del?: (key: string) => unknown | Promise<unknown>;
+    delete?: (key: string) => unknown | Promise<unknown>;
     delPattern?: (pattern: string) => number | Promise<number>;
     keys?: (pattern?: string) => string[] | Promise<string[]>;
 }

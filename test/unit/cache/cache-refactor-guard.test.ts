@@ -75,9 +75,11 @@ test('cache refactor-guard: function-cache uses cache-hub as backing (no standal
 });
 
 test('cache refactor-guard: find-page async totals cache uses MemoryCache', () => {
-    const src = readProjectSrc('src/adapters/mongodb/queries/find-page.ts');
-    assert.ok(src.includes('const _asyncTotalsCache = new MemoryCache('));
-    assert.ok(!src.includes('const _asyncTotalsCache = new Map'));
+    const findPageSrc = readProjectSrc('src/adapters/mongodb/queries/find-page.ts');
+    const totalsSrc = readProjectSrc('src/adapters/mongodb/queries/find-page-totals.ts');
+    assert.ok(findPageSrc.includes("from './find-page-totals'"));
+    assert.ok(totalsSrc.includes('const _asyncTotalsCache = new MemoryCache('));
+    assert.ok(!totalsSrc.includes('const _asyncTotalsCache = new Map'));
 });
 
 test('cache refactor-guard: runtime internal caches use MemoryCache', () => {

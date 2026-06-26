@@ -93,6 +93,7 @@ await msq.close();
 | `enabled` | boolean | ✅ | - | 是否启用同步 |
 | `targets` | Array | ✅ | - | 备份目标数组 |
 | `resumeToken` | Object | ❌ | - | Resume Token 配置 |
+| `idempotency` | Object | ❌ | disabled | 可选的 per-target 重放幂等门禁 |
 | `filter` | Function | ❌ | - | 事件过滤函数 |
 | `transform` | Function | ❌ | - | 数据转换函数 |
 
@@ -120,6 +121,10 @@ await msq.close();
 | `saveRetryDelayMs` | number | ❌ | `100` | token 保存重试间隔（毫秒） |
 
 Resume Token 持久化默认是 strict。文件模式会先写入同目录临时文件、fsync、把上一份 token 备份为 `<path>.bak`，再通过原子 rename 替换正式文件。启动时也会校验已保存 token：`strictLoad` 为 true 时，损坏 token 会快速失败，而不是静默按无 resume token 启动。匹配的 target 全部成功应用事件后，monSQLize 会先保存该事件的 resume token；只有保存成功后才推进 `syncedCount`。如果 token 保存在配置的重试后仍失败，或任一匹配 target 应用事件失败，manager 会记录错误、关闭当前 change stream、将 `isRunning` 标记为 `false`，并停止处理后续排队事件。这是 at-least-once 契约，不是 exactly-once：target apply 成功但 token 保存前崩溃时，同一事件可能重放。只有兼容旧 best-effort token 存储行为时才设置 `strictSave: false` 与 `strictLoad: false`；此时进程重启后可能重放已应用事件，或在旧 token 损坏时按无 token 启动。内置 MongoDB target 是幂等的（`replaceOne(..., { upsert: true })` / `deleteOne()`）；自定义 `apply` target 仍建议按 change event `_id` 做幂等或去重。
+
+### idempotency 配置
+
+`sync.idempotency` 是可选能力，默认关闭。启用后，manager 默认根据 change event `_id` 为每个 target 生成幂等 key；也可以通过 `keyBuilder` 自定义。key 已存在时，该 target 会被跳过，并在所有 eligible targets 都被处理后继续保存 resume token。跨进程重启保护需要传入 durable `store`；未传 store 时的内存 fallback 只能保护同进程内重复投递。`markMode: 'success'` 在 `apply` 成功后记录；`markMode: 'start'` 会在 `apply` 前记录，它能降低 unknown-success 重复写风险，但 marker 写入后若 apply 失败，runtime replay 可能会跳过该 target，因此只适用于 target 自身有 durable 幂等与恢复路径的场景。
 
 ---
 

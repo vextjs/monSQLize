@@ -9,8 +9,12 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Collection, Document, ObjectId, Sort } from 'mongodb';
 
 import { createError, ErrorCodes } from '../../../core/errors';
+import {
+    isCacheInvalidationBarrierActive,
+    type CacheInvalidationBarrierCache,
+} from '../../../core/cache-invalidation-barrier';
 import { normalizeProjection } from '../../../utils/normalize';
-import type { CursorPayload, CursorValueNormalizationOptions, RuntimeDefaults, SortShape } from '../../../types/internal/query';
+import type { CursorPayload, CursorValueNormalizationOptions, QueryCacheLike, RuntimeDefaults, SortShape } from '../../../types/internal/query';
 import {
     normalizeObjectIdConversionOptions,
     shouldConvertObjectIdPath,
@@ -386,6 +390,26 @@ export function buildCollectionCacheNamespace<TSchema extends Document = Documen
     const namespace = (collection as unknown as { namespace?: string }).namespace ?? '';
     const instanceId = defaults.namespace?.instanceId;
     return instanceId ? `${instanceId}:${namespace}` : namespace;
+}
+
+export function buildCollectionCacheBarrierNamespaces<TSchema extends Document = Document>(
+    collection: Collection<TSchema>,
+    defaults: RuntimeDefaults = {},
+): string[] {
+    const namespace = (collection as unknown as { namespace?: string }).namespace ?? '';
+    const scopedNamespace = buildCollectionCacheNamespace(collection, defaults);
+    return scopedNamespace === namespace ? [namespace] : [scopedNamespace, namespace];
+}
+
+export async function isCollectionCacheBarrierActive<TSchema extends Document = Document>(
+    queryCache: QueryCacheLike | null | undefined,
+    collection: Collection<TSchema>,
+    defaults: RuntimeDefaults = {},
+): Promise<boolean> {
+    return isCacheInvalidationBarrierActive(
+        queryCache as CacheInvalidationBarrierCache | null | undefined,
+        buildCollectionCacheBarrierNamespaces(collection, defaults),
+    );
 }
 
 function normalizeCacheKeyValue(value: unknown): unknown {

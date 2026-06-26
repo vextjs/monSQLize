@@ -388,6 +388,108 @@ describe('P4-C sync', () => {
         assert.equal(stats.errorCount, 1);
     });
 
+    it('skips already applied targets with sync idempotency on replay', async () => {
+        const createLiveStream = () => {
+            const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };
+            liveStream.close = () => Promise.resolve(true);
+            return liveStream;
+        };
+        const store = new Map<string, unknown>();
+        const idempotencyStore = {
+            get: (key: string) => store.get(key),
+            set: (key: string, value: unknown) => {
+                store.set(key, value);
+            },
+        };
+        let applyCount = 0;
+        const savedTokens: number[] = [];
+        const makeDb = (liveStream: EventEmitter & { close(): Promise<boolean> }) => ({
+            databaseName: 'source_db',
+            watch(_pipeline: unknown[], options: Record<string, unknown>) {
+                if (options?.maxAwaitTimeMS === 1) {
+                    return { close: () => Promise.resolve(true) };
+                }
+                return liveStream;
+            },
+        });
+        const event = {
+            _id: { token: 7 },
+            operationType: 'insert',
+            ns: { db: 'source_db', coll: 'users' },
+            documentKey: { _id: 1 },
+            fullDocument: { _id: 1, name: 'Ada' },
+        };
+
+        const firstStream = createLiveStream();
+        const firstManager = new MonSQLize.ChangeStreamSyncManager({
+            db: makeDb(firstStream),
+            config: {
+                enabled: true,
+                collections: ['users'],
+                idempotency: { enabled: true, store: idempotencyStore },
+                targets: [
+                    {
+                        name: 'outbox',
+                        apply: async (_event: ChangeEvent, _document: ChangeEvent['fullDocument'], context: { idempotencyKey?: string }) => {
+                            assert.ok(context.idempotencyKey?.includes('outbox'));
+                            applyCount += 1;
+                        },
+                    },
+                ],
+            },
+            tokenStore: {
+                load: () => Promise.resolve(null),
+                save: () => Promise.reject(new Error('token store down')),
+                clear: () => Promise.resolve(),
+            },
+            logger: { error: () => undefined, warn: () => undefined, info: () => undefined, debug: () => undefined },
+        });
+        await firstManager.start();
+        firstStream.emit('change', event);
+        await wait(20);
+        await firstManager.stop();
+
+        assert.equal(applyCount, 1);
+        assert.equal(store.size, 1);
+
+        const secondStream = createLiveStream();
+        const secondManager = new MonSQLize.ChangeStreamSyncManager({
+            db: makeDb(secondStream),
+            config: {
+                enabled: true,
+                collections: ['users'],
+                idempotency: { enabled: true, store: idempotencyStore },
+                targets: [
+                    {
+                        name: 'outbox',
+                        apply: async () => {
+                            applyCount += 1;
+                        },
+                    },
+                ],
+            },
+            tokenStore: {
+                load: () => Promise.resolve(null),
+                save: (token: ChangeEvent['_id']) => {
+                    savedTokens.push(token.token);
+                    return Promise.resolve();
+                },
+                clear: () => Promise.resolve(),
+            },
+            logger: { error: () => undefined, warn: () => undefined, info: () => undefined, debug: () => undefined },
+        });
+        await secondManager.start();
+        secondStream.emit('change', event);
+        await wait(20);
+        await secondManager.stop();
+
+        assert.equal(applyCount, 1);
+        assert.deepEqual(savedTokens, [7]);
+        const stats = secondManager.getStats();
+        assert.equal(stats.duplicateTargetCount, 1);
+        assert.equal(stats.duplicateEventCount, 1);
+    });
+
     it('stops processing changes when resume token persistence fails', async () => {
         const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };
         let closed = false;

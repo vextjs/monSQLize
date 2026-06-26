@@ -144,6 +144,95 @@ async function runStrictUpdateMany<TDocument>(
     };
 }
 
+async function runStrictUpdateBatch<TDocument>(
+    context: ModelMutationContext<TDocument>,
+    filter: unknown,
+    update: unknown,
+    options: unknown,
+): Promise<UpdateBatchResult> {
+    if (!context.versionConfig?.enabled) {
+        return context.extendedCollection().updateBatch(filter, update, options) as Promise<UpdateBatchResult>;
+    }
+    const rawOptions = (options ?? {}) as Record<string, unknown>;
+    if (rawOptions.upsert === true) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'versionMode "strict" does not support upsert.');
+    }
+    const batchSize = rawOptions.batchSize === undefined ? 1000 : Number(rawOptions.batchSize);
+    if (!Number.isInteger(batchSize) || batchSize <= 0) {
+        throw createError(ErrorCodes.INVALID_ARGUMENT, 'batchSize must be a positive integer.');
+    }
+    const {
+        batchSize: _batchSize,
+        estimateProgress: _estimateProgress,
+        onProgress,
+        onError: _onError,
+        retryAttempts: _retryAttempts,
+        retryDelay: _retryDelay,
+        onRetry: _onRetry,
+        sort = { _id: 1 },
+        ...driverOptions
+    } = rawOptions;
+    void _batchSize;
+    void _estimateProgress;
+    void _onError;
+    void _retryAttempts;
+    void _retryDelay;
+    void _onRetry;
+
+    const docs = await context.collection.find(filter, {
+        ...buildModelVersionLookupOptions(driverOptions, {
+            _id: 1,
+            [context.versionConfig.field]: 1,
+        }),
+        sort,
+    }) as Array<Record<string, unknown>>;
+    const result: UpdateBatchResult = {
+        acknowledged: true,
+        totalCount: docs.length,
+        matchedCount: 0,
+        modifiedCount: 0,
+        upsertedCount: 0,
+        batchCount: Math.ceil(docs.length / batchSize),
+        errors: [],
+        retries: [],
+        conflictCount: 0,
+        conflictedIds: [],
+    };
+    for (let offset = 0; offset < docs.length; offset += batchSize) {
+        const batch = docs.slice(offset, offset + batchSize);
+        for (const doc of batch) {
+            const id = doc._id;
+            const expectedVersion = assertNumericExpectedVersion(doc[context.versionConfig.field], 'updateBatch');
+            const updateResult = await context.collection.updateOne(
+                { _id: id, [context.versionConfig.field]: expectedVersion },
+                update,
+                driverOptions,
+            );
+            if ((updateResult?.matchedCount ?? 0) === 0) {
+                result.conflictCount = (result.conflictCount ?? 0) + 1;
+                result.conflictedIds?.push(id);
+                continue;
+            }
+            result.matchedCount += updateResult.matchedCount ?? 0;
+            result.modifiedCount += updateResult.modifiedCount ?? 0;
+        }
+        if (typeof onProgress === 'function') {
+            onProgress({
+                currentBatch: Math.floor(offset / batchSize) + 1,
+                totalBatches: result.batchCount,
+                modified: result.modifiedCount,
+                matched: result.matchedCount,
+                total: docs.length,
+                percentage: docs.length > 0 ? Math.round((result.modifiedCount / docs.length) * 100) : null,
+                errors: result.errors.length,
+                retries: result.retries.length,
+                conflicts: result.conflictCount ?? 0,
+            });
+        }
+    }
+    return result;
+}
+
 function buildSoftDeletePatch(config: ModelSoftDeleteConfig, now: Date): Record<string, unknown> {
     if (!config?.enabled) {
         return {};
@@ -550,14 +639,13 @@ export async function orchestrateModelUpdateBatch<TDocument = Record<string, unk
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'updateBatch', collection: context.collectionName, filter, update });
     }
     const versionMode = resolveModelUpdateManyVersionMode(options, context.versionConfig);
-    if (versionMode.mode === 'strict') {
-        throw createError(ErrorCodes.INVALID_ARGUMENT, 'updateBatch does not support versionMode "strict"; use updateMany() for strict optimistic locking.');
-    }
     const timestampedUpdate = applyModelUpdateTimestamps(update, context.timestampsConfig, () => context.nowDate());
     const nextUpdate = versionMode.mode === 'off'
         ? timestampedUpdate
         : applyModelVersionIncrement(timestampedUpdate, context.versionConfig);
-    const result = await context.extendedCollection().updateBatch(filter, nextUpdate, versionMode.driverOptions);
+    const result = versionMode.mode === 'strict'
+        ? await runStrictUpdateBatch(context, filter, nextUpdate, versionMode.driverOptions)
+        : await context.extendedCollection().updateBatch(filter, nextUpdate, versionMode.driverOptions);
     if (context.hooksFactory) {
         try { await invokeV1Hook(context, 'update', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }
     } else {

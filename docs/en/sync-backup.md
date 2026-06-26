@@ -97,6 +97,7 @@ await msq.close();
 | `enabled` | boolean | ✅ | - | Whether to enable synchronization |
 | `targets` | Array | ✅ | - | Backup target array |
 | `resumeToken` | Object | ❌ | - | Resume Token Configuration |
+| `idempotency` | Object | ❌ | disabled | Optional per-target replay idempotency gate |
 | `filter` | Function | ❌ | - | Event filtering function |
 | `transform` | Function | ❌ | - | Data conversion function |
 
@@ -126,6 +127,10 @@ await msq.close();
 | `saveRetryDelayMs` | number | ❌ | `100` | Delay between token-save retries |
 
 Resume token persistence is strict by default. File storage writes to a same-directory temporary file, fsyncs it, keeps the previous token as `<path>.bak`, and then atomically renames the temporary file into place. Startup also validates the stored token: a corrupted token fails fast when `strictLoad` is true, instead of silently starting without a resume token. After all eligible targets apply an event successfully, monSQLize saves the event resume token; `syncedCount` advances only after that save succeeds. If token persistence fails after the configured retries, or any eligible target fails to apply the event, the manager records the error, closes the live stream, marks `isRunning: false`, and does not process later queued events. This is an at-least-once contract, not exactly-once: a crash after target apply and before token save can replay the same event. Set `strictSave: false` and `strictLoad: false` only for legacy best-effort token-storage behavior, where a restart may replay already-applied events or start without the previously stored token. Built-in MongoDB targets are idempotent (`replaceOne(..., { upsert: true })` / `deleteOne()`); custom `apply` targets should still deduplicate by change event `_id`.
+
+### idempotency configuration
+
+`sync.idempotency` is optional and disabled by default. When enabled, the manager builds a per-target idempotency key from the change event `_id` unless `keyBuilder` is provided. If the key is already present, that target is skipped and the event can still advance its resume token after all eligible targets are accounted for. Use a durable `store` for restart protection; the built-in memory fallback only protects repeated delivery in the same process. `markMode: 'success'` records after `apply` resolves. `markMode: 'start'` records before `apply`; it narrows unknown-success duplicate risk, but a failure after the marker is written can make runtime replay skip that target, so use it only when the target has its own durable idempotency and recovery path.
 
 ---
 

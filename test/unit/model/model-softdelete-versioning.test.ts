@@ -454,6 +454,40 @@ describe('Model softDelete / versioning behavior', () => {
             assert.deepEqual(lookupOptions?.projection, { _id: 1, version: 1 });
         });
 
+        it('updateBatch strict mode reports conflicting documents', async () => {
+            const model = runtime.model('ver_items');
+            const first = await model.insertOne({ group: 'strict-batch', n: 1 });
+            await model.insertOne({ group: 'strict-batch', n: 2 });
+            let firstAttempt = true;
+            const progress: any[] = [];
+            const originalUpdateOne = model.collection.updateOne.bind(model.collection);
+            model.collection.updateOne = async (filter: any, update: any, options: any) => {
+                if (firstAttempt && String(filter._id) === String(first.insertedId)) {
+                    firstAttempt = false;
+                    await originalUpdateOne({ _id: filter._id }, { $inc: { version: 1 } });
+                }
+                return originalUpdateOne(filter, update, options);
+            };
+
+            try {
+                const result = await model.updateBatch(
+                    { group: 'strict-batch' },
+                    { $set: { x: 1 } },
+                    { versionMode: 'strict', batchSize: 1, onProgress: (info: any) => progress.push(info) },
+                );
+                assert.equal((result as any).conflictCount, 1);
+                assert.equal((result as any).conflictedIds.length, 1);
+                assert.equal(result.matchedCount, 1);
+                assert.equal(result.batchCount, 2);
+                assert.equal(progress.length, 2);
+            } finally {
+                model.collection.updateOne = originalUpdateOne;
+            }
+
+            const docs = await model.find({ group: 'strict-batch' });
+            assert.deepEqual(docs.map((doc: any) => doc.version).sort(), [1, 1]);
+        });
+
         it('updateOne preserves pipeline updates while advancing version', async () => {
             const model = runtime.model('ver_items');
             const result = await model.insertOne({ name: 'pipeline-version', score: 1 });

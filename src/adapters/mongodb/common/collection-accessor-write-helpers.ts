@@ -32,6 +32,7 @@ export type AccessorWriteContext<TSchema extends Document = Document> = {
     cvFilter<T>(value: T): T;
     cvDoc<T>(value: T): T;
     cvUpdate<T>(value: T): T;
+    prepareCacheForWrite?(options?: unknown): Promise<void>;
     invalidateAll(options?: unknown): Promise<number>;
 };
 
@@ -129,6 +130,18 @@ async function runPostWriteInvalidation<TSchema extends Document>(
     }
 }
 
+async function runPreWriteInvalidation<TSchema extends Document>(
+    context: AccessorWriteContext<TSchema>,
+    options?: unknown,
+): Promise<void> {
+    try {
+        await context.prepareCacheForWrite?.(options);
+    } catch (error) {
+        context.logger?.warn?.('[write] pre-write cache invalidation failed', error);
+        throw createError(ErrorCodes.WRITE_ERROR, 'pre-write cache invalidation failed', undefined, error as Error);
+    }
+}
+
 export async function insertOneForAccessor<TSchema extends Document = Document>(
     context: AccessorWriteContext<TSchema>,
     doc: Parameters<Collection<TSchema>['insertOne']>[0],
@@ -139,6 +152,7 @@ export async function insertOneForAccessor<TSchema extends Document = Document>(
     let result: Awaited<ReturnType<Collection<TSchema>['insertOne']>>;
     const startedAt = Date.now();
     try {
+        await runPreWriteInvalidation(context, options);
         result = await insertOneDocument(context.collectionRef, context.cvDoc(doc), options);
     } catch (err: unknown) {
         const mongoErr = err as { code?: number; message?: string };
@@ -197,6 +211,7 @@ export async function insertManyForAccessor<TSchema extends Document = Document>
     let result: Awaited<ReturnType<Collection<TSchema>['insertMany']>>;
     try {
         const convertedDocs = documents.map((document) => context.cvDoc(document)) as typeof documents;
+        await runPreWriteInvalidation(context, options);
         result = await insertManyDocuments(context.collectionRef, convertedDocs, options);
     } catch (err: unknown) {
         const mongoErr = err as { code?: number; message?: string };
@@ -243,6 +258,7 @@ export async function updateOneForAccessor<TSchema extends Document = Document>(
     const finalUpdate = Array.isArray(update)
         ? update
         : context.cvUpdate(update);
+    await runPreWriteInvalidation(context, options);
     const result = await updateOneDocument(context.collectionRef, normalizedFilter, finalUpdate, options);
     if (result.modifiedCount > 0 || result.upsertedId) {
         await runPostWriteInvalidation(context, options);
@@ -259,6 +275,7 @@ export async function updateManyForAccessor<TSchema extends Document = Document>
     assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
     assertUpdateDocument(update);
 
+    await runPreWriteInvalidation(context, options);
     const result = await updateManyDocuments(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
     if (result.modifiedCount > 0 || result.upsertedId) {
         await runPostWriteInvalidation(context, options);
@@ -275,6 +292,7 @@ export async function replaceOneForAccessor<TSchema extends Document = Document>
     assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
     assertReplacementDocument(replacement);
 
+    await runPreWriteInvalidation(context, options);
     const result = await replaceOneDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), options);
     await runPostWriteInvalidation(context, options);
     return result;
@@ -289,6 +307,7 @@ export async function findOneAndReplaceForAccessor<TSchema extends Document = Do
     assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
     assertReplacementDocument(replacement);
 
+    await runPreWriteInvalidation(context, options);
     const result = await findOneAndReplaceDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), options);
     if (result) {
         await runPostWriteInvalidation(context, options);
@@ -305,6 +324,7 @@ export async function findOneAndUpdateForAccessor<TSchema extends Document = Doc
     assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
     assertUpdateDocument(update);
 
+    await runPreWriteInvalidation(context, options);
     const result = await findOneAndUpdateDocument(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
     if (result) {
         await runPostWriteInvalidation(context, options);
@@ -319,6 +339,7 @@ export async function findOneAndDeleteForAccessor<TSchema extends Document = Doc
 ): ReturnType<Collection<TSchema>['findOneAndDelete']> {
     assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
 
+    await runPreWriteInvalidation(context, options);
     const result = await findOneAndDeleteDocument(context.collectionRef, context.cvFilter(filter), options);
     if (result) {
         await runPostWriteInvalidation(context, options);
@@ -338,6 +359,7 @@ export async function upsertOneForAccessor<TSchema extends Document = Document>(
     const updateDoc = Object.keys(update as Record<string, unknown>).some((key) => key.startsWith('$'))
         ? update
         : { $set: update as Record<string, unknown> };
+    await runPreWriteInvalidation(context, options);
     const result = await upsertOneDocument(
         context.collectionRef,
         context.cvFilter(filter),
@@ -358,6 +380,7 @@ export async function deleteOneForAccessor<TSchema extends Document = Document>(
 ): ReturnType<Collection<TSchema>['deleteOne']> {
     assertObjectArgument(filter, 'filter', 'filter must be an object');
 
+    await runPreWriteInvalidation(context, options);
     const result = await deleteOneDocument(context.collectionRef, context.cvFilter(filter), options);
     if (result.deletedCount > 0) {
         await runPostWriteInvalidation(context, options);
@@ -372,6 +395,7 @@ export async function deleteManyForAccessor<TSchema extends Document = Document>
 ): ReturnType<Collection<TSchema>['deleteMany']> {
     assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
 
+    await runPreWriteInvalidation(context, options);
     const result = await deleteManyDocuments(context.collectionRef, context.cvFilter(filter), options);
     if (result.deletedCount > 0) {
         await runPostWriteInvalidation(context, options);

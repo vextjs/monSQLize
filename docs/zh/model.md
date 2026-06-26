@@ -1587,7 +1587,7 @@ console.log(updatedAgain.version);  // 2
 
 启用 version 后，`save`、`updateOne`、`replaceOne`、`findOneAndUpdate`、`findOneAndReplace` 使用真正的乐观锁。filter 中有直接 `_id` 时，monSQLize 会自动读取当前 version；显式传入 `expectedVersion`、`version` 或 filter 中的 version 字段时，显式值优先。
 
-`updateMany` 通过 `versionMode` 控制批量版本行为：
+`updateMany` 和 `updateBatch` 通过 `versionMode` 控制批量版本行为：
 
 ```javascript
 await User.updateMany(

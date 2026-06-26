@@ -26,6 +26,7 @@ type BatchAccessorContext<TSchema extends Document> = {
     cvFilter: <T>(value: T) => T;
     cvDoc: <T>(value: T) => T;
     cvUpdate: <T>(value: T) => T;
+    prepareCacheForWrite?: (options?: unknown) => Promise<void>;
     invalidateAll: (options?: unknown) => Promise<number>;
 };
 
@@ -36,6 +37,17 @@ async function runPostWriteInvalidation<TSchema extends Document>(
     await context.invalidateAll(options).catch(() => undefined);
 }
 
+async function runPreWriteInvalidation<TSchema extends Document>(
+    context: BatchAccessorContext<TSchema>,
+    options?: unknown,
+): Promise<void> {
+    try {
+        await context.prepareCacheForWrite?.(options);
+    } catch (error) {
+        throw createError(ErrorCodes.WRITE_ERROR, 'pre-write cache invalidation failed', undefined, error as Error);
+    }
+}
+
 export async function insertBatchForAccessor<TSchema extends Document>(
     context: BatchAccessorContext<TSchema>,
     documents: TSchema[],
@@ -44,6 +56,7 @@ export async function insertBatchForAccessor<TSchema extends Document>(
     if (!Array.isArray(documents)) {
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents must be an array');
     }
+    await runPreWriteInvalidation(context, options);
     const result = await insertBatchDocuments(context.collectionRef, documents.map((document) => context.cvDoc(document)), options);
     await runPostWriteInvalidation(context, options);
     return result;
@@ -55,6 +68,7 @@ export async function updateBatchForAccessor<TSchema extends Document>(
     update: Parameters<Collection<TSchema>['updateMany']>[1],
     options?: UpdateBatchOptions & Parameters<Collection<TSchema>['updateMany']>[2],
 ): Promise<UpdateBatchResult> {
+    await runPreWriteInvalidation(context, options);
     const result = await updateBatchDocuments(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
     if (result.modifiedCount > 0) {
         await runPostWriteInvalidation(context, options);
@@ -67,6 +81,7 @@ export async function deleteBatchForAccessor<TSchema extends Document>(
     filter: Parameters<Collection<TSchema>['find']>[0],
     options?: UpdateBatchOptions & Parameters<Collection<TSchema>['deleteMany']>[1],
 ): Promise<DeleteBatchResult> {
+    await runPreWriteInvalidation(context, options);
     const result = await deleteBatchDocuments(context.collectionRef, context.cvFilter(filter), options);
     if (result.deletedCount > 0) {
         await runPostWriteInvalidation(context, options);
@@ -81,6 +96,9 @@ export async function incrementOneForAccessor<TSchema extends Document>(
     incrementOrOptions?: number | IncrementOneOptions,
     maybeOptions?: IncrementOneOptions,
 ): Promise<IncrementOneResult<TSchema>> {
+    await runPreWriteInvalidation(context, typeof incrementOrOptions === 'object' && incrementOrOptions !== null
+        ? incrementOrOptions
+        : maybeOptions);
     const result = await incrementOneDocument(
         context.collectionRef,
         context.cvFilter(filter),
