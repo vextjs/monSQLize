@@ -11,6 +11,11 @@ import { Collection, Document, ObjectId, Sort } from 'mongodb';
 import { createError, ErrorCodes } from '../../../core/errors';
 import { normalizeProjection } from '../../../utils/normalize';
 import type { CursorPayload, CursorValueNormalizationOptions, RuntimeDefaults, SortShape } from '../../../types/internal/query';
+import {
+    normalizeObjectIdConversionOptions,
+    shouldConvertObjectIdPath,
+    type ObjectIdConversionOptions,
+} from '../utils/objectid-converter';
 
 /**
  * Internal query-layer helpers.
@@ -112,62 +117,15 @@ export function normalizeIdentifier(value: unknown, autoConvert = true): unknown
     return value;
 }
 
-function getAutoConvertConfig(autoConvert: boolean | Record<string, unknown>): {
-    enabled: boolean;
-    excludeFields: string[];
-    maxDepth: number;
-    fieldMap: Record<string, boolean>;
-} {
-    if (autoConvert === false) return { enabled: false, excludeFields: [], maxDepth: 10, fieldMap: {} };
-    if (autoConvert === true) return { enabled: true, excludeFields: [], maxDepth: 10, fieldMap: {} };
-
-    const fieldMap: Record<string, boolean> = {};
-    for (const [key, value] of Object.entries(autoConvert)) {
-        if (typeof value === 'boolean' && key !== 'enabled') {
-            fieldMap[key] = value;
-        }
-    }
-
-    return {
-        enabled: autoConvert.enabled !== false,
-        excludeFields: Array.isArray(autoConvert.excludeFields) ? autoConvert.excludeFields.map(String) : [],
-        maxDepth: typeof autoConvert.maxDepth === 'number' && autoConvert.maxDepth >= 0 ? autoConvert.maxDepth : 10,
-        fieldMap,
-    };
-}
-
-function stripArrayIndexes(path: string): string {
-    return path.replace(/\[\d+\]/g, '');
-}
-
-function lastPathSegment(path: string): string {
-    const stripped = stripArrayIndexes(path);
-    const parts = stripped.split('.');
-    return parts[parts.length - 1] ?? stripped;
-}
-
-function matchesFieldPattern(pattern: string, path: string): boolean {
-    const stripped = stripArrayIndexes(path);
-    const fieldName = lastPathSegment(path);
-    if (pattern === stripped || pattern === fieldName) return true;
-    if (!pattern.includes('*')) return false;
-    const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*');
-    const regex = new RegExp(`^${escaped}$`);
-    return regex.test(stripped) || regex.test(fieldName);
-}
-
-function shouldConvertQueryField(autoConvert: boolean | Record<string, unknown>, path: string, depth: number): boolean {
-    const config = getAutoConvertConfig(autoConvert);
+function shouldConvertQueryField(autoConvert: ObjectIdConversionOptions, path: string, depth: number): boolean {
+    const config = normalizeObjectIdConversionOptions(autoConvert);
     if (!config.enabled || depth > config.maxDepth) return false;
-    const stripped = stripArrayIndexes(path);
-    const fieldName = lastPathSegment(path);
-    if (config.fieldMap[stripped] === false || config.fieldMap[fieldName] === false) return false;
-    return !config.excludeFields.some((pattern) => matchesFieldPattern(pattern, path));
+    return shouldConvertObjectIdPath(path, config);
 }
 
 function normalizeQueryArray(
     value: unknown[],
-    autoConvert: boolean | Record<string, unknown>,
+    autoConvert: ObjectIdConversionOptions,
     path: string,
     depth: number,
 ): unknown[] {
@@ -192,12 +150,12 @@ function normalizeQueryArray(
  */
 export function normalizeQueryFilter(
     filter: Record<string, unknown>,
-    autoConvert: boolean | Record<string, unknown>,
+    autoConvert: ObjectIdConversionOptions,
     fieldPath = '',
     depth = 0,
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
-    const autoConvertConfig = getAutoConvertConfig(autoConvert);
+    const autoConvertConfig = normalizeObjectIdConversionOptions(autoConvert);
     if (!autoConvertConfig.enabled || depth > autoConvertConfig.maxDepth) {
         return filter;
     }

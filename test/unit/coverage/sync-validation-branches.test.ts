@@ -515,4 +515,62 @@ describe('ChangeStreamSyncManager — filter and transform', () => {
         }
         assert.ok(true); // transform test ran
     });
+
+    it('stops processing queued changes after a target failure so later tokens cannot skip the failed event', async () => {
+        const savedTokens: unknown[] = [];
+        const appliedEvents: unknown[] = [];
+        let closeCalled = false;
+        const stream = {
+            on: () => stream,
+            close: async () => { closeCalled = true; },
+        };
+        const db = { databaseName: 'db', watch: () => stream };
+
+        const mgr = new ChangeStreamSyncManager({
+            db,
+            config: {
+                enabled: true,
+                targets: [
+                    { name: 'ok', apply: async (event: unknown) => { appliedEvents.push(event); } },
+                    {
+                        name: 'flaky',
+                        apply: async (event: { _id?: { token?: number } }) => {
+                            if (event._id?.token === 1) {
+                                throw new Error('target unavailable');
+                            }
+                        },
+                    },
+                ],
+            },
+            tokenStore: {
+                load: async () => null,
+                save: async (token: unknown) => { savedTokens.push(token); },
+                clear: async () => {},
+            },
+        });
+
+        await mgr.start();
+        const handler = (mgr as any)['handleChange']?.bind(mgr);
+        assert.equal(typeof handler, 'function');
+        await handler({
+            _id: { token: 1 },
+            operationType: 'insert',
+            ns: { coll: 'items' },
+            documentKey: { _id: 1 },
+            fullDocument: { _id: 1 },
+        });
+        await handler({
+            _id: { token: 2 },
+            operationType: 'insert',
+            ns: { coll: 'items' },
+            documentKey: { _id: 2 },
+            fullDocument: { _id: 2 },
+        });
+
+        assert.deepEqual(savedTokens, []);
+        assert.equal(appliedEvents.length, 1);
+        assert.equal(mgr.getStats().isRunning, false);
+        assert.match(String(mgr.getStats().lastError), /target unavailable/);
+        assert.equal(closeCalled, true);
+    });
 });

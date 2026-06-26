@@ -1,14 +1,4 @@
-/**
- * findPage execution layer.
- *
- * Responsibilities:
- * - Core logic for cursor pagination, offset pagination, and after/before modes.
- * - Totals calculation (sync / async / approx modes).
- * - Meta performance tracking.
- *
- * Depends on query-helpers (cursor encode/decode, filter building) and types/internal/query.
- * Does not depend on FindChain/AggregateChain to avoid circular references.
- */
+/** findPage execution layer: pagination, totals calculation, and meta tracking. */
 
 import { Collection, Document } from 'mongodb';
 

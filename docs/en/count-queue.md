@@ -28,7 +28,7 @@ Count queue control is an advanced feature of monSQLize that limits the number o
 
 - ✅ **Concurrency Control** - Limit the number of counts executed simultaneously
 - ✅ **Queue Management** - Requests exceeding the limit are automatically queued
-- ✅ **Timeout Protection** - Prevent requests from waiting for long periods of time
+- ✅ **Timeout Protection** - Prevent requests from waiting for long periods of time and pass an `AbortSignal` to the running task for cooperative cancellation
 - ✅ **Statistics Monitoring** - Provides queue status and performance metrics
 - ✅ **AUTO-ENABLED** - Enabled by default, no configuration required
 
@@ -464,6 +464,8 @@ interface CountQueueConfig {
     timeout?: number;         //Timeout time, default 60000ms
 }
 ```
+
+`CountQueue.execute(fn)` passes an optional `AbortSignal` to `fn`. When the execution timeout fires, the signal is aborted before the queue rejects with `OPERATION_TIMEOUT`. JavaScript cannot force-stop a promise that ignores the signal, so long-running custom tasks should forward the signal to their own cancellable work where possible.
 
 
 ## Statistics

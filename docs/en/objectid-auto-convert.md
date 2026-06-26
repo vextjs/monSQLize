@@ -155,11 +155,13 @@ const msq = new MonSQLize({
 | `false` | Disables automatic conversion for the instance. |
 | `{ enabled: true }` | Enables automatic conversion explicitly. |
 | `{ enabled: false }` | Disables automatic conversion explicitly. |
-| `{ excludeFields: ['token'] }` | Keeps matching field names or paths as strings. |
+| `{ excludeFields: ['token'] }` | Keeps matching field names, path segments, or full paths as strings. |
 | `{ token: false }` | Keeps a specific field name or path as a string while preserving conversion elsewhere. |
 | `{ maxDepth: 3 }` | Stops recursive conversion beyond the configured depth; values deeper than the limit are left unchanged. |
 
 `maxDepth` is a traversal safety cap. If a very deep `$and` / `$or` tree or nested document contains ObjectId-looking strings beyond that depth, monSQLize leaves those strings as-is. Increase `maxDepth` for intentionally deep query shapes that still need automatic conversion.
+
+`excludeFields` and `{ field: false }` use the same matcher on query and write paths. A value such as `b` matches `b`, `a.b`, and nested array paths such as `a.b[0].c`; wildcard patterns still match the normalized dot path.
 
 ---
 

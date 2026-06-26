@@ -1,14 +1,4 @@
-/**
- * MongoDB runtime core assembly layer.
- *
- * Notes:
- * - Owns the runtime main class, capability wiring, public exports, and default config consolidation.
- * - Specific semantics for query / write / model / cache / transaction / pool are implemented
- *   in their own sub-modules; this file only assembles and exposes them — avoid adding
- *   further business logic here.
- * - Maintenance boundary: new capabilities should land in the capability / adapter layer first;
- *   only public wiring and main-class API surface belongs here.
- */
+/** MongoDB runtime core assembly layer. Keep business logic in capability / adapter modules. */
 
 import {
     MongoCollectionAccessor as CollectionFacade,
@@ -172,17 +162,7 @@ export * from './runtime-exports';
 
 type RuntimeAdapterSurface = LegacyAdapterBridgeLike;
 
-/**
- * Core entry point for the monSQLize TypeScript runtime.
- *
- * Responsibilities:
- * - Manage the MongoDB connection lifecycle
- * - Expose runtime access points: `collection()` / `db()` / `use()` / `pool()`
- * - Wire capabilities: cache, function-cache, model, transaction, lock, pool, sync, slow-query-log, saga
- * - Serve as the package root export and the runtime host returned by `connect()`
- *
- * @since v1.3.0
- */
+/** Core entry point for the monSQLize TypeScript runtime. */
 export class MonSQLizeRuntime {
     private _connected = false;
     private readonly _cache: CacheLike;
@@ -210,17 +190,11 @@ export class MonSQLizeRuntime {
     private _sshTunnel: SSHTunnelSSH2 | null = null;
     private _distributedInvalidator: DistributedCacheInvalidator | null = null;
 
-    /** v1 compat: expose defaults as a public property (frozen object). */
     readonly defaults: Readonly<Record<string, unknown>>;
-
-    /** v1 compat: expose autoConvertConfig as a public property. */
     readonly autoConvertConfig: AutoConvertConfigPublic;
-
-    /** v1 compat: expose logger as a public accessor (tests may monkey-patch `.warn/.info`). */
     get logger(): Logger {
         return this._logger;
     }
-
     constructor(public readonly options: MonSQLizeOptions = {}) {
         const type = options.type;
         if (type !== 'mongodb') {
@@ -269,16 +243,13 @@ export class MonSQLizeRuntime {
         // v1 compat: initialise autoConvertConfig (delegates to the capability-wiring pure function).
         this.autoConvertConfig = initAutoConvertConfig(options.autoConvertObjectId, options.type);
     }
-
     async connect(): Promise<ConnectResult<MonSQLizeRuntime>> {
         if (this._connected) {
             return createRuntimeCoreAccessors(this);
         }
-
         if (this._connectionPromise) {
             return this._connectionPromise;
         }
-
         this._connectionPromise = (async () => {
             const databaseName = resolveDatabaseName(this.options);
             let connectConfig = this.options.config;
@@ -317,7 +288,6 @@ export class MonSQLizeRuntime {
             });
             return createRuntimeCoreAccessors(this);
         })();
-
         try {
             return await this._connectionPromise;
         } catch (error) {
@@ -350,9 +320,7 @@ export class MonSQLizeRuntime {
             this._connectionPromise = null;
         }
     }
-
     getCache(): CacheLike { return this._cache; }
-
     getDefaults(): Record<string, unknown> {
         const d = this.defaults as Record<string, unknown>;
         return {

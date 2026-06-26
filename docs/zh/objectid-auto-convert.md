@@ -154,11 +154,13 @@ const msq = new MonSQLize({
 | `false` | 禁用当前实例的自动转换。 |
 | `{ enabled: true }` | 显式启用自动转换。 |
 | `{ enabled: false }` | 显式禁用自动转换。 |
-| `{ excludeFields: ['token'] }` | 让匹配的字段名或字段路径保持字符串。 |
+| `{ excludeFields: ['token'] }` | 让匹配的字段名、路径片段或完整字段路径保持字符串。 |
 | `{ token: false }` | 让指定字段名或路径保持字符串，同时保留其他位置的自动转换。 |
 | `{ maxDepth: 3 }` | 超过指定递归深度后停止转换；超过深度限制的值会保持原样。 |
 
 `maxDepth` 是遍历保护上限。如果非常深的 `$and` / `$or` 树或嵌套文档在该深度之后仍包含像 ObjectId 的字符串，monSQLize 会保持字符串不变。确实需要深层自动转换时，请提高 `maxDepth`。
+
+`excludeFields` 与 `{ field: false }` 在 query 和 write 路径使用同一套 matcher。`b` 这类配置会匹配 `b`、`a.b` 以及 `a.b[0].c` 这类数组深层路径；通配符仍按标准化后的点路径匹配。
 
 ---
 

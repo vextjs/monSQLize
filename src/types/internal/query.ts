@@ -21,7 +21,7 @@ export interface QueryCacheLike {
 }
 
 export interface CountQueueLike {
-    execute<T>(fn: () => Promise<T>): Promise<T>;
+    execute<T>(fn: (signal?: AbortSignal) => Promise<T>): Promise<T>;
 }
 
 export type CursorValueType = 'date' | 'objectId' | 'string' | 'number' | 'boolean' | 'raw';

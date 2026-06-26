@@ -27,7 +27,7 @@ Count 队列控制是 monSQLize 的高级特性，用于限制同时执行的 `c
 
 - ✅ **并发控制** - 限制同时执行的 count 数量
 - ✅ **队列管理** - 超出限制的请求自动排队
-- ✅ **超时保护** - 防止请求长时间等待
+- ✅ **超时保护** - 防止请求长时间等待，并向正在执行的任务传入 `AbortSignal` 以便协作式取消
 - ✅ **统计监控** - 提供队列状态和性能指标
 - ✅ **自动启用** - 默认开启，无需配置
 
@@ -440,6 +440,8 @@ interface CountQueueConfig {
     timeout?: number;         // 超时时间，默认 60000ms
 }
 ```
+
+`CountQueue.execute(fn)` 会向 `fn` 传入可选 `AbortSignal`。执行超时时，队列会先 abort 该 signal，再以 `OPERATION_TIMEOUT` 拒绝。JavaScript 无法强制终止忽略 signal 的 Promise，因此自定义长任务应尽量把该 signal 继续传递给可取消的底层工作。
 
 ### 统计信息
 

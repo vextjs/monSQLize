@@ -63,6 +63,9 @@ export interface CountQueueStats {
     maxQueueSize: number;
 }
 
+/** Function shape accepted by {@link CountQueue.execute}. */
+export type CountQueueTask<T> = (signal?: AbortSignal) => Promise<T>;
+
 interface QueueEntry {
     resolve: () => void;
     reject: (err: Error) => void;
@@ -102,22 +105,22 @@ export class CountQueue {
         this.timeout = this._normalizePositiveInteger(options.timeout ?? 60000, 'timeout');
     }
 
-/**
- * Execute a queue-controlled count operation.
- *
- * Execution logic:
- * - If running < concurrency: execute fn immediately (fast path).
- * - If running >= concurrency:
- *   - Queue not full → enqueue and wait; wait time is recorded in stats.
- *   - Queue full → reject, increment rejected counter, throw INVALID_OPERATION.
- * - After fn completes (success or error), running is decremented and
- *   _wakeNext() is called to unblock the next queued request.
- *
- * @param fn - The count function to guard with concurrency control (returns Promise<T>)
- * @returns The result of fn
- * @throws A controlled error when the queue is full or the wait times out
- */
-async execute<T>(fn: () => Promise<T>): Promise<T> {
+    /**
+     * Execute a queue-controlled count operation.
+     *
+     * Execution logic:
+     * - If running < concurrency: execute fn immediately (fast path).
+     * - If running >= concurrency:
+     *   - Queue not full → enqueue and wait; wait time is recorded in stats.
+     *   - Queue full → reject, increment rejected counter, throw INVALID_OPERATION.
+     * - After fn completes (success or error), running is decremented and
+     *   _wakeNext() is called to unblock the next queued request.
+     *
+     * @param fn - The count function to guard with concurrency control. A cooperative AbortSignal is passed for timeout cancellation.
+     * @returns The result of fn
+     * @throws A controlled error when the queue is full or the wait times out
+     */
+    async execute<T>(fn: CountQueueTask<T>): Promise<T> {
         const startTime = Date.now();
 
         if (this.running >= this.concurrency) {
@@ -232,15 +235,26 @@ async execute<T>(fn: () => Promise<T>): Promise<T> {
         return value;
     }
 
-    private _executeWithTimeout<T>(fn: () => Promise<T>, timeoutMs = this.timeout): Promise<T> {
+    private _executeWithTimeout<T>(fn: CountQueueTask<T>, timeoutMs = this.timeout): Promise<T> {
         let timer: ReturnType<typeof setTimeout> | null = null;
+        const controller = new AbortController();
         const timeoutPromise = new Promise<never>((_, reject) => {
             timer = setTimeout(
-                () => reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count execution timeout (${this.timeout}ms)`)),
+                () => {
+                    controller.abort();
+                    this.stats.timeout += 1;
+                    reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Count execution timeout (${this.timeout}ms)`));
+                },
                 timeoutMs,
             );
         });
-        return Promise.race([fn(), timeoutPromise]).finally(() => {
+        let taskPromise: Promise<T>;
+        try {
+            taskPromise = Promise.resolve(fn(controller.signal));
+        } catch (error) {
+            taskPromise = Promise.reject(error);
+        }
+        return Promise.race([taskPromise, timeoutPromise]).finally(() => {
             if (timer !== null) clearTimeout(timer);
         });
     }

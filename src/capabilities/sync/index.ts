@@ -611,6 +611,7 @@ export class ChangeStreamSyncManager {
         }
 
         if (targetErrors.length > 0) {
+            this.stopAfterFatalSyncError(targetErrors[0] as Error);
             return;
         }
 

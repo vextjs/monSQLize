@@ -6,7 +6,7 @@
 
 import { ObjectId } from 'mongodb';
 
-type ObjectIdConversionOptions = boolean | {
+export type ObjectIdConversionOptions = boolean | {
     enabled?: boolean;
     excludeFields?: string[];
     customFieldPatterns?: string[];
@@ -14,6 +14,14 @@ type ObjectIdConversionOptions = boolean | {
     logLevel?: string;
     [field: string]: unknown;
 } | Record<string, boolean>;
+
+export interface NormalizedObjectIdConversionOptions {
+    enabled: boolean;
+    excludeFields: string[];
+    customFieldPatterns: string[];
+    maxDepth: number;
+    fieldMap: Record<string, boolean>;
+}
 
 /** Field whitelist patterns */
 const OBJECTID_FIELD_PATTERNS: Array<string | RegExp> = [
@@ -50,13 +58,7 @@ function isFieldReference(value: unknown): boolean {
     return value.startsWith('$');
 }
 
-function normalizeConversionOptions(options: ObjectIdConversionOptions | undefined): {
-    enabled: boolean;
-    excludeFields: string[];
-    customFieldPatterns: string[];
-    maxDepth: number;
-    fieldMap: Record<string, boolean>;
-} {
+export function normalizeObjectIdConversionOptions(options: ObjectIdConversionOptions | undefined): NormalizedObjectIdConversionOptions {
     if (options === false) {
         return { enabled: false, excludeFields: [], customFieldPatterns: [], maxDepth: 10, fieldMap: {} };
     }
@@ -84,35 +86,49 @@ function normalizeConversionOptions(options: ObjectIdConversionOptions | undefin
     };
 }
 
-function stripArrayIndexes(path: string): string {
+export function stripObjectIdArrayIndexes(path: string): string {
     return path.replace(/\[\d+\]/g, '');
 }
 
-function getLastPathSegment(path: string): string {
-    const stripped = stripArrayIndexes(path);
+export function getObjectIdPathSegments(path: string): string[] {
+    const stripped = stripObjectIdArrayIndexes(path);
+    return stripped.split('.').filter(Boolean);
+}
+
+export function getObjectIdLastPathSegment(path: string): string {
+    const stripped = stripObjectIdArrayIndexes(path);
     const parts = stripped.split('.');
     return parts[parts.length - 1] ?? stripped;
 }
 
-function matchesFieldPattern(pattern: string, path: string): boolean {
-    const stripped = stripArrayIndexes(path);
-    const fieldName = getLastPathSegment(path);
-    if (pattern === stripped || pattern === fieldName) return true;
+export function matchesObjectIdFieldPattern(pattern: string, path: string): boolean {
+    const stripped = stripObjectIdArrayIndexes(path);
+    const fieldName = getObjectIdLastPathSegment(path);
+    const segments = getObjectIdPathSegments(path);
+    if (pattern === stripped || pattern === fieldName || segments.includes(pattern)) return true;
     if (!pattern.includes('*')) return false;
     const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*');
-    return new RegExp(`^${escaped}$`).test(stripped) || new RegExp(`^${escaped}$`).test(fieldName);
+    const regex = new RegExp(`^${escaped}$`);
+    return regex.test(stripped) || regex.test(fieldName) || segments.some((segment) => regex.test(segment));
 }
 
-function shouldConvertPath(path: string, options: ReturnType<typeof normalizeConversionOptions>): boolean {
+export function shouldConvertObjectIdPath(path: string, options: NormalizedObjectIdConversionOptions): boolean {
     if (!options.enabled) return false;
-    const stripped = stripArrayIndexes(path);
-    const fieldName = getLastPathSegment(path);
-    if (options.fieldMap[stripped] === false || options.fieldMap[fieldName] === false) return false;
-    return !options.excludeFields.some((pattern) => matchesFieldPattern(pattern, path));
+    const stripped = stripObjectIdArrayIndexes(path);
+    const fieldName = getObjectIdLastPathSegment(path);
+    const segments = getObjectIdPathSegments(path);
+    if (
+        options.fieldMap[stripped] === false ||
+        options.fieldMap[fieldName] === false ||
+        segments.some((segment) => options.fieldMap[segment] === false)
+    ) {
+        return false;
+    }
+    return !options.excludeFields.some((pattern) => matchesObjectIdFieldPattern(pattern, path));
 }
 
-function shouldConvertFieldByOptions(fieldName: string, path: string, options: ReturnType<typeof normalizeConversionOptions>): boolean {
-    return shouldConvertField(fieldName) || options.customFieldPatterns.some((pattern) => matchesFieldPattern(pattern, path));
+export function shouldConvertObjectIdFieldByOptions(fieldName: string, path: string, options: NormalizedObjectIdConversionOptions): boolean {
+    return shouldConvertField(fieldName) || options.customFieldPatterns.some((pattern) => matchesObjectIdFieldPattern(pattern, path));
 }
 
 /**
@@ -126,7 +142,7 @@ export function convertObjectIdStrings(
     visited: WeakSet<object> = new WeakSet(),
     options?: ObjectIdConversionOptions,
 ): unknown {
-    const conversionOptions = normalizeConversionOptions(options);
+    const conversionOptions = normalizeObjectIdConversionOptions(options);
 
     if (depth > conversionOptions.maxDepth) return obj;
     if (obj === null || obj === undefined) return obj;
@@ -148,7 +164,7 @@ export function convertObjectIdStrings(
     // String: skip field references; convert valid ObjectId strings directly (v1 compat behavior)
     if (typeof obj === 'string') {
         if (isFieldReference(obj)) return obj;
-        if (shouldConvertPath(fieldPath, conversionOptions) && isValidObjectIdString(obj)) {
+        if (shouldConvertObjectIdPath(fieldPath, conversionOptions) && isValidObjectIdString(obj)) {
             try { return new ObjectId(obj); } catch { return obj; }
         }
         return obj;
@@ -187,8 +203,8 @@ export function convertObjectIdStrings(
                 // Matching field name + valid ObjectId string → convert
                 if (
                     typeof value === 'string' &&
-                    shouldConvertFieldByOptions(key, currentPath, conversionOptions) &&
-                    shouldConvertPath(currentPath, conversionOptions) &&
+                    shouldConvertObjectIdFieldByOptions(key, currentPath, conversionOptions) &&
+                    shouldConvertObjectIdPath(currentPath, conversionOptions) &&
                     !isFieldReference(value) &&
                     isValidObjectIdString(value)
                 ) {

@@ -561,6 +561,9 @@ describe('coverage core helpers', () => {
         const excluded = normalizeQueryFilter({ token: hex, userId: hex }, { excludeFields: ['token'] });
         assert.equal(excluded.token, hex);
         assert.equal(typeof excluded.userId, 'object');
+        const deepExcluded = normalizeQueryFilter({ a: { b: [{ c: hex }] }, ownerId: hex }, { excludeFields: ['b'] });
+        assert.equal(((deepExcluded.a as { b: Array<{ c: unknown }> }).b[0] as { c: unknown }).c, hex);
+        assert.equal(typeof deepExcluded.ownerId, 'object');
         assert.notEqual(
             stableCacheKeyString({ name: /ada/i }),
             stableCacheKeyString({ name: /grace/i }),
@@ -1280,9 +1283,9 @@ describe('coverage core helpers', () => {
         listeners['close']?.();
         const stats = manager.getStats();
         assert.equal(stats.eventCount, 1);
-        assert.equal(stats.errorCount, 3);
+        assert.equal(stats.errorCount, 2);
         assert.equal(stats.isRunning, false);
-        assert.match(stats.lastError?.message ?? '', /closed unexpectedly/);
+        assert.match(stats.lastError?.message ?? '', /stream|apply failed/);
         assert.equal(stats.targets.length, 3);
         assert.deepEqual(applied, [{
             event: { _id: { t: 1 }, operationType: 'insert', ns: { coll: 'items' }, fullDocument: { _id: 1 } },

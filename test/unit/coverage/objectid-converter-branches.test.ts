@@ -131,6 +131,20 @@ describe('convertObjectIdStrings — branch coverage', () => {
         assert.ok(result.tags[0] instanceof ObjectId);
     });
 
+    it('respects segment-level exclusion for nested array paths', () => {
+        const hex = new ObjectId().toHexString();
+        const result = convertObjectIdStrings(
+            { a: { b: [{ c: hex }] }, keepId: hex },
+            '',
+            0,
+            new WeakSet(),
+            { enabled: true, excludeFields: ['b'] },
+        ) as { a: { b: Array<{ c: unknown }> }; keepId: unknown };
+
+        assert.equal(result.a.b[0].c, hex);
+        assert.ok(result.keepId instanceof ObjectId);
+    });
+
     it('respects field-map false escape hatch on arbitrary value-based fields', () => {
         const hex = new ObjectId().toHexString();
         const result = convertObjectIdStrings(

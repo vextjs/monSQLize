@@ -84,6 +84,25 @@ describe('CountQueue', () => {
         );
     });
 
+    it('passes an AbortSignal and aborts it when execution times out', async () => {
+        const q = new CountQueue({ concurrency: 1, timeout: 20 });
+        let observedSignal: AbortSignal | undefined;
+        let observedAbort = false;
+
+        await assert.rejects(
+            () => q.execute((signal?: AbortSignal) => {
+                observedSignal = signal;
+                signal?.addEventListener('abort', () => { observedAbort = true; });
+                return new Promise<never>(() => {});
+            }),
+            (e: unknown) => hasErrorCode(e, 'OPERATION_TIMEOUT'),
+        );
+
+        assert.equal(observedSignal?.aborted, true);
+        assert.equal(observedAbort, true);
+        assert.equal(q.getStats().timeout, 1);
+    });
+
     // ── stats tracking ────────────────────────────────────────────────────────
 
     it('getStats().executed increments per completed task', async () => {
