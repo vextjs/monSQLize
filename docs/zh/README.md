@@ -9,6 +9,7 @@
 | 快速开始 / 安装 / 连接 / 基础查询 | [`getting-started.md`](./getting-started.md) | ✅ | 对齐当前 runtime，TypeScript 完整类型 |
 | 常见场景配方 | [`recipes.md`](./recipes.md) | ✅ | 最小连接、缓存、Redis、SSH、连接池、锁、Model 的复制即用路径 |
 | 缓存 / 函数缓存 | [`cache-and-function-cache.md`](./cache-and-function-cache.md) | ✅ | `MemoryCache` / `withCache()` / `FunctionCache` |
+| 写路径策略 | [`write-path-policy.md`](./write-path-policy.md) | ✅ | 可选的 Model-only 写入命名空间运行时护栏 |
 | 示例映射 / Gallery | [`examples.md`](./examples.md) | ✅ | 文档主题到官方示例的映射页 |
 | 高级能力索引 | [高级能力索引页](./capability-index.md) | ✅ | 完整能力入口索引 |
 | 验证 / 架构 / 工程治理 | [`verification-entrypoints.md`](./verification-entrypoints.md) / [`runtime-architecture.md`](./runtime-architecture.md) / [`support-matrix.md`](./support-matrix.md) / [`release-preflight.md`](./release-preflight.md) | ✅ | 统一查看公开验证入口、私有 real-env 边界、运行时结构与发布约束 |
@@ -19,13 +20,14 @@
 2. 上手路径：[`getting-started.md`](./getting-started.md)
 3. 场景配方：[`recipes.md`](./recipes.md)
 4. 缓存专题：[`cache-and-function-cache.md`](./cache-and-function-cache.md)
-5. 能力索引：[高级能力索引页](./capability-index.md)
-6. 工程与边界：
+5. 写路径策略：[`write-path-policy.md`](./write-path-policy.md)
+6. 能力索引：[高级能力索引页](./capability-index.md)
+7. 工程与边界：
    - [`verification-entrypoints.md`](./verification-entrypoints.md)
    - [`support-matrix.md`](./support-matrix.md)
    - [`release-preflight.md`](./release-preflight.md)
    - [`roadmap-boundaries.md`](./roadmap-boundaries.md)
-7. 可执行示例：
+8. 可执行示例：
    - `examples/README.md`
    - `examples/quick-start/basic-connect.ts`
    - `examples/cache/with-cache.ts`

@@ -67,6 +67,12 @@ import type {
     CollectionNamespaceView,
 } from '../../../types/internal/accessor';
 import {
+    assertWritePathAllowed,
+    getCurrentWritePathSource,
+    type WritePathOperationCategory,
+    type WritePathSource,
+} from '../../../capabilities/write-path-policy';
+import {
     type BatchWriteOptions,
     type DeleteBatchResult,
     type IncrementOneOptions,
@@ -193,20 +199,27 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         );
     }
 
-    getNamespace(): CollectionNamespaceView {
+    private buildNamespaceView(dbName: string, collectionName: string): CollectionNamespaceView {
         const instanceId = this.management.defaults?.namespace?.instanceId;
-        const iid = instanceId
-            ? `${instanceId}:${this.dbName}:${this.collectionName}`
-            : `${this.dbName}:${this.collectionName}`;
+        const scopedName = this.management.poolName
+            ? `${this.management.poolName}:${dbName}.${collectionName}`
+            : `${dbName}:${collectionName}`;
+        const iid = instanceId ? `${instanceId}:${scopedName}` : scopedName;
         return {
             iid,
             type: 'mongodb',
-            db: this.dbName,
-            collection: this.collectionName,
+            db: dbName,
+            collection: collectionName,
+            ...(this.management.poolName ? { pool: this.management.poolName } : {}),
         };
     }
 
+    getNamespace(): CollectionNamespaceView {
+        return this.buildNamespaceView(this.dbName, this.collectionName);
+    }
+
     raw(): Collection<TSchema> {
+        this.assertWritePath('raw', 'raw');
         return this.collectionRef;
     }
 
@@ -336,6 +349,12 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             ) as Document)
             : pipeline;
         const writeTarget = resolveAggregateWriteTarget(normalizedPipeline);
+        if (writeTarget) {
+            this.assertWritePath('aggregate', 'write', this.buildNamespaceView(
+                writeTarget.dbName ?? this.dbName,
+                writeTarget.collectionName,
+            ));
+        }
         return createAggregateChain(
             this.collectionRef,
             normalizedPipeline,
@@ -424,13 +443,13 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         doc: Parameters<Collection<TSchema>['insertOne']>[0],
         options?: Parameters<Collection<TSchema>['insertOne']>[1],
     ): ReturnType<Collection<TSchema>['insertOne']> {
-        return insertOneForAccessor(this.writeContext(), doc, options);
+        return insertOneForAccessor(this.writeContext('insertOne'), doc, options);
     }
 
     /** Inserts multiple documents and invalidates read caches. */
     async insertMany(...args: Parameters<Collection<TSchema>['insertMany']>): ReturnType<Collection<TSchema>['insertMany']> {
         const [documents, options] = args;
-        return insertManyForAccessor(this.writeContext(), documents, options);
+        return insertManyForAccessor(this.writeContext('insertMany'), documents, options);
     }
 
     /**
@@ -442,19 +461,19 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         update: Parameters<Collection<TSchema>['updateOne']>[1],
         options?: Parameters<Collection<TSchema>['updateOne']>[2],
     ): ReturnType<Collection<TSchema>['updateOne']> {
-        return updateOneForAccessor(this.writeContext(), filter, update, options);
+        return updateOneForAccessor(this.writeContext('updateOne'), filter, update, options);
     }
 
     /** Updates all documents matching the filter and invalidates read caches. */
     async updateMany(...args: Parameters<Collection<TSchema>['updateMany']>): ReturnType<Collection<TSchema>['updateMany']> {
         const [filter, update, options] = args;
-        return updateManyForAccessor(this.writeContext(), filter, update, options);
+        return updateManyForAccessor(this.writeContext('updateMany'), filter, update, options);
     }
 
     /** Replaces a single matching document and invalidates read caches. */
     async replaceOne(...args: Parameters<Collection<TSchema>['replaceOne']>): ReturnType<Collection<TSchema>['replaceOne']> {
         const [filter, replacement, options] = args;
-        return replaceOneForAccessor(this.writeContext(), filter, replacement, options);
+        return replaceOneForAccessor(this.writeContext('replaceOne'), filter, replacement, options);
     }
 
     /**
@@ -466,7 +485,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         replacement: Parameters<Collection<TSchema>['findOneAndReplace']>[1],
         options?: unknown,
     ): ReturnType<Collection<TSchema>['findOneAndReplace']> {
-        return findOneAndReplaceForAccessor(this.writeContext(), filter, replacement, options);
+        return findOneAndReplaceForAccessor(this.writeContext('findOneAndReplace'), filter, replacement, options);
     }
 
     /**
@@ -478,7 +497,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         update: Parameters<Collection<TSchema>['findOneAndUpdate']>[1],
         options?: unknown,
     ): ReturnType<Collection<TSchema>['findOneAndUpdate']> {
-        return findOneAndUpdateForAccessor(this.writeContext(), filter, update, options);
+        return findOneAndUpdateForAccessor(this.writeContext('findOneAndUpdate'), filter, update, options);
     }
 
     /**
@@ -489,7 +508,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         filter: Parameters<Collection<TSchema>['findOneAndDelete']>[0],
         options?: unknown,
     ): ReturnType<Collection<TSchema>['findOneAndDelete']> {
-        return findOneAndDeleteForAccessor(this.writeContext(), filter, options);
+        return findOneAndDeleteForAccessor(this.writeContext('findOneAndDelete'), filter, options);
     }
 
     /**
@@ -501,7 +520,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         update: Parameters<Collection<TSchema>['updateOne']>[1],
         options?: Parameters<Collection<TSchema>['updateOne']>[2],
     ): ReturnType<Collection<TSchema>['updateOne']> {
-        return upsertOneForAccessor(this.writeContext(), filter, update, options);
+        return upsertOneForAccessor(this.writeContext('upsertOne'), filter, update, options);
     }
 
     /**
@@ -512,18 +531,18 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         filter: Parameters<Collection<TSchema>['deleteOne']>[0],
         options?: Parameters<Collection<TSchema>['deleteOne']>[1],
     ): ReturnType<Collection<TSchema>['deleteOne']> {
-        return deleteOneForAccessor(this.writeContext(), filter, options);
+        return deleteOneForAccessor(this.writeContext('deleteOne'), filter, options);
     }
 
     /** Deletes all documents matching the filter and invalidates read caches. */
     async deleteMany(...args: Parameters<Collection<TSchema>['deleteMany']>): ReturnType<Collection<TSchema>['deleteMany']> {
         const [filter, options] = args;
-        return deleteManyForAccessor(this.writeContext(), filter, options);
+        return deleteManyForAccessor(this.writeContext('deleteMany'), filter, options);
     }
 
     /** Inserts documents in configurable batches to avoid exceeding driver limits. */
     async insertBatch(documents: TSchema[], options?: BatchWriteOptions & Parameters<Collection<TSchema>['insertMany']>[1]): Promise<InsertBatchResult> {
-        return insertBatchForAccessor(this.batchContext(), documents, options);
+        return insertBatchForAccessor(this.batchContext('insertBatch'), documents, options);
     }
 
     /** Applies an update to matching documents in configurable batches. */
@@ -532,7 +551,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         update: Parameters<Collection<TSchema>['updateMany']>[1],
         options?: UpdateBatchOptions & Parameters<Collection<TSchema>['updateMany']>[2],
     ): Promise<UpdateBatchResult> {
-        return updateBatchForAccessor(this.batchContext(), filter, update, options);
+        return updateBatchForAccessor(this.batchContext('updateBatch'), filter, update, options);
     }
 
     /** Deletes matching documents in configurable batches. */
@@ -540,7 +559,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         filter: Parameters<Collection<TSchema>['find']>[0],
         options?: UpdateBatchOptions & Parameters<Collection<TSchema>['deleteMany']>[1],
     ): Promise<DeleteBatchResult> {
-        return deleteBatchForAccessor(this.batchContext(), filter, options);
+        return deleteBatchForAccessor(this.batchContext('deleteBatch'), filter, options);
     }
 
     /** Atomically increments one or more numeric fields on a matching document. */
@@ -550,25 +569,26 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         incrementOrOptions?: number | IncrementOneOptions,
         maybeOptions?: IncrementOneOptions,
     ): Promise<import('../writes/index.js').IncrementOneResult<TSchema>> {
-        return incrementOneForAccessor(this.batchContext(), filter, field, incrementOrOptions, maybeOptions);
+        return incrementOneForAccessor(this.batchContext('incrementOne'), filter, field, incrementOrOptions, maybeOptions);
     }
 
     /** Creates a single index on the collection. */
     async createIndex(keys: Document, options?: Parameters<Collection<TSchema>['createIndex']>[1]): Promise<IndexCreateResult> {
+        this.assertWritePath('createIndex', 'management');
         return createIndexForAccessor(this.collectionRef, keys, options);
     }
 
     /** Creates multiple indexes in a single command. */
-    async createIndexes(specs: Array<{ key: Document; } & Record<string, unknown>>): Promise<string[]> { return createIndexesForAccessor(this.collectionRef, specs); }
+    async createIndexes(specs: Array<{ key: Document; } & Record<string, unknown>>): Promise<string[]> { this.assertWritePath('createIndexes', 'management'); return createIndexesForAccessor(this.collectionRef, specs); }
 
     /** Lists all indexes on the collection. */
     async listIndexes(): Promise<Record<string, unknown>[]> { return listIndexesForAccessor(this.collectionRef); }
 
     /** Drops a named index from the collection. */
-    async dropIndex(name: string): ReturnType<Collection<TSchema>['dropIndex']> { return dropIndexForAccessor(this.collectionRef, name); }
+    async dropIndex(name: string): ReturnType<Collection<TSchema>['dropIndex']> { this.assertWritePath('dropIndex', 'management'); return dropIndexForAccessor(this.collectionRef, name); }
 
     /** Drops all non-`_id` indexes from the collection. */
-    async dropIndexes(): ReturnType<Collection<TSchema>['dropIndexes']> { return dropIndexesForAccessor(this.collectionRef); }
+    async dropIndexes(): ReturnType<Collection<TSchema>['dropIndexes']> { this.assertWritePath('dropIndexes', 'management'); return dropIndexesForAccessor(this.collectionRef); }
 
     /** Pre-populates bookmark cache entries for the specified key dimensions and page numbers. */
     async prewarmBookmarks(keyDims: BookmarkKeyDims<TSchema> = {}, pages: number[] = []): Promise<BookmarkPrewarmResult> {
@@ -588,15 +608,17 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
     async invalidate(op?: 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string): Promise<number> { return this.invalidateReadCaches(op); }
 
     /** Drops the collection from the database. */
-    async dropCollection(): Promise<boolean> { return dropCollectionForAccessor(this.collectionRef); }
+    async dropCollection(): Promise<boolean> { this.assertWritePath('dropCollection', 'management'); return dropCollectionForAccessor(this.collectionRef); }
 
     /** Creates a collection (or a named alternative) with the given options. */
     async createCollection(name?: string, options: Record<string, unknown> = {}): Promise<boolean> {
+        this.assertWritePath('createCollection', 'management');
         return createCollectionForAccessor(this.collectionRef, this.collectionName, this.dbRef, name, options);
     }
 
     /** Creates a MongoDB view backed by the given source collection and aggregation pipeline. */
     async createView(name: string, source: string, pipeline: unknown[] = []): Promise<boolean> {
+        this.assertWritePath('createView', 'management');
         return createViewForAccessor(this.collectionRef, this.dbRef, name, source, pipeline);
     }
 
@@ -605,16 +627,19 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
 
     /** Sets the JSON Schema validator and optional validation level/action for the collection. */
     async setValidator(validator: unknown, options: { validationLevel?: string; validationAction?: string } = {}): Promise<{ ok: number; collection: string }> {
+        this.assertWritePath('setValidator', 'management');
         return setValidatorForAccessor(this.collectionRef, this.collectionName, this.dbRef, validator, options);
     }
 
     /** Sets the validation level (`off`, `moderate`, or `strict`) for the collection. */
     async setValidationLevel(level: unknown): Promise<{ ok: number; validationLevel: string }> {
+        this.assertWritePath('setValidationLevel', 'management');
         return setValidationLevelForAccessor(this.collectionRef, this.collectionName, this.dbRef, level);
     }
 
     /** Sets the validation action (`error` or `warn`) for the collection. */
     async setValidationAction(action: unknown): Promise<{ ok: number; validationAction: string }> {
+        this.assertWritePath('setValidationAction', 'management');
         return setValidationActionForAccessor(this.collectionRef, this.collectionName, this.dbRef, action);
     }
 
@@ -630,20 +655,36 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
 
     /** Renames the collection, optionally dropping an existing target collection. */
     async renameCollection(newName: unknown, options: { dropTarget?: boolean } = {}): Promise<{ renamed: boolean; from: string; to: string }> {
+        this.assertWritePath('renameCollection', 'management');
         return renameCollectionForAccessor(this.collectionRef, this.collectionName, newName, options);
     }
 
     /** Runs a `collMod` command to modify collection options or validator settings. */
     async collMod(modifications: unknown): Promise<Record<string, unknown>> {
+        this.assertWritePath('collMod', 'management');
         return collModForAccessor(this.collectionRef, this.collectionName, this.dbRef, modifications);
     }
 
     /** Converts the collection to a capped collection with the given maximum byte size. */
     async convertToCapped(size: unknown, options: { max?: number } = {}): Promise<{ ok: number; collection: string; capped: boolean; size: number }> {
+        this.assertWritePath('convertToCapped', 'management');
         return convertToCappedForAccessor(this.collectionRef, this.collectionName, this.dbRef, size, options);
     }
 
-    private batchContext() {
+    private assertWritePath(operation: string, category: WritePathOperationCategory, namespace: CollectionNamespaceView = this.getNamespace()): void {
+        const source = getCurrentWritePathSource() ?? 'collection';
+        assertWritePathAllowed({
+            policy: this.management.defaults?.writePathPolicy,
+            namespace,
+            source: source as WritePathSource,
+            operation,
+            category,
+            logger: this.management.logger,
+        });
+    }
+
+    private batchContext(operation: string) {
+        this.assertWritePath(operation, 'batch');
         return {
             collectionRef: this.collectionRef,
             cvFilter: <T>(value: T) => this._cvFilter(value),
@@ -654,7 +695,8 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         };
     }
 
-    private writeContext() {
+    private writeContext(operation: string) {
+        this.assertWritePath(operation, 'write');
         return {
             dbName: this.dbName,
             collectionName: this.collectionName,

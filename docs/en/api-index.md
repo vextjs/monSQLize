@@ -22,6 +22,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [Cache system](cache.md) | Cache system (LRU + TTL) |
 | [Function cache](function-cache.md) | **Function cache: add caching to any async function (v1.1.4+)** |
 | [Transaction management](transaction.md) | Transaction management (automatic retry, cache locks) |
+| [Write path policy](write-path-policy.md) | Optional runtime policy for Model-only write namespaces |
 | [Change Stream sync](sync-backup.md) | **Change Stream data sync: real-time backup to multiple databases (v1.0.8+)** |
 | [Transaction optimizations](transaction-optimizations.md) | Transaction optimization strategies |
 | [Distributed deployment](distributed-deployment.md) | **Distributed deployment guide for multi-instance cache consistency** |
@@ -114,6 +115,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [Collection management](collection-management.md) | Collection management |
 | [Read preference](readPreference.md) | Read preference settings |
 | [Count queue](count-queue.md) | Count queue control for high-concurrency optimization |
+| [Write path policy](write-path-policy.md) | Configure whether writes may use collection APIs or must use Model APIs |
 | [Distributed deployment](distributed-deployment.md) | Distributed deployment configuration |
 
 ---
@@ -253,11 +255,12 @@ Recommended reading order for new users:
 
 ---
 
-**Document count**: 97  
-**Index coverage**: 97/97, including this index page  
-**Last updated**: 2026-06-10
+**Document count**: 98
+**Index coverage**: 98/98, including this index page
+**Last updated**: 2026-06-30
 
 Recent additions:
 
+- [Write path policy](write-path-policy.md) - Optional Model-only write namespace guard
 - [ESM support](esm-support.md) - ES Module (`import`) support
 - [findOneAnd return values](findOneAnd-return-value-unified.md) - Return-value unification notes

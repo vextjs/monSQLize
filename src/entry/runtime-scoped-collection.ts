@@ -8,7 +8,7 @@
  *   3. No pool configured → route via the default MongoClient
  */
 
-import type { MongoClient } from 'mongodb';
+import { Collection, type Db, type Document, type MongoClient } from 'mongodb';
 import {
     MongoCollectionAccessor as CollectionFacade,
     type MongoDbAccessor as DbFacade,
@@ -75,10 +75,32 @@ export function resolveScopedCollection(config: ResolveScopedCollectionConfig): 
         }
         const adapter = config.self['_adapter'] as Record<string, unknown> | undefined;
         if (adapter && typeof adapter['collectionFromClient'] === 'function') {
-            return (adapter['collectionFromClient'] as (currentClient: unknown, dbName: string, collectionName: string) => unknown)(
+            const scoped = (adapter['collectionFromClient'] as (currentClient: unknown, dbName: string, collectionName: string) => unknown)(
                 client,
                 databaseName,
                 config.collectionName,
+            );
+            if (scoped instanceof CollectionFacade) {
+                return scoped;
+            }
+            if (!(scoped instanceof Collection)) {
+                return scoped;
+            }
+            const dbRef = resolveDbRef(client, databaseName);
+            return new CollectionFacade(
+                databaseName,
+                config.collectionName,
+                scoped as Collection<Document>,
+                {
+                    cache: config.cache,
+                    queryCache: config.cache,
+                    getCache: () => config.cache,
+                    getQueryCache: () => config.cache,
+                    logger: config.logger,
+                    defaults: config.runtimeDefaults,
+                    poolName,
+                },
+                dbRef,
             );
         }
         if (config.poolManager) {
@@ -87,7 +109,15 @@ export function resolveScopedCollection(config: ResolveScopedCollectionConfig): 
                 databaseName,
                 config.collectionName,
                 selected.collection(databaseName, config.collectionName),
-                { cache: config.cache, logger: config.logger, defaults: config.runtimeDefaults },
+                {
+                    cache: config.cache,
+                    queryCache: config.cache,
+                    getCache: () => config.cache,
+                    getQueryCache: () => config.cache,
+                    logger: config.logger,
+                    defaults: config.runtimeDefaults,
+                    poolName,
+                },
             );
         }
         return null;
@@ -101,4 +131,9 @@ export function resolveScopedCollection(config: ResolveScopedCollectionConfig): 
         throw createError(ErrorCodes.NOT_CONNECTED, 'Database is not connected. Call connect() first.');
     }
     return dbInstance.db(databaseName).collection(config.collectionName);
+}
+
+function resolveDbRef(client: unknown, databaseName: string): Db | undefined {
+    const maybeClient = client as { db?: (name: string) => Db };
+    return typeof maybeClient?.db === 'function' ? maybeClient.db(databaseName) : undefined;
 }

@@ -14,19 +14,21 @@
  */
 
 import { performance } from 'node:perf_hooks';
-import type { Db, MongoClient } from 'mongodb';
+import type { Db, Document, MongoClient } from 'mongodb';
 import type { CacheLike, MemoryCache } from '../capabilities/cache';
 import {
     SlowQueryLogManager,
     type SlowQueryLogEntry,
 } from '../capabilities/slow-query-log';
 import { ErrorCodes, createError } from '../core/errors';
+import { assertWritePathAllowed, type WritePathOperationCategory } from '../capabilities/write-path-policy';
 import type { AdminBuildInfoView, DbStatsView, ServerStatusView } from '../../types/collection';
 import type { RuntimeDefaults } from '../types/internal/query';
 import type { AdapterBridgeLike, LegacyAdapterBridgeLike } from '../types/internal/runtime';
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type { MongoDbAccessor as DbFacade } from '../adapters/mongodb/common/accessors';
 import { isProductionEnvironment } from '../adapters/mongodb/common/drop-database-safety';
+import { resolveAggregateWriteTarget } from '../adapters/mongodb/common/collection-accessor-cache-helpers';
 
 /**
  * Internal configuration for `createAdapterBridge`.
@@ -78,6 +80,8 @@ type AdapterBridgeConfig = {
     emit: (event: string, payload: unknown) => void;
     /** Slow-query threshold in milliseconds (default 500ms). */
     slowQueryMs?: number;
+    /** Runtime defaults carrying the normalized write path policy. */
+    runtimeDefaults: RuntimeDefaults;
 };
 
 /**
@@ -93,6 +97,27 @@ function createLegacyCollectionBridge(config: AdapterBridgeConfig) {
             throw createError(ErrorCodes.NOT_CONNECTED, 'MonSQLize is not connected yet.');
         }
         const nativeCollection = client.db(dbName).collection(collName);
+
+        const assertLegacyWrite = (
+            operation: string,
+            category: WritePathOperationCategory = 'write',
+            target?: { dbName?: string; collectionName?: string },
+        ): void => {
+            const instanceId = config.getInstanceId();
+            const targetDb = target?.dbName ?? dbName;
+            const targetCollection = target?.collectionName ?? collName;
+            assertWritePathAllowed({
+                policy: config.runtimeDefaults.writePathPolicy,
+                namespace: {
+                    iid: instanceId ? `${instanceId}:${targetDb}:${targetCollection}` : `${targetDb}:${targetCollection}`,
+                    db: targetDb,
+                    collection: targetCollection,
+                },
+                source: 'legacy',
+                operation,
+                category,
+            });
+        };
 
         const withSlowQuery = async <T>(operation: string, execute: () => Promise<T>, query?: unknown): Promise<T> => {
             const startedAt = performance.now();
@@ -121,23 +146,43 @@ function createLegacyCollectionBridge(config: AdapterBridgeConfig) {
                 withSlowQuery('find', () => nativeCollection.find((query ?? {}) as never, options as never).toArray(), query),
             findOne: async (query: object, options?: object) =>
                 withSlowQuery('findOne', () => nativeCollection.findOne(query as never, options as never) as Promise<unknown>, query),
-            insertOne: async (document: object, options?: object) =>
-                withSlowQuery('insertOne', () => nativeCollection.insertOne(document as never, options as never)),
-            insertMany: async (documents: object[], options?: object) =>
-                withSlowQuery('insertMany', () => nativeCollection.insertMany(documents as never[], options as never)),
-            updateOne: async (filter: object, update: object, options?: object) =>
-                withSlowQuery('updateOne', () => nativeCollection.updateOne(filter as never, update as never, options as never)),
-            updateMany: async (filter: object, update: object, options?: object) =>
-                withSlowQuery('updateMany', () => nativeCollection.updateMany(filter as never, update as never, options as never)),
-            deleteOne: async (filter: object, options?: object) =>
-                withSlowQuery('deleteOne', () => nativeCollection.deleteOne(filter as never, options as never)),
-            deleteMany: async (filter: object, options?: object) =>
-                withSlowQuery('deleteMany', () => nativeCollection.deleteMany(filter as never, options as never)),
-            aggregate: async (pipeline: object[], options?: object) =>
-                withSlowQuery('aggregate', () => nativeCollection.aggregate(pipeline as never[], options as never).toArray()),
+            insertOne: async (document: object, options?: object) => {
+                assertLegacyWrite('insertOne');
+                return withSlowQuery('insertOne', () => nativeCollection.insertOne(document as never, options as never));
+            },
+            insertMany: async (documents: object[], options?: object) => {
+                assertLegacyWrite('insertMany');
+                return withSlowQuery('insertMany', () => nativeCollection.insertMany(documents as never[], options as never));
+            },
+            updateOne: async (filter: object, update: object, options?: object) => {
+                assertLegacyWrite('updateOne');
+                return withSlowQuery('updateOne', () => nativeCollection.updateOne(filter as never, update as never, options as never));
+            },
+            updateMany: async (filter: object, update: object, options?: object) => {
+                assertLegacyWrite('updateMany');
+                return withSlowQuery('updateMany', () => nativeCollection.updateMany(filter as never, update as never, options as never));
+            },
+            deleteOne: async (filter: object, options?: object) => {
+                assertLegacyWrite('deleteOne');
+                return withSlowQuery('deleteOne', () => nativeCollection.deleteOne(filter as never, options as never));
+            },
+            deleteMany: async (filter: object, options?: object) => {
+                assertLegacyWrite('deleteMany');
+                return withSlowQuery('deleteMany', () => nativeCollection.deleteMany(filter as never, options as never));
+            },
+            aggregate: async (pipeline: object[], options?: object) => {
+                const writeTarget = resolveAggregateWriteTarget((pipeline ?? []) as Document[]);
+                if (writeTarget) {
+                    assertLegacyWrite('aggregate', 'write', writeTarget);
+                }
+                return withSlowQuery('aggregate', () => nativeCollection.aggregate(pipeline as never[], options as never).toArray());
+            },
             countDocuments: async (filter?: object, options?: object) =>
                 withSlowQuery('countDocuments', () => nativeCollection.countDocuments((filter ?? {}) as never, options as never)),
-            drop: async () => nativeCollection.drop(),
+            drop: async () => {
+                assertLegacyWrite('drop', 'management');
+                return nativeCollection.drop();
+            },
         };
     };
 }
@@ -260,6 +305,7 @@ export function createRuntimeAdapterBridge(host: RuntimeAdapterBridgeHost): Lega
         getCache: () => host.resolveAdapterCache(),
         setCache: (value) => host.setAdapterCache(value),
         getInstanceId: () => host._runtimeDefaults.namespace?.instanceId,
+        runtimeDefaults: host._runtimeDefaults,
         ping: async () => {
             host.ensureConnected();
             return host.db().admin().ping();

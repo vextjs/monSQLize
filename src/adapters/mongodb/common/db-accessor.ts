@@ -7,6 +7,7 @@
 import { Db, Document } from 'mongodb';
 import type { Logger } from '../../../core/logger';
 import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/query';
+import { assertDbLevelWritePathAllowed } from '../../../capabilities/write-path-policy';
 import {
     MongoAdminAccessor,
     type AdminBuildInfoView,
@@ -58,6 +59,7 @@ export class MongoDbAccessor {
      * @since v1.3.0
      */
     raw(): Db {
+        this.assertDbWritePath('raw', 'raw');
         return this.dbRef;
     }
 
@@ -102,6 +104,7 @@ export class MongoDbAccessor {
      * @since v1.3.0
      */
     async dropDatabase(options: { confirm: boolean; allowProduction?: boolean; user?: string } = { confirm: false }): Promise<{ dropped: boolean; database: string; timestamp: Date }> {
+        this.assertDbWritePath('dropDatabase', 'management');
         if (!options.confirm) {
             const err = new Error(
                 'dropDatabase requires explicit confirmation. Pass { confirm: true } to proceed.\n\n' +
@@ -136,6 +139,17 @@ export class MongoDbAccessor {
      * @since v1.3.0
      */
     async runCommand(command: Record<string, unknown>, options: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+        this.assertDbWritePath('runCommand', 'raw');
         return this.dbRef.command(command, options as Parameters<Db['command']>[1]) as Promise<Record<string, unknown>>;
+    }
+
+    private assertDbWritePath(operation: string, category: 'raw' | 'management'): void {
+        assertDbLevelWritePathAllowed({
+            policy: this.management.defaults?.writePathPolicy,
+            dbName: this.dbName,
+            operation,
+            category,
+            logger: this.management.logger,
+        });
     }
 }

@@ -26,6 +26,8 @@ export interface CountQueueLike {
     execute<T>(fn: (signal?: AbortSignal) => Promise<T>): Promise<T>;
 }
 
+export type NormalizedWritePathPolicyLike = import('../../capabilities/write-path-policy').NormalizedWritePathPolicy;
+
 export type CursorValueType = 'date' | 'objectId' | 'string' | 'number' | 'boolean' | 'raw';
 
 export interface CursorValueNormalizationOptions {
@@ -55,6 +57,7 @@ export interface RuntimeDefaults {
     slowQueryMs?: number;
     namespace?: { scope?: 'database' | 'connection'; instanceId?: string };
     countQueue?: CountQueueLike;
+    writePathPolicy?: NormalizedWritePathPolicyLike;
 }
 
 export interface CursorPayload {

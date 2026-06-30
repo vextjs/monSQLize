@@ -32,7 +32,7 @@ export interface ModelRuntimeLike {
 
 /** Collection operation interface used during populate resolution (subset of methods required). */
 export interface ModelCollectionLike<TDocument = Record<string, unknown>> {
-    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
+    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; pool?: string; };
     raw(): unknown;
     findOne(query?: unknown, options?: unknown): Promise<unknown>;
     find(query?: unknown, options?: unknown): Promise<unknown[]>;

@@ -21,6 +21,7 @@ Principles:
 | Capability | Recommended entry | Notes |
 |------------|----------------------|-------|
 | Model | `msq.model()` / `MonSQLize.Model` | Supports model registration, relations, virtuals, populate, and common query entries |
+| write-path-policy | `writePathPolicy` | Optional runtime guard for Model-only write namespaces |
 | transaction | `startSession()` / `withTransaction()` | Supports MongoDB transaction wrappers and transaction statistics |
 | pool | `pool()` / `ConnectionPoolManager` | Supports multi-pool configuration, selection strategies, fallback, and status inspection |
 | sync | `startSync()` / `stopSync()` / `getSyncStats()` | Supports Change Stream sync start, stop, and status inspection |
@@ -40,7 +41,17 @@ Model documentation and examples:
 - Docs: `docs/model.md`, `docs/populate.md`, `docs/relations.md`
 - Example: `examples/docs/model.ts`
 
-## 2. transaction
+## 2. write-path-policy
+
+Available entries:
+
+- `writePathPolicy.default`
+- `writePathPolicy.namespaces`
+- `WritePathPolicyOptions`
+
+Use this when selected namespaces should be written through `msq.model()` instead of direct `collection()` writes. See `docs/en/write-path-policy.md`.
+
+## 3. transaction
 
 Available entries:
 
@@ -52,7 +63,7 @@ Good first-use cases:
 - Identifying the transaction wrapper entry.
 - Inspecting transaction retry, timeout, and statistics behavior.
 
-## 3. pool
+## 4. pool
 
 Available entries:
 
@@ -65,7 +76,7 @@ This is the current entry point for:
 - Multi-pool onboarding.
 - Configuration contract and runtime routing explanations.
 
-## 4. sync / slow-query-log
+## 5. sync / slow-query-log
 
 Available entries:
 
@@ -79,14 +90,14 @@ These capabilities include topic pages and runnable examples:
 
 Future documentation will continue to cover runtime fault injection, real deployment topology, and performance boundaries.
 
-## 5. Recommended Entries in This Repository
+## 6. Recommended Entries in This Repository
 
 1. Documentation home: `docs/index.md`
 2. API index: `docs/api-index.md`
 3. Example index: `docs/examples.md`
 4. Runnable examples: `examples/docs/*.ts`
 
-## 6. Suggested Expansion Order
+## 7. Suggested Expansion Order
 
 The most natural next expansion order is:
 

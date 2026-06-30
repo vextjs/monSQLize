@@ -106,6 +106,19 @@ export { Transaction, TransactionManager, CacheLockManager } from '../capabiliti
 export type { MongoSession, TransactionOptions, TransactionStats } from '../capabilities/transaction';
 export { CountQueue } from '../capabilities/count-queue';
 export type { CountQueueOptions, CountQueueStats } from '../capabilities/count-queue';
+export type {
+    NormalizedWritePathPolicy,
+    NormalizedWritePathRule,
+    WritePathNamespace,
+    WritePathOperationCategory,
+    WritePathPolicyManagementMode,
+    WritePathPolicyMode,
+    WritePathPolicyOptions,
+    WritePathPolicyRawMode,
+    WritePathPolicyRule,
+    WritePathPolicyViolationAction,
+    WritePathSource,
+} from '../capabilities/write-path-policy';
 
 // Public types referenced by the root declaration file
 export type { LoggerLike } from '../core/logger';

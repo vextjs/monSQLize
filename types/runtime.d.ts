@@ -291,7 +291,7 @@ export declare class ModelInstance<TDocument = any> implements ModelInstanceCont
     readonly dbName: string;
     readonly poolName?: string;
     readonly definition: ModelDefinition<TDocument>;
-    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
+    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; pool?: string; };
     getRelations(): Record<string, RelationConfig>;
     getEnums(): Record<string, string>;
     raw(): unknown;

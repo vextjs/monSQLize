@@ -639,7 +639,7 @@ export interface AdminAccessor {
 
 export interface Collection<TSchema = any> {
     /** Returns the namespace descriptor (iid, db, collection) for this collection. */
-    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
+    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; pool?: string; };
     /** Returns the underlying native MongoDB Collection object. */
     raw(): unknown;
     /**

@@ -68,6 +68,44 @@ import type { SlowQueryLogConfigInput, SlowQueryLogEntry, SlowQueryLogFilter, Sl
 import type { ChangeStreamSyncManager, SyncConfig, SyncStats } from './sync';
 import type { Transaction, TransactionOptions, TransactionStats } from './transaction';
 
+/** Write path policy mode. `allow-both` preserves the existing collection and model write behavior. @since v2.0.8 */
+export type WritePathPolicyMode = 'allow-both' | 'model-only';
+
+/** Controls whether native raw access is available under a write path policy. @since v2.0.8 */
+export type WritePathPolicyRawMode = 'inherit' | 'allow' | 'block';
+
+/** Controls whether collection/database management writes are available under a write path policy. @since v2.0.8 */
+export type WritePathPolicyManagementMode = 'inherit' | 'allow' | 'block';
+
+/** Controls violation handling; `warn` logs and allows for migration observation. @since v2.0.8 */
+export type WritePathPolicyViolationAction = 'throw' | 'warn';
+
+/** Per-namespace write path policy rule. @since v2.0.8 */
+export interface WritePathPolicyRule {
+    /** Write policy mode. Default: `allow-both`. */
+    mode?: WritePathPolicyMode;
+    /** Raw native access policy. `inherit` allows in `allow-both` and blocks in `model-only`. */
+    raw?: WritePathPolicyRawMode;
+    /** Management write policy. `inherit` allows model management and blocks external management in `model-only`. */
+    management?: WritePathPolicyManagementMode;
+    /** Violation action. Default: `throw`. */
+    onViolation?: WritePathPolicyViolationAction;
+}
+
+/** Runtime write path policy configuration. @since v2.0.8 */
+export interface WritePathPolicyOptions {
+    /**
+     * Default rule applied when no namespace override matches.
+     * Omit this option to preserve existing behavior (`allow-both`).
+     */
+    default?: WritePathPolicyMode | WritePathPolicyRule;
+    /**
+     * Namespace overrides matched in this order: `iid`, `pool:db.collection`,
+     * `db.collection`, then `collection`.
+     */
+    namespaces?: Record<string, WritePathPolicyMode | WritePathPolicyRule>;
+}
+
 export interface MonSQLizeOptions {
     type?: 'mongodb';
     databaseName?: string;
@@ -207,6 +245,12 @@ export interface MonSQLizeOptions {
     autoIndex?: ModelAutoIndexOptions;
     /** Auto-invalidate cache on write operations. @since v1.3.0 */
     cacheAutoInvalidate?: boolean;
+    /**
+     * Optional write path governance. By default both collection and model write APIs remain available.
+     * Use `model-only` per default or namespace to require writes through the model API.
+     * @since v2.0.8
+     */
+    writePathPolicy?: WritePathPolicyOptions;
 }
 
 export interface MonSQLizeInstance {

@@ -61,6 +61,26 @@ The shared runtime direction is cache consistency, connection lifecycle, transac
 
 monSQLize coordinates cache, transactions, sync, and queues inside the runtime, but it does not provide a global strict-consistency kernel. MongoDB transactions keep MongoDB session ACID semantics. Cache invalidation runs around writes or transaction commit and is best-effort; a short-lived dirty barrier makes cached reads bypass and avoid refilling cache while a namespace is being invalidated, but Redis/L2 cache and Pub/Sub invalidation still provide eventual cross-instance coherence rather than atomic cache/DB commits. Change Stream sync is at-least-once; custom targets should be idempotent by change event `_id`, and `sync.idempotency` can record per-target replay markers when a durable store is provided. Transaction cache locks are process-local in the v2 runtime; use explicit business coordination, idempotency/fencing, or cache bypassing for cross-instance strict flows.
 
+## Write Path Policy
+
+By default, both `collection()` and `model()` may write. Applications that want all writes for selected namespaces to pass through Model defaults, hooks, timestamps, versioning, and soft-delete rules can enable `writePathPolicy`.
+
+```ts
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'app',
+  config: { uri: 'mongodb://localhost:27017' },
+  writePathPolicy: {
+    default: 'model-only',
+    namespaces: {
+      'app.audit_logs': 'allow-both'
+    }
+  }
+});
+```
+
+`model-only` blocks direct collection/db/legacy write surfaces by default, including raw access and `$out` / `$merge` aggregate writes, while Model write and Model management methods remain available. See [Write Path Policy](./docs/en/write-path-policy.md).
+
 ## When to Use It
 
 monSQLize is a good fit when you need:

@@ -58,6 +58,7 @@ export function buildPublicDefaults(options: MonSQLizeOptions): Readonly<Record<
         log: options.log as Record<string, unknown> | undefined,
         slowQueryLog: options.slowQueryLog,
         cacheAutoInvalidate: options.cacheAutoInvalidate,
+        writePathPolicy: options.writePathPolicy,
     } as Record<string, unknown>));
 }
 

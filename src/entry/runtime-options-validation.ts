@@ -5,8 +5,10 @@
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 import { ErrorCodes, createError } from '../core/errors';
 import { validateRange } from '../utils/validation';
+import { validateWritePathPolicyConfig } from '../capabilities/write-path-policy';
 
 export function validateRuntimeNumericOptions(options: MonSQLizeOptions): void {
+    validateWritePathPolicyConfig(options.writePathPolicy);
     if (options.maxTimeMS !== undefined && options.maxTimeMS !== null) {
         validateRange(options.maxTimeMS, 1, 300000, 'maxTimeMS');
     }

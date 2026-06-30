@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Document verification matrix for the current 97 English documentation slugs. Chinese docs inherit coverage by slug parity.",
+  "description": "Document verification matrix for the current 98 English documentation slugs. Chinese docs inherit coverage by slug parity.",
   "entries": [
     {
       "doc": "README",
@@ -679,6 +679,13 @@
       "kind": "example",
       "target": "examples/docs/batch-operations.ts",
       "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "write-path-policy",
+      "kind": "doc-check",
+      "target": "docs/en/write-path-policy.md",
+      "runner": "check:docs-examples",
       "status": "covered"
     }
   ]

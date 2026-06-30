@@ -22,6 +22,7 @@
 | [缓存系统](cache.md) | 缓存系统（LRU + TTL） |
 | [函数缓存](function-cache.md) | **🎉 函数缓存 - 为任意异步函数添加缓存能力（v1.1.4+）🆕** |
 | [事务管理](transaction.md) | 事务管理（自动重试、缓存锁） |
+| [写路径策略](write-path-policy.md) | 可选的 Model-only 写入命名空间策略 |
 | [Change Stream 同步](sync-backup.md) | **🎉 Change Stream 数据同步 - 实时备份到多个数据库（v1.0.8+）🆕** |
 | [事务优化策略](transaction-optimizations.md) | 事务优化策略 |
 | [分布式部署](distributed-deployment.md) | **分布式部署指南（多实例缓存一致性）⭐** |
@@ -114,6 +115,7 @@
 | [集合管理](collection-management.md) | 集合管理 |
 | [读偏好设置](readPreference.md) | 读偏好设置 |
 | [Count 队列控制](count-queue.md) | **Count 队列控制（高并发优化）⭐** |
+| [写路径策略](write-path-policy.md) | 配置写操作可走 collection API，或必须经过 Model API |
 | [分布式部署配置](distributed-deployment.md) | **分布式部署配置** |
 
 ---

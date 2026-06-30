@@ -10,6 +10,7 @@ import MonSQLize, {
     type TransactionOptions,
     type TransactionContract,
     type DeleteBatchResult,
+    type WritePathPolicyOptions,
     type BookmarkClearResult,
     type BookmarkListResult,
     type BookmarkPrewarmResult,
@@ -76,6 +77,14 @@ const db = new MonSQLize({
     logger,
 });
 
+const writePathPolicy: WritePathPolicyOptions = {
+    default: 'model-only',
+    namespaces: {
+        'analytics:p1_types.users': { mode: 'allow-both', raw: 'block', management: 'allow' },
+        'p1_types.audit': { mode: 'model-only', onViolation: 'warn' },
+    },
+};
+
 expectAssignable<MonSQLizeOptions>({
     type: 'mongodb',
     databaseName: 'p1_types',
@@ -84,6 +93,7 @@ expectAssignable<MonSQLizeOptions>({
     config: { uri: 'mongodb://localhost', readPreference: 'secondaryPreferred', mongoHost: 'mongo.internal', mongoPort: 27018 },
     autoConvertObjectId: { enabled: true, excludeFields: ['legacyId'], maxDepth: 5, logLevel: 'warn' },
     countQueue: true,
+    writePathPolicy,
     log: { formatSlowQuery: (meta) => ({ meta }) },
 });
 

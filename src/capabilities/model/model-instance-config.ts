@@ -16,6 +16,7 @@ import type {
 import type { ModelCollectionLike } from './populate-promise';
 import { ErrorCodes, createError } from '../../core/errors';
 import { _makeValidatingDslFn, _schemaDslFn } from './schema-dsl';
+import { runWithModelWriteSource } from '../write-path-policy';
 
 type ModelHooksFactory = (
     model: unknown,
@@ -286,7 +287,7 @@ function scheduleIndexTask<TDocument>(
         promise: new Promise((resolve) => {
             setImmediate(() => {
                 Promise.resolve()
-                    .then(() => collection.createIndex(key, indexOptions))
+                    .then(() => runWithModelWriteSource(() => collection.createIndex(key, indexOptions)))
                     .then(() => {
                         task.status = 'fulfilled';
                         resolve();
@@ -564,7 +565,7 @@ export async function ensureModelIndexesForCollection<TDocument>(
 
     for (const declaredIndex of missing) {
         try {
-            const createdName = await collection.createIndex(declaredIndex.key, declaredIndex.options);
+            const createdName = await runWithModelWriteSource(() => collection.createIndex(declaredIndex.key, declaredIndex.options));
             result.created.push({
                 declared: declaredIndex,
                 name: typeof createdName === 'string' ? createdName : undefined,

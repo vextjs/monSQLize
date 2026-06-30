@@ -63,6 +63,7 @@ import {
     runModelV1Hook,
     type ModelV1HooksFactory,
 } from './model-write-helpers';
+import { resolveAggregateWriteTarget } from '../../adapters/mongodb/common/collection-accessor-cache-helpers';
 import {
     orchestrateModelDeleteMany,
     orchestrateModelDeleteBatch,
@@ -80,6 +81,7 @@ import {
     orchestrateModelUpdateOne,
     orchestrateModelUpsertOne,
 } from './model-mutation-orchestrator';
+import { runWithModelWriteSource } from '../write-path-policy';
 
 // Public type re-exports (for external consumers)
 export type {
@@ -183,7 +185,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         );
     }
 
-    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; } {
+    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; pool?: string; } {
         return this.collection.getNamespace();
     }
 
@@ -197,6 +199,10 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
 
     private nowDate(): Date {
         return new Date();
+    }
+
+    private runModelWrite<TResult>(executor: () => TResult): TResult {
+        return runWithModelWriteSource(executor);
     }
 
     private async runV1HookedOperation<TResult>(
@@ -378,63 +384,63 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     }
 
     async insertOne(document?: unknown, options?: unknown): Promise<{ acknowledged: boolean; insertedId: unknown; }> {
-        return orchestrateModelInsertOne(this.mutationContext(), document, options);
+        return this.runModelWrite(() => orchestrateModelInsertOne(this.mutationContext(), document, options));
     }
 
     async insertMany(documents?: unknown[], options?: unknown): Promise<InsertManyResult> {
-        return orchestrateModelInsertMany(this.mutationContext(), documents, options);
+        return this.runModelWrite(() => orchestrateModelInsertMany(this.mutationContext(), documents, options));
     }
 
     async updateOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult> {
-        return orchestrateModelUpdateOne(this.mutationContext(), filter, update, options);
+        return this.runModelWrite(() => orchestrateModelUpdateOne(this.mutationContext(), filter, update, options));
     }
 
     async updateMany(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult> {
-        return orchestrateModelUpdateMany(this.mutationContext(), filter, update, options);
+        return this.runModelWrite(() => orchestrateModelUpdateMany(this.mutationContext(), filter, update, options));
     }
 
     async replaceOne(filter?: unknown, replacement?: unknown, options?: unknown): Promise<UpdateResult> {
-        return orchestrateModelReplaceOne(this.mutationContext(), filter, replacement, options);
+        return this.runModelWrite(() => orchestrateModelReplaceOne(this.mutationContext(), filter, replacement, options));
     }
 
     findOneAndUpdate(filter?: unknown, update?: unknown, options?: unknown): Promise<TDocument | null> {
-        return orchestrateModelFindOneAndUpdate(this.mutationContext(), filter, update, options);
+        return this.runModelWrite(() => orchestrateModelFindOneAndUpdate(this.mutationContext(), filter, update, options));
     }
 
     findOneAndReplace(filter?: unknown, replacement?: unknown, options?: unknown): Promise<TDocument | null> {
-        return orchestrateModelFindOneAndReplace(this.mutationContext(), filter, replacement, options);
+        return this.runModelWrite(() => orchestrateModelFindOneAndReplace(this.mutationContext(), filter, replacement, options));
     }
 
     findOneAndDelete(filter?: unknown, options?: unknown): Promise<TDocument | null> {
-        return orchestrateModelFindOneAndDelete(this.mutationContext(), filter, options);
+        return this.runModelWrite(() => orchestrateModelFindOneAndDelete(this.mutationContext(), filter, options));
     }
 
     async upsertOne(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateResult> {
-        return orchestrateModelUpsertOne(this.mutationContext(), filter, update, options);
+        return this.runModelWrite(() => orchestrateModelUpsertOne(this.mutationContext(), filter, update, options));
     }
 
     async incrementOne(filter?: unknown, field?: string | Record<string, number>, increment?: number, options?: unknown): Promise<IncrementOneResult<TDocument>> {
-        return orchestrateModelIncrementOne(this.mutationContext(), filter, field, increment, options);
+        return this.runModelWrite(() => orchestrateModelIncrementOne(this.mutationContext(), filter, field, increment, options));
     }
 
     async insertBatch(docs: unknown[], options?: unknown): Promise<InsertBatchResult> {
-        return orchestrateModelInsertBatch(this.mutationContext(), docs, options);
+        return this.runModelWrite(() => orchestrateModelInsertBatch(this.mutationContext(), docs, options));
     }
 
     async updateBatch(filter?: unknown, update?: unknown, options?: unknown): Promise<UpdateBatchResult> {
-        return orchestrateModelUpdateBatch(this.mutationContext(), filter, update, options);
+        return this.runModelWrite(() => orchestrateModelUpdateBatch(this.mutationContext(), filter, update, options));
     }
 
     async deleteBatch(filter?: unknown, options?: unknown): Promise<unknown> {
-        return orchestrateModelDeleteBatch(this.mutationContext(), filter, options);
+        return this.runModelWrite(() => orchestrateModelDeleteBatch(this.mutationContext(), filter, options));
     }
 
     async deleteOne(filter?: unknown, options?: unknown): Promise<unknown> {
-        return orchestrateModelDeleteOne(this.mutationContext(), filter, options);
+        return this.runModelWrite(() => orchestrateModelDeleteOne(this.mutationContext(), filter, options));
     }
 
     async deleteMany(filter?: unknown, options?: unknown): Promise<unknown> {
-        return orchestrateModelDeleteMany(this.mutationContext(), filter, options);
+        return this.runModelWrite(() => orchestrateModelDeleteMany(this.mutationContext(), filter, options));
     }
 
     // ── soft-delete extended methods (only meaningful when softDelete is enabled) ──
@@ -463,26 +469,26 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     }
 
     async restore(filter?: unknown, options?: unknown): Promise<RestoreResult> {
-        return restoreSoftDeletedDocuments(this.softDeleteContext(), filter, options);
+        return this.runModelWrite(() => restoreSoftDeletedDocuments(this.softDeleteContext(), filter, options));
     }
 
     async restoreMany(filter?: unknown, options?: unknown): Promise<RestoreResult> {
-        return restoreManySoftDeletedDocuments(this.softDeleteContext(), filter, options);
+        return this.runModelWrite(() => restoreManySoftDeletedDocuments(this.softDeleteContext(), filter, options));
     }
 
     async forceDelete(filter?: unknown, options?: unknown): Promise<unknown> {
-        return forceDeleteDocument(this.softDeleteContext(), filter, options);
+        return this.runModelWrite(() => forceDeleteDocument(this.softDeleteContext(), filter, options));
     }
 
     async forceDeleteMany(filter?: unknown, options?: unknown): Promise<unknown> {
-        return forceDeleteManyDocuments(this.softDeleteContext(), filter, options);
+        return this.runModelWrite(() => forceDeleteManyDocuments(this.softDeleteContext(), filter, options));
     }
     createIndex(keys: unknown, options?: unknown): Promise<unknown> {
-        return this.collection.createIndex(keys, options);
+        return this.runModelWrite(() => this.collection.createIndex(keys, options));
     }
 
     createIndexes(specs: Array<{ key: unknown; } & Record<string, unknown>>): Promise<string[]> {
-        return this.collection.createIndexes(specs);
+        return this.runModelWrite(() => this.collection.createIndexes(specs));
     }
 
     listIndexes(): Promise<Record<string, unknown>[]> {
@@ -490,21 +496,21 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     }
 
     ensureIndexes(options: ModelEnsureIndexesOptions = {}): Promise<ModelIndexEnsureResult> {
-        return ensureModelIndexesForCollection(this.collection, this.definition, this._softDeleteConfig, {
+        return this.runModelWrite(() => ensureModelIndexesForCollection(this.collection, this.definition, this._softDeleteConfig, {
             ...options,
             runtime: this.runtime as object,
             dbName: this.dbName,
             poolName: this.poolName,
             collectionName: this.collectionName,
-        });
+        }));
     }
 
     dropIndex(name: string): Promise<unknown> {
-        return this.collection.dropIndex(name);
+        return this.runModelWrite(() => this.collection.dropIndex(name));
     }
 
     dropIndexes(): Promise<unknown> {
-        return this.collection.dropIndexes();
+        return this.runModelWrite(() => this.collection.dropIndexes());
     }
 
     prewarmBookmarks(keyDims?: unknown, pages?: number[]): Promise<unknown> {
@@ -526,7 +532,13 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
 
     aggregate(pipeline?: unknown[], options?: unknown): Promise<unknown[]> {
         const filteredPipeline = this.applySoftDeleteAggregatePipeline(pipeline, options);
-        return this.runV1HookedOperation('find', [filteredPipeline, options], (nextPipeline, nextOptions) => this.collection.aggregate(nextPipeline as unknown[] | undefined, nextOptions));
+        return this.runV1HookedOperation('find', [filteredPipeline, options], (nextPipeline, nextOptions) => {
+            const execute = () => this.collection.aggregate(nextPipeline as unknown[] | undefined, nextOptions);
+            if (resolveAggregateWriteTarget(Array.isArray(nextPipeline) ? nextPipeline as never[] : [])) {
+                return this.runModelWrite(execute);
+            }
+            return execute();
+        });
     }
 
     stream(query?: unknown, options?: unknown): NodeJS.ReadableStream {
@@ -542,15 +554,15 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     }
 
     dropCollection(): Promise<boolean> {
-        return this.extendedCollection().dropCollection();
+        return this.runModelWrite(() => this.extendedCollection().dropCollection());
     }
 
     createCollection(name?: string, options?: Record<string, unknown>): Promise<boolean> {
-        return this.extendedCollection().createCollection(name, options);
+        return this.runModelWrite(() => this.extendedCollection().createCollection(name, options));
     }
 
     createView(name: string, source: string, pipeline?: unknown[]): Promise<boolean> {
-        return this.extendedCollection().createView(name, source, pipeline);
+        return this.runModelWrite(() => this.extendedCollection().createView(name, source, pipeline));
     }
 
     indexStats(): Promise<unknown[]> {
@@ -558,15 +570,15 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     }
 
     setValidator(validator: unknown, options?: { validationLevel?: string; validationAction?: string }): Promise<{ ok: number; collection: string }> {
-        return this.extendedCollection().setValidator(validator, options);
+        return this.runModelWrite(() => this.extendedCollection().setValidator(validator, options));
     }
 
     setValidationLevel(level: string): Promise<{ ok: number; validationLevel: string }> {
-        return this.extendedCollection().setValidationLevel(level);
+        return this.runModelWrite(() => this.extendedCollection().setValidationLevel(level));
     }
 
     setValidationAction(action: string): Promise<{ ok: number; validationAction: string }> {
-        return this.extendedCollection().setValidationAction(action);
+        return this.runModelWrite(() => this.extendedCollection().setValidationAction(action));
     }
 
     getValidator(): Promise<{ validator: Record<string, unknown> | null; validationLevel: string; validationAction: string }> {
@@ -578,15 +590,15 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     }
 
     renameCollection(newName: string, options?: { dropTarget?: boolean }): Promise<{ renamed: boolean; from: string; to: string }> {
-        return this.extendedCollection().renameCollection(newName, options);
+        return this.runModelWrite(() => this.extendedCollection().renameCollection(newName, options));
     }
 
     collMod(modifications: Record<string, unknown>): Promise<Record<string, unknown>> {
-        return this.extendedCollection().collMod(modifications);
+        return this.runModelWrite(() => this.extendedCollection().collMod(modifications));
     }
 
     convertToCapped(size: number, options?: { max?: number }): Promise<{ ok: number; collection: string; capped: boolean; size: number }> {
-        return this.extendedCollection().convertToCapped(size, options);
+        return this.runModelWrite(() => this.extendedCollection().convertToCapped(size, options));
     }
 
     watch(pipeline?: unknown[], options?: unknown): unknown {
@@ -662,14 +674,14 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         };
     }
     private async saveDocument(document: TDocument & Record<string, unknown>): Promise<TDocument & Record<string, unknown>> {
-        return saveModelDocument(this.collection, document, {
+        return this.runModelWrite(() => saveModelDocument(this.collection, document, {
             timestampsConfig: this._timestampsConfig,
             versionConfig: this._versionConfig,
             nowFactory: () => this.nowDate(),
-        });
+        }));
     }
     private async removeDocument(document: TDocument & Record<string, unknown>): Promise<boolean> {
-        return removeModelDocument(this.collection, document);
+        return this.runModelWrite(() => removeModelDocument(this.collection, document));
     }
     private applyDefaults(document?: Record<string, unknown>): Record<string, unknown> {
         return applyModelDefaults(this.definition, document);

@@ -311,7 +311,7 @@ export interface ModelInstance<TDocument = any> {
     readonly poolName?: string;
     readonly definition: ModelDefinition<TDocument>;
     /** Returns namespace metadata for the current model, including instance ID, type, database, and collection. */
-    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; };
+    getNamespace(): { iid: string; type: 'mongodb'; db: string; collection: string; pool?: string; };
     /** Returns the relation config map declared by the current model. */
     getRelations(): Record<string, RelationConfig>;
     /** Returns the enum value map declared by the current model. */

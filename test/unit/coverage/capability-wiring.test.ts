@@ -532,10 +532,11 @@ describe('capability-wiring coverage', () => {
             const result = runtime._resolveModelCollection('audit_logs', { pool: 'analytics', database: 'audit_db' });
             assert.equal(typeof result.getNamespace, 'function');
             assert.deepEqual(result.getNamespace(), {
-                iid: 'audit_db:audit_logs',
+                iid: 'analytics:audit_db.audit_logs',
                 type: 'mongodb',
                 db: 'audit_db',
                 collection: 'audit_logs',
+                pool: 'analytics',
             });
             assert.strictEqual(result.raw(), pooledRaw);
         });

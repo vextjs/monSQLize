@@ -9,6 +9,7 @@
 | Quick start / installation / connection / basic queries | [`getting-started.md`](./getting-started.md) | ✅ | Aligned with the current runtime and full TypeScript types |
 | Common recipes | [`recipes.md`](./recipes.md) | ✅ | Copy-ready paths for basic connection, cache, Redis, SSH, pools, locks, and Model usage |
 | Cache / function cache | [`cache-and-function-cache.md`](./cache-and-function-cache.md) | ✅ | `MemoryCache` / `withCache()` / `FunctionCache` |
+| Write path policy | [`write-path-policy.md`](./write-path-policy.md) | ✅ | Optional runtime guard for Model-only write namespaces |
 | Examples mapping / gallery | [`examples.md`](./examples.md) | ✅ | Maps documentation topics to official examples |
 | Advanced capability index | [Capability index](./capability-index.md) | ✅ | Index of the current advanced capability surface |
 | Verification / architecture / engineering governance | [`verification-entrypoints.md`](./verification-entrypoints.md) / [`runtime-architecture.md`](./runtime-architecture.md) / [`support-matrix.md`](./support-matrix.md) / [`release-preflight.md`](./release-preflight.md) | ✅ | Unified entry points for verification, private real-env boundaries, runtime structure, and release constraints |
@@ -19,13 +20,14 @@
 2. Quick start: [`getting-started.md`](./getting-started.md)
 3. Recipes: [`recipes.md`](./recipes.md)
 4. Cache guide: [`cache-and-function-cache.md`](./cache-and-function-cache.md)
-5. Capability index: [Capability index](./capability-index.md)
-6. Engineering and boundaries:
+5. Write path policy: [`write-path-policy.md`](./write-path-policy.md)
+6. Capability index: [Capability index](./capability-index.md)
+7. Engineering and boundaries:
    - [`verification-entrypoints.md`](./verification-entrypoints.md)
    - [`support-matrix.md`](./support-matrix.md)
    - [`release-preflight.md`](./release-preflight.md)
    - [`roadmap-boundaries.md`](./roadmap-boundaries.md)
-7. Runnable examples:
+8. Runnable examples:
    - `examples/README.md`
    - `examples/quick-start/basic-connect.ts`
    - `examples/cache/with-cache.ts`

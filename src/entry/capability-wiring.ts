@@ -17,6 +17,7 @@ import { CountQueue } from '../capabilities/count-queue';
 import { ConnectionPoolManager } from '../capabilities/pool';
 import { DistributedCacheInvalidator } from '../capabilities/cache';
 import type { CacheLike, RedisPubSubLike } from '../capabilities/cache';
+import { normalizeWritePathPolicy } from '../capabilities/write-path-policy';
 
 // ────────────────────────────────────────────────────────
 // AutoConvert config
@@ -83,6 +84,7 @@ export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults
         findPageMaxLimit: o.findPageMaxLimit ?? 500,
         slowQueryMs: o.slowQueryMs ?? 500,
         namespace: o.namespace ?? { scope: 'database' },
+        writePathPolicy: normalizeWritePathPolicy(o.writePathPolicy),
     };
     // v1-compat: autoConvertObjectId defaults to true for MongoDB type (mirrors v1 behaviour)
     defaults.autoConvertObjectId = o.autoConvertObjectId !== undefined

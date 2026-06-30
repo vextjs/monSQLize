@@ -23,6 +23,7 @@ export interface CollectionAccessorManagementOptions {
     logger?: Logger;
     defaults?: RuntimeDefaults;
     cacheAutoInvalidate?: boolean;
+    poolName?: string;
 }
 
 /**
@@ -33,4 +34,5 @@ export interface CollectionNamespaceView {
     type: 'mongodb';
     db: string;
     collection: string;
+    pool?: string;
 }
