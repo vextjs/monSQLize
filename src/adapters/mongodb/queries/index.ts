@@ -413,7 +413,7 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
         return wrapQueryResultWithMeta(this.collection, this.defaults, op, this.options, startTs, result);
     }
 
-    toArray(): Promise<TResult[]> {
+    private runToArray(): Promise<TResult[]> {
         if (this.executed) {
             throw createError(ErrorCodes.INVALID_OPERATION, 'Query already executed.');
         }
@@ -424,6 +424,13 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
                 await this.writePipelineHooks?.onWriteComplete?.();
                 return result as TResult[];
             });
+    }
+
+    toArray(): Promise<TResult[]> {
+        if (this.executed) {
+            throw createError(ErrorCodes.INVALID_OPERATION, 'Query already executed.');
+        }
+        return this.executeResult() as Promise<TResult[]>;
     }
 
     private async executeResult(): Promise<TResult[] | ResultWithMeta<TResult[]> | NodeJS.ReadableStream> {
@@ -453,11 +460,11 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
                 return this.wrapResult('aggregate', startTs, cached as TResult[]) as TResult[] | ResultWithMeta<TResult[]>;
             }
             const qc = this.queryCache;
-            const result = await this.toArray();
+            const result = await this.runToArray();
             await Promise.resolve(qc.set(cacheKey, result, cacheTTL));
             return this.wrapResult('aggregate', startTs, result) as TResult[] | ResultWithMeta<TResult[]>;
         }
-        return this.toArray().then((result) => this.wrapResult('aggregate', startTs, result) as TResult[] | ResultWithMeta<TResult[]>);
+        return this.runToArray().then((result) => this.wrapResult('aggregate', startTs, result) as TResult[] | ResultWithMeta<TResult[]>);
     }
 
     then<TResult1 = TResult[], TResult2 = never>(
@@ -582,6 +589,7 @@ export async function countDocuments<TSchema extends Document = Document>(
     const countOptions = buildCountDriverOptions<TSchema>(rawOptions);
     const maxTimeMS = rawOptions.maxTimeMS as number | undefined;
     const comment = rawOptions.comment as string | undefined;
+    const signal = rawOptions.signal as AbortSignal | undefined;
     const canUseEstimatedCount = isEmptyQuery
         && !hasSessionOption(rawOptions)
         && rawOptions.collation === undefined
@@ -610,6 +618,7 @@ export async function countDocuments<TSchema extends Document = Document>(
         const estimatedOptions: Record<string, unknown> = {};
         if (maxTimeMS !== undefined) estimatedOptions.maxTimeMS = maxTimeMS;
         if (comment) estimatedOptions.comment = comment;
+        if (signal) estimatedOptions.signal = signal;
         return collection.estimatedDocumentCount(estimatedOptions as Parameters<Collection<TSchema>['estimatedDocumentCount']>[0]);
     }
 

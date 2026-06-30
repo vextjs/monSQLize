@@ -409,6 +409,9 @@ export class ChangeStreamSyncManager {
         });
         this.clientFactory = options.clientFactory ?? defaultClientFactory;
         this.idempotency = resolveSyncIdempotencyRuntime(options.config.idempotency);
+        if (options.config.idempotency?.enabled === true && options.config.idempotency.store === undefined) {
+            this.logger?.warn?.('[Sync] sync.idempotency is enabled without a durable store; the memory fallback only protects replay within the current process.');
+        }
     }
 
     /**

@@ -525,6 +525,33 @@ describe('P6 runtime compat mock path', () => {
         assert.equal(calls.distinct, 1);
     });
 
+    it('passes CountQueue AbortSignal into count driver options', async () => {
+        const controller = new AbortController();
+        let capturedOptions: Record<string, unknown> | undefined;
+        const nativeCollection = {
+            namespace: 'compat_db.users',
+            countDocuments(_query: unknown, options?: Record<string, unknown>) {
+                capturedOptions = options;
+                return resolved(7);
+            },
+        };
+        const accessor = new MongoCollectionAccessor(
+            'compat_db',
+            'users',
+            nativeCollection as never,
+            {
+                defaults: {
+                    countQueue: {
+                        execute: <T>(fn: (signal?: AbortSignal) => Promise<T>) => fn(controller.signal),
+                    },
+                },
+            },
+        );
+
+        assert.equal(await accessor.count({ active: true } as never), 7);
+        assert.equal(capturedOptions?.signal, controller.signal);
+    });
+
     it('records write cache invalidation on the active transaction session', async () => {
         const recorded: string[] = [];
         let deletedPatterns = 0;

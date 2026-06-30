@@ -289,6 +289,7 @@ describe('ObjectId auto-conversion — integration', () => {
     let runtime2: any;
     let col2: any;
     const VALID_HEX = '507f1f77bcf86cd799439011';
+    const NEXT_HEX = '507f1f77bcf86cd799439012';
 
     before(async () => {
         const ctx = await bootstrap2.setup();
@@ -300,7 +301,7 @@ describe('ObjectId auto-conversion — integration', () => {
         const { ObjectId } = require('mongodb');
         await col2.insertMany([
             { name: 'X', userId: new ObjectId(VALID_HEX), score: 5 },
-            { name: 'Y', userId: new ObjectId('507f1f77bcf86cd799439012'), score: 3 },
+            { name: 'Y', userId: new ObjectId(NEXT_HEX), score: 3 },
             { name: 'Z', score: 1, tags: [new ObjectId(VALID_HEX)] },
         ]);
     });
@@ -321,6 +322,20 @@ describe('ObjectId auto-conversion — integration', () => {
         const docs = await col2.find({ userId: { $eq: VALID_HEX } }).toArray();
         // $eq with a hex string — the value inside $eq will be converted
         assert.ok(docs.length >= 0); // might or might not match depending on conversion
+    });
+
+    it('find converts ObjectId comparison operator values', async () => {
+        const gtDocs = await col2.find({ userId: { $gt: VALID_HEX } }).toArray();
+        assert.deepEqual(gtDocs.map((doc: { name: string }) => doc.name), ['Y']);
+
+        const gteDocs = await col2.find({ userId: { $gte: VALID_HEX } }).sort({ name: 1 }).toArray();
+        assert.deepEqual(gteDocs.map((doc: { name: string }) => doc.name), ['X', 'Y']);
+
+        const ltDocs = await col2.find({ userId: { $lt: NEXT_HEX } }).toArray();
+        assert.deepEqual(ltDocs.map((doc: { name: string }) => doc.name), ['X']);
+
+        const lteDocs = await col2.find({ userId: { $lte: VALID_HEX } }).toArray();
+        assert.deepEqual(lteDocs.map((doc: { name: string }) => doc.name), ['X']);
     });
 
     it('find with $expr operator — SPECIAL_OPERATORS skips conversion', async () => {

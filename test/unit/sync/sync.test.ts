@@ -490,6 +490,62 @@ describe('P4-C sync', () => {
         assert.equal(stats.duplicateEventCount, 1);
     });
 
+    it('warns when sync idempotency uses the in-memory fallback store', () => {
+        const warnings: string[] = [];
+        const db = {
+            databaseName: 'source_db',
+            watch: () => ({ close: () => Promise.resolve(true) }),
+        };
+
+        new MonSQLize.ChangeStreamSyncManager({
+            db,
+            config: {
+                enabled: true,
+                idempotency: { enabled: true },
+                targets: [{ name: 'target', apply: async () => undefined }],
+            },
+            logger: {
+                warn: (message: string) => warnings.push(message),
+                error: () => undefined,
+                info: () => undefined,
+                debug: () => undefined,
+            },
+        });
+
+        assert.ok(warnings.some((message) => message.includes('memory fallback only protects replay within the current process')));
+    });
+
+    it('does not warn when sync idempotency receives an explicit store', () => {
+        const warnings: string[] = [];
+        const db = {
+            databaseName: 'source_db',
+            watch: () => ({ close: () => Promise.resolve(true) }),
+        };
+
+        new MonSQLize.ChangeStreamSyncManager({
+            db,
+            config: {
+                enabled: true,
+                idempotency: {
+                    enabled: true,
+                    store: {
+                        get: () => undefined,
+                        set: () => undefined,
+                    },
+                },
+                targets: [{ name: 'target', apply: async () => undefined }],
+            },
+            logger: {
+                warn: (message: string) => warnings.push(message),
+                error: () => undefined,
+                info: () => undefined,
+                debug: () => undefined,
+            },
+        });
+
+        assert.equal(warnings.length, 0);
+    });
+
     it('stops processing changes when resume token persistence fails', async () => {
         const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };
         let closed = false;

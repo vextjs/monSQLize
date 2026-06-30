@@ -220,6 +220,36 @@ describe('aggregate() / distinct() / count() / explain()', () => {
             assert.equal(third[0].total, 21);
         });
 
+        it('direct .toArray() honors aggregate cache option', async () => {
+            const db = runtime._adapter.db;
+            const pipeline = [
+                { $match: { category: 'clothing' } },
+                { $group: { _id: null, total: { $sum: 1 } } },
+            ];
+
+            const first = await col.aggregate(pipeline, { cache: 60_000 }).toArray();
+            assert.equal(first[0].total, 20);
+
+            await db.collection('products').insertOne({
+                sku: 'SKU-CACHE-AGG-TOARRAY',
+                category: 'clothing',
+                price: 1,
+                stock: 1,
+                rating: 5,
+                active: true,
+            });
+
+            const second = await col.aggregate(pipeline, { cache: 60_000 }).toArray();
+            assert.equal(second[0].total, 20);
+        });
+
+        it('direct .toArray() honors aggregate meta option', async () => {
+            const result = await col.aggregate([{ $match: { category: 'food' } }], { meta: true }).toArray() as any;
+            assert.ok(Array.isArray(result.data));
+            assert.equal(result.meta.op, 'aggregate');
+            assert.equal(result.meta.ns.coll, 'products');
+        });
+
         it('invalidates target collection cache after $merge', async () => {
             const db = runtime._adapter.db;
             const summary = runtime.collection('product_summary');

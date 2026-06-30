@@ -144,13 +144,16 @@ function normalizeQueryArray(
     });
 }
 
+const QUERY_OBJECTID_ARRAY_OPERATORS = new Set(['$in', '$nin', '$all']);
+const QUERY_OBJECTID_SCALAR_OPERATORS = new Set(['$eq', '$ne', '$gt', '$gte', '$lt', '$lte']);
+
 /**
  * Recursively normalizes a query filter, converting eligible 24-char hex strings to ObjectId.
  *
  * Notes:
  * - This is the query-path-specific filter normalizer.
  * - Unlike `utils/objectid-converter.ts` (general object traversal), this one preserves
- *   query operator semantics: $and/$or/$nor/$elemMatch/$in/$nin/$all/$eq/$ne.
+ *   query operator semantics: $and/$or/$nor/$elemMatch/$in/$nin/$all/$eq/$ne/$gt/$gte/$lt/$lte.
  */
 export function normalizeQueryFilter(
     filter: Record<string, unknown>,
@@ -188,13 +191,13 @@ export function normalizeQueryFilter(
             if (hasOperators) {
                 const nestedResult: Record<string, unknown> = {};
                 for (const [op, opVal] of Object.entries(nested)) {
-                    if (shouldConvert && (op === '$in' || op === '$nin' || op === '$all') && Array.isArray(opVal)) {
+                    if (shouldConvert && QUERY_OBJECTID_ARRAY_OPERATORS.has(op) && Array.isArray(opVal)) {
                         nestedResult[op] = opVal.map((item) =>
                             typeof item === 'string' && item.length === 24 && ObjectId.isValid(item)
                                 ? new ObjectId(item)
                                 : item,
                         );
-                    } else if (shouldConvert && (op === '$eq' || op === '$ne') && typeof opVal === 'string' && opVal.length === 24 && ObjectId.isValid(opVal)) {
+                    } else if (shouldConvert && QUERY_OBJECTID_SCALAR_OPERATORS.has(op) && typeof opVal === 'string' && opVal.length === 24 && ObjectId.isValid(opVal)) {
                         nestedResult[op] = new ObjectId(opVal);
                     } else if (op === '$elemMatch' && opVal && typeof opVal === 'object' && !Array.isArray(opVal)) {
                         nestedResult[op] = normalizeQueryFilter(opVal as Record<string, unknown>, autoConvert, currentPath, depth + 1);
@@ -488,6 +491,7 @@ export function buildCountDriverOptions<TSchema extends Document = Document>(
         'session',
         'readConcern',
         'readPreference',
+        'signal',
     ]);
     for (const key of Object.keys(driverOptions)) {
         if (!allowed.has(key)) {
