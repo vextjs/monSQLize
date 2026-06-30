@@ -612,13 +612,13 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
 
     /** Creates a collection (or a named alternative) with the given options. */
     async createCollection(name?: string, options: Record<string, unknown> = {}): Promise<boolean> {
-        this.assertWritePath('createCollection', 'management');
+        this.assertManagementWriteTargets('createCollection', name);
         return createCollectionForAccessor(this.collectionRef, this.collectionName, this.dbRef, name, options);
     }
 
     /** Creates a MongoDB view backed by the given source collection and aggregation pipeline. */
     async createView(name: string, source: string, pipeline: unknown[] = []): Promise<boolean> {
-        this.assertWritePath('createView', 'management');
+        this.assertManagementWriteTargets('createView', name);
         return createViewForAccessor(this.collectionRef, this.dbRef, name, source, pipeline);
     }
 
@@ -655,7 +655,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
 
     /** Renames the collection, optionally dropping an existing target collection. */
     async renameCollection(newName: unknown, options: { dropTarget?: boolean } = {}): Promise<{ renamed: boolean; from: string; to: string }> {
-        this.assertWritePath('renameCollection', 'management');
+        this.assertManagementWriteTargets('renameCollection', newName);
         return renameCollectionForAccessor(this.collectionRef, this.collectionName, newName, options);
     }
 
@@ -681,6 +681,21 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             category,
             logger: this.management.logger,
         });
+    }
+
+    private assertManagementWriteTargets(operation: string, targetCollectionName?: unknown): void {
+        this.assertWritePath(operation, 'management');
+        if (
+            typeof targetCollectionName === 'string'
+            && targetCollectionName.length > 0
+            && targetCollectionName !== this.collectionName
+        ) {
+            this.assertWritePath(
+                operation,
+                'management',
+                this.buildNamespaceView(this.dbName, targetCollectionName),
+            );
+        }
     }
 
     private batchContext(operation: string) {

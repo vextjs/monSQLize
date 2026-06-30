@@ -20,7 +20,7 @@ export interface WritePathPolicyOptions {
 }
 
 export type WritePathOperationCategory = 'write' | 'batch' | 'management' | 'raw';
-export type WritePathSource = 'collection' | 'model' | 'legacy' | 'db';
+export type WritePathSource = 'collection' | 'model' | 'legacy' | 'db' | 'client';
 
 export interface WritePathNamespace {
     iid?: string;
@@ -249,12 +249,16 @@ export function assertWritePathAllowed(config: {
 }
 
 function namespaceRuleMatchesDb(ruleKey: string, dbName: string): boolean {
-    if (ruleKey.includes(':')) {
-        const [, scoped] = ruleKey.split(':', 2);
-        return scoped?.startsWith(`${dbName}.`) ?? false;
-    }
     if (ruleKey.includes('.')) {
-        return ruleKey.startsWith(`${dbName}.`);
+        const scoped = ruleKey.includes(':') ? ruleKey.slice(ruleKey.lastIndexOf(':') + 1) : ruleKey;
+        return scoped.startsWith(`${dbName}.`);
+    }
+    const parts = ruleKey.split(':');
+    if (parts.length >= 3) {
+        return parts[parts.length - 2] === dbName;
+    }
+    if (parts.length === 2) {
+        return parts[0] === dbName;
     }
     return true;
 }
@@ -313,6 +317,47 @@ export function assertDbLevelWritePathAllowed(config: {
         rule: blocked.rule,
     };
     const message = buildViolationMessage(config.operation, config.category, 'db');
+    if (blocked.rule.onViolation === 'warn') {
+        config.logger?.warn?.(`[WritePathPolicy] ${message}`, details);
+        return;
+    }
+    throw createError(ErrorCodes.INVALID_OPERATION, message, [details]);
+}
+
+export function shouldBlockClientLevelWritePath(
+    policy: NormalizedWritePathPolicy | undefined,
+): boolean {
+    if (!policy) return false;
+    if (blocksDbLevelCategory(policy.default, 'raw')) {
+        return true;
+    }
+    return Object.values(policy.namespaces).some((rule) => blocksDbLevelCategory(rule, 'raw'));
+}
+
+export function assertClientLevelWritePathAllowed(config: {
+    policy?: NormalizedWritePathPolicy;
+    operation: string;
+    logger?: Pick<Logger, 'warn'>;
+}): void {
+    const policy = config.policy;
+    if (!policy) return;
+
+    const matches: Array<{ key: string; rule: NormalizedWritePathRule }> = [
+        { key: 'default', rule: policy.default },
+        ...Object.entries(policy.namespaces).map(([key, rule]) => ({ key, rule })),
+    ];
+    const blocked = matches.find(({ rule }) => blocksDbLevelCategory(rule, 'raw'));
+    if (!blocked) return;
+
+    const details = {
+        operation: config.operation,
+        category: 'raw' satisfies WritePathOperationCategory,
+        source: 'client' satisfies WritePathSource,
+        namespace: {},
+        matchedRule: blocked.key,
+        rule: blocked.rule,
+    };
+    const message = buildViolationMessage(config.operation, 'raw', 'client');
     if (blocked.rule.onViolation === 'warn') {
         config.logger?.warn?.(`[WritePathPolicy] ${message}`, details);
         return;

@@ -1,6 +1,7 @@
 import { afterEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+    assertDbLevelWritePathAllowed,
     assertWritePathAllowed,
     normalizeWritePathPolicy,
     resolveWritePathRule,
@@ -35,6 +36,10 @@ function createFakeCollection(dbName: string, collectionName: string, calls: Run
             calls.push({ op: 'createIndex', db: dbName, collection: collectionName });
             return `${collectionName}_idx`;
         },
+        createCollection: async () => {
+            calls.push({ op: 'createCollection', db: dbName, collection: collectionName });
+            return true;
+        },
         createIndexes: async () => {
             calls.push({ op: 'createIndexes', db: dbName, collection: collectionName });
             return [`${collectionName}_idx`];
@@ -48,6 +53,14 @@ function createFakeCollection(dbName: string, collectionName: string, calls: Run
                 return [];
             },
         }),
+        rename: async (newName: string) => {
+            calls.push({ op: 'renameCollection', db: dbName, collection: newName });
+            return createFakeCollection(dbName, newName, calls);
+        },
+        drop: async () => {
+            calls.push({ op: 'dropCollection', db: dbName, collection: collectionName });
+            return true;
+        },
     };
 }
 
@@ -58,6 +71,10 @@ function createFakeDb(dbName: string, calls: RuntimeHarness['calls']) {
         command: async () => {
             calls.push({ op: 'runCommand', db: dbName });
             return { ok: 1 };
+        },
+        createCollection: async (collectionName: string) => {
+            calls.push({ op: 'createCollection', db: dbName, collection: collectionName });
+            return createFakeCollection(dbName, collectionName, calls);
         },
         dropDatabase: async () => {
             calls.push({ op: 'dropDatabase', db: dbName });
@@ -118,8 +135,10 @@ describe('writePathPolicy runtime enforcement', () => {
         await expectBlocked(runtime.collection('users').insertOne({ name: 'Ada' }));
         await expectBlocked(() => runtime.collection('users').raw());
         await expectBlocked(runtime.db().runCommand({ ping: 1 }));
+        await expectBlocked(() => runtime._adapter.client);
         await expectBlocked(() => runtime.collection('users').aggregate([{ $out: 'users_archive' }]));
         await expectBlocked(runtime._adapter.collection('policy_db', 'users').aggregate([{ $merge: 'users_archive' }]));
+        await expectBlocked(runtime._adapter.dropDatabase('policy_db', { confirm: true }));
 
         assert.equal(calls.length, 0);
     });
@@ -168,10 +187,24 @@ describe('writePathPolicy runtime enforcement', () => {
         });
 
         runtime.collection('users').raw();
+        assert.ok(runtime._adapter.client);
         await runtime.collection('users').createIndex({ name: 1 });
         await expectBlocked(runtime.collection('users').insertOne({ name: 'Ada' }));
 
         assert.deepEqual(calls, [{ op: 'createIndex', db: 'policy_db', collection: 'users' }]);
+    });
+
+    it('blocks native client access when a namespace blocks raw access', async () => {
+        const { runtime } = createConnectedRuntime({
+            writePathPolicy: {
+                default: 'allow-both',
+                namespaces: {
+                    'policy_db.users': 'model-only',
+                },
+            },
+        });
+
+        await expectBlocked(() => runtime._adapter.client);
     });
 
     it('matches pool-scoped namespace rules before db and collection fallbacks', () => {
@@ -240,5 +273,47 @@ describe('writePathPolicy runtime enforcement', () => {
 
         assert.equal(warnings.length, 1);
         assert.match(String(warnings[0][0]), /WritePathPolicy/);
+    });
+
+    it('blocks management operations when the target namespace is model-only', async () => {
+        const { runtime, calls } = createConnectedRuntime({
+            writePathPolicy: {
+                default: 'allow-both',
+                namespaces: {
+                    'policy_db.archive': 'model-only',
+                },
+            },
+        });
+
+        await expectBlocked(runtime.collection('users').createCollection('archive'));
+        await expectBlocked(runtime.collection('users').createView('archive', 'users'));
+        await expectBlocked(runtime.collection('users').renameCollection('archive'));
+
+        assert.equal(calls.length, 0);
+    });
+
+    it('matches instance-scoped rules for database-level raw operations', () => {
+        const policy = normalizeWritePathPolicy({
+            default: 'allow-both',
+            namespaces: {
+                'tenant_a:policy_db:users': 'model-only',
+            },
+        });
+
+        assert.throws(
+            () => assertDbLevelWritePathAllowed({
+                policy,
+                dbName: 'policy_db',
+                operation: 'runCommand',
+                category: 'raw',
+            }),
+            /writePathPolicy blocked/,
+        );
+        assert.doesNotThrow(() => assertDbLevelWritePathAllowed({
+            policy,
+            dbName: 'other_db',
+            operation: 'runCommand',
+            category: 'raw',
+        }));
     });
 });

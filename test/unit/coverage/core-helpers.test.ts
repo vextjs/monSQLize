@@ -1185,6 +1185,7 @@ describe('coverage core helpers', () => {
             _client: { db: () => ({ collection: () => nativeCollection, dropDatabase: async () => true }) },
             _iidCache: null,
             _runtimeDefaults: { namespace: { instanceId: 'iid' } },
+            _logger: { warn: () => undefined },
             _slowQueryLogManager: { save: async (entry: unknown) => saved.push(entry) },
             resolveAdapterCache: () => null,
             setAdapterCache: (value: unknown) => { host.cache = value; },
@@ -1196,6 +1197,15 @@ describe('coverage core helpers', () => {
                 listDatabases: async () => [{ name: 'db' }],
                 listCollections: async () => [{ name: 'items' }],
                 runCommand: async (cmd: unknown) => ({ cmd }),
+                dropDatabase: async (options: { confirm?: boolean; allowProduction?: boolean } = {}) => {
+                    if (!options.confirm) {
+                        throw new Error('dropDatabase requires explicit confirmation. Pass { confirm: true } to proceed.');
+                    }
+                    if (['production', 'prod', 'live'].includes(process.env['NODE_ENV'] ?? '') && !options.allowProduction) {
+                        throw new Error('dropDatabase is blocked in production. Pass { allowProduction: true } to override.');
+                    }
+                    return { dropped: true, database: 'db', timestamp: new Date() };
+                },
             }),
             emit: (event: string, payload: unknown) => emitted.push({ event, payload }),
         };

@@ -21,13 +21,17 @@ import {
     type SlowQueryLogEntry,
 } from '../capabilities/slow-query-log';
 import { ErrorCodes, createError } from '../core/errors';
-import { assertWritePathAllowed, type WritePathOperationCategory } from '../capabilities/write-path-policy';
+import {
+    assertClientLevelWritePathAllowed,
+    assertWritePathAllowed,
+    type WritePathOperationCategory,
+} from '../capabilities/write-path-policy';
+import type { Logger } from '../core/logger';
 import type { AdminBuildInfoView, DbStatsView, ServerStatusView } from '../../types/collection';
 import type { RuntimeDefaults } from '../types/internal/query';
 import type { AdapterBridgeLike, LegacyAdapterBridgeLike } from '../types/internal/runtime';
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type { MongoDbAccessor as DbFacade } from '../adapters/mongodb/common/accessors';
-import { isProductionEnvironment } from '../adapters/mongodb/common/drop-database-safety';
 import { resolveAggregateWriteTarget } from '../adapters/mongodb/common/collection-accessor-cache-helpers';
 
 /**
@@ -43,6 +47,8 @@ type AdapterBridgeConfig = {
     getDb: () => Db | null;
     /** Returns the current MongoClient (null when not connected). */
     getClient: () => MongoClient | null;
+    /** Asserts that public native-client access is allowed. */
+    assertClientAccess: () => void;
     /** Returns the current cache instance (may be null). */
     getCache: () => CacheLike | null;
     /** Replaces the current cache instance. */
@@ -204,7 +210,13 @@ function createAdapterBridge(config: AdapterBridgeConfig): LegacyAdapterBridgeLi
         },
         client: {
             enumerable: true,
-            get: config.getClient,
+            get: () => {
+                const client = config.getClient();
+                if (client) {
+                    config.assertClientAccess();
+                }
+                return client;
+            },
         },
         cache: {
             enumerable: true,
@@ -280,6 +292,7 @@ export type RuntimeAdapterBridgeHost = {
     _client: MongoClient | null;
     _iidCache: MemoryCache | null;
     _runtimeDefaults: RuntimeDefaults;
+    _logger: Logger;
     _slowQueryLogManager: SlowQueryLogManager | null;
     resolveAdapterCache(): CacheLike | null;
     setAdapterCache(value: CacheLike | null): void;
@@ -302,6 +315,11 @@ export function createRuntimeAdapterBridge(host: RuntimeAdapterBridgeHost): Lega
     return createAdapterBridge({
         getDb: () => host._defaultDb?.raw() ?? null,
         getClient: () => host._client,
+        assertClientAccess: () => assertClientLevelWritePathAllowed({
+            policy: host._runtimeDefaults.writePathPolicy,
+            operation: 'client',
+            logger: host._logger,
+        }),
         getCache: () => host.resolveAdapterCache(),
         setCache: (value) => host.setAdapterCache(value),
         getInstanceId: () => host._runtimeDefaults.namespace?.instanceId,
@@ -331,26 +349,11 @@ export function createRuntimeAdapterBridge(host: RuntimeAdapterBridgeHost): Lega
             if (!name || typeof name !== 'string') {
                 throw createError(ErrorCodes.INVALID_DATABASE_NAME, 'Database name is required and must be a non-empty string');
             }
-            if (!adminOptions?.confirm) {
-                const error = new Error(
-                    'dropDatabase requires explicit confirmation. Pass { confirm: true } to proceed.\n\n' +
-                    '⚠️  WARNING: This will DELETE ALL DATA in the database!\n' +
-                    '⚠️  This operation CANNOT BE UNDONE!',
-                ) as Error & { code: string };
-                error.code = 'CONFIRMATION_REQUIRED';
-                throw error;
-            }
-            const isProduction = isProductionEnvironment();
-            if (isProduction && !adminOptions.allowProduction) {
-                const error = new Error('dropDatabase is blocked in production. Pass { allowProduction: true } to override.') as Error & { code: string };
-                error.code = 'PRODUCTION_BLOCKED';
-                throw error;
-            }
-            if (!host._client) {
-                throw createError(ErrorCodes.NOT_CONNECTED, 'MonSQLize is not connected yet.');
-            }
-            await host._client.db(name).dropDatabase();
-            return { dropped: true, database: name, timestamp: new Date() };
+            return host.db(name).dropDatabase({
+                confirm: adminOptions?.confirm === true,
+                allowProduction: adminOptions?.allowProduction,
+                user: adminOptions?.user,
+            });
         },
         listCollections: async (adminOptions) => {
             host.ensureConnected();

@@ -18,6 +18,7 @@
 - Added a short-lived read-cache dirty barrier around writes and transaction commits. Cached reads now bypass and avoid refilling query cache while a namespace is being invalidated, reducing stale-cache windows when a process exits between a database write and post-write invalidation.
 - Added optional Change Stream sync idempotency gates (`sync.idempotency`) with per-target keys and duplicate stats, so supervised restarts can skip targets already marked as applied before saving the shared resume token.
 - Added `writePathPolicy` with default `allow-both` behavior and optional `model-only` namespace enforcement across collection, db, legacy, raw, management, batch, and aggregate `$out` / `$merge` write paths.
+- Hardened `writePathPolicy` guard coverage for native client access, legacy `dropDatabase`, management-operation target namespaces, and instance-scoped database-level rules.
 - Added strict optimistic-locking support to Model `updateBatch(..., { versionMode: 'strict' })`; default `counter` behavior remains unchanged.
 - Clarified the runtime consistency contract across cache, transactions, Change Stream sync, and CountQueue; `transaction.distributedLock` now warns as a v1 compatibility placeholder because v2 transaction cache locks remain process-local.
 - Added an event-level barrier for Change Stream sync target failures, passed a cooperative `AbortSignal` through `CountQueue.execute()` timeouts, and unified ObjectId auto-conversion field matching across query/write paths including nested array path segments.

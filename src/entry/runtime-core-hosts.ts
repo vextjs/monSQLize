@@ -13,6 +13,7 @@ type RuntimeCoreAdapterBridgeState = {
     options: MonSQLizeOptions;
     _cache: CacheLike;
     _adapterCacheOverride: CacheLike | null | undefined;
+    _logger: Logger;
 } & Pick<
     RuntimeAdapterBridgeHost,
     '_defaultDb' | '_client' | '_iidCache' | '_runtimeDefaults' | '_slowQueryLogManager' |
@@ -57,6 +58,7 @@ export function createRuntimeCoreAdapterBridgeHost(runtime: unknown): RuntimeAda
         get _iidCache() { return state._iidCache; },
         set _iidCache(value) { state._iidCache = value; },
         _runtimeDefaults: state._runtimeDefaults,
+        _logger: state._logger,
         get _slowQueryLogManager() { return state._slowQueryLogManager; },
         resolveAdapterCache: () => resolveAdapterCache(state),
         setAdapterCache: (value) => {
