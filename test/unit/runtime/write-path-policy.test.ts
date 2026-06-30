@@ -329,6 +329,77 @@ describe('writePathPolicy runtime enforcement', () => {
         );
     });
 
+    it('rejects reserved and whitespace namespace keys at construction time', () => {
+        assert.throws(
+            () => normalizeWritePathPolicy({
+                namespaces: {
+                    default: 'model-only',
+                },
+            }),
+            /namespace key "default" is reserved/,
+        );
+        assert.throws(
+            () => new MonSQLize({
+                type: 'mongodb',
+                databaseName: 'policy_db',
+                writePathPolicy: {
+                    namespaces: {
+                        default: 'model-only',
+                    },
+                },
+            }),
+            /namespace key "default" is reserved/,
+        );
+        assert.throws(
+            () => normalizeWritePathPolicy({
+                namespaces: {
+                    ' policy_db.users': 'model-only',
+                },
+            }),
+            /leading or trailing whitespace/,
+        );
+    });
+
+    it('allows a collection literally named default through db-qualified namespace rules', () => {
+        const policy = normalizeWritePathPolicy({
+            default: 'allow-both',
+            namespaces: {
+                'policy_db.default': 'model-only',
+            },
+        });
+        const defaultCollectionRule = resolveWritePathRule(policy, {
+            db: 'policy_db',
+            collection: 'default',
+        });
+
+        assert.equal(defaultCollectionRule.key, 'policy_db.default');
+        assert.equal(defaultCollectionRule.rule.mode, 'model-only');
+        assert.throws(
+            () => assertWritePathAllowed({
+                policy,
+                namespace: { db: 'policy_db', collection: 'default' },
+                source: 'collection',
+                operation: 'insertOne',
+                category: 'write',
+            }),
+            /writePathPolicy blocked/,
+        );
+        assert.doesNotThrow(() => assertWritePathAllowed({
+            policy,
+            namespace: { db: 'policy_db', collection: 'default' },
+            source: 'model',
+            operation: 'insertOne',
+            category: 'write',
+        }));
+        assert.doesNotThrow(() => assertWritePathAllowed({
+            policy,
+            namespace: { db: 'policy_db', collection: 'users' },
+            source: 'collection',
+            operation: 'insertOne',
+            category: 'write',
+        }));
+    });
+
     it('warns instead of throwing when onViolation is warn', () => {
         const warnings: unknown[][] = [];
         const policy = normalizeWritePathPolicy({

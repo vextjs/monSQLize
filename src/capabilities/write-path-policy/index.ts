@@ -136,8 +136,15 @@ export function normalizeWritePathPolicy(options?: WritePathPolicyOptions): Norm
             invalidConfig('writePathPolicy.namespaces', 'must be an object');
         }
         for (const [key, rule] of Object.entries(namespacesInput as Record<string, WritePathPolicyMode | WritePathPolicyRule>)) {
-            if (!key.trim()) {
+            const trimmedKey = key.trim();
+            if (!trimmedKey) {
                 invalidConfig('writePathPolicy.namespaces', 'namespace key must be a non-empty string');
+            }
+            if (trimmedKey !== key) {
+                invalidConfig(`writePathPolicy.namespaces.${key}`, 'namespace key must not include leading or trailing whitespace');
+            }
+            if (trimmedKey === 'default') {
+                invalidConfig(`writePathPolicy.namespaces.${key}`, 'namespace key "default" is reserved; use writePathPolicy.default instead');
             }
             namespaces[key] = normalizeRule(rule, `writePathPolicy.namespaces.${key}`);
         }

@@ -64,6 +64,8 @@ type WritePathPolicyOptions = {
 
 用户配置中建议优先使用 `poolName:dbName.collectionName` 或 `dbName.collectionName`，它们不依赖运行时实例 ID。
 
+在 `namespaces` 内，`default` 是 fallback 匹配器保留 key，构造期会被拒绝；全局默认规则应使用顶层 `writePathPolicy.default`。如果真实集合名就是 `default`，请使用 `dbName.default` 或 `poolName:dbName.default` 这类限定 key。命名空间 key 不能包含首尾空白。
+
 ## 生效范围
 
 `writePathPolicy` 作用于具备写副作用的入口：

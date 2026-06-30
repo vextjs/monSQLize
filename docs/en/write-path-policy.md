@@ -64,6 +64,8 @@ Namespace rules are matched from most specific to least specific:
 
 Prefer `poolName:dbName.collectionName` or `dbName.collectionName` in user configuration. They are stable across runtime instance IDs.
 
+Inside `namespaces`, the key `default` is reserved for the fallback matcher and is rejected at construction time; use the top-level `writePathPolicy.default` field instead. If an actual collection is named `default`, configure it with a qualified key such as `dbName.default` or `poolName:dbName.default`. Namespace keys must not include leading or trailing whitespace.
+
 ## Governed Operations
 
 `writePathPolicy` applies to write-capable paths:
