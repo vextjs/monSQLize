@@ -272,6 +272,14 @@ function blocksDbLevelCategory(rule: NormalizedWritePathRule, category: Extract<
     return rule.management !== 'allow';
 }
 
+function selectBlockedRule(
+    matches: Array<{ key: string; rule: NormalizedWritePathRule }>,
+    category: Extract<WritePathOperationCategory, 'raw' | 'management'>,
+): { key: string; rule: NormalizedWritePathRule } | undefined {
+    const blockedRules = matches.filter(({ rule }) => blocksDbLevelCategory(rule, category));
+    return blockedRules.find(({ rule }) => rule.onViolation === 'throw') ?? blockedRules[0];
+}
+
 export function shouldBlockDbLevelWritePath(
     policy: NormalizedWritePathPolicy | undefined,
     dbName: string,
@@ -305,7 +313,7 @@ export function assertDbLevelWritePathAllowed(config: {
             .filter(([key]) => namespaceRuleMatchesDb(key, config.dbName))
             .map(([key, rule]) => ({ key, rule })),
     ];
-    const blocked = matches.find(({ rule }) => blocksDbLevelCategory(rule, config.category));
+    const blocked = selectBlockedRule(matches, config.category);
     if (!blocked) return;
 
     const details = {
@@ -346,7 +354,7 @@ export function assertClientLevelWritePathAllowed(config: {
         { key: 'default', rule: policy.default },
         ...Object.entries(policy.namespaces).map(([key, rule]) => ({ key, rule })),
     ];
-    const blocked = matches.find(({ rule }) => blocksDbLevelCategory(rule, 'raw'));
+    const blocked = selectBlockedRule(matches, 'raw');
     if (!blocked) return;
 
     const details = {

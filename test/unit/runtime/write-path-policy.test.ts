@@ -1,6 +1,7 @@
 import { afterEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+    assertClientLevelWritePathAllowed,
     assertDbLevelWritePathAllowed,
     assertWritePathAllowed,
     normalizeWritePathPolicy,
@@ -205,6 +206,83 @@ describe('writePathPolicy runtime enforcement', () => {
         });
 
         await expectBlocked(() => runtime._adapter.client);
+    });
+
+    it('prefers throwing namespace rules over a warning default for db and client raw access', async () => {
+        const { runtime, calls } = createConnectedRuntime({
+            writePathPolicy: {
+                default: {
+                    mode: 'model-only',
+                    onViolation: 'warn',
+                },
+                namespaces: {
+                    'policy_db.users': {
+                        mode: 'model-only',
+                        onViolation: 'throw',
+                    },
+                },
+            },
+        });
+
+        await expectBlocked(() => runtime.collection('users').raw());
+        await expectBlocked(runtime.db().runCommand({ insert: 'users', documents: [] }));
+        await expectBlocked(() => runtime._adapter.client);
+
+        assert.equal(calls.length, 0);
+    });
+
+    it('keeps warning-only db and client raw guards available for migration observation', async () => {
+        const policy = normalizeWritePathPolicy({
+            default: {
+                mode: 'model-only',
+                onViolation: 'warn',
+            },
+            namespaces: {
+                'policy_db.users': {
+                    mode: 'model-only',
+                    onViolation: 'warn',
+                },
+            },
+        });
+        const warnings: unknown[][] = [];
+        const { runtime, calls } = createConnectedRuntime({
+            writePathPolicy: {
+                default: {
+                    mode: 'model-only',
+                    onViolation: 'warn',
+                },
+                namespaces: {
+                    'policy_db.users': {
+                        mode: 'model-only',
+                        onViolation: 'warn',
+                    },
+                },
+            },
+        });
+
+        await runtime.db().runCommand({ insert: 'users', documents: [] });
+        assert.ok(runtime._adapter.client);
+        assert.doesNotThrow(() => assertDbLevelWritePathAllowed({
+            policy,
+            dbName: 'policy_db',
+            operation: 'runCommand',
+            category: 'raw',
+            logger: {
+                warn: (...args: unknown[]) => warnings.push(args),
+            },
+        }));
+        assert.doesNotThrow(() => assertClientLevelWritePathAllowed({
+            policy,
+            operation: 'client',
+            logger: {
+                warn: (...args: unknown[]) => warnings.push(args),
+            },
+        }));
+
+        assert.deepEqual(calls, [{ op: 'runCommand', db: 'policy_db' }]);
+        assert.equal(warnings.length, 2);
+        assert.match(String(warnings[0][0]), /WritePathPolicy/);
+        assert.match(String(warnings[1][0]), /WritePathPolicy/);
     });
 
     it('matches pool-scoped namespace rules before db and collection fallbacks', () => {
