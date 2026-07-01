@@ -145,7 +145,7 @@ const User = msq.model('users');
 await User.insertOne({ name: 'Ada', email: 'ada@example.com' });
 ```
 
-`schema-dsl` is installed by default with `monsqlize`. Only when the application code directly imports `schema-dsl`, it needs to be declared in the application's own dependencies.
+`schema-dsl` is installed by default with `monsqlize`. Model schema callbacks use the MonSQLize instance's isolated `schema-dsl/runtime`; if application code also needs the same custom types or messages, create a `schema-dsl/runtime` instance and pass it through `schemaDsl`.
 
 ## Troubleshoot according to error code
 

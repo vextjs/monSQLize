@@ -1,4 +1,5 @@
 import type { LoggerLike } from './base';
+import type { SchemaDslRuntime, SchemaDslRuntimeOptions } from 'schema-dsl/runtime';
 
 /**
  * SSH tunnel configuration for connecting through a bastion host.
@@ -106,6 +107,23 @@ export interface WritePathPolicyOptions {
     namespaces?: Record<string, WritePathPolicyMode | WritePathPolicyRule>;
 }
 
+export type MonSQLizeSchemaDslRuntime = Pick<
+    SchemaDslRuntime,
+    's' | 'dsl' | 'validate' | 'registerExtensions' | 'dispose'
+>;
+
+/** schema-dsl runtime integration. Omit to let monSQLize create one isolated runtime per MonSQLize instance. @since v2.0.8 */
+export interface SchemaDslRuntimeConfig {
+    /** Disable model schema-dsl compilation and validation when false. Default: true. */
+    enabled?: boolean;
+    /** Existing schema-dsl runtime instance. monSQLize will use it but will not dispose it. */
+    runtime?: MonSQLizeSchemaDslRuntime;
+    /** Options passed to `createRuntime()` when monSQLize owns the runtime. */
+    options?: SchemaDslRuntimeOptions;
+    /** Extension definitions registered on the selected runtime before model schema compilation. */
+    extensions?: readonly unknown[];
+}
+
 export interface MonSQLizeOptions {
     type?: 'mongodb';
     databaseName?: string;
@@ -168,6 +186,8 @@ export interface MonSQLizeOptions {
         [key: string]: unknown;
     };
     logger?: LoggerLike | null;
+    /** Isolated schema-dsl runtime configuration for Model schema compilation and validation. @since v2.0.8 */
+    schemaDsl?: false | SchemaDslRuntimeConfig;
     pools?: PoolConfig[];
     poolStrategy?: PoolStrategy;
     poolFallback?: ConnectionPoolManagerOptions['poolFallback'];

@@ -348,6 +348,82 @@ describe('Model hooks — runModelV1Hook branches', () => {
     });
 });
 
+describe('Model standard object hooks — public mutation coverage', () => {
+    const bootstrap = createMemoryServerBootstrap();
+    let uri = '';
+    let runtime: any;
+
+    before(async () => {
+        const ctx = await bootstrap.setup();
+        uri = ctx.uri;
+        runtime = new MonSQLize({ type: 'mongodb', databaseName: 'test_model_standard_hooks', config: { uri } });
+        await runtime.connect();
+    });
+
+    after(async () => {
+        if (runtime) await runtime.close();
+        MonSQLize.Model._clear();
+        await bootstrap.teardown();
+    });
+
+    beforeEach(() => MonSQLize.Model._clear());
+
+    it('runs standard object hooks across all public mutation paths', async () => {
+        const hookCalls: string[] = [];
+        const operations: string[] = [];
+        const remember = (name: string) => (ctx: { operation?: string }) => {
+            hookCalls.push(name);
+            if (ctx.operation) operations.push(ctx.operation);
+        };
+
+        MonSQLize.Model.define('standard_hooks_all_paths', {
+            schema: {},
+            options: { timestamps: true },
+            hooks: {
+                beforeCreate: remember('beforeCreate'),
+                beforeInsert: remember('beforeInsert'),
+                afterCreate: remember('afterCreate'),
+                afterInsert: remember('afterInsert'),
+                beforeUpdate: remember('beforeUpdate'),
+                afterUpdate: remember('afterUpdate'),
+                beforeDelete: remember('beforeDelete'),
+                afterDelete: remember('afterDelete'),
+            },
+        });
+
+        const model = runtime.model('standard_hooks_all_paths');
+
+        await model.insertOne({ name: 'one', group: 'a', counter: 0 });
+        await model.insertMany([
+            { name: 'many1', group: 'a', counter: 0 },
+            { name: 'many2', group: 'a', counter: 0 },
+        ]);
+        await model.updateOne({ name: 'one' }, { $set: { flag: true } });
+        await model.updateMany({ group: 'a' }, { $set: { touched: true } });
+        await model.replaceOne({ name: 'many1' }, { name: 'replaced', group: 'r', counter: 1 });
+        await model.findOneAndUpdate({ name: 'many2' }, { $set: { name: 'foundUpdated' } }, { returnDocument: 'after' });
+        await model.findOneAndReplace({ name: 'replaced' }, { name: 'foundReplaced', group: 'r2', counter: 2 }, { returnDocument: 'after' });
+        await model.upsertOne({ name: 'upserted' }, { $set: { group: 'u', counter: 0 } });
+        await model.incrementOne({ name: 'upserted' }, 'counter', 1);
+        await model.insertBatch([
+            { name: 'batch1', group: 'b', counter: 0 },
+            { name: 'batch2', group: 'b', counter: 0 },
+        ], { batchSize: 1 });
+        await model.updateBatch({ group: 'b' }, { $set: { batchUpdated: true } }, { batchSize: 1 });
+        await model.deleteBatch({ group: 'b' }, { batchSize: 1 });
+        await model.findOneAndDelete({ name: 'foundUpdated' });
+        await model.deleteOne({ name: 'foundReplaced' });
+        await model.deleteMany({ group: 'a' });
+
+        for (const hookName of ['beforeCreate', 'beforeInsert', 'afterCreate', 'afterInsert', 'beforeUpdate', 'afterUpdate', 'beforeDelete', 'afterDelete']) {
+            assert.ok(hookCalls.includes(hookName), `${hookName} should run`);
+        }
+        for (const operation of ['insertOne', 'insertMany', 'updateOne', 'updateMany', 'replaceOne', 'findOneAndUpdate', 'findOneAndReplace', 'upsertOne', 'incrementOne', 'insertBatch', 'updateBatch', 'deleteBatch', 'findOneAndDelete', 'deleteOne', 'deleteMany']) {
+            assert.ok(operations.includes(operation), `${operation} hook context should be observed`);
+        }
+    });
+});
+
 // ── validateModelSchemaPayload — schema validation branches ──────────────────
 
 describe('Model schema validation — branch coverage', () => {

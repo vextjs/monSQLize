@@ -56,6 +56,50 @@ if (user.checkPassword('secret123')) {
 
 ---
 
+## schema-dsl runtime
+
+Model schema callbacks receive the `s` namespace from the MonSQLize instance's isolated `schema-dsl/runtime`. `Model.define()` stores the definition only; schema compilation and validation happen when `msq.model(name)` creates a runtime-bound Model instance.
+
+For the default path, no application import from `schema-dsl` is required:
+
+```javascript
+Model.define('users', {
+    schema: (dsl) => dsl({
+        email: 'email!',
+        name: dsl.string().min(1).max(64).require()
+    })
+});
+
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'app',
+    config: { uri: 'mongodb://127.0.0.1:27017' }
+});
+```
+
+When the application needs custom runtime-local types, messages, locale, or shared schema-dsl state, create or inject a `schema-dsl/runtime` instance through `schemaDsl`:
+
+```javascript
+import { createRuntime } from 'schema-dsl/runtime';
+
+const schemaRuntime = createRuntime({
+    types: {
+        tenantId: { type: 'string', pattern: '^tenant_[a-z0-9]+$' }
+    }
+});
+
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'app',
+    config: { uri: 'mongodb://127.0.0.1:27017' },
+    schemaDsl: { runtime: schemaRuntime }
+});
+```
+
+`schemaDsl` also accepts `{ options, extensions }` when monSQLize should own the runtime, and `schemaDsl: false` when Model schema-dsl validation must be disabled for a migration or test boundary.
+
+---
+
 ## API Reference
 
 

@@ -20,6 +20,7 @@ import {
     type ModelDefinition,
 } from '../capabilities/model';
 import type { ModelCollectionLike, ModelRuntimeLike } from '../capabilities/model/populate-promise';
+import type { SchemaDslEngine } from '../capabilities/model/schema-dsl';
 
 /**
  * Minimal duck-type constraint for a runtime db instance.
@@ -206,6 +207,7 @@ export function createCompatModelInstance<TDocument>(config: {
     dbName: string;
     poolName?: string;
     definition: ModelDefinition<TDocument>;
+    schemaEngine?: Pick<SchemaDslEngine, 'dsl' | 'validate'> | null;
 }): ModelInstance<TDocument> {
     return new ModelInstance<TDocument>(
         config.collection as ModelCollectionLike<TDocument>,
@@ -215,6 +217,7 @@ export function createCompatModelInstance<TDocument>(config: {
             dbName: config.dbName,
             poolName: config.poolName,
             definition: config.definition,
+            schemaEngine: config.schemaEngine,
         },
     );
 }

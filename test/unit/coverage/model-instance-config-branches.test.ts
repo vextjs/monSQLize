@@ -232,10 +232,10 @@ describe('buildModelSchemaState — branch coverage', () => {
         assert.equal(result.schemaError, null);
     });
 
-    it('returns null schema state when _schemaDslFn is null', () => {
-        // schema function present but dslFn is null → no schema processing
+    it('returns null schema state when no schema-dsl engine is provided', () => {
+        // schema function present but no runtime engine → no schema processing
         const result = buildModelSchemaState({ name: 'M', collection: 'c', schema: (dsl: unknown) => ({ type: 'object' }) } as any);
-        // When _schemaDslFn is null (no jsonschema dependency), returns null cache
+        // When no schema-dsl engine is available, returns null cache
         assert.equal(result.schemaError, null);
     });
 });

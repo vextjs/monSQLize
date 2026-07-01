@@ -39,14 +39,17 @@ import MonSQLize, {
     type ModelAccessor,
     type ModelInstance,
     type MonSQLizeOptions,
+    type MonSQLizeSchemaDslRuntime,
     type PageResult,
     type RelationConfig,
     type ResultWithMeta,
+    type SchemaDslRuntimeConfig,
     type SSHConfig,
     type TotalsInfo,
     type UpdateBatchResult,
     type UpdateResult,
 } from '../..';
+import type { SchemaDslRuntime } from 'schema-dsl/runtime';
 
 
 const expression = expr('COUNT(*)');
@@ -85,6 +88,14 @@ const writePathPolicy: WritePathPolicyOptions = {
     },
 };
 
+declare const schemaDslRuntime: SchemaDslRuntime;
+expectAssignable<MonSQLizeSchemaDslRuntime>(schemaDslRuntime);
+expectAssignable<SchemaDslRuntimeConfig>({
+    runtime: schemaDslRuntime,
+    options: { locale: 'en-US', strict: true },
+    extensions: [],
+});
+
 expectAssignable<MonSQLizeOptions>({
     type: 'mongodb',
     databaseName: 'p1_types',
@@ -93,8 +104,17 @@ expectAssignable<MonSQLizeOptions>({
     config: { uri: 'mongodb://localhost', readPreference: 'secondaryPreferred', mongoHost: 'mongo.internal', mongoPort: 27018 },
     autoConvertObjectId: { enabled: true, excludeFields: ['legacyId'], maxDepth: 5, logLevel: 'warn' },
     countQueue: true,
+    schemaDsl: false,
     writePathPolicy,
     log: { formatSlowQuery: (meta) => ({ meta }) },
+});
+expectAssignable<MonSQLizeOptions>({
+    type: 'mongodb',
+    schemaDsl: {
+        runtime: schemaDslRuntime,
+        options: { locale: 'zh-CN' },
+        extensions: [],
+    },
 });
 
 expectAssignable<FindOptions>({ projection: ['name'], sort: { name: 1 }, cache: 1000, meta: { level: 'op' } });

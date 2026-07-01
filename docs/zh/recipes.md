@@ -145,7 +145,7 @@ const User = msq.model('users');
 await User.insertOne({ name: 'Ada', email: 'ada@example.com' });
 ```
 
-`schema-dsl` 已随 `monsqlize` 默认安装。只有应用代码直接导入 `schema-dsl` 时，才需要在应用自己的依赖里声明它。
+`schema-dsl` 已随 `monsqlize` 默认安装。Model 的 schema 回调使用当前 MonSQLize 实例隔离的 `schema-dsl/runtime`；如果应用代码也需要同一组自定义类型或消息，可以创建 `schema-dsl/runtime` 实例并通过 `schemaDsl` 传入。
 
 ## 按错误码排障
 

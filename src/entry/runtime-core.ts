@@ -13,11 +13,7 @@ import type {
     ScopedUseResult,
 } from '../types/internal/runtime';
 import { EventEmitter } from 'node:events';
-import {
-    MemoryCache,
-    DistributedCacheInvalidator,
-    type CacheLike,
-} from '../capabilities/cache';
+import { MemoryCache, DistributedCacheInvalidator, type CacheLike } from '../capabilities/cache';
 import {
     Lock,
     LockManager,
@@ -71,11 +67,7 @@ import {
     type SlowQueryLogQueryOptions,
     type SlowQueryLogRecord,
 } from '../capabilities/slow-query-log';
-import {
-    CountQueue,
-    type CountQueueOptions,
-    type CountQueueStats,
-} from '../capabilities/count-queue';
+import { CountQueue, type CountQueueOptions, type CountQueueStats } from '../capabilities/count-queue';
 import {
     ChangeStreamSyncManager,
     ResumeTokenStore,
@@ -156,6 +148,7 @@ import {
 import { resolveScopedCollection } from './runtime-scoped-collection';
 import { normalizeRuntimeCacheWithLifecycle } from './runtime-cache-normalizer';
 import { prepareSshTunnelConnectConfig } from './runtime-ssh';
+import { createRuntimeSchemaDslEngine, disposeRuntimeSchemaDslEngine, replaceRuntimeSchemaDslEngine, type SchemaDslEngine } from './runtime-schema-dsl';
 
 // All public symbols are re-exported from the barrel file to keep the public API unchanged
 export * from './runtime-exports';
@@ -189,6 +182,7 @@ export class MonSQLizeRuntime {
     private _connectionPromise: Promise<ConnectResult<MonSQLizeRuntime>> | null = null;
     private _sshTunnel: SSHTunnelSSH2 | null = null;
     private _distributedInvalidator: DistributedCacheInvalidator | null = null;
+    private _schemaDslEngine: SchemaDslEngine;
 
     readonly defaults: Readonly<Record<string, unknown>>;
     readonly autoConvertConfig: AutoConvertConfigPublic;
@@ -227,6 +221,7 @@ export class MonSQLizeRuntime {
         this._cache = normalizedCache.cache;
         this._cacheClose = normalizedCache.close;
         this._logger = Logger.create(options.logger ?? null);
+        this._schemaDslEngine = createRuntimeSchemaDslEngine(options);
         if (shouldWarnUnsignedCursorSecret(options)) this._logger.warn?.('[MonSQLizeRuntime] cursorSecret is not configured; findPage cursor tokens are unsigned.');
         if (shouldWarnTransactionDistributedLock(options)) this._logger.warn?.('[MonSQLizeRuntime] transaction.distributedLock is a compatibility configuration and is not wired into the transaction cache lock in the v2 runtime. Transaction cache locks remain process-local; use explicit business locking with idempotency/fencing or disable cache when cross-instance strict consistency is required.');
         this._cacheLockManager = new CacheLockManager({
@@ -250,6 +245,7 @@ export class MonSQLizeRuntime {
             return this._connectionPromise;
         }
         this._connectionPromise = (async () => {
+            this._schemaDslEngine = replaceRuntimeSchemaDslEngine(this._schemaDslEngine, this.options, this._logger);
             const databaseName = resolveDatabaseName(this.options);
             let connectConfig = this.options.config;
             const sshPrepared = await prepareSshTunnelConnectConfig(connectConfig, databaseName, this._logger);
@@ -366,6 +362,7 @@ export class MonSQLizeRuntime {
                 this._logger.warn('[MonSQLizeRuntime] cache cleanup error during close', err);
             });
         }
+        disposeRuntimeSchemaDslEngine(this._schemaDslEngine, this._logger, 'during close');
         await closeMongo(this._client, this._logger);
         // Close SSH tunnel after MongoDB — the driver used the tunnel, so tear it down last.
         if (this._sshTunnel) {
@@ -586,6 +583,7 @@ export class MonSQLizeRuntime {
             dbName: database ?? getRuntimeDatabaseName(this),
             poolName: pool,
             definition: registered.definition,
+            schemaEngine: this._schemaDslEngine,
         });
     }
 
@@ -624,6 +622,7 @@ export class MonSQLizeRuntime {
             collectionName: actualCollectionName,
             dbName: getRuntimeDatabaseName(this),
             definition: registered.definition,
+            schemaEngine: this._schemaDslEngine,
         });
         cache.set(name, instance as ModelInstance<Record<string, unknown>>);
         return instance;

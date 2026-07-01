@@ -18,7 +18,7 @@ import type {
     ValidationResult,
 } from '../../../types/model';
 import type { IncrementOneResult, InsertBatchResult, InsertManyResult, UpdateBatchResult, UpdateResult } from '../../../types/collection';
-import { _schemaValidateFn } from './schema-dsl';
+import type { SchemaDslEngine, SchemaValidateFn } from './schema-dsl';
 import { PopulatePromise } from './populate-promise';
 import type { ExtendedModelCollectionLike, PopulatePath, ModelCollectionLike, ModelRuntimeLike } from './populate-promise';
 import { validateRelationConfig, normalizePopulateConfig } from './definition-validator';
@@ -138,6 +138,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
     private _versionConfig: { enabled: boolean; field: string; updateMany: 'counter' | 'strict' | 'off' } | null = null;
     private _v1HooksFactory: ModelV1HooksFactory = null;
     private _v1InstanceMethods: Record<string, (...args: unknown[]) => unknown> = {};
+    private readonly _schemaValidateFn: SchemaValidateFn | null;
     // Expose softDeleteConfig for v1 test assertions
     softDeleteConfig: { enabled: boolean; field: string; type: string; ttl: number | null } | null = null;
 
@@ -149,6 +150,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
             dbName: string;
             poolName?: string;
             definition: ModelDefinition<TDocument>;
+            schemaEngine?: Pick<SchemaDslEngine, 'dsl' | 'validate'> | null;
         },
     ) {
         this.collectionName = options.collectionName;
@@ -162,7 +164,8 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
 
         attachModelStatics(this, options.definition);
 
-        const schemaState = buildModelSchemaState(options.definition);
+        this._schemaValidateFn = options.schemaEngine?.validate ?? null;
+        const schemaState = buildModelSchemaState(options.definition, options.schemaEngine);
         this._schemaCache = schemaState.schemaCache;
         this._schemaError = schemaState.schemaError;
         this._validateEnabled = isModelValidationEnabled(options.definition);
@@ -609,7 +612,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         return validateModelDocument({
             schemaError: this._schemaError,
             schemaCache: this._schemaCache,
-            schemaValidateFn: _schemaValidateFn,
+            schemaValidateFn: this._schemaValidateFn,
         }, document);
     }
 
@@ -699,7 +702,7 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
             versionConfig: this._versionConfig,
             validateEnabled: this._validateEnabled,
             schemaCache: this._schemaCache,
-            schemaValidateFn: _schemaValidateFn,
+            schemaValidateFn: this._schemaValidateFn,
             hooksFactory: this._v1HooksFactory,
             runHook: (hookName: string, context: HookContext) => this.runHook(hookName, context),
         };

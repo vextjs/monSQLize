@@ -78,4 +78,14 @@ describe('P3-C model registry', () => {
         assert.equal(MonSQLize.Model.has('users'), true);
         assert.deepEqual(MonSQLize.Model.get('users').definition.defaults, { status: 'active' });
     });
+
+    it('defers schema-dsl compilation to the bound runtime instance', () => {
+        assert.doesNotThrow(() => MonSQLize.Model.define('tenantUsers', {
+            schema: () => {
+                throw new TypeError('[schema] Invalid type: tenant-id');
+            },
+        }));
+
+        assert.equal(MonSQLize.Model.has('tenantUsers'), true);
+    });
 });

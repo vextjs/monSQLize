@@ -8,6 +8,7 @@ import type { ConnectResult, ScopedUseResult } from '../types/internal/runtime';
 import type { RuntimeAdapterBridgeHost } from './runtime-admin-bridge';
 import { createRuntimeAccessors, type RuntimeDbFacadeHost } from './runtime-db-facade';
 import { createRuntimeModelHost, type RuntimeModelHost } from './runtime-model';
+import type { SchemaDslEngine } from '../capabilities/model/schema-dsl';
 
 type RuntimeCoreAdapterBridgeState = {
     options: MonSQLizeOptions;
@@ -32,6 +33,7 @@ type RuntimeCoreDbFacadeState = {
 type RuntimeCoreModelState = {
     options: MonSQLizeOptions;
     _modelInstances: MemoryCache;
+    _schemaDslEngine: SchemaDslEngine;
     scopedCollection<TDocument = Record<string, unknown>>(
         name: string,
         options?: { database?: string; pool?: string },
@@ -91,6 +93,7 @@ export function createRuntimeCoreModelHost(runtime: unknown): RuntimeModelHost {
         options: state.options,
         modelInstances: state._modelInstances,
         runtime,
+        schemaEngine: state._schemaDslEngine,
         scopedCollection: (name, options) => state.scopedCollection(name, options),
     });
 }

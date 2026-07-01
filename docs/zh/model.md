@@ -56,6 +56,50 @@ if (user.checkPassword('secret123')) {
 
 ---
 
+## schema-dsl runtime
+
+Model 的 `schema` 回调会收到当前 MonSQLize 实例隔离的 `schema-dsl/runtime` 的 `s` 命名空间。`Model.define()` 只保存定义；实际 schema 编译与验证发生在 `msq.model(name)` 创建绑定到运行时的 Model 实例时。
+
+默认路径下，应用代码不需要直接导入 `schema-dsl`：
+
+```javascript
+Model.define('users', {
+    schema: (dsl) => dsl({
+        email: 'email!',
+        name: dsl.string().min(1).max(64).require()
+    })
+});
+
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'app',
+    config: { uri: 'mongodb://127.0.0.1:27017' }
+});
+```
+
+如果应用需要运行时本地的自定义类型、消息、locale，或要与 monSQLize 共享同一个 schema-dsl 状态，可以通过 `schemaDsl` 注入 `schema-dsl/runtime` 实例：
+
+```javascript
+import { createRuntime } from 'schema-dsl/runtime';
+
+const schemaRuntime = createRuntime({
+    types: {
+        tenantId: { type: 'string', pattern: '^tenant_[a-z0-9]+$' }
+    }
+});
+
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'app',
+    config: { uri: 'mongodb://127.0.0.1:27017' },
+    schemaDsl: { runtime: schemaRuntime }
+});
+```
+
+当 monSQLize 自己持有 runtime 时，`schemaDsl` 也可以传 `{ options, extensions }`；迁移或测试边界需要跳过 Model schema-dsl 验证时，可以设置 `schemaDsl: false`。
+
+---
+
 ## API 参考
 
 ### Model.define(collectionName, definition)

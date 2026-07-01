@@ -189,7 +189,7 @@ The package root exports only the public package contract. Deep imports into his
 
 The Model layer is optional. Use it when you want schema validation, hooks, relations, populate, custom methods, timestamps, soft delete, or optimistic locking.
 
-`schema-dsl` is installed automatically as a runtime dependency of monSQLize. You only need to declare `schema-dsl` in your own app if your application imports it directly.
+`schema-dsl` is installed automatically as a runtime dependency of monSQLize. monSQLize creates an isolated `schema-dsl/runtime` instance for each `MonSQLize` runtime, then compiles Model schema callbacks when a Model is bound to that runtime.
 
 ### Manual Model Registration
 
@@ -250,6 +250,34 @@ const user = await User.insertOne({
   age: 25
 });
 ```
+
+When a service needs runtime-local custom types, messages, locale, or an already-owned schema-dsl runtime, configure `schemaDsl` on the MonSQLize instance:
+
+```js
+const { createRuntime } = require('schema-dsl/runtime');
+
+const schemaRuntime = createRuntime({
+  types: {
+    tenantId: { type: 'string', pattern: '^tenant_[a-z0-9]+$' }
+  }
+});
+
+Model.define('tenantUsers', {
+  schema: (dsl) => dsl({
+    tenantId: 'tenantId!',
+    email: 'email!'
+  })
+});
+
+const msq = new MonSQLize({
+  type: 'mongodb',
+  databaseName: 'mydb',
+  config: { uri: 'mongodb://localhost:27017' },
+  schemaDsl: { runtime: schemaRuntime }
+});
+```
+
+For monSQLize-only Model validation, no direct application import from `schema-dsl` is required. Direct application imports should use `schema-dsl/runtime` when they need to share the same isolated runtime state with monSQLize.
 
 ### Automatic Model Loading
 
@@ -573,7 +601,7 @@ Key release-readiness points:
 - Package exports are consolidated under `dist/cjs`, `dist/esm`, and `dist/types`.
 - npm packages include the runtime bundles and declaration files only; source maps are disabled by default and can be generated locally with `MONSQLIZE_BUILD_SOURCEMAPS=1 npm run build`.
 - v1 smooth-upgrade compatibility has been validated against the target workspace consumers.
-- `schema-dsl` follows the npm `latest` TypeScript line `schema-dsl@2.0.11`; deprecated `2.3.x` mistake releases are intentionally excluded.
+- `schema-dsl` follows the npm `latest` TypeScript line `schema-dsl@2.1.1`; deprecated `2.3.x` mistake releases are intentionally excluded.
 - GitHub Actions publishes to npm from `v*` tags after running `npm run release:preflight`; the publish step skips duplicate lifecycle scripts because the gate already ran in the same job.
 
 ## Roadmap
@@ -593,9 +621,13 @@ Key release-readiness points:
 - Validation ledgers now match the current 56 runnable TypeScript documentation examples.
 - Model v1 methods factory warnings now route through the runtime logger instead of direct console output.
 
+### v2.0.8
+
+- Model schema validation now uses an isolated `schema-dsl/runtime` instance per MonSQLize runtime, with `schemaDsl` configuration for runtime options, extension registration, runtime injection, and validation disablement.
+
 ### v2.0.6
 
-- Dependency alignment to `schema-dsl@2.0.11`, carrying the shared ESM/CJS custom type registry fix to downstream vext applications.
+- Dependency alignment carried the shared schema-dsl ESM/CJS custom type registry fix to downstream vext applications.
 - NodeNext declaration compatibility for ESM consumers through generated `*.d.mts` mirrors and import-side `types` conditions.
 - Restored v1-compatible root option type exports.
 

@@ -18,6 +18,7 @@ import type { ModelEnsureAllIndexesOptions, ModelIndexEnsureSummary } from '../.
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type { ModelInstanceCacheEntry } from '../types/internal/model';
 import type { ModelCollectionLike, ModelRuntimeLike } from '../capabilities/model/populate-promise';
+import { createSchemaDslEngine, type SchemaDslEngine } from '../capabilities/model/schema-dsl';
 import { resolveDatabaseName } from './runtime-db-facade';
 import { getRegisteredModelMetadata } from './runtime-compat-accessors';
 
@@ -29,6 +30,7 @@ export type RuntimeModelHost = {
     options: MonSQLizeOptions;
     _modelInstances: MemoryCache;
     runtime: ModelRuntimeLike;
+    schemaEngine?: SchemaDslEngine;
     scopedCollection<TDocument = Record<string, unknown>>(
         name: string,
         options?: { database?: string; pool?: string },
@@ -50,6 +52,7 @@ export function createRuntimeModelHost(config: {
     options: MonSQLizeOptions;
     modelInstances: MemoryCache;
     runtime: unknown;
+    schemaEngine?: SchemaDslEngine;
     scopedCollection: <TDocument = Record<string, unknown>>(
         name: string,
         options?: { database?: string; pool?: string },
@@ -59,6 +62,7 @@ export function createRuntimeModelHost(config: {
         options: config.options,
         _modelInstances: config.modelInstances,
         runtime: config.runtime as ModelRuntimeLike,
+        schemaEngine: config.schemaEngine ?? createSchemaDslEngine(false),
         scopedCollection: <TDocument = Record<string, unknown>>(name: string, options?: { database?: string; pool?: string }) =>
             config.scopedCollection(name, options) as ModelCollectionLike<TDocument>,
     };
@@ -103,6 +107,7 @@ export function createRuntimeModelInstance<TDocument = Record<string, unknown>>(
             dbName: databaseName,
             poolName,
             definition: registered.definition,
+            schemaEngine: host.schemaEngine,
         },
     );
     host._modelInstances.set(cacheKey, {

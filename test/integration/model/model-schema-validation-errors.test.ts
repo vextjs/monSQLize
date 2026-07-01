@@ -4,6 +4,7 @@ import { createMemoryServerBootstrap } from '../../bootstrap/memory-server';
 
 const MonSQLize = require('../../../dist/cjs/index.cjs');
 const { Model } = MonSQLize;
+const { createRuntime } = require('schema-dsl/runtime');
 
 // Covers:
 //   - model-write-helpers.ts withModelErrorMetadata (lines 48-53) via insertOne validation failure
@@ -157,6 +158,106 @@ describe('model — scheduleModelIndexes with missing key in spec', () => {
         await m.insertOne({ v: 1 });
         await new Promise((resolve) => setTimeout(resolve, 100));
         assert.ok(true);
+    });
+});
+
+describe('model — schema-dsl runtime configuration', () => {
+    const bootstrap = createMemoryServerBootstrap();
+    let uri = '';
+
+    before(async () => {
+        const setup = await bootstrap.setup();
+        uri = setup.uri;
+    });
+
+    after(async () => {
+        Model._clear();
+        await bootstrap.teardown();
+    });
+
+    it('schemaDsl:false disables runtime schema compilation and validation', async () => {
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_disabled',
+            config: { uri },
+            schemaDsl: false,
+        });
+        await runtime.connect();
+        const modelName = 'schema_runtime_disabled_' + Date.now();
+        try {
+            Model.define(modelName, {
+                schema: (dsl: any) => dsl({ name: 'string!' }),
+            });
+            const model = runtime.model(modelName);
+            assert.deepEqual(model.validate({}).errors, []);
+            assert.equal(model.validate({}).valid, true);
+            const result = await model.insertOne({});
+            assert.ok(result.insertedId !== undefined);
+        } finally {
+            await runtime.close();
+            Model.undefine(modelName);
+        }
+    });
+
+    it('registers schemaDsl.extensions before model schema compilation', async () => {
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_extensions',
+            config: { uri },
+            schemaDsl: {
+                extensions: [{
+                    type: 'customType',
+                    literal: 'tenant-id',
+                    factoryName: 'tenantId',
+                    schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+                }],
+            },
+        });
+        await runtime.connect();
+        const modelName = 'schema_runtime_extensions_' + Date.now();
+        try {
+            Model.define(modelName, {
+                schema: (dsl: any) => dsl({
+                    tenantId: dsl.tenantId().require(),
+                }),
+            });
+            const model = runtime.model(modelName);
+            assert.equal(model.validate({ tenantId: 'tenant_demo' }).valid, true);
+            assert.equal(model.validate({ tenantId: 'bad' }).valid, false);
+        } finally {
+            await runtime.close();
+            Model.undefine(modelName);
+        }
+    });
+
+    it('uses an injected schema-dsl runtime without disposing it on close', async () => {
+        const schemaRuntime = createRuntime({
+            types: {
+                tenantId: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+            },
+        });
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_injected',
+            config: { uri },
+            schemaDsl: { runtime: schemaRuntime },
+        });
+        await runtime.connect();
+        const modelName = 'schema_runtime_injected_' + Date.now();
+        try {
+            Model.define(modelName, {
+                schema: (dsl: any) => dsl({ tenantId: 'tenantId!' }),
+            });
+            const model = runtime.model(modelName);
+            assert.equal(model.validate({ tenantId: 'tenant_demo' }).valid, true);
+            assert.equal(model.validate({ tenantId: 'bad' }).valid, false);
+        } finally {
+            await runtime.close();
+            Model.undefine(modelName);
+        }
+
+        assert.doesNotThrow(() => schemaRuntime.s({ tenantId: 'tenantId!' }));
+        schemaRuntime.dispose();
     });
 });
 

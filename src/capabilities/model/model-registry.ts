@@ -17,7 +17,6 @@
 import { ErrorCodes, createError } from '../../core/errors';
 import type { ModelDefinition, RegisteredModel } from '../../../types/model';
 import { validateCollectionName, validateDefinition, processTimestamps } from './definition-validator';
-import { _schemaDslFn, _makeValidatingDslFn } from './schema-dsl';
 
 /**
  * Static model registry.
@@ -40,7 +39,7 @@ export class Model {
     /**
      * Register a new model definition.
      * Throws MODEL_ALREADY_EXISTS if a model with the same name already exists.
-     * Validates the definition, resolves the timestamps option, and pre-validates schema type strings.
+     * Validates the definition and resolves the timestamps option.
      */
     static define<TDocument = Record<string, unknown>>(collectionName: string, definition: ModelDefinition<TDocument>): void {
         const normalizedName = validateCollectionName(collectionName);
@@ -49,20 +48,6 @@ export class Model {
         }
         validateDefinition<TDocument>(definition);
         processTimestamps(definition);
-
-        // Pre-validate schema type strings at define time (rather than failing silently at validation time)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (_schemaDslFn !== null && typeof (definition as any).schema === 'function') {
-            const validatingDsl = _makeValidatingDslFn(_schemaDslFn);
-            try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (definition as any).schema(validatingDsl);
-            } catch (err) {
-                if (err instanceof TypeError && (err as TypeError).message.includes('[schema] Invalid type')) {
-                    throw err;
-                }
-            }
-        }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         this.registry.set(normalizedName, {

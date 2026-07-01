@@ -15,7 +15,7 @@ import type {
 } from '../../../types/model';
 import type { ModelCollectionLike } from './populate-promise';
 import { ErrorCodes, createError } from '../../core/errors';
-import { _makeValidatingDslFn, _schemaDslFn } from './schema-dsl';
+import { _makeValidatingDslFn, type SchemaDslEngine } from './schema-dsl';
 import { runWithModelWriteSource } from '../write-path-policy';
 
 type ModelHooksFactory = (
@@ -333,7 +333,10 @@ export function attachModelStatics<TDocument>(target: object, definition: ModelD
     }
 }
 
-export function buildModelSchemaState<TDocument>(definition: ModelDefinition<TDocument>): {
+export function buildModelSchemaState<TDocument>(
+    definition: ModelDefinition<TDocument>,
+    schemaEngine?: Pick<SchemaDslEngine, 'dsl'> | null,
+): {
     schemaCache: unknown;
     schemaError: Error | null;
 } {
@@ -345,14 +348,14 @@ export function buildModelSchemaState<TDocument>(definition: ModelDefinition<TDo
         };
     }
 
-    if (_schemaDslFn === null) {
+    if (!schemaEngine?.dsl) {
         return {
             schemaCache: null,
             schemaError: null,
         };
     }
 
-    const validatingDsl = _makeValidatingDslFn(_schemaDslFn);
+    const validatingDsl = _makeValidatingDslFn(schemaEngine.dsl);
     try {
         return {
             schemaCache: compat.schema.call(definition, validatingDsl),

@@ -76,6 +76,7 @@ async function main() {
             'sync manager did not record target failure in time',
         );
 
+        await runtime.startSync();
         await events.insertOne({ type: 'sync.recovered', payload: { step: 2 } });
 
         const recoveredStats = await waitFor(
