@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import path from 'node:path';
 
 export const DEFAULT_MEMORY_SERVER_VERSION = '7.0.14';
+export const DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS = 30_000;
 const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'examples-replset-', 'probe-single-', 'probe-replset-'];
 
 type MemoryServerPolicy = {
@@ -171,7 +172,7 @@ export async function seedMemoryServerBinaryCache(version?: string): Promise<voi
 export function resolveMemoryServerLaunchTimeoutMs(): number | undefined {
     const raw = process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS;
     if (!raw) {
-        return undefined;
+        return DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS;
     }
 
     const value = Number.parseInt(raw, 10);

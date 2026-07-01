@@ -259,6 +259,42 @@ describe('model — schema-dsl runtime configuration', () => {
         assert.doesNotThrow(() => schemaRuntime.s({ tenantId: 'tenantId!' }));
         schemaRuntime.dispose();
     });
+
+    it('registers schemaDsl.extensions once when using an injected runtime', async () => {
+        const schemaRuntime = createRuntime();
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_injected_extensions',
+            config: { uri },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [{
+                    type: 'customType',
+                    literal: 'tenant-id',
+                    factoryName: 'tenantId',
+                    schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+                }],
+            },
+        });
+        await runtime.connect();
+        const modelName = 'schema_runtime_injected_extensions_' + Date.now();
+        try {
+            Model.define(modelName, {
+                schema: (dsl: any) => dsl({
+                    tenantId: dsl.tenantId().require(),
+                }),
+            });
+            const model = runtime.model(modelName);
+            assert.equal(model.validate({ tenantId: 'tenant_demo' }).valid, true);
+            assert.equal(model.validate({ tenantId: 'bad' }).valid, false);
+        } finally {
+            await runtime.close();
+            Model.undefine(modelName);
+        }
+
+        assert.doesNotThrow(() => schemaRuntime.s({ tenantId: 'tenant-id!' }));
+        schemaRuntime.dispose();
+    });
 });
 
 describe('model — schema-dsl type delegation via redefine()', () => {

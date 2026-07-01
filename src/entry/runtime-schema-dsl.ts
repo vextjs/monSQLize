@@ -4,6 +4,10 @@ import type { MonSQLizeOptions } from '../../types/monsqlize';
 
 export type { SchemaDslEngine } from '../capabilities/model/schema-dsl';
 
+export function createInitialRuntimeSchemaDslEngine(): SchemaDslEngine {
+    return createSchemaDslEngine(false);
+}
+
 export function createRuntimeSchemaDslEngine(options: MonSQLizeOptions): SchemaDslEngine {
     return createSchemaDslEngine(options.schemaDsl);
 }

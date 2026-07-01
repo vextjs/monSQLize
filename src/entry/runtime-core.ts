@@ -148,7 +148,7 @@ import {
 import { resolveScopedCollection } from './runtime-scoped-collection';
 import { normalizeRuntimeCacheWithLifecycle } from './runtime-cache-normalizer';
 import { prepareSshTunnelConnectConfig } from './runtime-ssh';
-import { createRuntimeSchemaDslEngine, disposeRuntimeSchemaDslEngine, replaceRuntimeSchemaDslEngine, type SchemaDslEngine } from './runtime-schema-dsl';
+import { createInitialRuntimeSchemaDslEngine, disposeRuntimeSchemaDslEngine, replaceRuntimeSchemaDslEngine, type SchemaDslEngine } from './runtime-schema-dsl';
 
 // All public symbols are re-exported from the barrel file to keep the public API unchanged
 export * from './runtime-exports';
@@ -221,7 +221,7 @@ export class MonSQLizeRuntime {
         this._cache = normalizedCache.cache;
         this._cacheClose = normalizedCache.close;
         this._logger = Logger.create(options.logger ?? null);
-        this._schemaDslEngine = createRuntimeSchemaDslEngine(options);
+        this._schemaDslEngine = createInitialRuntimeSchemaDslEngine();
         if (shouldWarnUnsignedCursorSecret(options)) this._logger.warn?.('[MonSQLizeRuntime] cursorSecret is not configured; findPage cursor tokens are unsigned.');
         if (shouldWarnTransactionDistributedLock(options)) this._logger.warn?.('[MonSQLizeRuntime] transaction.distributedLock is a compatibility configuration and is not wired into the transaction cache lock in the v2 runtime. Transaction cache locks remain process-local; use explicit business locking with idempotency/fencing or disable cache when cross-instance strict consistency is required.');
         this._cacheLockManager = new CacheLockManager({

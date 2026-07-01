@@ -16,6 +16,8 @@
 
 - Fixed aggregate direct `.toArray()` to honor cache/meta execution paths, extended `find()` ObjectId auto-conversion to comparison operators, forwarded CountQueue abort signals into MongoDB count options, and added a warning when sync idempotency falls back to in-memory storage.
 - Upgraded `schema-dsl` to `2.1.1` and moved Model schema compilation/validation onto a MonSQLize runtime-scoped `schema-dsl/runtime` engine. `schemaDsl` now supports runtime options, extension registration, external runtime injection, and validation disablement.
+- Fixed `schemaDsl: { runtime, extensions }` lifecycle handling so injected runtimes register extensions once during `connect()` instead of registering the same factory during construction and reconnect setup.
+- Raised the default `mongodb-memory-server` launch timeout to 30 seconds for test, validation, examples, and `useMemoryServer` paths while keeping `MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS` as the override.
 - Added a short-lived read-cache dirty barrier around writes and transaction commits. Cached reads now bypass and avoid refilling query cache while a namespace is being invalidated, reducing stale-cache windows when a process exits between a database write and post-write invalidation.
 - Added optional Change Stream sync idempotency gates (`sync.idempotency`) with per-target keys and duplicate stats, so supervised restarts can skip targets already marked as applied before saving the shared resume token.
 - Added `writePathPolicy` with default `allow-both` behavior and optional `model-only` namespace enforcement across collection, db, legacy, raw, management, batch, and aggregate `$out` / `$merge` write paths.

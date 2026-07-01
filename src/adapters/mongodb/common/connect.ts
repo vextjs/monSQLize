@@ -17,6 +17,7 @@ import type { MongoConnectConfig, MongoConnectionState } from '../../../../types
 export type { MongoConnectConfig, MongoConnectionState } from '../../../../types/mongodb';
 
 const DEFAULT_MEMORY_SERVER_VERSION = '7.0.14';
+const DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS = 30_000;
 const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'examples-replset-', 'probe-single-', 'probe-replset-'];
 
 // Singleton memory server (v1 compatible: reuses an already-started instance)
@@ -153,7 +154,7 @@ async function cleanupManagedDbPath(dbPath: string | null): Promise<boolean> {
 function resolveLaunchTimeout(): number | undefined {
     const raw = process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS;
     if (!raw) {
-        return undefined;
+        return DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS;
     }
 
     const value = Number.parseInt(raw, 10);

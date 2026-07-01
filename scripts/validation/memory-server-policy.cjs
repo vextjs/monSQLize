@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DEFAULT_MEMORY_SERVER_VERSION = '7.0.14';
+const DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS = 30_000;
 const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'examples-replset-', 'probe-single-', 'probe-replset-'];
 
 function isGeneratedPath(dir) {
@@ -159,7 +160,7 @@ async function seedMemoryServerBinaryCache(version) {
 function resolveMemoryServerLaunchTimeoutMs() {
     const raw = process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS;
     if (!raw) {
-        return undefined;
+        return DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS;
     }
 
     const value = Number.parseInt(raw, 10);
@@ -225,6 +226,7 @@ async function stopMemoryServerWithCleanup(instance, dbPath) {
 
 module.exports = {
     DEFAULT_MEMORY_SERVER_VERSION,
+    DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS,
     configureMemoryServerEnv,
     createMemoryServerDbPath,
     memoryServerCleanupOptions,
