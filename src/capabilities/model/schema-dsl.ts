@@ -121,6 +121,22 @@ function getExtensionObjectKey(value: object): string {
     return key;
 }
 
+function readQuotedLiteralEnd(source: string, start: number): number {
+    const quote = source[start];
+    let end = start + 1;
+    while (end < source.length) {
+        if (source[end] === '\\') {
+            end += 2;
+            continue;
+        }
+        if (source[end] === quote) {
+            return end + 1;
+        }
+        end += 1;
+    }
+    return end;
+}
+
 function maskFunctionLiteralsAndComments(source: string): string {
     let masked = '';
     for (let index = 0; index < source.length;) {
@@ -149,19 +165,7 @@ function maskFunctionLiteralsAndComments(source: string): string {
             }
         }
         if (current === '\'' || current === '"' || current === '`') {
-            const quote = current;
-            let end = index + 1;
-            while (end < source.length) {
-                if (source[end] === '\\') {
-                    end += 2;
-                    continue;
-                }
-                if (source[end] === quote) {
-                    end += 1;
-                    break;
-                }
-                end += 1;
-            }
+            const end = readQuotedLiteralEnd(source, index);
             masked += ' '.repeat(end - index);
             index = end;
             continue;
@@ -170,6 +174,94 @@ function maskFunctionLiteralsAndComments(source: string): string {
         index += 1;
     }
     return masked;
+}
+
+function readTemplateExpressionEnd(source: string, start: number): number {
+    let depth = 1;
+    for (let index = start; index < source.length;) {
+        const current = source[index];
+        const next = source[index + 1];
+        if (current === '\'' || current === '"' || current === '`') {
+            index = readQuotedLiteralEnd(source, index);
+            continue;
+        }
+        if (current === '/' && next === '/') {
+            const end = source.indexOf('\n', index + 2);
+            index = end === -1 ? source.length : end;
+            continue;
+        }
+        if (current === '/' && next === '*') {
+            const end = source.indexOf('*/', index + 2);
+            index = end === -1 ? source.length : end + 2;
+            continue;
+        }
+        if (current === '{') {
+            depth += 1;
+        } else if (current === '}') {
+            depth -= 1;
+            if (depth === 0) {
+                return index;
+            }
+        }
+        index += 1;
+    }
+    return -1;
+}
+
+function extractTemplateExpressionSource(source: string): string {
+    const expressions: string[] = [];
+    for (let index = 0; index < source.length;) {
+        const current = source[index];
+        const next = source[index + 1];
+        if (current === '/' && next === '/') {
+            const end = source.indexOf('\n', index + 2);
+            index = end === -1 ? source.length : end;
+            continue;
+        }
+        if (current === '/' && next === '*') {
+            const end = source.indexOf('*/', index + 2);
+            index = end === -1 ? source.length : end + 2;
+            continue;
+        }
+        if (current === '/' && next !== undefined && next !== '=' && canStartRegexLiteral(source, index)) {
+            const regexEnd = readRegexLiteralEnd(source, index);
+            if (regexEnd !== null) {
+                index = regexEnd;
+                continue;
+            }
+        }
+        if (current === '\'' || current === '"') {
+            index = readQuotedLiteralEnd(source, index);
+            continue;
+        }
+        if (current !== '`') {
+            index += 1;
+            continue;
+        }
+        index += 1;
+        while (index < source.length) {
+            if (source[index] === '\\') {
+                index += 2;
+                continue;
+            }
+            if (source[index] === '`') {
+                index += 1;
+                break;
+            }
+            if (source[index] === '$' && source[index + 1] === '{') {
+                const expressionStart = index + 2;
+                const expressionEnd = readTemplateExpressionEnd(source, expressionStart);
+                if (expressionEnd < 0) {
+                    return expressions.join('\n');
+                }
+                expressions.push(source.slice(expressionStart, expressionEnd));
+                index = expressionEnd + 1;
+                continue;
+            }
+            index += 1;
+        }
+    }
+    return expressions.join('\n');
 }
 
 function canStartRegexLiteral(source: string, index: number): boolean {
@@ -278,10 +370,9 @@ function isObjectLiteralKey(source: string, start: number, end: number): boolean
 }
 
 function isClosureSensitiveFunctionSource(source: string, functionName?: string): boolean {
-    if (source.includes('`') && source.includes('${')) {
-        return true;
-    }
-    const maskedSource = maskFunctionLiteralsAndComments(source);
+    const templateExpressions = extractTemplateExpressionSource(source);
+    const sourceWithTemplateExpressions = templateExpressions ? `${source}\n${templateExpressions}` : source;
+    const maskedSource = maskFunctionLiteralsAndComments(sourceWithTemplateExpressions);
     const boundIdentifiers = extractFunctionBoundIdentifiers(maskedSource);
     const functionMatch = /^\s*(?:async\s+)?function(?:\s+([A-Za-z_$][\w$]*))?\s*\(([^)]*)\)/.exec(maskedSource);
     const rootFunctionIndex = functionMatch ? maskedSource.indexOf('function', functionMatch.index ?? 0) : -1;

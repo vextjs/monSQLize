@@ -280,6 +280,42 @@ function regexLiteralTenantIdExtension(): Record<string, unknown> {
     };
 }
 
+function stableTemplateLocalTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-template-local-stable',
+        factoryName: 'tenantTemplateLocalStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const prefix = 'tenant';
+            return { type: 'string', pattern: `^${prefix}_[a-z0-9]+$` };
+        },
+    };
+}
+
+function stableTemplateCommentTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-template-comment-stable',
+        factoryName: 'tenantTemplateCommentStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            // Ignore template-looking text in comments: `${pattern}`.
+            return { type: 'string', pattern: '^tenant_[a-z0-9]+$' };
+        },
+    };
+}
+
+function templateClosureTenantIdExtension(pattern: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-template-closure',
+        factoryName: 'tenantTemplateClosure',
+        schema: { type: 'string' },
+        factory: () => ({ type: 'string', pattern: `${pattern}` }),
+    };
+}
+
 // Covers:
 //   - model-write-helpers.ts withModelErrorMetadata (lines 48-53) via insertOne validation failure
 //   - model-mutation-orchestrator.ts validateModelSchemaPayload called with invalid doc
@@ -1404,6 +1440,125 @@ describe('model — schema-dsl runtime configuration', () => {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
             await assert.rejects(() => second.connect(), /Failed to connect to MongoDB database/);
             assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-regex-literal!' }));
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('does not treat stable template literal local bindings as closure-sensitive factory dependencies', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_template_local_extensions_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [stableTemplateLocalTenantIdExtension()],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_template_local_extensions_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [stableTemplateLocalTenantIdExtension()],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /Failed to connect to MongoDB database/);
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-template-local-stable!' }));
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('does not treat template-looking comments as closure-sensitive factory dependencies', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_template_comment_extensions_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [stableTemplateCommentTenantIdExtension()],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_template_comment_extensions_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [stableTemplateCommentTenantIdExtension()],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /Failed to connect to MongoDB database/);
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-template-comment-stable!' }));
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('surfaces closure conflicts from template literal expressions', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_template_closure_extensions_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [templateClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_template_closure_extensions_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [templateClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
