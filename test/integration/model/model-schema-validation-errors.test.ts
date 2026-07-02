@@ -293,6 +293,19 @@ function stableTemplateLocalTenantIdExtension(): Record<string, unknown> {
     };
 }
 
+function stableNestedTemplateLocalTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-nested-template-local-stable',
+        factoryName: 'tenantNestedTemplateLocalStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const prefix = 'tenant';
+            return { type: 'string', pattern: `^${`${prefix}`}_[a-z0-9]+$` };
+        },
+    };
+}
+
 function stableTemplateCommentTenantIdExtension(): Record<string, unknown> {
     return {
         type: 'customType',
@@ -303,6 +316,16 @@ function stableTemplateCommentTenantIdExtension(): Record<string, unknown> {
             // Ignore template-looking text in comments: `${pattern}`.
             return { type: 'string', pattern: '^tenant_[a-z0-9]+$' };
         },
+    };
+}
+
+function nestedTemplateClosureTenantIdExtension(prefix: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-nested-template-closure',
+        factoryName: 'tenantNestedTemplateClosure',
+        schema: { type: 'string' },
+        factory: () => ({ type: 'string', pattern: `^${`${prefix}`}_[a-z0-9]+$` }),
     };
 }
 
@@ -1487,6 +1510,46 @@ describe('model — schema-dsl runtime configuration', () => {
         }
     });
 
+    it('does not treat stable nested template literal local bindings as closure-sensitive factory dependencies', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_template_local_extensions_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [stableNestedTemplateLocalTenantIdExtension()],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_template_local_extensions_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [stableNestedTemplateLocalTenantIdExtension()],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /Failed to connect to MongoDB database/);
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-nested-template-local-stable!' }));
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
     it('does not treat template-looking comments as closure-sensitive factory dependencies', async () => {
         const schemaRuntime = createRuntime();
         const first = new MonSQLize({
@@ -1551,6 +1614,45 @@ describe('model — schema-dsl runtime configuration', () => {
             schemaDsl: {
                 runtime: schemaRuntime,
                 extensions: [templateClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('surfaces closure conflicts from nested template literal expressions', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_template_closure_extensions_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [nestedTemplateClosureTenantIdExtension('tenant')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_template_closure_extensions_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [nestedTemplateClosureTenantIdExtension('other')],
             },
         });
         first.on?.('error', () => { });

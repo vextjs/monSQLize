@@ -137,6 +137,29 @@ function readQuotedLiteralEnd(source: string, start: number): number {
     return end;
 }
 
+function readTemplateLiteralEnd(source: string, start: number): number {
+    let end = start + 1;
+    while (end < source.length) {
+        if (source[end] === '\\') {
+            end += 2;
+            continue;
+        }
+        if (source[end] === '`') {
+            return end + 1;
+        }
+        if (source[end] === '$' && source[end + 1] === '{') {
+            const expressionEnd = readTemplateExpressionEnd(source, end + 2);
+            if (expressionEnd < 0) {
+                return source.length;
+            }
+            end = expressionEnd + 1;
+            continue;
+        }
+        end += 1;
+    }
+    return end;
+}
+
 function maskFunctionLiteralsAndComments(source: string): string {
     let masked = '';
     for (let index = 0; index < source.length;) {
@@ -164,8 +187,14 @@ function maskFunctionLiteralsAndComments(source: string): string {
                 continue;
             }
         }
-        if (current === '\'' || current === '"' || current === '`') {
+        if (current === '\'' || current === '"') {
             const end = readQuotedLiteralEnd(source, index);
+            masked += ' '.repeat(end - index);
+            index = end;
+            continue;
+        }
+        if (current === '`') {
+            const end = readTemplateLiteralEnd(source, index);
             masked += ' '.repeat(end - index);
             index = end;
             continue;
@@ -181,8 +210,12 @@ function readTemplateExpressionEnd(source: string, start: number): number {
     for (let index = start; index < source.length;) {
         const current = source[index];
         const next = source[index + 1];
-        if (current === '\'' || current === '"' || current === '`') {
+        if (current === '\'' || current === '"') {
             index = readQuotedLiteralEnd(source, index);
+            continue;
+        }
+        if (current === '`') {
+            index = readTemplateLiteralEnd(source, index);
             continue;
         }
         if (current === '/' && next === '/') {
@@ -194,6 +227,13 @@ function readTemplateExpressionEnd(source: string, start: number): number {
             const end = source.indexOf('*/', index + 2);
             index = end === -1 ? source.length : end + 2;
             continue;
+        }
+        if (current === '/' && next !== undefined && next !== '=' && canStartRegexLiteral(source, index)) {
+            const regexEnd = readRegexLiteralEnd(source, index);
+            if (regexEnd !== null) {
+                index = regexEnd;
+                continue;
+            }
         }
         if (current === '{') {
             depth += 1;
@@ -208,8 +248,7 @@ function readTemplateExpressionEnd(source: string, start: number): number {
     return -1;
 }
 
-function extractTemplateExpressionSource(source: string): string {
-    const expressions: string[] = [];
+function collectTemplateExpressionSource(source: string, expressions: string[]): void {
     for (let index = 0; index < source.length;) {
         const current = source[index];
         const next = source[index + 1];
@@ -252,15 +291,22 @@ function extractTemplateExpressionSource(source: string): string {
                 const expressionStart = index + 2;
                 const expressionEnd = readTemplateExpressionEnd(source, expressionStart);
                 if (expressionEnd < 0) {
-                    return expressions.join('\n');
+                    return;
                 }
-                expressions.push(source.slice(expressionStart, expressionEnd));
+                const expression = source.slice(expressionStart, expressionEnd);
+                expressions.push(expression);
+                collectTemplateExpressionSource(expression, expressions);
                 index = expressionEnd + 1;
                 continue;
             }
             index += 1;
         }
     }
+}
+
+function extractTemplateExpressionSource(source: string): string {
+    const expressions: string[] = [];
+    collectTemplateExpressionSource(source, expressions);
     return expressions.join('\n');
 }
 
