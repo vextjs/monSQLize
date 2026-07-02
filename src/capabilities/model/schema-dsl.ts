@@ -6,6 +6,13 @@
  * happen when a ModelInstance is bound to a runtime.
  */
 import type { SchemaDslRuntime, SchemaDslRuntimeOptions } from 'schema-dsl/runtime';
+import {
+    addParameterIdentifiers,
+    addScopedLocalIdentifiers,
+    findNestedFunctionScopes,
+    findParentFunctionScope,
+    isBoundByNestedFunctionScope,
+} from './schema-dsl-function-scopes';
 
 type SchemaDslInvoker = (definition: unknown, ...args: unknown[]) => unknown;
 
@@ -209,190 +216,13 @@ function readRegexLiteralEnd(source: string, start: number): number | null {
     return null;
 }
 
-function addIdentifiersFromPattern(pattern: string, identifiers: Set<string>): void {
-    for (const match of pattern.matchAll(functionIdentifierPattern)) {
-        identifiers.add(match[0]);
-    }
-}
-
-function isIdentifierPart(char: string | undefined): boolean {
-    return char !== undefined && /[A-Za-z_$\d]/.test(char);
-}
-
-function splitTopLevel(source: string, delimiter: string): string[] {
-    const parts: string[] = [];
-    let depth = 0;
-    let start = 0;
-    for (let index = 0; index < source.length; index += 1) {
-        const char = source[index];
-        if (char === '{' || char === '[' || char === '(') {
-            depth += 1;
-        } else if (char === '}' || char === ']' || char === ')') {
-            depth = Math.max(0, depth - 1);
-        } else if (char === delimiter && depth === 0) {
-            parts.push(source.slice(start, index));
-            start = index + 1;
-        }
-    }
-    parts.push(source.slice(start));
-    return parts;
-}
-
-function indexOfTopLevel(source: string, needle: string): number {
-    let depth = 0;
-    for (let index = 0; index < source.length; index += 1) {
-        const char = source[index];
-        if (char === '{' || char === '[' || char === '(') {
-            depth += 1;
-        } else if (char === '}' || char === ']' || char === ')') {
-            depth = Math.max(0, depth - 1);
-        } else if (char === needle && depth === 0) {
-            return index;
-        }
-    }
-    return -1;
-}
-
-function indexOfTopLevelWord(source: string, word: string): number {
-    let depth = 0;
-    for (let index = 0; index < source.length; index += 1) {
-        const char = source[index];
-        if (char === '{' || char === '[' || char === '(') {
-            depth += 1;
-        } else if (char === '}' || char === ']' || char === ')') {
-            depth = Math.max(0, depth - 1);
-        } else if (
-            depth === 0
-            && source.startsWith(word, index)
-            && !isIdentifierPart(source[index - 1])
-            && !isIdentifierPart(source[index + word.length])
-        ) {
-            return index;
-        }
-    }
-    return -1;
-}
-
-function stripTopLevelDefault(pattern: string): string {
-    const defaultIndex = indexOfTopLevel(pattern, '=');
-    return defaultIndex >= 0 ? pattern.slice(0, defaultIndex).trim() : pattern.trim();
-}
-
-function stripLocalDeclarationBinding(declaration: string): string {
-    const boundaries = [
-        indexOfTopLevel(declaration, '='),
-        indexOfTopLevelWord(declaration, 'of'),
-        indexOfTopLevelWord(declaration, 'in'),
-    ].filter((index) => index >= 0);
-    const end = boundaries.length > 0 ? Math.min(...boundaries) : declaration.length;
-    return declaration.slice(0, end).trim();
-}
-
-function findMatchingBrace(source: string, start: number): number {
-    let depth = 0;
-    for (let index = start; index < source.length; index += 1) {
-        const char = source[index];
-        if (char === '{') {
-            depth += 1;
-        } else if (char === '}') {
-            depth -= 1;
-            if (depth === 0) {
-                return index;
-            }
-        }
-    }
-    return -1;
-}
-
-function isIndexInRanges(index: number, ranges: ReadonlyArray<{ start: number; end: number }>): boolean {
-    return ranges.some((range) => index >= range.start && index <= range.end);
-}
-
-function findNestedFunctionBodyRanges(source: string, rootArrowIndex: number, rootFunctionIndex: number): Array<{ start: number; end: number }> {
-    const ranges: Array<{ start: number; end: number }> = [];
-    for (const match of source.matchAll(/\bfunction\b/g)) {
-        const functionIndex = match.index ?? 0;
-        if (functionIndex === rootFunctionIndex) {
-            continue;
-        }
-        const bodyStart = source.indexOf('{', functionIndex);
-        if (bodyStart <= 0) {
-            continue;
-        }
-        const bodyEnd = findMatchingBrace(source, bodyStart);
-        if (bodyEnd > bodyStart) {
-            ranges.push({ start: bodyStart, end: bodyEnd });
-        }
-    }
-
-    for (const match of source.matchAll(/=>/g)) {
-        const arrowIndex = match.index ?? 0;
-        if (arrowIndex === rootArrowIndex) {
-            continue;
-        }
-        let bodyStart = arrowIndex + 2;
-        while (bodyStart < source.length && /\s/.test(source[bodyStart])) {
-            bodyStart += 1;
-        }
-        if (source[bodyStart] !== '{') {
-            continue;
-        }
-        const bodyEnd = findMatchingBrace(source, bodyStart);
-        if (bodyEnd > bodyStart) {
-            ranges.push({ start: bodyStart, end: bodyEnd });
-        }
-    }
-    return ranges;
-}
-
-function addBindingIdentifiers(pattern: string, identifiers: Set<string>): void {
-    let binding = stripTopLevelDefault(pattern).replace(/^\s*\.\.\./, '').trim();
-    if (!binding) return;
-    if (/^[A-Za-z_$][\w$]*$/.test(binding)) {
-        identifiers.add(binding);
-        return;
-    }
-    if (binding.startsWith('{') && binding.endsWith('}')) {
-        const body = binding.slice(1, -1);
-        for (const property of splitTopLevel(body, ',')) {
-            const propertyBinding = property.trim();
-            if (!propertyBinding) continue;
-            if (propertyBinding.startsWith('...')) {
-                addBindingIdentifiers(propertyBinding, identifiers);
-                continue;
-            }
-            const colonIndex = indexOfTopLevel(propertyBinding, ':');
-            if (colonIndex >= 0) {
-                addBindingIdentifiers(propertyBinding.slice(colonIndex + 1), identifiers);
-            } else {
-                addBindingIdentifiers(propertyBinding, identifiers);
-            }
-        }
-        return;
-    }
-    if (binding.startsWith('[') && binding.endsWith(']')) {
-        const body = binding.slice(1, -1);
-        for (const element of splitTopLevel(body, ',')) {
-            addBindingIdentifiers(element, identifiers);
-        }
-        return;
-    }
-    addIdentifiersFromPattern(binding, identifiers);
-}
-
-function addParameterIdentifiers(parameters: string, identifiers: Set<string>): void {
-    for (const parameter of splitTopLevel(parameters, ',')) {
-        addBindingIdentifiers(parameter, identifiers);
-    }
-}
-
 function extractFunctionBoundIdentifiers(maskedSource: string): Set<string> {
     const identifiers = new Set<string>();
     const functionMatch = /^\s*(?:async\s+)?function(?:\s+([A-Za-z_$][\w$]*))?\s*\(([^)]*)\)/.exec(maskedSource);
     const arrowIndex = maskedSource.indexOf('=>');
     const methodMatch = /^\s*(?:async\s+)?(?:get\s+|set\s+)?([A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/.exec(maskedSource);
     const rootFunctionIndex = functionMatch ? maskedSource.indexOf('function', functionMatch.index ?? 0) : -1;
-    const nestedFunctionBodyRanges = findNestedFunctionBodyRanges(maskedSource, arrowIndex, rootFunctionIndex);
+    const nestedFunctionScopes = findNestedFunctionScopes(maskedSource, arrowIndex, rootFunctionIndex);
 
     if (functionMatch) {
         if (functionMatch[1]) identifiers.add(functionMatch[1]);
@@ -408,25 +238,14 @@ function extractFunctionBoundIdentifiers(maskedSource: string): Set<string> {
         addParameterIdentifiers(methodMatch[2] ?? '', identifiers);
     }
 
-    for (const match of maskedSource.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)/g)) {
-        if (isIndexInRanges(match.index ?? 0, nestedFunctionBodyRanges)) {
+    addScopedLocalIdentifiers(maskedSource, 0, maskedSource.length - 1, identifiers, nestedFunctionScopes);
+    for (const nestedScope of nestedFunctionScopes) {
+        if (nestedScope.kind !== 'function' || !nestedScope.name) {
             continue;
         }
-        identifiers.add(match[1]);
-    }
-    for (const match of maskedSource.matchAll(/\b(?:const|let|var)\s+([^;]+)/g)) {
-        if (isIndexInRanges(match.index ?? 0, nestedFunctionBodyRanges)) {
-            continue;
+        if (!findParentFunctionScope(nestedScope, nestedFunctionScopes)) {
+            identifiers.add(nestedScope.name);
         }
-        for (const declaration of splitTopLevel(match[1], ',')) {
-            addBindingIdentifiers(stripLocalDeclarationBinding(declaration), identifiers);
-        }
-    }
-    for (const match of maskedSource.matchAll(/\bcatch\s*\(([^)]*)\)/g)) {
-        if (isIndexInRanges(match.index ?? 0, nestedFunctionBodyRanges)) {
-            continue;
-        }
-        addBindingIdentifiers(match[1], identifiers);
     }
     return identifiers;
 }
@@ -464,6 +283,9 @@ function isClosureSensitiveFunctionSource(source: string, functionName?: string)
     }
     const maskedSource = maskFunctionLiteralsAndComments(source);
     const boundIdentifiers = extractFunctionBoundIdentifiers(maskedSource);
+    const functionMatch = /^\s*(?:async\s+)?function(?:\s+([A-Za-z_$][\w$]*))?\s*\(([^)]*)\)/.exec(maskedSource);
+    const rootFunctionIndex = functionMatch ? maskedSource.indexOf('function', functionMatch.index ?? 0) : -1;
+    const nestedFunctionScopes = findNestedFunctionScopes(maskedSource, maskedSource.indexOf('=>'), rootFunctionIndex);
     if (functionName) {
         boundIdentifiers.add(functionName);
     }
@@ -473,6 +295,9 @@ function isClosureSensitiveFunctionSource(source: string, functionName?: string)
         const start = match.index ?? 0;
         const end = start + identifier.length;
         if (functionReservedIdentifiers.has(identifier) || boundIdentifiers.has(identifier)) {
+            continue;
+        }
+        if (isBoundByNestedFunctionScope(identifier, start, nestedFunctionScopes)) {
             continue;
         }
         if (previousNonWhitespaceChar(maskedSource, start - 1) === '.') {

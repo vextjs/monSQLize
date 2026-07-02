@@ -171,6 +171,63 @@ function nestedLocalDeclarationClosureTenantIdExtension(pattern: string): Record
     };
 }
 
+function stableNestedFunctionLocalTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-nested-function-local-stable',
+        factoryName: 'tenantNestedFunctionLocalStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            function helper(): string {
+                const pattern = '^tenant_[a-z0-9]+$';
+                return pattern;
+            }
+            return { type: 'string', pattern: helper() };
+        },
+    };
+}
+
+function stableNestedArrowParamTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-nested-arrow-param-stable',
+        factoryName: 'tenantNestedArrowParamStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const helper = (value: string) => value;
+            return { type: 'string', pattern: helper('^tenant_[a-z0-9]+$') };
+        },
+    };
+}
+
+function nestedFunctionBodyClosureTenantIdExtension(pattern: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-nested-function-body-closure',
+        factoryName: 'tenantNestedFunctionBodyClosure',
+        schema: { type: 'string' },
+        factory: () => {
+            function helper(): string {
+                return pattern;
+            }
+            return { type: 'string', pattern: helper() };
+        },
+    };
+}
+
+function nestedArrowBodyClosureTenantIdExtension(pattern: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-nested-arrow-body-closure',
+        factoryName: 'tenantNestedArrowBodyClosure',
+        schema: { type: 'string' },
+        factory: () => {
+            const helper = () => pattern;
+            return { type: 'string', pattern: helper() };
+        },
+    };
+}
+
 function globalBuiltinTenantIdExtension(): Record<string, unknown> {
     return {
         type: 'customType',
@@ -983,6 +1040,164 @@ describe('model — schema-dsl runtime configuration', () => {
             schemaDsl: {
                 runtime: schemaRuntime,
                 extensions: [nestedLocalDeclarationClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('does not treat stable nested function locals as closure-sensitive dependencies', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_function_local_stable_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [stableNestedFunctionLocalTenantIdExtension()],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_function_local_stable_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [stableNestedFunctionLocalTenantIdExtension()],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /Failed to connect to MongoDB database/);
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-nested-function-local-stable!' }));
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('does not treat stable nested arrow parameters as closure-sensitive dependencies', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_arrow_param_stable_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [stableNestedArrowParamTenantIdExtension()],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_arrow_param_stable_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [stableNestedArrowParamTenantIdExtension()],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /Failed to connect to MongoDB database/);
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-nested-arrow-param-stable!' }));
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('surfaces closure conflicts when nested function bodies reference closure variables', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_function_body_closure_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [nestedFunctionBodyClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_function_body_closure_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [nestedFunctionBodyClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('surfaces closure conflicts when nested arrow bodies reference closure variables', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_arrow_body_closure_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [nestedArrowBodyClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_nested_arrow_body_closure_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [nestedArrowBodyClosureTenantIdExtension('^other_[a-z0-9]+$')],
             },
         });
         first.on?.('error', () => { });
