@@ -356,9 +356,10 @@ export function buildModelSchemaState<TDocument>(
     }
 
     const validatingDsl = _makeValidatingDslFn(schemaEngine.dsl);
+    const schemaFactory = compat.schema as (this: ModelDefinition<TDocument>, dsl: typeof validatingDsl) => unknown;
     try {
         return {
-            schemaCache: compat.schema.call(definition, validatingDsl),
+            schemaCache: schemaFactory.call(definition, validatingDsl),
             schemaError: null,
         };
     } catch (error) {

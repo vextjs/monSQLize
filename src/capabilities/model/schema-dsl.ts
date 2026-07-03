@@ -6,6 +6,7 @@
  * happen when a ModelInstance is bound to a runtime.
  */
 import type { SchemaDslRuntime, SchemaDslRuntimeOptions } from 'schema-dsl/runtime';
+import { ErrorCodes, createError, type MonSQLizeError } from '../../core/errors';
 import {
     addParameterIdentifiers,
     addScopedLocalIdentifiers,
@@ -16,7 +17,8 @@ import {
 
 type SchemaDslInvoker = (definition: unknown, ...args: unknown[]) => unknown;
 
-export type SchemaDslFn = SchemaDslRuntime['dsl'] | ((...args: never[]) => unknown);
+export type SchemaDslFn = SchemaDslRuntime['s'];
+type SchemaDslCallable = SchemaDslFn | ((definition: unknown, ...args: unknown[]) => unknown);
 export type SchemaValidateFn = (
     schema: unknown,
     data: unknown,
@@ -26,8 +28,8 @@ export type SchemaDslRuntimeLike = Partial<Omit<Pick<
     SchemaDslRuntime,
     'dsl' | 's' | 'validate' | 'dispose' | 'registerExtensions'
 >, 'dsl' | 's'>> & {
-    dsl?: SchemaDslFn;
-    s?: SchemaDslFn;
+    dsl?: SchemaDslCallable;
+    s?: SchemaDslCallable;
 };
 
 export type SchemaDslRuntimeConfig = false | {
@@ -41,7 +43,7 @@ export type SchemaDslEngine = {
     enabled: boolean;
     owned: boolean;
     runtime: SchemaDslRuntimeLike | null;
-    dsl: SchemaDslFn | null;
+    dsl: SchemaDslCallable | null;
     validate: SchemaValidateFn | null;
     dispose(): void;
 };
@@ -69,6 +71,7 @@ const functionReservedIdentifiers = new Set([
     'continue',
     'default',
     'delete',
+    'debugger',
     'do',
     'else',
     'extends',
@@ -79,6 +82,7 @@ const functionReservedIdentifiers = new Set([
     'get',
     'globalThis',
     'if',
+    'import',
     'in',
     'instanceof',
     'let',
@@ -88,6 +92,7 @@ const functionReservedIdentifiers = new Set([
     'return',
     'set',
     'static',
+    'super',
     'switch',
     'this',
     'throw',
@@ -96,6 +101,7 @@ const functionReservedIdentifiers = new Set([
     'typeof',
     'var',
     'void',
+    'with',
     'while',
     'yield',
 ]);
@@ -406,6 +412,21 @@ function nextNonWhitespaceChar(source: string, start: number): string | undefine
     return undefined;
 }
 
+function previousIdentifier(source: string, start: number): string | undefined {
+    let index = start;
+    while (index >= 0 && /\s/.test(source[index])) {
+        index -= 1;
+    }
+    if (index < 0 || !/[A-Za-z_$\d]/.test(source[index])) {
+        return undefined;
+    }
+    const end = index + 1;
+    while (index >= 0 && /[A-Za-z_$\d]/.test(source[index])) {
+        index -= 1;
+    }
+    return source.slice(index + 1, end);
+}
+
 function isObjectLiteralKey(source: string, start: number, end: number): boolean {
     const next = nextNonWhitespaceChar(source, end);
     if (next !== ':') {
@@ -413,6 +434,26 @@ function isObjectLiteralKey(source: string, start: number, end: number): boolean
     }
     const previous = previousNonWhitespaceChar(source, start - 1);
     return previous === '{' || previous === ',';
+}
+
+function isStatementLabel(source: string, start: number, end: number): boolean {
+    const next = nextNonWhitespaceChar(source, end);
+    if (next !== ':') {
+        return false;
+    }
+    const lastLineFeed = source.lastIndexOf('\n', start - 1);
+    const lastCarriageReturn = source.lastIndexOf('\r', start - 1);
+    const lineStart = Math.max(lastLineFeed, lastCarriageReturn) + 1;
+    if (source.slice(lineStart, start).trim() === '') {
+        return true;
+    }
+    const previous = previousNonWhitespaceChar(source, start - 1);
+    return previous === undefined || previous === '{' || previous === '}' || previous === ';';
+}
+
+function isBreakOrContinueLabelReference(source: string, start: number): boolean {
+    const previous = previousIdentifier(source, start - 1);
+    return previous === 'break' || previous === 'continue';
 }
 
 function isClosureSensitiveFunctionSource(source: string, functionName?: string): boolean {
@@ -437,7 +478,11 @@ function isClosureSensitiveFunctionSource(source: string, functionName?: string)
         if (isBoundByNestedFunctionScope(identifier, start, nestedFunctionScopes)) {
             continue;
         }
-        if (previousNonWhitespaceChar(maskedSource, start - 1) === '.') {
+        const previous = previousNonWhitespaceChar(maskedSource, start - 1);
+        if (previous === '.' || previous === '#') {
+            continue;
+        }
+        if (isStatementLabel(maskedSource, start, end) || isBreakOrContinueLabelReference(maskedSource, start)) {
             continue;
         }
         if (isObjectLiteralKey(maskedSource, start, end)) {
@@ -590,15 +635,18 @@ function resolveRuntime(config: SchemaDslRuntimeConfig | null | undefined): { ru
         const mod = require('schema-dsl/runtime') as SchemaDslRuntimeModule;
         const createRuntime = mod.createRuntime ?? mod.createSchemaDslRuntime;
         if (!createRuntime) {
-            return null;
+            throw createSchemaDslRuntimeError('schema-dsl/runtime did not export createRuntime or createSchemaDslRuntime.');
         }
         return { runtime: createRuntime(config?.options), owned: true };
-    } catch {
-        return null;
+    } catch (error) {
+        if (error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === ErrorCodes.INVALID_CONFIG) {
+            throw error;
+        }
+        throw createSchemaDslRuntimeError('Failed to load schema-dsl/runtime for Model schema validation.', error);
     }
 }
 
-function resolveDsl(runtime: SchemaDslRuntimeLike): SchemaDslFn | null {
+function resolveDsl(runtime: SchemaDslRuntimeLike): SchemaDslCallable | null {
     return runtime.s ?? runtime.dsl ?? null;
 }
 
@@ -638,6 +686,19 @@ function registerRuntimeExtensions(runtime: SchemaDslRuntimeLike, extensions: re
     runtime.registerExtensions(extensions as readonly [unknown, ...unknown[]]);
 }
 
+function toError(value: unknown): Error {
+    return value instanceof Error ? value : new Error(String(value));
+}
+
+function createSchemaDslRuntimeError(message: string, cause?: unknown): MonSQLizeError {
+    return createError(
+        ErrorCodes.INVALID_CONFIG,
+        `${message} Check the bundled schema-dsl dependency installation, package-manager pruning, and runtime module resolution. Set schemaDsl: false only when Model schema validation is intentionally disabled.`,
+        undefined,
+        cause === undefined ? undefined : toError(cause),
+    );
+}
+
 export function createSchemaDslEngine(config?: SchemaDslRuntimeConfig | null): SchemaDslEngine {
     const resolved = resolveRuntime(config);
     if (!resolved) {
@@ -663,7 +724,7 @@ export function createSchemaDslEngine(config?: SchemaDslRuntimeConfig | null): S
         if (resolved.owned) {
             resolved.runtime.dispose?.();
         }
-        return createDisabledSchemaDslEngine();
+        throw createSchemaDslRuntimeError('schema-dsl/runtime did not provide the required s/dsl and validate APIs.');
     }
 
     let disposed = false;
@@ -693,7 +754,7 @@ export function createSchemaDslEngine(config?: SchemaDslRuntimeConfig | null): S
  * - Unknown types, custom types, aliases, and fallback behavior are delegated to schema-dsl.
  * - A future schema-dsl diagnostics API can be consumed here without parsing DSL strings in monsqlize.
  */
-export function _makeValidatingDslFn(realDsl: SchemaDslFn): SchemaDslFn {
+export function _makeValidatingDslFn(realDsl: SchemaDslCallable): SchemaDslFn {
     const validating = function validatingDsl(fields: unknown, ...args: unknown[]): unknown {
         return (realDsl as unknown as SchemaDslInvoker)(fields, ...args);
     };

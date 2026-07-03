@@ -1,11 +1,17 @@
 import type { BookmarkClearResult, BookmarkListResult, BookmarkPrewarmResult, DeleteBatchResult, DeleteResult, IncrementOneResult, IndexCreateResult, InsertBatchResult, InsertManyResult, InsertOneResult, UpdateBatchResult, UpdateResult } from './collection';
+import type { SchemaDslRuntime } from 'schema-dsl/runtime';
+
+/**
+ * Runtime-scoped schema-dsl namespace passed to Model schema callbacks.
+ * @since v2.0.8
+ */
+export type ModelSchemaDsl = SchemaDslRuntime['s'];
 
 /**
  * Schema DSL transformer function.
- * Receives a raw DSL descriptor and returns a transformed schema object.
  * @since v1.0.0
  */
-export type SchemaDSL = (dsl: unknown) => unknown;
+export type SchemaDSL = (dsl: ModelSchemaDsl) => unknown;
 
 /**
  * Default value for a model field — either a static value or a factory function.
@@ -239,7 +245,7 @@ export interface ModelDefinition<TDocument = Record<string, unknown>> {
     /** Compatibility collection name used by model auto-loading files; `collection` has higher priority. */
     name?: string;
     enums?: Record<string, string>;
-    schema?: ((dsl: unknown) => unknown) | Record<string, unknown>;
+    schema?: SchemaDSL | Record<string, unknown>;
     defaults?: Record<string, unknown | ((context?: unknown, doc?: TDocument) => unknown)>;
     hooks?:
     | {

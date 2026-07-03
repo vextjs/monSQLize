@@ -53,6 +53,13 @@ expectAssignable<ModelDefinition<UserDoc>>({
     },
 });
 
+expectAssignable<ModelDefinition<UserDoc>>({
+    schema: (dsl) => dsl({
+        firstName: 'string!',
+        lastName: dsl.string().require(),
+    }),
+});
+
 expectAssignable<ModelAutoIndexOptions>({ enabled: false, emitEvents: true });
 expectAssignable<ModelEnsureIndexesOptions>({ dryRun: true, throwOnError: true });
 expectAssignable<ModelEnsureAllIndexesOptions>({ models: ['users'], database: 'types_model' });

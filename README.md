@@ -278,6 +278,7 @@ const msq = new MonSQLize({
 ```
 
 For monSQLize-only Model validation, no direct application import from `schema-dsl` is required. Direct application imports should use `schema-dsl/runtime` when they need to share the same isolated runtime state with monSQLize.
+Use `schemaDsl: { extensions }` when monSQLize should own the runtime and register extension definitions. When the application owns the schema-dsl lifecycle, configure that runtime directly, including `runtime.registerExtensions([...])`, and inject it with `schemaDsl: { runtime }`. If the default `schema-dsl/runtime` entry cannot be resolved or does not expose the required runtime APIs, monSQLize throws `INVALID_CONFIG`; validation is disabled only when `schemaDsl: false` or `schemaDsl: { enabled: false }` is set explicitly.
 
 ### Automatic Model Loading
 
@@ -623,7 +624,7 @@ Key release-readiness points:
 
 ### v2.0.8
 
-- Model schema validation now uses an isolated `schema-dsl/runtime` instance per MonSQLize runtime, with `schemaDsl` configuration for runtime options, extension registration, runtime injection, and validation disablement.
+- Model schema validation now uses an isolated `schema-dsl/runtime` instance per MonSQLize runtime, with `schemaDsl` configuration for runtime options, extension registration, runtime injection, explicit validation disablement, and fail-closed dependency resolution diagnostics.
 
 ### v2.0.6
 

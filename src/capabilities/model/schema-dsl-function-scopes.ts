@@ -1,3 +1,5 @@
+import { findLocalDeclarationEnd } from './schema-dsl-local-declarations';
+
 const functionIdentifierPattern = /[A-Za-z_$][\w$]*/g;
 
 export type FunctionScopeInfo = {
@@ -6,7 +8,7 @@ export type FunctionScopeInfo = {
     bodyStart: number;
     bodyEnd: number;
     name?: string;
-    kind: 'arrow' | 'function';
+    kind: 'arrow' | 'function' | 'class-method' | 'class-field' | 'class-member' | 'object-method' | 'object-member';
     boundIdentifiers: Set<string>;
 };
 
@@ -166,6 +168,22 @@ function findMatchingParenStart(source: string, start: number): number {
     return -1;
 }
 
+function findMatchingBracketStart(source: string, start: number): number {
+    let depth = 0;
+    for (let index = start; index >= 0; index -= 1) {
+        const char = source[index];
+        if (char === ']') {
+            depth += 1;
+        } else if (char === '[') {
+            depth -= 1;
+            if (depth === 0) {
+                return index;
+            }
+        }
+    }
+    return -1;
+}
+
 function findArrowParameterStart(source: string, arrowIndex: number): number {
     let index = arrowIndex - 1;
     while (index >= 0 && /\s/.test(source[index])) {
@@ -206,6 +224,422 @@ function findArrowExpressionEnd(source: string, start: number): number {
     return source.length - 1;
 }
 
+function getClassMethodParameters(source: string, headerStart: number, bodyStart: number): string | null {
+    const parenEnd = source.lastIndexOf(')', bodyStart);
+    if (parenEnd < headerStart) {
+        return null;
+    }
+    const parenStart = findMatchingParenStart(source, parenEnd);
+    if (parenStart < headerStart) {
+        return null;
+    }
+    return source.slice(parenStart + 1, parenEnd);
+}
+
+function createClassMemberBindingScope(name: string, start: number): FunctionScopeInfo {
+    return {
+        start,
+        end: start + name.length - 1,
+        bodyStart: start,
+        bodyEnd: start + name.length - 1,
+        kind: 'class-member',
+        boundIdentifiers: new Set([name]),
+    };
+}
+
+function createClassFieldInitializerScope(header: string, headerStart: number, className?: string): FunctionScopeInfo | null {
+    if (!className) {
+        return null;
+    }
+    const initializerIndex = indexOfTopLevel(header, '=');
+    if (initializerIndex < 0) {
+        return null;
+    }
+    const initializerStart = headerStart + initializerIndex + 1;
+    const initializerEnd = headerStart + header.length - 1;
+    if (initializerEnd < initializerStart) {
+        return null;
+    }
+    return {
+        start: initializerStart,
+        end: initializerEnd,
+        bodyStart: initializerStart,
+        bodyEnd: initializerEnd,
+        kind: 'class-field',
+        boundIdentifiers: new Set([className]),
+    };
+}
+
+function addClassFieldScopes(scopes: FunctionScopeInfo[], header: string, headerStart: number, className?: string): void {
+    const fieldNameScope = getClassFieldNameBinding(header, headerStart);
+    if (fieldNameScope) {
+        scopes.push(fieldNameScope);
+    }
+    const initializerScope = createClassFieldInitializerScope(header, headerStart, className);
+    if (initializerScope) {
+        scopes.push(initializerScope);
+    }
+}
+
+function addSemicolonlessClassFieldScopes(scopes: FunctionScopeInfo[], header: string, headerStart: number, className?: string): void {
+    let lineStart = 0;
+    for (const match of header.matchAll(/\r?\n/g)) {
+        const lineEnd = match.index ?? 0;
+        const line = header.slice(lineStart, lineEnd);
+        if (line.trim()) {
+            addClassFieldScopes(scopes, line, headerStart + lineStart, className);
+        }
+        lineStart = lineEnd + match[0].length;
+    }
+    const line = header.slice(lineStart);
+    if (line.trim()) {
+        addClassFieldScopes(scopes, line, headerStart + lineStart, className);
+    }
+}
+
+function getClassMethodNameBinding(header: string, headerStart: number): FunctionScopeInfo | null {
+    let remaining = header.trim();
+    let offset = header.indexOf(remaining);
+    for (;;) {
+        const next = remaining.replace(/^(?:static|async|get|set)\s+/, '').trimStart();
+        if (next === remaining) {
+            break;
+        }
+        offset += remaining.length - next.length;
+        remaining = next;
+    }
+    const withoutGenerator = remaining.replace(/^\*\s*/, '').trimStart();
+    offset += remaining.length - withoutGenerator.length;
+    remaining = withoutGenerator;
+    if (remaining.startsWith('[')) {
+        return null;
+    }
+    const match = /^#?([A-Za-z_$][\w$]*)\s*\(/.exec(remaining);
+    if (!match) {
+        return null;
+    }
+    return createClassMemberBindingScope(match[1], headerStart + offset + match[0].lastIndexOf(match[1]));
+}
+
+function stripClassMethodModifiers(header: string): string {
+    let remaining = header.trim();
+    for (;;) {
+        const next = remaining.replace(/^(?:static|async|get|set)\s+/, '').trimStart();
+        if (next === remaining) {
+            break;
+        }
+        remaining = next;
+    }
+    return remaining.replace(/^\*\s*/, '').trimStart();
+}
+
+function isClassMethodHeader(header: string): boolean {
+    const remaining = stripClassMethodModifiers(header);
+    return remaining.startsWith('[') || /^#?[A-Za-z_$][\w$]*\s*\(/.test(remaining);
+}
+
+function getTrailingClassMethodHeader(header: string): { header: string; offset: number } | null {
+    const lines = Array.from(header.matchAll(/\r?\n/g));
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const lineStart = (lines[index].index ?? 0) + lines[index][0].length;
+        const candidate = header.slice(lineStart);
+        if (candidate.trim() && isClassMethodHeader(candidate)) {
+            return { header: candidate, offset: lineStart };
+        }
+    }
+    return null;
+}
+
+function isObjectMethodHeader(header: string): boolean {
+    const remaining = stripClassMethodModifiers(header);
+    if (/^(?:if|for|while|switch|catch|with)\s*\(/.test(remaining)) {
+        return false;
+    }
+    return remaining.startsWith('(')
+        || remaining.startsWith('[')
+        || /^(?:\d+(?:\.\d+)?|#?[A-Za-z_$][\w$]*)\s*\(/.test(remaining);
+}
+
+function includeMethodModifiers(source: string, start: number): number {
+    let methodStart = start;
+    for (;;) {
+        let previousIndex = previousNonWhitespaceIndex(source, methodStart - 1);
+        if (previousIndex >= 0 && source[previousIndex] === '*') {
+            methodStart = previousIndex;
+            previousIndex = previousNonWhitespaceIndex(source, methodStart - 1);
+        }
+        if (previousIndex < 0 || !isIdentifierPart(source[previousIndex])) {
+            return methodStart;
+        }
+        let wordStart = previousIndex;
+        while (wordStart >= 0 && isIdentifierPart(source[wordStart])) {
+            wordStart -= 1;
+        }
+        const word = source.slice(wordStart + 1, previousIndex + 1);
+        if (word !== 'async' && word !== 'get' && word !== 'set') {
+            return methodStart;
+        }
+        methodStart = wordStart + 1;
+    }
+}
+
+function findObjectMethodHeaderStart(source: string, parenStart: number): number {
+    let nameEnd = previousNonWhitespaceIndex(source, parenStart - 1);
+    if (nameEnd < 0) {
+        return -1;
+    }
+    if (source[nameEnd] === '{' || source[nameEnd] === ',') {
+        return nameEnd + 1;
+    }
+    let nameStart: number;
+    if (source[nameEnd] === ']') {
+        nameStart = findMatchingBracketStart(source, nameEnd);
+    } else {
+        while (nameEnd >= 0 && /\s/.test(source[nameEnd])) {
+            nameEnd -= 1;
+        }
+        nameStart = nameEnd;
+        while (nameStart >= 0 && (isIdentifierPart(source[nameStart]) || source[nameStart] === '#')) {
+            nameStart -= 1;
+        }
+        nameStart += 1;
+    }
+    if (nameStart < 0 || nameStart > nameEnd) {
+        return -1;
+    }
+    const methodStart = includeMethodModifiers(source, nameStart);
+    const previousIndex = previousNonWhitespaceIndex(source, methodStart - 1);
+    if (previousIndex >= 0 && source[previousIndex] !== '{' && source[previousIndex] !== ',') {
+        return -1;
+    }
+    return methodStart;
+}
+
+function getClassFieldNameBinding(header: string, headerStart: number): FunctionScopeInfo | null {
+    let remaining = header.trim();
+    let offset = header.indexOf(remaining);
+    const staticStripped = remaining.replace(/^static\s+/, '').trimStart();
+    offset += remaining.length - staticStripped.length;
+    remaining = staticStripped;
+    if (remaining.startsWith('[')) {
+        return null;
+    }
+    const match = /^#?([A-Za-z_$][\w$]*)/.exec(remaining);
+    if (!match) {
+        return null;
+    }
+    return createClassMemberBindingScope(match[1], headerStart + offset + match[0].lastIndexOf(match[1]));
+}
+
+function findClassBodyStart(source: string, classIndex: number): number {
+    let depth = 0;
+    for (let index = classIndex + 'class'.length; index < source.length; index += 1) {
+        if (
+            depth === 0
+            && source.startsWith('class', index)
+            && !isIdentifierPart(source[index - 1])
+            && !isIdentifierPart(source[index + 'class'.length])
+        ) {
+            const nestedClassBodyStart = findClassBodyStart(source, index);
+            const nestedClassBodyEnd = nestedClassBodyStart > index ? findMatchingBrace(source, nestedClassBodyStart) : -1;
+            if (nestedClassBodyEnd > nestedClassBodyStart) {
+                index = nestedClassBodyEnd;
+                continue;
+            }
+        }
+        const char = source[index];
+        if (char === '(' || char === '[') {
+            depth += 1;
+        } else if (char === ')' || char === ']') {
+            depth = Math.max(0, depth - 1);
+        } else if (char === '{' && depth === 0) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+function previousNonWhitespaceIndex(source: string, start: number): number {
+    for (let index = start; index >= 0; index -= 1) {
+        if (!/\s/.test(source[index])) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+function isClassDeclarationBinding(source: string, classIndex: number): boolean {
+    const previousIndex = previousNonWhitespaceIndex(source, classIndex - 1);
+    if (previousIndex < 0) {
+        return true;
+    }
+    return source[previousIndex] === '{' || source[previousIndex] === '}' || source[previousIndex] === ';';
+}
+
+function findClassMemberScopes(source: string): FunctionScopeInfo[] {
+    const scopes: FunctionScopeInfo[] = [];
+    for (const match of source.matchAll(/\bclass(?:\s+([A-Za-z_$][\w$]*))?/g)) {
+        const classIndex = match.index ?? 0;
+        const className = match[1];
+        if (className) {
+            scopes.push(createClassMemberBindingScope(className, classIndex + match[0].lastIndexOf(className)));
+        }
+        const classBodyStart = findClassBodyStart(source, classIndex);
+        if (classBodyStart <= classIndex) {
+            continue;
+        }
+        const classBodyEnd = findMatchingBrace(source, classBodyStart);
+        if (classBodyEnd <= classBodyStart) {
+            continue;
+        }
+
+        let memberIndex = classBodyStart + 1;
+        while (memberIndex < classBodyEnd) {
+            while (memberIndex < classBodyEnd && (/[\s;]/.test(source[memberIndex]))) {
+                memberIndex += 1;
+            }
+            if (memberIndex >= classBodyEnd) {
+                break;
+            }
+            const memberStart = memberIndex;
+            let memberClosed = false;
+            let depth = 0;
+            for (let index = memberStart; index < classBodyEnd; index += 1) {
+                const char = source[index];
+                if (char === '(' || char === '[') {
+                    depth += 1;
+                } else if (char === ')' || char === ']') {
+                    depth = Math.max(0, depth - 1);
+                } else if (char === '{' && depth === 0) {
+                    const header = source.slice(memberStart, index).trim();
+                    let parameters = getClassMethodParameters(source, memberStart, index);
+                    const isStaticBlock = parameters === null && header === 'static';
+                    let methodStart = memberStart;
+                    let methodHeader = header;
+                    let isMethod = isStaticBlock || (parameters !== null && isClassMethodHeader(header));
+                    if (!isMethod && parameters !== null) {
+                        const trailingMethodHeader = getTrailingClassMethodHeader(source.slice(memberStart, index));
+                        if (trailingMethodHeader) {
+                            addSemicolonlessClassFieldScopes(
+                                scopes,
+                                source.slice(memberStart, memberStart + trailingMethodHeader.offset),
+                                memberStart,
+                                className,
+                            );
+                            methodStart = memberStart + trailingMethodHeader.offset;
+                            methodHeader = trailingMethodHeader.header;
+                            parameters = getClassMethodParameters(source, methodStart, index);
+                            isMethod = true;
+                        }
+                    }
+                    const hasFieldInitializer = indexOfTopLevel(header, '=') >= 0;
+                    if (!isMethod && hasFieldInitializer) {
+                        const bodyEnd = findMatchingBrace(source, index);
+                        if (bodyEnd <= index) {
+                            memberIndex = index + 1;
+                            memberClosed = true;
+                            break;
+                        }
+                        index = bodyEnd;
+                        continue;
+                    }
+                    const bodyEnd = findMatchingBrace(source, index);
+                    if (bodyEnd <= index) {
+                        memberIndex = index + 1;
+                        memberClosed = true;
+                        break;
+                    }
+                    if (isMethod) {
+                        const methodNameScope = getClassMethodNameBinding(methodHeader, methodStart);
+                        if (methodNameScope) {
+                            scopes.push(methodNameScope);
+                        }
+                        const boundIdentifiers = new Set<string>();
+                        if (parameters !== null) {
+                            addParameterIdentifiers(parameters, boundIdentifiers);
+                        }
+                        if (className) {
+                            boundIdentifiers.add(className);
+                        }
+                        scopes.push({
+                            start: methodStart,
+                            end: bodyEnd,
+                            bodyStart: index,
+                            bodyEnd,
+                            kind: 'class-method',
+                            boundIdentifiers,
+                        });
+                        memberIndex = bodyEnd + 1;
+                        memberClosed = true;
+                        break;
+                    }
+                    index = bodyEnd;
+                } else if (char === ';' && depth === 0) {
+                    const header = source.slice(memberStart, index);
+                    addClassFieldScopes(scopes, header, memberStart, className);
+                    memberIndex = index + 1;
+                    memberClosed = true;
+                    break;
+                }
+            }
+            if (!memberClosed) {
+                const header = source.slice(memberStart, classBodyEnd);
+                addClassFieldScopes(scopes, header, memberStart, className);
+                break;
+            }
+        }
+    }
+    return scopes;
+}
+
+function findObjectMethodScopes(source: string): FunctionScopeInfo[] {
+    const scopes: FunctionScopeInfo[] = [];
+    for (let bodyStart = 0; bodyStart < source.length; bodyStart += 1) {
+        if (source[bodyStart] !== '{') {
+            continue;
+        }
+        const parenEnd = previousNonWhitespaceIndex(source, bodyStart - 1);
+        if (parenEnd < 0 || source[parenEnd] !== ')') {
+            continue;
+        }
+        const parenStart = findMatchingParenStart(source, parenEnd);
+        if (parenStart < 0) {
+            continue;
+        }
+        const headerStart = findObjectMethodHeaderStart(source, parenStart);
+        if (headerStart < 0) {
+            continue;
+        }
+        const header = source.slice(headerStart, bodyStart).trim();
+        if (!isObjectMethodHeader(header)) {
+            continue;
+        }
+        const bodyEnd = findMatchingBrace(source, bodyStart);
+        if (bodyEnd <= bodyStart) {
+            continue;
+        }
+        const methodNameScope = getClassMethodNameBinding(header, headerStart);
+        if (methodNameScope) {
+            scopes.push({
+                ...methodNameScope,
+                kind: 'object-member',
+            });
+        }
+        const boundIdentifiers = new Set<string>();
+        addParameterIdentifiers(source.slice(parenStart + 1, parenEnd), boundIdentifiers);
+        scopes.push({
+            start: headerStart,
+            end: bodyEnd,
+            bodyStart,
+            bodyEnd,
+            kind: 'object-method',
+            boundIdentifiers,
+        });
+        bodyStart = bodyEnd;
+    }
+    return scopes;
+}
+
 export function addScopedLocalIdentifiers(
     source: string,
     start: number,
@@ -214,13 +648,31 @@ export function addScopedLocalIdentifiers(
     excludedRanges: ReadonlyArray<{ start: number; end: number }>,
 ): void {
     const scopeSource = source.slice(start, end + 1);
-    for (const match of scopeSource.matchAll(/\b(?:const|let|var)\s+([^;]+)/g)) {
+    const declarationPattern = /\b(?:const|let|var)\b/g;
+    let match: RegExpExecArray | null;
+    while ((match = declarationPattern.exec(scopeSource)) !== null) {
+        const localMatchIndex = match.index ?? 0;
+        const matchIndex = start + localMatchIndex;
+        if (isIndexInRanges(matchIndex, excludedRanges)) {
+            continue;
+        }
+        let declarationStart = localMatchIndex + match[0].length;
+        while (declarationStart < scopeSource.length && /\s/.test(scopeSource[declarationStart])) {
+            declarationStart += 1;
+        }
+        const declarationEnd = findLocalDeclarationEnd(scopeSource, declarationStart);
+        for (const declaration of splitTopLevel(scopeSource.slice(declarationStart, declarationEnd), ',')) {
+            addBindingIdentifiers(stripLocalDeclarationBinding(declaration), identifiers);
+        }
+        declarationPattern.lastIndex = Math.max(declarationPattern.lastIndex, declarationEnd);
+    }
+    for (const match of scopeSource.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)/g)) {
         const matchIndex = start + (match.index ?? 0);
         if (isIndexInRanges(matchIndex, excludedRanges)) {
             continue;
         }
-        for (const declaration of splitTopLevel(match[1], ',')) {
-            addBindingIdentifiers(stripLocalDeclarationBinding(declaration), identifiers);
+        if (isClassDeclarationBinding(source, matchIndex)) {
+            identifiers.add(match[1]);
         }
     }
     for (const match of scopeSource.matchAll(/\bcatch\s*\(([^)]*)\)/g)) {
@@ -310,9 +762,14 @@ export function findNestedFunctionScopes(source: string, rootArrowIndex: number,
             });
         }
     }
+    scopes.push(...findClassMemberScopes(source));
+    scopes.push(...findObjectMethodScopes(source));
     scopes.sort((left, right) => left.start - right.start || right.end - left.end);
 
     for (const scope of scopes) {
+        if (scope.kind === 'class-member' || scope.kind === 'object-member') {
+            continue;
+        }
         const childScopes = scopes.filter((candidate) => candidate !== scope && candidate.start > scope.start && candidate.end <= scope.end);
         addScopedLocalIdentifiers(source, scope.bodyStart, scope.bodyEnd, scope.boundIdentifiers, childScopes);
         for (const childScope of childScopes) {

@@ -145,7 +145,7 @@ const User = msq.model('users');
 await User.insertOne({ name: 'Ada', email: 'ada@example.com' });
 ```
 
-`schema-dsl` is installed by default with `monsqlize`. Model schema callbacks use the MonSQLize instance's isolated `schema-dsl/runtime`; if application code also needs the same custom types or messages, create a `schema-dsl/runtime` instance and pass it through `schemaDsl`.
+`schema-dsl` is installed by default with `monsqlize`. Model schema callbacks use the MonSQLize instance's isolated `schema-dsl/runtime`; if application code owns the same custom types or messages, configure that runtime directly and pass it through `schemaDsl`. Runtime load or API-shape failures throw `INVALID_CONFIG` unless validation is explicitly disabled.
 
 ## Troubleshoot according to error code
 

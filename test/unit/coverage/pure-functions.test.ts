@@ -64,7 +64,7 @@ import {
     stableStringify,
     toMongoFilter,
 } from '../../../src/capabilities/slow-query-log/slow-query-log-records';
-import { _makeValidatingDslFn } from '../../../src/capabilities/model/schema-dsl';
+import { _makeValidatingDslFn, createSchemaDslEngine } from '../../../src/capabilities/model/schema-dsl';
 import { Model } from '../../../src/capabilities/model';
 import { MemoryCache } from '../../../src/capabilities/cache';
 import {
@@ -109,6 +109,7 @@ import {
 } from '../../../src/capabilities/model/model-mutation-orchestrator';
 
 const MonSQLize = require('../../../dist/cjs/index.cjs');
+const Module = require('node:module');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Query meta helpers
@@ -1690,6 +1691,46 @@ describe('model populate and schema helpers — additional branch coverage', () 
         assert.deepEqual(dsl(null), null);
         assert.deepEqual(dsl({ broken: 'notatype!' }), { broken: 'notatype!' });
         assert.equal(calls.length, 4);
+    });
+
+    it('schema-dsl runtime resolution fails closed unless explicitly disabled', () => {
+        assert.equal(createSchemaDslEngine(false).enabled, false);
+        assert.throws(
+            () => createSchemaDslEngine({ runtime: {} }),
+            (error: unknown) => {
+                const record = error && typeof error === 'object' ? error as { code?: unknown; message?: unknown } : null;
+                return Boolean(
+                    record
+                    && record.code === 'INVALID_CONFIG'
+                    && String(record.message).includes('required s/dsl and validate APIs'),
+                );
+            },
+        );
+    });
+
+    it('schema-dsl runtime load failures are not silently disabled', () => {
+        const originalRequire = Module.prototype.require;
+        Module.prototype.require = function patchedRequire(this: unknown, id: string, ...args: unknown[]): unknown {
+            if (id === 'schema-dsl/runtime') {
+                throw new Error('mock runtime load failure');
+            }
+            return originalRequire.call(this, id, ...args);
+        };
+        try {
+            assert.throws(
+                () => createSchemaDslEngine(),
+                (error: unknown) => {
+                    const record = error && typeof error === 'object' ? error as { code?: unknown; message?: unknown } : null;
+                    return Boolean(
+                        record
+                        && record.code === 'INVALID_CONFIG'
+                        && String(record.message).includes('Failed to load schema-dsl/runtime'),
+                    );
+                },
+            );
+        } finally {
+            Module.prototype.require = originalRequire;
+        }
     });
 });
 

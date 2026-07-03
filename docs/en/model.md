@@ -96,7 +96,7 @@ const msq = new MonSQLize({
 });
 ```
 
-`schemaDsl` also accepts `{ options, extensions }` when monSQLize should own the runtime, and `schemaDsl: false` when Model schema-dsl validation must be disabled for a migration or test boundary.
+Use `schemaDsl: { extensions }` when monSQLize should own the runtime and register extension definitions. When the application owns the schema-dsl lifecycle, configure that runtime directly, including `runtime.registerExtensions([...])`, and inject it with `schemaDsl: { runtime }`. If the default `schema-dsl/runtime` entry cannot be resolved or does not expose the required runtime APIs, monSQLize throws `INVALID_CONFIG`; validation is disabled only when `schemaDsl: false` or `schemaDsl: { enabled: false }` is set explicitly.
 
 ---
 
@@ -458,7 +458,7 @@ const UserModel           = msq.model('User');            //→ main_db (default
 
 ---
 
-## Model automatic loading (v1.0.7+)
+## Model automatic loading
 
 
 ## Function description
@@ -624,12 +624,14 @@ models/
 
 ---
 
-## Schema validation (enabled by default in v1.0.7)
+## Schema validation
 
 
-## Function Description (Schema Validation (enabled by default in v1.0.7))
+## Runtime behavior
 
-monSQLize integrates `schema-dsl` to provide data validation functionality. **As of v1.0.7, Schema validation is enabled by default**.
+monSQLize uses the `schema-dsl` runtime dependency to validate Model documents. The package installs `schema-dsl` automatically, and each connected `MonSQLize` runtime owns or receives an isolated `schema-dsl/runtime` instance through the `schemaDsl` option.
+
+`Model.define()` stores the definition in the process-wide registry. The schema callback is compiled when `msq.model(name)` binds that definition to a runtime. Validation runs for Models that define a schema unless the Model disables validation with `options.validate: false`, an operation passes `skipValidation: true`, or the runtime explicitly disables the schema DSL with `schemaDsl: false` / `{ enabled: false }`.
 
 
 ## Basic usage
@@ -649,7 +651,7 @@ Model.define('users', {
 
 const User = msq.model('users');
 
-//✅ v1.0.7: Verification takes effect automatically (no configuration required)
+// Validation runs automatically for runtime-bound Models with a schema.
 await User.insertOne({
     username: 'john',
     email: 'john@example.com',
@@ -743,28 +745,14 @@ await User.insertOne(doc, { skipValidation: true });
 ```
 
 
-## v1.0.6 Migration Guide
-
-| Version | Verification Behavior | Configuration Method |
-|------|---------|---------|
-| v1.0.6 | Requires explicit enablement | `options: { validate: true }` |
-| v1.0.7 | Enabled by default | No configuration required (effective by default) |
-| v1.0.7 Disabled | Requires explicit disabling | `options: { validate: false }` |
-
-**Upgrade Notes**:
-- ✅ Models with undefined schema are not affected
-- ✅ The code that has been explicitly configured `validate: true` does not need to be modified.
-- ⚠️ If you want to disable it, you need to add `validate: false` configuration
-
-
 ## Performance impact
 
-- **Authentication Overhead**: ~5-10% increase in insertion time
-- **Cache Optimization**: Schema is cached after compilation and reused without additional overhead.
-- **SKIP OPTION**: Can be skipped via `skipValidation` (not recommended)
+- **Validation overhead**: about 5-10% insertion-time overhead in typical schema-heavy paths.
+- **Cache optimization**: schemas are compiled when the Model binds to a runtime and then reused.
+- **Skip option**: validation can be skipped with `skipValidation` for controlled migration or repair jobs.
 
 
-## Best Practices (Schema Validation (enabled by default in v1.0.7))
+## Best Practices
 
 1. **Always define Schema**: Ensure data quality
 2. **Use optional fields appropriately**: Avoid being overly strict
@@ -774,7 +762,7 @@ await User.insertOne(doc, { skipValidation: true });
 
 ## FAQ
 
-**Q: How to validate nested objects? **
+**Q: How to validate nested objects?**
 
 A: Use the nested syntax of schema-dsl:
 
@@ -787,7 +775,7 @@ schema: (dsl) => dsl({
 })
 ```
 
-**Q: How to customize the verification logic? **
+**Q: How to customize the verification logic?**
 
 A: Use hooks to add complex validation:
 
@@ -804,7 +792,7 @@ hooks: (model) => ({
 })
 ```
 
-**Q: How to optimize performance-sensitive scenarios? **
+**Q: How to optimize performance-sensitive scenarios?**
 
 A: You can choose to skip verification when inserting in batches (at your own risk):
 

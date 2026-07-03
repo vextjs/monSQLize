@@ -26,7 +26,7 @@ In the current main / Unreleased version, common user paths such as configuratio
 
 | Error Codes | Common Sources | Priority Checks |
 |--------|----------|----------|
-| `INVALID_CONFIG` | Structure configuration, connection pool configuration, SSH configuration, Redis/distributed capability configuration | Required fields, field types, URI prefix, authentication field, Redis/SSH runtime configuration |
+| `INVALID_CONFIG` | Structure configuration, connection pool configuration, SSH configuration, Redis/distributed capability configuration, Model `schemaDsl` runtime configuration | Required fields, field types, URI prefix, authentication field, Redis/SSH runtime configuration, `schema-dsl/runtime` resolution and API shape |
 | `CONNECTION_FAILED` | MongoDB connection or memory MongoDB startup failed | MongoDB address, network, authentication, service status, `error.cause` |
 | `NOT_CONNECTED` | `connect()` before accessing the collection, Model, SSH tunnel address | `await msq.connect()` first to confirm the connection life cycle |
 | `CACHE_UNAVAILABLE` | The cache instance is invalid and lacks available cache capability | Whether the incoming cache implements `get`/`set` and whether the Redis configuration is reachable |
@@ -701,6 +701,7 @@ try {
 - Configuration parameter error
 - Missing required configuration items
 - Configuration format is incorrect
+- Model `schemaDsl` runtime cannot resolve `schema-dsl/runtime`, exposes an incompatible API shape, or receives invalid runtime options
 
 **Example**:
 ```javascript
@@ -718,6 +719,7 @@ try {
 - Check configuration parameters
 - Refer to documentation to confirm required configuration
 - Verify configuration format
+- For Model schema validation, check bundled dependency installation, package-manager pruning, runtime module resolution, and the `schemaDsl` runtime/options/extensions configuration
 
 ---
 

@@ -200,6 +200,328 @@ function stableNestedArrowParamTenantIdExtension(): Record<string, unknown> {
     };
 }
 
+function stableObjectMethodLocalTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-object-method-local-stable',
+        factoryName: 'tenantObjectMethodLocalStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const helper = {
+                value(): string {
+                    const pattern = '^tenant_[a-z0-9]+$';
+                    return pattern;
+                },
+            };
+            return { type: 'string', pattern: helper.value() };
+        },
+    };
+}
+
+function stableStringKeyObjectMethodLocalTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-object-method-string-key-local-stable',
+        factoryName: 'tenantObjectMethodStringKeyLocalStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const helper = {
+                'value'(): string {
+                    const pattern = '^tenant_[a-z0-9]+$';
+                    return pattern;
+                },
+            };
+            return { type: 'string', pattern: helper.value() };
+        },
+    };
+}
+
+function stableNumberKeyObjectMethodLocalTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-object-method-number-key-local-stable',
+        factoryName: 'tenantObjectMethodNumberKeyLocalStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const helper = {
+                1(): string {
+                    const pattern = '^tenant_[a-z0-9]+$';
+                    return pattern;
+                },
+            };
+            return { type: 'string', pattern: helper[1]() };
+        },
+    };
+}
+
+function stableClassMethodLocalTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-class-method-local-stable',
+        factoryName: 'tenantClassMethodLocalStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const makeBase = (_options: Record<string, boolean>) => class { };
+            class Helper extends makeBase({ enabled: true }) {
+                value(): string {
+                    const pattern = '^tenant_[a-z0-9]+$';
+                    return pattern;
+                }
+            }
+            return { type: 'string', pattern: new Helper().value() };
+        },
+    };
+}
+
+function stableClassExpressionMethodLocalTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-class-expression-method-local-stable',
+        factoryName: 'tenantClassExpressionMethodLocalStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const Helper = class NamedHelper {
+                value(): string {
+                    const pattern = '^tenant_[a-z0-9]+$';
+                    return pattern;
+                }
+            };
+            return { type: 'string', pattern: new Helper().value() };
+        },
+    };
+}
+
+function stableExtendsClassExpressionTenantIdExtension(): Record<string, unknown> {
+    const factory = new Function(`
+        return () => {
+            class Helper extends class {
+                base() {
+                    const pattern = '^tenant_[a-z0-9]+$';
+                    return pattern;
+                }
+            } {
+                value() {
+                    const pattern = '^tenant_[a-z0-9]+$';
+                    return pattern;
+                }
+            }
+            return { type: 'string', pattern: new Helper().value() };
+        };
+    `)() as () => unknown;
+    return {
+        type: 'customType',
+        literal: 'tenant-extends-class-expression-stable',
+        factoryName: 'tenantExtendsClassExpressionStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory,
+    };
+}
+
+function stableNamedClassExpressionClassNameTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-named-class-expression-name-stable',
+        factoryName: 'tenantNamedClassExpressionNameStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const Helper = class NamedHelper {
+                static pattern = '^tenant_[a-z0-9]+$';
+
+                value = NamedHelper.pattern;
+            };
+            return { type: 'string', pattern: new Helper().value };
+        },
+    };
+}
+
+function stableClassFieldTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-class-field-stable',
+        factoryName: 'tenantClassFieldStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            class Helper {
+                value = '^tenant_[a-z0-9]+$';
+            }
+            return { type: 'string', pattern: new Helper().value };
+        },
+    };
+}
+
+function stablePrivateClassFieldTenantIdExtension(): Record<string, unknown> {
+    const factory = new Function(`
+        return () => {
+            class Helper {
+                #pattern = '^tenant_[a-z0-9]+$';
+                value() { return this.#pattern; }
+            }
+            return { type: 'string', pattern: new Helper().value() };
+        };
+    `)() as () => unknown;
+    return {
+        type: 'customType',
+        literal: 'tenant-private-class-field-stable',
+        factoryName: 'tenantPrivateClassFieldStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory,
+    };
+}
+
+function stableClassArrowFieldTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-class-arrow-field-stable',
+        factoryName: 'tenantClassArrowFieldStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            class Helper {
+                value = () => {
+                    const pattern = '^tenant_[a-z0-9]+$';
+                    return pattern;
+                };
+            }
+            return { type: 'string', pattern: new Helper().value() };
+        },
+    };
+}
+
+function stableClassFunctionFieldTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-class-function-field-stable',
+        factoryName: 'tenantClassFunctionFieldStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            class Helper {
+                value = function valueFactory(): string {
+                    const pattern = '^tenant_[a-z0-9]+$';
+                    return pattern;
+                };
+            }
+            return { type: 'string', pattern: new Helper().value() };
+        },
+    };
+}
+
+function stableSemicolonlessClassFieldTenantIdExtension(): Record<string, unknown> {
+    const factory = new Function(`
+        return () => {
+            class Helper {
+                pattern
+                value() { return '^tenant_[a-z0-9]+$'; }
+            }
+            return { type: 'string', pattern: new Helper().value() };
+        };
+    `)() as () => unknown;
+    return {
+        type: 'customType',
+        literal: 'tenant-semicolonless-class-field-stable',
+        factoryName: 'tenantSemicolonlessClassFieldStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory,
+    };
+}
+
+function stableSemicolonlessClassArrowFieldBeforeMethodTenantIdExtension(): Record<string, unknown> {
+    const factory = new Function(`
+        return () => {
+            class Helper {
+                value = () => '^tenant_[a-z0-9]+$'
+                method() {
+                    const pattern = '^tenant_[a-z0-9]+$';
+                    return pattern;
+                }
+            }
+            return { type: 'string', pattern: new Helper().method() };
+        };
+    `)() as () => unknown;
+    return {
+        type: 'customType',
+        literal: 'tenant-semicolonless-class-arrow-field-before-method-stable',
+        factoryName: 'tenantSemicolonlessClassArrowFieldBeforeMethodStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory,
+    };
+}
+
+function objectMethodShadowedClosureTenantIdExtension(pattern: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-object-method-shadowed-closure',
+        factoryName: 'tenantObjectMethodShadowedClosure',
+        schema: { type: 'string' },
+        factory: () => {
+            const helper = {
+                value(): string {
+                    const pattern = 'local';
+                    return pattern;
+                },
+            };
+            void helper.value();
+            return { type: 'string', pattern };
+        },
+    };
+}
+
+function extendsClassExpressionClosureTenantIdExtension(pattern: string): Record<string, unknown> {
+    const factory = new Function('pattern', `
+        return () => {
+            class Helper extends class {
+                base() {
+                    const pattern = 'local';
+                    return pattern;
+                }
+            } {
+                value() {
+                    return pattern;
+                }
+            }
+            return { type: 'string', pattern: new Helper().value() };
+        };
+    `)(pattern) as () => unknown;
+    return {
+        type: 'customType',
+        literal: 'tenant-extends-class-expression-closure',
+        factoryName: 'tenantExtendsClassExpressionClosure',
+        schema: { type: 'string' },
+        factory,
+    };
+}
+
+function namedClassExpressionNameClosureTenantIdExtension(pattern: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-named-class-expression-name-closure',
+        factoryName: 'tenantNamedClassExpressionNameClosure',
+        schema: { type: 'string' },
+        factory: () => {
+            const Helper = class pattern {
+                value(): string {
+                    return 'stable';
+                }
+            };
+            void Helper;
+            return { type: 'string', pattern };
+        },
+    };
+}
+
+function classArrowFieldClosureTenantIdExtension(pattern: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-class-arrow-field-closure',
+        factoryName: 'tenantClassArrowFieldClosure',
+        schema: { type: 'string' },
+        factory: () => {
+            class Helper {
+                value = () => pattern;
+            }
+            return { type: 'string', pattern: new Helper().value() };
+        },
+    };
+}
+
 function nestedFunctionBodyClosureTenantIdExtension(pattern: string): Record<string, unknown> {
     return {
         type: 'customType',
@@ -211,6 +533,42 @@ function nestedFunctionBodyClosureTenantIdExtension(pattern: string): Record<str
                 return pattern;
             }
             return { type: 'string', pattern: helper() };
+        },
+    };
+}
+
+function classMethodNameClosureTenantIdExtension(pattern: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-class-method-name-closure',
+        factoryName: 'tenantClassMethodNameClosure',
+        schema: { type: 'string' },
+        factory: () => {
+            class Helper {
+                pattern(): string {
+                    return pattern;
+                }
+            }
+            return { type: 'string', pattern: new Helper().pattern() };
+        },
+    };
+}
+
+function classMethodShadowedClosureTenantIdExtension(pattern: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-class-method-shadowed-closure',
+        factoryName: 'tenantClassMethodShadowedClosure',
+        schema: { type: 'string' },
+        factory: () => {
+            class Helper {
+                value(): string {
+                    const pattern = 'local';
+                    return pattern;
+                }
+            }
+            void new Helper().value();
+            return { type: 'string', pattern };
         },
     };
 }
@@ -337,6 +695,225 @@ function templateClosureTenantIdExtension(pattern: string): Record<string, unkno
         schema: { type: 'string' },
         factory: () => ({ type: 'string', pattern: `${pattern}` }),
     };
+}
+
+function createSourceFactory(source: string): () => unknown {
+    return Function(`return (${source})`)() as () => unknown;
+}
+
+function stableClassSuperTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-class-super-stable',
+        factoryName: 'tenantClassSuperStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            class Base {
+                value(): string {
+                    return '^tenant_[a-z0-9]+$';
+                }
+            }
+            class Helper extends Base {
+                value(): string {
+                    return super.value();
+                }
+            }
+            return { type: 'string', pattern: new Helper().value() };
+        },
+    };
+}
+
+function stableObjectSuperTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-object-super-stable',
+        factoryName: 'tenantObjectSuperStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const base = {
+                value(): string {
+                    return '^tenant_[a-z0-9]+$';
+                },
+            };
+            const helper = {
+                __proto__: base,
+                value(): string {
+                    return super.value();
+                },
+            };
+            return { type: 'string', pattern: helper.value() };
+        },
+    };
+}
+
+function stableDynamicImportTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-dynamic-import-stable',
+        factoryName: 'tenantDynamicImportStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: createSourceFactory(`function factory() {
+void import('node:fs')
+return { type: 'string', pattern: '^tenant_[a-z0-9]+$' }
+}`),
+    };
+}
+
+function stableDebuggerTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-debugger-stable',
+        factoryName: 'tenantDebuggerStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: createSourceFactory(`function factory() {
+debugger
+return { type: 'string', pattern: '^tenant_[a-z0-9]+$' }
+}`),
+    };
+}
+
+function stableWithTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-with-stable',
+        factoryName: 'tenantWithStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: createSourceFactory(`function factory() {
+with ({ noop: true }) {}
+return { type: 'string', pattern: '^tenant_[a-z0-9]+$' }
+}`),
+    };
+}
+
+function stableSemicolonlessMultipleDeclarationsTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-semicolonless-multiple-decls-stable',
+        factoryName: 'tenantSemicolonlessMultipleDeclsStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: createSourceFactory(`function factory() {
+const prefix = '^tenant_'
+const suffix = '[a-z0-9]+$'
+return { type: 'string', pattern: prefix + suffix }
+}`),
+    };
+}
+
+function stableSemicolonlessDestructureTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-semicolonless-destructure-stable',
+        factoryName: 'tenantSemicolonlessDestructureStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: createSourceFactory(`function factory() {
+const { pattern } = { pattern: '^tenant_[a-z0-9]+$' }
+return { type: 'string', pattern }
+}`),
+    };
+}
+
+function stableSemicolonlessNestedHelperTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-semicolonless-nested-helper-stable',
+        factoryName: 'tenantSemicolonlessNestedHelperStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: createSourceFactory(`function factory() {
+function helper() {
+const pattern = '^tenant_[a-z0-9]+$'
+return pattern
+}
+return { type: 'string', pattern: helper() }
+}`),
+    };
+}
+
+function semicolonlessNoInitializerClosureTenantIdExtension(pattern: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-semicolonless-no-initializer-closure',
+        factoryName: 'tenantSemicolonlessNoInitializerClosure',
+        schema: { type: 'string' },
+        factory: createSourceFactory(`function factory() {
+let local
+pattern
+return { type: 'string', pattern }
+}`),
+    };
+}
+
+function stableBreakLabelTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-break-label-stable',
+        factoryName: 'tenantBreakLabelStable',
+        schema: { type: 'number', minimum: 1 },
+        factory: createSourceFactory(`function factory() {
+let minimum = 0
+outer: for (const value of [1]) {
+minimum += value
+break outer
+}
+return { type: 'number', minimum }
+}`),
+    };
+}
+
+function stableContinueLabelTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-continue-label-stable',
+        factoryName: 'tenantContinueLabelStable',
+        schema: { type: 'number', minimum: 1 },
+        factory: createSourceFactory(`function factory() {
+let minimum = 0
+outer: for (const value of [0, 1]) {
+if (value === 0) continue outer
+minimum += value
+}
+return { type: 'number', minimum }
+}`),
+    };
+}
+
+async function assertSharedRuntimeExtensionsStable(
+    databaseName: string,
+    extensionFactories: ReadonlyArray<() => Record<string, unknown>>,
+    literals: readonly string[],
+): Promise<void> {
+    const schemaRuntime = createRuntime();
+    const first = new MonSQLize({
+        type: 'mongodb',
+        databaseName: `${databaseName}_a`,
+        config: {
+            uri: 'mongodb://127.0.0.1:1',
+            options: { serverSelectionTimeoutMS: 50 },
+        },
+        schemaDsl: { runtime: schemaRuntime, extensions: extensionFactories.map((createExtension) => createExtension()) },
+    });
+    const second = new MonSQLize({
+        type: 'mongodb',
+        databaseName: `${databaseName}_b`,
+        config: {
+            uri: 'mongodb://127.0.0.1:1',
+            options: { serverSelectionTimeoutMS: 50 },
+        },
+        schemaDsl: { runtime: schemaRuntime, extensions: extensionFactories.map((createExtension) => createExtension()) },
+    });
+    first.on?.('error', () => { });
+    second.on?.('error', () => { });
+
+    try {
+        await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+        await assert.rejects(() => second.connect(), /Failed to connect to MongoDB database/);
+        for (const literal of literals) {
+            assert.doesNotThrow(() => schemaRuntime.s({ value: `${literal}!` }));
+        }
+    } finally {
+        await first.close().catch(() => { });
+        await second.close().catch(() => { });
+        schemaRuntime.dispose();
+    }
 }
 
 // Covers:
@@ -1194,6 +1771,283 @@ describe('model — schema-dsl runtime configuration', () => {
         }
     });
 
+    it('does not treat stable object method locals as closure-sensitive dependencies', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_object_method_local_stable_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [
+                    stableObjectMethodLocalTenantIdExtension(),
+                    stableStringKeyObjectMethodLocalTenantIdExtension(),
+                    stableNumberKeyObjectMethodLocalTenantIdExtension(),
+                ],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_object_method_local_stable_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [
+                    stableObjectMethodLocalTenantIdExtension(),
+                    stableStringKeyObjectMethodLocalTenantIdExtension(),
+                    stableNumberKeyObjectMethodLocalTenantIdExtension(),
+                ],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /Failed to connect to MongoDB database/);
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-object-method-local-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-object-method-string-key-local-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-object-method-number-key-local-stable!' }));
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('surfaces closure conflicts when object method locals shadow closure variables', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_object_method_shadowed_closure_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [objectMethodShadowedClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_object_method_shadowed_closure_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [objectMethodShadowedClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('does not treat stable class method locals as closure-sensitive dependencies', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_class_method_local_stable_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [
+                    stableClassMethodLocalTenantIdExtension(),
+                    stableClassExpressionMethodLocalTenantIdExtension(),
+                    stableExtendsClassExpressionTenantIdExtension(),
+                    stableNamedClassExpressionClassNameTenantIdExtension(),
+                    stableClassFieldTenantIdExtension(),
+                    stablePrivateClassFieldTenantIdExtension(),
+                    stableClassArrowFieldTenantIdExtension(),
+                    stableClassFunctionFieldTenantIdExtension(),
+                    stableSemicolonlessClassFieldTenantIdExtension(),
+                    stableSemicolonlessClassArrowFieldBeforeMethodTenantIdExtension(),
+                ],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_class_method_local_stable_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [
+                    stableClassMethodLocalTenantIdExtension(),
+                    stableClassExpressionMethodLocalTenantIdExtension(),
+                    stableExtendsClassExpressionTenantIdExtension(),
+                    stableNamedClassExpressionClassNameTenantIdExtension(),
+                    stableClassFieldTenantIdExtension(),
+                    stablePrivateClassFieldTenantIdExtension(),
+                    stableClassArrowFieldTenantIdExtension(),
+                    stableClassFunctionFieldTenantIdExtension(),
+                    stableSemicolonlessClassFieldTenantIdExtension(),
+                    stableSemicolonlessClassArrowFieldBeforeMethodTenantIdExtension(),
+                ],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /Failed to connect to MongoDB database/);
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-class-method-local-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-class-expression-method-local-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-extends-class-expression-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-named-class-expression-name-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-class-field-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-private-class-field-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-class-arrow-field-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-class-function-field-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-semicolonless-class-field-stable!' }));
+            assert.doesNotThrow(() => schemaRuntime.s({ value: 'tenant-semicolonless-class-arrow-field-before-method-stable!' }));
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('surfaces closure conflicts from class heritage class expressions', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_extends_class_expression_closure_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [extendsClassExpressionClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_extends_class_expression_closure_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [extendsClassExpressionClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('surfaces closure conflicts when named class expression names match closure variables', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_named_class_expression_name_closure_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [namedClassExpressionNameClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_named_class_expression_name_closure_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [namedClassExpressionNameClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('surfaces closure conflicts from class arrow field initializers', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_class_arrow_field_closure_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [classArrowFieldClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_class_arrow_field_closure_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [classArrowFieldClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
     it('surfaces closure conflicts when nested function bodies reference closure variables', async () => {
         const schemaRuntime = createRuntime();
         const first = new MonSQLize({
@@ -1218,6 +2072,84 @@ describe('model — schema-dsl runtime configuration', () => {
             schemaDsl: {
                 runtime: schemaRuntime,
                 extensions: [nestedFunctionBodyClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('surfaces closure conflicts when class method locals shadow closure variables', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_class_method_shadowed_closure_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [classMethodShadowedClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_class_method_shadowed_closure_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [classMethodShadowedClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('surfaces closure conflicts when class method names match closure variables', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_class_method_name_closure_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [classMethodNameClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_class_method_name_closure_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [classMethodNameClosureTenantIdExtension('^other_[a-z0-9]+$')],
             },
         });
         first.on?.('error', () => { });
@@ -1468,6 +2400,95 @@ describe('model — schema-dsl runtime configuration', () => {
             await second.close().catch(() => { });
             schemaRuntime.dispose();
         }
+    });
+
+    it('does not treat stable reserved syntax tokens as closure-sensitive factory dependencies', async () => {
+        await assertSharedRuntimeExtensionsStable(
+            'test_schema_runtime_reserved_token_extensions',
+            [
+                stableClassSuperTenantIdExtension,
+                stableObjectSuperTenantIdExtension,
+                stableDynamicImportTenantIdExtension,
+                stableDebuggerTenantIdExtension,
+                stableWithTenantIdExtension,
+            ],
+            [
+                'tenant-class-super-stable',
+                'tenant-object-super-stable',
+                'tenant-dynamic-import-stable',
+                'tenant-debugger-stable',
+                'tenant-with-stable',
+            ],
+        );
+    });
+
+    it('does not treat stable semicolonless local declarations as closure-sensitive factory dependencies', async () => {
+        await assertSharedRuntimeExtensionsStable(
+            'test_schema_runtime_semicolonless_local_extensions',
+            [
+                stableSemicolonlessMultipleDeclarationsTenantIdExtension,
+                stableSemicolonlessDestructureTenantIdExtension,
+                stableSemicolonlessNestedHelperTenantIdExtension,
+            ],
+            [
+                'tenant-semicolonless-multiple-decls-stable',
+                'tenant-semicolonless-destructure-stable',
+                'tenant-semicolonless-nested-helper-stable',
+            ],
+        );
+    });
+
+    it('surfaces closure conflicts after semicolonless no-initializer local declarations', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_semicolonless_no_initializer_closure_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [semicolonlessNoInitializerClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_semicolonless_no_initializer_closure_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [semicolonlessNoInitializerClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
+    });
+
+    it('does not treat stable break and continue labels as closure-sensitive factory dependencies', async () => {
+        await assertSharedRuntimeExtensionsStable(
+            'test_schema_runtime_label_extensions',
+            [
+                stableBreakLabelTenantIdExtension,
+                stableContinueLabelTenantIdExtension,
+            ],
+            [
+                'tenant-break-label-stable',
+                'tenant-continue-label-stable',
+            ],
+        );
     });
 
     it('does not treat stable template literal local bindings as closure-sensitive factory dependencies', async () => {
