@@ -606,6 +606,51 @@ function globalConstructorTenantIdExtension(): Record<string, unknown> {
     };
 }
 
+function stableNumericLiteralTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-numeric-literal-stable',
+        factoryName: 'tenantNumericLiteralStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: createSourceFactory(`function factory() {
+const big = 1n
+const hex = 0xff
+const amount = 1_000
+const exponent = 1e3
+void big
+void hex
+void amount
+void exponent
+return { type: 'string', pattern: '^tenant_[a-z0-9]+$' }
+}`),
+    };
+}
+
+function stableUnicodeLocalTenantIdExtension(): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-unicode-local-stable',
+        factoryName: 'tenantUnicodeLocalStable',
+        schema: { type: 'string', pattern: '^tenant_[a-z0-9]+$' },
+        factory: () => {
+            const café = '^tenant_[a-z0-9]+$';
+            const π = café.length;
+            void π;
+            return { type: 'string', pattern: café };
+        },
+    };
+}
+
+function unicodeClosureTenantIdExtension(café: string): Record<string, unknown> {
+    return {
+        type: 'customType',
+        literal: 'tenant-unicode-closure',
+        factoryName: 'tenantUnicodeClosure',
+        schema: { type: 'string' },
+        factory: () => ({ type: 'string', pattern: café }),
+    };
+}
+
 function shadowedGlobalBuiltinClosureTenantIdExtension(pattern: string): Record<string, unknown> {
     const parseInt = () => pattern;
     return {
@@ -1011,6 +1056,45 @@ describe('model — schema validation failure on insertOne triggers withModelErr
         } catch (err: any) {
             assert.ok(err instanceof Error);
         }
+    });
+
+    it('replaceOne and findOneAndReplace validate full replacement documents', async () => {
+        const modelName = 'schema_replacement_err_' + Date.now();
+        Model.define(modelName, {
+            schema: (s: any) => s({ name: 'string!', age: 'number!' }),
+        });
+        const m = runtime.model(modelName);
+        const first = await m.insertOne({ name: 'Ada', age: 36 });
+        const second = await m.insertOne({ name: 'Grace', age: 37 });
+
+        await assert.rejects(
+            () => m.replaceOne({ _id: first.insertedId }, { name: 'Ada' }),
+            (err: unknown) => Boolean(err && typeof err === 'object' && 'code' in err && err.code === 'VALIDATION_ERROR'),
+        );
+        await assert.doesNotReject(
+            () => m.replaceOne({ _id: first.insertedId }, { name: 'Ada' }, { skipValidation: true }),
+        );
+        await assert.rejects(
+            () => m.findOneAndReplace({ _id: second.insertedId }, { age: 37 }),
+            (err: unknown) => Boolean(err && typeof err === 'object' && 'code' in err && err.code === 'VALIDATION_ERROR'),
+        );
+    });
+
+    it('hydrated document save validates full document payloads', async () => {
+        const modelName = 'schema_save_err_' + Date.now();
+        Model.define(modelName, {
+            schema: (s: any) => s({ name: 'string!', age: 'number!' }),
+        });
+        const m = runtime.model(modelName);
+        const inserted = await m.insertOne({ name: 'Katherine', age: 40 });
+        const doc = await m.findOne({ _id: inserted.insertedId });
+        assert.ok(doc);
+        delete (doc as Record<string, unknown>).age;
+
+        await assert.rejects(
+            () => doc.save(),
+            (err: unknown) => Boolean(err && typeof err === 'object' && 'code' in err && err.code === 'VALIDATION_ERROR'),
+        );
     });
 });
 
@@ -2489,6 +2573,59 @@ describe('model — schema-dsl runtime configuration', () => {
                 'tenant-continue-label-stable',
             ],
         );
+    });
+
+    it('does not treat numeric literal tokens or Unicode local bindings as closure-sensitive factory dependencies', async () => {
+        await assertSharedRuntimeExtensionsStable(
+            'test_schema_runtime_numeric_unicode_extensions',
+            [
+                stableNumericLiteralTenantIdExtension,
+                stableUnicodeLocalTenantIdExtension,
+            ],
+            [
+                'tenant-numeric-literal-stable',
+                'tenant-unicode-local-stable',
+            ],
+        );
+    });
+
+    it('surfaces closure conflicts from Unicode identifiers', async () => {
+        const schemaRuntime = createRuntime();
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_unicode_closure_extensions_a',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [unicodeClosureTenantIdExtension('^tenant_[a-z0-9]+$')],
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test_schema_runtime_unicode_closure_extensions_b',
+            config: {
+                uri: 'mongodb://127.0.0.1:1',
+                options: { serverSelectionTimeoutMS: 50 },
+            },
+            schemaDsl: {
+                runtime: schemaRuntime,
+                extensions: [unicodeClosureTenantIdExtension('^other_[a-z0-9]+$')],
+            },
+        });
+        first.on?.('error', () => { });
+        second.on?.('error', () => { });
+
+        try {
+            await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
+            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+        } finally {
+            await first.close().catch(() => { });
+            await second.close().catch(() => { });
+            schemaRuntime.dispose();
+        }
     });
 
     it('does not treat stable template literal local bindings as closure-sensitive factory dependencies', async () => {

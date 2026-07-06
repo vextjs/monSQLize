@@ -22,7 +22,7 @@ import { validateCollectionName, validateDefinition, processTimestamps } from '.
  * Static model registry.
  *
  * Typical usage:
- *   Model.define('users', { schema: (dsl) => dsl({ name: 'string!' }) });
+ *   Model.define('users', { schema: (s) => s({ name: 'string!' }) });
  *   const registered = Model.get('users');
  */
 export class Model {

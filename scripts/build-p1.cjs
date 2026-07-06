@@ -47,6 +47,9 @@ async function main() {
         format: 'cjs',
         target: 'node18',
         sourcemap: emitSourceMaps,
+        define: {
+            MONSQLIZE_IMPORT_META_URL: 'undefined',
+        },
         logLevel: 'info',
     });
 
@@ -59,6 +62,9 @@ async function main() {
         format: 'esm',
         target: 'node18',
         sourcemap: emitSourceMaps,
+        define: {
+            MONSQLIZE_IMPORT_META_URL: 'import.meta.url',
+        },
         logLevel: 'info',
     });
 

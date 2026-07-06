@@ -680,6 +680,11 @@ export class ModelInstance<TDocument = Record<string, unknown>> {
         return this.runModelWrite(() => saveModelDocument(this.collection, document, {
             timestampsConfig: this._timestampsConfig,
             versionConfig: this._versionConfig,
+            schemaValidationContext: {
+                validateEnabled: this._validateEnabled,
+                schemaCache: this._schemaCache,
+                schemaValidateFn: this._schemaValidateFn,
+            },
             nowFactory: () => this.nowDate(),
         }));
     }

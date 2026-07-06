@@ -27,3 +27,26 @@ test('CJS root entry creates a minimal instance and keeps connect / health contr
         (error: unknown) => Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'NOT_CONNECTED'),
     );
 });
+
+test('CJS root entry can initialize the default schema-dsl runtime path', async () => {
+    const msq = new MonSQLize({
+        type: 'mongodb',
+        databaseName: 'cjs_schema_runtime_smoke',
+    });
+
+    try {
+        await assert.rejects(
+            () => msq.connect(),
+            (error: unknown) => Boolean(
+                error
+                && typeof error === 'object'
+                && 'code' in error
+                && error.code === 'INVALID_CONFIG'
+                && 'message' in error
+                && String(error.message).includes('MongoDB connect requires config.uri'),
+            ),
+        );
+    } finally {
+        await msq.close?.().catch(() => { });
+    }
+});

@@ -22,3 +22,28 @@ test('ESM root entry returns default export and named export matrix', async () =
     assert.equal(typeof mod.withCache, 'function');
     assert.equal(typeof mod.FunctionCache, 'function');
 });
+
+test('ESM root entry can initialize the default schema-dsl runtime path', async () => {
+    const entryUrl = pathToFileURL(path.resolve(__dirname, '../../dist/esm/index.mjs')).href;
+    const mod = await import(entryUrl);
+    const msq = new mod.default({
+        type: 'mongodb',
+        databaseName: 'esm_schema_runtime_smoke',
+    });
+
+    try {
+        await assert.rejects(
+            () => msq.connect(),
+            (error: unknown) => Boolean(
+                error
+                && typeof error === 'object'
+                && 'code' in error
+                && error.code === 'INVALID_CONFIG'
+                && 'message' in error
+                && String(error.message).includes('MongoDB connect requires config.uri'),
+            ),
+        );
+    } finally {
+        await msq.close?.().catch(() => { });
+    }
+});

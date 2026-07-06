@@ -11,7 +11,7 @@ export type ModelSchemaDsl = SchemaDslRuntime['s'];
  * Schema DSL transformer function.
  * @since v1.0.0
  */
-export type SchemaDSL = (dsl: ModelSchemaDsl) => unknown;
+export type SchemaDSL = (s: ModelSchemaDsl) => unknown;
 
 /**
  * Default value for a model field — either a static value or a factory function.

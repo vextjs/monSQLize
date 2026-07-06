@@ -445,6 +445,11 @@ export async function orchestrateModelReplaceOne<TDocument = Record<string, unkn
         context.versionConfig,
         lock.expectedVersion,
     );
+    validateModelSchemaPayload({
+        validateEnabled: context.validateEnabled,
+        schemaCache: context.schemaCache,
+        schemaValidateFn: context.schemaValidateFn,
+    }, nextReplacement as Record<string, unknown>, lock.driverOptions as Record<string, unknown> | undefined);
     const result = await context.collection.replaceOne(lock.filter, nextReplacement, lock.driverOptions);
     assertModelOptimisticLockMatched(result, context.versionConfig);
     if (context.hooksFactory) {
@@ -500,6 +505,11 @@ export async function orchestrateModelFindOneAndReplace<TDocument = Record<strin
         context.versionConfig,
         lock.expectedVersion,
     );
+    validateModelSchemaPayload({
+        validateEnabled: context.validateEnabled,
+        schemaCache: context.schemaCache,
+        schemaValidateFn: context.schemaValidateFn,
+    }, nextReplacement as Record<string, unknown>, lock.driverOptions as Record<string, unknown> | undefined);
     const result = await context.extendedCollection().findOneAndReplace(lock.filter, nextReplacement, lock.driverOptions);
     assertModelOptimisticLockDocument(result, context.versionConfig);
     if (context.hooksFactory) {

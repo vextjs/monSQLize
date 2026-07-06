@@ -42,7 +42,7 @@ type ModelSchemaValidationResult = {
 
 export type ModelSchemaValidateFn = ((schema: unknown, document: unknown) => ModelSchemaValidationResult) | null;
 
-type ModelSchemaValidationContext = {
+export type ModelSchemaValidationContext = {
     validateEnabled: boolean;
     schemaCache: unknown;
     schemaValidateFn: ModelSchemaValidateFn;

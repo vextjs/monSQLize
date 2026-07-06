@@ -54,9 +54,9 @@ expectAssignable<ModelDefinition<UserDoc>>({
 });
 
 expectAssignable<ModelDefinition<UserDoc>>({
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         firstName: 'string!',
-        lastName: dsl.string().require(),
+        lastName: s.string().require(),
     }),
 });
 

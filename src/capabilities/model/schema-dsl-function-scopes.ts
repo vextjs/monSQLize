@@ -1,6 +1,8 @@
 import { findLocalDeclarationEnd } from './schema-dsl-local-declarations';
 
-const functionIdentifierPattern = /[A-Za-z_$][\w$]*/g;
+const functionIdentifierPattern = /[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*/gu;
+const simpleFunctionIdentifierPattern = /^[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*$/u;
+const functionIdentifierPartPattern = /[$\u200c\u200d\p{ID_Continue}]/u;
 
 export type FunctionScopeInfo = {
     start: number;
@@ -19,7 +21,7 @@ function addIdentifiersFromPattern(pattern: string, identifiers: Set<string>): v
 }
 
 function isIdentifierPart(char: string | undefined): boolean {
-    return char !== undefined && /[A-Za-z_$\d]/.test(char);
+    return char !== undefined && functionIdentifierPartPattern.test(char);
 }
 
 function splitTopLevel(source: string, delimiter: string): string[] {
@@ -114,7 +116,7 @@ function isIndexInRanges(index: number, ranges: ReadonlyArray<{ start: number; e
 function addBindingIdentifiers(pattern: string, identifiers: Set<string>): void {
     let binding = stripTopLevelDefault(pattern).replace(/^\s*\.\.\./, '').trim();
     if (!binding) return;
-    if (/^[A-Za-z_$][\w$]*$/.test(binding)) {
+    if (simpleFunctionIdentifierPattern.test(binding)) {
         identifiers.add(binding);
         return;
     }
@@ -314,7 +316,7 @@ function getClassMethodNameBinding(header: string, headerStart: number): Functio
     if (remaining.startsWith('[')) {
         return null;
     }
-    const match = /^#?([A-Za-z_$][\w$]*)\s*\(/.exec(remaining);
+    const match = /^#?([$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*)\s*\(/u.exec(remaining);
     if (!match) {
         return null;
     }
@@ -335,7 +337,7 @@ function stripClassMethodModifiers(header: string): string {
 
 function isClassMethodHeader(header: string): boolean {
     const remaining = stripClassMethodModifiers(header);
-    return remaining.startsWith('[') || /^#?[A-Za-z_$][\w$]*\s*\(/.test(remaining);
+    return remaining.startsWith('[') || /^#?[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*\s*\(/u.test(remaining);
 }
 
 function getTrailingClassMethodHeader(header: string): { header: string; offset: number } | null {
@@ -357,7 +359,7 @@ function isObjectMethodHeader(header: string): boolean {
     }
     return remaining.startsWith('(')
         || remaining.startsWith('[')
-        || /^(?:\d+(?:\.\d+)?|#?[A-Za-z_$][\w$]*)\s*\(/.test(remaining);
+        || /^(?:\d+(?:\.\d+)?|#?[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*)\s*\(/u.test(remaining);
 }
 
 function includeMethodModifiers(source: string, start: number): number {
@@ -424,7 +426,7 @@ function getClassFieldNameBinding(header: string, headerStart: number): Function
     if (remaining.startsWith('[')) {
         return null;
     }
-    const match = /^#?([A-Za-z_$][\w$]*)/.exec(remaining);
+    const match = /^#?([$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*)/u.exec(remaining);
     if (!match) {
         return null;
     }
@@ -478,7 +480,7 @@ function isClassDeclarationBinding(source: string, classIndex: number): boolean 
 
 function findClassMemberScopes(source: string): FunctionScopeInfo[] {
     const scopes: FunctionScopeInfo[] = [];
-    for (const match of source.matchAll(/\bclass(?:\s+([A-Za-z_$][\w$]*))?/g)) {
+    for (const match of source.matchAll(/\bclass(?:\s+([$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*))?/gu)) {
         const classIndex = match.index ?? 0;
         const className = match[1];
         if (className) {
@@ -666,7 +668,7 @@ export function addScopedLocalIdentifiers(
         }
         declarationPattern.lastIndex = Math.max(declarationPattern.lastIndex, declarationEnd);
     }
-    for (const match of scopeSource.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)/g)) {
+    for (const match of scopeSource.matchAll(/\bclass\s+([$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*)/gu)) {
         const matchIndex = start + (match.index ?? 0);
         if (isIndexInRanges(matchIndex, excludedRanges)) {
             continue;
@@ -711,7 +713,7 @@ export function findNestedFunctionScopes(source: string, rootArrowIndex: number,
         const bodyEnd = findMatchingBrace(source, bodyStart);
         if (bodyEnd > bodyStart) {
             const header = source.slice(functionIndex, bodyStart);
-            const functionMatch = /function(?:\s+([A-Za-z_$][\w$]*))?\s*\(([^)]*)\)/.exec(header);
+            const functionMatch = /function(?:\s+([$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*))?\s*\(([^)]*)\)/u.exec(header);
             const boundIdentifiers = new Set<string>();
             if (functionMatch?.[1]) {
                 boundIdentifiers.add(functionMatch[1]);

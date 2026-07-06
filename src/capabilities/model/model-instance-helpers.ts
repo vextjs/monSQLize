@@ -22,6 +22,8 @@ import {
     applyModelReplaceVersion,
     assertModelOptimisticLockMatched,
     assertNumericExpectedVersion,
+    validateModelSchemaPayload,
+    type ModelSchemaValidationContext,
     type ModelTimestampConfig,
     type ModelVersionConfig,
 } from './model-write-helpers';
@@ -353,6 +355,7 @@ export async function saveModelDocument<TDocument>(
     options: {
         timestampsConfig?: ModelTimestampConfig;
         versionConfig?: ModelVersionConfig;
+        schemaValidationContext?: ModelSchemaValidationContext;
         nowFactory?: () => Date;
     } = {},
 ): Promise<TDocument & Record<string, unknown>> {
@@ -366,6 +369,9 @@ export async function saveModelDocument<TDocument>(
                 options.versionConfig,
                 expectedVersion,
             ) as Record<string, unknown>;
+            if (options.schemaValidationContext) {
+                validateModelSchemaPayload(options.schemaValidationContext, replacement);
+            }
             const result = await collection.replaceOne(
                 { _id: payload._id, [options.versionConfig.field]: expectedVersion },
                 replacement,
@@ -375,6 +381,9 @@ export async function saveModelDocument<TDocument>(
             Object.assign(document, replacement);
             return document;
         }
+        if (options.schemaValidationContext) {
+            validateModelSchemaPayload(options.schemaValidationContext, payload);
+        }
         await collection.replaceOne({ _id: payload._id }, payload, { upsert: true });
         return document;
     }
@@ -382,6 +391,9 @@ export async function saveModelDocument<TDocument>(
         applyModelInsertTimestamps(payload, options.timestampsConfig ?? null, nowFactory),
         options.versionConfig ?? null,
     );
+    if (options.schemaValidationContext) {
+        validateModelSchemaPayload(options.schemaValidationContext, payload);
+    }
     const result = await collection.insertOne(payload);
     Object.assign(document, payload);
     (document as Record<string, unknown>)._id = result.insertedId;
