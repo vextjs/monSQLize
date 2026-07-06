@@ -1,49 +1,5 @@
 # Collection management
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Core Features](#core-features)
-- [API methods](#api-methods)
-- [createCollection()](#createcollection)
-  - [Method signature](#method-signature)
-  - [Parameter description](#parameter-description)
-  - [options options](#options-options)
-  - [Return value](#return-value)
-- [Usage example](#usage-example)
-- [Basic usage](#basic-usage)
-  - [1. Create a standard collection](#1-create-a-standard-collection)
-  - [2. Create the currently bound collection](#2-create-the-currently-bound-collection)
-  - [3. Create a fixed-size collection (Capped Collection)](#3-create-a-fixed-size-collection-capped-collection)
-  - [4. Create a collection with validation rules](#4-create-a-collection-with-validation-rules)
-- [dropCollection()](#dropcollection)
-  - [Method signature (dropCollection())](#method-signature-dropcollection)
-  - [Parameter description (dropCollection())](#parameter-description-dropcollection)
-  - [Return value (dropCollection())](#return-value-dropcollection)
-  - [Usage example (dropCollection())](#usage-example-dropcollection)
-  - [⚠️ Notes](#notes)
-- [createView()](#createview)
-  - [Method signature (createView())](#method-signature-createview)
-  - [Parameter description (createView())](#parameter-description-createview)
-  - [Return value (createView())](#return-value-createview)
-- [View collection example](#view-collection-example)
-- [1. Create a base view](#1-create-a-base-view)
-- [2. Create statistical view](#2-create-statistical-view)
-- [3. Create a connection view ($lookup)](#3-create-a-connection-view-lookup)
-- [4. Create a time series view](#4-create-a-time-series-view)
-- [Best Practices](#best-practices)
-- [1. Collection naming convention](#1-collection-naming-convention)
-- [2. Use of verification rules](#2-use-of-verification-rules)
-- [3. Performance considerations of views](#3-performance-considerations-of-views)
-- [4. Usage scenarios of fixed collections](#4-usage-scenarios-of-fixed-collections)
-- [FAQ](#faq)
-- [Q1: How to check if a collection already exists?](#q1-how-to-check-if-a-collection-already-exists)
-- [Q2: How to avoid accidental deletion when deleting a collection?](#q2-how-to-avoid-accidental-deletion-when-deleting-a-collection)
-- [Q3: Can views be modified?](#q3-can-views-be-modified)
-- [Q4: What are the restrictions on fixed collections?](#q4-what-are-the-restrictions-on-fixed-collections)
-- [Q5: How to create collections in batches?](#q5-how-to-create-collections-in-batches)
-- [References](#references)
-
 ## Overview
 
 monSQLize provides the basic functions of MongoDB collection management, including creating collections, deleting collections, and creating view collections. These methods are used to dynamically manage database structures.
@@ -555,7 +511,7 @@ const { db } = await msq.connect();
 const database = db();
 
 //list all collections
-const collections = await database.listCollections().toArray();
+const collections = await database.listCollections();
 const collectionNames = collections.map(c => c.name);
 
 if (collectionNames.includes('myCollection')) {
@@ -575,7 +531,7 @@ if (collectionNames.includes('myCollection')) {
 
 ```javascript
 //1. First check whether the collection exists
-const collections = await db().listCollections({ name: 'oldCollection' }).toArray();
+const collections = await db().listCollections({ name: 'oldCollection' });
 
 if (collections.length === 0) {
   console.log('Collection does not exist');

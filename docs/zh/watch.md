@@ -1,26 +1,5 @@
-# watch 方法 API 文档
+# watch() API
 
-> **版本**: v1.1.0  
-> **状态**: ✅ 已实现
-
----
-
-## 📑 目录
-
-- [概述](#概述)
-- [基本用法](#基本用法)
-- [API 参考](#api-参考)
-- [配置选项](#配置选项)
-- [ChangeStream 原生方法](#changestream-原生方法)
-- [使用示例](#使用示例)
-- [自动缓存失效](#自动缓存失效)
-- [注意事项](#注意事项)
-- [故障排查](#故障排查)
-- [watch 事件 vs 全局事件](#watch-事件-vs-全局事件)
-- [相关文档](#相关文档)
-- [版本历史](#版本历史)
-
----
 
 ## 概述
 
@@ -241,7 +220,7 @@ const syncManager = new MonSQLize.ChangeStreamSyncManager({
 await syncManager.start();
 ```
 
-**跨实例同步**: 如需分布式缓存同步，请使用 [`DistributedCacheInvalidator`](./cache-and-function-cache.md)，它支持通过 Pub/Sub 广播失效信号到其他实例。
+**跨实例缓存失效**：请使用 Cache API 的 `cache.distributed` 配置，并参考 [分布式部署指南](./distributed-deployment.md)。
 
 ---
 
@@ -263,7 +242,7 @@ Error: The $changeStream stage is only supported on replica sets
 const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'mydb',
-  config: { 
+  config: {
     useMemoryServer: true,
     memoryServerOptions: {
       instance: {
@@ -414,8 +393,4 @@ cs.on('change', (change) => {
 - [事件系统](./events.md)
 
 ---
-
-## 版本历史
-
-- **v1.1.0** (2025-12): 首次发布 watch 功能
 

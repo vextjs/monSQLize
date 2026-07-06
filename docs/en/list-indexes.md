@@ -2,43 +2,6 @@
 
 Lists all indexes for a collection, used for index auditing, monitoring, and management.
 
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [Return value](#return-value)
-- [Index field description](#index-field-description)
-- [Common fields](#common-fields)
-- [Option fields](#option-fields)
-- [Code Example](#code-example)
-- [Example 1: List all indexes](#example-1-list-all-indexes)
-- [Example 2: Find a specific index](#example-2-find-a-specific-index)
-- [Example 3: Check if the index exists](#example-3-check-if-the-index-exists)
-- [Example 4: Filter indexes of specific types](#example-4-filter-indexes-of-specific-types)
-- [Example 5: Index information display](#example-5-index-information-display)
-- [Example 6: Processing when the collection does not exist](#example-6-processing-when-the-collection-does-not-exist)
-- [Example 7: Index statistical analysis](#example-7-index-statistical-analysis)
-- [Example 8: Index comparison (deployment verification)](#example-8-index-comparison-deployment-verification)
-- [Practical application](#practical-application)
-- [1. Index audit](#1-index-audit)
-- [2. Index monitoring](#2-index-monitoring)
-- [3. Deployment verification](#3-deployment-verification)
-- [Error handling](#error-handling)
-- [Collection does not exist](#collection-does-not-exist)
-- [Permission issue](#permission-issue)
-- [Performance recommendations](#performance-recommendations)
-- [1. Cache index information](#1-cache-index-information)
-- [2. Reduce call frequency](#2-reduce-call-frequency)
-- [Best Practices](#best-practices)
-- [1. Index documentation](#1-index-documentation)
-- [2. Index naming specification check](#2-index-naming-specification-check)
-- [3. Regular audits](#3-regular-audits)
-- [Related methods](#related-methods)
-- [Reference resources](#reference-resources)
-
 ## Overview
 
 The `listIndexes()` method returns all index information of the collection, including index names, keys, options and other details.
@@ -637,4 +600,3 @@ async function dailyIndexAudit() {
 
 - [MongoDB listIndexes Documentation](https://www.mongodb.com/docs/manual/reference/method/db.collection.getIndexes/)
 - [Index information field](https://www.mongodb.com/docs/manual/reference/command/listIndexes/)
-

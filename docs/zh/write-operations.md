@@ -1,30 +1,15 @@
 # 写入操作（Write Operations）
 
-## 📑 目录
-
-- [概述](#概述)
-- [API 参数说明](#api-参数说明)
-- [使用示例](#使用示例)
-- [性能优化](#性能优化)
-- [最佳实践](#最佳实践)
-- [慢查询监控](#慢查询监控)
-- [常见问题](#常见问题)
-- [参考资料](#参考资料)
-
----
-
-本文档详细介绍 monSQLize 的写入操作 API，包括 `insertOne` 和 `insertMany`。
-
----
-
 ## 概述
 
-monSQLize 提供两种写入方法：
+本页介绍 collection 级别的插入 API。需要 MongoDB 原生写入行为，同时希望使用 monSQLize 的缓存失效、统一错误和慢操作监控时，可以使用这些方法。
 
 | 方法 | 用途 | 性能 | 适用场景 |
 |------|------|------|---------|
 | **insertOne** | 插入单个文档 | ~10-20ms/条 | 实时单条写入、交互式操作 |
 | **insertMany** | 批量插入文档 | ~0.5-1ms/条 **(10-50x 更快)** | 数据导入、批量创建、初始化数据 |
+
+如果写入必须经过 schema defaults、hooks、timestamps、version、soft delete 或乐观锁，请使用 Model 层。需要在运行时强制这一规则时，配置 [写路径策略](./write-path-policy.md)。
 
 ### 🔵 MongoDB 原生 vs monSQLize 扩展
 
@@ -37,15 +22,6 @@ monSQLize 提供两种写入方法：
 - ✅ **统一错误码** - DUPLICATE_KEY/VALIDATION_ERROR 等统一错误处理
 - ✅ **慢查询监控** - 自动记录耗时超过阈值的写入操作
 - ✅ **详细日志** - DEBUG/WARN 级别的操作日志
-
-**核心特性**:
-- ✅ **自动缓存失效** 🔧 - 插入后自动清理相关缓存（monSQLize 扩展）
-- ✅ **写确认级别** ✅ - 支持自定义 writeConcern（MongoDB 原生）
-- ✅ **错误处理** 🔧 - 统一错误码（monSQLize 扩展）
-- ✅ **日志跟踪** ✅ - 支持 comment 参数用于生产环境监控（MongoDB 原生）
-- ✅ **慢查询监控** 🔧 - 自动记录耗时超过阈值的写入操作（monSQLize 扩展）
-
----
 
 ## API 参数说明
 
@@ -332,7 +308,7 @@ try {
 
 #### 7. 自动缓存失效
 
-插入操作会**自动清理相关缓存**，无需手动调用 `invalidate()`。
+写入成功后，monSQLize 会触发相关集合查询缓存的失效。缓存失效是写入后的 best-effort 步骤，具体一致性边界见 [缓存 API](./cache.md)。
 
 ```javascript
 // 第 1 步: 查询产品（缓存结果）
@@ -348,7 +324,7 @@ await collection('products').insertOne({
   category: 'electronics',
   price: 599
 });
-console.log('✅ 插入后自动清理缓存');
+console.log('插入后已触发缓存失效');
 
 // 第 3 步: 再次查询（缓存已失效，重新查询数据库）
 const products2 = await collection('products').find(

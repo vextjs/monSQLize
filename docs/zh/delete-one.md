@@ -1,21 +1,5 @@
 # deleteOne() - 删除单个文档
 
-## 📑 目录
-
-- [语法](#语法)
-- [参数](#参数)
-- [返回值](#返回值)
-- [核心特性](#核心特性)
-- [常见场景](#常见场景)
-- [与其他方法的区别](#与其他方法的区别)
-- [错误处理](#错误处理)
-- [性能优化建议](#性能优化建议)
-- [注意事项](#注意事项)
-- [相关方法](#相关方法)
-- [示例代码](#示例代码)
-- [MongoDB 文档](#mongodb-文档)
-
----
 
 `deleteOne()` 方法删除集合中第一个匹配筛选条件的文档。
 
@@ -38,9 +22,9 @@ collection(name).deleteOne(filter, options?)
 await collection("users").deleteOne({ userId: "user123" });
 
 // 使用查询操作符
-await collection("products").deleteOne({ 
+await collection("products").deleteOne({
   price: { $lt: 10 },
-  stock: 0 
+  stock: 0
 });
 ```
 
@@ -88,7 +72,7 @@ console.log(result.deletedCount); // 1（或 0 如果没有匹配）
 ```javascript
 // 第一次查询（从数据库）
 const user = await collection("users").findOne(
-  { userId: "user123" }, 
+  { userId: "user123" },
   { cache: 5000 }
 );
 
@@ -97,7 +81,7 @@ await collection("users").deleteOne({ userId: "user123" });
 
 // 再次查询（不会从缓存返回，因为已被清理）
 const deletedUser = await collection("users").findOne(
-  { userId: "user123" }, 
+  { userId: "user123" },
   { cache: 5000 }
 ); // null
 ```
@@ -113,8 +97,8 @@ const monsqlize = new MonSQLize({
 });
 
 // 慢删除操作会被记录
-await collection("logs").deleteOne({ 
-  timestamp: { $lt: new Date("2024-01-01") } 
+await collection("logs").deleteOne({
+  timestamp: { $lt: new Date("2024-01-01") }
 });
 // 日志: [WARN] [deleteOne] 慢操作警告 { duration: 650ms, ... }
 ```
@@ -164,11 +148,11 @@ if (result.deletedCount === 0) {
 ```javascript
 // 强制使用特定索引
 const result = await collection("orders").deleteOne(
-  { 
+  {
     customerId: "cust123",
-    status: "cancelled" 
+    status: "cancelled"
   },
-  { 
+  {
     hint: { customerId: 1, status: 1 },  // 使用复合索引
     comment: "cleanup-cancelled-orders"
   }
@@ -266,8 +250,8 @@ try {
 try {
   await collection("users").deleteOne(
     { userId: "user123" },
-    { 
-      writeConcern: { w: "majority", wtimeout: 1000 } 
+    {
+      writeConcern: { w: "majority", wtimeout: 1000 }
     }
   );
 } catch (error) {
@@ -297,12 +281,12 @@ await collection("users").deleteOne({ userId: "user123" });
 
 ```javascript
 await collection("orders").deleteOne(
-  { 
+  {
     customerId: "cust123",
     status: "cancelled",
     createdAt: { $lt: new Date("2024-01-01") }
   },
-  { 
+  {
     hint: { customerId: 1, createdAt: 1 }  // 使用复合索引
   }
 );
@@ -387,4 +371,3 @@ await collection("users").deleteOne({ userId: "user123" });
 ## MongoDB 文档
 
 - [MongoDB deleteOne 文档](https://www.mongodb.com/docs/manual/reference/method/db.collection.deleteOne/)
-

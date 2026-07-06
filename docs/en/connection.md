@@ -1,43 +1,15 @@
 # Connection Management
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Core Features](#core-features)
-- [Connection Management API](#connection-management-api)
-  - [connect()](#connect)
-  - [collection()](#collection)
-  - [db()](#db)
-  - [close()](#close)
-- [Cross-Database Access](#cross-database-access)
-- [Error Handling](#error-handling)
-- [Best Practices](#best-practices)
-  - [1. Reuse Connections](#1-reuse-connections)
-  - [2. Manage Application Lifecycle](#2-manage-application-lifecycle)
-  - [3. Retry Connection Failures](#3-retry-connection-failures)
-  - [4. Manage Connections in Tests](#4-manage-connections-in-tests)
-- [Configuration Options](#configuration-options)
-  - [Complete Configuration Example](#complete-configuration-example)
-  - [Configuration Categories](#configuration-categories)
-  - [Common Configuration Scenarios](#common-configuration-scenarios)
-  - [Configuration Validation](#configuration-validation)
-  - [Environment Variable Configuration](#environment-variable-configuration)
-  - [Configuration Priority](#configuration-priority)
-- [FAQ](#faq)
-- [References](#references)
-
----
-
 ## Overview
 
-monSQLize provides connection management for MongoDB applications, including concurrent connection protection, parameter validation, resource cleanup, and cross-database access. This document explains the connection API and the related configuration surface.
+monSQLize provides connection management for MongoDB applications, including safe connection reuse, parameter validation, resource cleanup, and cross-database access. This document explains the connection API and the related configuration surface.
 
 ## Core Features
 
-- Concurrent connection protection: only one connection is established under high concurrency.
+- Safe connection reuse: concurrent `connect()` calls wait for the same connection attempt.
 - Parameter validation: collection and database names are validated before use.
-- Resource cleanup: client resources and internal caches are released by `close()`.
-- Error handling: failed connection attempts clear the in-flight connection lock.
+- Resource cleanup: client resources and runtime caches are released by `close()`.
+- Error handling: failed connection attempts can be retried safely.
 - Cross-database access: a single instance can access collections in other databases.
 
 ---
@@ -92,7 +64,7 @@ const analyticsEvents = use('analytics').collection('events');
 
 ### Concurrent Connection Protection
 
-`connect()` includes an internal lock so that high-concurrency code establishes one client connection instead of opening many duplicate clients.
+`connect()` is safe to call from concurrent request handlers. Concurrent calls wait for the same connection attempt instead of opening duplicate clients.
 
 #### How It Works
 
@@ -236,7 +208,7 @@ async close()
 - Closes the MongoDB client connection.
 - Clears the instance ID cache (`_iidCache`).
 - Clears the connection lock (`_connecting`).
-- Clears the `ModelInstance` cache in v1.2.1+.
+- Clears the `ModelInstance` cache.
 - Releases internal references.
 
 #### Usage Example
@@ -576,7 +548,7 @@ const msq = new MonSQLize({
   databaseName: 'myapp',
 
   config: {
-    uri: 'mongodb://localhost:27017',
+    uri: 'mongodb://mongouser:pass@mongodb.internal:27017/myapp',
     options: {
       maxPoolSize: 10,
       minPoolSize: 2,
@@ -593,17 +565,7 @@ const msq = new MonSQLize({
       host: 'jump-server.example.com',
       port: 22,
       username: 'user',
-
-      // Choose one authentication method: password, privateKeyPath, or privateKey.
-      // Authentication method 1: password.
       password: 'your-password',
-
-      // Authentication method 2: private-key file path. Supports ~ expansion.
-      privateKeyPath: '~/.ssh/id_rsa',
-
-      // Authentication method 3: private-key content.
-      privateKey: '-----BEGIN RSA PRIVATE KEY-----...',
-      passphrase: 'key-passphrase',
 
       // Target MongoDB server. Usually inferred from uri.
       // It usually does not need to be set manually.
@@ -661,7 +623,7 @@ const msq = new MonSQLize({
   // Namespace configuration for cache isolation.
   // ========================================
   namespace: {
-    scope: 'database',
+    scope: 'database', // 'database' | 'connection'
     instanceId: 'server-01'
   },
 
@@ -678,29 +640,29 @@ const msq = new MonSQLize({
 
   // ========================================
   // Multiple connection pools.
-  // v1.0.8+.
+  // Recommended path: declare pools in new MonSQLize(...).
   // ========================================
-  pools: {
-    primary: {
-      uri: 'mongodb://localhost:27017',
+  pools: [
+    {
+      name: 'primary',
+      uri: 'mongodb://primary:27017/app',
+      role: 'primary',
       options: { maxPoolSize: 10 }
     },
-    secondary: {
-      uri: 'mongodb://secondary:27017',
-      options: { maxPoolSize: 5 }
-    },
-    analytics: {
-      uri: 'mongodb://analytics:27017',
+    {
+      name: 'analytics',
+      uri: 'mongodb://analytics:27017/app',
+      role: 'analytics',
+      tags: ['reporting'],
       options: { maxPoolSize: 3 }
     }
-  },
+  ],
   poolStrategy: 'auto',
-  poolFallback: true,
+  poolFallback: { enabled: true, fallbackStrategy: 'primary' },
   maxPoolsCount: 5,
 
   // ========================================
   // ObjectId auto conversion.
-  // v1.3.0+.
   // ========================================
   autoConvertObjectId: true,
 
@@ -728,55 +690,44 @@ const msq = new MonSQLize({
 
   // ========================================
   // Persistent slow-query log storage.
-  // v1.3.1+.
   // ========================================
   slowQueryLog: {
     enabled: true,
-    storage: 'mongodb',
-    collection: 'slow_queries',
-    databaseName: 'logs',
-
-    file: {
-      // File storage configuration. Used when storage='file'.
-      path: './logs/slow-queries.log',
-      maxSize: '10M',
-      maxFiles: 5
+    storage: {
+      type: 'mongodb',
+      useBusinessConnection: true,
+      database: 'logs',
+      collection: 'slow_queries',
+      ttl: 7 * 24 * 3600
     },
-
-    // Filter. Default: undefined, which records all slow queries.
-    filter: (query) => {
-      return query.duration > 1000;
+    filter: {
+      minExecutionTimeMs: 1000,
+      excludeCollections: ['healthchecks']
     }
   },
 
   // ========================================
   // Model auto loading.
-  // v1.4.0+.
   // ========================================
   models: {
-    enabled: true,
-    dir: './models',
-    pattern: '**/*.js',
-    // Custom loader. Default: require.
-    loader: (filePath) => {
-      return require(filePath);
-    }
+    path: './models',
+    pattern: '*.model.{js,mjs,cjs}',
+    recursive: false
   },
 
   // ========================================
   // Change Stream synchronization.
-  // v1.0.9+.
   // ========================================
   sync: {
     enabled: true,
     collections: ['users', 'orders'],
-
-    target: {
-      // Synchronization target configuration.
-      type: 'mongodb',
-      uri: 'mongodb://backup:27017',
-      databaseName: 'backup'
-    },
+    targets: [
+      {
+        name: 'backup',
+        uri: 'mongodb://backup:27017',
+        databaseName: 'backup'
+      }
+    ],
 
     resumeToken: {
       // Resume Token configuration.
@@ -829,7 +780,7 @@ const msq = new MonSQLize({
 |--------|------|---------|-------------|
 | `namespace` | object | `{ scope: 'database' }` | Namespace settings for cache isolation. |
 | `countQueue` | object | `{ enabled: true }` | Count queue configuration. |
-| `pools` | object | - | Multiple connection-pool configuration. |
+| `pools` | `PoolConfig[]` | - | Multiple connection-pool configuration declared in the constructor. Each pool includes `name` and `uri`. |
 | `autoConvertObjectId` | boolean \| object | `true` | ObjectId auto conversion. Defaults to value-based conversion; supports `enabled`, `excludeFields`, `{ field: false }`, and `maxDepth` escape hatches. |
 | `cursorSecret` | string | - | HMAC secret for signing `findPage()` cursor tokens. |
 | `requireCursorSecret` | boolean | `false` | When true, `findPage()` rejects usage until `cursorSecret` is configured. |
@@ -842,7 +793,7 @@ const msq = new MonSQLize({
 | `sync.resumeToken.strictSave` | boolean | `true` | When true, token save failures stop Change Stream sync before the resume token can advance. |
 | `sync.resumeToken.saveRetries` | number | `0` | Retry attempts before a strict token save fails. |
 | `sync.resumeToken.saveRetryDelayMs` | number | `100` | Delay between token-save retries. |
-| `config.ssh` | object | - | SSH tunnel configuration. `ssh2` is installed with monsqlize. |
+| `config.ssh` | object | - | SSH tunnel configuration for connecting through a bastion host. |
 
 ### Common Configuration Scenarios
 

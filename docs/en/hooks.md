@@ -1,6 +1,5 @@
 # Hooks API - life cycle hooks
 
-**Version**: v1.0.6+
 **Function**: Model layer life cycle hook, execute custom logic before and after data operation
 
 ---
@@ -8,6 +7,8 @@
 ## 📖 Overview
 
 Hooks provides a life cycle hook mechanism, allowing you to execute custom logic before and after database operations to implement functions such as password encryption, audit logs, data verification, and cache invalidation.
+
+Use the standard object hook form for new Model code. Hook callbacks receive a `HookContext` object and should mutate context data in place or perform side effects.
 
 
 ## Core Features
@@ -19,10 +20,6 @@ Hooks provides a life cycle hook mechanism, allowing you to execute custom logic
 - ✅ **ERROR HANDLING** - Errors thrown in hooks block operations
 - ✅ **Context Delivery** - Provides rich contextual information
 
-> Compatibility note: monSQLize supports two hook shapes. The legacy v1 `hooks: (model) => ({ insert/update/delete/find })` factory may return modified arguments or results where the v1 compatibility layer consumes them. The standard object form (`hooks: { beforeCreate, beforeUpdate, ... }`) is observer/mutate-in-place oriented: its TypeScript contract returns `void`, and returned values are ignored.
-
----
-
 ## 🚀 Quick Start
 
 
@@ -32,25 +29,21 @@ Hooks provides a life cycle hook mechanism, allowing you to execute custom logic
 import { Model } from 'monsqlize';
 
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         password: 'string!'
     }),
-    hooks: (model) => ({
-        insert: {
-            before: async (ctx, docs) => {
-                //Before inserting: encrypt password
-                if (docs.password) {
-                    docs.password = await bcrypt.hash(docs.password, 10);
-                }
-                return docs;
-            },
-            after: async (ctx, result) => {
-                //After insert: log
-                console.log(`New user registration: ${docs.username}`);
+    hooks: {
+        beforeCreate: async (ctx) => {
+            const doc = ctx.data;
+            if (doc && typeof doc === 'object' && 'password' in doc) {
+                doc.password = await bcrypt.hash(doc.password, 10);
             }
+        },
+        afterCreate: async (ctx) => {
+            console.log('User created:', ctx.result);
         }
-    })
+    }
 });
 ```
 
@@ -254,7 +247,7 @@ hooks: (model) => ({
 const bcrypt = require('bcrypt');
 
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         email: 'email!',
         password: 'string!'
@@ -305,7 +298,7 @@ await User.insertOne({
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     hooks: (model) => ({
         insert: {
             after: async (ctx, result) => {
@@ -349,7 +342,7 @@ Model.define('users', {
 
 ```javascript
 Model.define('orders', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         userId: 'objectId!',
         amount: 'number!',
         status: 'string!'
@@ -393,7 +386,7 @@ Model.define('orders', {
 
 ```javascript
 Model.define('products', {
-    schema: (dsl) => dsl({ name: 'string!', price: 'number!' }),
+    schema: (s) => s({ name: 'string!', price: 'number!' }),
     hooks: (model) => ({
         update: {
             after: async (ctx, result) => {
@@ -417,7 +410,7 @@ Model.define('products', {
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     hooks: (model) => ({
         delete: {
             before: async (ctx, filter) => {
@@ -445,7 +438,7 @@ Model.define('users', {
 
 ```javascript
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         content: 'string!',
         slug: 'string'
@@ -642,7 +635,7 @@ hooks: (model) => ({
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     hooks: (model) => ({
         insert: {
             before: async (ctx, docs) => {
@@ -896,7 +889,7 @@ import { Model } from 'monsqlize';
 
 //User Model
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string:3-32!',
         email: 'email!',
         password: 'string!',
@@ -996,7 +989,7 @@ Model.define('users', {
 
 //Article Model
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         content: 'string!',
         authorId: 'objectId!',
@@ -1137,9 +1130,3 @@ after: async (ctx, result) => {
     }
 }
 ```
-
----
-
-**Document version**: v1.0.6
-**Last updated**: 2026-01-08
-**Maintainer**: monSQLize Team

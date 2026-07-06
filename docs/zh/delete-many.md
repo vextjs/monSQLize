@@ -1,23 +1,5 @@
 # deleteMany() - 批量删除文档
 
-## 📑 目录
-
-- [语法](#语法)
-- [参数](#参数)
-- [返回值](#返回值)
-- [核心特性](#核心特性)
-- [常见场景](#常见场景)
-- [与其他方法的区别](#与其他方法的区别)
-- [批量删除的性能考虑](#批量删除的性能考虑)
-- [错误处理](#错误处理)
-- [安全建议](#安全建议)
-- [注意事项](#注意事项)
-- [实用工具函数](#实用工具函数)
-- [相关方法](#相关方法)
-- [示例代码](#示例代码)
-- [MongoDB 文档](#mongodb-文档)
-
----
 
 `deleteMany()` 方法删除集合中所有匹配筛选条件的文档。
 
@@ -40,8 +22,8 @@ collection(name).deleteMany(filter, options?)
 await collection("users").deleteMany({ status: "inactive" });
 
 // 删除所有过期记录
-await collection("sessions").deleteMany({ 
-  expiresAt: { $lt: new Date() } 
+await collection("sessions").deleteMany({
+  expiresAt: { $lt: new Date() }
 });
 ```
 
@@ -116,8 +98,8 @@ const remainingUsers = await collection("users").find(
 
 ```javascript
 // 大量删除可能触发慢查询警告
-await collection("logs").deleteMany({ 
-  createdAt: { $lt: new Date("2023-01-01") } 
+await collection("logs").deleteMany({
+  createdAt: { $lt: new Date("2023-01-01") }
 });
 // 日志: [WARN] [deleteMany] 慢操作警告 { duration: 1500ms, deletedCount: 50000 }
 ```
@@ -176,12 +158,12 @@ console.log(`删除了 ${result.deletedCount} 条旧日志`);
 ```javascript
 // 删除大量数据时，指定使用索引
 const result = await collection("analytics").deleteMany(
-  { 
+  {
     userId: "user123",
     eventType: "page_view",
     timestamp: { $lt: new Date("2024-01-01") }
   },
-  { 
+  {
     hint: { userId: 1, timestamp: 1 },  // 使用复合索引
     comment: "cleanup-old-analytics",
     maxTimeMS: 30000  // 30秒超时
@@ -248,8 +230,8 @@ console.log(result2.deletedCount); // 0, 1, 5, 100...
 
 ```javascript
 // 不好：一次删除大量文档
-await collection("logs").deleteMany({ 
-  createdAt: { $lt: new Date("2020-01-01") } 
+await collection("logs").deleteMany({
+  createdAt: { $lt: new Date("2020-01-01") }
 }); // 可能删除几百万条
 
 // 好：分批删除
@@ -261,14 +243,14 @@ while (true) {
     { createdAt: { $lt: new Date("2020-01-01") } },
     { maxTimeMS: 5000 }  // 每批最多 5 秒
   );
-  
+
   deletedTotal += result.deletedCount;
   console.log(`已删除 ${deletedTotal} 条`);
-  
+
   if (result.deletedCount < batchSize) {
     break;  // 所有数据已删除
   }
-  
+
   // 暂停一下，避免持续高负载
   await new Promise(resolve => setTimeout(resolve, 100));
 }
@@ -291,12 +273,12 @@ const result = await collection("logs").deleteMany({
 ```javascript
 // 明确指定使用哪个索引
 await collection("events").deleteMany(
-  { 
+  {
     userId: "user123",
     eventType: "click",
     timestamp: { $lt: new Date("2024-01-01") }
   },
-  { 
+  {
     hint: { userId: 1, timestamp: 1 }  // 使用复合索引
   }
 );
@@ -356,8 +338,8 @@ try {
 try {
   await collection("users").deleteMany(
     { status: "inactive" },
-    { 
-      writeConcern: { w: "majority", wtimeout: 5000 } 
+    {
+      writeConcern: { w: "majority", wtimeout: 5000 }
     }
   );
 } catch (error) {
@@ -415,12 +397,12 @@ await collection("users").deleteMany({ status: "inactive" });
 // 软删除（可恢复）
 await collection("users").updateMany(
   { status: "inactive" },
-  { 
-    $set: { 
+  {
+    $set: {
       deleted: true,
       deletedAt: new Date(),
       deletedBy: "admin"
-    } 
+    }
   }
 );
 
@@ -513,45 +495,45 @@ async function safeDeleteMany(collectionName, filter, options = {}) {
     pauseMs = 100,
     dryRun = false
   } = options;
-  
+
   // 1. 先统计总数
   const totalCount = await collection(collectionName).count(filter);
   console.log(`准备删除 ${totalCount} 条数据`);
-  
+
   if (dryRun) {
     console.log("[模拟模式] 不会实际删除");
     return { deletedCount: 0, totalCount };
   }
-  
+
   // 2. 分批删除
   let deletedTotal = 0;
   let batchCount = 0;
-  
+
   while (deletedTotal < totalCount) {
     batchCount++;
-    
+
     const result = await collection(collectionName).deleteMany(
       filter,
       { maxTimeMS }
     );
-    
+
     deletedTotal += result.deletedCount;
     console.log(`[批次 ${batchCount}] 删除 ${result.deletedCount} 条，累计 ${deletedTotal}/${totalCount}`);
-    
+
     if (result.deletedCount === 0) {
       break;  // 没有更多数据可删除
     }
-    
+
     // 暂停一下
     await new Promise(resolve => setTimeout(resolve, pauseMs));
   }
-  
+
   console.log(`✅ 完成！共删除 ${deletedTotal} 条数据`);
   return { deletedCount: deletedTotal, totalCount };
 }
 
 // 使用示例
-await safeDeleteMany("logs", 
+await safeDeleteMany("logs",
   { createdAt: { $lt: new Date("2020-01-01") } },
   { dryRun: true }  // 先模拟运行
 );
@@ -570,4 +552,3 @@ await safeDeleteMany("logs",
 ## MongoDB 文档
 
 - [MongoDB deleteMany 文档](https://www.mongodb.com/docs/manual/reference/method/db.collection.deleteMany/)
-

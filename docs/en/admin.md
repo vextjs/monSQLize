@@ -2,42 +2,6 @@
 
 Operation and maintenance monitoring methods are used to check database health status, obtain version information, monitor server performance, etc.
 
----
-
-## Table of Contents
-
-- [ping()](#ping)
-- [Syntax](#syntax)
-- [Return value](#return-value)
-- [Example](#example)
-- [Usage scenarios](#usage-scenarios)
-- [Best Practices](#best-practices)
-- [buildInfo()](#buildinfo)
-- [Syntax (buildInfo())](#syntax-buildinfo)
-- [Return value (buildInfo())](#return-value-buildinfo)
-- [Example (buildInfo())](#example-buildinfo)
-- [Usage scenarios (buildInfo())](#usage-scenarios-buildinfo)
-- [Best Practices (buildInfo())](#best-practices-buildinfo)
-- [serverStatus()](#serverstatus)
-- [Syntax (serverStatus())](#syntax-serverstatus)
-- [Parameters](#parameters)
-- [Return value (serverStatus())](#return-value-serverstatus)
-- [Example (serverStatus())](#example-serverstatus)
-  - [Basic usage](#basic-usage)
-  - [Use the scale parameter](#use-the-scale-parameter)
-- [Usage scenarios (serverStatus())](#usage-scenarios-serverstatus)
-- [Best Practices (serverStatus())](#best-practices-serverstatus)
-- [stats()](#stats)
-- [Syntax (stats())](#syntax-stats)
-- [Parameters (stats())](#parameters-stats)
-- [Return value (stats())](#return-value-stats)
-- [Example (stats())](#example-stats)
-  - [Basic usage (example (stats()))](#basic-usage-example-stats)
-  - [Use different units](#use-different-units)
-- [Usage scenarios (stats())](#usage-scenarios-stats)
-- [Best Practices (stats())](#best-practices-stats)
-- [Related documents](#related-documents)
-
 ## ping()
 
 Check whether the database connection is normal.
@@ -523,8 +487,3 @@ async function generateDatabaseReport() {
 - [Database Operation](./database-ops.md) - listDatabases, dropDatabase
 - [Collection Management](./collection-management.md) - Collection statistics and management
 - [Collection Management Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts) - Current TypeScript example
-
----
-
-**Last updated**: 2025-12-02
-**Version**: v0.3.0

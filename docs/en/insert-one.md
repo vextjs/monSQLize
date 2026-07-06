@@ -1,49 +1,5 @@
 # insertOne() - Insert a single document
 
-## Table of Contents
-
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [document (required)](#document-required)
-- [options (optional)](#options-optional)
-- [Return value](#return-value)
-- [Core Features](#core-features)
-- [✅ Automatically generate _id](#automatically-generate-id)
-- [✅ Automatic cache invalidation](#automatic-cache-invalidation)
-- [✅ Slow query monitoring](#slow-query-monitoring)
-- [Common scenarios](#common-scenarios)
-- [Scenario 1: Create new user](#scenario-1-create-new-user)
-- [Scenario 2: Inserting nested documents](#scenario-2-inserting-nested-documents)
-- [Scenario 3: Using custom _id](#scenario-3-using-custom-id)
-- [Scenario 4: Inserting timestamped documents](#scenario-4-inserting-timestamped-documents)
-- [Scenario 5: Insert and return complete document](#scenario-5-insert-and-return-complete-document)
-- [Error handling](#error-handling)
-- [Duplicate _id](#duplicate-id)
-- [Invalid document](#invalid-document)
-- [Unique index conflict](#unique-index-conflict)
-- [Document verification failed](#document-verification-failed)
-- [Differences from other methods](#differences-from-other-methods)
-- [vs insertMany](#vs-insertmany)
-- [vs updateOne with upsert](#vs-updateone-with-upsert)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [1. Use insertMany when inserting in batches](#1-use-insertmany-when-inserting-in-batches)
-- [2. Avoid inserting in loops](#2-avoid-inserting-in-loops)
-- [3. Use appropriate _id type](#3-use-appropriate-id-type)
-- [Best Practices](#best-practices)
-- [✅ Contains creation timestamp](#contains-creation-timestamp)
-- [✅ Use validation to ensure data quality](#use-validation-to-ensure-data-quality)
-- [✅ Handling duplicate key errors](#handling-duplicate-key-errors)
-- [✅ Use transactions (multiple document insertion)](#use-transactions-multiple-document-insertion)
-- [Notes](#notes)
-- [⚠️ _id is immutable](#id-is-immutable)
-- [⚠️Performance impact of large documents](#performance-impact-of-large-documents)
-- [⚠️ Scope of cache invalidation](#scope-of-cache-invalidation)
-- [Utility functions](#utility-functions)
-- [Safe insertion function (with retry)](#safe-insertion-function-with-retry)
-- [Related methods](#related-methods)
-- [Sample code](#sample-code)
-- [MongoDB Documentation](#mongodb-documentation)
-
 ## Syntax
 
 ```javascript
@@ -51,7 +7,6 @@ collection(name).insertOne(document, options?)
 ```
 
 ## Parameters
-
 
 ## document (required)
 
@@ -74,7 +29,6 @@ await collection("users").insertOne({
   email: "bob@example.com"
 });
 ```
-
 
 ## options (optional)
 
@@ -101,7 +55,6 @@ Return an object containing the results of the insertion:
 
 ## Core Features
 
-
 ## ✅ Automatically generate _id
 
 If the document does not have a `_id` field, MongoDB automatically generates a unique ObjectId.
@@ -114,7 +67,6 @@ const result = await collection("users").insertOne({
 
 console.log(result.insertedId); // ObjectId("507f1f77bcf86cd799439011")
 ```
-
 
 ## ✅ Automatic cache invalidation
 
@@ -132,7 +84,6 @@ await collection("users").insertOne({ name: "Alice" });
 const updatedUsers = await collection("users").find({}, { cache: 5000 });
 console.log(updatedUsers.length); // 11
 ```
-
 
 ## ✅ Slow query monitoring
 
@@ -153,7 +104,6 @@ await collection("large_docs").insertOne({
 
 ## Common scenarios
 
-
 ## Scenario 1: Create new user
 
 ```javascript
@@ -167,7 +117,6 @@ const result = await collection("users").insertOne({
 
 console.log("User created successfully, ID:", result.insertedId);
 ```
-
 
 ## Scenario 2: Inserting nested documents
 
@@ -191,7 +140,6 @@ const result = await collection("orders").insertOne({
 console.log("Order created successfully:", result.insertedId);
 ```
 
-
 ## Scenario 3: Using custom _id
 
 ```javascript
@@ -205,7 +153,6 @@ const result = await collection("products").insertOne({
 
 console.log("Product ID:", result.insertedId); // "SKU-12345"
 ```
-
 
 ## Scenario 4: Inserting timestamped documents
 
@@ -221,7 +168,6 @@ const result = await collection("logs").insertOne({
   }
 });
 ```
-
 
 ## Scenario 5: Insert and return complete document
 
@@ -247,7 +193,6 @@ console.log(newUser);
 
 ## Error handling
 
-
 ## Duplicate _id
 
 ```javascript
@@ -269,7 +214,6 @@ try {
 }
 ```
 
-
 ## Invalid document
 
 ```javascript
@@ -281,7 +225,6 @@ try {
   console.error(error.message); // "document must be of type object"
 }
 ```
-
 
 ## Unique index conflict
 
@@ -305,7 +248,6 @@ try {
 }
 ```
 
-
 ## Document verification failed
 
 ```javascript
@@ -323,7 +265,6 @@ try {
 ```
 
 ## Differences from other methods
-
 
 ## vs insertMany
 
@@ -347,7 +288,6 @@ const result2 = await collection("users").insertMany([
 ]);
 console.log(result2.insertedIds); // { 0: ObjectId, 1: ObjectId }
 ```
-
 
 ## vs updateOne with upsert
 
@@ -382,7 +322,6 @@ await collection("users").updateOne(
 
 ## Performance optimization suggestions
 
-
 ## 1. Use insertMany when inserting in batches
 
 ```javascript
@@ -394,7 +333,6 @@ for (const user of users) {
 //Good: use insertMany
 await collection("users").insertMany(users);  //Fast, one network round trip
 ```
-
 
 ## 2. Avoid inserting in loops
 
@@ -410,7 +348,6 @@ for (let i = 0; i < 1000; i++) {
 const items = Array.from({ length: 1000 }, (_, i) => ({ index: i }));
 const result = await collection("items").insertMany(items);
 ```
-
 
 ## 3. Use appropriate _id type
 
@@ -433,7 +370,6 @@ await collection("orders").insertOne({
 
 ## Best Practices
 
-
 ## ✅ Contains creation timestamp
 
 ```javascript
@@ -444,7 +380,6 @@ await collection("users").insertOne({
   updatedAt: new Date()   //Update time
 });
 ```
-
 
 ## ✅ Use validation to ensure data quality
 
@@ -467,7 +402,6 @@ if (validateUser(newUser)) {
 }
 ```
 
-
 ## ✅ Handling duplicate key errors
 
 ```javascript
@@ -483,7 +417,6 @@ async function createUser(userData) {
   }
 }
 ```
-
 
 ## ✅ Use transactions (multiple document insertion)
 
@@ -511,7 +444,6 @@ try {
 
 ## Notes
 
-
 ## ⚠️ _id is immutable
 
 Once inserted, the `_id` field cannot be modified:
@@ -529,7 +461,6 @@ await collection("users").updateOne(
 );
 ```
 
-
 ## ⚠️Performance impact of large documents
 
 MongoDB document size is limited to 16MB, but large documents can impact performance:
@@ -543,7 +474,6 @@ await collection("files").insertOne({
 
 //Consider using GridFS to store large files
 ```
-
 
 ## ⚠️ Scope of cache invalidation
 
@@ -560,7 +490,6 @@ await collection("users").insertOne({ name: "Alice" });
 ```
 
 ## Utility functions
-
 
 ## Safe insertion function (with retry)
 

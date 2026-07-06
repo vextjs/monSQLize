@@ -1,16 +1,8 @@
-# Recipes
+# Common Scenarios
 
-## Directory navigation
+Use this page when you already know the feature you want to turn on and need the smallest configuration shape, the key options, and the first place to look when something fails.
 
-- [Only connect to MongoDB](#only-connect-to-mongodb)
-- [Enable memory cache](#enable-memory-cache)
-- [Enable Redis second-level cache and distributed invalidation](#enable-redis-second-level-cache-and-distributed-invalidation)
-- [Connect to intranet MongoDB through SSH tunnel](#connect-to-intranet-mongodb-through-ssh-tunnel)
-- [Configuring multiple connection pools](#configure-multiple-connection-pools)
-- [Enable Model layer](#enable-model-layer)
-- [Troubleshooting by error code](#troubleshoot-according-to-error-code)
-
-## Only connect to MongoDB
+## Connect to MongoDB
 
 ```ts
 import MonSQLize from 'monsqlize';
@@ -29,9 +21,17 @@ await users.insertOne({ name: 'Ada', createdAt: new Date() });
 await msq.close();
 ```
 
-It is suitable to verify the connection, CRUD and package entry first. Missing `config.uri` throws `INVALID_CONFIG`, and directly accessing the data without `connect()` throws `NOT_CONNECTED`.
+| Option | Required | What it does |
+|--------|----------|--------------|
+| `type` | Optional | MongoDB is the current runtime adapter. Use `mongodb` when you want to be explicit. |
+| `databaseName` | Yes | Default database used by `collection()` and `model()`. |
+| `config.uri` | Yes | MongoDB connection string. |
 
-## Enable memory cache
+If it fails, check for `INVALID_CONFIG` when `config.uri` is missing and `NOT_CONNECTED` when a collection is accessed before `connect()`.
+
+Example source: [`examples/quick-start/basic-connect.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)
+
+## Enable Memory Cache
 
 ```ts
 import MonSQLize from 'monsqlize';
@@ -51,12 +51,23 @@ const msq = new MonSQLize({
 await msq.connect();
 ```
 
-Memory caching requires no additional services and is suitable for single-process or local fast verification.
+| Option | Required | What it does |
+|--------|----------|--------------|
+| `cache.enabled` | No | Set `false` to disable cache creation from this config block. |
+| `cache.ttl` / `cache.defaultTtl` | No | Default TTL in milliseconds for cache entries created by the runtime. |
+| `cache.maxEntries` | No | Maximum entry count for the memory cache. |
+| `cache.enableStats` | No | Enables cache hit/miss statistics. |
 
-## Enable Redis second-level cache and distributed invalidation
+Memory cache needs no external service and is the quickest way to verify cached reads locally. Writes invalidate collection query cache; transaction writes flush pending invalidations after commit.
+
+Example source: [`examples/cache/with-cache.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/cache/with-cache.ts)
+
+## Enable Redis L2 Cache and Distributed Invalidation
 
 ```ts
 import MonSQLize from 'monsqlize';
+
+const redisUrl = 'redis://127.0.0.1:6379';
 
 const msq = new MonSQLize({
     type: 'mongodb',
@@ -64,9 +75,9 @@ const msq = new MonSQLize({
     config: { uri: 'mongodb://127.0.0.1:27017' },
     cache: {
         memory: { maxEntries: 5_000, ttl: 30_000 },
-        redis: { url: 'redis://127.0.0.1:6379', timeoutMs: 300 },
+        redis: { url: redisUrl, timeoutMs: 300 },
         distributed: {
-            redisUrl: 'redis://127.0.0.1:6379',
+            redisUrl,
             channel: 'app:cache:invalidate',
         },
     },
@@ -75,9 +86,20 @@ const msq = new MonSQLize({
 await msq.connect();
 ```
 
-`ioredis` has been installed by default with `monsqlize`; what needs to be configured here is the Redis address and whether to enable distributed failure, rather than installing dependencies.
+| Option | Required | What it does |
+|--------|----------|--------------|
+| `cache.memory` | No | Local L1 cache settings. |
+| `cache.redis.url` | Yes for L2 | Redis connection used for the remote cache adapter. |
+| `cache.redis.timeoutMs` | No | Timeout for remote cache operations. |
+| `cache.distributed.redisUrl` | Yes for Pub/Sub when no Redis instance is supplied | Redis connection used by distributed invalidation Pub/Sub. |
+| `cache.distributed.redis` | Alternative | Existing Redis-like instance for Pub/Sub. |
+| `cache.distributed.channel` | No | Pub/Sub channel shared by all instances. |
 
-## Connect to intranet MongoDB through SSH tunnel
+Keep the Redis URL in a variable when both L2 cache and distributed invalidation use the same Redis endpoint. The runtime does not infer `cache.distributed.redisUrl` from `cache.redis.url`; provide both values or pass a Redis instance to `cache.distributed.redis`.
+
+Example source: [`examples/docs/cache-multilevel.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/cache-multilevel.ts)
+
+## Connect Through an SSH Tunnel
 
 ```ts
 import MonSQLize from 'monsqlize';
@@ -98,9 +120,18 @@ const msq = new MonSQLize({
 await msq.connect();
 ```
 
-`ssh2` is installed by default with `monsqlize`. As long as `config.ssh` is passed in, the runtime will establish a local tunnel and forward the MongoDB connection to the intranet address.
+| Option | Required | What it does |
+|--------|----------|--------------|
+| `config.uri` | Yes | MongoDB URI as seen from the SSH target network. |
+| `config.ssh.host` | Yes | Bastion host. |
+| `config.ssh.username` | Yes | SSH username. |
+| `config.ssh.privateKeyPath` | Usually | Private key path for key-based auth. |
 
-## Configure multiple connection pools
+When `config.ssh` is present, monSQLize opens a local tunnel before connecting to MongoDB. If the connection fails, check SSH credentials first, then MongoDB reachability from the bastion network.
+
+Related docs: [`ssh-tunnel.md`](./ssh-tunnel.md)
+
+## Configure Multiple Connection Pools
 
 ```ts
 import MonSQLize from 'monsqlize';
@@ -120,15 +151,25 @@ await msq.connect();
 const reports = msq.pool('analytics').collection('reports');
 ```
 
-A connection pool configuration error will throw `INVALID_CONFIG`; specifying a non-existent pool will throw `POOL_NOT_FOUND`; unavailability of all pools will throw `INVALID_OPERATION`.
+| Option | Required | What it does |
+|--------|----------|--------------|
+| `pools[].name` | Yes | Stable pool name used by `pool(name)`. |
+| `pools[].uri` | Yes | MongoDB URI for that pool. |
+| `pools[].role` | No | Describes primary, secondary, analytics, archive, or custom use. |
+| `poolStrategy` | No | Selection strategy for pool routing. |
+| `poolFallback` | No | Fallback behavior when a selected pool is unavailable. |
 
-## Enable Model layer
+Configuration errors throw `INVALID_CONFIG`; unknown pool names throw `POOL_NOT_FOUND`; unavailable pools throw `INVALID_OPERATION`.
+
+Example sources: [`examples/docs/pool.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/pool.ts) and [`examples/docs/multi-pool-health-check.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/multi-pool-health-check.ts)
+
+## Enable the Model Layer
 
 ```ts
 import MonSQLize, { Model } from 'monsqlize';
 
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         name: 'string:1-64!',
         email: 'email!',
     }),
@@ -145,9 +186,18 @@ const User = msq.model('users');
 await User.insertOne({ name: 'Ada', email: 'ada@example.com' });
 ```
 
-`schema-dsl` is installed by default with `monsqlize`. Model schema callbacks use the MonSQLize instance's isolated `schema-dsl/runtime`; if application code owns the same custom types or messages, configure that runtime directly and pass it through `schemaDsl`. Runtime load or API-shape failures throw `INVALID_CONFIG` unless validation is explicitly disabled.
+| Option | Required | What it does |
+|--------|----------|--------------|
+| `Model.define(name, config)` | Yes | Registers the model definition before runtime binding. |
+| `schema: (s) => s(...)` | Usually | Current recommended schema callback style. |
+| `schemaDsl` | No | Runtime options, extensions, injected runtime, or explicit validation disablement. |
+| `writePathPolicy` | No | Use `model-only` when selected namespaces must go through Model writes. |
 
-## Troubleshoot according to error code
+Model schema callbacks use the isolated `schema-dsl/runtime` owned by the `MonSQLize` instance. If your application owns custom schema-dsl types or messages, configure that runtime directly and inject it with `schemaDsl: { runtime }`.
+
+Example source: [`examples/docs/model.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/model.ts)
+
+## Troubleshoot by Error Code
 
 ```ts
 import { ErrorCodes } from 'monsqlize';
@@ -157,13 +207,20 @@ try {
 } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === ErrorCodes.INVALID_CONFIG) {
-        console.error('Check the MonSQLize construct configuration');
+        console.error('Check the MonSQLize constructor options');
     } else if (code === ErrorCodes.CONNECTION_FAILED) {
-        console.error('Check MongoDB network, authentication and URI');
+        console.error('Check MongoDB network, authentication, and URI');
     } else {
         throw error;
     }
 }
 ```
 
-For more error codes and handling suggestions, see [`error-codes.md`](./error-codes.md).
+| Code | Usual cause | First check |
+|------|-------------|-------------|
+| `INVALID_CONFIG` | Missing or malformed runtime options | Constructor options and feature-specific config blocks |
+| `CONNECTION_FAILED` | MongoDB or SSH connection failure | Network, credentials, URI, and SSH tunnel reachability |
+| `NOT_CONNECTED` | Data API used before `connect()` | Runtime lifecycle |
+| `POOL_NOT_FOUND` | Unknown pool name | `pools[].name` and `msq.pool(name)` |
+
+More details: [`error-codes.md`](./error-codes.md)

@@ -1,51 +1,22 @@
 # readPreference - MongoDB replica set read preference configuration
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Core Features](#core-features)
-- [5 read preference modes](#5-read-preference-modes)
-- [✅ Connection level global configuration](#connection-level-global-configuration)
-- [API parameter description](#api-parameter-description)
-- [Connection configuration](#connection-configuration)
-- [Usage example](#usage-example)
-- [Basic usage](#basic-usage)
-  - [Example 1: Default read preference (primary)](#example-1-default-read-preference-primary)
-  - [Example 2: secondaryPreferred (prefer secondary nodes)](#example-2-secondarypreferred-prefer-secondary-nodes)
-  - [Example 3: secondary (read only from secondary nodes)](#example-3-secondary-read-only-from-secondary-nodes)
-  - [Example 4: primaryPreferred (read primary node first)](#example-4-primarypreferred-read-primary-node-first)
-  - [Example 5: nearest (nearest read, low latency)](#example-5-nearest-nearest-read-low-latency)
-- [Advanced usage](#advanced-usage)
-  - [Example 6: Use with other options](#example-6-use-with-other-options)
-- [Best Practices](#best-practices)
-- [✅ Recommended practices](#recommended-practices)
-- [⚠️ Notes](#notes)
-- [Performance impact](#performance-impact)
-- [Impact of read preference on performance](#impact-of-read-preference-on-performance)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [FAQ](#faq)
-- [Q: Does readPreference support query-level configuration?](#q-does-readpreference-support-query-level-configuration)
-- [Q: How to verify that readPreference is effective?](#q-how-to-verify-that-readpreference-is-effective)
-- [Q: How long is the replication delay?](#q-how-long-is-the-replication-delay)
-- [Q: How to deal with replication delays?](#q-how-to-deal-with-replication-delays)
-- [Q: How to test in stand-alone mode?](#q-how-to-test-in-stand-alone-mode)
-- [References](#references)
-
 ## Overview
 
 `readPreference` is the MongoDB node-selection strategy for read operations in replica sets. It supports read/write separation by reducing load on the primary node and can help globally distributed deployments read from lower-latency nodes.
 
 **Applicable scenarios**:
-- ✅ Replica Set deployment (Replica Set)
-- ✅ Read/write separation (reduce load on the primary node)
-- ✅ Globally distributed deployment (low latency reading)
-- ✅ Analytics/report queries (isolate primary-node write load)
+- Replica Set deployment
+- Read/write separation to reduce load on the primary node
+- Globally distributed deployments that need lower-latency reads
+- Analytics/report queries that can tolerate eventual consistency
 
 **Restrictions**:
-- ⚠️ Only global configuration (connection level), query level override is not supported
-- ⚠️ MongoDB exclusive features (no corresponding concept for PostgreSQL/MySQL)
-- ⚠️ Reads from secondary nodes may observe replication lag (data may not be the latest)
-- ⚠️ Not valid in stand-alone mode (replica set environment required)
+- `config.readPreference` sets the connection-level default.
+- Individual read operations can pass `readPreference` in their options to override the default for that operation.
+- The current monSQLize runtime is MongoDB-only; this option maps to MongoDB driver read preference behavior.
+- Reads from secondary nodes may observe replication lag, so read-after-write paths should use `primary` or `primaryPreferred`.
+- Reads inside MongoDB transactions should stay on `primary`; keep transaction reads on the connection default or override them to `primary`.
+- It has no useful effect in stand-alone mode because there is only one node.
 
 ---
 
@@ -78,8 +49,8 @@ const msq = new MonSQLize({
 
 **Features**:
 - Configure once and all queries will take effect
-- No need to repeat configuration in each query method
-- Simplify the code and reduce the probability of errors
+- Use query-level options only for operations that need a different read route
+- Simplify the default path and reduce repeated configuration
 
 ---
 
@@ -91,6 +62,7 @@ const msq = new MonSQLize({
 | Parameters | Type | Required | Default | Description |
 |------|------|------|--------|------|
 | **config.readPreference** | string | ❌ | `'primary'` | Replica set read preference mode |
+| **read operation options.readPreference** | string | ❌ | Connection default | Per-operation override for read methods that pass MongoDB driver options |
 
 **Optional values**:
 - `'primary'` - Read only from the primary node (default)
@@ -272,10 +244,11 @@ const msq = new MonSQLize({
 await msq.connect();
 const { collection } = msq;
 
-// readPreference is compatible with other options (hint, collation, comment)
+// Query-level readPreference overrides the connection default for this operation.
 const results = await collection('products').find(
     { price: { $gt: 100 } },
     {
+        readPreference: 'primary',
         hint: { category: 1, price: 1 },  // Index hint
         comment: 'expensive-products-query',  // Query comment
         maxTimeMS: 2000  // Per-query timeout
@@ -330,10 +303,27 @@ await msq.close();
    // The newly written data may not be visible yet because of replication lag
    const users = await collection('users').find({ name: 'Alice' });
 
-   // Solution: use 'primary' for read-after-write or wait for replication to complete
+   // Solution: use 'primary' for read-after-write or wait for replication to complete.
+   const freshUsers = await collection('users').find(
+       { name: 'Alice' },
+       { readPreference: 'primary' }
+   );
    ```
 
-2. **Single mode is invalid**
+2. **Transaction reads**
+   ```javascript
+   // MongoDB transaction reads should use the primary node.
+   await msq.withTransaction(async (tx) => {
+       const order = await collection('orders').findOne(
+           { orderNo: 'SO-1001' },
+           { session: tx.session, readPreference: 'primary' }
+       );
+
+       // ...write operations in the same transaction
+   });
+   ```
+
+3. **Single mode is invalid**
    ```javascript
    // In stand-alone mode, readPreference is ineffective because there is only one node.
    const msq = new MonSQLize({
@@ -344,7 +334,7 @@ await msq.close();
    });
    ```
 
-3. **Replica Set URI Format**
+4. **Replica Set URI Format**
    ```javascript
    // Correct: contains multiple nodes + replicaSet parameter
    uri: 'mongodb://host1:27017,host2:27018,host3:27019/?replicaSet=rs0'
@@ -353,7 +343,7 @@ await msq.close();
    uri: 'mongodb://localhost:27017'
    ```
 
-4. **Cross-database compatibility**
+5. **Cross-database compatibility**
    ```javascript
    // readPreference is MongoDB-specific.
    // PostgreSQL/MySQL do not have the same concept.
@@ -378,8 +368,8 @@ await msq.close();
 
 ### Performance optimization suggestions
 
-1. **Read-heavy workloads**: Use `secondaryPreferred` to reduce primary load by 20-50%
-2. **Globally distributed**: Use `nearest` to reduce latency by 30-70% (depending on geographical location)
+1. **Read-heavy workloads**: Use `secondaryPreferred` to move tolerant reads away from the primary.
+2. **Globally distributed**: Use `nearest` when lower latency matters more than always reading from the primary.
 3. **Analytics/reporting**: Use `secondary` to isolate primary write load
 
 ---
@@ -388,7 +378,16 @@ await msq.close();
 
 
 ## Q: Does readPreference support query-level configuration?
-**A**: Not supported. monSQLize only supports connection-level global configuration, simplifying the API and reducing configuration complexity. For query-level control, use the native MongoDB driver.
+**A**: Yes. `config.readPreference` is the default, and read methods that pass MongoDB driver options can override it per operation:
+
+```javascript
+const users = await collection('users').find(
+    { status: 'active' },
+    { readPreference: 'primary' }
+);
+```
+
+Use this sparingly. Keep the connection-level default for most reads, and override only read-after-write or analytics queries that need a different route.
 
 ---
 

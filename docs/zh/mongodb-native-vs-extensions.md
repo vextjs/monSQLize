@@ -1,91 +1,67 @@
-﻿# MongoDB 原生 vs monSQLize 扩展功能对比
+# MongoDB 原生 vs monSQLize 扩展功能对比
 
 本文档详细对比 MongoDB 原生驱动和 monSQLize 的功能差异，帮助你了解 monSQLize 提供的额外价值。
 
----
-
-## 📑 目录
-
-- [📋 快速对比表](#-快速对比表)
-- [🔵 MongoDB 原生功能（完整支持）](#-mongodb-原生功能完整支持)
-- [🔧 monSQLize 独有的扩展功能](#-monsqlize-独有的扩展功能)
-- [1. 智能缓存系统](#1-智能缓存系统)
-- [2. 自动缓存失效](#2-自动缓存失效)
-- [3. 深度分页（游标分页）](#3-深度分页游标分页)
-- [4. 性能监控（慢查询日志）](#4-性能监控慢查询日志)
-- [5. 跨库访问](#5-跨库访问)
-- [6. 类型安全（TypeScript）](#6-类型安全typescript)
-- [7. 批量插入性能优化](#7-批量插入性能优化)
-- [8. 多层缓存（本地 + Redis）](#8-多层缓存本地--redis)
-- [9. 链式调用 API](#9-链式调用-api)
-- [10. 事件系统](#10-事件系统)
-- [💡 使用建议](#-使用建议)
-- [📊 总结对比](#-总结对比)
-- [🚀 快速开始](#-快速开始)
-- [📚 相关文档](#-相关文档)
-
----
-
-## 📋 快速对比表
+## 快速对比表
 
 | 功能类别 | MongoDB 原生 | monSQLize | 主要增强 |
 |---------|-------------|-----------|---------|
-| **查询操作** | ✅ | ✅ | 智能缓存、游标分页、慢查询日志 |
-| **插入操作** | ✅ | ✅ | 高性能批量插入 (10-50x)、慢查询监控 |
-| **更新操作** | ✅ | ✅ | 自动缓存失效、完整错误处理 |
-| **删除操作** | ✅ | ✅ | 自动缓存失效、慢查询监控 |
-| **聚合操作** | ✅ | ✅ | 缓存支持、流式处理 |
-| **执行计划** | ✅ | ✅ | 集成到查询链 |
-| **跨库访问** | 手动切换 | ✅ | 一行代码切换 |
-| **缓存管理** | ❌ | ✅ | TTL/LRU/自动失效/多层缓存 |
-| **性能监控** | 需配置 | ✅ | 开箱即用的慢查询日志 |
+| **查询操作** | | | 智能缓存、游标分页、慢查询日志 |
+| **插入操作** | | | 高性能批量插入 (10-50x)、慢查询监控 |
+| **更新操作** | | | 自动缓存失效、完整错误处理 |
+| **删除操作** | | | 自动缓存失效、慢查询监控 |
+| **聚合操作** | | | 缓存支持、流式处理 |
+| **执行计划** | | | 集成到查询链 |
+| **跨库访问** | 手动切换 | | 一行代码切换 |
+| **缓存管理** | | | TTL/LRU/自动失效/多层缓存 |
+| **性能监控** | 需配置 | | 开箱即用的慢查询日志 |
 
 ---
 
-## 🔵 MongoDB 原生功能（完整支持）
+## MongoDB 原生功能（完整支持）
 
 monSQLize 完整封装了 MongoDB 的所有原生功能，你可以使用熟悉的 MongoDB API：
 
-### ✅ 完整 CRUD 操作
+### 完整 CRUD 操作
 
 | 操作 | 方法 | 原生支持 | 文档 |
 |------|------|---------|------|
-| **Create** | insertOne, insertMany | ✅ | [insertOne 指南](./insert-one.md), [insertMany 指南](./insert-many.md) |
-| **Read** | find, findOne, aggregate, count, distinct | ✅ | [find 指南](./find.md), [findOne 指南](./findOne.md) |
-| **Update** | updateOne, updateMany, replaceOne | ✅ | [updateOne 指南](./update-one.md), [updateMany 指南](./update-many.md) |
-| **Delete** | deleteOne, deleteMany | ✅ | [deleteOne 指南](./delete-one.md), [deleteMany 指南](./delete-many.md) |
+| **Create** | insertOne, insertMany | | [insertOne 指南](./insert-one.md), [insertMany 指南](./insert-many.md) |
+| **Read** | find, findOne, aggregate, count, distinct | | [find 指南](./find.md), [findOne 指南](./findOne.md) |
+| **Update** | updateOne, updateMany, replaceOne | | [updateOne 指南](./update-one.md), [updateMany 指南](./update-many.md) |
+| **Delete** | deleteOne, deleteMany | | [deleteOne 指南](./delete-one.md), [deleteMany 指南](./delete-many.md) |
 
-### ✅ 原子操作
-
-| 方法 | 原生支持 | 文档 |
-|------|---------|------|
-| findOneAndUpdate | ✅ | [findOneAndUpdate 指南](./find-one-and-update.md) |
-| findOneAndReplace | ✅ | [findOneAndReplace 指南](./find-one-and-replace.md) |
-| findOneAndDelete | ✅ | [findOneAndDelete 指南](./find-one-and-delete.md) |
-
-### ✅ 索引管理
+### 原子操作
 
 | 方法 | 原生支持 | 文档 |
 |------|---------|------|
-| createIndex, createIndexes | ✅ | [索引创建指南](./create-index.md) |
-| listIndexes | ✅ | [索引列表指南](./list-indexes.md) |
-| dropIndex, dropIndexes | ✅ | [索引删除指南](./drop-index.md) |
+| findOneAndUpdate | | [findOneAndUpdate 指南](./find-one-and-update.md) |
+| findOneAndReplace | | [findOneAndReplace 指南](./find-one-and-replace.md) |
+| findOneAndDelete | | [findOneAndDelete 指南](./find-one-and-delete.md) |
 
-### ✅ 所有查询选项
+### 索引管理
+
+| 方法 | 原生支持 | 文档 |
+|------|---------|------|
+| createIndex, createIndexes | | [索引创建指南](./create-index.md) |
+| listIndexes | | [索引列表指南](./list-indexes.md) |
+| dropIndex, dropIndexes | | [索引删除指南](./drop-index.md) |
+
+### 所有查询选项
 
 | 选项 | 原生支持 | 说明 |
 |------|---------|------|
-| projection | ✅ | 字段投影 |
-| sort | ✅ | 排序 |
-| limit / skip | ✅ | 分页 |
-| hint | ✅ | 索引提示 |
-| collation | ✅ | 排序规则 |
-| maxTimeMS | ✅ | 操作超时 |
-| comment | ✅ | 操作注释 |
+| projection | | 字段投影 |
+| sort | | 排序 |
+| limit / skip | | 分页 |
+| hint | | 索引提示 |
+| collation | | 排序规则 |
+| maxTimeMS | | 操作超时 |
+| comment | | 操作注释 |
 
 ---
 
-## 🔧 monSQLize 独有的扩展功能
+## monSQLize 独有的扩展功能
 
 在 MongoDB 原生功能基础上，monSQLize 提供了额外的便利性和性能优化：
 
@@ -132,12 +108,12 @@ const products2 = await collection('products').find(
 
 | 特性 | MongoDB 原生 | monSQLize |
 |------|-------------|-----------|
-| **查询缓存** | ❌ 无 | ✅ TTL + LRU |
-| **自动失效** | ❌ 无 | ✅ 写操作后自动清理 |
-| **命名空间隔离** | ❌ 无 | ✅ 按实例/数据库/集合隔离 |
-| **并发去重** | ❌ 无 | ✅ 防止缓存击穿 |
-| **缓存统计** | ❌ 无 | ✅ 命中率/淘汰次数 |
-| **多层缓存** | ❌ 无 | ✅ 本地 + Redis |
+| **查询缓存** | 无 | TTL + LRU |
+| **自动失效** | 无 | 写操作后自动清理 |
+| **命名空间隔离** | 无 | 按实例/数据库/集合隔离 |
+| **并发去重** | 无 | 防止缓存击穿 |
+| **缓存统计** | 无 | 命中率/淘汰次数 |
+| **多层缓存** | 无 | 本地 + Redis |
 
 **详细文档**: [缓存系统](./cache.md)
 
@@ -170,7 +146,7 @@ await db.collection('products').insertOne({
   category: 'electronics' 
 });
 
-// ❌ 必须手动清理相关缓存
+// 必须手动清理相关缓存
 cache.delete('products:electronics');  // 容易忘记或清理不完整
 ```
 
@@ -189,7 +165,7 @@ await collection('products').insertOne({
   name: 'New Product', 
   category: 'electronics' 
 });
-// ✅ 自动清理所有 products 集合的缓存
+// 自动清理所有 products 集合的缓存
 
 // 再次查询：自动从数据库获取最新数据
 const freshProducts = await collection('products').find(
@@ -203,13 +179,13 @@ const freshProducts = await collection('products').find(
 
 | 操作 | MongoDB 原生 | monSQLize |
 |------|-------------|-----------|
-| insertOne / insertMany | ❌ 手动失效 | ✅ 自动失效 |
-| updateOne / updateMany | ❌ 手动失效 | ✅ 自动失效 |
-| deleteOne / deleteMany | ❌ 手动失效 | ✅ 自动失效 |
-| replaceOne | ❌ 手动失效 | ✅ 自动失效 |
-| findOneAndUpdate | ❌ 手动失效 | ✅ 自动失效 |
-| findOneAndReplace | ❌ 手动失效 | ✅ 自动失效 |
-| findOneAndDelete | ❌ 手动失效 | ✅ 自动失效 |
+| insertOne / insertMany | 手动失效 | 自动失效 |
+| updateOne / updateMany | 手动失效 | 自动失效 |
+| deleteOne / deleteMany | 手动失效 | 自动失效 |
+| replaceOne | 手动失效 | 自动失效 |
+| findOneAndUpdate | 手动失效 | 自动失效 |
+| findOneAndReplace | 手动失效 | 自动失效 |
+| findOneAndDelete | 手动失效 | 自动失效 |
 
 **好处**: 防止缓存不一致，确保数据始终是最新的。
 
@@ -227,7 +203,7 @@ const pageSize = 20;
 const products = await db.collection('products')
   .find({ category: 'electronics' })
   .sort({ createdAt: -1 })
-  .skip((page - 1) * pageSize)  // ❌ 跳过 19980 条数据（很慢）
+  .skip((page - 1) * pageSize)  // 跳过 19980 条数据（很慢）
   .limit(pageSize)
   .toArray();
 
@@ -267,7 +243,7 @@ const page1000 = await collection('products').findPage(
   { category: 'electronics' },
   {
     limit: 20,
-    page: 1000,    // ✅ 直接跳到第 1000 页
+    page: 1000,    // 直接跳到第 1000 页
     bookmarks: { step: 10, maxHops: 20 }
   }
 );
@@ -291,11 +267,11 @@ const page1000 = await collection('products').findPage(
 
 | 特性 | MongoDB 原生 (skip/limit) | monSQLize (游标分页) |
 |------|--------------------------|---------------------|
-| **深度分页性能** | ❌ 随页数线性下降 | ✅ 性能稳定（书签跳跃） |
-| **前后翻页** | ✅ 支持 | ✅ 支持（after/before） |
-| **跳页** | ✅ 支持（但慢） | ✅ 支持（且快） |
-| **总数统计** | ✅ 需单独查询 | ✅ 异步统计（不阻塞） |
-| **数据稳定性** | ❌ 插入/删除影响分页 | ✅ 游标锁定数据集 |
+| **深度分页性能** | 随页数线性下降 | 性能稳定（书签跳跃） |
+| **前后翻页** | 支持 | 支持（after/before） |
+| **跳页** | 支持（但慢） | 支持（且快） |
+| **总数统计** | 需单独查询 | 异步统计（不阻塞） |
+| **数据稳定性** | 插入/删除影响分页 | 游标锁定数据集 |
 
 **详细文档**: [findPage 指南](./findPage.md)
 
@@ -356,11 +332,11 @@ const products = await collection('products').find({
 
 | 特性 | MongoDB 原生 | monSQLize |
 |------|-------------|-----------|
-| **慢查询监控** | ⚠️ 需配置 profiling | ✅ 开箱即用 |
-| **实时告警** | ❌ 需单独查询日志 | ✅ 事件自动触发 |
-| **查询超时** | ✅ maxTimeMS | ✅ 全局 + 查询级 |
-| **操作耗时** | ❌ 需 profiling | ✅ 自动记录 |
-| **日志存储** | ❌ 占用数据库空间 | ✅ 应用层日志 |
+| **慢查询监控** | 需配置 profiling | 开箱即用 |
+| **实时告警** | 需单独查询日志 | 事件自动触发 |
+| **查询超时** | maxTimeMS | 全局 + 查询级 |
+| **操作耗时** | 需 profiling | 自动记录 |
+| **日志存储** | 占用数据库空间 | 应用层日志 |
 
 **详细文档**: [事件系统](./events.md)
 
@@ -380,7 +356,7 @@ const shopDb = client.db('shop');
 const products = await shopDb.collection('products').find({}).toArray();
 
 // 访问 analytics 数据库（需要手动切换）
-const analyticsDb = client.db('analytics');  // ❌ 手动切换
+const analyticsDb = client.db('analytics');  // 手动切换
 const events = await analyticsDb.collection('events').find({}).toArray();
 
 // 问题：
@@ -406,7 +382,7 @@ const products = await collection('products').find({});
 
 // 通过作用域访问 analytics
 const events = await use('analytics').collection('events').find({});
-// ✅ 简洁、清晰，适合业务集合访问
+// 简洁、清晰，适合业务集合访问
 
 // 链式跨库
 const logs = await use('logs').collection('access_logs').find({});
@@ -416,10 +392,10 @@ const logs = await use('logs').collection('access_logs').find({});
 
 | 特性 | MongoDB 原生 | monSQLize |
 |------|-------------|-----------|
-| **跨库切换** | ❌ 手动 `client.db(name)` | ✅ 使用 `use(name)` 获取跨库集合作用域 |
-| **默认数据库** | ❌ 无概念 | ✅ 自动使用默认库 |
-| **代码简洁性** | ⚠️ 冗长 | ✅ 简洁 |
-| **缓存隔离** | ❌ 无缓存 | ✅ 自动按数据库隔离 |
+| **跨库切换** | 手动 `client.db(name)` | 使用 `use(name)` 获取跨库集合作用域 |
+| **默认数据库** | 无概念 | 自动使用默认库 |
+| **代码简洁性** | 冗长 | 简洁 |
+| **缓存隔离** | 无缓存 | 自动按数据库隔离 |
 
 **详细文档**: [连接配置](./connection.md)
 
@@ -473,9 +449,9 @@ const { collection } = await msq.connect();
 const products = await collection('products').find<Product>(
   { category: 'electronics' },
   {
-    cache: 5000,         // ✅ 选项类型检查
-    projection: { name: 1, price: 1 },  // ✅ 投影类型检查
-    limit: 20            // ✅ 参数类型检查
+    cache: 5000,         // 选项类型检查
+    projection: { name: 1, price: 1 },  // 投影类型检查
+    limit: 20            // 参数类型检查
   }
 );
 // products: Product[]
@@ -486,9 +462,9 @@ const result = await collection('products').findPage<Product>(
   {
     cache: 5000,
     bookmarks: {
-      step: 10,          // ✅ IDE 自动补全
-      maxHops: 20,       // ✅ 类型提示
-      ttlMs: 3600000     // ✅ 类型检查
+      step: 10,          // IDE 自动补全
+      maxHops: 20,       // 类型提示
+      ttlMs: 3600000     // 类型检查
     }
   }
 );
@@ -498,10 +474,10 @@ const result = await collection('products').findPage<Product>(
 
 | 特性 | MongoDB 原生 | monSQLize |
 |------|-------------|-----------|
-| **基础类型** | ✅ 泛型支持 | ✅ 完整类型声明 |
-| **选项类型** | ⚠️ 部分支持 | ✅ 完整支持 |
-| **IDE 补全** | ⚠️ 基础补全 | ✅ 完整补全 |
-| **类型检查** | ⚠️ 部分检查 | ✅ 严格检查 |
+| **基础类型** | 泛型支持 | 完整类型声明 |
+| **选项类型** | 部分支持 | 完整支持 |
+| **IDE 补全** | 基础补全 | 完整补全 |
+| **类型检查** | 部分检查 | 严格检查 |
 
 **类型声明文件**: [types/index.d.ts](../../types/index.d.ts)
 
@@ -614,11 +590,11 @@ const products2 = await collection('products').find(
 
 | 特性 | MongoDB 原生 | monSQLize |
 |------|-------------|-----------|
-| **本地缓存** | ❌ 无 | ✅ 内存 LRU |
-| **远端缓存** | ❌ 无 | ✅ Redis 支持 |
-| **多层缓存** | ❌ 无 | ✅ 本地 + Redis |
-| **自动回填** | ❌ 无 | ✅ Redis 命中时回填本地 |
-| **缓存一致性** | ❌ 无 | ✅ 写操作自动失效 |
+| **本地缓存** | 无 | 内存 LRU |
+| **远端缓存** | 无 | Redis 支持 |
+| **多层缓存** | 无 | 本地 + Redis |
+| **自动回填** | 无 | Redis 命中时回填本地 |
+| **缓存一致性** | 无 | 写操作自动失效 |
 
 **详细文档**: [多层缓存](./cache.md#多层缓存)
 
@@ -648,9 +624,9 @@ const products = await collection('products')
   .sort({ price: -1 })
   .skip(20)
   .limit(10)
-  .cache(5000)        // ✅ 链式缓存
-  .maxTimeMS(3000)    // ✅ 链式超时
-  .comment('API:listProducts')  // ✅ 链式注释
+  .cache(5000)        // 链式缓存
+  .maxTimeMS(3000)    // 链式超时
+  .comment('API:listProducts')  // 链式注释
   .toArray();
 ```
 
@@ -658,11 +634,11 @@ const products = await collection('products')
 
 | 特性 | MongoDB 原生 | monSQLize |
 |------|-------------|-----------|
-| **基础链式** | ✅ find/sort/limit | ✅ 完整支持 |
-| **缓存链式** | ❌ 无 | ✅ .cache() |
-| **超时链式** | ⚠️ 需在 find 选项 | ✅ .maxTimeMS() |
-| **注释链式** | ⚠️ 需在 find 选项 | ✅ .comment() |
-| **流式链式** | ✅ .stream() | ✅ .stream() + 缓存 |
+| **基础链式** | find/sort/limit | 完整支持 |
+| **缓存链式** | 无 | .cache() |
+| **超时链式** | 需在 find 选项 | .maxTimeMS() |
+| **注释链式** | 需在 find 选项 | .comment() |
+| **流式链式** | .stream() | .stream() + 缓存 |
 
 **详细文档**: [链式调用 API](./chaining-api.md)
 
@@ -717,21 +693,21 @@ msq.on('error', (data) => {
 
 | 事件类型 | MongoDB 原生 | monSQLize |
 |---------|-------------|-----------|
-| **连接事件** | ✅ | ✅ |
-| **驱动事件** | ✅ | ✅ |
-| **慢查询事件** | ❌ | ✅ |
-| **缓存事件** | ❌ | ✅ |
-| **业务事件** | ❌ | ✅ |
+| **连接事件** | | |
+| **驱动事件** | | |
+| **慢查询事件** | | |
+| **缓存事件** | | |
+| **业务事件** | | |
 
 **详细文档**: [事件系统](./events.md)
 
 ---
 
-## 💡 使用建议
+## 使用建议
 
 ### 何时使用 MongoDB 原生驱动？
 
-✅ **适合场景**:
+**适合场景**:
 - 简单的脚本或工具
 - 不需要缓存
 - 不需要高级分页
@@ -739,7 +715,7 @@ msq.on('error', (data) => {
 
 ### 何时使用 monSQLize？
 
-✅ **适合场景**:
+**适合场景**:
 - **生产环境应用** - 需要缓存和性能优化
 - **高流量 API** - 缓存可以减少数据库压力
 - **深度分页** - 列表页、搜索结果等
@@ -749,21 +725,21 @@ msq.on('error', (data) => {
 
 ---
 
-## 📊 总结对比
+## 总结对比
 
 | 维度 | MongoDB 原生 | monSQLize | 提升 |
 |------|-------------|-----------|------|
-| **功能完整性** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 100% 兼容 + 扩展 |
-| **性能（无缓存）** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 批量插入 10-50x |
-| **性能（有缓存）** | ⭐☆☆☆☆ | ⭐⭐⭐⭐⭐ | 缓存命中 1000x |
-| **深度分页** | ⭐⭐☆☆☆ | ⭐⭐⭐⭐⭐ | 深度分页 250x |
-| **易用性** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 更简洁的 API |
-| **可维护性** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 自动缓存失效 |
-| **可观测性** | ⭐⭐☆☆☆ | ⭐⭐⭐⭐⭐ | 开箱即用监控 |
+| **功能完整性** |  |  | 100% 兼容 + 扩展 |
+| **性能（无缓存）** |  |  | 批量插入 10-50x |
+| **性能（有缓存）** | ☆☆☆☆ |  | 缓存命中 1000x |
+| **深度分页** | ☆☆☆ |  | 深度分页 250x |
+| **易用性** |  |  | 更简洁的 API |
+| **可维护性** |  |  | 自动缓存失效 |
+| **可观测性** | ☆☆☆ |  | 开箱即用监控 |
 
 ---
 
-## 🚀 快速开始
+## 快速开始
 
 如果你想体验 monSQLize 的扩展功能，从这里开始：
 
@@ -777,15 +753,10 @@ msq.on('error', (data) => {
 
 ---
 
-## 📚 相关文档
+## 相关文档
 
 - [缓存系统](./cache.md) - 缓存系统详细文档
 - [findPage 指南](./findPage.md) - 分页查询详细文档
 - [事件系统](./events.md) - 事件系统详细文档
 - [insertMany 指南](./insert-many.md) - 批量插入性能优化
 - [连接配置](./connection.md) - 连接管理和跨库访问
-
----
-
-**最后更新**: 2025-11-18
-

@@ -2,7 +2,7 @@
 
 ## Current Behavior
 
-In the current v2 runtime, ObjectId conversion is value-based by default. Valid 24-character hex strings can be converted in query filters, write payloads, and aggregation pipelines when traversal reaches them.
+In the current runtime, ObjectId conversion is value-based by default. Valid 24-character hex strings can be converted in query filters, write payloads, and aggregation pipelines when traversal reaches them.
 
 Use `autoConvertObjectId` as an instance-level conversion switch:
 
@@ -64,8 +64,3 @@ Yes. If a workload contains values such as transaction hashes, idempotency keys,
 ### Is conversion field-whitelist based?
 
 No. Current stable behavior is value-based. A valid ObjectId-looking string can be converted regardless of the field name when traversal reaches it.
-
----
-
-**Updated version**: v2.0.7
-**Updated date**: 2026-06-16

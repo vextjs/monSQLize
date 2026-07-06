@@ -1,20 +1,5 @@
 ﻿# findPage method detailed documentation
 
-## 📑 Table of Contents
-
-- [Overview](#overview)
-- [Method signature](#method-signature)
-- [Parameter description](#parameter-description)
-- [Return value](#return-value)
-- [Usage mode](#usage-mode)
-- [Error handling](#error-handling)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [Frequently Asked Questions (FAQ)](#frequently-asked-questions-faq)
-- [Cursor token security and upgrade strategy](#cursor-token-security-and-upgrade-strategy)
-- [Related documents](#related-documents)
-
----
-
 ## Overview
 
 `findPage` is an advanced paging query method provided by monSQLize. It supports multiple paging modes, including cursor paging, page jump, streaming query, and total statistics.
@@ -589,7 +574,7 @@ const smallResult = await collection('categories').findPage({
   query: { active: true },
   sort: { name: 1 },
   limit: 30,
-  totals: { 
+  totals: {
     mode: 'sync',
     maxTimeMS: 2000,
     hint: { active: 1 }  // Using indexes to speed up statistics
@@ -603,7 +588,7 @@ async function getPaginatedDataWithTotal(query, page) {
     sort: { createdAt: -1 },
     limit: 50,
     page,
-    totals: { 
+    totals: {
       mode: 'async',
       maxTimeMS: 5000,
       ttlMs: 600000  // Caching for 10 minutes
@@ -650,7 +635,7 @@ stream1.on('data', (doc) => {
   // Only process the current document, no accumulation
   processOrder(doc);
   processedCount++;
-  
+
   if (processedCount % 10000 === 0) {
     console.log(`Processed${processedCount} orders`);
   }
@@ -688,12 +673,12 @@ async function exportToCSV() {
   writeStream.write('id,email,name,registeredAt\n');
 
   stream.pipe(csvTransform).pipe(writeStream);
-  
+
   await new Promise((resolve, reject) => {
     writeStream.on('finish', resolve);
     writeStream.on('error', reject);
   });
-  
+
   console.log('Export completed');
 }
 ```
@@ -916,12 +901,12 @@ while (true) {
   });
 
   console.log(`No.${pageNum} Page: ${result.items.length} strip`);
-  
+
   if (!result.pageInfo.hasNext) {
     console.log('All data processed');
     break;
   }
-  
+
   cursor = result.pageInfo.endCursor;
   pageNum++;
 }
@@ -1186,7 +1171,7 @@ function OrderList() {
 
   const loadMore = async () => {
     if (loading || !hasMore) return;
-    
+
     setLoading(true);
     try {
       const response = await fetch('/api/orders', {
@@ -1199,9 +1184,9 @@ function OrderList() {
           after: cursor
         })
       });
-      
+
       const result = await response.json();
-      
+
       setOrders(prev => [...prev, ...result.items]);
       setCursor(result.pageInfo.endCursor);
       setHasMore(result.pageInfo.hasNext);
@@ -1222,13 +1207,13 @@ function OrderList() {
       {orders.map(order => (
         <div key={order._id}>{order.orderId}</div>
       ))}
-      
+
       {hasMore && (
         <button onClick={loadMore} disabled={loading}>
           {loading ? 'loading...' : 'load more'}
         </button>
       )}
-      
+
       {!hasMore && <div>No more data</div>}
     </div>
   );
@@ -1240,14 +1225,14 @@ function OrderList() {
 app.post('/api/orders', async (req, res) => {
   try {
     const { query, sort, limit, after } = req.body;
-    
+
     const result = await collection('orders').findPage({
       query,
       sort,
       limit: Math.min(limit, 100),  // Limit maximum
       after
     });
-    
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });

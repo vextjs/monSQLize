@@ -2,9 +2,9 @@
 
 ## Background
 
-Starting from this round, the underlying cache disclosure capability of `monSQLize` will be shifted to the native implementation of `cache-hub`; at the same time, the root entry will retain the v1 / v1.3.x smooth upgrade compatible packaging that has been released to avoid old consumers being forced to change the business source code when they only upgrade dependencies.
+monSQLize cache exports delegate to the native `cache-hub` implementation. The root entry keeps compatibility wrappers for existing consumers so dependency upgrades do not require immediate business-code changes.
 
-This means that the core semantics of the following exposed capabilities have been unified to `cache-hub`:
+The core semantics of the following exposed capabilities are unified through `cache-hub`:
 
 - `MemoryCache`
 - `createRedisCacheAdapter()`

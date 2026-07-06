@@ -1,52 +1,14 @@
 ﻿# monSQLize chain calling method support documentation
 
-## Table of Contents
+## Overview
 
-- [📋 Overview](#overview)
-- [🎉 Major update](#major-update)
-- [🎯 Supported chain calling method (completely implemented)](#supported-chain-calling-method-completely-implemented)
-- [1. `find()` method](#1-find-method)
-- [✅ Supported chain calls (12 methods in total)](#supported-chain-calls-12-methods-in-total)
-- [📝 Usage example](#usage-example)
-- [2. `aggregate()` method](#2-aggregate-method)
-- [✅ Supported chain calls (9 methods in total)](#supported-chain-calls-9-methods-in-total)
-- [📝 Usage example (2. aggregate() method)](#usage-example-2-aggregate-method)
-- [🆚 MongoDB native chain method comparison](#mongodb-native-chain-method-comparison)
-- [Complete comparison table](#complete-comparison-table)
-- [✨ Highlights of new features](#highlights-of-new-features)
-- [1. Promise compatibility](#1-promise-compatibility)
-- [2. Automatic parameter verification](#2-automatic-parameter-verification)
-- [3. Execution protection](#3-execution-protection)
-- [4. Full cache support](#4-full-cache-support)
-- [🔄 Backwards Compatibility](#backwards-compatibility)
-- [100% backwards compatible](#100-backwards-compatible)
-- [Automatic detection](#automatic-detection)
-- [📚 Related documents](#related-documents)
-- [📄 Update log](#update-log)
-
-## 📋 Overview
-
-This document summarizes the **native MongoDB chained calling methods** currently supported by the `find` and `aggregate` methods in the monSQLize project.
-
-**Updated date**: 2025-11-12
-**Version**: v2.0.0 - **✨ Full chain call support**
-
----
-
-## 🎉 Major update
-
-**v2.0.0 now supports the complete MongoDB chain call API! **
-
-Now you can build queries using chained calls just like you would with the native MongoDB driver. All new chained methods fully support caching, parameter validation and error handling.
+Now you can build queries using chained calls just like you would with the native MongoDB driver. Chained methods fully support caching, parameter validation and error handling.
 
 ---
 
 ## 🎯 Supported chain calling method (completely implemented)
 
-
 ## 1. `find()` method
-
-
 
 ## ✅ Supported chain calls (12 methods in total)
 
@@ -66,8 +28,6 @@ Now you can build queries using chained calls just like you would with the nativ
 | **`.toArray()`** | `.toArray()` | Explicit conversion to array | `find()` query chain |
 
 `limit(0)` intentionally keeps the MongoDB cursor semantics: it means "no limit" and may return all matching documents. Use a positive limit for bounded reads; explicit positive limits are capped by `findMaxLimit`.
-
-
 
 ## 📝 Usage example
 
@@ -118,10 +78,7 @@ const stream = collection('products')
 
 ---
 
-
 ## 2. `aggregate()` method
-
-
 
 ## ✅ Supported chain calls (9 methods in total)
 
@@ -136,8 +93,6 @@ const stream = collection('products')
 | **`.explain(v)`** | `.explain(string?)` | Return the aggregate execution plan | `aggregate()` query chain |
 | **`.stream()`** | `.stream()` | Return streaming results | `aggregate()` query chain |
 | **`.toArray()`** | `.toArray()` | Explicit conversion to array | `aggregate()` query chain |
-
-
 
 ## 📝 Usage example (2. aggregate() method)
 
@@ -183,7 +138,6 @@ const stream = collection('orders')
 
 ## 🆚 MongoDB native chain method comparison
 
-
 ## Complete comparison table
 
 | Method | MongoDB native support | monSQLize v2.0 | Description |
@@ -212,7 +166,6 @@ const stream = collection('orders')
 
 ## ✨ Highlights of new features
 
-
 ## 1. Promise compatibility
 
 The chained call object implements the complete Promise interface:
@@ -232,7 +185,6 @@ const results = await collection('products')
   .catch(err => []);
 ```
 
-
 ## 2. Automatic parameter verification
 
 ```javascript
@@ -245,7 +197,6 @@ const results = await collection('products')
 .skip("invalid")  // Error: skip() requires a non-negative integer
 .sort("invalid")  // Error: sort() requires an object or array
 ```
-
 
 ## 3. Execution protection
 
@@ -261,7 +212,6 @@ await chain.toArray();
 await chain.toArray(); // Error: Query already executed
 ```
 
-
 ## 4. Full cache support
 
 The chained call uses the same cache key as the options parameter:
@@ -275,7 +225,6 @@ await collection('products').find({}, { limit: 10, sort: { price: -1 } });
 ---
 
 ## 🔄 Backwards Compatibility
-
 
 ## 100% backwards compatible
 
@@ -295,7 +244,6 @@ const results = await collection('products')
   .sort({ price: -1 });
 ```
 
-
 ## Automatic detection
 
 monSQLize will automatically detect the calling method:
@@ -312,16 +260,5 @@ monSQLize will automatically detect the calling method:
 - **[find method document](./find.md)** - find method detailed description
 - **[aggregate method document](./aggregate.md)** - detailed description of aggregate method
 - **[explain method document](./explain.md)** - Performance analysis tool
-
----
-
-## 📄 Update log
-
-| Version | Date | Updates |
-|------|------|---------|
-| v2.0.0 | 2025-11-12 | ✨ **Major Update**: Completely implement chain call API, add 9 new methods including `.limit()`, `.skip()`, `.sort()`, `.project()` |
-| v1.0.0 | 2025-11-12 | Initial version, only supports `.explain()` chain call |
-
----
 
 **Feedback and Suggestions**: If you have questions or suggestions, please submit [GitHub Issue](https://github.com/vextjs/monSQLize/issues).

@@ -1,52 +1,32 @@
-# find method detailed documentation
-
-## 📑 Table of Contents
-
-- [Overview](#overview)
-- [Calling method](#calling-method)
-- [Method signature](#method-signature)
-- [Parameter description](#parameter-description)
-- [Return value](#return-value)
-- [Usage mode](#usage-mode)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [Error handling](#error-handling)
-- [Differences from findPage](#differences-from-findpage)
-- [References](#references)
-- [FAQ](#faq)
-- [Best Practices](#best-practices)
-- [Version history](#version-history)
-
----
+# find()
 
 ## Overview
 
-`find` is the basic query method provided by monSQLize, which is used to query multiple document records from the MongoDB collection. Supports query conditions, sorting, paging, projection, streaming, caching and other functions.
+`find()` reads multiple documents from a MongoDB collection. Use it for filtered lists, sorted lists, pagination, projections, streaming, cached reads, and any query where you expect zero or more documents.
 
-### ✨ ObjectId automatic conversion (v1.3.0+)
+### ObjectId auto conversion
 
-Starting from v1.3.0, the `find` method supports **ObjectId string automatic conversion**. When the query condition contains an ObjectId string, it will be automatically converted into a MongoDB ObjectId object without manually calling `new ObjectId()`.
+When a query contains valid 24-character ObjectId strings, monSQLize converts them before sending the query to MongoDB. You can usually pass request IDs as strings without calling `new ObjectId()` yourself.
 
 ```javascript
-// ✅ v1.3.0+: Automatically convert ObjectId string
 const posts = await collection('posts').find({
-    authorId: '507f1f77bcf86cd799439011',      // Automatically converted to ObjectId
-    categoryId: '507f1f77bcf86cd799439012'     // Automatically converted to ObjectId
+    authorId: '507f1f77bcf86cd799439011',
+    categoryId: '507f1f77bcf86cd799439012'
 });
 
-// ✅ Complex queries are also supported
 const docs = await collection('docs').find({
     $or: [
-        { authorId: userId1 },   // automatic conversion
-        { editorId: userId2 }    // automatic conversion
+        { authorId: userId1 },
+        { editorId: userId2 }
     ]
 });
 ```
 
-**Learn more**: For details, see [ObjectId automatic conversion document](./objectid-auto-convert.md)
+See [ObjectId Auto Conversion](./objectid-auto-convert.md) for escape hatches when a 24-character hex business value must stay a string.
 
 ## Calling method
 
-monSQLize provides two query methods with completely equivalent functions:
+monSQLize supports both chain-style calls and options objects. Choose the shape that is easier for your codebase to read.
 
 ### Method 1: Chain call (recommended)
 
@@ -88,7 +68,7 @@ const results = await collection('products')
 
 📚 **Detailed Documentation**: View [Chain Call Complete API Document](./chaining-api.md)
 
-### Method 2: options parameter (traditional method, fully compatible)
+### Method 2: options parameter
 
 ```javascript
 const results = await collection('products').find(
@@ -102,7 +82,7 @@ const results = await collection('products').find(
 );
 ```
 
-**The two methods are completely equivalent** and can be used according to personal preferences and scenarios.
+Both styles execute the same query path.
 
 ---
 
@@ -946,7 +926,3 @@ async function batchProcess(collectionName, processFunc, batchSize = 1000) {
   });
 }
 ```
-
-## Version history
-
-- **v1.0.0** (2025-01-12): Initial version, complete find method documentation

@@ -1,98 +1,18 @@
-﻿# Slow query log persistent storage function documentation
+﻿# Slow query log persistence
 
-> **Version**: v1.0.1
-> **Last updated**: 2025-12-29
-> **Status**: Completed
+## Overview
 
----
-
-## Table of Contents
-
-- [Function Overview](#function-overview)
-- [What is slow query log persistence storage?](#what-is-slow-query-log-persistence-storage)
-- [Core Features](#core-features)
-- [Working principle](#working-principle)
-- [Quick start](#quick-start)
-- [Simplest configuration (recommended)](#simplest-configuration-recommended)
-- [Automatic effects](#automatic-effects)
-- [Configuration instructions](#configuration-instructions)
-- [Global slow query configuration](#global-slow-query-configuration)
-  - [Basic configuration (set during initialization)](#basic-configuration-set-during-initialization)
-  - [Detailed explanation of configuration options](#detailed-explanation-of-configuration-options)
-- [Operation level configuration](#operation-level-configuration)
-  - [Method 1: Through options parameter](#method-1-through-options-parameter)
-  - [Method 2: Use global configuration](#method-2-use-global-configuration)
-- [Log format](#log-format)
-  - [JSON format (default)](#json-format-default)
-  - [Text format](#text-format)
-- [Log output configuration](#log-output-configuration)
-  - [Use custom Logger](#use-custom-logger)
-  - [Listen for slow query events](#listen-for-slow-query-events)
-- [Configuration level](#configuration-level)
-  - [Level 1: Zero configuration (recommended)](#level-1-zero-configuration-recommended)
-  - [Level 2: Basic configuration (commonly used)](#level-2-basic-configuration-commonly-used)
-  - [Level 3: Complete Configuration (Advanced)](#level-3-complete-configuration-advanced)
-- [Detailed explanation of configuration parameters](#detailed-explanation-of-configuration-parameters)
-  - [storage storage configuration](#storage-storage-configuration)
-  - [storage.mongodb MongoDB storage configuration](#storagemongodb-mongodb-storage-configuration)
-  - [deduplication deduplication configuration](#deduplication-deduplication-configuration)
-  - [batch batch configuration](#batch-batch-configuration)
-  - [filter filter configuration](#filter-filter-configuration)
-- [API Reference](#api-reference)
-- [getSlowQueryLogs(filter, options)](#getslowquerylogsfilter-options)
-- [Usage example](#usage-example)
-- [Example 1: Zero configuration enablement](#example-1-zero-configuration-enablement)
-- [Example 2: Independent connection (isolated resources)](#example-2-independent-connection-isolated-resources)
-- [Example 3: Custom TTL](#example-3-custom-ttl)
-- [Example 4: Filter a specific collection](#example-4-filter-a-specific-collection)
-- [Example 5: Solution A (no duplication)](#example-5-solution-a-no-duplication)
-- [Example 6: Real-time writing mode](#example-6-real-time-writing-mode)
-- [Best Practices](#best-practices)
-- [Threshold setting suggestions](#threshold-setting-suggestions)
-  - [Example: Different scenario configurations](#example-different-scenario-configurations)
-- [Monitoring and Analysis](#monitoring-and-analysis)
-  - [1. Real-time monitoring](#1-real-time-monitoring)
-  - [2. Regular analysis](#2-regular-analysis)
-  - [3. Export slow query statistics](#3-export-slow-query-statistics)
-- [Optimization suggestions](#optimization-suggestions)
-  - [1. Create index](#1-create-index)
-  - [2. Optimize query conditions](#2-optimize-query-conditions)
-  - [3. Use projection to reduce data transmission](#3-use-projection-to-reduce-data-transmission)
-  - [4. Enable caching](#4-enable-caching)
-- [Best Practices for Production Environments](#best-practices-for-production-environments)
-  - [1. Set TTL appropriately](#1-set-ttl-appropriately)
-  - [2. Use reuse connection (default)](#2-use-reuse-connection-default)
-  - [3. Configure alarms](#3-configure-alarms)
-  - [4. Monitor storage space](#4-monitor-storage-space)
-  - [5. Integrated log system](#5-integrated-log-system)
-- [Troubleshooting](#troubleshooting)
-- [Problem 1: Slow query log is not saved](#problem-1-slow-query-log-is-not-saved)
-- [Problem 2: Storage connection failed](#problem-2-storage-connection-failed)
-- [Question 3: Querying the slow query log returns empty](#question-3-querying-the-slow-query-log-returns-empty)
-- [Performance optimization](#performance-optimization)
-- [Performance impact analysis](#performance-impact-analysis)
-- [Optimization suggestions (performance optimization)](#optimization-suggestions-performance-optimization)
-- [Appendix](#appendix)
-- [A. Data model](#a-data-model)
-- [B. Version History](#b-version-history)
-- [C. Related links](#c-related-links)
-
-## Function Overview
-
-
-## What is slow query log persistence storage?
-
-Slow query log persistent storage is a new feature introduced in monSQLize v1.0.1. It can automatically save query records that exceed the threshold to persistent storage (currently supports MongoDB) to facilitate subsequent analysis and optimization.
+Slow query log persistence records operations that exceed the configured `slowQueryMs` threshold and lets you query aggregated slow-query statistics later. In the current MongoDB runtime, records are stored in MongoDB by default and may use memory storage for local or custom scenarios.
 
 
 ## Core Features
 
-- ✅ **Zero configuration activation** - `slowQueryLog: true` one line activation
-- ✅ **Plan B to remove duplicates** - Automatically aggregate statistics for the same query mode
-- ✅ **Batch Write** - Asynchronous batch processing, no performance loss (<2ms additional overhead)
-- ✅ **Automatic expiration** - TTL index automatically cleans historical data (default 7 days)
-- ✅ **Query Interface** - built-in API query slow query log
-- ✅ **Multiple Database Support** - Architecture supports MongoDB/PostgreSQL/MySQL extensions
+- **Simple enablement**: use `slowQueryLog: true` with `slowQueryMs`.
+- **Aggregated records**: records with the same `queryHash`, database, collection, and operation are upserted into one statistic row.
+- **Batch writing**: enabled by default with configurable size, interval, and buffer limit.
+- **Automatic expiration**: MongoDB storage creates a TTL index on `lastSeen`.
+- **Query API**: `getSlowQueryLogs(filter, options)` returns stored slow-query statistics.
+- **Current storage backends**: `mongodb` and `memory`.
 
 
 ## Working principle
@@ -121,7 +41,7 @@ Slow query log persistent storage is a new feature introduced in monSQLize v1.0.
        ▼
 ┌─────────────────┐
 │ bulkWrite upsert│ ← MongoDB storage
-│ (Plan B to remove duplicates) │
+│ aggregate row    │
 └─────────────────┘
 ```
 
@@ -162,7 +82,7 @@ await msq.close();
 ## Automatic effects
 
 - Slow queries are automatically saved to the `admin.slow_query_logs` collection
-- Automatic deduplication and aggregation of the same query (Plan B)
+- Similar query records are aggregated by `queryHash`, database, collection, and operation
 - TTL index automatically cleans data from 7 days ago
 - Reuse business connections without additional connection overhead
 
@@ -181,21 +101,11 @@ const msq = new MonSQLize({
   type: 'mongodb',
   config: { uri: 'mongodb://localhost:27017/mydb' },
 
-  //Global slow query threshold (milliseconds)
-  slowQueryMs: 1000,  //Default 1000ms
+  // Global slow query threshold in milliseconds. Default: 500.
+  slowQueryMs: 1000,
 
-  //Slow query log configuration
-  slowQuery: {
-    enabled: true,           //Whether to enable slow query monitoring (default true)
-    threshold: 1000,         //Threshold (milliseconds), overrides slowQueryMs
-    includeStack: false,     //Whether to include stack information (for debugging)
-    logLevel: 'warn',        //Log level: debug/info/warn/error
-    outputFormat: 'json',    //Output format: json/text
-    excludeOperations: []    //Excluded operation types: ['find', 'aggregate']
-  },
-
-  //Slow query persistent storage (optional)
-  slowQueryLog: true  //Or detailed configuration object
+  // Enable persistence with defaults, or pass a slowQueryLog object.
+  slowQueryLog: true
 });
 ```
 
@@ -204,13 +114,16 @@ const msq = new MonSQLize({
 
 | Options | Type | Default | Description |
 |------|------|--------|------|
-| `slowQueryMs` | number | 1000 | Global slow query threshold (milliseconds) |
-| `slowQuery.enabled` | boolean | true | Whether to enable slow query monitoring |
-| `slowQuery.threshold` | number | 1000 | Slow query threshold, priority higher than slowQueryMs |
-| `slowQuery.includeStack` | boolean | false | Whether to record the call stack (for debugging) |
-| `slowQuery.logLevel` | string | 'warn' | Log level |
-| `slowQuery.outputFormat` | string | 'json' | Output format |
-| `slowQuery.excludeOperations` | string[] | [] | Excluded operation types |
+| `slowQueryMs` | number | `500` | Global threshold used by slow-query events and, when `slowQueryLog` is enabled, by `slowQueryLog.filter.minExecutionTimeMs` unless that field is set explicitly. |
+| `slowQueryLog` | boolean or object | `false` | Enables persistence when `true`; an object may configure `enabled`, `storage`, `batch`, `filter`, and `advanced`. |
+| `slowQueryLog.storage.type` | `'mongodb' \| 'memory'` | `'mongodb'` for MongoDB runtime | Storage backend. Other storage names are not currently supported. |
+| `slowQueryLog.storage.useBusinessConnection` | boolean | `true` | Reuse the main MongoDB client. Set `false` only when also providing `storage.uri`. |
+| `slowQueryLog.storage.database` | string | `'admin'` | Database used by MongoDB storage. |
+| `slowQueryLog.storage.collection` | string | `'slow_query_logs'` | Collection used by MongoDB storage. |
+| `slowQueryLog.storage.ttl` | number | `604800` | TTL in seconds for the `lastSeen` index. |
+| `slowQueryLog.batch.enabled` | boolean | `true` | Buffer writes before saving. |
+| `slowQueryLog.filter.*` | object | empty filters | Exclude databases, collections, operations, or set `minExecutionTimeMs`. |
+| `slowQueryLog.advanced.errorHandling` | `'log' \| 'throw' \| 'silent'` | `'log'` | How persistence errors are handled. |
 
 
 ## Operation level configuration
@@ -292,22 +205,21 @@ Documents returned: 10
 ### Use custom Logger
 
 ```javascript
-const winston = require('winston');
-
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.json(),
-  transports: [
-    new winston.transports.File({ filename: 'slow-query.log' }),
-    new winston.transports.Console()
-  ]
-});
+const logger = {
+  warn(message, fields) {
+    process.stdout.write(`${JSON.stringify({ level: 'warn', message, ...fields })}\n`);
+  },
+  error(message, error) {
+    process.stderr.write(`${JSON.stringify({ level: 'error', message, error: String(error) })}\n`);
+  }
+};
 
 const msq = new MonSQLize({
   type: 'mongodb',
   config: { uri: '...' },
-  logger: logger,  //Using Winston logger
-  slowQueryMs: 1000
+  logger,
+  slowQueryMs: 1000,
+  slowQueryLog: true
 });
 ```
 
@@ -352,12 +264,11 @@ slowQueryLog: true  //Use all default values
 
 **Default configuration**:
 - `enabled: true` - Enable
-- `storage.type: 'mongodb'` - storage type (automatically inferred)
+- `storage.type: 'mongodb'` - MongoDB storage for the MongoDB runtime
 - `storage.useBusinessConnection: true` - Multiplexed business connection
-- `storage.mongodb.database: 'admin'` - stored in admin database
-- `storage.mongodb.collection: 'slow_query_logs'` - collection name
-- `storage.mongodb.ttl: 604800` - Expires in 7 days
-- `deduplication.enabled: true` - Enable deduplication
+- `storage.database: 'admin'` - stored in admin database
+- `storage.collection: 'slow_query_logs'` - collection name
+- `storage.ttl: 604800` - Expires in 7 days
 - `batch.enabled: true` - Enable batch writing
 - `batch.size: 10` - batch size
 - `batch.interval: 5000` - refresh in 5 seconds
@@ -369,9 +280,7 @@ slowQueryLog: true  //Use all default values
 slowQueryLog: {
   enabled: true,
   storage: {
-    mongodb: {
-      ttl: 3 * 24 * 3600  //Only modify the TTL to 3 days
-    }
+    ttl: 3 * 24 * 3600  //Only modify the TTL to 3 days
   }
 }
 ```
@@ -388,20 +297,9 @@ slowQueryLog: {
     type: 'mongodb',                    //storage type
     useBusinessConnection: false,        //Do not reuse connections
     uri: 'mongodb://admin-host:27017', // Independent connection URI
-
-    mongodb: {
-      database: 'admin',
-      collection: 'slow_query_logs',
-      ttl: 7 * 24 * 3600,
-      ttlField: 'lastSeen'
-    }
-  },
-
-  //Deduplication
-  deduplication: {
-    enabled: true,                      //Enable option B
-    strategy: 'aggregate',              //aggregation strategy
-    keepRecentExecutions: 0             //No details retained
+    database: 'admin',
+    collection: 'slow_query_logs',
+    ttl: 7 * 24 * 3600
   },
 
   //Batch configuration
@@ -430,28 +328,12 @@ slowQueryLog: {
 
 | Parameters | Type | Default value | Description |
 |------|------|--------|------|
-| `type` | string | null (automatically inferred) | Storage type: mongodb/postgresql/mysql/file |
+| `type` | `'mongodb' \| 'memory'` | `'mongodb'` | Storage backend. Other values are rejected by config validation. |
 | `useBusinessConnection` | boolean | true | Whether to reuse business connections |
 | `uri` | string | null | Independent connection URI (required when useBusinessConnection=false) |
-
-
-### storage.mongodb MongoDB storage configuration
-
-| Parameters | Type | Default value | Description |
-|------|------|--------|------|
 | `database` | string | 'admin' | Storage database |
 | `collection` | string | 'slow_query_logs' | Storage collection |
 | `ttl` | number | 604800 (7 days) | TTL expiration time (seconds) |
-| `ttlField` | string | 'lastSeen' | TTL field name |
-
-
-### deduplication deduplication configuration
-
-| Parameters | Type | Default value | Description |
-|------|------|--------|------|
-| `enabled` | boolean | true | Whether to enable deduplication |
-| `strategy` | string | 'aggregate' | Deduplication strategy: aggregate (Plan B)/none (Plan A) |
-| `keepRecentExecutions` | number | 0 | Keep the latest N execution details (v1.5+) |
 
 
 ### batch batch configuration
@@ -596,9 +478,7 @@ const msq = new MonSQLize({
   slowQueryLog: {
     enabled: true,
     storage: {
-      mongodb: {
-        ttl: 24 * 3600  //Keep for 1 day
-      }
+      ttl: 24 * 3600  //Keep for 1 day
     }
   }
 });
@@ -623,7 +503,7 @@ const msq = new MonSQLize({
 ```
 
 
-## Example 5: Solution A (no duplication)
+## Example 5: Memory storage for local analysis
 
 ```javascript
 const msq = new MonSQLize({
@@ -632,8 +512,8 @@ const msq = new MonSQLize({
   slowQueryMs: 500,
   slowQueryLog: {
     enabled: true,
-    deduplication: {
-      enabled: false  //Turn off deduplication and add new records each time
+    storage: {
+      type: 'memory'
     }
   }
 });
@@ -681,9 +561,11 @@ const apiMsq = new MonSQLize({
   type: 'mongodb',
   config: { uri: '...' },
   slowQueryMs: 200,  //200ms threshold
-  slowQuery: {
-    logLevel: 'error',  //Only severely slow queries are logged
-    excludeOperations: []
+  slowQueryLog: {
+    enabled: true,
+    filter: {
+      excludeOperations: []
+    }
   }
 });
 
@@ -692,9 +574,11 @@ const analyticsMsq = new MonSQLize({
   type: 'mongodb',
   config: { uri: '...' },
   slowQueryMs: 5000,  //5 second threshold
-  slowQuery: {
-    logLevel: 'info',
-    excludeOperations: []  //Log all actions
+  slowQueryLog: {
+    enabled: true,
+    filter: {
+      excludeOperations: []
+    }
   }
 });
 
@@ -907,11 +791,9 @@ const activeUsers = await collection('users').find(
 ```javascript
 //Set TTL based on storage capacity and analysis needs
 storage: {
-  mongodb: {
-    ttl: 7 * 24 * 3600    //1 week (recommended) - balance storage and analysis needs
-    //ttl: 30 * 24 * 3600 // January - Long-term trend analysis
-    //ttl: 1 * 24 * 3600 // 1 day - storage sensitive scenes
-  }
+  ttl: 7 * 24 * 3600    //1 week (recommended) - balance storage and analysis needs
+  // ttl: 30 * 24 * 3600 // 30 days - Long-term trend analysis
+  // ttl: 1 * 24 * 3600 // 1 day - storage sensitive scenes
 }
 ```
 
@@ -997,30 +879,24 @@ setInterval(async () => {
 ### 5. Integrated log system
 
 ```javascript
-//Integrate with Winston
-const winston = require('winston');
-
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({
-      filename: 'slow-query.log',
-      maxsize: 10485760,  // 10MB
-      maxFiles: 5
-    }),
-    new winston.transports.Console()
-  ]
-});
+const logger = {
+  info(message, fields) {
+    process.stdout.write(`${JSON.stringify({ level: 'info', message, ...fields })}\n`);
+  },
+  warn(message, fields) {
+    process.stdout.write(`${JSON.stringify({ level: 'warn', message, ...fields })}\n`);
+  },
+  error(message, error) {
+    process.stderr.write(`${JSON.stringify({ level: 'error', message, error: String(error) })}\n`);
+  }
+};
 
 const msq = new MonSQLize({
   type: 'mongodb',
   config: { uri: '...' },
-  logger: logger,  //Use custom logger
-  slowQueryMs: 1000
+  logger,
+  slowQueryMs: 1000,
+  slowQueryLog: true
 });
 ```
 
@@ -1057,7 +933,7 @@ const msq = new MonSQLize({
 **Solution**:
 1. Check whether the configuration is correct
 2. Check the log output for errors
-3. Manually call `msq.slowQueryLogManager.queue.flush()`
+3. If batch mode is enabled, call `await msq.getSlowQueryLogManager()?.queue?.flush()` before reading recent logs.
 
 
 ## Problem 2: Storage connection failed
@@ -1076,6 +952,7 @@ const msq = new MonSQLize({
 ```javascript
 //Check if the URI is correct
 storage: {
+  useBusinessConnection: false,
   uri: 'mongodb://localhost:27017/admin' // Confirm that the URI is correct
 }
 
@@ -1100,7 +977,8 @@ const allLogs = await msq.getSlowQueryLogs({}, { limit: 100 });
 console.log('Total:', allLogs.length);
 
 //Check TTL settings
-console.log('TTL:', msq.slowQueryLogManager.config.storage.mongodb.ttl);
+const manager = msq.getSlowQueryLogManager();
+console.log('TTL:', manager?.config.storage.ttl);
 ```
 
 ---
@@ -1130,20 +1008,16 @@ console.log('TTL:', msq.slowQueryLogManager.config.storage.mongodb.ttl);
    }
    ```
 
-2. **Use scheme B to remove duplicates** (enabled by default)
+2. **Keep the built-in aggregation key**
    ```javascript
-   deduplication: {
-     enabled: true,     //✅ Enable deduplication
-     strategy: 'aggregate'
-   }
+   // MongoDB storage upserts by queryHash + database + collection + operation.
+   // There is no user-facing aggregation switch to configure.
    ```
 
 3. **Set TTL reasonably**
    ```javascript
    storage: {
-     mongodb: {
-       ttl: 7 * 24 * 3600  //Expires in 7 days
-     }
+     ttl: 7 * 24 * 3600  //Expires in 7 days
    }
    ```
 
@@ -1201,21 +1075,6 @@ db.slow_query_logs.createIndex({ count: -1 });
 ```
 
 
-## B. Version History
+## B. Related links
 
-| Version | Date | Changes |
-|------|------|------|
-| v1.3.1 | 2025-12-22 | First release, supports MongoDB storage |
-
-
-## C. Related links
-
-- [Requirement plan document]
 - [Usage Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/slow-query-log.ts)
-- [Configuration design description]
-
----
-
-**Documentation version**: v1.3.1
-**Last update**: 2025-12-22
-**Maintainer**: AI assistant

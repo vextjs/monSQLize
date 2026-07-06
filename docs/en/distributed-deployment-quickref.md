@@ -1,30 +1,12 @@
-# 🚀 Distributed deployment quick reference
+# Distributed Deployment Quick Reference
 
----
-
-## Table of Contents
-
-- [Simplest configuration (only 3 lines)](#simplest-configuration-only-3-lines)
-- [Complete configuration (recommended)](#complete-configuration-recommended)
-- [Parameter quick lookup table](#parameter-quick-lookup-table)
-- [distributed (distributed cache invalidation)](#distributed-distributed-cache-invalidation)
-- [transaction.distributedLock (compatibility placeholder)](#transactiondistributedlock-compatibility-placeholder)
-- [Common scenarios](#common-scenarios)
-- [Scenario 1: General Web application (recommended)](#scenario-1-general-web-application-recommended)
-- [Scenario 2: Financial/payment system](#scenario-2-financial-payment-system)
-- [Scenario 3: Kubernetes deployment](#scenario-3-kubernetes-deployment)
-- [Environment variable settings](#environment-variable-settings)
-- [Docker](#docker)
-- [Kubernetes](#kubernetes)
-- [PM2](#pm2)
-- [Key point memory](#key-point-memory)
-- [Verify configuration](#verify-configuration)
-
-## Simplest configuration (only 3 lines)
+## Minimal configuration
 
 ```javascript
 distributed: {
-  enabled: true  //Just this one line! Everything else is optional
+  enabled: true,
+  redisUrl: process.env.REDIS_URL,
+  instanceId: process.env.INSTANCE_ID
 }
 ```
 
@@ -46,7 +28,8 @@ const msq = new MonSQLize({
     remote: MonSQLize.createRedisCacheAdapter(redis),  //① Redis cache
     distributed: {
       enabled: true,                              //② Enable distributed failure
-      instanceId: process.env.INSTANCE_ID         //③ Instance ID (recommended setting)
+      redis,                                      //③ Pub/Sub connection
+      instanceId: process.env.INSTANCE_ID         //④ Instance ID (recommended setting)
     }
   }
 });
@@ -61,15 +44,16 @@ const msq = new MonSQLize({
 
 | Parameters | Required? |Default value|
 |-----|-------|--------|
-| `enabled` | ✅ YES | - |
-| `redis` | ❌ No | Automatically extract from `remote` |
+| `enabled` | No | `true` when the block exists |
+| `redis` | Use `redis` or `redisUrl` | Not inferred from `remote` |
+| `redisUrl` | Use `redis` or `redisUrl` | - |
 | `instanceId` | ❌ No | `instance-${timestamp}-${random}` |
 | `channel` | ❌ No | `'monsqlize:cache:invalidate'` |
 
 
 ## transaction.distributedLock (compatibility placeholder)
 
-`transaction.distributedLock` is retained for v1 configuration compatibility. In the v2 runtime, it is not wired into transaction cache-lock interception and transaction cache locks remain process-local.
+`transaction.distributedLock` is retained only as a compatibility placeholder. It is not wired into transaction cache-lock interception, and transaction cache locks remain process-local.
 
 For cross-instance critical sections, use explicit business coordination such as `DistributedCacheLockManager` plus idempotency/fencing, or bypass cache for strict freshness paths.
 
@@ -83,6 +67,7 @@ For cross-instance critical sections, use explicit business coordination such as
 ```javascript
 distributed: {
   enabled: true,
+  redisUrl: process.env.REDIS_URL,
   instanceId: process.env.INSTANCE_ID  //Use environment variables
 }
 ```
@@ -97,6 +82,7 @@ const msq = new MonSQLize({
   cache: {
     distributed: {
       enabled: true,
+      redisUrl: process.env.REDIS_URL,
       instanceId: process.env.INSTANCE_ID
     }
   }
@@ -119,6 +105,7 @@ await lock.withLock(`payment:${paymentId}`, async () => {
 ```javascript
 distributed: {
   enabled: true,
+  redisUrl: process.env.REDIS_URL,
   instanceId: process.env.HOSTNAME  //Use Pod name
 }
 ```
@@ -164,8 +151,8 @@ fieldPath: metadata.name # Use Pod name
 
 ## Key point memory
 
-1. **`enabled: true`** - the only required configuration
-2. **`redis`** - Automatically reused from `remote`, no need to repeat configuration
+1. **`redis` or `redisUrl`** - required for distributed invalidation; the runtime does not inspect `cache.remote`
+2. **`enabled`** - optional when the block exists; set it to `false` to disable the block without deleting it
 3. **`instanceId`** - Optional but recommended setting for easy debugging
 4. **Strict cross-instance flows** - use explicit business coordination or bypass cache
 

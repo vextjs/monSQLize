@@ -1,26 +1,20 @@
-﻿# Change Stream data synchronization
+﻿# Change Stream Sync
 
-> **Version**: v1.0.8
-> **Function**: Real-time synchronization of data to backup database
-> **Mode**: CDC (Change Data Capture)
+## Overview
 
----
-
-## 📋 Overview
-
-**Change Stream data synchronization** is based on MongoDB's native Change Stream mechanism, which monitors data changes in real time and synchronizes them to multiple backup databases.
+Change Stream sync uses MongoDB's native Change Stream mechanism to dispatch accepted data-change events to one or more targets. It is useful for backup databases, denormalized projections, cache invalidation callbacks, and other asynchronous CDC workflows.
 
 
 ## Core Features
 
-- ✅ **Real-time synchronization**: Based on MongoDB Change Stream, delay 10-500ms
-- ✅ **Decoupled design**: Primary database write operations are not affected; synchronization runs asynchronously
+- ✅ **Asynchronous CDC**: Based on MongoDB Change Stream; latency depends on MongoDB, network, and target workload
+- ✅ **Decoupled design**: Primary database writes do not wait for target apply callbacks
 - ✅ **Resume breakpoint**: Resume Token is saved after all matching targets succeed, so restarts can resume from the latest persisted token
 - ✅ **Multi-target support**: Sync to multiple backup databases at the same time
 - ✅ **Data Filtering**: Custom filtering logic
 - ✅ **Data conversion**: Support desensitization and field conversion
 - ✅ **Observable lifecycle**: Sync stats expose running state and error counters for monitoring/restart workflows
-- ✅ **Health Check**: Reuse ConnectionPoolManager
+- ✅ **Health Check**: Target health-check configuration for managed targets
 
 ---
 
@@ -109,7 +103,9 @@ await msq.close();
 | Options | Type | Required | Description |
 |------|------|------|------|
 | `name` | string | ✅ | Target name (unique) |
-| `uri` | string | ✅ | MongoDB URI |
+| `uri` | string | Conditional | MongoDB URI. Each target must provide one of `uri`, `pool`, or `apply` |
+| `pool` | string | Conditional | Named connection pool target |
+| `apply` | Function | Conditional | Custom target callback `(event, document, context) => Promise<void>` |
 | `collections` | Array | ❌ | Synchronized collection, `['*']` represents all |
 | `healthCheck` | Object | ❌ | Health Check Configuration |
 
@@ -310,7 +306,7 @@ rs.initiate()
 ## Q4: How to deal with synchronization failure?
 
 **Automatic processing**:
-- Failure of a single target does not affect other targets
+- Targets that already applied the event are not rolled back, but any target failure stops the manager before the resume token advances
 - A resume-token save failure stops the sync manager before the token can advance
 - Change Stream driver errors and unexpected stream closes are logged and reflected in stats; monitor `isRunning`, `errorCount`, and `lastError`, then restart the manager or runtime from your supervisor when needed
 
@@ -388,13 +384,8 @@ process.on('SIGTERM', async () => {
 
 ---
 
-## 📚 More resources
+## More resources
 
 - [Sample code](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync.ts)
 - [MongoDB Change Streams official documentation](https://www.mongodb.com/docs/manual/changeStreams/)
-- [ConnectionPoolManager documentation](./multi-pool.md)
-
----
-
-_Document update time: 2026-01-17_
-_Version: v1.0.9_
+- [Multi-pool configuration documentation](./multi-pool.md)

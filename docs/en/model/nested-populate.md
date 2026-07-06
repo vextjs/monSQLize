@@ -4,8 +4,8 @@
 
 Deep populate allows you to further populate related data of related data when filling related data, forming a multi-layer nested data structure.
 
-**Version**: v1.3.0+
-**Status**: ✅ Achieved
+Model schema examples on this page use the runtime-scoped `s` namespace passed by monSQLize. Application code does not need to import the root `schema-dsl` entry for these examples.
+
 
 ---
 
@@ -154,7 +154,7 @@ import { Model } from 'monsqlize';
 
 // User Model
 Model.define('users', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     username: 'string!',
     profileId: 'objectId'
   }),
@@ -176,7 +176,7 @@ Model.define('users', {
 
 // Post Model
 Model.define('posts', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     title: 'string!',
     authorId: 'objectId'
   }),
@@ -198,7 +198,7 @@ Model.define('posts', {
 
 // Comment Model
 Model.define('comments', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     content: 'string!',
     postId: 'objectId',
     authorId: 'objectId'
@@ -420,8 +420,3 @@ Test coverage:
 - [Model API Reference](../model.md)
 
 ---
-
-**Updated date**: 2026-01-07
-**Version**: v1.3.0+
-**Status**: ✅ Implemented and tested
-

@@ -1,17 +1,6 @@
-﻿# Schema 验证 API
+# Schema 验证 API
 
 集合级别的文档验证功能，确保数据质量。
-
----
-
-## 目录
-
-- [setValidator()](#setvalidator) - 设置验证规则
-- [setValidationLevel()](#setvalidationlevel) - 设置验证级别
-- [setValidationAction()](#setvalidationaction) - 设置验证行为
-- [getValidator()](#getvalidator) - 获取验证配置
-
----
 
 ## setValidator()
 
@@ -294,9 +283,3 @@ setupValidation().catch(console.error);
 
 - [集合管理](./collection-management.md) - collMod, stats
 - [集合管理示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts)
-
----
-
-**最后更新**: 2025-12-02  
-**版本**: v0.3.0
-

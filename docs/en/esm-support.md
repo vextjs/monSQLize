@@ -1,27 +1,5 @@
 # ES Module (`import`) Support
 
-**Version**: 1.0  
-**Last updated**: 2026-06-10
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Supported Import Styles](#supported-import-styles)
-- [Package.json Configuration](#packagejson-configuration)
-- [Usage Examples](#usage-examples)
-- [Import Style Comparison](#import-style-comparison)
-- [Available Exports](#available-exports)
-- [Testing ES Module Support](#testing-es-module-support)
-- [Best Practices](#best-practices)
-- [Migration Guide](#migration-guide)
-- [Notes](#notes)
-- [Compatibility Matrix](#compatibility-matrix)
-- [Summary](#summary)
-
----
-
 ## Overview
 
 monSQLize supports both **ES Module (`import`)** and **CommonJS (`require`)** consumption paths.
@@ -386,9 +364,9 @@ const moduleValue = await import('./module.js');
 
 | Node.js version | CommonJS | ES Module |
 |-----------------|----------|-----------|
-| 18.x | ✅ Supported | ✅ Supported |
-| 20.x | ✅ Supported | ✅ Supported |
-| 22.x | ✅ Supported | ✅ Supported |
+| 18.x | Supported | Supported |
+| 20.x | Supported | Supported |
+| 22.x | Supported | Supported |
 
 ---
 

@@ -19,7 +19,7 @@ The current stable adapter is MongoDB. MySQL and PostgreSQL are planned as futur
 The current MongoDB adapter includes:
 
 - MongoDB query extension
-- Cache / Function Cache
+- Database cache, with legacy function-cache compatibility retained for existing consumers
 - Model
 - Transaction
 - Pool / Sync / Slow Query Log

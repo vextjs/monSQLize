@@ -1,22 +1,5 @@
 # insertMany() - 批量插入文档
 
-## 📑 目录
-
-- [语法](#语法)
-- [参数](#参数)
-- [返回值](#返回值)
-- [核心特性](#核心特性)
-- [常见场景](#常见场景)
-- [错误处理](#错误处理)
-- [与其他方法的区别](#与其他方法的区别)
-- [性能优化建议](#性能优化建议)
-- [实用工具函数](#实用工具函数)
-- [注意事项](#注意事项)
-- [相关方法](#相关方法)
-- [示例代码](#示例代码)
-- [MongoDB 文档](#mongodb-文档)
-
----
 
 `insertMany()` 方法一次性向集合中插入多个文档，相比循环调用 `insertOne()`，性能提升 **10-50 倍**。
 
@@ -234,15 +217,15 @@ const BATCH_SIZE = 1000;
 
 async function insertLargeDataset(collectionName, documents) {
   let inserted = 0;
-  
+
   for (let i = 0; i < documents.length; i += BATCH_SIZE) {
     const batch = documents.slice(i, i + BATCH_SIZE);
     const result = await collection(collectionName).insertMany(batch);
     inserted += result.insertedCount;
-    
+
     console.log(`进度: ${inserted}/${documents.length}`);
   }
-  
+
   return inserted;
 }
 
@@ -282,7 +265,7 @@ try {
 } catch (error) {
   console.log(`成功插入 ${error.result.insertedCount} 个文档`); // 2
   console.log(`失败 ${error.writeErrors.length} 个文档`); // 1
-  
+
   // 查看具体失败的文档
   error.writeErrors.forEach(err => {
     console.error(`索引 ${err.index} 失败: ${err.errmsg}`);
@@ -352,7 +335,7 @@ const ids = Object.values(result.insertedIds);
 await collection("users").insertMany(users);
 
 // insertBatch - 适合超大量数据（>10万）
-await collection("users").insertBatch(users, { 
+await collection("users").insertBatch(users, {
   batchSize: 1000  // 每批 1000 个
 });
 ```
@@ -380,7 +363,7 @@ for (let i = 0; i < users.length; i += BATCH_SIZE) {
 
 ```javascript
 // 数据质量不确定时，使用无序插入
-await collection("products").insertMany(products, { 
+await collection("products").insertMany(products, {
   ordered: false  // 尽可能插入更多数据
 });
 ```
@@ -431,21 +414,21 @@ async function batchInsert(collectionName, documents, options = {}) {
     maxRetries = 3,
     onProgress = null
   } = options;
-  
+
   let inserted = 0;
   let failed = 0;
-  
+
   for (let i = 0; i < documents.length; i += batchSize) {
     const batch = documents.slice(i, i + batchSize);
     let attempt = 0;
     let success = false;
-    
+
     while (attempt < maxRetries && !success) {
       try {
         const result = await collection(collectionName).insertMany(batch, { ordered });
         inserted += result.insertedCount;
         success = true;
-        
+
         // 进度回调
         if (onProgress) {
           onProgress({
@@ -456,7 +439,7 @@ async function batchInsert(collectionName, documents, options = {}) {
         }
       } catch (error) {
         attempt++;
-        
+
         if (error.result) {
           // 部分成功（无序插入）
           inserted += error.result.insertedCount || 0;
@@ -471,7 +454,7 @@ async function batchInsert(collectionName, documents, options = {}) {
       }
     }
   }
-  
+
   return { inserted, failed, total: documents.length };
 }
 
@@ -505,7 +488,7 @@ async function importFromCSV(collectionName, csvFilePath, options = {}) {
     skip_empty_lines: true,
     ...options.parseOptions
   });
-  
+
   // 数据转换
   const documents = records.map(record => {
     // 可以在这里进行数据转换
@@ -514,10 +497,10 @@ async function importFromCSV(collectionName, csvFilePath, options = {}) {
       importedAt: new Date()
     };
   });
-  
+
   // 批量插入
   const result = await batchInsert(collectionName, documents, options.insertOptions);
-  
+
   return result;
 }
 
@@ -549,12 +532,12 @@ await batchInsert("users", millionUsers, { batchSize: 5000 });
 
 ```javascript
 // 使用有序插入：数据质量高，需要完整性
-await collection("critical_data").insertMany(data, { 
+await collection("critical_data").insertMany(data, {
   ordered: true  // 遇到错误停止
 });
 
 // 使用无序插入：数据质量不确定，最大容错
-await collection("import_logs").insertMany(logs, { 
+await collection("import_logs").insertMany(logs, {
   ordered: false  // 尽可能插入更多
 });
 ```
@@ -591,4 +574,3 @@ try {
 
 - [MongoDB insertMany 文档](https://www.mongodb.com/docs/manual/reference/method/db.collection.insertMany/)
 - [MongoDB Bulk Write Operations](https://www.mongodb.com/docs/manual/core/bulk-write-operations/)
-

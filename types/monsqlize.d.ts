@@ -164,7 +164,7 @@ export interface MonSQLizeOptions {
         /**
          * Distributed cache invalidation via Redis Pub/Sub.
          * When configured, broadcasts `delPattern` events to all other connected instances.
-         * `ioredis` is installed with monSQLize; this block only enables and configures Redis usage.
+         * Provide `redisUrl` or an existing Redis-like `redis` instance when enabling this block.
          * @since v2.0.0
          */
         distributed?: {

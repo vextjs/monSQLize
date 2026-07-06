@@ -1,13 +1,14 @@
 ﻿# Relations API - Relationship Definition
 
-**Version**: v1.0.6+
 **Function**: Model layer relationship definition, supports hasOne/hasMany/belongsTo
 
 ---
 
 ## 📖 Overview
 
-Relations is used to define relationships between Models and provide basic configuration for Populate related queries.
+Relations define how Model documents point to related collections and provide the configuration used by `populate()`.
+
+Model schema examples on this page use the runtime-scoped `s` namespace passed by monSQLize. Application code does not need to import the root `schema-dsl` entry for these examples.
 
 
 ## Core Features
@@ -30,7 +31,7 @@ Relations is used to define relationships between Models and provide basic confi
 import { Model } from 'monsqlize';
 
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         //Relationship name: configuration
         posts: {
@@ -57,7 +58,7 @@ One document corresponds to **one** document from another collection.
 ```javascript
 // User hasOne Profile
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         profile: {
             from: 'profiles',
@@ -101,7 +102,7 @@ One document corresponds to **multiple** documents from another collection.
 ```javascript
 // User hasMany Posts
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         posts: {
             from: 'posts',
@@ -149,7 +150,7 @@ Multiple documents correspond to **one** document of another collection (the rev
 ```javascript
 // Post belongsTo User
 Model.define('posts', {
-    schema: (dsl) => dsl({ title: 'string!' }),
+    schema: (s) => s({ title: 'string!' }),
     relations: {
         author: {
             from: 'users',
@@ -204,7 +205,7 @@ After populate:
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         //Full configuration
         posts: {
@@ -241,7 +242,7 @@ console.log(user.articles);  //Use the name specified by as
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         email: 'email!'
     }),
@@ -256,7 +257,7 @@ Model.define('users', {
 });
 
 Model.define('profiles', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         userId: 'objectId!',
         bio: 'string',
         avatar: 'url',
@@ -278,7 +279,7 @@ console.log(`${user.username}: ${user.profile.bio}`);
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         posts: {
             from: 'posts',
@@ -290,7 +291,7 @@ Model.define('users', {
 });
 
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         content: 'string!',
         authorId: 'objectId!'
@@ -313,7 +314,7 @@ users.forEach(user => {
 
 ```javascript
 Model.define('posts', {
-    schema: (dsl) => dsl({ title: 'string!' }),
+    schema: (s) => s({ title: 'string!' }),
     relations: {
         author: {
             from: 'users',
@@ -343,7 +344,7 @@ posts.forEach(post => {
 ```javascript
 //1. Define students
 Model.define('students', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         name: 'string!',
         studentNo: 'string!'
     }),
@@ -359,7 +360,7 @@ Model.define('students', {
 
 //2. Define the curriculum
 Model.define('courses', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         name: 'string!',
         code: 'string!'
     }),
@@ -375,7 +376,7 @@ Model.define('courses', {
 
 //3. Define intermediate tables
 Model.define('student_course', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         studentId: 'objectId!',
         courseId: 'objectId!',
         enrolledAt: 'date'
@@ -424,7 +425,7 @@ const studentsWithCourses = await Student.find()
 
 ```javascript
 Model.define('comments', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         content: 'string!',
         parentId: 'objectId'  //Parent comment ID (null means top-level comment)
     }),
@@ -526,7 +527,7 @@ const users = await User.find()
 ```javascript
 //✅ Good: Add index for foreign keys
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         userId: 'objectId!'
     }),
@@ -685,7 +686,7 @@ Model.define('users', {
 
 ```javascript
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         authorId: 'objectId!',
         reviewerId: 'objectId'
     }),
@@ -726,7 +727,7 @@ import { Model } from 'monsqlize';
 
 //1. User
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         email: 'email!'
     }),
@@ -748,7 +749,7 @@ Model.define('users', {
 
 //2. Goods
 Model.define('products', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         name: 'string!',
         price: 'number!',
         categoryId: 'objectId!'
@@ -771,7 +772,7 @@ Model.define('products', {
 
 //3. Order
 Model.define('orders', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         orderNo: 'string!',
         userId: 'objectId!',
         status: 'string!'
@@ -794,7 +795,7 @@ Model.define('orders', {
 
 //4. Line items
 Model.define('order_items', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         orderId: 'objectId!',
         productId: 'objectId!',
         quantity: 'number!',
@@ -812,7 +813,7 @@ Model.define('order_items', {
 
 //5. Classification
 Model.define('categories', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         name: 'string!',
         parentId: 'objectId'
     }),
@@ -941,9 +942,3 @@ User → Posts
 //✅ Use embed: orders and line items (not query separately)
 Order { items: [ { productId, quantity }, ... ] }
 ```
-
----
-
-**Document version**: v2.0.0
-**Last updated**: 2026-06-01
-**Maintainer**: monSQLize Team

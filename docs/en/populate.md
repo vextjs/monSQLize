@@ -1,18 +1,19 @@
 # Populate API - Related Query
 
-**Version**: v1.0.6+
-**Function**: Model layer related query, supports 6 methods (industry leading)
+**Function**: Model layer related query, supports 6 methods ()
 
 ---
 
 ## 📖 Overview
 
-Populate is a related query function provided by the monSQLize Model layer, allowing you to perform related queries just like using ORM.
+Populate is the Model-layer helper for loading related documents declared in `relations`.
+
+Model schema examples on this page use the runtime-scoped `s` namespace passed by monSQLize. Application code does not need to import the root `schema-dsl` entry for these examples.
 
 
 ## Core Features
 
-- ✅ **6 methods supported** - find/findOne/findByIds/findOneById/findAndCount/findPage (industry leading)
+- ✅ **6 methods supported** - find/findOne/findByIds/findOneById/findAndCount/findPage ()
 - ✅ **Chain API** - Supports multiple populate chain calls
 - ✅ **Smart Cache** - Related query results can also be cached, improving performance by 10-100 times
 - ✅ **Field Selection** - Only the required fields are returned, reducing data transmission
@@ -33,7 +34,7 @@ import { Model } from 'monsqlize';
 
 //Define User Model
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         email: 'email!'
     }),
@@ -57,7 +58,7 @@ Model.define('users', {
 
 //Define Post Model
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         content: 'string!'
     }),
@@ -207,7 +208,7 @@ const users = await User.find()
 ```javascript
 //definition
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         posts: {
             from: 'posts',
@@ -233,7 +234,7 @@ users.forEach(user => {
 ```javascript
 //definition
 Model.define('posts', {
-    schema: (dsl) => dsl({ title: 'string!' }),
+    schema: (s) => s({ title: 'string!' }),
     relations: {
         author: {
             from: 'users',
@@ -259,7 +260,7 @@ posts.forEach(post => {
 ```javascript
 //definition
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         profile: {
             from: 'profiles',
@@ -283,7 +284,7 @@ console.log(user.profile.bio);
 ```javascript
 //Define students
 Model.define('students', {
-    schema: (dsl) => dsl({ name: 'string!' }),
+    schema: (s) => s({ name: 'string!' }),
     relations: {
         enrollments: {
             from: 'student_course',
@@ -296,7 +297,7 @@ Model.define('students', {
 
 //Define intermediate table
 Model.define('student_course', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         studentId: 'objectId!',
         courseId: 'objectId!'
     }),
@@ -314,7 +315,7 @@ Model.define('student_course', {
 const students = await Student.find()
     .populate('enrollments');
 
-//Handling second level populate manually (nested populate planned for v1.2.0)
+// For deeper paths, use nested populate configuration.
 for (const student of students) {
     const courseIds = student.enrollments.map(e => e.courseId);
     const courses = await Course.findByIds(courseIds);
@@ -536,7 +537,7 @@ const { Model } = MonSQLize;
 
 //1. Define Models
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string:3-32!',
         email: 'email!',
         avatar: 'url'
@@ -558,7 +559,7 @@ Model.define('users', {
 });
 
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         content: 'string!',
         status: 'string'
@@ -580,7 +581,7 @@ Model.define('posts', {
 });
 
 Model.define('comments', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         content: 'string!',
         postId: 'objectId!',
         userId: 'objectId!'
@@ -596,7 +597,7 @@ Model.define('comments', {
 });
 
 Model.define('profiles', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         bio: 'string',
         website: 'url',
         userId: 'objectId!'
@@ -732,9 +733,3 @@ const users = await User.find()
 const users = await User.find()
     .populate('profile');  //Just need information
 ```
-
----
-
-**Document version**: v2.0.0
-**Last updated**: 2026-06-01
-**Maintainer**: monSQLize Team

@@ -1,42 +1,5 @@
 # updateOne() - update a single document
 
-## Table of Contents
-
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [filter (Object, required)](#filter-object-required)
-- [update (Object, required)](#update-object-required)
-- [options (Object, optional)](#options-object-optional)
-- [Return value](#return-value)
-- [Example](#example)
-- [Basic update](#basic-update)
-- [Increment counter](#increment-counter)
-- [Array operations](#array-operations)
-- [Multiple operator combinations](#multiple-operator-combinations)
-- [Update nested fields](#update-nested-fields)
-- [Delete field](#delete-field)
-- [Use upsert](#use-upsert)
-- [Conditional update](#conditional-update)
-- [Use comments (facilitates log tracking)](#use-comments-facilitates-log-tracking)
-- [Error handling](#error-handling)
-- [Common mistakes](#common-mistakes)
-- [Error: Missing update operator](#error-missing-update-operator)
-- [Error: filter parameter is invalid](#error-filter-parameter-is-invalid)
-- [Performance recommendations](#performance-recommendations)
-- [1. Use index optimization filtering](#1-use-index-optimization-filtering)
-- [2. Avoid full table scan](#2-avoid-full-table-scan)
-- [3. Batch update using updateMany](#3-batch-update-using-updatemany)
-- [Caching behavior](#caching-behavior)
-- [Slow query log](#slow-query-log)
-- [Comparison with other methods](#comparison-with-other-methods)
-- [Best Practices](#best-practices)
-- [1. Always use the update operator](#1-always-use-the-update-operator)
-- [2. Use $setOnInsert with upsert](#2-use-setoninsert-with-upsert)
-- [3. Add comments for easy tracking](#3-add-comments-for-easy-tracking)
-- [4. Verify update results](#4-verify-update-results)
-- [Related methods](#related-methods)
-- [References](#references)
-
 ## Syntax
 
 ```javascript
@@ -45,7 +8,6 @@ collection(collectionName).updateOne(filter, update, options)
 
 ## Parameters
 
-
 ## filter (Object, required)
 Filter criteria to match the documents to be updated.
 
@@ -53,7 +15,6 @@ Filter criteria to match the documents to be updated.
 { userId: "user123" }
 { age: { $gte: 18 }, status: "active" }
 ```
-
 
 ## update (Object, required)
 For update operations, update operators (such as `$set`, `$inc`, etc.) must be used.
@@ -73,7 +34,6 @@ For update operations, update operators (such as `$set`, `$inc`, etc.) must be u
 { $inc: { loginCount: 1 } }
 { $push: { tags: "premium" } }
 ```
-
 
 ## options (Object, optional)
 Operation options.
@@ -108,7 +68,6 @@ Return `Promise<UpdateResult>` object:
 
 ## Example
 
-
 ## Basic update
 
 ```javascript
@@ -120,7 +79,6 @@ const result = await collection("users").updateOne(
 console.log("Modified:", result.modifiedCount); // 1
 ```
 
-
 ## Increment counter
 
 ```javascript
@@ -129,7 +87,6 @@ const result = await collection("users").updateOne(
   { $inc: { loginCount: 1 } }
 );
 ```
-
 
 ## Array operations
 
@@ -147,7 +104,6 @@ await collection("users").updateOne(
 );
 ```
 
-
 ## Multiple operator combinations
 
 ```javascript
@@ -161,7 +117,6 @@ const result = await collection("users").updateOne(
 );
 ```
 
-
 ## Update nested fields
 
 ```javascript
@@ -171,7 +126,6 @@ await collection("users").updateOne(
 );
 ```
 
-
 ## Delete field
 
 ```javascript
@@ -180,7 +134,6 @@ await collection("users").updateOne(
   { $unset: { tempField: "", debugMode: "" } }
 );
 ```
-
 
 ## Use upsert
 
@@ -199,7 +152,6 @@ if (result.upsertedId) {
 }
 ```
 
-
 ## Conditional update
 
 ```javascript
@@ -209,7 +161,6 @@ await collection("users").updateOne(
   { $set: { verified: true } }
 );
 ```
-
 
 ## Use comments (facilitates log tracking)
 
@@ -242,7 +193,6 @@ try {
 
 ## Common mistakes
 
-
 ## Error: Missing update operator
 
 ```javascript
@@ -262,7 +212,6 @@ await collection("users").updateOne(
 
 **Note**: `updateOne` is used for partial update, and the update operator must be used. If a complete replacement document is required, use `replaceOne`.
 
-
 ## Error: filter parameter is invalid
 
 ```javascript
@@ -278,7 +227,6 @@ await collection("users").updateOne({}, { $set: { name: "Test" } });
 
 ## Performance recommendations
 
-
 ## 1. Use index optimization filtering
 
 ```javascript
@@ -288,7 +236,6 @@ await collection("users").updateOne(
   { $set: { status: "active" } }
 );
 ```
-
 
 ## 2. Avoid full table scan
 
@@ -305,7 +252,6 @@ await collection("users").updateOne(
   { $set: { status: "active" } }
 );
 ```
-
 
 ## 3. Batch update using updateMany
 
@@ -377,7 +323,6 @@ await collection("users").updateOne(
 
 ## Best Practices
 
-
 ## 1. Always use the update operator
 
 ```javascript
@@ -387,7 +332,6 @@ await collection("users").updateOne(
   { $set: { status: "active" } }
 );
 ```
-
 
 ## 2. Use $setOnInsert with upsert
 
@@ -402,7 +346,6 @@ await collection("users").updateOne(
 );
 ```
 
-
 ## 3. Add comments for easy tracking
 
 ```javascript
@@ -412,7 +355,6 @@ await collection("users").updateOne(
   { comment: "User Activation - Admin Action" }
 );
 ```
-
 
 ## 4. Verify update results
 
@@ -442,4 +384,3 @@ if (result.matchedCount === 0) {
 
 - [MongoDB update operator documentation](https://docs.mongodb.com/manual/reference/operator/update/)
 - [MongoDB updateOne Documentation](https://docs.mongodb.com/manual/reference/method/db.collection.updateOne/)
-

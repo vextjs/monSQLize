@@ -1,18 +1,5 @@
 # findAndCount
 
-## 📑 目录
-
-- [基本用法](#基本用法)
-- [参数](#参数)
-- [返回值](#返回值)
-- [示例](#示例)
-- [性能优势](#性能优势)
-- [注意事项](#注意事项)
-- [对比传统方法](#对比传统方法)
-- [相关方法](#相关方法)
-- [测试覆盖](#测试覆盖)
-
----
 
 同时返回查询数据和总数的便利方法，并行执行 `find()` 和 `countDocuments()`，适合分页场景。
 
@@ -60,8 +47,8 @@ const pageSize = 20;
 
 const { data, total } = await collection.findAndCount(
     { category: 'electronics' },
-    { 
-        limit: pageSize, 
+    {
+        limit: pageSize,
         skip: (page - 1) * pageSize,
         sort: { createdAt: -1 }
     }
@@ -89,7 +76,7 @@ const { data, total } = await collection.findAndCount(
 ```javascript
 const { data, total } = await collection.findAndCount(
     { category: 'news' },
-    { 
+    {
         limit: 20,
         cache: 60000  // 缓存 60 秒
     }
@@ -144,4 +131,3 @@ const { data, total } = await collection.findAndCount(
 - ✅ 性能测试：1 个测试
 
 **测试覆盖率**: 100%
-

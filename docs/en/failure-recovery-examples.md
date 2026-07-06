@@ -1,23 +1,25 @@
-# Example of failure and recovery paths
+# Failure Recovery Examples
 
-> This set of examples specifically covers common recovery scenarios "outside the success path" to prevent users from seeing only the happy path.
+These examples show what monSQLize does when common runtime paths fail and recover. Use them when you want to see rollback, retry, fallback, and timeout behavior before applying the same pattern in your application.
 
-## Sample summary table
+## Example Summary
 
 | Scenario | Example | Focus |
 |------|------|--------|
-| Transaction rollback | `examples/docs/transaction-rollback.ts` | After an error occurs during the transaction, the data should remain in the stable state after the rollback |
-| Sync target failure recovery | `examples/docs/sync-target-failure.ts` | `errorCount`, `syncedCount`, target stats should accurately reflect failure and recovery |
-| Lock competition/timeout | `examples/docs/lock-timeout.ts` | `tryAcquireLock()` null return, `acquireLock()` timeout error, recovery after release |
-| Pool fallback / recovery | `examples/docs/pool-fallback.ts` | The analytics pool automatically falls back to the primary after downgrading, and then takes over the read traffic again after recovery |
+| Transaction rollback | [transaction-rollback.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/transaction-rollback.ts) | Data remains in the rolled-back state after an error inside a transaction |
+| Sync target failure recovery | [sync-target-failure.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync-target-failure.ts) | `errorCount`, `syncedCount`, and target stats show failure and recovery |
+| Lock competition/timeout | [lock-timeout.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/lock-timeout.ts) | `tryAcquireLock()` returns `null`, `acquireLock()` times out, then the lock can be acquired after release |
+| Pool fallback / recovery | [pool-fallback.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/pool-fallback.ts) | An unavailable analytics pool falls back to primary and resumes analytics traffic after recovery |
 
-## How to execute
+## Run The Examples
 
 ```bash
 npm run test:examples
 ```
 
-Or execute alone:
+`npm run test:examples` builds the package, compiles the TypeScript examples, starts the required local MongoDB memory servers, and runs the executable example list.
+
+After the examples have been compiled, you can run one recovery example directly:
 
 ```bash
 node .generated/examples-dist/examples/docs/transaction-rollback.js
@@ -26,8 +28,9 @@ node .generated/examples-dist/examples/docs/lock-timeout.js
 node .generated/examples-dist/examples/docs/pool-fallback.js
 ```
 
-## Design principles
+## What To Check
 
-- **Default closed-loop priority**: All examples use the local memory environment or fake client and can be run directly.
-- **Recovery signals are observable**: The log output must clearly show the failure point, recovery point, and post-recovery status.
-- **Aligned with the formal verification chain**: These examples are also classified as `npm run test:examples` and are not presentations that can only be written but not run.
+- **Rollback**: Failed transaction work is not visible after rollback.
+- **Sync recovery**: Failure counters increase, then successful sync resumes and target stats update.
+- **Lock timeout**: A busy lock fails predictably, and a later attempt succeeds after release.
+- **Pool fallback**: Reads move to the fallback pool while analytics is unavailable, then return when the pool recovers.

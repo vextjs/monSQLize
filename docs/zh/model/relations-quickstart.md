@@ -1,7 +1,5 @@
 ﻿# relations 快速上手指南（5 分钟）
 
-**适用版本**: monSQLize v1.2.0+  
-**更新时间**: 2026-01-06  
 **前置知识**: 了解 MongoDB 基础（集合、字段、外键）
 
 ---
@@ -33,7 +31,7 @@ import { Model } from 'monsqlize';
 
 // 定义 User Model
 Model.define('User', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     username: 'string!',
     email: 'email!',
     profileId: 'objectId'    // 外键
@@ -51,7 +49,7 @@ Model.define('User', {
 
 // 定义 Profile Model（可选，即使不定义也能 populate）
 Model.define('Profile', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     bio: 'string',
     avatar: 'url'
   })
@@ -81,7 +79,7 @@ console.log(user);
 // }
 ```
 
-### Step 3: 完成！🎉
+### Step 3: 完成！
 
 就这么简单，不需要手动写：
 ```javascript
@@ -247,7 +245,7 @@ relations: {
 
 // ✅ 解决：创建索引
 Model.define('User', {
-  schema: (dsl) => dsl({ profileId: 'objectId' }),
+  schema: (s) => s({ profileId: 'objectId' }),
   indexes: [
     { key: { profileId: 1 } }  // ← 为外键创建索引
   ],
@@ -278,11 +276,11 @@ single: true  // 返回单文档 { bio: '...' }
 
 ### 基础功能已掌握？查看进阶主题
 
-- **选择字段**: `.populate('profile', { select: 'bio avatar' })`（v1.3.0）
-- **排序和限制**: `.populate('posts', { sort: { createdAt: -1 }, limit: 10 })`（v1.3.0）
-- **嵌套 populate**: 填充关联数据的关联数据（v1.3.0）
-- **性能优化**: 启用 $lookup 聚合优化（v1.3.0）
-- **缓存集成**: 关联数据也可以缓存（v1.3.0）
+- **选择字段**: `.populate('profile', { select: 'bio avatar' })`
+- **排序和限制**: `.populate('posts', { sort: { createdAt: -1 }, limit: 10 })`
+- **嵌套 populate**: 填充关联数据的关联数据
+- **性能优化**: 启用 $lookup 聚合优化
+- **缓存集成**: 关联数据也可以缓存
 
 ### 查看完整文档
 
@@ -302,7 +300,7 @@ const { Model } = msq;
 
 // 1. Profile Model
 Model.define('Profile', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     bio: 'string:0-500',
     avatar: 'url',
     location: 'string'
@@ -311,7 +309,7 @@ Model.define('Profile', {
 
 // 2. Post Model
 Model.define('Post', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     title: 'string:1-200!',
     content: 'string!',
     authorId: 'objectId!',
@@ -325,7 +323,7 @@ Model.define('Post', {
 
 // 3. User Model（包含 relations）
 Model.define('User', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     username: 'string:3-32!',
     email: 'email!',
     profileId: 'objectId'
@@ -382,8 +380,8 @@ example();
 ### Q: populate 会影响性能吗？
 
 **A**: 
-- 基础实现（v1.2.0）：性能约为原生查询的 1.3-1.5 倍
-- 优化后（v1.3.0）：可启用 $lookup 聚合，性能接近原生（1.1-1.2 倍）
+- populate 会批量收集关联 id，避免常见 N+1 查询模式
+- 需要完全自定义聚合管道时，直接使用 MongoDB `$lookup`
 - 建议：为外键创建索引 + 启用缓存
 
 ### Q: 可以关联未定义 Model 的集合吗？
@@ -396,18 +394,18 @@ example();
 
 **A**: 
 - 系统会自动检测循环引用并阻止无限递归
-- v1.3.0 支持嵌套 populate，但有深度限制（默认 3 层）
+- nested populate 支持深度控制；复杂关系图建议保持浅层，并为深层分支设置明确限制。
 
 ### Q: 与 MongoDB $lookup 的区别？
 
 **A**: 
 - relations 是 $lookup 的简化版
-- v1.2.0 使用多次查询（简单实现）
-- v1.3.0 可自动优化为 $lookup 聚合（性能更好）
+- populate 可以批量收集关联 id，避免常见 N+1 查询模式
+- 需要完全自定义聚合管道时，直接使用 MongoDB `$lookup`
 
 ---
 
-## 🎉 恭喜！你已掌握 relations 基础
+##  恭喜！你已掌握 relations 基础
 
 **5 分钟学会的内容**:
 - ✅ 理解 relations 核心概念（3 个字段）
@@ -424,10 +422,4 @@ example();
 - 📖 查看 API 完整参考
 - 💬 提交 Issue: https://github.com/vextjs/monSQLize/issues
 - ⭐ 如果有帮助，请给项目一个 Star
-
----
-
-**文档版本**: v1.0  
-**最后更新**: 2026-01-06  
-**适用版本**: monSQLize v1.2.0+
 

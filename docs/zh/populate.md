@@ -1,17 +1,18 @@
 # Populate API - 关联查询
 
-**版本**: v1.0.6+  
-**功能**: Model层关联查询，支持6个方法（业界领先）
+**功能**: Model层关联查询，支持6个方法（）
 
 ---
 
 ## 📖 概述
 
-Populate 是 monSQLize Model 层提供的关联查询功能，让你可以像使用 ORM 一样进行关联查询。
+Populate 是 Model 层用于加载 `relations` 中声明的关联文档的能力。
+
+本页 Model schema 示例使用 monSQLize 传入的 runtime 作用域 `s` 命名空间。应用代码不需要为了这些示例导入 root `schema-dsl` 入口。
 
 ### 核心特性
 
-- ✅ **6个方法支持** - find/findOne/findByIds/findOneById/findAndCount/findPage（业界领先）
+- ✅ **6个方法支持** - find/findOne/findByIds/findOneById/findAndCount/findPage（）
 - ✅ **链式API** - 支持多个 populate 链式调用
 - ✅ **智能缓存** - 关联查询结果也能缓存，性能提升10-100倍
 - ✅ **字段选择** - 只返回需要的字段，减少数据传输
@@ -31,7 +32,7 @@ import { Model } from 'monsqlize';
 
 // 定义 User Model
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         email: 'email!'
     }),
@@ -55,7 +56,7 @@ Model.define('users', {
 
 // 定义 Post Model
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         content: 'string!'
     }),
@@ -117,7 +118,7 @@ const users = await User.find()
 
 ## 📚 支持的查询方法
 
-monSQLize 支持 **6个查询方法** 的 populate，业界领先：
+monSQLize 支持 **6个查询方法** 的 populate，：
 
 | 方法 | 返回类型 | Populate支持 | 说明 |
 |------|---------|-------------|------|
@@ -197,7 +198,7 @@ const users = await User.find()
 ```javascript
 // 定义
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         posts: {
             from: 'posts',
@@ -222,7 +223,7 @@ users.forEach(user => {
 ```javascript
 // 定义
 Model.define('posts', {
-    schema: (dsl) => dsl({ title: 'string!' }),
+    schema: (s) => s({ title: 'string!' }),
     relations: {
         author: {
             from: 'users',
@@ -247,7 +248,7 @@ posts.forEach(post => {
 ```javascript
 // 定义
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         profile: {
             from: 'profiles',
@@ -270,7 +271,7 @@ console.log(user.profile.bio);
 ```javascript
 // 定义学生
 Model.define('students', {
-    schema: (dsl) => dsl({ name: 'string!' }),
+    schema: (s) => s({ name: 'string!' }),
     relations: {
         enrollments: {
             from: 'student_course',
@@ -283,7 +284,7 @@ Model.define('students', {
 
 // 定义中间表
 Model.define('student_course', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         studentId: 'objectId!',
         courseId: 'objectId!'
     }),
@@ -301,7 +302,7 @@ Model.define('student_course', {
 const students = await Student.find()
     .populate('enrollments');
 
-// 手动处理第二层 populate（嵌套 populate 计划中 v1.2.0）
+// 更深层路径请使用 nested populate 配置。
 for (const student of students) {
     const courseIds = student.enrollments.map(e => e.courseId);
     const courses = await Course.findByIds(courseIds);
@@ -386,7 +387,7 @@ const users = await User.find()
 
 | 特性 | monSQLize | Mongoose | 优势 |
 |------|-----------|----------|------|
-| **支持方法** | **6个** | 仅 find | ✅ **业界领先** |
+| **支持方法** | **6个** | 仅 find | ✅ **** |
 | findOne populate | ✅ | ❌ 需手动 | ✅ 开箱即用 |
 | findPage populate | ✅ | ❌ | ✅ 独家功能 |
 | findByIds populate | ✅ | ❌ | ✅ 批量查询 |
@@ -503,7 +504,7 @@ const { Model } = MonSQLize;
 
 // 1. 定义 Models
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string:3-32!',
         email: 'email!',
         avatar: 'url'
@@ -525,7 +526,7 @@ Model.define('users', {
 });
 
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         content: 'string!',
         status: 'string'
@@ -547,7 +548,7 @@ Model.define('posts', {
 });
 
 Model.define('comments', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         content: 'string!',
         postId: 'objectId!',
         userId: 'objectId!'
@@ -563,7 +564,7 @@ Model.define('comments', {
 });
 
 Model.define('profiles', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         bio: 'string',
         website: 'url',
         userId: 'objectId!'
@@ -695,11 +696,4 @@ const users = await User.find()
 const users = await User.find()
     .populate('profile');  // 只需要资料
 ```
-
----
-
-**文档版本**: v2.0.0
-**最后更新**: 2026-06-01
-**维护者**: monSQLize Team
-
 

@@ -1,16 +1,5 @@
 ﻿# insertBatch - 分批批量插入（支持自动重试）
 
-## 📑 目录
-
-- [概述](#概述)
-- [API 参数说明](#api-参数说明)
-- [使用示例](#使用示例)
-- [错误处理策略对比](#错误处理策略对比)
-- [性能优化建议](#性能优化建议)
-- [常见问题](#常见问题)
-- [参考资料](#参考资料)
-
----
 
 `insertBatch` 方法提供自动分批插入大量文档的功能，支持失败重试、进度监控等高级特性，避免内存溢出和网络超时问题。
 
@@ -39,7 +28,7 @@
 
 ```typescript
 collection(name: string).insertBatch(
-  documents: object[], 
+  documents: object[],
   options?: InsertBatchOptions
 ): Promise<InsertBatchResult>
 ```
@@ -394,7 +383,7 @@ for (const err of result.errors) {
     err.batchStartIndex,
     err.batchStartIndex + err.batchSize
   );
-  
+
   // 分析失败原因，清洗数据后重试
   console.log(`批次 ${err.batchIndex + 1} 失败: ${err.message}`);
   console.log(`重试了 ${err.attempts} 次`);
@@ -410,4 +399,3 @@ for (const err of result.errors) {
 - [写入操作指南](./write-operations.md) - 写入操作总览
 - [缓存系统](./cache.md) - 缓存失效机制
 - [insertBatch 改进说明](./insertBatch.md) - 进一步改进建议
-

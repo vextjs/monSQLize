@@ -1,43 +1,5 @@
 # deleteOne() - delete a single document
 
-## Table of Contents
-
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [filter (required)](#filter-required)
-- [options (optional)](#options-optional)
-- [Return value](#return-value)
-- [Core Features](#core-features)
-- [✅ Only delete the first matching document](#only-delete-the-first-matching-document)
-- [✅ Automatic cache invalidation](#automatic-cache-invalidation)
-- [✅ Slow query monitoring](#slow-query-monitoring)
-- [Common scenarios](#common-scenarios)
-- [Scenario 1: Delete a single user](#scenario-1-delete-a-single-user)
-- [Scenario 2: Cleaning up expired data](#scenario-2-cleaning-up-expired-data)
-- [Scenario 3: Delete records in a specific state](#scenario-3-delete-records-in-a-specific-state)
-- [Scenario 4: Using index hints to optimize performance](#scenario-4-using-index-hints-to-optimize-performance)
-- [Scenario 5: Set operation timeout](#scenario-5-set-operation-timeout)
-- [Differences from other methods](#differences-from-other-methods)
-- [vs deleteMany](#vs-deletemany)
-- [vs findOneAndDelete](#vs-findoneanddelete)
-- [Error handling](#error-handling)
-- [Invalid filter criteria](#invalid-filter-criteria)
-- [Operation timeout](#operation-timeout)
-- [Write attention error](#write-attention-error)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [1. Use index](#1-use-index)
-- [2. Use index hints](#2-use-index-hints)
-- [3. Set a reasonable timeout](#3-set-a-reasonable-timeout)
-- [4. Use precise filters](#4-use-precise-filters)
-- [Notes](#notes)
-- [⚠️ Deletion is irreversible](#deletion-is-irreversible)
-- [⚠️ Unsure of deletion order](#unsure-of-deletion-order)
-- [⚠️ Deletion does not affect the index](#deletion-does-not-affect-the-index)
-- [⚠️ Scope of cache invalidation](#scope-of-cache-invalidation)
-- [Related methods](#related-methods)
-- [Sample code](#sample-code)
-- [MongoDB Documentation](#mongodb-documentation)
-
 ## Syntax
 
 ```javascript
@@ -45,7 +7,6 @@ collection(name).deleteOne(filter, options?)
 ```
 
 ## Parameters
-
 
 ## filter (required)
 
@@ -63,7 +24,6 @@ await collection("products").deleteOne({
   stock: 0
 });
 ```
-
 
 ## options (optional)
 
@@ -92,7 +52,6 @@ Return an object containing the results of the deletion:
 
 ## Core Features
 
-
 ## ✅ Only delete the first matching document
 
 Even if multiple documents match the filter criteria, `deleteOne()` only deletes the first matching document.
@@ -102,7 +61,6 @@ Even if multiple documents match the filter criteria, `deleteOne()` only deletes
 const result = await collection("users").deleteOne({ status: "inactive" });
 console.log(result.deletedCount); //1 (or 0 if no match)
 ```
-
 
 ## ✅ Automatic cache invalidation
 
@@ -125,7 +83,6 @@ const deletedUser = await collection("users").findOne(
 ); // null
 ```
 
-
 ## ✅ Slow query monitoring
 
 Delete operations that exceed the threshold (default 1000ms) will automatically record a warning log.
@@ -145,7 +102,6 @@ await collection("logs").deleteOne({
 
 ## Common scenarios
 
-
 ## Scenario 1: Delete a single user
 
 ```javascript
@@ -159,7 +115,6 @@ if (result.deletedCount === 1) {
 }
 ```
 
-
 ## Scenario 2: Cleaning up expired data
 
 ```javascript
@@ -170,7 +125,6 @@ const result = await collection("sessions").deleteOne({
 
 console.log(`${result.deletedCount} expired sessions deleted`);
 ```
-
 
 ## Scenario 3: Delete records in a specific state
 
@@ -185,7 +139,6 @@ if (result.deletedCount === 0) {
   console.log("There are no low priority tasks to be deleted");
 }
 ```
-
 
 ## Scenario 4: Using index hints to optimize performance
 
@@ -202,7 +155,6 @@ const result = await collection("orders").deleteOne(
   }
 );
 ```
-
 
 ## Scenario 5: Set operation timeout
 
@@ -222,7 +174,6 @@ try {
 
 ## Differences from other methods
 
-
 ## vs deleteMany
 
 | Features | deleteOne | deleteMany |
@@ -241,7 +192,6 @@ await collection("users").deleteOne({ status: "inactive" });
 await collection("users").deleteMany({ status: "inactive" });
 //Result: Remove all inactive users
 ```
-
 
 ## vs findOneAndDelete
 
@@ -264,7 +214,6 @@ console.log(result2); // { _id: ..., userId: "user456", name: "Alice", ... }
 
 ## Error handling
 
-
 ## Invalid filter criteria
 
 ```javascript
@@ -276,7 +225,6 @@ try {
   console.error(error.message); // "filter must be of object type"
 }
 ```
-
 
 ## Operation timeout
 
@@ -292,7 +240,6 @@ try {
   }
 }
 ```
-
 
 ## Write attention error
 
@@ -313,7 +260,6 @@ try {
 
 ## Performance optimization suggestions
 
-
 ## 1. Use index
 
 Make sure the fields in the filter are indexed:
@@ -325,7 +271,6 @@ await collection("users").createIndex({ userId: 1 });
 //Then delete (index will be used)
 await collection("users").deleteOne({ userId: "user123" });
 ```
-
 
 ## 2. Use index hints
 
@@ -344,7 +289,6 @@ await collection("orders").deleteOne(
 );
 ```
 
-
 ## 3. Set a reasonable timeout
 
 ```javascript
@@ -354,7 +298,6 @@ await collection("logs").deleteOne(
   { maxTimeMS: 5000 }  //5 seconds timeout
 );
 ```
-
 
 ## 4. Use precise filters
 
@@ -368,7 +311,6 @@ await collection("users").deleteOne({ age: { $gt: 18 } });
 
 ## Notes
 
-
 ## ⚠️ Deletion is irreversible
 
 ```javascript
@@ -381,7 +323,6 @@ await collection("users").updateOne(
   { $set: { deleted: true, deletedAt: new Date() } }
 );
 ```
-
 
 ## ⚠️ Unsure of deletion order
 
@@ -398,11 +339,9 @@ await collection("users").findOneAndDelete(
 );
 ```
 
-
 ## ⚠️ Deletion does not affect the index
 
 Deleting a document does not delete the index, it is automatically updated.
-
 
 ## ⚠️ Scope of cache invalidation
 

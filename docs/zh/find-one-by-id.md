@@ -1,53 +1,22 @@
-# findOneById 方法详细文档
-
-## 📑 目录
-
-- [概述](#概述)
-- [为什么需要 findOneById？](#为什么需要-findoneyid)
-- [方法签名](#方法签名)
-- [使用示例](#使用示例)
-- [真实场景示例](#真实场景示例)
-- [错误处理](#错误处理)
-- [性能说明](#性能说明)
-- [与其他方法对比](#与其他方法对比)
-- [最佳实践](#最佳实践)
-- [常见问题](#常见问题)
-- [相关文档](#相关文档)
-
----
+# findOneById Reference
 
 ## 概述
 
-`findOneById` 是 monSQLize 提供的便利方法，用于通过 `_id` 快速查询单个文档。它自动处理字符串到 ObjectId 的转换，简化了最常见的查询场景。
+`findOneById(id, options)` 是一个可选的 `_id` 查询 helper。它会校验并归一化 id，然后通过 MongoDB adapter 的同一套查询 helper 执行 `_id` 查询。
 
-## 为什么需要 findOneById？
-
-### 问题：样板代码过多
+普通 `_id` 查询不需要额外记这个方法。标准查询 API 也支持 ObjectId 自动转换，主路径可以直接写：
 
 ```javascript
-// ❌ 传统方式：需要手动处理 ObjectId 转换
-const { ObjectId } = require('mongodb');
 const userId = '507f1f77bcf86cd799439011';  // 来自请求参数
-const user = await collection('users').findOne({ 
-  _id: new ObjectId(userId)  // 手动转换
-});
+const user = await collection('users').findOne({ _id: userId });
 ```
 
-### 解决方案：findOneById
+当项目希望把“只按 `_id` 查询”写成独立 helper，或需要兼容既有代码时，可以使用 `findOneById()`：
 
 ```javascript
-// ✅ 使用 findOneById：自动转换，简洁清晰
 const userId = '507f1f77bcf86cd799439011';
-const user = await collection('users').findOneById(userId);  // 自动转换 ✨
+const user = await collection('users').findOneById(userId);
 ```
-
-**收益**:
-- ✅ 减少 80% 的样板代码
-- ✅ 自动类型转换（字符串 → ObjectId）
-- ✅ 更清晰的语义（明确表示通过 ID 查询）
-- ✅ 完整的参数验证和错误处理
-
----
 
 ## 方法签名
 
@@ -157,8 +126,8 @@ const user = await collection('users').findOneById(userId, {
   cache: 5000
 });
 
-// 第 1 次：查询数据库（10-50ms）
-// 第 2 次：从缓存返回（0.001ms） ⚡
+// 第一次读取会查询数据库。
+// 缓存有效期内的重复读取可以从缓存返回。
 ```
 
 #### 3.2 缓存与投影结合
@@ -300,7 +269,7 @@ async function updateUser(userId, updates) {
     { _id: new ObjectId(userId) },
     { $set: updates }
   );
-  // ✅ 缓存自动失效
+  // 缓存自动失效。
 
   // 2. 查询最新数据（从数据库获取）
   const user = await collection('users').findOneById(userId, {
@@ -390,55 +359,33 @@ async function getUserById(userId) {
 
 ---
 
-## 性能说明
+## 使用建议
 
-### 性能对比
-
-| 方法 | 查询时间（无缓存） | 查询时间（缓存命中） | 代码复杂度 |
-|------|------------------|---------------------|-----------|
-| `findOne({ _id })` | 10-50ms | 不支持 | ⭐⭐⭐ |
-| `findOneById` | 10-50ms | 0.001ms | ⭐ |
-
-**结论**: 
-- 无缓存时性能相当
-- 有缓存时 `findOneById` 更快（支持缓存）
-- 代码简洁度 `findOneById` 获胜
-
-### 性能优化建议
-
-#### 1. 合理使用缓存
+### 只缓存可接受短暂延迟的数据
 
 ```javascript
-// ✅ 推荐：用户基本信息缓存 10 秒
 const user = await collection('users').findOneById(userId, {
   projection: ['name', 'email', 'avatar'],
   cache: 10000
 });
 
-// ❌ 不推荐：实时性要求高的数据不要缓存
 const balance = await collection('accounts').findOneById(accountId, {
   projection: ['balance'],
   cache: 0  // 不缓存余额
 });
 ```
 
-#### 2. 使用字段投影
+### 使用字段投影缩小返回体积
 
 ```javascript
-// ✅ 推荐：只查询需要的字段
 const user = await collection('users').findOneById(userId, {
-  projection: ['name', 'email']  // 只返回 2 个字段
+  projection: ['name', 'email']
 });
-
-// ❌ 不推荐：返回所有字段（包括大字段）
-const user = await collection('users').findOneById(userId);
-// 可能包含 avatar（大图片）、history（大数组）等
 ```
 
-#### 3. 设置合理超时
+### 对延迟敏感路径设置超时
 
 ```javascript
-// ✅ 推荐：设置超时防止慢查询
 const user = await collection('users').findOneById(userId, {
   maxTimeMS: 3000  // 3 秒超时
 });
@@ -450,79 +397,53 @@ const user = await collection('users').findOneById(userId, {
 
 ### vs findOne
 
-| 维度 | findOne | findOneById |
+| 维度 | `findOne({ _id })` | `findOneById(id)` |
 |------|---------|-------------|
-| **查询方式** | `findOne({ _id: ... })` | `findOneById(id)` |
-| **自动转换** | ❌ 需要手动 | ✅ 自动转换 |
-| **代码长度** | 3 行 | 1 行 |
-| **语义清晰** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **灵活性** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-
-**使用建议**:
-- 通过 `_id` 查询 → 使用 `findOneById` ✅
-- 复杂查询条件 → 使用 `findOne` ✅
+| ObjectId 自动转换 | 支持 | 支持 |
+| 查询形态 | 任意 filter | 仅 `_id` |
+| 链式 API | 使用普通查询 API | 不支持链式；直接传 options |
+| 适合场景 | 主查询路径 | 可选 id-only helper/reference |
 
 ### 代码对比
 
 ```javascript
-// ❌ 使用 findOne（传统方式）
-const { ObjectId } = require('mongodb');
 const userId = req.params.id;
 
 const user = await collection('users').findOne(
-  { _id: new ObjectId(userId) },  // 手动转换
+  { _id: userId },
   { projection: { password: 0 } }
 );
 
-// ✅ 使用 findOneById（推荐方式）
 const userId = req.params.id;
 
 const user = await collection('users').findOneById(userId, {
   projection: { password: 0 }
 });
-
-// 代码减少 30%，语义更清晰
 ```
 
 ---
 
 ## 最佳实践
 
-### 1. 统一使用 findOneById
+### 1. 排除敏感字段
 
 ```javascript
-// ✅ 推荐：通过 ID 查询统一使用 findOneById
-const user = await collection('users').findOneById(userId);
-const order = await collection('orders').findOneById(orderId);
-const product = await collection('products').findOneById(productId);
-
-// ❌ 不推荐：混用两种方式
-const user = await collection('users').findOne({ _id: new ObjectId(userId) });
-const order = await collection('orders').findOneById(orderId);
-```
-
-### 2. 排除敏感字段
-
-```javascript
-// ✅ 推荐：始终排除敏感字段
 const user = await collection('users').findOneById(userId, {
   projection: { password: 0, salt: 0, token: 0 }
 });
 ```
 
-### 3. 添加查询注释（生产环境）
+### 2. 对需要追踪的路径添加查询注释
 
 ```javascript
-// ✅ 推荐：生产环境添加注释
 const user = await collection('users').findOneById(userId, {
   comment: `${req.service}:getUser:${req.traceId}`
 });
 ```
 
-### 4. 合理设置缓存
+### 3. 按数据新鲜度设置缓存
 
 ```javascript
-// ✅ 推荐：根据数据特性设置缓存
 const user = await collection('users').findOneById(userId, {
   projection: ['name', 'avatar'],
   cache: 10000  // 基本信息缓存 10 秒
@@ -540,21 +461,15 @@ const balance = await collection('accounts').findOneById(accountId, {
 
 ### Q1: findOneById 和 findOne({ _id }) 有什么区别？
 
-**A**: 功能相同，但 `findOneById` 更简洁：
-
-1. **自动类型转换**: 字符串自动转 ObjectId
-2. **更清晰的语义**: 明确表示通过 ID 查询
-3. **更少的样板代码**: 减少 30% 代码量
+**A**: 在当前 MongoDB adapter 中，二者用于 `_id` 查询时功能等价，都支持 ObjectId 自动转换。`findOneById` 是紧凑的 id-only helper；`findOne({ _id })` 仍是主查询路径，并支持普通 filter 组合。
 
 ### Q2: 可以查询其他字段吗？
 
 **A**: 不可以，`findOneById` 专门用于通过 `_id` 查询。如果需要查询其他字段，请使用 `findOne`。
 
 ```javascript
-// ❌ 错误：findOneById 只能查询 _id
 // 不存在 findOneByUserId 这样的方法
 
-// ✅ 正确：使用 findOne 查询其他字段
 const user = await collection('users').findOne({ userId: 'USER-001' });
 ```
 
@@ -563,12 +478,10 @@ const user = await collection('users').findOne({ userId: 'USER-001' });
 **A**: 不支持。`findOneById` 直接返回 Promise，不支持链式调用。如果需要链式调用，请使用 `findOne`。
 
 ```javascript
-// ❌ 不支持
 const user = await collection('users')
   .findOneById(userId)
   .project({ name: 1 });  // 错误！
 
-// ✅ 使用选项对象
 const user = await collection('users').findOneById(userId, {
   projection: { name: 1 }
 });
@@ -591,7 +504,7 @@ if (!user) {
 
 ### Q5: 性能如何？
 
-**A**: 与 `findOne({ _id })` 性能相当，都使用 `_id` 索引，非常快（通常 <10ms）。如果启用缓存，第二次查询只需 0.001ms。
+**A**: 它使用与 `findOne({ _id })` 相同的 `_id` 查询形态。实际延迟取决于部署、网络、driver options、缓存配置和文档大小；请以 MongoDB profile 或你的 APM 数据为准。
 
 ---
 
@@ -601,8 +514,4 @@ if (!user) {
 - [find 方法文档](./find.md)
 - [缓存系统文档](./cache.md)
 - [字段投影文档](./find.md#projection-配置)
-
----
-
-**最后更新**: 2025-11-18
 

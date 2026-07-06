@@ -396,8 +396,3 @@ await collection("users").findOneAndUpdate(
 - [updateOne() 详细文档](./update-one.md)
 - [replaceOne() 详细文档](./replace-one.md)
 - [MongoDB Upsert 官方文档](https://docs.mongodb.com/manual/reference/method/db.collection.update/#upsert-option)
-
----
-
-**版本**: v1.1.2  
-**最后更新**: 2026-01-28

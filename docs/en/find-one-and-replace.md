@@ -1,46 +1,5 @@
 ﻿# findOneAndReplace() - Atomic find and replace
 
-## Table of Contents
-
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [filter (Object, required)](#filter-object-required)
-- [replacement (Object, required)](#replacement-object-required)
-- [options (Object, optional)](#options-object-optional)
-- [Return value](#return-value)
-- [Core Features](#core-features)
-- [Atomic guarantee](#atomic-guarantee)
-- [Differences from findOneAndUpdate](#differences-from-findoneandupdate)
-- [Common scenarios](#common-scenarios)
-- [Scenario 1: Configuring atomic replacement](#scenario-1-configuring-atomic-replacement)
-- [Scenario 2: Version Management](#scenario-2-version-management)
-- [Scenario 3: State machine transition](#scenario-3-state-machine-transition)
-- [Scenario 4: Distributed lock configuration](#scenario-4-distributed-lock-configuration)
-- [Example](#example)
-- [Basic usage](#basic-usage)
-- [Return the replaced document](#return-the-replaced-document)
-- [Use sorting](#use-sorting)
-- [Use projection](#use-projection)
-- [Use upsert](#use-upsert)
-- [Error handling](#error-handling)
-- [Common mistakes](#common-mistakes)
-- [Error 1: Using update operator](#error-1-using-update-operator)
-- [Mistake 2: Forgot fields will be deleted](#mistake-2-forgot-fields-will-be-deleted)
-- [Performance recommendations](#performance-recommendations)
-- [1. Use index](#1-use-index)
-- [2. Use projection to reduce data transmission](#2-use-projection-to-reduce-data-transmission)
-- [Concurrency safety](#concurrency-safety)
-- [Security Example](#security-example)
-- [Best Practices](#best-practices)
-- [1. Save historical versions](#1-save-historical-versions)
-- [2. Use version number](#2-use-version-number)
-- [3. Verification results](#3-verification-results)
-- [When to use](#when-to-use)
-- [✅ Suitable for use findOneAndReplace](#suitable-for-use-findoneandreplace)
-- [❌ Not suitable for use with findOneAndReplace](#not-suitable-for-use-with-findoneandreplace)
-- [Related methods](#related-methods)
-- [References](#references)
-
 ## Syntax
 
 ```javascript
@@ -566,4 +525,3 @@ if (!result) {
 ## References
 
 - [MongoDB findOneAndReplace documentation](https://docs.mongodb.com/manual/reference/method/db.collection.findOneAndReplace/)
-

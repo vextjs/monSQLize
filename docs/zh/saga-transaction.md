@@ -1,19 +1,8 @@
 # Saga 分布式事务
 
-> **弃用兼容页**：monSQLize 仍保留 Saga API 以兼容老调用方，但 Saga 编排不再作为 monSQLize 推荐能力。新的业务流程请优先放到应用/框架层（例如 VextJS runtime）处理。本页已从主文档导航隐藏。
+> **弃用兼容页**：monSQLize 仍保留 Saga API 以兼容老调用方，但 Saga 编排不再作为 monSQLize 推荐能力。新的业务流程请优先放到应用/框架层（例如 VextJS runtime）处理。
 
-monSQLize v1.1.0 引入的 Saga API 现在作为 legacy 兼容能力保留。新的工作流请把编排、持久化、恢复和对账放在应用/框架层。
-
-## 目录
-
-- [什么是 Saga](#什么是-saga)
-- [使用场景](#使用场景)
-- [快速开始](#快速开始)
-- [API 文档](#api-文档)
-- [最佳实践](#最佳实践)
-- [常见问题](#常见问题)
-
----
+monSQLize 保留 Saga API 作为 legacy 兼容能力。新的工作流请把编排、持久化、恢复和对账放在应用/框架层。
 
 ## 什么是 Saga
 
@@ -59,10 +48,10 @@ Saga 是一种分布式事务模式，通过将长事务分解为多个本地事
 
 ### 安装
 
-Saga 功能已内置在 monSQLize v1.1.0+，无需额外安装。
+Saga 功能已内置在当前 `monsqlize` 包中，无需额外安装。
 
 ```bash
-npm install monsqlize@^1.1.0
+npm install monsqlize
 ```
 
 ### 基本使用
@@ -571,15 +560,3 @@ assert(result.success === true);
 
 完整示例请参考：
 - [Saga 可运行示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/saga.ts)
-
----
-
-## 版本历史
-
-- **v1.1.0** (2026-01-17): 首次发布 Saga 功能
-
----
-
-_文档更新时间: 2026-01-17_  
-_版本: v1.1.0_
-

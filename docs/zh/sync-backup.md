@@ -1,25 +1,19 @@
-﻿# Change Stream 数据同步
+﻿# Change Stream 同步
 
-> **版本**: v1.0.8  
-> **功能**: 实时同步数据到备份库  
-> **模式**: CDC (Change Data Capture)
+## 概述
 
----
-
-## 📋 概述
-
-**Change Stream 数据同步**基于 MongoDB 原生 Change Stream 机制，实时监听数据变更并同步到多个备份库。
+Change Stream 同步基于 MongoDB 原生 Change Stream 机制，把通过过滤的变更事件分发给一个或多个 target。它适合备份库、投影表、缓存失效回调和其他异步 CDC 工作流。
 
 ### 核心特性
 
-- ✅ **实时同步**：基于 MongoDB Change Stream，延迟 10-500ms
-- ✅ **解耦设计**：主库写操作不受影响，异步同步
+- ✅ **异步 CDC**：基于 MongoDB Change Stream，延迟取决于 MongoDB、网络与 target 负载
+- ✅ **解耦设计**：主库写入不会等待 target apply 回调
 - ✅ **断点续传**：匹配的目标全部同步成功后保存 Resume Token，重启后从最近一次成功持久化的 token 继续
 - ✅ **多目标支持**：同时同步到多个备份库
 - ✅ **数据过滤**：自定义过滤逻辑
 - ✅ **数据转换**：支持脱敏、字段转换
 - ✅ **生命周期可观测**：同步统计暴露运行状态与错误计数，便于监控和重启
-- ✅ **健康检查**：复用 ConnectionPoolManager
+- ✅ **健康检查**：为托管 target 配置健康检查
 
 ---
 
@@ -104,7 +98,9 @@ await msq.close();
 | 选项 | 类型 | 必需 | 说明 |
 |------|------|------|------|
 | `name` | string | ✅ | 目标名称（唯一） |
-| `uri` | string | ✅ | MongoDB URI |
+| `uri` | string | 条件必需 | MongoDB URI；每个 target 必须提供 `uri`、`pool` 或 `apply` 之一 |
+| `pool` | string | 条件必需 | 命名连接池 target |
+| `apply` | Function | 条件必需 | 自定义 target 回调 `(event, document, context) => Promise<void>` |
 | `collections` | Array | ❌ | 同步的集合，`['*']` 表示全部 |
 | `healthCheck` | Object | ❌ | 健康检查配置 |
 
@@ -293,7 +289,7 @@ rs.initiate()
 ### Q4: 如何处理同步失败？
 
 **自动处理**:
-- 单个目标失败不影响其他目标
+- 已经成功应用该事件的 target 不会回滚，但任一 target 失败都会在 resume token 推进前停止 manager
 - Resume Token 保存失败会在推进 token 前停止 sync manager
 - Change Stream driver 错误与意外 stream close 会记录日志并体现在 stats 中；生产应监控 `isRunning`、`errorCount` 与 `lastError`，必要时由进程管理器或应用重启 manager/runtime
 
@@ -368,14 +364,8 @@ process.on('SIGTERM', async () => {
 
 ---
 
-## 📚 更多资源
+## 更多资源
 
 - [示例代码](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync.ts)
 - [MongoDB Change Streams 官方文档](https://www.mongodb.com/docs/manual/changeStreams/)
-- [ConnectionPoolManager 文档](./multi-pool.md)
-
----
-
-_文档更新时间: 2026-01-17_  
-_版本: v1.0.9_
-
+- [多连接池配置文档](./multi-pool.md)

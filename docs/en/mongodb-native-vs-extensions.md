@@ -1,130 +1,71 @@
-﻿# Comparison of MongoDB native vs monSQLize extended functions
+# Comparison of MongoDB native vs monSQLize extended functions
 
 This document provides a detailed comparison of the functional differences between MongoDB's native driver and monSQLize to help you understand the additional value provided by monSQLize.
 
----
-
-## Table of Contents
-
-- [📋 Quick comparison table](#quick-comparison-table)
-- [🔵 MongoDB native functions (full support)](#mongodb-native-functions-full-support)
-- [✅ Complete CRUD operation](#complete-crud-operation)
-- [✅ Atomic operations](#atomic-operations)
-- [✅ Index management](#index-management)
-- [✅ All query options](#all-query-options)
-- [🔧 monSQLize’s unique extension functions](#monsqlizes-unique-extension-functions)
-- [1. Intelligent caching system](#1-intelligent-caching-system)
-- [MongoDB native: no cache](#mongodb-native-no-cache)
-- [monSQLize: smart caching](#monsqlize-smart-caching)
-- [Comparison of cache features](#comparison-of-cache-features)
-- [2. Automatic cache invalidation](#2-automatic-cache-invalidation)
-- [MongoDB native: Manual cache management](#mongodb-native-manual-cache-management)
-- [monSQLize: automatic cache invalidation](#monsqlize-automatic-cache-invalidation)
-- [Operations supported by automatic invalidation](#operations-supported-by-automatic-invalidation)
-- [3. Depth paging (cursor paging)](#3-depth-paging-cursor-paging)
-- [MongoDB native: offset/limit paging (poor performance)](#mongodb-native-offset-limit-paging-poor-performance)
-- [monSQLize: Cursor paging (stable performance)](#monsqlize-cursor-paging-stable-performance)
-- [Comparison of paging features](#comparison-of-paging-features)
-- [4. Performance monitoring (slow query log)](#4-performance-monitoring-slow-query-log)
-- [MongoDB native: profiling needs to be configured](#mongodb-native-profiling-needs-to-be-configured)
-- [monSQLize: Slow query log out of the box](#monsqlize-slow-query-log-out-of-the-box)
-- [Comparison of performance monitoring features](#comparison-of-performance-monitoring-features)
-- [5. Cross-database access](#5-cross-database-access)
-- [MongoDB native: Manually switch databases](#mongodb-native-manually-switch-databases)
-- [monSQLize: one line of code across databases](#monsqlize-one-line-of-code-across-databases)
-- [Comparison of cross-database access features](#comparison-of-cross-database-access-features)
-- [6. Type Safety (TypeScript)](#6-type-safety-typescript)
-- [MongoDB native: generic types](#mongodb-native-generic-types)
-- [monSQLize: complete type declaration](#monsqlize-complete-type-declaration)
-- [TypeScript supports comparison](#typescript-supports-comparison)
-- [7. Batch insert performance optimization](#7-batch-insert-performance-optimization)
-- [MongoDB native: standard insertMany](#mongodb-native-standard-insertmany)
-- [monSQLize: Intelligent batch insertion](#monsqlize-intelligent-batch-insertion)
-- [Batch insert performance comparison](#batch-insert-performance-comparison)
-- [8. Multi-layer caching (local + Redis)](#8-multi-layer-caching-local-redis)
-- [MongoDB native: no cache (8. Multi-layer cache (local + Redis))](#mongodb-native-no-cache-8-multi-layer-cache-local-redis)
-- [monSQLize: multi-layer caching](#monsqlize-multi-layer-caching)
-- [Multi-layer cache performance comparison](#multi-layer-cache-performance-comparison)
-- [Comparison of multi-layer cache features](#comparison-of-multi-layer-cache-features)
-- [9. Chain call API](#9-chain-call-api)
-- [MongoDB native: cursor chain call](#mongodb-native-cursor-chain-call)
-- [monSQLize: complete chain call + cache](#monsqlize-complete-chain-call-cache)
-- [Comparison of chain call features](#comparison-of-chain-call-features)
-- [10. Event system](#10-event-system)
-- [MongoDB native: listening to driver events](#mongodb-native-listening-to-driver-events)
-- [monSQLize: rich business events](#monsqlize-rich-business-events)
-- [Event system comparison](#event-system-comparison)
-- [💡 Usage suggestions](#usage-suggestions)
-- [When to use MongoDB native driver?](#when-to-use-mongodb-native-driver)
-- [When to use monSQLize?](#when-to-use-monsqlize)
-- [📊 Summary and comparison](#summary-and-comparison)
-- [🚀 Quick Start](#quick-start)
-- [📚 Related documents](#related-documents)
-
-## 📋 Quick comparison table
+## Quick comparison table
 
 | Feature Category | MongoDB Native | monSQLize | Major Enhancements |
 |---------|-------------|-----------|---------|
-| **Query operation** | ✅ | ✅ | Smart cache, cursor paging, slow query log |
-| **INSERT OPERATION** | ✅ | ✅ | High performance batch insert (10-50x), slow query monitoring |
-| **Update operation** | ✅ | ✅ | Automatic cache invalidation, complete error handling |
-| **Delete operation** | ✅ | ✅ | Automatic cache invalidation, slow query monitoring |
-| **Aggregation operation** | ✅ | ✅ | Cache support, streaming processing |
-| **Execution Plan** | ✅ | ✅ | Integrated into query chain |
-| **Cross-database access** | Manual switching | ✅ | One line of code switching |
-| **Cache Management** | ❌ | ✅ | TTL/LRU/auto-invalidation/multi-layer caching |
-| **Performance Monitoring** | Configuration required | ✅ | Out-of-the-box slow query log |
+| **Query operation** | | | Smart cache, cursor paging, slow query log |
+| **INSERT OPERATION** | | | High performance batch insert (10-50x), slow query monitoring |
+| **Update operation** | | | Automatic cache invalidation, complete error handling |
+| **Delete operation** | | | Automatic cache invalidation, slow query monitoring |
+| **Aggregation operation** | | | Cache support, streaming processing |
+| **Execution Plan** | | | Integrated into query chain |
+| **Cross-database access** | Manual switching | | One line of code switching |
+| **Cache Management** | | | TTL/LRU/auto-invalidation/multi-layer caching |
+| **Performance Monitoring** | Configuration required | | Out-of-the-box slow query log |
 
 ---
 
-## 🔵 MongoDB native functions (full support)
+## MongoDB native functions (full support)
 
 monSQLize fully encapsulates all native functions of MongoDB. You can use the familiar MongoDB API:
 
 
-## ✅ Complete CRUD operation
+## Complete CRUD operation
 
 | Operations | Methods | Native Support | Documentation |
 |------|------|---------|------|
-| **Create** | insertOne, insertMany | ✅ | [insertOne guide](./insert-one.md), [insertMany guide](./insert-many.md) |
-| **Read** | find, findOne, aggregate, count, distinct | ✅ | [find guide](./find.md), [findOne guide](./findOne.md) |
-| **Update** | updateOne, updateMany, replaceOne | ✅ | [updateOne guide](./update-one.md), [updateMany guide](./update-many.md) |
-| **Delete** | deleteOne, deleteMany | ✅ | [deleteOne guide](./delete-one.md), [deleteMany guide](./delete-many.md) |
+| **Create** | insertOne, insertMany | | [insertOne guide](./insert-one.md), [insertMany guide](./insert-many.md) |
+| **Read** | find, findOne, aggregate, count, distinct | | [find guide](./find.md), [findOne guide](./findOne.md) |
+| **Update** | updateOne, updateMany, replaceOne | | [updateOne guide](./update-one.md), [updateMany guide](./update-many.md) |
+| **Delete** | deleteOne, deleteMany | | [deleteOne guide](./delete-one.md), [deleteMany guide](./delete-many.md) |
 
 
-## ✅ Atomic operations
-
-| Methods | Native Support | Documentation |
-|------|---------|------|
-| findOneAndUpdate | ✅ | [findOneAndUpdate guide](./find-one-and-update.md) |
-| findOneAndReplace | ✅ | [findOneAndReplace guide](./find-one-and-replace.md) |
-| findOneAndDelete | ✅ | [findOneAndDelete guide](./find-one-and-delete.md) |
-
-
-## ✅ Index management
+## Atomic operations
 
 | Methods | Native Support | Documentation |
 |------|---------|------|
-| createIndex, createIndexes | ✅ | [Index creation guide](./create-index.md) |
-| listIndexes | ✅ | [Index listing guide](./list-indexes.md) |
-| dropIndex, dropIndexes | ✅ | [Index drop guide](./drop-index.md) |
+| findOneAndUpdate | | [findOneAndUpdate guide](./find-one-and-update.md) |
+| findOneAndReplace | | [findOneAndReplace guide](./find-one-and-replace.md) |
+| findOneAndDelete | | [findOneAndDelete guide](./find-one-and-delete.md) |
 
 
-## ✅ All query options
+## Index management
+
+| Methods | Native Support | Documentation |
+|------|---------|------|
+| createIndex, createIndexes | | [Index creation guide](./create-index.md) |
+| listIndexes | | [Index listing guide](./list-indexes.md) |
+| dropIndex, dropIndexes | | [Index drop guide](./drop-index.md) |
+
+
+## All query options
 
 | Options | Native support | Description |
 |------|---------|------|
-| projection | ✅ | Field projection |
-| sort | ✅ | sort |
-| limit / skip | ✅ | paging |
-| hint | ✅ | Index hints |
-| collation | ✅ | sorting rules |
-| maxTimeMS | ✅ | Operation timed out |
-| comment | ✅ | Operation comments |
+| projection | | Field projection |
+| sort | | sort |
+| limit / skip | | paging |
+| hint | | Index hints |
+| collation | | sorting rules |
+| maxTimeMS | | Operation timed out |
+| comment | | Operation comments |
 
 ---
 
-## 🔧 monSQLize’s unique extension functions
+## monSQLize’s unique extension functions
 
 Based on MongoDB's native functions, monSQLize provides additional convenience and performance optimization:
 
@@ -174,12 +115,12 @@ const products2 = await collection('products').find(
 
 | Features | MongoDB native | monSQLize |
 |------|-------------|-----------|
-| **Query Cache** | ❌ None | ✅ TTL + LRU |
-| **Automatic expiration** | ❌ None | ✅ Automatically clean up after writing operations |
-| **Namespace Isolation** | ❌ None | ✅ Isolate by instance/database/collection |
-| **Concurrent deduplication** | ❌ None | ✅ Prevent cache breakdown |
-| **Cache Statistics** | ❌ None | ✅ Hit Rate/Number of Eliminations |
-| **Multi-tier caching** | ❌ None | ✅ Local + Redis |
+| **Query Cache** | None | TTL + LRU |
+| **Automatic expiration** | None | Automatically clean up after writing operations |
+| **Namespace Isolation** | None | Isolate by instance/database/collection |
+| **Concurrent deduplication** | None | Prevent cache breakdown |
+| **Cache Statistics** | None | Hit Rate/Number of Eliminations |
+| **Multi-tier caching** | None | Local + Redis |
 
 **Detailed documentation**: [Cache system](./cache.md)
 
@@ -213,7 +154,7 @@ await db.collection('products').insertOne({
   category: 'electronics'
 });
 
-//❌ The relevant cache must be cleared manually
+//The relevant cache must be cleared manually
 cache.delete('products:electronics');  //Easy to forget or incomplete cleaning
 ```
 
@@ -233,7 +174,7 @@ await collection('products').insertOne({
   name: 'New Product',
   category: 'electronics'
 });
-//✅ Automatically clear cache of all products collections
+//Automatically clear cache of all products collections
 
 //Query again: automatically obtain the latest data from the database
 const freshProducts = await collection('products').find(
@@ -248,13 +189,13 @@ const freshProducts = await collection('products').find(
 
 | Operations | MongoDB native | monSQLize |
 |------|-------------|-----------|
-| insertOne / insertMany | ❌ Manual invalidation | ✅ Automatic invalidation |
-| updateOne / updateMany | ❌ Manual invalidation | ✅ Automatic invalidation |
-| deleteOne / deleteMany | ❌ Manual invalidation | ✅ Automatic invalidation |
-| replaceOne | ❌ Manual invalidation | ✅ Automatic invalidation |
-| findOneAndUpdate | ❌ Manual invalidation | ✅ Automatic invalidation |
-| findOneAndReplace | ❌ Manual invalidation | ✅ Automatic invalidation |
-| findOneAndDelete | ❌ Manual invalidation | ✅ Automatic invalidation |
+| insertOne / insertMany | Manual invalidation | Automatic invalidation |
+| updateOne / updateMany | Manual invalidation | Automatic invalidation |
+| deleteOne / deleteMany | Manual invalidation | Automatic invalidation |
+| replaceOne | Manual invalidation | Automatic invalidation |
+| findOneAndUpdate | Manual invalidation | Automatic invalidation |
+| findOneAndReplace | Manual invalidation | Automatic invalidation |
+| findOneAndDelete | Manual invalidation | Automatic invalidation |
 
 **Benefits**: Prevents cache inconsistencies and ensures data is always up to date.
 
@@ -339,11 +280,11 @@ const page1000 = await collection('products').findPage(
 
 | Features | MongoDB native (skip/limit) | monSQLize (cursor paging) |
 |------|--------------------------|---------------------|
-| **Deep paging performance** | ❌ Linear decline with the number of pages | ✅ Stable performance (bookmark jump) |
-| **Flip forward and backward** | ✅ Support | ✅ Support (after/before) |
-| **Jump page** | ✅ Supported (but slow) | ✅ Supported (and fast) |
-| **Total statistics** | ✅ Need to be queried separately | ✅ Asynchronous statistics (no blocking) |
-| **Data Stability** | ❌ Insertion/deletion affects paging | ✅ Cursor locked data set |
+| **Deep paging performance** | Linear decline with the number of pages | Stable performance (bookmark jump) |
+| **Flip forward and backward** | Support | Support (after/before) |
+| **Jump page** | Supported (but slow) | Supported (and fast) |
+| **Total statistics** | Need to be queried separately | Asynchronous statistics (no blocking) |
+| **Data Stability** | Insertion/deletion affects paging | Cursor locked data set |
 
 **Detailed documentation**: [findPage guide](./findPage.md)
 
@@ -407,11 +348,11 @@ const products = await collection('products').find({
 
 | Features | MongoDB native | monSQLize |
 |------|-------------|-----------|
-| **Slow Query Monitoring** | ⚠️ Requires profiling configuration | ✅ Ready to use out of the box |
-| **Real-time Alarm** | ❌ Need to check the log separately | ✅ Events are automatically triggered |
-| **Query Timeout** | ✅ maxTimeMS | ✅ Global + Query Level |
-| **Operation time consuming** | ❌ Requires profiling | ✅ Automatic recording |
-| **Log Storage** | ❌ Occupies database space | ✅ Application layer logs |
+| **Slow Query Monitoring** | Requires profiling configuration | Ready to use out of the box |
+| **Real-time Alarm** | Need to check the log separately | Events are automatically triggered |
+| **Query Timeout** | maxTimeMS | Global + Query Level |
+| **Operation time consuming** | Requires profiling | Automatic recording |
+| **Log Storage** | Occupies database space | Application layer logs |
 
 **Detailed documentation**: [Event system](./events.md)
 
@@ -470,10 +411,10 @@ const logs = await use('logs').collection('access_logs').find({});
 
 | Features | MongoDB native | monSQLize |
 |------|-------------|-----------|
-| **Cross-database switching** | ❌ Manual `client.db(name)` | ✅ Scoped collection access with `use(name)` |
-| **Default database** | ❌ No concept | ✅ Automatically use the default database |
-| **Code Simplicity** | ⚠️ Lengthy | ✅ Concise |
-| **Cache Isolation** | ❌ No cache | ✅ Automatic isolation by database |
+| **Cross-database switching** | Manual `client.db(name)` | Scoped collection access with `use(name)` |
+| **Default database** | No concept | Automatically use the default database |
+| **Code Simplicity** | Lengthy | Concise |
+| **Cache Isolation** | No cache | Automatic isolation by database |
 
 **Detailed documentation**: [Connection configuration](./connection.md)
 
@@ -529,9 +470,9 @@ const { collection } = await msq.connect();
 const products = await collection('products').find<Product>(
   { category: 'electronics' },
   {
-    cache: 5000,         //✅ Option type check
-    projection: { name: 1, price: 1 },  //✅ Projection type check
-    limit: 20            //✅ Parameter type checking
+    cache: 5000,         //Option type check
+    projection: { name: 1, price: 1 },  //Projection type check
+    limit: 20            //Parameter type checking
   }
 );
 // products: Product[]
@@ -542,9 +483,9 @@ const result = await collection('products').findPage<Product>(
   {
     cache: 5000,
     bookmarks: {
-      step: 10,          //✅ IDE auto-completion
-      maxHops: 20,       //✅ Type tips
-      ttlMs: 3600000     //✅ Type checking
+      step: 10,          //IDE auto-completion
+      maxHops: 20,       //Type tips
+      ttlMs: 3600000     //Type checking
     }
   }
 );
@@ -555,10 +496,10 @@ const result = await collection('products').findPage<Product>(
 
 | Features | MongoDB native | monSQLize |
 |------|-------------|-----------|
-| **Basic types** | ✅ Generics support | ✅ Full type declaration |
-| **Option Type** | ⚠️ Partial Support | ✅ Full Support |
-| **IDE Completion** | ⚠️ Basic Completion | ✅ Full Completion |
-| **Type Check** | ⚠️ Partial Check | ✅ Strict Check |
+| **Basic types** | Generics support | Full type declaration |
+| **Option Type** | Partial Support | Full Support |
+| **IDE Completion** | Basic Completion | Full Completion |
+| **Type Check** | Partial Check | Strict Check |
 
 **Type declaration file**: [types/index.d.ts](../../types/index.d.ts)
 
@@ -678,11 +619,11 @@ const products2 = await collection('products').find(
 
 | Features | MongoDB native | monSQLize |
 |------|-------------|-----------|
-| **Local Cache** | ❌ None | ✅ Memory LRU |
-| **Remote Cache** | ❌ None | ✅ Redis Support |
-| **Multi-tier caching** | ❌ None | ✅ Local + Redis |
-| **Auto Backfill** | ❌ None | ✅ Backfill local on Redis hit |
-| **Cache Consistency** | ❌ None | ✅ Write operations automatically invalidated |
+| **Local Cache** | None | Memory LRU |
+| **Remote Cache** | None | Redis Support |
+| **Multi-tier caching** | None | Local + Redis |
+| **Auto Backfill** | None | Backfill local on Redis hit |
+| **Cache Consistency** | None | Write operations automatically invalidated |
 
 **Detailed documentation**: [Multi-layer caching](./cache.md#multi-layer-caching)
 
@@ -714,7 +655,7 @@ const products = await collection('products')
   .sort({ price: -1 })
   .skip(20)
   .limit(10)
-  .cache(5000)        //✅ Chain cache
+  .cache(5000)        //Chain cache
   .maxTimeMS(3000)    //✅Chain timeout
   .comment('API:listProducts')  //✅Chained comments
   .toArray();
@@ -725,11 +666,11 @@ const products = await collection('products')
 
 | Features | MongoDB native | monSQLize |
 |------|-------------|-----------|
-| **Basic chaining** | ✅ find/sort/limit | ✅ Full support |
-| **Cache Chain** | ❌ None | ✅ .cache() |
-| **Timeout Chaining** | ⚠️ Required in find option | ✅ .maxTimeMS() |
-| **Comment chaining** | ⚠️ Required in find option | ✅ .comment() |
-| **Streaming chain** | ✅ .stream() | ✅ .stream() + cache |
+| **Basic chaining** | find/sort/limit | Full support |
+| **Cache Chain** | None | .cache() |
+| **Timeout Chaining** | Required in find option | .maxTimeMS() |
+| **Comment chaining** | Required in find option | .comment() |
+| **Streaming chain** | .stream() | .stream() + cache |
 
 **Detailed documentation**: [Chain query API](./chaining-api.md)
 
@@ -787,22 +728,22 @@ msq.on('error', (data) => {
 
 | Event type | MongoDB native | monSQLize |
 |---------|-------------|-----------|
-| **Connection Event** | ✅ | ✅ |
-| **DRIVING EVENT** | ✅ | ✅ |
-| **Slow Query Event** | ❌ | ✅ |
-| **Cache Event** | ❌ | ✅ |
-| **Business Event** | ❌ | ✅ |
+| **Connection Event** | | |
+| **DRIVING EVENT** | | |
+| **Slow Query Event** | | |
+| **Cache Event** | | |
+| **Business Event** | | |
 
 **Detailed documentation**: [Event system](./events.md)
 
 ---
 
-## 💡 Usage suggestions
+## Usage suggestions
 
 
 ## When to use MongoDB native driver?
 
-✅ **Suitable scene**:
+**Suitable scene**:
 - Simple script or tool
 - No caching required
 - No advanced pagination required
@@ -811,7 +752,7 @@ msq.on('error', (data) => {
 
 ## When to use monSQLize?
 
-✅ **Suitable scene**:
+**Suitable scene**:
 - **Production Application** - Requires caching and performance optimization
 - **High Traffic API** - Caching can reduce database pressure
 - **Deep Pagination** - list page, search results, etc.
@@ -821,21 +762,21 @@ msq.on('error', (data) => {
 
 ---
 
-## 📊 Summary and comparison
+## Summary and comparison
 
 | Dimensions | MongoDB native | monSQLize | Boost |
 |------|-------------|-----------|------|
-| **Functional Completeness** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 100% Compatible + Extensions |
-| **Performance (No Cache)** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Bulk Inserts 10-50x |
-| **Performance (With Cache)** | ⭐☆☆☆☆ | ⭐⭐⭐⭐⭐ | Cache Hits 1000x |
-| **Deep Paging** | ⭐⭐☆☆☆ | ⭐⭐⭐⭐⭐ | Deep Paging 250x |
-| **Ease of Use** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Simpler API |
-| **Maintainability** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Automatic cache invalidation |
-| **Observability** | ⭐⭐☆☆☆ | ⭐⭐⭐⭐⭐ | Out-of-the-box monitoring |
+| **Functional Completeness** |  |  | 100% Compatible + Extensions |
+| **Performance (No Cache)** |  |  | Bulk Inserts 10-50x |
+| **Performance (With Cache)** | ☆☆☆☆ |  | Cache Hits 1000x |
+| **Deep Paging** | ☆☆☆ |  | Deep Paging 250x |
+| **Ease of Use** |  |  | Simpler API |
+| **Maintainability** |  |  | Automatic cache invalidation |
+| **Observability** | ☆☆☆ |  | Out-of-the-box monitoring |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 If you want to experience the extended capabilities of monSQLize, start here:
 
@@ -849,14 +790,10 @@ If you want to experience the extended capabilities of monSQLize, start here:
 
 ---
 
-## 📚 Related documents
+## Related documents
 
 - [Cache system](./cache.md) - Detailed documentation of cache system
 - [findPage guide](./findPage.md) - Query detailed documents by page
 - [Event system](./events.md) - Event system detailed documentation
 - [insertMany guide](./insert-many.md) - Batch insert performance optimization
 - [Connection configuration](./connection.md) - Connection management and cross-database access
-
----
-
-**Last updated**: 2025-11-18

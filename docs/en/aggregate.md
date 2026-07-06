@@ -1,24 +1,5 @@
 # aggregate method detailed documentation
 
-## 📑 Table of Contents
-
-- [Overview](#overview)
-- [Method signature](#method-signature)
-- [Parameter description](#parameter-description)
-- [Return value](#return-value)
-- [Usage mode](#usage-mode)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [Error handling](#error-handling)
-- [Difference from find](#difference-from-find)
-- [Common aggregation operators](#common-aggregation-operators)
-- [References](#references)
-- [FAQ](#faq)
-- [Best Practices](#best-practices)
-- [🆕 Unified Expression System (v1.0.9)](#unified-expression-system-v109)
-- [Related links](#related-links)
-
----
-
 ## Overview
 
 `aggregate` is the aggregation pipeline method provided by monSQLize, which is used to perform MongoDB's aggregation framework operations. Supports complex data processing, statistical analysis, joint table query, group calculation, streaming processing, caching and other functions.
@@ -118,7 +99,7 @@ By default, the `aggregate` method returns a Promise and resolve is the result d
 ```javascript
 const stats = await collection('orders').aggregate([
   { $match: { status: 'paid' } },
-  { $group: { 
+  { $group: {
       _id: '$category',
       total: { $sum: '$amount' },
       count: { $sum: 1 }
@@ -564,7 +545,7 @@ let totalAmount = 0;
 stream.on('data', (order) => {
   processedCount++;
   totalAmount += order.amount;
-  
+
   // Process data item by item
   // processOrder(order);
 });
@@ -671,7 +652,7 @@ const result = await collection('orders').aggregate([
       from: 'users',
       let: { userId: '$userId' },
       pipeline: [
-        { $match: { 
+        { $match: {
             $expr: { $eq: ['$_id', '$$userId'] },
             status: 'active'  // Filter on association
         } },
@@ -693,7 +674,7 @@ try {
   ], {
     maxTimeMS: 5000
   });
-  
+
   console.log('Aggregation results:', result);
 } catch (error) {
   if (error.code === 'TIMEOUT') {
@@ -897,11 +878,11 @@ await collection('orders').aggregate([
 ```
 ---
 
-## 🆕 Unified Expression System (v1.0.9)
+## 🆕 Unified Expression System
 
-### Overview (🆕 Unified Expression System (v1.0.9))
+### Overview (🆕 Unified Expression System)
 
-monSQLize v1.0.9 introduces a unified expression system, providing **67 powerful operators**, greatly simplifying the writing of MongoDB aggregation queries.
+monSQLize includes a unified expression system with common operators for building MongoDB aggregation queries more clearly.
 
 ### Core Advantages
 
@@ -1041,14 +1022,14 @@ await collection('users').aggregate([
       // String processing
       fullName: expr("CONCAT(firstName, ' ', lastName)"),
       email: expr("LOWER(TRIM(email))"),
-      
+
       // age calculation
       age: expr("YEAR(CURRENT_DATE) - YEAR(birthDate)"),
       ageGroup: expr("SWITCH(age < 18, 'Minor', age < 65, 'Adult', 'Senior')"),
-      
+
       // Status judgment
       status: expr("active === true && verified === true ? 'Active' : 'Inactive'"),
-      
+
       // Array statistics
       tagCount: expr("SIZE(tags)"),
       hasPremiumTag: expr("IN('premium', tags)")
@@ -1067,12 +1048,12 @@ await collection('orders').aggregate([
       finalPrice: expr("originalPrice * (1 - discount / 100)"),
       savings: expr("originalPrice - finalPrice"),
       savingsPercent: expr("(savings / originalPrice * 100).toFixed(2)"),
-      
+
       // Date extraction
       year: expr("YEAR(createdAt)"),
       month: expr("MONTH(createdAt)"),
       day: expr("DAY_OF_MONTH(createdAt)"),
-      
+
       // Status classification
       statusLabel: expr("SWITCH(status === 'paid', 'Paid', status === 'pending', 'Pending', 'Cancelled')")
     }
@@ -1094,20 +1075,20 @@ await collection('products').aggregate([
   {
     $project: {
       name: 1,
-      
+
       // Lambda expression - filtering
       activeTags: expr("FILTER(tags, tag, tag.active === true)"),
       expensiveItems: expr("FILTER(items, item, item.price > 100)"),
-      
+
       // Lambda expression - mapping
       tagNames: expr("MAP(tags, tag, tag.name)"),
       itemPrices: expr("MAP(items, item, item.price)"),
-      
+
       // Array operations
       firstTag: expr("FIRST(tags)"),
       lastTag: expr("LAST(tags)"),
       tagCount: expr("SIZE(tags)"),
-      
+
       // Use in combination
       activeTagNames: expr("MAP(FILTER(tags, t, t.active === true), t, t.name)")
     }
@@ -1120,16 +1101,16 @@ await collection('students').aggregate([
   {
     $project: {
       name: 1,
-      
+
       // Grade Level (Multiple Branches)
       grade: expr("SWITCH(score >= 90, 'A', score >= 80, 'B', score >= 70, 'C', score >= 60, 'D', 'F')"),
-      
+
       // Scholarship Calculation
       scholarship: expr("score >= 95 ? 5000 : (score >= 90 ? 3000 : (score >= 85 ? 2000 : 0))"),
-      
+
       // Comprehensive evaluation
       evaluation: expr("CONCAT(name, ' scored ', TO_STRING(score), ' points, grade: ', grade)"),
-      
+
       // Is it excellent?
       isExcellent: expr("score >= 90 && attendance > 0.95 && conduct === 'good'")
     }
@@ -1156,7 +1137,7 @@ const expr2 = expr("CONCAT(firstName, ' ', lastName)");  // cache hit
 2. **Index support** - Make sure there is an index when using expressions in $match
 3. **Batch processing** - Use $project to reduce the amount of subsequent processing
 
-### Best Practices (🆕 Unified Expression System (v1.0.9))
+### Best Practices (🆕 Unified Expression System)
 
 #### 1. Field reference
 ```javascript
@@ -1185,7 +1166,7 @@ expr("FILTER(tags, tag, tag.active === true)")
 expr("FILTER(tags, t, t.active === true)")
 expr("MAP(items, item, item.price)")
 ```
-### Frequently Asked Questions (FAQ) (🆕 Unified Expression System (v1.0.9))
+### Frequently Asked Questions (FAQ) (🆕 Unified Expression System)
 
 **Q: Is it compatible with native MongoDB syntax? **
 A: Fully compatible! Can be mixed in the same query:
@@ -1254,7 +1235,7 @@ expr("FILTER(items, item, item.price > 100 && item.stock > 0)")
   $filter: {
     input: '$items',
     as: 'item',
-    cond: { 
+    cond: {
       $and: [
         { $gt: ['$$item.price', 100] },
         { $gt: ['$$item.stock', 0] }
@@ -1267,6 +1248,5 @@ expr("FILTER(items, item, item.price > 100 && item.stock > 0)")
 
 ## Related links
 
-- [CHANGELOG v1.0.9](../../changelogs/v1.0.9.md) - Detailed change log
 - [Test Case ](../../test/unit/expression/) - 107 test examples
 - [Verification progress ](../../test/validation/VERIFICATION-PROGRESS.md) - Current release verification entry

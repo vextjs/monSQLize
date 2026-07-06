@@ -1,28 +1,18 @@
-﻿# Function Cache
+# Function Cache (Legacy Compatibility)
 
-> **Version**: v1.1.4+
-> **Function**: Add caching capabilities to any asynchronous function
+> **Current site status**: hidden from navigation
+> **Compatibility status**: exported for existing consumers
 
----
-
-## 📋 Table of Contents
-
-- [Overview](#overview)
-- [Quick Start](#quick-start)
-- [Core API](#core-api)
-- [Usage Scenario](#usage-scenarios)
-- [Best Practice](#best-practices)
-- [Performance comparison](#performance-comparison)
-- [FAQ](#faq)
-
----
+`withCache()` and `FunctionCache` remain part of the public API for compatibility, but non-database function caching is no longer an actively maintained monSQLize feature area. For new generic function-cache usage, prefer `cache-hub` directly or an application-owned cache layer. The current monSQLize docs focus on database query cache, Redis adapters, distributed invalidation, and database-runtime cache behavior.
 
 ## Overview
 
-Function caching is a new feature of monSQLize v1.1.4, which allows you to add caching capabilities to any asynchronous function, not just database queries.
+Function caching added cache wrappers for arbitrary asynchronous functions, not just database queries. This page is kept only as a legacy compatibility surface for existing consumers.
 
 
 ## Features
+
+These capabilities remain available for compatibility. They are not the recommended starting point for new monSQLize cache usage.
 
 - ✅ **Zero Invasion**: Through the decorator mode, the original function is not modified
 - ✅ **Automatic Serialization**: Supports complex parameters (object, array, Date, ObjectId, etc.)
@@ -35,17 +25,17 @@ Function caching is a new feature of monSQLize v1.1.4, which allows you to add c
 
 ---
 
-## Quick start
+## Compatibility example
 
 
 ## Installation
 
 ```bash
-npm install monsqlize@^1.1.4
+npm install monsqlize
 ```
 
 
-## Method 1: Decorator pattern
+## Method 1: Wrapper pattern
 
 ```javascript
 import MonSQLize from 'monsqlize';
@@ -459,7 +449,7 @@ setInterval(() => {
 
     //If hit rate is less than 80%, consider adjusting TTL
     if (stats.hitRate < 0.8) {
-        console.warn('⚠️ The cache hit rate is low, it is recommended to adjust the TTL');
+        console.warn('The cache hit rate is low; consider adjusting the TTL');
     }
 }, 60000);
 ```
@@ -481,49 +471,16 @@ async function updateUserProfile(userId, data) {
 ```
 
 ---
+## Legacy performance note
 
-## Performance comparison
+`withCache()` and `FunctionCache` remain available for existing consumers, but new generic function-level caching should use `cache-hub` directly or an application-owned cache layer.
 
+For existing code, measure the real workload before keeping a wrapper:
 
-## Actual performance data
-
-Based on real tests (Intel CPU, Node.js v20):
-
-| Indicator | Value | Description |
-|------|------|------|
-| **Cache hit time** | 0.002-0.003ms (2-3μs) | Local cache |
-| **Cache Overhead** | ~0.001ms (1μs) | get + serialization |
-| **Threshold applies** | Function execution time > 0.01ms | Below this value caching may become slower |
-
-
-## Scenario comparison
-
-| Scenario | Function execution time | Cache revenue | Recommendation |
-|------|-------------|---------|------|
-| **Simple calculation** | 0.0001-0.001ms | ❌ 2-10x slower | Not recommended |
-| **Database single query** | 1-5ms | ✅ Acceleration 500-2500x | Highly recommended |
-| **Complex business logic** | 10-50ms | ✅ Acceleration 5000-25000x | Highly recommended |
-| **External API call** | 100-500ms | ✅ Acceleration 50000-250000x | Highly recommended |
-
-
-## Performance test example
-
-```javascript
-//Test results (10000 iterations)
-//
-//Simple function: x => x * 2
-//No cache: 0.0003ms/time
-//With cache: 0.0030ms/time
-//Conclusion: ❌ Caching is not recommended
-//
-//Database query: findOne + find
-//No cache: 1.5ms/time
-//With cache: 0.003ms/time
-//Acceleration: 500x ✅
-```
-
----
-
+- Cache only functions with meaningful I/O or computation cost.
+- Avoid wrapping trivial synchronous calculations.
+- Keep TTL and invalidation tied to the data owner.
+- Prefer database query cache for monSQLize query results.
 ## FAQ
 
 

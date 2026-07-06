@@ -1,20 +1,5 @@
 # distinct 方法详细文档
 
-## 📑 目录
-
-- [概述](#概述)
-- [方法签名](#方法签名)
-- [参数说明](#参数说明)
-- [返回值](#返回值)
-- [使用模式](#使用模式)
-- [性能优化建议](#性能优化建议)
-- [常见问题](#常见问题)
-- [使用建议](#使用建议)
-- [相关方法](#相关方法)
-- [最佳实践](#最佳实践)
-- [示例代码](#示例代码)
-
----
 
 ## 概述
 
@@ -38,8 +23,8 @@ async distinct(field, filter = {}, options = {})
 
 查询条件对象，只对匹配的文档进行去重，使用 MongoDB 标准查询语法。
 
-**类型**：`Object`  
-**必填**：否  
+**类型**：`Object`
+**必填**：否
 **默认值**：`{}`（空对象表示对所有文档去重）
 
 **示例**：
@@ -80,7 +65,7 @@ async distinct(field, filter = {}, options = {})
 | `meta` | Boolean/Object | 否 | `false` | monSQLize 扩展 🔧 | 返回查询元数据（执行时间、缓存命中率等） |
 | `explain` | Boolean/String | 否 | - | MongoDB 原生 ✅ | 返回查询执行计划，可选值：`true`、`'queryPlanner'`、`'executionStats'`、`'allPlansExecution'` |
 
-**MongoDB 参考文档**: 
+**MongoDB 参考文档**:
 - [distinct()](https://www.mongodb.com/docs/manual/reference/method/db.collection.distinct/)
 
 ### comment 配置
@@ -128,7 +113,7 @@ try {
       { inStock: true },
       { session }
     );
-    
+
     // 其他事务操作...
   });
 } finally {
@@ -392,7 +377,7 @@ try {
       { status: 'active' },
       { session }
     );
-    
+
     // 基于角色进行其他操作
     for (const role of roles) {
       await collection('permissions').updateMany(
@@ -495,7 +480,7 @@ collection('products').distinct('category', { inStock: true }, {
   collation: { locale: 'en', strength: 1 },
   comment: 'getCategories',
   session: clientSession,
-  
+
   // monSQLize 扩展选项
   cache: 5 * 60 * 1000,  // 缓存 5 分钟
   explain: 'executionStats'  // 性能分析
@@ -641,7 +626,7 @@ try {
    ```javascript
    // ❌ 扫描所有文档
    const tags = await collection('products').distinct('tags');
-   
+
    // ✅ 只扫描在售商品
    const tags = await collection('products').distinct('tags', { inStock: true });
    ```
@@ -831,4 +816,3 @@ const chineseNames = await collection('users').distinct('name', {}, {
 更多完整示例请参考：
 - [distinct.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/distinct.ts) - 当前 TypeScript 使用示例
 - [queries.test.ts](../../test/integration/mongodb/queries.test.ts) - 集成测试覆盖
-

@@ -1,56 +1,15 @@
 # Write Operations
 
-## Table of Contents
-
-- [Overview](#overview)
-- [🔵 MongoDB native vs monSQLize extension](#mongodb-native-vs-monsqlize-extension)
-- [API parameter description](#api-parameter-description)
-- [insertOne()](#insertone)
-- [Method signature](#method-signature)
-- [Detailed explanation of parameters](#detailed-explanation-of-parameters)
-- [Return value](#return-value)
-- [insertMany()](#insertmany)
-- [Method signature (insertMany())](#method-signature-insertmany)
-- [Detailed explanation of parameters (insertMany())](#detailed-explanation-of-parameters-insertmany)
-- [Return value (insertMany())](#return-value-insertmany)
-- [Usage example](#usage-example)
-- [Basic usage](#basic-usage)
-- [1. Insert a single document](#1-insert-a-single-document)
-- [2. Insert documents in batches](#2-insert-documents-in-batches)
-- [Advanced Scenario](#advanced-scenario)
-- [3. Use comment parameter (production environment log tracking)](#3-use-comment-parameter-production-environment-log-tracking)
-- [4. Use writeConcern (key data persistence)](#4-use-writeconcern-key-data-persistence)
-- [5. ordered vs unordered mode (insertMany)](#5-ordered-vs-unordered-mode-insertmany)
-  - [5.1 ordered mode (default)](#51-ordered-mode-default)
-  - [5.2 unordered mode](#52-unordered-mode)
-- [6. Error handling](#6-error-handling)
-- [7. Automatic cache invalidation](#7-automatic-cache-invalidation)
-- [Performance optimization](#performance-optimization)
-- [Batch insert performance comparison](#batch-insert-performance-comparison)
-- [Best Practices](#best-practices)
-- [1. Log tracking (comment)](#1-log-tracking-comment)
-- [2. Write confirmation level (writeConcern)](#2-write-confirmation-level-writeconcern)
-- [3. Error handling](#3-error-handling)
-- [4. Batch insert](#4-batch-insert)
-- [5. ordered vs unordered](#5-ordered-vs-unordered)
-- [Slow query monitoring](#slow-query-monitoring)
-- [FAQ](#faq)
-- [Q: What is the difference between insertMany and multiple insertOne?](#q-what-is-the-difference-between-insertmany-and-multiple-insertone)
-- [Q: Which should I choose between ordered and unordered?](#q-which-should-i-choose-between-ordered-and-unordered)
-- [Q: How should writeConcern be set?](#q-how-should-writeconcern-be-set)
-- [Q: Do I need to manually clear the cache after inserting?](#q-do-i-need-to-manually-clear-the-cache-after-inserting)
-- [Q: How to deal with duplicate key errors?](#q-how-to-deal-with-duplicate-key-errors)
-- [Q: Will the memory overflow when inserting a large amount of data?](#q-will-the-memory-overflow-when-inserting-a-large-amount-of-data)
-- [References](#references)
-
 ## Overview
 
-monSQLize provides two writing methods:
+This page covers the collection-level insert APIs. Use these methods when you want MongoDB-native write behavior with monSQLize conveniences such as cache invalidation, unified errors, and slow operation monitoring.
 
 | Method | Purpose | Performance | Applicable scenarios |
 |------|------|------|---------|
 | **insertOne** | Insert a single document | ~10-20ms/item | Real-time single document writing, interactive operation |
 | **insertMany** | Batch insert documents | ~0.5-1ms/item **(10-50x faster)** | Data import, batch creation, initialization data |
+
+Use the Model layer instead when the write must go through schema defaults, hooks, timestamps, versioning, soft delete, or optimistic locking. If you want to enforce that rule at runtime, configure [Write Path Policy](./write-path-policy.md).
 
 
 ## 🔵 MongoDB native vs monSQLize extension
@@ -64,15 +23,6 @@ monSQLize provides two writing methods:
 - ✅ **Unified Error Code** - Unified error handling such as DUPLICATE_KEY/VALIDATION_ERROR
 - ✅ **Slow Query Monitoring** - Automatically record write operations that take longer than the threshold
 - ✅ **Detailed Log** - DEBUG/WARN level operation log
-
-**Core Features**:
-- ✅ **Automatic Cache Invalidation** 🔧 - Automatically clear related caches after insertion (monSQLize extension)
-- ✅ **Write Confirmation Level** ✅ - Support custom writeConcern (MongoDB native)
-- ✅ **Error Handling** 🔧 - Unified error codes (monSQLize extension)
-- ✅ **Log Tracking** ✅ - Support comment parameter for production environment monitoring (MongoDB native)
-- ✅ **Slow Query Monitoring** 🔧 - Automatically record write operations that take more than a threshold (monSQLize extension)
-
----
 
 ## API parameter description
 
@@ -394,7 +344,7 @@ try {
 
 ## 7. Automatic cache invalidation
 
-The insertion operation will automatically clear the relevant cache, and there is no need to manually call `invalidate()`.
+After a successful insert, monSQLize triggers cache invalidation for related collection query caches. Cache invalidation is best-effort and post-write; see [Cache API](./cache.md) for consistency boundaries.
 
 ```javascript
 //Step 1: Query products (cached results)
@@ -410,7 +360,7 @@ await collection('products').insertOne({
   category: 'electronics',
   price: 599
 });
-console.log('✅ Automatically clear cache after inserting');
+console.log('Cache invalidation was triggered after inserting');
 
 //Step 3: Query again (the cache has expired, query the database again)
 const products2 = await collection('products').find(

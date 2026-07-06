@@ -1,27 +1,8 @@
 # Update method supports aggregation pipeline
 
-> **Version**: v1.0.8+
-> **Updated date**: 2026-01-16
-
----
-
-## 📋 Table of Contents
-
-- [Introduction](#introduction)
-- [Quick Start](#quick-start)
-- [Aggregation Pipeline Basics](#aggregation-pipeline-basics)
-- [Commonly used operators](#commonly-used-operators)
-- [Usage Scenario](#usage-scenario)
-- [Best Practice](#best-practice)
-- [Performance Optimization](#performance-optimization)
-- [Notes](#notes)
-- [API Reference](#api-reference)
-
----
-
 ## Introduction
 
-Starting with v1.0.8, monSQLize's `updateOne` and `updateMany` methods support **aggregation pipeline syntax**, allowing you to use powerful aggregation operators for updates.
+monSQLize's `updateOne` and `updateMany` methods support **aggregation pipeline syntax**, allowing you to use aggregation operators for updates.
 
 
 ## Why do we need an aggregation pipeline?
@@ -896,8 +877,3 @@ Similar to `updateOne`, but can update multiple documents.
 - [updateMany guide](./update-many.md) - updateMany full document
 - [Update operations overview](./update-operations.md) - Overview of update operations
 - [Aggregation pipeline guide](./aggregate.md) - Detailed explanation of aggregation pipeline
-
----
-
-_Document version: v1.0.8_
-_Last updated: 2026-01-16_

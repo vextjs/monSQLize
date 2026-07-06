@@ -1,23 +1,5 @@
 ﻿# explain 方法详细文档
 
-## 📑 目录
-
-- [概述](#概述)
-- [核心特性](#核心特性)
-- [使用场景](#使用场景)
-- [方法签名](#方法签名)
-- [参数说明](#参数说明)
-- [verbosity 模式](#verbosity-模式)
-- [使用示例](#使用示例)
-- [性能优化建议](#性能优化建议)
-- [聚合管道的 explain](#聚合管道的-explain)
-- [monSQLize explain 与原生 MongoDB 的对比](#monsqlize-explain-与原生-mongodb-的对比)
-- [注意事项](#注意事项)
-- [错误处理](#错误处理)
-- [常见问题](#常见问题)
-- [参考资料](#参考资料)
-
----
 
 ## 概述
 
@@ -82,7 +64,7 @@ await collection('products')
 // find 查询 - 完整选项
 await collection('products').find(
   { category: 'electronics' },
-  { 
+  {
     sort: { price: 1 },
     limit: 10,
     projection: { name: 1, price: 1 },
@@ -649,12 +631,12 @@ try {
   );
 } catch (error) {
   console.error('Explain 失败:', error.message);
-  
+
   // 常见错误类型
   if (error.message.includes('verbosity')) {
     console.log('有效的 verbosity 值: queryPlanner, executionStats, allPlansExecution');
   }
-  
+
   if (error.message.includes('hint')) {
     console.log('指定的 hint 索引不存在');
   }
@@ -710,9 +692,9 @@ try {
 // 1. 使用 hint 强制使用索引
 const plan = await collection('users').find(
   { name: 'Alice' },
-  { 
+  {
     hint: { name: 1 },
-    explain: 'executionStats' 
+    explain: 'executionStats'
   }
 );
 

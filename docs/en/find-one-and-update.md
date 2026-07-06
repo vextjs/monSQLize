@@ -1,44 +1,5 @@
 ﻿# findOneAndUpdate() - Atomic find and update
 
-## Table of Contents
-
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [filter (Object, required)](#filter-object-required)
-- [update (Object, required)](#update-object-required)
-- [options (Object, optional)](#options-object-optional)
-- [Return value](#return-value)
-- [Core Features](#core-features)
-- [Atomic guarantee](#atomic-guarantee)
-- [returnDocument option](#returndocument-option)
-- [Common scenarios](#common-scenarios)
-- [Scenario 1: Distributed counter](#scenario-1-distributed-counter)
-- [Scenario 2: Optimistic locking (version control)](#scenario-2-optimistic-locking-version-control)
-- [Scenario 3: Task Queue](#scenario-3-task-queue)
-- [Scenario 4: Distributed lock](#scenario-4-distributed-lock)
-- [Scenario 5: User’s last activity time](#scenario-5-users-last-activity-time)
-- [Example](#example)
-- [Basic usage](#basic-usage)
-- [Use sorting](#use-sorting)
-- [Use projection](#use-projection)
-- [Use upsert (insert if it does not exist, update if it exists) ⭐](#use-upsert-insert-if-it-does-not-exist-update-if-it-exists)
-  - [Upsert detailed description](#upsert-detailed-description)
-- [Get complete metadata](#get-complete-metadata)
-- [Performance optimization](#performance-optimization)
-- [1. Use index](#1-use-index)
-- [2. Use projection to reduce data transmission](#2-use-projection-to-reduce-data-transmission)
-- [3. Optimize queries with sort and hint](#3-optimize-queries-with-sort-and-hint)
-- [Error handling](#error-handling)
-- [Comparison with other methods](#comparison-with-other-methods)
-- [Concurrency safety](#concurrency-safety)
-- [Security Example](#security-example)
-- [Best Practices](#best-practices)
-- [1. Reasonable choice of returnDocument](#1-reasonable-choice-of-returndocument)
-- [2. Use version numbers to avoid conflicts](#2-use-version-numbers-to-avoid-conflicts)
-- [3. Use projection to optimize performance](#3-use-projection-to-optimize-performance)
-- [Related methods](#related-methods)
-- [References](#references)
-
 ## Syntax
 
 ```javascript
@@ -634,4 +595,3 @@ const user = await collection("users").findOneAndUpdate(
 ## References
 
 - [MongoDB findOneAndUpdate Documentation](https://docs.mongodb.com/manual/reference/method/db.collection.findOneAndUpdate/)
-

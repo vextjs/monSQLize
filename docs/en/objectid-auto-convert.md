@@ -1,28 +1,8 @@
 # ObjectId Auto Conversion
 
-> **Availability**: v1.3.0+  
-> **Type**: Feature  
-> **Category**: Data type handling
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Why Automatic Conversion Helps](#why-automatic-conversion-helps)
-- [Conversion Rules](#conversion-rules)
-- [Configuration Options](#configuration-options)
-- [Usage Examples](#usage-examples)
-- [Supported Methods](#supported-methods)
-- [Advanced Configuration](#advanced-configuration)
-- [Performance Notes](#performance-notes)
-- [FAQ](#faq)
-
----
-
 ## Overview
 
-Starting from v1.3.0, monSQLize supports **automatic ObjectId string conversion**. When you pass valid 24-character hexadecimal strings in MongoDB operations, monSQLize can convert those values to MongoDB `ObjectId` instances before the operation is executed.
+monSQLize can convert valid 24-character hexadecimal strings to MongoDB `ObjectId` instances before an operation is executed. This lets application code pass request IDs as strings in normal query and write paths.
 
 Key benefits:
 
@@ -36,7 +16,7 @@ Key benefits:
 
 ## Why Automatic Conversion Helps
 
-### Traditional Usage Before v1.3.0
+### Manual conversion
 
 ```javascript
 const { ObjectId } = require('mongodb');
@@ -65,7 +45,7 @@ const result = await collection('orders').updateOne(
 );
 ```
 
-### Automatic Conversion in v1.3.0+
+### Automatic conversion
 
 ```javascript
 // Converted automatically.
@@ -181,10 +161,10 @@ const posts = await collection('posts').find({
     categoryId: categoryId
 });
 
-// findOneById convenience method
-const product = await collection('products').findOneById(
-    '507f1f77bcf86cd799439011'
-);
+// _id lookup
+const product = await collection('products').findOne({
+    _id: '507f1f77bcf86cd799439011'
+});
 ```
 
 ### Complex Filters
@@ -260,6 +240,8 @@ await collection('posts').deleteMany({
 ## Supported Methods
 
 ObjectId auto conversion is applied by these methods.
+
+For ordinary ID lookups, prefer the same query shape you would use in MongoDB: `findOne({ _id })` for one document and `find({ _id: { $in: ids } })` for multiple documents. The convenience helpers `findOneById(id)` and `findByIds(ids)` remain available as API reference methods, but they are not required to benefit from automatic conversion.
 
 ### Query Methods
 
@@ -490,8 +472,3 @@ await collection('posts').insertOne({
 - [updateOne](./update-one.md)
 - [deleteOne](./delete-one.md)
 - [Connection options](./connection.md)
-
----
-
-**Last updated**: 2026-01-08  
-**Feature availability**: v1.3.0+

@@ -1,21 +1,5 @@
 # aggregate 方法详细文档
 
-## 📑 目录
-
-- [概述](#概述)
-- [方法签名](#方法签名)
-- [参数说明](#参数说明)
-- [返回值](#返回值)
-- [使用模式](#使用模式)
-- [性能优化建议](#性能优化建议)
-- [错误处理](#错误处理)
-- [与 find 的区别](#与-find-的区别)
-- [常见聚合操作符](#常见聚合操作符)
-- [参考资料](#参考资料)
-- [常见问题 FAQ](#常见问题-faq)
-- [最佳实践](#最佳实践)
-
----
 
 ## 概述
 
@@ -71,7 +55,7 @@ async aggregate(pipeline = [], options = {})
 
 当聚合管道最后一个阶段是 `$out` 或 `$merge` 时，monSQLize 会把该 aggregate 视为写入型管道：跳过 aggregate 结果缓存，并在成功执行后失效目标集合的读缓存。
 
-**MongoDB 参考文档**: 
+**MongoDB 参考文档**:
 - [aggregate() 方法](https://www.mongodb.com/docs/manual/reference/method/db.collection.aggregate/)
 - [聚合管道](https://www.mongodb.com/docs/manual/core/aggregation-pipeline/)
 
@@ -123,7 +107,7 @@ const plan = await collection('orders').aggregate([
 ```javascript
 const stats = await collection('orders').aggregate([
   { $match: { status: 'paid' } },
-  { $group: { 
+  { $group: {
       _id: '$category',
       total: { $sum: '$amount' },
       count: { $sum: 1 }
@@ -587,7 +571,7 @@ let totalAmount = 0;
 stream.on('data', (order) => {
   processedCount++;
   totalAmount += order.amount;
-  
+
   // 逐条处理数据
   // processOrder(order);
 });
@@ -706,7 +690,7 @@ const result = await collection('orders').aggregate([
       from: 'users',
       let: { userId: '$userId' },
       pipeline: [
-        { $match: { 
+        { $match: {
             $expr: { $eq: ['$_id', '$$userId'] },
             status: 'active'  // 在关联时过滤
         } },
@@ -730,7 +714,7 @@ try {
   ], {
     maxTimeMS: 5000
   });
-  
+
   console.log('聚合结果:', result);
 } catch (error) {
   if (error.code === 'TIMEOUT') {
@@ -841,7 +825,7 @@ try {
 
 ### Q3: 如何优化大数据量的聚合操作？
 
-**A**: 
+**A**:
 1. ✅ 设置 `allowDiskUse: true`
 2. ✅ 确保关联字段和过滤字段有索引
 3. ✅ 使用流式处理（`stream: true`）
@@ -945,11 +929,11 @@ await collection('orders').aggregate([
 
 ---
 
-## 🆕 统一表达式系统 (v1.0.9)
+## 🆕 统一表达式系统
 
-### 概述（🆕 统一表达式系统 (v1.0.9)）
+### 概述（🆕 统一表达式系统）
 
-monSQLize v1.0.9 引入了统一表达式系统，提供**67个强大的操作符**，极大简化MongoDB聚合查询的编写。
+monSQLize 内置统一表达式系统，提供常用操作符，让 MongoDB 聚合查询更清晰。
 
 ### 核心优势
 
@@ -997,7 +981,7 @@ await users.aggregate([
 
 #### 逻辑操作符 (3个)
 - `&&` - 逻辑与
-- `||` - 逻辑或  
+- `||` - 逻辑或
 - `NOT()` - 逻辑非
 
 #### 算术运算 (5个)
@@ -1092,14 +1076,14 @@ await collection('users').aggregate([
       // 字符串处理
       fullName: expr("CONCAT(firstName, ' ', lastName)"),
       email: expr("LOWER(TRIM(email))"),
-      
+
       // 年龄计算
       age: expr("YEAR(CURRENT_DATE) - YEAR(birthDate)"),
       ageGroup: expr("SWITCH(age < 18, 'Minor', age < 65, 'Adult', 'Senior')"),
-      
+
       // 状态判断
       status: expr("active === true && verified === true ? 'Active' : 'Inactive'"),
-      
+
       // 数组统计
       tagCount: expr("SIZE(tags)"),
       hasPremiumTag: expr("IN('premium', tags)")
@@ -1120,12 +1104,12 @@ await collection('orders').aggregate([
       finalPrice: expr("originalPrice * (1 - discount / 100)"),
       savings: expr("originalPrice - finalPrice"),
       savingsPercent: expr("(savings / originalPrice * 100).toFixed(2)"),
-      
+
       // 日期提取
       year: expr("YEAR(createdAt)"),
       month: expr("MONTH(createdAt)"),
       day: expr("DAY_OF_MONTH(createdAt)"),
-      
+
       // 状态分类
       statusLabel: expr("SWITCH(status === 'paid', 'Paid', status === 'pending', 'Pending', 'Cancelled')")
     }
@@ -1149,20 +1133,20 @@ await collection('products').aggregate([
   {
     $project: {
       name: 1,
-      
+
       // Lambda表达式 - 过滤
       activeTags: expr("FILTER(tags, tag, tag.active === true)"),
       expensiveItems: expr("FILTER(items, item, item.price > 100)"),
-      
+
       // Lambda表达式 - 映射
       tagNames: expr("MAP(tags, tag, tag.name)"),
       itemPrices: expr("MAP(items, item, item.price)"),
-      
+
       // 数组操作
       firstTag: expr("FIRST(tags)"),
       lastTag: expr("LAST(tags)"),
       tagCount: expr("SIZE(tags)"),
-      
+
       // 组合使用
       activeTagNames: expr("MAP(FILTER(tags, t, t.active === true), t, t.name)")
     }
@@ -1177,16 +1161,16 @@ await collection('students').aggregate([
   {
     $project: {
       name: 1,
-      
+
       // 成绩等级（多分支）
       grade: expr("SWITCH(score >= 90, 'A', score >= 80, 'B', score >= 70, 'C', score >= 60, 'D', 'F')"),
-      
+
       // 奖学金计算
       scholarship: expr("score >= 95 ? 5000 : (score >= 90 ? 3000 : (score >= 85 ? 2000 : 0))"),
-      
+
       // 综合评价
       evaluation: expr("CONCAT(name, ' scored ', TO_STRING(score), ' points, grade: ', grade)"),
-      
+
       // 是否优秀
       isExcellent: expr("score >= 90 && attendance > 0.95 && conduct === 'good'")
     }
@@ -1216,7 +1200,7 @@ const expr2 = expr("CONCAT(firstName, ' ', lastName)");  // 缓存命中
 2. **索引支持** - $match中使用表达式时确保有索引
 3. **批量处理** - 利用$project减少后续处理量
 
-### 最佳实践（🆕 统一表达式系统 (v1.0.9)）
+### 最佳实践（🆕 统一表达式系统）
 
 #### 1. 字段引用
 
@@ -1253,9 +1237,9 @@ expr("FILTER(tags, t, t.active === true)")
 expr("MAP(items, item, item.price)")
 ```
 
-### 常见问题 (FAQ)（🆕 统一表达式系统 (v1.0.9)）
+### 常见问题（🆕 统一表达式系统）
 
-**Q: 是否兼容原生MongoDB语法？**  
+**Q: 是否兼容原生MongoDB语法？**
 A: 完全兼容！可以在同一个查询中混合使用：
 
 ```javascript
@@ -1272,16 +1256,16 @@ await collection('users').aggregate([
 ]);
 ```
 
-**Q: 性能如何？**  
-A: 
+**Q: 性能如何？**
+A:
 - 编译时间: <1ms（首次）
 - 缓存命中: >90%（重复表达式）
 - 运行时: 与原生MongoDB相同（编译后就是原生语法）
 
-**Q: 是否支持所有MongoDB操作符？**  
+**Q: 是否支持所有MongoDB操作符？**
 A: 支持67个常用操作符，覆盖95%+使用场景。未来会根据需求继续扩展。
 
-**Q: 如何调试表达式？**  
+**Q: 如何调试表达式？**
 A: 查看编译后的MongoDB原生语法：
 
 ```javascript
@@ -1299,7 +1283,7 @@ const compiled = compilePipelineExpressions(pipeline);
 console.log(compiled);  // 查看编译后的 MongoDB 原生语法
 ```
 
-**Q: 是否影响向后兼容？**  
+**Q: 是否影响向后兼容？**
 A: 完全不影响！统一表达式是可选功能，不使用`expr()`就是原生MongoDB语法。
 
 ---
@@ -1327,7 +1311,7 @@ expr("FILTER(items, item, item.price > 100 && item.stock > 0)")
   $filter: {
     input: '$items',
     as: 'item',
-    cond: { 
+    cond: {
       $and: [
         { $gt: ['$$item.price', 100] },
         { $gt: ['$$item.stock', 0] }
@@ -1341,7 +1325,5 @@ expr("FILTER(items, item, item.price > 100 && item.stock > 0)")
 
 ## 相关链接
 
-- [CHANGELOG v1.0.9](../../changelogs/v1.0.9.md) - 详细变更日志
 - [测试用例](../../test/unit/expression/) - 107个测试示例
 - [验证进度](../../test/validation/VERIFICATION-PROGRESS.md) - 当前发布验证入口
-

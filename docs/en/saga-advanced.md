@@ -1,61 +1,6 @@
 # Saga advanced features and implementation principles
 
-> **Deprecated compatibility page**: monSQLize keeps Saga APIs for existing callers, but Saga orchestration is no longer a recommended monSQLize capability. Prefer application/framework-level workflow orchestration, such as the VextJS runtime layer, for new business flows. This page is intentionally hidden from the main documentation navigation.
-
-> **Version**: v1.0.8+
-> **Type**: Technical principle document
-> **Category**: Distributed Transactions
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Core Concept](#core-concept)
-- [Legacy design scope](#legacy-design-scope)
-- [Core architecture](#core-architecture)
-- [Class diagram](#class-diagram)
-- [Execution flow chart](#execution-flow-chart)
-- [Saga mode principle](#saga-mode-principle)
-- [Traditional distributed transaction issues](#traditional-distributed-transaction-issues)
-- [Saga mode solution](#saga-mode-solution)
-- [Saga vs 2PC](#saga-vs-2pc)
-- [Execution process](#execution-process)
-- [Forward execution](#forward-execution)
-- [State transition](#state-transition)
-- [Compensation mechanism](#compensation-mechanism)
-- [Compensation principle](#compensation-principle)
-- [Compensation design principles](#compensation-design-principles)
-- [Context management](#context-management)
-- [SagaContext structure](#sagacontext-structure)
-- [Context usage example](#context-usage-example)
-- [Distributed storage](#distributed-storage)
-- [Redis multi-process sharing](#redis-multi-process-sharing)
-- [Multi-process architecture](#multi-process-architecture)
-- [Error handling](#error-handling)
-- [Error type](#error-type)
-- [Error handling process](#error-handling-process)
-- [Compensation failure handling](#compensation-failure-handling)
-- [Logging and monitoring](#logging-and-monitoring)
-- [Log level](#log-level)
-- [Statistics](#statistics)
-- [Monitoring indicators](#monitoring-indicators)
-- [Performance optimization](#performance-optimization)
-- [1. Parallel execution (future feature)](#1-parallel-execution-future-feature)
-- [2. Timeout control](#2-timeout-control)
-- [3. Retry mechanism](#3-retry-mechanism)
-- [Advanced features](#advanced-features)
-- [1. Conditional steps](#1-conditional-steps)
-- [2. Dynamic steps](#2-dynamic-steps)
-- [3. Nested Saga](#3-nested-saga)
-- [Source code analysis](#source-code-analysis)
-- [SagaOrchestrator](#sagaorchestrator)
-- [SagaExecutor](#sagaexecutor)
-- [Best Practices](#best-practices)
-- [1. Compensation design](#1-compensation-design)
-- [2. Status management](#2-status-management)
-- [3. Error handling](#3-error-handling)
-- [Related documents](#related-documents)
+> **Deprecated compatibility page**: monSQLize keeps Saga APIs for existing callers, but Saga orchestration is no longer a recommended monSQLize capability. Prefer application/framework-level workflow orchestration, such as the VextJS runtime layer, for new business flows.
 
 ## Overview
 
@@ -1032,8 +977,3 @@ execute: async (ctx) => {
 - [Saga Distributed Transaction](./saga-transaction.md) - User Guide
 - [Transaction Document](./transaction.md) - Local Transaction
 - [Distributed deployment](./distributed-deployment.md) - Multi-process deployment
-
----
-
-**Last updated**: 2026-01-20
-**Version**: v1.0.8

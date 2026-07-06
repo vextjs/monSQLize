@@ -1,33 +1,22 @@
 # readPreference - MongoDB 副本集读偏好配置
 
-## 📑 目录
-
-- [概述](#概述)
-- [核心特性](#核心特性)
-- [API 参数说明](#api-参数说明)
-- [使用示例](#使用示例)
-- [最佳实践](#最佳实践)
-- [性能影响](#性能影响)
-- [常见问题](#常见问题)
-- [参考资料](#参考资料)
-
----
-
 ## 概述
 
 `readPreference` 用于控制 MongoDB 副本集中读操作的节点选择策略，支持副本集读写分离场景。通过配置 `readPreference`，可以降低主节点负载、实现全球分布式部署的低延迟读取。
 
 **适用场景**:
-- ✅ 副本集部署（Replica Set）
-- ✅ 读写分离（降低主节点负载）
-- ✅ 全球分布式部署（低延迟读取）
-- ✅ 分析/报表查询（隔离主节点写负载）
+- 副本集部署（Replica Set）
+- 读写分离，降低主节点负载
+- 全球分布式部署下的低延迟读取
+- 可接受最终一致性的分析/报表查询
 
 **限制**:
-- ⚠️ 仅全局配置（连接级别），不支持查询级别覆盖
-- ⚠️ MongoDB 专属特性（PostgreSQL/MySQL 无对应概念）
-- ⚠️ 读从节点可能有复制延迟（数据不是最新的）
-- ⚠️ 单机模式下无效（需要副本集环境）
+- `config.readPreference` 设置连接级默认读偏好。
+- 单次读操作可以在 options 中传入 `readPreference` 覆盖默认值。
+- 当前 monSQLize runtime 只支持 MongoDB；该选项对应 MongoDB driver 的读偏好行为。
+- 读从节点可能有复制延迟，写后立即读建议使用 `primary` 或 `primaryPreferred`。
+- MongoDB 事务内读操作应保持 `primary`；事务读建议使用连接默认值或显式覆盖为 `primary`。
+- 单机模式下只有一个节点，配置读偏好没有实际意义。
 
 ---
 
@@ -43,7 +32,7 @@
 | **secondaryPreferred** | 优先读从节点，从节点不可用时读主节点 | 最终一致性 | 读多写少，降低主节点负载 |
 | **nearest** | 读延迟最低的节点（主或从） | 最终一致性 | 全球分布式部署，低延迟 |
 
-### ✅ 连接级别全局配置
+### 连接级别全局配置
 
 ```javascript
 const msq = new MonSQLize({
@@ -58,8 +47,8 @@ const msq = new MonSQLize({
 
 **特点**:
 - 配置一次，所有查询生效
-- 无需在每个查询方法中重复配置
-- 简化代码，降低出错概率
+- 少数需要不同读路由的操作可用查询级 options 覆盖
+- 默认路径更简单，减少重复配置
 
 ---
 
@@ -70,6 +59,7 @@ const msq = new MonSQLize({
 | 参数 | 类型 | 必需 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | **config.readPreference** | string | ❌ | `'primary'` | 副本集读偏好模式 |
+| **读操作 options.readPreference** | string | ❌ | 连接级默认值 | 对单次读操作覆盖读偏好 |
 
 **可选值**:
 - `'primary'` - 仅读主节点（默认）
@@ -243,10 +233,11 @@ const msq = new MonSQLize({
 await msq.connect();
 const { collection } = msq;
 
-// readPreference 与其他选项（hint, collation, comment）兼容
+// 查询级 readPreference 会覆盖本次操作的连接级默认值
 const results = await collection('products').find(
     { price: { $gt: 100 } },
     {
+        readPreference: 'primary',
         hint: { category: 1, price: 1 },  // 索引提示
         comment: 'expensive-products-query',  // 查询注释
         maxTimeMS: 2000  // 单次查询超时
@@ -261,7 +252,7 @@ await msq.close();
 
 ## 最佳实践
 
-### ✅ 推荐做法
+### 推荐做法
 
 1. **读多写少场景使用 secondaryPreferred**
    ```javascript
@@ -289,7 +280,7 @@ await msq.close();
 
 ---
 
-### ⚠️ 注意事项
+### 注意事项
 
 1. **复制延迟问题**
    ```javascript
@@ -299,10 +290,27 @@ await msq.close();
    // ⚠️ 可能读不到刚写入的数据（复制延迟）
    const users = await collection('users').find({ name: 'Alice' });
    
-   // ✅ 解决：写入后立即读取使用 'primary' 或等待复制完成
+   // 解决：写入后立即读取使用 'primary' 或等待复制完成
+   const freshUsers = await collection('users').find(
+       { name: 'Alice' },
+       { readPreference: 'primary' }
+   );
    ```
 
-2. **单机模式无效**
+2. **事务内读取**
+   ```javascript
+   // MongoDB 事务内读操作应使用主节点。
+   await msq.withTransaction(async (tx) => {
+       const order = await collection('orders').findOne(
+           { orderNo: 'SO-1001' },
+           { session: tx.session, readPreference: 'primary' }
+       );
+
+       // ...同一事务内的写操作
+   });
+   ```
+
+3. **单机模式无效**
    ```javascript
    // ⚠️ 单机模式下，readPreference 配置无效，始终读唯一的节点
    const msq = new MonSQLize({
@@ -313,7 +321,7 @@ await msq.close();
    });
    ```
 
-3. **副本集 URI 格式**
+4. **副本集 URI 格式**
    ```javascript
    // ✅ 正确：包含多个节点 + replicaSet 参数
    uri: 'mongodb://host1:27017,host2:27018,host3:27019/?replicaSet=rs0'
@@ -322,7 +330,7 @@ await msq.close();
    uri: 'mongodb://localhost:27017'
    ```
 
-4. **跨数据库兼容性**
+5. **跨数据库兼容性**
    ```javascript
    // ⚠️ readPreference 是 MongoDB 专属特性
    // PostgreSQL/MySQL 无对应概念
@@ -345,8 +353,8 @@ await msq.close();
 
 ### 性能优化建议
 
-1. **读多写少场景**: 使用 `secondaryPreferred` 降低主节点负载 20-50%
-2. **全球分布式**: 使用 `nearest` 降低延迟 30-70%（根据地理位置）
+1. **读多写少场景**: 使用 `secondaryPreferred` 将可容忍延迟的读取转移出主节点
+2. **全球分布式**: 当低延迟比固定读主更重要时使用 `nearest`
 3. **分析/报表**: 使用 `secondary` 完全隔离主节点写负载
 
 ---
@@ -354,7 +362,16 @@ await msq.close();
 ## 常见问题
 
 ### Q: readPreference 是否支持查询级别配置？
-**A**: 不支持。monSQLize 仅支持连接级别全局配置，简化 API 并降低配置复杂度。如需查询级别控制，可使用原生 MongoDB 驱动。
+**A**: 支持。`config.readPreference` 是默认值，传递 MongoDB driver options 的读方法可以在单次操作中覆盖：
+
+```javascript
+const users = await collection('users').find(
+    { status: 'active' },
+    { readPreference: 'primary' }
+);
+```
+
+建议少量使用查询级覆盖。大多数读操作沿用连接级默认值，仅在写后立即读或分析查询需要不同读路由时覆盖。
 
 ---
 

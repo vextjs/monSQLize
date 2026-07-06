@@ -1,42 +1,5 @@
 ﻿# Bookmark maintains API documentation
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Core Features](#core-features)
-- [Usage scenarios](#usage-scenarios)
-- [API Description](#api-description)
-- [1. prewarmBookmarks(keyDims, pages)](#1-prewarmbookmarkskeydims-pages)
-  - [Method signature](#method-signature)
-  - [Parameters](#parameters)
-  - [Return value](#return-value)
-  - [Usage examples](#usage-examples)
-  - [Error handling](#error-handling)
-- [2. listBookmarks(keyDims?)](#2-listbookmarkskeydims)
-  - [Method signature (2. listBookmarks(keyDims?))](#method-signature-2-listbookmarkskeydims)
-  - [Parameters (2. listBookmarks(keyDims?))](#parameters-2-listbookmarkskeydims)
-  - [Return value (2. listBookmarks(keyDims?))](#return-value-2-listbookmarkskeydims)
-  - [Usage example (2. listBookmarks(keyDims?))](#usage-example-2-listbookmarkskeydims)
-  - [Operation and maintenance monitoring scenario](#operation-and-maintenance-monitoring-scenario)
-- [3. clearBookmarks(keyDims?)](#3-clearbookmarkskeydims)
-  - [Method signature (3. clearBookmarks(keyDims?))](#method-signature-3-clearbookmarkskeydims)
-  - [Parameters (3. clearBookmarks(keyDims?))](#parameters-3-clearbookmarkskeydims)
-  - [Return value (3. clearBookmarks(keyDims?))](#return-value-3-clearbookmarkskeydims)
-  - [Usage example (3. clearBookmarks(keyDims?))](#usage-example-3-clearbookmarkskeydims)
-  - [Data update scenario](#data-update-scenario)
-- [Complete workflow example](#complete-workflow-example)
-- [Scenario 1: System startup warm-up](#scenario-1-system-startup-warm-up)
-- [Scenario 2: Clean expired cache regularly](#scenario-2-clean-expired-cache-regularly)
-- [Scenario 3: Refresh cache after data update](#scenario-3-refresh-cache-after-data-update)
-- [Scenario 4: Monitoring and Statistics](#scenario-4-monitoring-and-statistics)
-- [Best Practices](#best-practices)
-- [1. Warm-up strategy](#1-warm-up-strategy)
-- [2. Cleaning time](#2-cleaning-time)
-- [3. Monitoring and Alarming](#3-monitoring-and-alarming)
-- [Notes](#notes)
-- [Error handling (Part 2)](#error-handling-part-2)
-- [References](#references)
-
 ## Overview
 
 monSQLize provides three Bookmark maintenance APIs for managing findPage's bookmark cache. These APIs are suitable for operation and maintenance debugging and performance optimization scenarios.

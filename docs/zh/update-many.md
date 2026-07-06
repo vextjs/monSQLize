@@ -1,23 +1,5 @@
 # updateMany() - 批量更新文档
 
-## 📑 目录
-
-- [语法](#语法)
-- [参数](#参数)
-- [返回值](#返回值)
-- [upsert 语义](#upsert-语义)
-- [示例](#示例)
-- [性能优化](#性能优化)
-- [与 updateOne 的区别](#与-updateone-的区别)
-- [常见场景](#常见场景)
-- [错误处理](#错误处理)
-- [缓存行为](#缓存行为)
-- [慢查询日志](#慢查询日志)
-- [最佳实践](#最佳实践)
-- [相关方法](#相关方法)
-- [参考资料](#参考资料)
-
----
 
 更新集合中所有匹配筛选条件的文档。
 
@@ -504,4 +486,3 @@ console.log(`Completed: ${totalUpdated} documents updated`);
 
 - [MongoDB updateMany 文档](https://docs.mongodb.com/manual/reference/method/db.collection.updateMany/)
 - [MongoDB 批量写入操作](https://docs.mongodb.com/manual/core/bulk-write-operations/)
-

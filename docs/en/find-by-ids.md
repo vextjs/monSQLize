@@ -1,55 +1,37 @@
-﻿# findByIds() - Query multiple documents by _id in batches
-
-## 📑 Table of Contents
-
-- [Method overview](#method-overview)
-- [Method signature](#method-signature)
-- [Basic example](#basic-example)
-- [Real scene example](#real-scene-example)
-- [Detailed explanation of option parameters](#detailed-explanation-of-option-parameters)
-- [Performance Notes](#performance-notes)
-- [Error handling](#error-handling)
-- [Best Practices](#best-practices)
-- [Compare with other methods](#compare-with-other-methods)
-- [FAQ](#faq)
-- [See also](#see-also)
-
----
+# findByIds Reference
 
 ## Method overview
 
-`findByIds` is a convenience method for batch querying multiple documents through the `_id` array, simplifying the use of `find({ _id: { $in: ids } })`.
+`findByIds(ids, options)` is an optional helper for looking up multiple documents by `_id`. It normalizes ObjectId-like values, removes duplicate ids, and runs an `_id: { $in: ... }` query.
 
-### Why do you need findByIds?
+You can also use the standard `find()` API directly. The normal query path supports ObjectId auto conversion as well:
 
-**Traditional way** (using `find`):
 ```javascript
-// ❌ $in query needs to be constructed manually and ObjectId needs to be converted
-const { ObjectId } = require('mongodb');
 const users = await collection('users').find({
-  _id: { $in: userIds.map(id => new ObjectId(id)) }
-}).toArray();
+  _id: { $in: userIds }
+});
 ```
 
-**Using findByIds**:
+Use `findByIds()` when your codebase prefers a dedicated id-list helper or when you need its `preserveOrder` option:
+
 ```javascript
-// ✅ Automatically convert ObjectId, automatically remove duplicates, and the code is concise
-const users = await collection('users').findByIds(userIds);
+const users = await collection('users').findByIds(userIds, {
+  preserveOrder: true
+});
 ```
 
-### Core Advantages
+### Behavior summary
 
-| Advantages | Description |
+| Behavior | Description |
 |------|------|
-| **Automatic type conversion** | String ID is automatically converted to ObjectId |
-| **Automatic deduplication** | Duplicate IDs are only queried once |
-| **Performance Optimization** | 1 query instead of N queries |
-| **Code Simplification** | Reduce boilerplate code by 75% |
+| ObjectId normalization | ObjectId-shaped strings and ObjectId values are accepted |
+| Deduplication | Duplicate ids are queried once |
+| Order | Results follow MongoDB result order unless `preserveOrder: true` is set |
+| Missing ids | Missing documents are omitted from the result array |
 
 ---
 
 ## Method signature
-
 ```typescript
 async findByIds(
   ids: Array<string | ObjectId>,
@@ -68,14 +50,14 @@ async findByIds(
 
 | Parameters | Type | Required | Description |
 |------|------|------|------|
-| `ids` | Array<string \| ObjectId> | ✅ | _id array (supports mixed string and ObjectId) |
-| `options` | Object | ❌ | Query Options |
-| `options.projection` / `options.project` | Object | ❌ | Field projection (same as find). `project` is an alias for `projection`; `projection` wins when both are provided. |
-| `options.sort` | Object | ❌ | Sort by |
-| `options.cache` | number | ❌ | cache time (milliseconds) |
-| `options.maxTimeMS` | number | ❌ | Query timeout (milliseconds) |
-| `options.comment` | string | ❌ | Query comments |
-| `options.preserveOrder` | boolean | ❌ | Whether to maintain the order of the ids array (default false) |
+| `ids` | Array<string \| ObjectId> | Yes | _id array; string and ObjectId values may be mixed |
+| `options` | Object | No | Query options |
+| `options.projection` / `options.project` | Object | No | Field projection. `project` is an alias for `projection`; `projection` wins when both are provided. |
+| `options.sort` | Object | No | Sort option |
+| `options.cache` | number | No | Cache TTL in milliseconds |
+| `options.maxTimeMS` | number | No | Query timeout in milliseconds |
+| `options.comment` | string | No | Query comment |
+| `options.preserveOrder` | boolean | No | Preserve input id order in the returned array; default is `false` |
 
 ### Return value description
 
@@ -95,7 +77,7 @@ const userIds = [
 ];
 
 const users = await collection('users').findByIds(userIds);
-console.log(`turn up${users.length} users`);
+console.log(`Found ${users.length} users`);
 ```
 
 ### Example 2: Batch query documents (ObjectId)
@@ -419,49 +401,41 @@ const users = await collection('users').findByIds(orderedIds, {
 
 ---
 
-## Performance Notes
+## Usage guidance
 
-### Performance comparison
+`findByIds()` runs one `_id: { $in: ... }` query after normalizing and deduplicating the input IDs. Actual latency depends on the number of IDs, document size, projection, indexes, network, cache settings, and deployment topology.
 
-| Method | Number of queries | Average time taken | Recommended scenarios |
-|------|---------|---------|---------|
-| **findByIds(100)** | 1 time | 10-20ms | ✅ Batch query |
-| **find({ _id: { $in }})** | 1 time | 10-20ms | ⚠️ Needs manual processing |
-| **findOneById x100** | 100 times | 1000-2000ms | ❌ Not recommended |
+### Reduce returned data with projection
 
-### Performance optimization suggestions
+```javascript
+const users = await collection('users').findByIds(ids, {
+  projection: { name: 1, email: 1 }
+});
+```
 
-1. **Use projection to reduce the amount of data**
-   ```javascript
-   // ✅ Recommendation: Only query the required fields
-   const users = await collection('users').findByIds(ids, {
-     projection: { name: 1, email: 1 }
-   });
-   ```
+### Cache repeated reads when the data is suitable
 
-2. **Enable caching to speed up repeated queries**
-   ```javascript
-   // ✅ Recommended: cache popular data
-   const users = await collection('users').findByIds(hotUserIds, {
-     cache: 60000  // 1 minute
-   });
-   ```
+```javascript
+const users = await collection('users').findByIds(hotUserIds, {
+  cache: 60000  // 1 minute
+});
+```
 
-3. **Avoid overly large ID arrays**
-   ```javascript
-   // ❌ Avoid: Query more than 1000 at one time
-   const users = await collection('users').findByIds(tenThousandIds);
+### Keep batch size bounded
 
-   // ✅ Recommendation: Query in batches
-   const batchSize = 100;
-   const results = [];
-   for (let i = 0; i < ids.length; i += batchSize) {
-     const batch = await collection('users').findByIds(
-       ids.slice(i, i + batchSize)
-     );
-     results.push(...batch);
-   }
-   ```
+Avoid passing unbounded user input directly into a single `$in` query. Choose a service-level batch size based on your payload size, latency target, and MongoDB command limits.
+
+```javascript
+const batchSize = 100;
+const results = [];
+
+for (let i = 0; i < ids.length; i += batchSize) {
+  const batch = await collection('users').findByIds(
+    ids.slice(i, i + batchSize)
+  );
+  results.push(...batch);
+}
+```
 
 ---
 
@@ -500,62 +474,30 @@ try {
 
 ---
 
-## Best Practices
+## Usage patterns
 
-### ✅ Recommended practices
+### Load related documents in one query
 
-1. **Use findByIds instead of loop query**
-   ```javascript
-   // ✅ Recommended: 1 query
-   const users = await collection('users').findByIds(userIds);
-   
-   // ❌ Avoid: N queries
-   const users = await Promise.all(
-     userIds.map(id => collection('users').findOneById(id))
-   );
-   ```
+```javascript
+const userIds = [...new Set(comments.map(c => c.userId))];
+const users = await collection('users').findByIds(userIds);
+```
 
-2. **Automatic deduplication, no manual processing required**
-   ```javascript
-   // ✅ Recommended: Automatically remove duplicates
-   const users = await collection('users').findByIds(userIds);
-   
-   // ❌ No need to manually remove duplicates
-   const uniqueIds = [...new Set(userIds)];
-   const users = await collection('users').findByIds(uniqueIds);
-   ```
+### Let the helper deduplicate IDs
 
-3. **Check for missing IDs**
-   ```javascript
-   // ✅ Recommended: Check missing
-   const users = await collection('users').findByIds(userIds);
-   if (users.length < userIds.length) {
-     console.warn('Some users do not exist');
-   }
-   ```
+```javascript
+const users = await collection('users').findByIds(userIds);
+```
 
-### ❌ Things to avoid
+### Check for missing documents when completeness matters
 
-1. **Avoid overly large ID arrays**
-   ```javascript
-   // ❌ Avoid: Querying 10,000+ items at once
-   const users = await collection('users').findByIds(hugeIdArray);
-   
-   // ✅ Recommendation: Query in batches
-   const users = await batchQuery(hugeIdArray, 100);
-   ```
+```javascript
+const users = await collection('users').findByIds(userIds);
 
-2. **Avoid duplicate queries**
-   ```javascript
-   // ❌ Avoid: Query every time
-   for (const comment of comments) {
-     const user = await collection('users').findOneById(comment.userId);
-   }
-   
-   // ✅ Recommendation: Batch query
-   const userIds = [...new Set(comments.map(c => c.userId))];
-   const users = await collection('users').findByIds(userIds);
-   ```
+if (users.length < userIds.length) {
+  console.warn('Some users do not exist');
+}
+```
 
 ---
 
@@ -563,21 +505,21 @@ try {
 
 ### vs findOneById
 
-| dimensions | findByIds | findOneById |
+| Dimension | findByIds | findOneById |
 |------|-----------|-------------|
-| **Query quantity** | Batch (N) | Single |
-| **Number of queries** | 1 times | N times |
-| **Performance** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **Usage scenarios** | Batch related query | Single document query |
+| **Scope** | Multiple IDs | One ID |
+| **Query shape** | `_id: { $in: ids }` | `_id: id` |
+| **Helper behavior** | Deduplicates input and can preserve input order | Single-document convenience wrapper |
+| **Main use case** | Batch related records | A single known document |
 
 ### vs find({ _id: { $in }})
 
 | dimensions | findByIds | find({ _id: { $in }}) |
 |------|-----------|-----------------------|
-| **Lines of code** | 1 line | 3-5 lines |
-| **Automatically convert ObjectId** | ✅ | ❌ |
-| **Automatic removal** | ✅ | ❌ |
-| **Code Readability** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+| **ObjectId conversion** | Supported | Supported |
+| **Deduplication** | Built in | Handle before calling if needed |
+| **Preserve input order** | `preserveOrder: true` | Handle after query if needed |
+| **When to use** | ID-only batch helper | General query path |
 
 ---
 
@@ -585,10 +527,7 @@ try {
 
 ### Q1: What is the difference between findByIds and find?
 
-**A**: `findByIds` is a convenience method of `find({ _id: { $in: ids } })`:
-- ✅ Automatically convert ObjectId (String → ObjectId)
-- ✅ Automatic deduplication (duplicate IDs are only queried once)
-- ✅ Simpler API
+**A**: `findByIds()` is an optional convenience wrapper for ID-only batch reads. `find({ _id: { $in: ids } })` remains the standard query path and also supports ObjectId auto conversion. Use `findByIds()` when you want built-in deduplication and optional input-order preservation.
 
 ### Q2: How to deal with non-existent IDs?
 
@@ -605,9 +544,7 @@ const users = await collection('users').findByIds([
 
 ### Q3: How many IDs are supported?
 
-**A**: Theoretically no limit, but it is recommended:
-- Single query ≤ 1000 IDs (optimal performance)
-- More than 1000 suggestions batch query
+**A**: There is no monSQLize-specific hard limit, but every query still needs to fit MongoDB command and BSON limits as well as your service latency target. For large or user-controlled arrays, set an application-level batch size and split the work.
 
 ### Q4: Does the preserveOrder option have any performance impact?
 
@@ -617,7 +554,7 @@ const users = await collection('users').findByIds([
 
 ### Q5: Will it automatically remove duplicates?
 
-**A**: ✅ Yes! Duplicate IDs will only be queried once.
+**A**: Yes. Duplicate IDs are deduplicated before querying.
 
 ```javascript
 const users = await collection('users').findByIds([
@@ -628,7 +565,7 @@ const users = await collection('users').findByIds([
 
 ### Q6: Does it support caching?
 
-**A**: ✅ Support! Use the `cache` option.
+**A**: Yes. Use the `cache` option when the result is suitable for caching.
 
 ```javascript
 const users = await collection('users').findByIds(ids, {
@@ -638,11 +575,7 @@ const users = await collection('users').findByIds(ids, {
 
 ### Q7: How is the performance?
 
-**A**: Excellent performance:
-- With index: 10-20ms (query 100 items)
-- No index: 50-100ms (full table scan)
-
-**Optimization Suggestion**: The `_id` field has an index by default and no additional creation is required.
+**A**: Measure it in your environment. The `_id` field is indexed by MongoDB by default, but latency still depends on ID count, projection, document size, network, cache, and deployment topology. Use MongoDB profiler, APM, or your service metrics for production tuning.
 
 ---
 

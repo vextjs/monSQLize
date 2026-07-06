@@ -2,9 +2,9 @@
 
 ## 背景
 
-从本轮开始，`monSQLize` 的缓存公开能力底层转向 `cache-hub` 原生实现；同时，根入口会保留已经发布过的 v1 / v1.3.x 平滑升级兼容包装，避免旧消费方只升级依赖时被迫改业务源码。
+monSQLize 的缓存公开导出委托给 `cache-hub` 原生实现。根入口保留面向既有消费方的兼容包装，使依赖升级不要求立刻修改业务代码。
 
-这意味着以下公开能力的核心语义已经统一到 `cache-hub`：
+以下公开能力的核心语义统一通过 `cache-hub` 提供：
 
 - `MemoryCache`
 - `createRedisCacheAdapter()`
@@ -241,4 +241,3 @@ npm run verify:fast
 - `docs/cache-and-function-cache.md`
 - `docs/function-cache.md`
 - `examples/docs/cache-multilevel.ts`
-

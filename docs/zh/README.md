@@ -1,43 +1,41 @@
-# monSQLize TS 文档入口
+# monSQLize 文档入口
 
-> 当前文档面向 **TypeScript 重写后的 monSQLize（v2）**，已与 v1 公开 API 100% 兼容。
+这份文档从常见应用路径开始：连接 MongoDB，完成集合读写，需要时再加入 Model 校验，并按需开启缓存、事务、连接池、同步与运维能力。
 
-## 当前文档覆盖范围
+## 主要文档路径
 
-| 主题 | 当前入口 | 状态 | 说明 |
-|------|----------|------|------|
-| 快速开始 / 安装 / 连接 / 基础查询 | [`getting-started.md`](./getting-started.md) | ✅ | 对齐当前 runtime，TypeScript 完整类型 |
-| 常见场景配方 | [`recipes.md`](./recipes.md) | ✅ | 最小连接、缓存、Redis、SSH、连接池、锁、Model 的复制即用路径 |
-| 缓存 / 函数缓存 | [`cache-and-function-cache.md`](./cache-and-function-cache.md) | ✅ | `MemoryCache` / `withCache()` / `FunctionCache` |
-| 写路径策略 | [`write-path-policy.md`](./write-path-policy.md) | ✅ | 可选的 Model-only 写入命名空间运行时护栏 |
-| 示例映射 / Gallery | [`examples.md`](./examples.md) | ✅ | 文档主题到官方示例的映射页 |
-| 高级能力索引 | [高级能力索引页](./capability-index.md) | ✅ | 完整能力入口索引 |
-| 验证 / 架构 / 工程治理 | [`verification-entrypoints.md`](./verification-entrypoints.md) / [`runtime-architecture.md`](./runtime-architecture.md) / [`support-matrix.md`](./support-matrix.md) / [`release-preflight.md`](./release-preflight.md) | ✅ | 统一查看公开验证入口、私有 real-env 边界、运行时结构与发布约束 |
+| 目标 | 入口 | 说明 |
+|------|------|------|
+| 安装、连接、完成第一次查询 | [`getting-started.md`](./getting-started.md) | MongoDB 集合最短上手路径 |
+| 选择常见配置场景 | [`recipes.md`](./recipes.md) | 连接、缓存、Redis、SSH、连接池、Model 的常用场景 |
+| 对照文档与可运行源码 | [`examples.md`](./examples.md) | 每个主题都链接到 GitHub 示例源码 |
+| 添加数据库缓存 | [`cache.md`](./cache.md) | 集合查询缓存、Redis 二级缓存、分布式失效 |
+| 控制 collection 与 Model 写入路径 | [`write-path-policy.md`](./write-path-policy.md) | 需要某些命名空间必须经过 Model 写入时使用 |
+| 浏览完整 API | [`api-index.md`](./api-index.md) | 低层 API 与兼容 API 的参考入口 |
+| 查看运行时边界 | [`capability-index.md`](./capability-index.md) | 能力总览与深入页面入口 |
 
 ## 推荐阅读顺序
 
 1. 根入口说明：[仓库 README](../../README.md)
 2. 上手路径：[`getting-started.md`](./getting-started.md)
-3. 场景配方：[`recipes.md`](./recipes.md)
-4. 缓存专题：[`cache-and-function-cache.md`](./cache-and-function-cache.md)
+3. 常用场景：[`recipes.md`](./recipes.md)
+4. 缓存专题：[`cache.md`](./cache.md)
 5. 写路径策略：[`write-path-policy.md`](./write-path-policy.md)
-6. 能力索引：[高级能力索引页](./capability-index.md)
-7. 工程与边界：
-   - [`verification-entrypoints.md`](./verification-entrypoints.md)
-   - [`support-matrix.md`](./support-matrix.md)
-   - [`release-preflight.md`](./release-preflight.md)
-   - [`roadmap-boundaries.md`](./roadmap-boundaries.md)
-8. 可执行示例：
-   - `examples/README.md`
-   - `examples/quick-start/basic-connect.ts`
-   - `examples/cache/with-cache.ts`
-   - `examples/docs/*.ts`
+6. 可执行示例：
+   - [examples/README.md](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)
+   - [examples/quick-start/basic-connect.ts](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)
+   - [examples/docs](https://github.com/vextjs/monSQLize/tree/main/examples/docs)
    - [`examples.md`](./examples.md)
+7. API 与运行时参考：
+   - [`api-index.md`](./api-index.md)
+   - [`capability-index.md`](./capability-index.md)
+   - [`support-matrix.md`](./support-matrix.md)
 
-## 当前文档边界
+## 源码与验证
 
-- 这里记录的是 **当前仓库内已经完整承接并持续验证的正式入口**。
-- 文档、示例、类型与测试口径统一以当前 TypeScript 版本为准，不依赖外部旧仓库。
+- 文档站由 [`docs/en`](https://github.com/vextjs/monSQLize/tree/main/docs/en) 与 [`docs/zh`](https://github.com/vextjs/monSQLize/tree/main/docs/zh) 生成。
+- 可运行示例位于 [`examples`](https://github.com/vextjs/monSQLize/tree/main/examples)。
+- 公开行为应与包根导出、公开类型和可运行示例保持一致。
 
 ## 示例运行方式
 
@@ -48,6 +46,4 @@ npm run build
 npm run test:examples
 ```
 
-> 说明：
-> - `basic-connect.ts` 会通过仓库内的内存 MongoDB helper 启动本地临时环境，并同时验证 TypeScript 消费路径。
-> - `with-cache.ts` 不依赖 MongoDB 或 Redis，可直接演示当前缓存 API 的最小用法与类型签名。
+`npm run test:examples` 会通过仓库示例 runner 启动临时 MongoDB 测试服务，编译 TypeScript 示例，执行示例，并在结束时清理临时数据目录。

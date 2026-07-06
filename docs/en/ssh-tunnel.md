@@ -1,30 +1,10 @@
 # Detailed documentation of SSH tunnel function
 
-> **Version**: v2.0.0
-> **Updated date**: 2026-05-20
-> **Implementation**: ssh2 library (supports password and private key authentication)
-
----
-
-## 📋 Table of Contents
-
-1. [Function Overview](#function-overview)
-2. [Quick Start](#quick-start)
-3. [Configuration instructions](#configuration-instructions)
-4. [Usage Example](#usage-example)
-5. [Troubleshooting](#troubleshooting)
-6. [Best Practice](#best-practices)
-7. [FAQ](#faq)
-
----
-
 ## Function Overview
-
 
 ## What is an SSH tunnel?
 
 SSH Tunneling, also known as SSH port forwarding, is a technology that establishes an encrypted channel between local and remote servers through the SSH protocol.
-
 
 ## Application scenarios
 
@@ -40,7 +20,6 @@ SSH Tunneling, also known as SSH port forwarding, is a technology that establish
    - All database access is through SSH tunnel
    - Centrally manage access rights
 
-
 ## Working principle
 
 ```text
@@ -52,11 +31,9 @@ Your application → SSH tunnel (local port) → SSH server → Intranet MongoDB
 
 ## Quick start
 
+## 1. Enable SSH tunneling
 
-## 1. Install dependencies
-
-`ssh2` is installed by default with `monsqlize` (`v2.0.2+`). If you need to use SSH tunnel, you can directly enable it after installing `monsqlize`. Usually, there is no need to perform additional dependency installation.
-
+Install `monsqlize`, then add an `ssh` block under the MongoDB `config`. monSQLize opens the tunnel during `connect()` and closes it during `close()`.
 
 ## 2. Basic configuration (password authentication)
 
@@ -84,7 +61,6 @@ await msq.connect();  //Automatically establish SSH tunnel
 await msq.close();    //Automatically close SSH tunnel
 ```
 
-
 ## 3. Basic configuration (private key authentication, recommended)
 
 ```javascript
@@ -107,7 +83,6 @@ const msq = new MonSQLize({
 
 ## Configuration instructions
 
-
 ## SSH configuration items
 
 | Configuration item | Type | Required | Default value | Description |
@@ -122,7 +97,6 @@ const msq = new MonSQLize({
 | `localPort` | number | ❌ no | random | local listening port |
 | `readyTimeout` | number | ❌ No | 20000 | SSH connection timeout (ms) |
 | `keepaliveInterval` | number | ❌ No | 30000 | Heartbeat interval (milliseconds) |
-
 
 ## MongoDB configuration items
 
@@ -160,7 +134,6 @@ config: {
 
 ## Usage example
 
-
 ## Example 1: Password authentication (simple test)
 
 ```javascript
@@ -185,7 +158,6 @@ console.log('Total number of users:', count);
 await msq.close();
 ```
 
-
 ## Example 2: Private key authentication (recommended for production environment)
 
 ```javascript
@@ -204,7 +176,6 @@ const msq = new MonSQLize({
     }
 });
 ```
-
 
 ## Example 3: Using private key content
 
@@ -225,7 +196,6 @@ const msq = new MonSQLize({
 });
 ```
 
-
 ## Example 4: Using an encrypted private key
 
 ```javascript
@@ -244,7 +214,6 @@ const msq = new MonSQLize({
     }
 });
 ```
-
 
 ## Example 5: Specify local port
 
@@ -267,7 +236,6 @@ const msq = new MonSQLize({
 //MongoDB will connect via localhost:27018
 ```
 
-
 ## Example 6: Custom SSH port
 
 ```javascript
@@ -286,7 +254,6 @@ const msq = new MonSQLize({
     }
 });
 ```
-
 
 ## Example 7: Adjust timeout settings
 
@@ -316,7 +283,6 @@ const msq = new MonSQLize({
 
 ## Troubleshooting
 
-
 ## Problem 1: SSH connection timeout
 
 **Error message**:
@@ -342,7 +308,6 @@ config: {
     }
 }
 ```
-
 
 ## Problem 2: SSH authentication failed
 
@@ -373,7 +338,6 @@ config: {
     }
 }
 ```
-
 
 ## Problem 3: MongoDB connection failed
 
@@ -409,7 +373,6 @@ config: {
 
 The built-in SSH tunnel supports one MongoDB host in the URI. Multi-host replica set URIs and `mongodb+srv://` SRV URIs are rejected with `INVALID_CONFIG`; use an external SSH tunnel, bastion proxy, or MongoDB-side network access for those topologies.
 
-
 ## Problem 4: Port conflict
 
 **Error message**:
@@ -440,7 +403,6 @@ config: {
 
 ## Best Practices
 
-
 ## 1. Use private key authentication
 
 ✅ **Recommended**:
@@ -458,7 +420,6 @@ ssh: {
     password: 'plain-text-password',  //Clear text passwords are not safe
 }
 ```
-
 
 ## 2. Use environment variables to store sensitive information
 
@@ -478,7 +439,6 @@ const msq = new MonSQLize({
 });
 ```
 
-
 ## 3. Properly manage SSH keys
 
 ```bash
@@ -491,7 +451,6 @@ chmod 600 ~/.ssh/id_rsa_mongo
 # Copy the public key to the SSH server
 ssh-copy-id -i ~/.ssh/id_rsa_mongo.pub user@bastion.example.com
 ```
-
 
 ## 4. Connection pool and timeout configuration
 
@@ -520,7 +479,6 @@ const msq = new MonSQLize({
 });
 ```
 
-
 ## 5. Error handling
 
 ```javascript
@@ -541,7 +499,6 @@ try {
     await msq.close();
 }
 ```
-
 
 ## 6. Logging
 
@@ -576,7 +533,6 @@ const msq = new MonSQLize({
 
 ## FAQ
 
-
 ## Q1: Does SSH tunneling affect performance?
 
 **A**: There is a slight effect, but it is usually negligible.
@@ -584,7 +540,6 @@ const msq = new MonSQLize({
 - SSH tunnel establishment time: 2-5 seconds
 - Data transfer performance loss: <5% (encryption overhead)
 - Suitable for most application scenarios
-
 
 ## Q2: Are multiple SSH tunnels supported?
 
@@ -597,7 +552,6 @@ const msq2 = new MonSQLize({ config: { ssh: { host: 'bastion2' } } });
 await msq1.connect();  //SSH tunnel 1
 await msq2.connect();  //SSH Tunnel 2 (standalone)
 ```
-
 
 ## Q3: Will the SSH tunnel automatically reconnect after it is disconnected?
 
@@ -620,7 +574,6 @@ async function connectWithRetry(msq, maxRetries = 3) {
 }
 ```
 
-
 ## Q4: Does it support springboard chain (multi-level SSH)?
 
 **A**: Not directly supported. ProxyJump needs to be configured on the SSH server.
@@ -633,11 +586,9 @@ Host final-server
     ProxyJump bastion1,bastion2
 ```
 
-
 ## Q5: Is SSH tunnel supported on Windows?
 
 **A**: Fully supported. monSQLize uses the ssh2 library (pure JavaScript implementation) and does not require a system SSH client.
-
 
 ## Q6: Which is better, password authentication or private key authentication?
 
@@ -655,8 +606,3 @@ Host final-server
 - [monSQLize main document](../../README.md)
 - [API Document](./api-index.md)
 - [Connection Configuration Document](./connection.md)
-
----
-
-**Document version**: v2.0.0
-**Last updated**: 2026-05-20

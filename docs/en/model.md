@@ -1,8 +1,8 @@
 # Model API documentation
 
-The Model layer provides Schema validation, custom methods, and lifecycle hooks, allowing you to use monSQLize like an ORM.
+The Model layer adds schema validation, custom methods, lifecycle hooks, relations, and model-scoped write helpers on top of the MongoDB runtime. It keeps collection access explicit while giving repeated document workflows a consistent Model surface.
 
-**Features**: Schema validation · Custom methods · Lifecycle hooks · Automatic indexing · Data source binding (v1.2.2+)
+**Features**: Schema validation · Custom methods · Lifecycle hooks · Automatic indexing · Data source binding
 
 ---
 
@@ -14,7 +14,7 @@ const { Model } = MonSQLize;
 
 //1. Define Model
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string:3-32!',
         email: 'email!',
         password: 'string!',
@@ -64,9 +64,9 @@ For the default path, no application import from `schema-dsl` is required:
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         email: 'email!',
-        name: dsl.string().min(1).max(64).require()
+        name: s.string().min(1).max(64).require()
     })
 });
 
@@ -117,7 +117,7 @@ Register the Model definition.
   - `methods` - Custom method
   - `hooks` - life cycle hook
   - `indexes` - Index definition
-  - `connection` - Data source binding (v1.2.2+, optional)
+  - `connection` - Data source binding
     - `pool` - connection pool name, must be consistent with constructor `pools[].name`
     - `database` - database name, if left blank, use instance `databaseName`
   - `options.autoIndex` - Optional Model-level automatic index control; overrides the runtime `autoIndex` option
@@ -129,8 +129,8 @@ Model.define('users', {
     enums: {
         role: 'admin|user|guest'
     },
-    schema: function(dsl) {
-        return dsl({
+    schema: function(s) {
+        return s({
             username: 'string:3-32!',
             email: 'email!',
             password: 'string!',
@@ -211,7 +211,7 @@ if (Model.has('users')) {
 //Conditional registration: avoid duplicate definitions
 if (!Model.has('users')) {
     Model.define('users', {
-        schema: (dsl) => dsl({ username: 'string!' })
+        schema: (s) => s({ username: 'string!' })
     });
 }
 ```
@@ -242,7 +242,7 @@ for (const name of Model.list()) {
 ---
 
 
-## Model.redefine(collectionName, definition) (v1.1.7+)
+## Model.redefine(collectionName, definition)
 
 Redefine a registered Model. Equivalent to the combined operation of `undefine()` + `define()`.
 
@@ -261,7 +261,7 @@ If the Model does not exist, the behavior is equivalent to `define()`.
 ```javascript
 //Redefine a registered Model
 Model.redefine('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string:3-32!',
         email: 'email!',
         avatar: 'string'   //Add new field
@@ -277,7 +277,7 @@ if (process.env.NODE_ENV === 'development') {
 ---
 
 
-## Model.undefine(collectionName) (v1.1.7+)
+## Model.undefine(collectionName)
 
 Unregister a registered Model definition. Idempotent operation, no error will be thrown for non-existent Model.
 
@@ -309,7 +309,7 @@ Model.define('users', newDefinition);
 
 Get the Model instance.
 
-> **Cache Behavior** (v1.2.1+): Under the same runtime/pool/database/registration name/actual collection name/defined version, calling `msq.model()` multiple times returns the same `ModelInstance` instance.
+> **Cache Behavior**: Under the same runtime/pool/database/registration name/actual collection name/defined version, calling `msq.model()` multiple times returns the same `ModelInstance` instance.
 > - Model automatic indexing is enabled by default and will be scheduled when an instance is created for the first time; `createIndex()` is actually called once for each index, and pending / fulfilled indexing tasks in the same process will be deduplicated.
 > - Disable automatic model indexing globally with `new MonSQLize({ autoIndex: false })`, or per Model with `options: { autoIndex: false }`.
 > - `connect()` only loads and registers the Model definition. `ModelInstance` will not be created separately, nor will it trigger index creation separately.
@@ -362,7 +362,7 @@ The first parameter of `Model.define(collectionName, definition)` is the registr
 ```javascript
 Model.define('UserModel', {
     collection: 'users',
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!'
     })
 });
@@ -379,7 +379,7 @@ If `relations.from` points to a registered Model, populate will use the actual c
 
 ---
 
-## Data source binding (v1.2.2+)
+## Data source binding
 
 Through the `connection` field of `Model.define()`, bind the Model to the specified connection pool and/or database to implement multi-data source routing.
 
@@ -388,7 +388,7 @@ Through the `connection` field of `Model.define()`, bind the Model to the specif
 
 | `pool` | `database` | Routing target |
 |:------:|:----------:|---------|
-| — | — | Default connection pool + instance `databaseName` (original logic, compatible with v1.2.1) |
+| — | — | Default connection pool + instance `databaseName` |
 | — | ✅ | Default connection pool + specified database |
 | ✅ | — | Specify connection pool + instance `databaseName` |
 | ✅ | ✅ | Designated connection pool + designated database |
@@ -416,25 +416,25 @@ const msq = new MonSQLize({
 //2. Define Model and reference the pool name declared above in connection
 //Scenario 1: Switch database only (default connection pool)
 Model.define('AuditLog', {
-    schema: (dsl) => dsl({ action: 'string!', userId: 'objectId' }),
+    schema: (s) => s({ action: 'string!', userId: 'objectId' }),
     connection: { database: 'audit_db' }
 });
 
 //Scenario 2: Switch connection pool only (using instance default database main_db)
 Model.define('AnalyticsEvent', {
-    schema: (dsl) => dsl({ event: 'string!', ts: 'date' }),
+    schema: (s) => s({ event: 'string!', ts: 'date' }),
     connection: { pool: 'analytics' }
 });
 
 //Scenario 3: Switch connection pool + database at the same time
 Model.define('AnalyticsReport', {
-    schema: (dsl) => dsl({ reportId: 'string!', data: 'object' }),
+    schema: (s) => s({ reportId: 'string!', data: 'object' }),
     connection: { pool: 'analytics', database: 'reports_db' }
 });
 
 //Ordinary Model (no connection, default logic)
 Model.define('User', {
-    schema: (dsl) => dsl({ name: 'string!', email: 'email!' })
+    schema: (s) => s({ name: 'string!', email: 'email!' })
 });
 
 //3. Connect
@@ -511,7 +511,7 @@ const msq = new MonSQLize({
 module.exports = {
     name: 'users',  //Collection name (required)
 
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string:3-32!',
         email: 'email!'
     }),
@@ -629,9 +629,11 @@ models/
 
 ## Runtime behavior
 
-monSQLize uses the `schema-dsl` runtime dependency to validate Model documents. The package installs `schema-dsl` automatically, and each connected `MonSQLize` runtime owns or receives an isolated `schema-dsl/runtime` instance through the `schemaDsl` option.
+monSQLize uses `schema-dsl` as the schema validation engine for Model documents. Each connected `MonSQLize` runtime owns or receives an isolated `schema-dsl/runtime` instance through the `schemaDsl` option, so application code can use the runtime-scoped `s` helper without importing the global DSL entry.
 
-`Model.define()` stores the definition in the process-wide registry. The schema callback is compiled when `msq.model(name)` binds that definition to a runtime. Validation runs for Models that define a schema unless the Model disables validation with `options.validate: false`, an operation passes `skipValidation: true`, or the runtime explicitly disables the schema DSL with `schemaDsl: false` / `{ enabled: false }`.
+`Model.define()` stores the definition in the process-wide registry. The schema callback is compiled when `msq.model(name)` binds that definition to a runtime. Validation runs for full-document Model writes that define a schema: `insertOne()`, `insertMany()`, `insertBatch()`, `replaceOne()`, `findOneAndReplace()`, and hydrated document `save()`. It is disabled only when the Model sets `options.validate: false`, a supported write operation passes `skipValidation: true`, or the runtime explicitly disables the schema DSL with `schemaDsl: false` / `{ enabled: false }`.
+
+Patch-style writes such as `updateOne()`, `updateMany()`, `findOneAndUpdate()`, `upsertOne()`, `incrementOne()`, and `updateBatch()` receive MongoDB update operators or aggregation pipelines rather than the final document. monSQLize does not run full-document schema validation for those patch writes; use hooks, `Model.validate()`, or application-side validation when a patch must be checked against a complete domain object.
 
 
 ## Basic usage
@@ -640,7 +642,7 @@ monSQLize uses the `schema-dsl` runtime dependency to validate Model documents. 
 import { Model } from 'monsqlize';
 
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string:3-32!',      //Required, 3-32 characters
         email: 'email!',               //Required, email format
         password: 'string:6-!',        //Required, at least 6 characters
@@ -651,7 +653,7 @@ Model.define('users', {
 
 const User = msq.model('users');
 
-// Validation runs automatically for runtime-bound Models with a schema.
+// Full-document writes validate automatically for runtime-bound Models with a schema.
 await User.insertOne({
     username: 'john',
     email: 'john@example.com',
@@ -731,7 +733,7 @@ try {
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({ ... }),
+    schema: (s) => s({ ... }),
     options: { validate: false }  //Disable validation globally
 });
 ```
@@ -747,7 +749,7 @@ await User.insertOne(doc, { skipValidation: true });
 
 ## Performance impact
 
-- **Validation overhead**: about 5-10% insertion-time overhead in typical schema-heavy paths.
+- **Validation overhead**: about 5-10% overhead on typical schema-heavy full-document write paths.
 - **Cache optimization**: schemas are compiled when the Model binds to a runtime and then reused.
 - **Skip option**: validation can be skipped with `skipValidation` for controlled migration or repair jobs.
 
@@ -767,8 +769,8 @@ await User.insertOne(doc, { skipValidation: true });
 A: Use the nested syntax of schema-dsl:
 
 ```javascript
-schema: (dsl) => dsl({
-    profile: dsl({
+schema: (s) => s({
+    profile: s({
         name: 'string!',
         age: 'number!'
     })
@@ -811,8 +813,8 @@ Define field validation rules.
 
 ```javascript
 //Recommendation: Use function to reference enums
-schema: function(dsl) {
-    return dsl({
+schema: function(s) {
+    return s({
         username: 'string:3-32!',
         email: 'email!',
         age: 'number:0-120',
@@ -821,7 +823,7 @@ schema: function(dsl) {
 }
 
 //Or use object directly
-schema: (dsl) => dsl({
+schema: (s) => s({
     username: 'string:3-32!',
     email: 'email!'
 })
@@ -957,7 +959,7 @@ const msq = new MonSQLize({
 });
 
 Model.define('users', {
-    schema: (dsl) => dsl({ email: 'email!' }),
+    schema: (s) => s({ email: 'email!' }),
     options: { autoIndex: false },
     indexes: [
         { key: { email: 1 }, unique: true, name: 'users_email_unique' }
@@ -1000,8 +1002,8 @@ enums: {
 }
 
 //Referenced in schema
-schema: function(dsl) {
-    return dsl({
+schema: function(s) {
+    return s({
         role: this.enums.role.default('user')
     });
 }
@@ -1021,8 +1023,8 @@ Model.define('users', {
         role: 'admin|user|guest',
         status: 'active|inactive|banned'
     },
-    schema: function(dsl) {
-        return dsl({
+    schema: function(s) {
+        return s({
             username: 'string:3-32!',
             email: 'email!',
             password: 'string!'.pattern(/^[a-zA-Z0-9]{6,30}$/),
@@ -1183,7 +1185,7 @@ async changePassword(pwd) {
 
 ---
 
-## Automatic timestamp (v1.0.3+)
+## Automatic timestamp
 
 Automatically manage `createdAt` and `updatedAt` fields.
 
@@ -1192,7 +1194,7 @@ Automatically manage `createdAt` and `updatedAt` fields.
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     options: {
         timestamps: true  //Enable automatic timestamps
     }
@@ -1262,7 +1264,7 @@ Model.define('users', {
 | incrementOne | ❌ | ❌ | ⚠️ Not supported yet |
 
 
-## Notes (automatic timestamp (v1.0.3+))
+## Notes (automatic timestamp)
 
 
 ### ⚠️ User manual settings will be overwritten
@@ -1304,7 +1306,7 @@ The fields automatically added by timestamps will pass schema validation (if def
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         createdAt: 'date',    //Optional: Define validation rules
         updatedAt: 'date'
@@ -1340,7 +1342,6 @@ Model.define('users', {
 
 ## Soft delete (softDelete)
 
-**Version**: v1.0.3+
 
 Soft deletion marks documents as deleted rather than physically deleted, supporting data recovery and auditing.
 
@@ -1350,7 +1351,7 @@ Soft deletion marks documents as deleted rather than physically deleted, support
 ```javascript
 //Simple mode
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     options: {
         softDelete: true  //Use default configuration
     }
@@ -1358,7 +1359,7 @@ Model.define('users', {
 
 //Full configuration
 Model.define('posts', {
-    schema: (dsl) => dsl({ title: 'string!' }),
+    schema: (s) => s({ title: 'string!' }),
     options: {
         softDelete: {
             enabled: true,           //Enable soft delete
@@ -1565,7 +1566,7 @@ Soft delete and timestamps can be enabled at the same time:
 
 ```javascript
 Model.define('products', {
-    schema: (dsl) => dsl({ name: 'string!' }),
+    schema: (s) => s({ name: 'string!' }),
     options: {
         timestamps: true,   //Automatically manage createdAt/updatedAt
         softDelete: true    //soft delete
@@ -1598,7 +1599,7 @@ await User.insertOne({ username: 'john' });  //❌ Conflict
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     options: {
         softDelete: true
     },
@@ -1635,7 +1636,7 @@ Optimistic locking is a concurrency control mechanism that detects data conflict
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         email: 'string!',
         status: 'string'
@@ -1651,7 +1652,7 @@ Model.define('users', {
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         email: 'string!'
     }),
@@ -1811,7 +1812,7 @@ const { Model } = MonSQLize;
 
 //Define Model (enable soft deletion and timestamps)
 Model.define('articles', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         content: 'string!',
         author: 'string!'
@@ -1883,7 +1884,7 @@ example().catch(console.error);
 A: From database query results, not schema. The schema only defines validation rules.
 
 **Q: How to reference enums? **
-A: Use function to define schema: `schema: function(dsl) { return dsl({ role: this.enums.role }) }`
+A: Use function to define schema: `schema: function(s) { return s({ role: this.enums.role }) }`
 
 **Q: What is the difference between instance and static? **
 A: instance is injected into the document object, and static is mounted to the Model instance.

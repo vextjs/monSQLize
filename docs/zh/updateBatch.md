@@ -1,15 +1,5 @@
 # updateBatch - 批量更新文档
 
-## 📑 目录
-
-- [概述](#概述)
-- [API 参数说明](#api-参数说明)
-- [使用示例](#使用示例)
-- [性能优化建议](#性能优化建议)
-- [常见问题](#常见问题)
-- [参考资料](#参考资料)
-
----
 
 ## 概述
 
@@ -539,7 +529,7 @@ try {
             { $set: { status: 'processing' } },
             { batchSize: 1000 }
         );
-        
+
         await collection('inventory').updateBatch(
             { productId: { $in: productIds } },
             { $inc: { reserved: -1 } },
@@ -562,9 +552,3 @@ try {
 - [MongoDB 更新操作符](https://www.mongodb.com/docs/manual/reference/operator/update/)
 - [使用示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/batch-operations.ts)
 - [Batch 写入测试](../../test/unit/writes/batch.test.ts)
-
----
-
-**更新日期**: 2025-12-30  
-**版本**: v1.0
-

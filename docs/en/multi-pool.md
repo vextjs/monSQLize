@@ -1,92 +1,15 @@
-# Enterprise-level multiple connection pool management
-
-> **Version**: v1.0.8+
-> **Updated date**: 2026-02-03
-
----
-
-## Table of Contents
-
-- [Introduction](#introduction)
-- [Features](#features)
-- [Applicable scenarios](#applicable-scenarios)
-- [Version requirements](#version-requirements)
-- [Architecture Overview](#architecture-overview)
-- [Quick start](#quick-start)
-- [Installation](#installation)
-- [Get started in 5 minutes](#get-started-in-5-minutes)
-- [Complete example](#complete-example)
-- [Core concepts](#core-concepts)
-- [Connection pool role](#connection-pool-role)
-- [Select strategy](#select-strategy)
-- [Health Check](#health-check)
-- [Failover](#failover)
-- [API detailed documentation](#api-detailed-documentation)
-- [ConnectionPoolManager](#connectionpoolmanager)
-  - [Constructor](#constructor)
-  - [addPool()](#addpool)
-  - [removePool()](#removepool)
-  - [selectPool()](#selectpool)
-  - [getPoolNames()](#getpoolnames)
-  - [getPoolStats()](#getpoolstats)
-  - [getPoolHealth()](#getpoolhealth)
-  - [startHealthCheck()](#starthealthcheck)
-  - [stopHealthCheck()](#stophealthcheck)
-  - [close()](#close)
-- [Return value structure](#return-value-structure)
-  - [PoolResult (selectPool return value)](#poolresult-selectpool-return-value)
-- [Configuration details](#configuration-details)
-- [Manager configuration](#manager-configuration)
-- [Connection pool configuration](#connection-pool-configuration)
-- [Health check configuration](#health-check-configuration)
-- [Failover configuration](#failover-configuration)
-- [Configuration example](#configuration-example)
-  - [Small applications (<1000 QPS)](#small-applications-1000-qps)
-  - [Medium application (1000-10000 QPS)](#medium-application-1000-10000-qps)
-  - [Large applications (>10000 QPS)](#large-applications-10000-qps)
-- [Usage scenarios](#usage-scenarios)
-- [Read and write separation](#read-and-write-separation)
-- [Load balancing](#load-balancing)
-- [Report analysis](#report-analysis)
-- [Multi-tenant system](#multi-tenant-system)
-- [Disaster recovery switch](#disaster-recovery-switch)
-- [Best Practices](#best-practices)
-- [Connection pool planning](#connection-pool-planning)
-  - [Recommended number of connection pools](#recommended-number-of-connection-pools)
-  - [maxPoolSize suggestion](#maxpoolsize-suggestion)
-- [Performance optimization](#performance-optimization)
-  - [1. Set weights appropriately](#1-set-weights-appropriately)
-  - [2. Reduce connection pool switching](#2-reduce-connection-pool-switching)
-  - [3. Optimize health check](#3-optimize-health-check)
-- [Monitoring and Alerting](#monitoring-and-alerting)
-  - [Regular monitoring](#regular-monitoring)
-  - [Alarm rules](#alarm-rules)
-- [Production environment configuration](#production-environment-configuration)
-  - [Complete production environment example](#complete-production-environment-example)
-  - [Environment variable configuration](#environment-variable-configuration)
-- [Troubleshooting](#troubleshooting)
-- [FAQ](#faq)
-  - [Problem 1: The connection pool cannot be added](#problem-1-the-connection-pool-cannot-be-added)
-  - [Issue 2: Health check not working](#issue-2-health-check-not-working)
-  - [Problem 3: selectPool throws an error](#problem-3-selectpool-throws-an-error)
-  - [Problem 4: High error rate](#problem-4-high-error-rate)
-- [Error code](#error-code)
-- [Debugging Tips](#debugging-tips)
-  - [Enable detailed logging](#enable-detailed-logging)
-  - [Periodically print status](#periodically-print-status)
-  - [Catch all errors](#catch-all-errors)
-- [Complete example (enterprise-level multiple connection pool management)](#complete-example-enterprise-level-multiple-connection-pool-management)
-- [Basic example](#basic-example)
-- [Advanced examples](#advanced-examples)
-- [Production environment example](#production-environment-example)
-- [Related documents](#related-documents)
-- [📮 Feedback and Contribution](#feedback-and-contribution)
-- [🔗 Related documents (enterprise-level multiple connection pool management)](#related-documents-enterprise-level-multiple-connection-pool-management)
+# Connection Pools and Multi-Pool Configuration
 
 ## Introduction
 
-monSQLize's multi-connection pool feature allows you to manage multiple MongoDB connection pools in a single application, achieving enterprise-class high availability and high-performance database access.
+Use this page when your application needs more than one MongoDB connection, such as a primary pool plus read replicas, an analytics pool, or tenant-specific pools. The recommended runtime path is to declare pools when creating the `MonSQLize` instance:
 
+- `pools: PoolConfig[]` defines named connection pools.
+- `poolStrategy` defines selection behavior.
+- `poolFallback` defines failover behavior.
+- `maxPoolsCount` limits the number of pools.
+
+`ConnectionPoolManager` is still a public low-level manager for advanced use cases that need manual registration, removal, or direct pool selection. Application code should normally use `msq.pool(name)`, `msq.pool(name).use(db)`, `scopedCollection()`, and Model `connection.pool`.
 
 ## Features
 
@@ -98,7 +21,6 @@ monSQLize's multi-connection pool feature allows you to manage multiple MongoDB 
 - ✅ **Health Monitoring**: Monitor the health status of all connection pools in real time
 - ✅ **Statistical Analysis**: Provide detailed performance statistics and monitoring data
 
-
 ## Applicable scenarios
 
 | Scenario | Description | Benefits |
@@ -108,13 +30,11 @@ monSQLize's multi-connection pool feature allows you to manage multiple MongoDB 
 | 🎯 **Multi-tenant system** | Use different database connections for different tenants | Data isolation and performance guarantee |
 | 🎯 **Disaster recovery switch** | Automatically switch to the standby database when the primary database fails | Failure recovery time < 5 seconds |
 
+## Runtime requirements
 
-## Version requirements
-
-- **monSQLize**: ≥ v1.0.8
-- **Node.js**: ≥ 14.x
+- **monSQLize**: current npm package `monsqlize`
+- **Node.js**: ≥ 18.x
 - **MongoDB**: ≥ 4.0
-
 
 ## Architecture Overview
 
@@ -151,69 +71,54 @@ monSQLize's multi-connection pool feature allows you to manage multiple MongoDB 
 
 ## Quick start
 
-
 ## Installation
 
 ```bash
-npm install monsqlize@1.0.8
+npm install monsqlize
 # or
-yarn add monsqlize@1.0.8
+yarn add monsqlize
 ```
-
 
 ## Get started in 5 minutes
 
-**Step 1: Import the module**
-```javascript
-import { ConnectionPoolManager } from 'monsqlize';
-```
+```ts
+import MonSQLize from 'monsqlize';
 
-**Step 2: Create Manager**
-```javascript
-const manager = new ConnectionPoolManager({
-    maxPoolsCount: 10,
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'app',
+    config: { uri: 'mongodb://primary.example.com:27017' },
+    pools: [
+        {
+            name: 'primary',
+            uri: 'mongodb://primary.example.com:27017/app',
+            role: 'primary',
+            options: { maxPoolSize: 50 },
+        },
+        {
+            name: 'analytics',
+            uri: 'mongodb://analytics.example.com:27017/app',
+            role: 'analytics',
+            tags: ['reporting'],
+            options: { maxPoolSize: 10 },
+        },
+    ],
     poolStrategy: 'auto',
-    logger: console
-});
-```
-
-**Step 3: Add connection pool**
-```javascript
-// Add the primary pool
-await manager.addPool({
-    name: 'primary',
-    uri: 'mongodb://localhost:27017/mydb',
-    role: 'primary'
+    poolFallback: { enabled: true, fallbackStrategy: 'primary' },
+    maxPoolsCount: 5,
 });
 
-// Add a read replica
-await manager.addPool({
-    name: 'secondary',
-    uri: 'mongodb://localhost:27018/mydb',
-    role: 'secondary'
-});
+await msq.connect();
+
+const reports = msq.pool('analytics').collection('reports');
+const rows = await reports.find({ status: 'ready' });
+
+console.log(`${rows.length} report rows found`);
 ```
 
-**Step 4: Start health check**
-```javascript
-manager.startHealthCheck();
-```
+`connect()` automatically creates and starts the `ConnectionPoolManager` from `pools`. If `pools` is omitted, `msq.pool(name)` throws a `NO_POOL_MANAGER` / `INVALID_CONFIG`-class error. If the requested pool does not exist, it throws `POOL_NOT_FOUND` with the available pool names.
 
-**Step 5: Use connection pool**
-```javascript
-// Automatically select the best connection pool (read operations select a secondary)
-const pool = manager.selectPool('read');
-
-// Execute query
-const users = await pool.collection('users').find({ status: 'active' }).toArray();
-
-console.log(`${users.length} users found`);
-```
-
-**Done! ** 🎉
-
-
-## Complete example
+## Advanced: Direct ConnectionPoolManager Usage
 
 ```javascript
 import { ConnectionPoolManager } from 'monsqlize';
@@ -325,7 +230,6 @@ main().catch(console.error);
 
 ## Core concepts
 
-
 ## Connection pool role
 
 The connection pool role defines the purpose and behavior of the connection pool.
@@ -343,7 +247,6 @@ write → primary
 Read operation (read) → secondary (priority) → primary (fallback)
 Analytics Query → analytics (manually specified)
 ```
-
 
 ## Select strategy
 
@@ -377,7 +280,6 @@ const pool = manager.selectPool('read');  // → secondary
 const pool = manager.selectPool('read', { pool: 'analytics' });
 ```
 
-
 ## Health Check
 
 The health check regularly detects whether the connection pool is available and automatically marks the faulty pool.
@@ -387,16 +289,16 @@ The health check regularly detects whether the connection pool is available and 
 | Status | Description | Behavior | Recovery Method |
 |------|------|------|---------|
 | **up** | Health | Normal use | - |
+| **degraded** | Consecutive failures below the down threshold | Still selectable, but should be monitored | Restores to `up` after a successful health check or becomes `down` after the retry threshold |
 | **down** | Failure | Not in use, waiting for recovery | Automatic recovery after successful health check |
-| **unknown** | Unknown | Initial state, use with caution | Determined after first health check |
 
 **Checking mechanism**:
 1. Use the `db.admin().ping()` command
 2. Set timeout (default 3000ms)
-3. Continuous failures reach the threshold (default 3 times) → marked as down
-4. Down status will still continue to be checked
-5. Success once → immediately restore to up
-
+3. A failed check first marks the pool as degraded
+4. Continuous failures reach the retry threshold (default 3 times) → marked as down
+5. Down status will still continue to be checked
+6. Success once → immediately restore to up
 
 ## Failover
 
@@ -430,11 +332,9 @@ Choose a different health pool
 
 ## API detailed documentation
 
-
 ## ConnectionPoolManager
 
 The connection pool manager is the core class of the multi-connection pool function.
-
 
 ### Constructor
 
@@ -469,7 +369,6 @@ const manager = new ConnectionPoolManager({
     logger: console
 });
 ```
-
 
 ### addPool()
 
@@ -540,7 +439,6 @@ await manager.addPool({
 3. ✅ If the health check is enabled, the new pool will automatically start checking
 4. ✅ It is recommended to add all connection pools when the application starts
 
-
 ### removePool()
 
 Remove an existing connection pool.
@@ -582,7 +480,6 @@ try {
 2. ✅ Will automatically stop the health check of the pool
 3. ✅ Relevant statistical information will be cleared
 4. ⚠️ After removal, the connection pool can no longer be used.
-
 
 ### selectPool()
 
@@ -652,7 +549,6 @@ const client = pool.client;
 2. ✅ If all pools fail, the downgrade strategy will be triggered
 3. ⚠️ manual strategy must manually specify the pool parameter
 
-
 ### getPoolNames()
 
 Get the names of all connection pools.
@@ -679,7 +575,6 @@ if (names.includes('analytics')) {
 console.log(`There are currently ${names.length} connection pools`);
 ```
 
-
 ### getPoolStats()
 
 Get statistics for all connection pools.
@@ -693,7 +588,7 @@ getPoolStats(): Record<string, PoolStats>
 ```typescript
 {
     [poolName: string]: {
-        status: 'up' | 'down' | 'unknown',
+        status: 'up' | 'degraded' | 'down' | 'unknown',
         connections: number,       //Current number of connections
         available: number,         //Number of available connections
         waiting: number,           //Number of waiting connections
@@ -739,7 +634,6 @@ for (const [name, stat] of entries) {
 }
 ```
 
-
 ### getPoolHealth()
 
 Get the health status of all connection pools.
@@ -752,11 +646,11 @@ getPoolHealth(): Map<string, HealthStatus>
 **return value**:
 ```typescript
 Map<string, {
-    status: 'up' | 'down' | 'unknown',
+    status: 'up' | 'down' | 'degraded',
     consecutiveFailures: number,   //Number of consecutive failures
-    lastCheck: number,             //last check timestamp
-    lastSuccess: number,           //Last success timestamp
-    lastError: Error | null        //last error message
+    lastCheckTime: Date | null,    //Last check time
+    lastError: Error | null,       //last error message
+    uptime: number                 //Uptime ratio
 }>
 ```
 
@@ -783,7 +677,7 @@ if (downPools.length > 0) {
 
 //Detailed health report
 for (const [name, status] of health.entries()) {
-    const lastCheckTime = new Date(status.lastCheck).toISOString();
+    const lastCheckTime = status.lastCheckTime?.toISOString() ?? 'not checked yet';
     console.log(`
 Pool name: ${name}
 Status: ${status.status}
@@ -792,7 +686,6 @@ Last check: ${lastCheckTime}
     `.trim());
 }
 ```
-
 
 ### startHealthCheck()
 
@@ -817,7 +710,6 @@ manager.startHealthCheck();  //No impact
 2. ✅ Repeated calls will not start again.
 3. ✅ It is recommended to start after adding all connection pools
 
-
 ### stopHealthCheck()
 
 Stop health check.
@@ -832,7 +724,6 @@ stopHealthCheck(): void
 //Stop health check
 manager.stopHealthCheck();
 ```
-
 
 ### close()
 
@@ -876,9 +767,7 @@ process.on('SIGTERM', async () => {
 
 ---
 
-
 ## Return value structure
-
 
 ### PoolResult (selectPool return value)
 
@@ -918,7 +807,6 @@ await adminDb.admin().ping();
 
 ## Configuration details
 
-
 ## Manager configuration
 
 ```typescript
@@ -947,7 +835,6 @@ interface ManagerOptions {
     };
 }
 ```
-
 
 ## Connection pool configuration
 
@@ -981,7 +868,6 @@ interface PoolConfig {
     };
 }
 ```
-
 
 ## Health check configuration
 
@@ -1019,7 +905,6 @@ healthCheck: {
 }
 ```
 
-
 ## Failover configuration
 
 | Parameters | Type | Default value | Description |
@@ -1037,9 +922,7 @@ healthCheck: {
 | readonly | read-only mode | guaranteed read service | write operation failed | read more and write less |
 | secondary | use replicas | full downgrade | possible data delays | high availability first |
 
-
 ## Configuration example
-
 
 ### Small applications (<1000 QPS)
 
@@ -1069,7 +952,6 @@ await manager.addPool({
     }
 });
 ```
-
 
 ### Medium application (1000-10000 QPS)
 
@@ -1119,7 +1001,6 @@ for (let i = 1; i <= 2; i++) {
     });
 }
 ```
-
 
 ### Large applications (>10000 QPS)
 
@@ -1206,7 +1087,6 @@ for (let i = 1; i <= 2; i++) {
 
 ## Usage scenarios
 
-
 ## Read and write separation
 
 **Scenario**: Read operations account for 80%, write operations account for 20%
@@ -1231,7 +1111,6 @@ const orders = await readPool.collection('orders').find({}).toArray();
 - ✅ Write pressure on the primary stays unchanged
 - ✅ Read pressure is distributed to 2 replicas
 - ✅ Primary load is reduced by ~80%
-
 
 ## Load balancing
 
@@ -1259,7 +1138,6 @@ await manager.addPool({
 });
 ```
 
-
 ## Report analysis
 
 **Scenario**: Generate reports regularly without affecting online services
@@ -1285,7 +1163,6 @@ const salesReport = await analyticsPool.collection('orders').aggregate([
     { $sort: { totalSales: -1 } }
 ]).toArray();
 ```
-
 
 ## Multi-tenant system
 
@@ -1319,7 +1196,6 @@ const pool = manager.selectPool('read', {
     pool: `tenant-${tenantId}`
 });
 ```
-
 
 ## Disaster recovery switch
 
@@ -1364,9 +1240,7 @@ const pool = manager.selectPool('write');  //Automatically select healthy primar
 
 ## Best Practices
 
-
 ## Connection pool planning
-
 
 ### Recommended number of connection pools
 
@@ -1375,7 +1249,6 @@ const pool = manager.selectPool('write');  //Automatically select healthy primar
 | Small | <1K | 2-3 | 1 primary + 1-2 replicas |
 | Medium | 1K-10K | 4-8 | 1-2 primary pools + 3-6 replicas |
 | Large | >10K | 8-20 | 2-4 primary + 6-16 replicas |
-
 
 ### maxPoolSize suggestion
 
@@ -1402,9 +1275,7 @@ options: {
 }
 ```
 
-
 ## Performance optimization
-
 
 ### 1. Set weights appropriately
 
@@ -1425,7 +1296,6 @@ await manager.addPool({
 });
 ```
 
-
 ### 2. Reduce connection pool switching
 
 ```javascript
@@ -1434,7 +1304,6 @@ const manager = new ConnectionPoolManager({
     poolStrategy: 'leastConnections'
 });
 ```
-
 
 ### 3. Optimize health check
 
@@ -1452,9 +1321,7 @@ healthCheck: {
 }
 ```
 
-
 ## Monitoring and Alerting
-
 
 ### Regular monitoring
 
@@ -1472,7 +1339,6 @@ setInterval(() => {
     });
 }, 60000);
 ```
-
 
 ### Alarm rules
 
@@ -1531,79 +1397,67 @@ function checkAlerts() {
 setInterval(checkAlerts, 30000);
 ```
 
-
 ## Production environment configuration
-
 
 ### Complete production environment example
 
 ```javascript
-import { ConnectionPoolManager } from 'monsqlize';
-const winston = require('winston');
+import MonSQLize from 'monsqlize';
 
-//Custom log
-const logger = winston.createLogger({
-    level: 'info',
-    format: winston.format.json(),
-    transports: [
-        new winston.transports.File({ filename: 'pool-error.log', level: 'error' }),
-        new winston.transports.File({ filename: 'pool-combined.log' })
-    ]
-});
+const logger = {
+    info: (message, meta) => console.info(message, meta ?? ''),
+    warn: (message, meta) => console.warn(message, meta ?? ''),
+    error: (message, meta) => console.error(message, meta ?? ''),
+};
 
-//Create manager
-const manager = new ConnectionPoolManager({
-    maxPoolsCount: 20,
+const pools = JSON.parse(process.env.MONGO_POOLS ?? '[]');
+
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: process.env.MONGO_DATABASE ?? 'mydb',
+    config: {
+        uri: process.env.MONGO_URI ?? 'mongodb://primary.example.com:27017/mydb',
+    },
+    pools: pools.map((pool) => ({
+        healthCheck: {
+            enabled: true,
+            interval: 5000,
+            timeout: 3000,
+            retries: 3,
+        },
+        ...pool,
+    })),
     poolStrategy: 'leastConnections',
     poolFallback: {
         enabled: true,
         fallbackStrategy: 'secondary',
         retryDelay: 500,
-        maxRetries: 5
+        maxRetries: 5,
     },
-    logger
+    maxPoolsCount: 20,
+    logger,
 });
 
-//Load configuration from environment variables
-async function initPools() {
-    const pools = JSON.parse(process.env.MONGO_POOLS || '[]');
-
-    for (const config of pools) {
-        await manager.addPool({
-            ...config,
-            healthCheck: {
-                enabled: true,
-                interval: 5000,
-                timeout: 3000,
-                retries: 3
-            }
-        });
-    }
-
-    manager.startHealthCheck();
-    logger.info(`The connection pool manager has been initialized with ${pools.length} pools in total`);
+async function start() {
+    await msq.connect();
+    logger.info(`monSQLize connected with ${pools.length} configured pools`);
 }
 
-//Exit gracefully
 async function gracefulShutdown() {
-    logger.info('Closing connection pool manager...');
-    await manager.close();
-    logger.info('The connection pool manager is closed');
+    logger.info('Closing monSQLize...');
+    await msq.close();
+    logger.info('monSQLize closed');
     process.exit(0);
 }
 
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
-//start
-initPools().catch(error => {
+start().catch((error) => {
     logger.error('Initialization failed:', error);
     process.exit(1);
 });
-
-module.exports = manager;
 ```
-
 
 ### Environment variable configuration
 
@@ -1646,9 +1500,7 @@ MONGO_POOLS=[
 
 ## Troubleshooting
 
-
 ## FAQ
-
 
 ### Problem 1: The connection pool cannot be added
 
@@ -1667,7 +1519,6 @@ const manager = new ConnectionPoolManager({
     maxPoolsCount: 20  //increase to 20
 });
 ```
-
 
 ### Issue 2: Health check not working
 
@@ -1689,7 +1540,6 @@ await manager.addPool({
 //2. Start health check
 manager.startHealthCheck();  //Must be called
 ```
-
 
 ### Problem 3: selectPool throws an error
 
@@ -1719,7 +1569,6 @@ const manager = new ConnectionPoolManager({
 const names = manager.getPoolNames();
 console.log(`Current connection pool number: ${names.length}`);
 ```
-
 
 ### Problem 4: High error rate
 
@@ -1753,7 +1602,6 @@ options: {
 }
 ```
 
-
 ## Error code
 
 | Error message | Cause | Solution |
@@ -1764,9 +1612,7 @@ options: {
 | `No available connection pool` | No connection pool available | Check health status or add a connection pool |
 | `MongoServerError` | MongoDB connection failed | Check URI, network, authentication |
 
-
 ## Debugging Tips
-
 
 ### Enable detailed logging
 
@@ -1779,7 +1625,6 @@ const manager = new ConnectionPoolManager({
     }
 });
 ```
-
 
 ### Periodically print status
 
@@ -1804,7 +1649,6 @@ setInterval(() => {
 }, 10000);  //every 10 seconds
 ```
 
-
 ### Catch all errors
 
 ```javascript
@@ -1826,8 +1670,7 @@ try {
 
 ---
 
-## Complete example (enterprise-level multiple connection pool management)
-
+## Complete low-level manager example
 
 ## Basic example
 
@@ -1869,7 +1712,6 @@ async function basicExample() {
 
 basicExample().catch(console.error);
 ```
-
 
 ## Advanced examples
 
@@ -2021,33 +1863,8 @@ See [Production environment configuration](#production-environment-configuration
 
 ## Related documents
 
-- [monSQLize Master Document](../../README.md)
 - [Connection Management](./connection.md)
-- [Detailed explanation of multi-connection pool health check] (./multi-pool-health-check.md) - Health check mechanism, problem handling, operation and maintenance notifications
-- [Transaction Optimization](./transaction-optimizations.md)
-- [Distributed deployment](./distributed-deployment.md)
-
----
-
-**Document version**: v1.0.8
-**Last updated**: 2026-02-03
-**Maintainer**: monSQLize Team
-
----
-
-## 📮 Feedback and Contribution
-
-If you find documentation errors or have suggestions for improvements, please feel free to:
-- Submit Issue
-- Submit Pull Request
-- Contact the maintenance team
-
----
-
-## 🔗 Related documents (enterprise-level multiple connection pool management)
-
-- [Chained pool/database access API (v1.3.0+)](./pool-chain-api.md) — Use `pool()` / `use()` for cross-pool and cross-database chained access
-- [Error Code Reference](./error-codes.md) — Contains new error codes such as `NO_POOL_MANAGER` / `POOL_NOT_FOUND`
-- [Model layer document](./model.md)
-
-**Wish you a happy use! ** 🎉
+- [Pool Chain API](./pool-chain-api.md)
+- [Health Checks](./multi-pool-health-check.md)
+- [Distributed Deployment](./distributed-deployment.md)
+- [Error Code Reference](./error-codes.md)

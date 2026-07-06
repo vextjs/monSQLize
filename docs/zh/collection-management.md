@@ -1,18 +1,5 @@
 # 集合管理
 
-## 📑 目录
-
-- [概述](#概述)
-- [核心特性](#核心特性)
-- [API 方法](#api-方法)
-- [使用示例](#使用示例)
-- [视图集合示例](#视图集合示例)
-- [最佳实践](#最佳实践)
-- [常见问题](#常见问题)
-- [参考资料](#参考资料)
-
----
-
 ## 概述
 
 monSQLize 提供了 MongoDB 集合管理的基本功能，包括创建集合、删除集合和创建视图集合。这些方法用于动态管理数据库结构。
@@ -495,7 +482,7 @@ const { db } = await msq.connect();
 const database = db();
 
 // 列出所有集合
-const collections = await database.listCollections().toArray();
+const collections = await database.listCollections();
 const collectionNames = collections.map(c => c.name);
 
 if (collectionNames.includes('myCollection')) {
@@ -514,7 +501,7 @@ if (collectionNames.includes('myCollection')) {
 
 ```javascript
 // 1. 先检查集合是否存在
-const collections = await db().listCollections({ name: 'oldCollection' }).toArray();
+const collections = await db().listCollections({ name: 'oldCollection' });
 
 if (collections.length === 0) {
   console.log('集合不存在');

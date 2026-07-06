@@ -1,57 +1,6 @@
 ﻿# insertBatch - batch insertion (supports automatic retry)
 
-## Table of Contents
-
-- [Overview](#overview)
-- [API parameter description](#api-parameter-description)
-- [Method signature](#method-signature)
-- [Detailed explanation of parameters](#detailed-explanation-of-parameters)
-- [Return value](#return-value)
-- [Progress callback parameters](#progress-callback-parameters)
-- [Usage example](#usage-example)
-- [1. Basic usage - automatic batch insertion](#1-basic-usage-automatic-batch-insertion)
-- [2. Progress monitoring](#2-progress-monitoring)
-- [3. Automatic retry mechanism ⭐ New features](#3-automatic-retry-mechanism-new-features)
-- [3.1 retry strategy - automatic retry on failure](#31-retry-strategy-automatic-retry-on-failure)
-- [4. Comparison of error handling strategies](#4-comparison-of-error-handling-strategies)
-- [4.1 stop strategy (default) - stop on error](#41-stop-strategy-default-stop-on-error)
-- [4.2 skip strategy - skip failed batches](#42-skip-strategy-skip-failed-batches)
-- [4.3 collect strategy - collect all errors](#43-collect-strategy-collect-all-errors)
-- [5. Concurrent insertion (accelerate big data import)](#5-concurrent-insertion-accelerate-big-data-import)
-- [6. Combined with comment parameter (production environment)](#6-combined-with-comment-parameter-production-environment)
-- [Comparison of error handling strategies](#comparison-of-error-handling-strategies)
-- [Strategy Selection Guide](#strategy-selection-guide)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [1. Batch size (batchSize)](#1-batch-size-batchsize)
-- [2. Concurrency control (concurrency)](#2-concurrency-control-concurrency)
-- [3. Retry policy configuration](#3-retry-policy-configuration)
-- [FAQ](#faq)
-- [Q: How to choose insertBatch vs insertMany?](#q-how-to-choose-insertbatch-vs-insertmany)
-- [Q: How to set batchSize?](#q-how-to-set-batchsize)
-- [Q: When should the retry mechanism be used?](#q-when-should-the-retry-mechanism-be-used)
-- [Q: Will concurrency lead to data inconsistency?](#q-will-concurrency-lead-to-data-inconsistency)
-- [Q: How to deal with partial failure?](#q-how-to-deal-with-partial-failure)
-- [References](#references)
-
-## Overview
-
-When a large amount of data needs to be inserted (such as tens of thousands or hundreds of thousands of items), using `insertMany` directly may result in:
-- **Memory Overflow** - Loading too much data at once
-- **Network Timeout** - A single request takes too long
-- **Difficult to Monitor** - No way to track insertion progress
-
-`insertBatch` solves these problems through features such as automatic batching, progress monitoring, error handling, and automatic retry.
-
-| Method | Applicable Scenario | Data Amount | Characteristics |
-|------|---------|--------|------|
-| **insertOne** | Single insertion | 1 item | Good real-time performance |
-| **insertMany** | Batch insertion | 1-10K items | High performance |
-| **insertBatch** | Large-scale import | 10K-1M+ items | Automatic batching, progress monitoring, automatic retry, error handling |
-
----
-
 ## API parameter description
-
 
 ## Method signature
 
@@ -61,7 +10,6 @@ collection(name: string).insertBatch(
   options?: InsertBatchOptions
 ): Promise<InsertBatchResult>
 ```
-
 
 ## Detailed explanation of parameters
 
@@ -85,7 +33,6 @@ collection(name: string).insertBatch(
 | **bypassDocumentValidation** | `boolean` | `false` | Whether to bypass document validation |
 | **comment** | `string` | - | Operation comments (for log tracking) |
 
-
 ## Return value
 
 ```typescript
@@ -99,7 +46,6 @@ collection(name: string).insertBatch(
   insertedIds: Object          //Inserted document _id mapping table
 }
 ```
-
 
 ## Progress callback parameters
 
@@ -119,7 +65,6 @@ collection(name: string).insertBatch(
 
 ## Usage example
 
-
 ## 1. Basic usage - automatic batch insertion
 
 ```javascript
@@ -136,7 +81,6 @@ const result = await collection('users').insertBatch(largeDataset, {
 console.log(`Successfully inserted ${result.insertedCount}/${result.totalCount} documents`);
 console.log(`Total ${result.batchCount} batches, ${result.errors.length} errors`);
 ```
-
 
 ## 2. Progress monitoring
 
@@ -159,10 +103,7 @@ await collection('products').insertBatch(largeDataset, {
 //Progress: 100% (Batch 5/5)
 ```
 
-
 ## 3. Automatic retry mechanism ⭐ New features
-
-
 
 ## 3.1 retry strategy - automatic retry on failure
 
@@ -193,10 +134,7 @@ result.retries.forEach(retry => {
 });
 ```
 
-
 ## 4. Comparison of error handling strategies
-
-
 
 ## 4.1 stop strategy (default) - stop on error
 
@@ -212,8 +150,6 @@ try {
 }
 ```
 
-
-
 ## 4.2 skip strategy - skip failed batches
 
 ```javascript
@@ -225,8 +161,6 @@ const result = await collection('items').insertBatch(dataWithErrors, {
 console.log(`Success: ${result.insertedCount}, failed batch: ${result.errors.length}`);
 //Output: Success: 8000, Failure batch: 2
 ```
-
-
 
 ## 4.3 collect strategy - collect all errors
 
@@ -243,7 +177,6 @@ if (result.errors.length > 0) {
   });
 }
 ```
-
 
 ## 5. Concurrent insertion (accelerate big data import)
 
@@ -262,7 +195,6 @@ await collection('data').insertBatch(largeDataset, {
 
 //⚠️ Note: Too large a concurrency may overwhelm the database. Recommended value: 2-5
 ```
-
 
 ## 6. Combined with comment parameter (production environment)
 
@@ -288,7 +220,6 @@ await collection('logs').insertBatch(logData, {
 | **skip** | Skip failed batches | Allow partial failures | Medium |
 | **collect** | Collect all errors | Full error report required | Slower (execute all) |
 | **retry** ⭐ | Automatically retry failed batches | Network instability, temporary failure | Slowest (with retry delay) |
-
 
 ## Strategy Selection Guide
 
@@ -318,7 +249,6 @@ console.log(`Verification completed: ${result.insertedCount} successful, ${resul
 
 ## Performance optimization suggestions
 
-
 ## 1. Batch size (batchSize)
 
 ```javascript
@@ -336,7 +266,6 @@ await collection('data').insertBatch(data, { batchSize: 1000 });
 - **Small document** (< 1KB): `batchSize: 1000-2000`
 - **Chinese Document** (1-10KB): `batchSize: 500-1000`
 - **Large Document** (> 10KB): `batchSize: 100-500`
-
 
 ## 2. Concurrency control (concurrency)
 
@@ -360,7 +289,6 @@ await collection('data').insertBatch(data, {
   writeConcern: { w: 'majority', j: true }
 });
 ```
-
 
 ## 3. Retry policy configuration
 
@@ -386,14 +314,12 @@ await collection('data').insertBatch(data, {
 
 ## FAQ
 
-
 ## Q: How to choose insertBatch vs insertMany?
 
 **A**: Select based on data volume:
 - **< 5K items**: Use `insertMany` (easier)
 - **5K-50K items**: Use `insertBatch` (safer)
 - **> 50K items**: Must use `insertBatch` (to avoid timeouts)
-
 
 ## Q: How to set batchSize?
 
@@ -402,7 +328,6 @@ await collection('data').insertBatch(data, {
 2. **Network speed**: The slower the network, the smaller the `batchSize`
 3. **Database Performance**: The weaker the database, the smaller `batchSize`
 4. **Recommended starting point**: Use `1000` first, and adjust according to the actual situation
-
 
 ## Q: When should the retry mechanism be used?
 
@@ -413,7 +338,6 @@ await collection('data').insertBatch(data, {
 - ❌ Data error (retry will not succeed)
 - ❌ Permission problem (retry will not succeed)
 
-
 ## Q: Will concurrency lead to data inconsistency?
 
 **A**: No. `insertBatch` ensures:
@@ -421,7 +345,6 @@ await collection('data').insertBatch(data, {
 - `insertedIds` is mapped in original order
 - Error handling is associated with batches
 - Cache automatically expires
-
 
 ## Q: How to deal with partial failure?
 

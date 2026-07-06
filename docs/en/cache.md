@@ -1,91 +1,16 @@
-# Cache policy document
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Core Features](#core-features)
-- [Cache configuration](#cache-configuration)
-- [Global cache configuration](#global-cache-configuration)
-- [Query-level cache configuration](#query-level-cache-configuration)
-- [Cache key generation](#cache-key-generation)
-- [TTL (time to live) expiration](#ttl-time-to-live-expiration)
-- [Automatically expire](#automatically-expire)
-- [TTL Best Practices](#ttl-best-practices)
-- [LRU (least recently used) elimination](#lru-least-recently-used-elimination)
-- [Elimination mechanism](#elimination-mechanism)
-- [LRU access sequence](#lru-access-sequence)
-- [Multi-layer caching](#multi-layer-caching)
-- [1. Local + remote cache architecture (MultiLevelCache)](#1-local-remote-cache-architecture-multilevelcache)
-  - [CacheLike interface specification](#cachelike-interface-specification)
-  - [Caching strategy](#caching-strategy)
-  - [Configuration example](#configuration-example)
-    - [Method 1: Only use remote Redis cache (no local cache)](#method-1-only-use-remote-redis-cache-no-local-cache)
-    - [Method 2: Local + remote double-layer cache (recommended for high-performance scenarios)](#method-2-local-remote-double-layer-cache-recommended-for-high-performance-scenarios)
-    - [Method 3: Use an already created Redis instance](#method-3-use-an-already-created-redis-instance)
-    - [Method 4: Manually encapsulate Redis (suitable for custom requirements)](#method-4-manually-encapsulate-redis-suitable-for-custom-requirements)
-  - [Policy configuration](#policy-configuration)
-  - [Performance comparison](#performance-comparison)
-  - [Best Practices](#best-practices)
-- [2. Query results + Bookmark double-layer caching](#2-query-results-bookmark-double-layer-caching)
-- [Bookmark paging cache](#bookmark-paging-cache)
-- [Cache invalidation mechanism](#cache-invalidation-mechanism)
-- [🆕 Accurate failure (v1.1.6+)](#accurate-failure-v116)
-  - [Configuration method](#configuration-method)
-  - [Precise failure example](#precise-failure-example)
-  - [Supported query conditions](#supported-query-conditions)
-  - [ObjectId field support](#objectid-field-support)
-- [Manual cleanup](#manual-cleanup)
-- [Statistical monitoring](#statistical-monitoring)
-- [Get cache statistics](#get-cache-statistics)
-- [Description of statistical indicators](#description-of-statistical-indicators)
-- [Monitoring and Alarming](#monitoring-and-alarming)
-- [Performance Benchmark](#performance-benchmark)
-- [Cache acceleration effect](#cache-acceleration-effect)
-  - [find query cache](#find-query-cache)
-  - [findPage query cache](#findpage-query-cache)
-  - [distinct query cache](#distinct-query-cache)
-- [Best Practices (Cache Policy Document)](#best-practices-cache-policy-document)
-- [1. Select TTL based on data characteristics](#1-select-ttl-based-on-data-characteristics)
-- [2. Set maxEntries appropriately](#2-set-maxentries-appropriately)
-- [3. Monitor cache health](#3-monitor-cache-health)
-- [4. Batch warm cache](#4-batch-warm-cache)
-- [5. Cache penetration protection](#5-cache-penetration-protection)
-- [FAQ](#faq)
-- [Q: How much memory will the cache occupy?](#q-how-much-memory-will-the-cache-occupy)
-- [Q: How to choose the appropriate maxEntries?](#q-how-to-choose-the-appropriate-maxentries)
-- [Q: How to manually clear the cache?](#q-how-to-manually-clear-the-cache)
-- [Q: How to disable cache?](#q-how-to-disable-cache)
-- [Q: What is the difference between cache and Bookmark?](#q-what-is-the-difference-between-cache-and-bookmark)
-- [Cache invalidation API](#cache-invalidation-api)
-- [invalidate()](#invalidate)
-  - [Method signature](#method-signature)
-  - [Parameter description](#parameter-description)
-  - [Return value](#return-value)
-- [Usage scenarios](#usage-scenarios)
-  - [1. Refresh cache after external tool modifies data](#1-refresh-cache-after-external-tool-modifies-data)
-  - [2. Refresh the cache regularly](#2-refresh-the-cache-regularly)
-  - [3. Multi-collection cache clearing](#3-multi-collection-cache-clearing)
-- [Instructions for use](#instructions-for-use)
-- [Best Practices (Cache Invalidation API)](#best-practices-cache-invalidation-api)
-  - [1. Avoid overuse](#1-avoid-overuse)
-  - [2. Combined with cache monitoring](#2-combined-with-cache-monitoring)
-  - [3. Use parallelism when cleaning in batches](#3-use-parallelism-when-cleaning-in-batches)
-  - [4. Error handling of scheduled refresh](#4-error-handling-of-scheduled-refresh)
-- [Notes](#notes)
-- [Related methods](#related-methods)
-- [References](#references)
+# Cache API
 
 ## Overview
 
-monSQLize provides a powerful built-in caching system that supports TTL (time to live), LRU (least recently used) eviction strategy, multi-layer caching, cache invalidation mechanism and statistical monitoring. This document details the configuration and use of cache.
+monSQLize provides database query caching for collection reads, optional local/remote cache composition, manual invalidation and statistics. Cache invalidation is designed to keep read caches fresh enough for common application workloads, but it is not an atomic commit step with MongoDB writes.
 
-> ⚠️ If you are concerned about the upgrade and migration of public cache classes/functions (`MemoryCache`, `createRedisCacheAdapter()`, `DistributedCacheInvalidator`, `withCache()`, `FunctionCache`), please read the [`cache-hub` direct-call migration guide](./cache-hub-migration.md) first. This page mainly covers monSQLize's query cache and multi-layer cache access methods.
+> ⚠️ If you are migrating public cache compatibility exports, read the [`cache-hub` direct-call migration guide](./cache-hub-migration.md) first. This page covers monSQLize database query cache and multi-layer cache access; `withCache()` / `FunctionCache` are legacy compatibility exports and are outside the current non-database cache path.
 
 ## Core Features
 
 - ✅ **TTL Expiration**: Automatically eliminate expired data
 - ✅ **LRU eviction**: evict the least used entries when the cache is full
-- ✅ **Multi-layer cache architecture**: local cache (LRU-Cache) + remote cache (Redis/Memcached)
+- ✅ **Multi-layer cache architecture**: local cache plus an optional remote `CacheLike`, commonly Redis
 - ✅ **Double-layer caching mechanism**: Query result caching + Bookmark paging caching
 - ✅ **Manual invalidation**: Clean the cache of the specified collection through the `invalidate()` method
 - ✅ **Statistics monitoring**: hit rate, elimination statistics, memory usage
@@ -162,17 +87,18 @@ const staticConfig = await collection('config').findOne(
 
 ## Cache key generation
 
-The cache key consists of the following parts:
-- database name
-- collection name
-- Query conditions (stringify)
-- Projection (stringify)
-- Sort (stringify)
-- limit/skip
+Cache keys include the database and collection namespace, the operation name, the normalized query or pipeline, and the driver options that affect the returned result.
+
+The runtime uses a BSON-aware stable fingerprint for cache key values:
+
+- `ObjectId` is represented as `{ $oid }`.
+- `Date` is represented as `{ $date }`.
+- `RegExp` is represented as `{ $regex, $flags }`.
+- Control-only options such as `cache`, `meta`, `explain` and `stream` do not create a separate cached data entry.
 
 ```javascript
-//Example: cache key generation
-const key = `${dbName}:${collName}:${hash(query)}:${hash(projection)}:${hash(sort)}:${limit}:${skip}`;
+// Conceptual shape, not a public API:
+const key = `${operation}:${namespace}:${stableQueryFingerprint}:${stableOptionsFingerprint}`;
 ```
 
 **Different parameters for the same query will generate different cache keys**:
@@ -821,88 +747,23 @@ const page100 = await collection('products').findPage({
 
 ---
 
-## Cache invalidation mechanism
+## Cache invalidation behavior
 
+When a write goes through monSQLize, the runtime marks the collection read-cache namespace as dirty before the write, clears matching read-cache patterns, then clears the dirty marker after the write path finishes. While the dirty marker exists, reads bypass cache and avoid refilling stale data.
 
-## 🆕 Accurate failure (v1.1.6+)
+This is a best-effort cache consistency model:
 
-**Precise Invalidation** Only clears the actual affected cache, not the entire set of caches.
+- MongoDB writes are not rolled back if cache invalidation or distributed publish fails after the write.
+- Transactional writes record invalidation patterns and flush them only after a successful commit.
+- Cross-instance invalidation requires `cache.distributed` with Redis Pub/Sub and remains eventual, not exactly atomic with the database commit.
+- `invalidate()` is still useful when data is changed outside monSQLize or when an application-owned cache must be refreshed manually.
 
-
-### Configuration method
-
-**Method 1: Instance-level global configuration** (recommended)
-
-Precise invalidation is enabled by default for all write operations:
-
-```javascript
-import MonSQLize from 'monsqlize';
-
-const msq = new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'shop',
-  config: { uri: 'mongodb://localhost:27017' },
-  cache: {
-    maxEntries: 100000,
-    autoInvalidate: true  //🆕 Enable precise invalidation globally (default false)
-  }
-});
-
-//After connection, all write operations automatically enable precise invalidation
-const { collection } = await msq.connect();
-
-//✅ Automatic and precise invalidation (using instance configuration)
-await collection('products').insertOne({
-  name: 'New Product',
-  category: 'electronics'
-});
-
-//✅ Automatic and precise invalidation (using instance configuration)
-await collection('products').updateOne(
-  { _id: productId },
-  { $set: { price: 99 } }
-);
-```
-
-**Method 2: Write operation level configuration** (override instance configuration)
-
-A single operation controls whether precise invalidation is enabled:
-
-```javascript
-//Instance configuration autoInvalidate = false
-const msq = new MonSQLize({
-  cache: { maxEntries: 100000 }  //Does not automatically expire by default
-});
-
-const { collection } = await msq.connect();
-
-//✅ Enable precise invalidation in a single operation (override instance configuration)
-await collection('products').insertOne(
-  { name: 'New Product', category: 'electronics' },
-  { autoInvalidate: true }  //Single activation
-);
-
-//❌ Use instance configuration (not invalid)
-await collection('products').updateOne(
-  { _id: productId },
-  { $set: { price: 99 } }
-);
-```
-
-**Configuration Priority**: Write Operation Configuration > Instance Configuration
-
-**⚠️ IMPORTANT NOTE**:
-- `autoInvalidate` option **for write operations only** (insert/update/delete)
-- Query operation (find/findOne) **not supported** `autoInvalidate` option
-- The query only needs to specify the cache time using the `cache` option
-
-
-### Precise failure example
+### Write invalidation example
 
 ```javascript
 const { collection } = await msq.connect();
 
-//1. Query and cache (two different queries)
+// 1. Query and cache data
 await collection('products').find(
   { category: 'electronics' },
   { cache: 60000 }
@@ -913,65 +774,18 @@ await collection('products').find(
   { cache: 60000 }
 );
 
-//2. Insert new products (only affects electronics cache)
-await collection('products').insertOne(
-  { name: 'New Phone', category: 'electronics', price: 999 },
-  { autoInvalidate: true }
+// 2. Writes through monSQLize invalidate read-cache entries for this collection.
+await collection('products').insertOne({
+  name: 'New Phone',
+  category: 'electronics',
+  price: 999
+});
+
+// 3. The next cached read refills from MongoDB.
+await collection('products').find(
+  { category: 'electronics' },
+  { cache: 60000 }
 );
-
-//✅ Exact failure: only clear cache matching { category: 'electronics' }
-//✅ Reserved: { category: 'books' } cache is not affected
-```
-
-
-### Supported query conditions
-
-Precise failure supports simple query conditions:
-
-✅ **Supported Operators**:
-- Equality match: `{ status: 'active' }`
-- `$eq`: `{ status: { $eq: 'active' } }`
-- `$ne`: `{ status: { $ne: 'deleted' } }`
-- `$gt`, `$gte`, `$lt`, `$lte`: `{ price: { $gte: 100 } }`
-- `$in`: `{ category: { $in: ['a', 'b'] } }`
-- `$nin`: `{ status: { $nin: ['deleted'] } }`
-
-❌ **Unsupported operators** (automatically skipped, expires by TTL):
-- `$regex`, `$exists`, `$type`
-- `$elemMatch`, `$size`, `$all`
-- `$where`
-
-
-### ObjectId field support
-
-Precise invalidation fully supports the ObjectId field (including `_id`):
-
-```javascript
-//✅ Use string _id (auto-normalization)
-await collection('users').find(
-  { _id: "507f1f77bcf86cd799439011" },
-  { cache: 5000 }
-);
-
-await collection('users').updateOne(
-  { _id: "507f1f77bcf86cd799439011" },
-  { $set: { name: 'Updated' } },
-  { autoInvalidate: true }
-);
-//✅ Accurate failure successful
-
-//✅Related query
-await collection('orders').find(
-  { userId: userId.toString() },
-  { cache: 5000 }
-);
-
-await collection('orders').updateMany(
-  { userId: userId.toString() },
-  { $set: { status: 'shipped' } },
-  { autoInvalidate: true }
-);
-//✅ Accurate failure successful
 ```
 
 
@@ -1377,7 +1191,7 @@ for (const name of collections) {
 
 **Note**:
 - After using external tools to modify data, you still need to manually call `invalidate()` to clear the cache
-- For write operations initiated through monSQLize, automatic invalidation can be used in conjunction with `autoInvalidate`
+- Write operations initiated through monSQLize already run the read-cache invalidation path.
 - If your caching strategy is cross-process/cross-node, it is recommended to combine it with distributed invalidation broadcast.
 
 

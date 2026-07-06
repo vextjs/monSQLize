@@ -2,55 +2,6 @@
 
 Create a single index, supporting all MongoDB indexing options.
 
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-  - [keys (required)](#keys-required)
-  - [options (optional)](#options-optional)
-- [Return value](#return-value)
-- [Detailed explanation of index options](#detailed-explanation-of-index-options)
-- [unique - unique index](#unique-unique-index)
-- [sparse - sparse index](#sparse-sparse-index)
-- [expireAfterSeconds - TTL index](#expireafterseconds-ttl-index)
-- [partialFilterExpression - partial index](#partialfilterexpression-partial-index)
-- [collation - collation](#collation-collation)
-- [hidden - hidden index](#hidden-hidden-index)
-- [wildcardProjection - wildcard projection](#wildcardprojection-wildcard-projection)
-- [weights - text index weights](#weights-text-index-weights)
-- [Code Example](#code-example)
-- [Example 1: Create a basic index](#example-1-create-a-basic-index)
-- [Example 2: Create a unique index](#example-2-create-a-unique-index)
-- [Example 3: Creating a composite index](#example-3-creating-a-composite-index)
-- [Example 4: Create a TTL index](#example-4-create-a-ttl-index)
-- [Example 5: Create partial index](#example-5-create-partial-index)
-- [Example 6: Create a sparse index](#example-6-create-a-sparse-index)
-- [Example 7: Creating a text index](#example-7-creating-a-text-index)
-- [Example 8: Creating a hidden index](#example-8-creating-a-hidden-index)
-- [Example 9: Creating a wildcard index](#example-9-creating-a-wildcard-index)
-- [Example 10: Error handling](#example-10-error-handling)
-- [Error handling](#error-handling)
-- [Common mistakes](#common-mistakes)
-  - [1. The index already exists](#1-the-index-already-exists)
-  - [2. The index key is invalid](#2-the-index-key-is-invalid)
-  - [3. Unique index conflict](#3-unique-index-conflict)
-  - [4. Unsupported index type](#4-unsupported-index-type)
-- [Performance recommendations](#performance-recommendations)
-- [When to create an index](#when-to-create-an-index)
-- [Index overhead](#index-overhead)
-- [ESR Principles](#esr-principles)
-- [Best Practices](#best-practices)
-- [1. Index naming convention](#1-index-naming-convention)
-- [2. Index order is important](#2-index-order-is-important)
-- [3. Avoid excessive indexing](#3-avoid-excessive-indexing)
-- [4. Index coverage query](#4-index-coverage-query)
-- [5. Precautions for production environment](#5-precautions-for-production-environment)
-- [Related methods](#related-methods)
-- [Reference resources](#reference-resources)
-
 ## Overview
 
 The `createIndex()` method is used to create a single index on a collection. Indexes can significantly improve query performance and support a variety of types and options.

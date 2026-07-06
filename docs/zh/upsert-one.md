@@ -1,20 +1,5 @@
 # upsertOne() - 存在则更新，不存在则插入
 
-## 📑 目录
-
-- [方法概述](#方法概述)
-- [方法签名](#方法签名)
-- [基础示例](#基础示例)
-- [真实场景示例](#真实场景示例)
-- [选项参数](#选项参数)
-- [与其他方法对比](#与其他方法对比)
-- [错误处理](#错误处理)
-- [最佳实践](#最佳实践)
-- [性能说明](#性能说明)
-- [常见问题](#常见问题)
-- [另请参阅](#另请参阅)
-
----
 
 ## 方法概述
 
@@ -638,4 +623,3 @@ try {
 - [insertOne()](./insert-one.md) - 插入单个文档
 - [findOneAndUpdate()](./find-one-and-update.md) - 查找并更新（返回文档）
 - [MongoDB 官方文档：upsert](https://www.mongodb.com/docs/manual/reference/method/db.collection.updateOne/#upsert-option)
-

@@ -1,33 +1,12 @@
-﻿# 业务级分布式锁
+# 业务级分布式锁
 
-> **弃用兼容页**：monSQLize 仍保留 `withLock()`、`acquireLock()`、`tryAcquireLock()` 以兼容老调用方，但业务锁不再作为 monSQLize 推荐能力。新的支付、订单等临界区请优先放到应用/框架层（例如 VextJS runtime）处理。本页已从主文档导航隐藏。
-
-> **版本**: v1.0.1  
-> **状态**: 兼容保留
-> **依赖**: Redis (ioredis)
-
----
-
-## 📑 目录
-
-1. [概述](#概述)
-2. [兼容用法示例](#兼容用法示例)
-3. [API 参考](#api-参考)
-4. [配置选项](#配置选项)
-5. [使用场景](#使用场景)
-6. [与事务配合](#与事务配合)
-7. [错误处理](#错误处理)
-8. [最佳实践](#最佳实践)
-9. [常见问题](#常见问题)
-10. [与专业锁库的对比](#与专业锁库的对比)
-
----
+> **弃用兼容页**：monSQLize 仍保留 `withLock()`、`acquireLock()`、`tryAcquireLock()` 以兼容老调用方，但业务锁不再作为 monSQLize 推荐能力。新的支付、订单等临界区请优先放到应用/框架层（例如 VextJS runtime）处理。
 
 ## 概述
 
-monSQLize v1.0.1 曾引入业务锁 API，用于兼容历史调用方。当前 v2 runtime 中，这些 API 是兼容辅助能力，不是新的跨进程临界区推荐边界。
+monSQLize 保留业务锁 API 以兼容历史调用方。这些 API 是兼容辅助能力，不是新的跨进程临界区推荐边界。
 
-> **当前运行时边界**：当前 v2 runtime 的便捷 API `msq.withLock()`、`msq.acquireLock()`、`msq.tryAcquireLock()` 使用内置的进程内 `LockManager`。它只能协调同一个 Node.js 进程内的调用，默认不提供跨 worker / 跨实例互斥。进程内锁也不会在 callback 执行期间自动续租；如果 callback 执行时间超过 `ttl`，锁可能在 callback 返回前过期。Egg.js 多 worker、支付流程、订单去重等跨进程临界区，请显式接入并验证 Redis-backed `DistributedCacheLockManager` 路径，并在业务层配合幂等或 fencing。
+> **当前运行时边界**：当前 runtime 的便捷 API `msq.withLock()`、`msq.acquireLock()`、`msq.tryAcquireLock()` 使用内置的进程内 `LockManager`。它只能协调同一个 Node.js 进程内的调用，默认不提供跨 worker / 跨实例互斥。进程内锁也不会在 callback 执行期间自动续租；如果 callback 执行时间超过 `ttl`，锁可能在 callback 返回前过期。Egg.js 多 worker、支付流程、订单去重等跨进程临界区，请显式接入并验证 Redis-backed `DistributedCacheLockManager` 路径，并在业务层配合幂等或 fencing。
 
 ### 兼容范围
 
@@ -553,7 +532,7 @@ setInterval(() => {
 
 ### Q1: 业务锁 vs 事务锁有什么区别？
 
-| 对比项 | 事务锁（原有） | 业务锁（v1.0.1） |
+| 对比项 | 事务锁 | 业务锁兼容 API |
 |--------|--------------|----------------|
 | **用途** | 保护缓存一致性 | 保护业务逻辑 |
 | **生命周期** | 事务期间 | 用户定义 |
@@ -641,4 +620,3 @@ try {
 - [方案文档]
 - [示例代码](https://github.com/vextjs/monSQLize/blob/main/examples/docs/lock.ts)
 - [单元测试](../../test/unit/lock/lock.test.ts)
-

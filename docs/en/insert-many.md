@@ -1,47 +1,5 @@
 # insertMany() - insert documents in batches
 
-## Table of Contents
-
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [documents (required)](#documents-required)
-- [options (optional)](#options-optional)
-- [Return value](#return-value)
-- [Core Features](#core-features)
-- [✅ High-performance batch insertion (10-50x performance improvement)](#high-performance-batch-insertion-10-50x-performance-improvement)
-- [✅ Ordered vs Unordered Insertion](#ordered-vs-unordered-insertion)
-- [✅ Automatic cache invalidation](#automatic-cache-invalidation)
-- [✅ Slow query monitoring](#slow-query-monitoring)
-- [Common scenarios](#common-scenarios)
-- [Scenario 1: Create users in batches](#scenario-1-create-users-in-batches)
-- [Scenario 2: Import CSV/JSON data](#scenario-2-import-csv-json-data)
-- [Scenario 3: Batch insert logs](#scenario-3-batch-insert-logs)
-- [Scenario 4: Out-of-order insertion (maximum fault tolerance)](#scenario-4-out-of-order-insertion-maximum-fault-tolerance)
-- [Scenario 5: A large amount of data is inserted in batches](#scenario-5-a-large-amount-of-data-is-inserted-in-batches)
-- [Error handling](#error-handling)
-- [Duplicate key error (ordered insertion)](#duplicate-key-error-ordered-insertion)
-- [Duplicate key error (unordered insertion)](#duplicate-key-error-unordered-insertion)
-- [Invalid document array](#invalid-document-array)
-- [Empty array](#empty-array)
-- [Differences from other methods](#differences-from-other-methods)
-- [vs insertOne](#vs-insertone)
-- [vs insertBatch](#vs-insertbatch)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [1. Choose the appropriate batch size](#1-choose-the-appropriate-batch-size)
-- [2. Use unordered insertion to improve fault tolerance](#2-use-unordered-insertion-to-improve-fault-tolerance)
-- [3. Avoid overly large documents](#3-avoid-overly-large-documents)
-- [4. Insert a large amount of data after using the index](#4-insert-a-large-amount-of-data-after-using-the-index)
-- [Utility functions](#utility-functions)
-- [Insert function in batches](#insert-function-in-batches)
-- [CSV import function](#csv-import-function)
-- [Notes](#notes)
-- [⚠️ Memory limit](#memory-limit)
-- [⚠️ Ordered vs Unordered Choice](#ordered-vs-unordered-choice)
-- [⚠️ Transactionality of batch operations](#transactionality-of-batch-operations)
-- [Related methods](#related-methods)
-- [Sample code](#sample-code)
-- [MongoDB Documentation](#mongodb-documentation)
-
 ## Syntax
 
 ```javascript
@@ -49,7 +7,6 @@ collection(name).insertMany(documents, options?)
 ```
 
 ## Parameters
-
 
 ## documents (required)
 
@@ -64,7 +21,6 @@ await collection("users").insertMany([
   { name: "Charlie", email: "charlie@example.com" }
 ]);
 ```
-
 
 ## options (optional)
 
@@ -97,7 +53,6 @@ Return an object containing the results of the insertion:
 
 ## Core Features
 
-
 ## ✅ High-performance batch insertion (10-50x performance improvement)
 
 Compared with the loop call `insertOne()`, `insertMany()` has significant performance advantages:
@@ -120,7 +75,6 @@ await collection("users").insertMany(users);
 | 100 | 500ms | 20ms | **25x** |
 | 1,000 | 5,000ms | 100ms | **50x** |
 | 10,000 | 50,000ms | 500ms | **100x** |
-
 
 ## ✅ Ordered vs Unordered Insertion
 
@@ -158,7 +112,6 @@ try {
 }
 ```
 
-
 ## ✅ Automatic cache invalidation
 
 After the insertion is successful, monSQLize will automatically clear the cache related to the collection.
@@ -179,7 +132,6 @@ const updatedUsers = await collection("users").find({}, { cache: 5000 });
 console.log(updatedUsers.length); // 12
 ```
 
-
 ## ✅ Slow query monitoring
 
 Insert operations that exceed a threshold (default 1000ms) automatically log warnings.
@@ -191,7 +143,6 @@ await collection("products").insertMany(largeProductArray);
 ```
 
 ## Common scenarios
-
 
 ## Scenario 1: Create users in batches
 
@@ -207,7 +158,6 @@ console.log(`Successfully created ${result.insertedCount} users`);
 console.log("User IDs:", result.insertedIds);
 ```
 
-
 ## Scenario 2: Import CSV/JSON data
 
 ```javascript
@@ -221,7 +171,6 @@ const result = await collection("products").insertMany(data);
 console.log(`${result.insertedCount} products imported`);
 ```
 
-
 ## Scenario 3: Batch insert logs
 
 ```javascript
@@ -233,7 +182,6 @@ const logs = [
 
 await collection("logs").insertMany(logs);
 ```
-
 
 ## Scenario 4: Out-of-order insertion (maximum fault tolerance)
 
@@ -257,7 +205,6 @@ try {
   console.log(`Actual insertion of ${error.result.insertedCount} documents`);
 }
 ```
-
 
 ## Scenario 5: A large amount of data is inserted in batches
 
@@ -286,7 +233,6 @@ console.log(`${totalInserted} documents inserted in total`);
 
 ## Error handling
 
-
 ## Duplicate key error (ordered insertion)
 
 ```javascript
@@ -303,7 +249,6 @@ try {
   }
 }
 ```
-
 
 ## Duplicate key error (unordered insertion)
 
@@ -325,7 +270,6 @@ try {
 }
 ```
 
-
 ## Invalid document array
 
 ```javascript
@@ -337,7 +281,6 @@ try {
   console.error(error.message); // "documents must be of array type"
 }
 ```
-
 
 ## Empty array
 
@@ -351,7 +294,6 @@ try {
 ```
 
 ## Differences from other methods
-
 
 ## vs insertOne
 
@@ -376,7 +318,6 @@ const result = await collection("users").insertMany(users);
 const ids = Object.values(result.insertedIds);
 ```
 
-
 ## vs insertBatch
 
 | Features | insertMany | insertBatch |
@@ -398,7 +339,6 @@ await collection("users").insertBatch(users, {
 
 ## Performance optimization suggestions
 
-
 ## 1. Choose the appropriate batch size
 
 ```javascript
@@ -416,7 +356,6 @@ for (let i = 0; i < users.length; i += BATCH_SIZE) {
 }
 ```
 
-
 ## 2. Use unordered insertion to improve fault tolerance
 
 ```javascript
@@ -425,7 +364,6 @@ await collection("products").insertMany(products, {
   ordered: false  //Insert as much data as possible
 });
 ```
-
 
 ## 3. Avoid overly large documents
 
@@ -444,7 +382,6 @@ const compactDocuments = users.map(user => ({
 }));
 ```
 
-
 ## 4. Insert a large amount of data after using the index
 
 ```javascript
@@ -460,7 +397,6 @@ await collection("users").insertMany(millionUsers);
 ```
 
 ## Utility functions
-
 
 ## Insert function in batches
 
@@ -532,7 +468,6 @@ const result = await batchInsert("products", allProducts, {
 console.log(`Insertion completed: success ${result.inserted}, failure ${result.failed}`);
 ```
 
-
 ## CSV import function
 
 ```javascript
@@ -577,7 +512,6 @@ const result = await importFromCSV("users", "./data/users.csv", {
 
 ## Notes
 
-
 ## ⚠️ Memory limit
 
 Large arrays take up a lot of memory:
@@ -590,7 +524,6 @@ await collection("users").insertMany(millionUsers);
 //Security: batch processing
 await batchInsert("users", millionUsers, { batchSize: 5000 });
 ```
-
 
 ## ⚠️ Ordered vs Unordered Choice
 
@@ -605,7 +538,6 @@ await collection("import_logs").insertMany(logs, {
   ordered: false  //Insert as many as possible
 });
 ```
-
 
 ## ⚠️ Transactionality of batch operations
 

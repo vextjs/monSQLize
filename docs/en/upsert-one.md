@@ -1,86 +1,5 @@
 # upsertOne() - update if it exists, insert if it does not exist
 
-## Table of Contents
-
-- [Method overview](#method-overview)
-- [Why is upsertOne needed?](#why-is-upsertone-needed)
-- [Core Advantages](#core-advantages)
-- [Method signature](#method-signature)
-- [Parameter description](#parameter-description)
-- [Return value description](#return-value-description)
-- [Basic example](#basic-example)
-- [Example 1: Insert new document (document does not exist)](#example-1-insert-new-document-document-does-not-exist)
-- [Example 2: Update an existing document](#example-2-update-an-existing-document)
-- [Example 3: Using the update operator](#example-3-using-the-update-operator)
-- [Real scene example](#real-scene-example)
-- [Scenario 1: Configuration item synchronization](#scenario-1-configuration-item-synchronization)
-- [Scenario 2: User profile update (make sure the record exists)](#scenario-2-user-profile-update-make-sure-the-record-exists)
-- [Scenario 3: Counter initialization](#scenario-3-counter-initialization)
-- [Scenario 4: Idempotent operation](#scenario-4-idempotent-operation)
-- [Scenario 5: Session state management](#scenario-5-session-state-management)
-- [Option parameters](#option-parameters)
-- [maxTimeMS - Operation timeout](#maxtimems-operation-timeout)
-- [comment - Query comments](#comment-query-comments)
-- [Compare with other methods](#compare-with-other-methods)
-- [vs updateOne({ upsert: true })](#vs-updateone-upsert-true)
-- [vs insertOne / updateOne (called separately)](#vs-insertone-updateone-called-separately)
-- [Error handling](#error-handling)
-- [Error type](#error-type)
-- [Error handling example](#error-handling-example)
-- [Best Practices](#best-practices)
-- [✅ Recommended practices](#recommended-practices)
-- [❌ Things to avoid](#things-to-avoid)
-- [Performance Notes](#performance-notes)
-- [Performance characteristics](#performance-characteristics)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [FAQ](#faq)
-- [Q1: What is the difference between upsertOne and updateOne?](#q1-what-is-the-difference-between-upsertone-and-updateone)
-- [Q2: How to determine whether to insert or update?](#q2-how-to-determine-whether-to-insert-or-update)
-- [Q3: Can I use the update operator?](#q3-can-i-use-the-update-operator)
-- [Q4: Are concurrent calls safe?](#q4-are-concurrent-calls-safe)
-- [Q5: How is the performance?](#q5-how-is-the-performance)
-- [Q6: Does it support caching?](#q6-does-it-support-caching)
-- [Q7: How to deal with unique key conflicts?](#q7-how-to-deal-with-unique-key-conflicts)
-- [See also](#see-also)
-
-## Method overview
-
-`upsertOne` is a convenience method used to implement the logic of "update if it exists, insert if it does not exist", simplifying the use of `updateOne({ upsert: true })`.
-
-
-## Why is upsertOne needed?
-
-**Traditional way** (using `updateOne`):
-```javascript
-//❌ Need to remember the upsert option and must use $set
-const result = await collection('users').updateOne(
-  { userId: 'user123' },
-  { $set: { name: 'Alice', email: 'alice@example.com' } },
-  { upsert: true }  //easy to forget
-);
-```
-
-**Use upsertOne**:
-```javascript
-//✅ Clear semantics, automatically enable upsert, no $set required
-const result = await collection('users').upsertOne(
-  { userId: 'user123' },
-  { name: 'Alice', email: 'alice@example.com' }
-);
-```
-
-
-## Core Advantages
-
-| Advantages | Description |
-|------|------|
-| **Clear semantics** | The method name clearly expresses the intention of "update if it exists, insert if it does not exist" |
-| **Automatic $set** | No need to manually wrap `$set` (but operator is still supported) |
-| **Simplified Code** | 67% reduction in boilerplate code |
-| **REDUCED ERRORS** | No need to remember the `upsert: true` option |
-
----
-
 ## Method signature
 
 ```typescript
@@ -102,7 +21,6 @@ interface UpsertOneResult {
 }
 ```
 
-
 ## Parameter description
 
 | Parameters | Type | Required | Description |
@@ -112,7 +30,6 @@ interface UpsertOneResult {
 | `options` | Object | ❌ | Operation Options |
 | `options.maxTimeMS` | number | ❌ | Operation timeout (milliseconds) |
 | `options.comment` | string | ❌ | Query comments (for log tracking) |
-
 
 ## Return value description
 
@@ -127,7 +44,6 @@ interface UpsertOneResult {
 ---
 
 ## Basic example
-
 
 ## Example 1: Insert new document (document does not exist)
 
@@ -146,7 +62,6 @@ console.log(result);
 //upsertedCount: 1 // 1 document inserted
 // }
 ```
-
 
 ## Example 2: Update an existing document
 
@@ -172,7 +87,6 @@ console.log(result);
 //upsertedCount: 0 // not inserted
 // }
 ```
-
 
 ## Example 3: Using the update operator
 
@@ -203,7 +117,6 @@ const result2 = await collection('users').updateOne(
 
 ## Real scene example
 
-
 ## Scenario 1: Configuration item synchronization
 
 If it exists, update it; if it does not exist, create the configuration item.
@@ -232,7 +145,6 @@ async function syncThemeConfig(userId, theme) {
 await syncThemeConfig('user123', 'dark');  //Create
 await syncThemeConfig('user123', 'light'); //update
 ```
-
 
 ## Scenario 2: User profile update (make sure the record exists)
 
@@ -271,7 +183,6 @@ await updateUserProfile({
 });
 ```
 
-
 ## Scenario 3: Counter initialization
 
 If it exists, it will be incremented, if it does not exist, it will be initialized.
@@ -299,7 +210,6 @@ await incrementViewCount('article-1');  //Initialization: views = 1
 await incrementViewCount('article-1');  //Increment: views = 2
 await incrementViewCount('article-1');  //Increment: views = 3
 ```
-
 
 ## Scenario 4: Idempotent operation
 
@@ -336,7 +246,6 @@ await submitOrder('order-123', { amount: 100, userId: 'user1' });  //Create
 await submitOrder('order-123', { amount: 100, userId: 'user1' });  //skip
 ```
 
-
 ## Scenario 5: Session state management
 
 If it exists, refresh it; if it does not exist, create a session.
@@ -364,7 +273,6 @@ await updateSession('session-abc', 'user123');
 
 ## Option parameters
 
-
 ## maxTimeMS - Operation timeout
 
 ```javascript
@@ -374,7 +282,6 @@ const result = await collection('users').upsertOne(
   { maxTimeMS: 5000 }  //up to 5 seconds
 );
 ```
-
 
 ## comment - Query comments
 
@@ -394,7 +301,6 @@ const result = await collection('users').upsertOne(
 ---
 
 ## Compare with other methods
-
 
 ## vs updateOne({ upsert: true })
 
@@ -422,7 +328,6 @@ await collection('users').updateOne(
   { upsert: true }
 );
 ```
-
 
 ## vs insertOne / updateOne (called separately)
 
@@ -462,7 +367,6 @@ if (existing) {
 
 ## Error handling
 
-
 ## Error type
 
 | Error type | Error code | Trigger condition |
@@ -470,7 +374,6 @@ if (existing) {
 | **Parameter error** | `INVALID_ARGUMENT` | Invalid filter or update |
 | **Unique key conflict** | `DUPLICATE_KEY` | Unique index constraint violation |
 | **Timeout Error** | `QUERY_TIMEOUT` | Exceeded maxTimeMS |
-
 
 ## Error handling example
 
@@ -500,7 +403,6 @@ try {
 ---
 
 ## Best Practices
-
 
 ## ✅ Recommended practices
 
@@ -541,7 +443,6 @@ try {
    }
    ```
 
-
 ## ❌ Things to avoid
 
 1. **Avoid using non-unique filters**
@@ -567,7 +468,6 @@ try {
 
 ## Performance Notes
 
-
 ## Performance characteristics
 
 | Dimensions | Performance | Description |
@@ -575,7 +475,6 @@ try {
 | **Operation time** | 10-50ms | Single atomic operation |
 | **Index dependency** | High | The filter field should be indexed |
 | **Concurrency Safety** | ✅ Security | MongoDB Atomic Operations |
-
 
 ## Performance optimization suggestions
 
@@ -611,14 +510,12 @@ try {
 
 ## FAQ
 
-
 ## Q1: What is the difference between upsertOne and updateOne?
 
 **A**: `upsertOne` is a convenience method for `updateOne({ upsert: true })`:
 - ✅ Clearer semantics (method names clearly express intent)
 - ✅ Automatic packaging `$set` (no need to add manually)
 - ✅ Reduce the amount of code (no need to remember `upsert: true`)
-
 
 ## Q2: How to determine whether to insert or update?
 
@@ -632,7 +529,6 @@ if (result.upsertedCount > 0) {
   console.log('Updated existing documentation');
 }
 ```
-
 
 ## Q3: Can I use the update operator?
 
@@ -648,13 +544,11 @@ await collection('users').upsertOne(
 );
 ```
 
-
 ## Q4: Are concurrent calls safe?
 
 **A**: ✅ SAFE! `upsertOne` is an atomic operation in MongoDB and will not cause repeated insertions even if called concurrently. But it is recommended:
 - Create a unique index for the filter field
 - Use unique identifier as filter
-
 
 ## Q5: How is the performance?
 
@@ -664,11 +558,9 @@ await collection('users').upsertOne(
 
 **Optimization suggestion**: Create an index for the filter field.
 
-
 ## Q6: Does it support caching?
 
 **A**: ✅ Support! After the operation is successful, the relevant cache will be automatically invalidated.
-
 
 ## Q7: How to deal with unique key conflicts?
 
@@ -694,4 +586,3 @@ try {
 - [insertOne()](./insert-one.md) - Insert a single document
 - [findOneAndUpdate()](./find-one-and-update.md) - Find and update (return document)
 - [MongoDB official documentation: upsert](https://www.mongodb.com/docs/manual/reference/method/db.collection.updateOne/#upsert-option)
-

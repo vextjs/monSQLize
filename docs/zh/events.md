@@ -1,18 +1,4 @@
-# 事件系统文档
-
-## 📑 目录
-
-- [概述](#概述)
-- [核心特性](#核心特性)
-- [事件类型](#事件类型)
-- [事件监听方法](#事件监听方法)
-- [使用场景](#使用场景)
-- [最佳实践](#最佳实践)
-- [常见问题](#常见问题)
-- [相关文档](#相关文档)
-- [参考资料](#参考资料)
-
----
+# 事件系统
 
 ## 概述
 
@@ -571,18 +557,17 @@ msq.on('error', (data) => {
 ### 2. 使用结构化日志
 
 ```javascript
-const winston = require('winston');
-
-const logger = winston.createLogger({
-  format: winston.format.json(),
-  transports: [
-    new winston.transports.File({ filename: 'db-slow-queries.log' })
-  ]
-});
+const logger = {
+  warn(message, fields) {
+    process.stdout.write(`${JSON.stringify({ level: 'warn', message, ...fields })}\n`);
+  },
+  error(message, fields) {
+    process.stderr.write(`${JSON.stringify({ level: 'error', message, ...fields })}\n`);
+  }
+};
 
 msq.on('slow-query', (data) => {
-  logger.warn({
-    event: 'slow-query',
+  logger.warn('slow-query', {
     iid: data.iid,
     operation: data.operation,
     collection: data.collectionName,
@@ -772,6 +757,5 @@ watcher.on('change', (change) => {
 ## 参考资料
 
 - [Node.js EventEmitter 文档](https://nodejs.org/api/events.html)
-- [日志最佳实践](https://www.npmjs.com/package/winston)
 - [告警系统设计](https://prometheus.io/docs/alerting/latest/overview/)
 - [monSQLize README](../../README.md)

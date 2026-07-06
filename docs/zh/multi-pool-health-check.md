@@ -1,22 +1,5 @@
 # 多连接池健康检查机制详解
 
-> **创建时间**: 2026-02-03  
-> **适用版本**: v1.0.8+
-
----
-
-## 📋 目录
-
-- [健康检查机制概述](#健康检查机制概述)
-- [问题发现机制](#问题发现机制)
-- [问题处理流程](#问题处理流程)
-- [运维通知方式](#运维通知方式)
-- [监控集成方案](#监控集成方案)
-- [告警配置示例](#告警配置示例)
-- [常见问题](#常见问题)
-
----
-
 ## 健康检查机制概述
 
 ### 工作原理
@@ -56,8 +39,8 @@
 | 状态 | 含义 | selectPool 行为 | 恢复方式 |
 |------|------|----------------|---------|
 | **up** | 健康 | ✅ 正常使用 | - |
+| **degraded** | 健康检查失败但尚未达到 down 阈值 | ⚠️ 仍可选择，需要重点监控 | 健康检查成功后恢复为 `up`，再次失败后可能变为 `down` |
 | **down** | 故障 | ❌ 跳过该池，使用其他健康池 | 健康检查成功后自动恢复 |
-| **unknown** | 未知 | ⚠️ 谨慎使用 | 首次健康检查后确定 |
 
 ---
 
@@ -72,33 +55,26 @@
 - 超时时间（默认 3 秒）
 - 连续失败阈值（默认 3 次）
 
-**代码示例**:
+**公开 API 示例**:
 ```javascript
-// Health-check flow used by the pool manager
-async _checkHealth(poolName) {
-    const pool = this._poolManager._getPool(poolName);
-    
-    try {
-        // 执行 ping 命令
-        await pool.db().admin().ping();
-        
-        // 成功：重置失败计数
-        this.updateStatus(poolName, 'up', null);
-        
-    } catch (error) {
-        // 失败：增加失败计数
-        const currentStatus = this._status.get(poolName);
-        currentStatus.consecutiveFailures++;
-        
-        // 达到阈值：标记为 down
-        if (currentStatus.consecutiveFailures >= config.retries) {
-            this.updateStatus(poolName, 'down', error);
-            
-            // 🔔 触发事件（可用于告警）
-            this.emit('poolDown', poolName, error);
-        }
-    }
-}
+const manager = new ConnectionPoolManager();
+
+await manager.addPool({
+    name: 'primary',
+    uri: 'mongodb://localhost:27017/main',
+    role: 'primary',
+    healthCheck: {
+        enabled: true,
+        interval: 5000,
+        timeout: 3000,
+        retries: 3,
+    },
+});
+
+manager.startHealthCheck('primary');
+
+const health = manager.getHealthStatus();
+console.log(health.primary.status); // 'up' | 'degraded' | 'down'
 ```
 
 ### 2. selectPool 时发现
@@ -107,24 +83,15 @@ async _checkHealth(poolName) {
 
 **发现方式**:
 ```javascript
-selectPool(operation, options) {
-    // 获取健康的连接池列表
-    let candidates = this._getHealthyPools();
-    
-    // 如果没有健康的池
-    if (candidates.length === 0) {
-        // 🔔 触发告警：所有连接池故障
-        this._logger.error('[CRITICAL] 所有连接池故障，无法提供服务');
-        
-        // 根据故障转移策略处理
-        if (this._fallbackConfig.enabled) {
-            candidates = this._handleAllPoolsDown(operation);
-        } else {
-            throw new Error('No available connection pool');
-        }
+try {
+    const pool = manager.selectPool('read');
+    const users = await pool.collection(undefined, 'users').find({}).toArray();
+    console.log(users);
+} catch (error) {
+    if (error.message.includes('No available connection pool')) {
+        logger.error('[CRITICAL] 所有连接池不可用，服务无法继续提供');
     }
-    
-    // ...
+    throw error;
 }
 ```
 
@@ -198,14 +165,14 @@ try {
     // - secondary 策略：使用副本（可能写入副本）
     // - error 策略：直接抛出错误
 } catch (error) {
-    if (error.message.includes('readonly')) {
-        // 降级到只读模式
-        logger.warn('主库故障，系统进入只读模式');
+    if (error.message.includes('No available connection pool')) {
+        // 当前操作没有可用候选池
+        logger.warn('当前操作没有可用连接池');
         
         // 🔔 触发告警
         sendAlert({
             level: 'critical',
-            message: '主库故障，系统降级为只读模式',
+            message: '当前操作没有可用连接池',
             time: new Date()
         });
     }
@@ -215,28 +182,16 @@ try {
 ### 自动恢复机制
 
 ```javascript
-// HealthChecker 持续检查 down 状态的连接池
-async _checkHealth(poolName) {
-    const status = this._status.get(poolName);
-    
-    // 即使是 down 状态，仍然会继续检查
-    if (status.status === 'down') {
-        try {
-            await pool.db().admin().ping();
-            
-            // 检查成功：立即恢复为 up
-            this.updateStatus(poolName, 'up', null);
-            
-            // 🔔 触发恢复事件
-            this.emit('poolRecovered', poolName);
-            
-            this._logger.info(`[HealthChecker] 连接池恢复完成: ${poolName}`);
-            
-        } catch (error) {
-            // 仍然失败，保持 down 状态
-        }
+// manager 会持续检查 down 状态的连接池。
+// 用公开状态快照观察恢复结果。
+const before = manager.getHealthStatus().primary?.status;
+
+setTimeout(() => {
+    const after = manager.getHealthStatus().primary?.status;
+    if (before === 'down' && after === 'up') {
+        logger.info('[PoolManager] 连接池恢复完成: primary');
     }
-}
+}, 5000);
 ```
 
 ---
@@ -249,21 +204,11 @@ async _checkHealth(poolName) {
 
 ```javascript
 // 在创建管理器时传入 logger
-const winston = require('winston');
-
-const logger = winston.createLogger({
-    level: 'info',
-    format: winston.format.json(),
-    transports: [
-        new winston.transports.File({ 
-            filename: 'pool-error.log', 
-            level: 'error' 
-        }),
-        new winston.transports.File({ 
-            filename: 'pool-combined.log' 
-        })
-    ]
-});
+const logger = {
+    info: (message, meta) => console.info(message, meta ?? ''),
+    warn: (message, meta) => console.warn(message, meta ?? ''),
+    error: (message, meta) => console.error(message, meta ?? ''),
+};
 
 const manager = new ConnectionPoolManager({
     logger
@@ -309,7 +254,7 @@ setInterval(async () => {
             downPools.push({
                 name,
                 lastError: status.lastError?.message,
-                downSince: new Date(status.lastCheck - (Date.now() - status.lastSuccess))
+                lastCheckTime: status.lastCheckTime?.toISOString() ?? null
             });
         }
     }
@@ -365,69 +310,30 @@ pm2 start monitor.js --name "pool-monitor"
 pm2 logs pool-monitor
 ```
 
-### 方式3: 事件监听（高级）
+### 方式3: 应用层状态变化检测
 
-**扩展 HealthChecker 支持事件**（需要在代码中实现）:
+`ConnectionPoolManager` 公开的是健康状态快照，不是健康事件。如果应用需要通知，可以对比连续两次快照：
 
 ```javascript
-// 在 HealthChecker 中添加事件触发
-const EventEmitter = require('events');
+let previous = manager.getHealthStatus();
 
-class HealthChecker extends EventEmitter {
-    updateStatus(poolName, status, error) {
-        const oldStatus = this._status.get(poolName)?.status;
-        
-        // 更新状态
-        this._status.set(poolName, {
-            status,
-            consecutiveFailures: status === 'up' ? 0 : this._status.get(poolName).consecutiveFailures,
-            lastCheck: Date.now(),
-            lastSuccess: status === 'up' ? Date.now() : this._status.get(poolName).lastSuccess,
-            lastError: error
-        });
-        
-        // 🔔 触发事件
-        if (oldStatus !== status) {
-            this.emit('statusChanged', {
-                poolName,
-                oldStatus,
-                newStatus: status,
-                error
+setInterval(async () => {
+    const current = manager.getHealthStatus();
+
+    for (const [poolName, status] of Object.entries(current)) {
+        const oldStatus = previous[poolName]?.status;
+        if (oldStatus && oldStatus !== status.status) {
+            await sendAlert({
+                level: status.status === 'down' ? 'critical' : 'info',
+                message: `连接池 ${poolName}: ${oldStatus} -> ${status.status}`,
+                error: status.lastError?.message,
+                timestamp: new Date().toISOString()
             });
-            
-            if (status === 'down') {
-                this.emit('poolDown', { poolName, error });
-            } else if (status === 'up' && oldStatus === 'down') {
-                this.emit('poolRecovered', { poolName });
-            }
         }
     }
-}
 
-// 自建健康检查器时可使用事件监听
-const healthChecker = new HealthChecker();
-healthChecker.on('poolDown', ({ poolName, error }) => {
-    console.error(`🚨 连接池故障: ${poolName}`, error.message);
-    
-    // 🔔 发送告警
-    sendAlert({
-        level: 'critical',
-        message: `连接池 ${poolName} 故障`,
-        error: error.message,
-        timestamp: new Date().toISOString()
-    });
-});
-
-healthChecker.on('poolRecovered', ({ poolName }) => {
-    console.info(`✅ 连接池恢复完成: ${poolName}`);
-    
-    // 🔔 发送恢复通知
-    sendAlert({
-        level: 'info',
-        message: `连接池 ${poolName} 恢复完成`,
-        timestamp: new Date().toISOString()
-    });
-});
+    previous = current;
+}, 30000);
 ```
 
 ---
@@ -447,7 +353,7 @@ const manager = require('./pool-manager');
 // 创建指标
 const poolHealthGauge = new prometheus.Gauge({
     name: 'monsqlize_pool_health',
-    help: 'Pool health status (1=up, 0=down)',
+    help: 'Pool health status (1=up, 0.5=degraded, 0=down)',
     labelNames: ['pool_name']
 });
 
@@ -475,11 +381,12 @@ setInterval(() => {
     const stats = manager.getPoolStats();
     
     for (const [name, status] of health.entries()) {
-        poolHealthGauge.set({ pool_name: name }, status.status === 'up' ? 1 : 0);
+        const value = status.status === 'up' ? 1 : status.status === 'degraded' ? 0.5 : 0;
+        poolHealthGauge.set({ pool_name: name }, value);
     }
     
     for (const [name, stat] of Object.entries(stats)) {
-        poolConnectionsGauge.set({ pool_name: name }, stat.connections);
+        poolConnectionsGauge.set({ pool_name: name }, stat.connections ?? 0);
         poolErrorRate.set({ pool_name: name }, stat.errorRate);
         poolResponseTime.set({ pool_name: name }, stat.avgResponseTime);
     }
@@ -710,7 +617,7 @@ setInterval(async () => {
                     message: alertConfig.rules.poolDown.message(name),
                     details: {
                         error: status.lastError?.message,
-                        lastSuccess: new Date(status.lastSuccess).toISOString()
+                        lastCheckTime: status.lastCheckTime?.toISOString() ?? null
                     },
                     timestamp: new Date().toISOString()
                 });
@@ -812,27 +719,27 @@ async function sendAlert(message) {
 
 ### Q2: 如何自定义健康检查逻辑？
 
-**A**: 目前使用固定的 `ping` 命令，如需自定义需修改代码：
+**A**: 公开健康检查契约支持配置是否启用、检查间隔、超时时间和重试阈值，不暴露自定义 health-check callback。
 
 ```javascript
-// 在 HealthChecker.js 中
-async _checkHealth(poolName) {
-    // 自定义检查逻辑
-    try {
-        // 方式1: 执行自定义查询
-        await pool.collection('health_check').findOne({});
-        
-        // 方式2: 检查复制延迟
-        const status = await pool.db().admin().replSetGetStatus();
-        const lag = calculateReplicationLag(status);
-        if (lag > 5000) {  // 延迟超过 5 秒
-            throw new Error('Replication lag too high');
-        }
-        
-        this.updateStatus(poolName, 'up', null);
-    } catch (error) {
-        // ...
-    }
+const manager = new ConnectionPoolManager();
+
+await manager.addPool({
+    name: 'primary',
+    uri: 'mongodb://localhost:27017/main',
+    healthCheck: {
+        enabled: true,
+        interval: 10000,
+        timeout: 3000,
+        retries: 3,
+    },
+});
+
+// 如果需要复制延迟或业务专属检查，请在应用监控层执行，
+// 再与 getHealthStatus() 的结果组合判断。
+async function checkReplicationLag(client) {
+    const status = await client.db().admin().command({ replSetGetStatus: 1 });
+    return calculateReplicationLag(status);
 }
 ```
 
@@ -896,8 +803,3 @@ tail -f pool-error.log
 **推荐方案**: 
 - 基础：定期监控脚本 + 企业微信/钉钉
 - 高级：Prometheus + Grafana + 告警规则
-
----
-
-**更新时间**: 2026-02-03  
-**维护者**: monSQLize Team

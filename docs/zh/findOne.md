@@ -1,17 +1,5 @@
 # findOne 方法详细文档
 
-## 📑 目录
-
-- [概述](#概述)
-- [方法签名](#方法签名)
-- [参数说明](#参数说明)
-- [返回值](#返回值)
-- [使用模式](#使用模式)
-- [错误处理](#错误处理)
-- [最佳实践](#最佳实践)
-- [相关方法](#相关方法)
-
----
 
 ## 概述
 
@@ -27,8 +15,8 @@ async findOne(query = {}, options = {})
 
 ### query 参数
 
-**类型**: `Object`  
-**默认值**: `{}`  
+**类型**: `Object`
+**默认值**: `{}`
 **必填**: 否
 
 MongoDB 查询条件对象，支持所有 MongoDB 查询操作符。
@@ -59,7 +47,7 @@ MongoDB 查询条件对象，支持所有 MongoDB 查询操作符。
 - ✅ **MongoDB 原生**: 该参数是 MongoDB 官方支持的标准功能
 - 🔧 **monSQLize 扩展**: monSQLize 独有的扩展功能
 
-**MongoDB 参考文档**: 
+**MongoDB 参考文档**:
 - [findOne() 方法](https://www.mongodb.com/docs/manual/reference/method/db.collection.findOne/)
 
 ### comment 配置

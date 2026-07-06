@@ -1,9 +1,8 @@
 ﻿# Relations and Populate API Documentation
 
-**Version**: v2.0.0
-**Last updated**: 2026-06-01
-
 The Model layer provides relations and populate functions, allowing you to easily handle the relationships between collections.
+
+Model schema examples on this page use the runtime-scoped `s` namespace passed by monSQLize. Application code does not need to import the root `schema-dsl` entry for these examples.
 
 ---
 
@@ -15,7 +14,7 @@ The Model layer provides relations and populate functions, allowing you to easil
 ```javascript
 //1. Define relationships
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         profileId: 'objectId'
     }),
@@ -66,7 +65,7 @@ const user = await User.findOne({ username: 'john' }).populate('profile');
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         profileId: 'objectId'
     }),
@@ -103,7 +102,7 @@ const user = await User.findOne({ _id }).populate('profile');
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!'
     }),
     relations: {
@@ -137,7 +136,7 @@ const user = await User.findOne({ _id }).populate('posts');
 
 ```javascript
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         authorId: 'objectId'
     }),
@@ -349,7 +348,7 @@ const users = await User.find({ active: true }).populate('profile');
 //Create indexes for foreign key fields to improve populate performance
 
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         profileId: 'objectId'
     }),
@@ -456,7 +455,7 @@ const { Model } = MonSQLize;
 
 //Define User Model
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string:3-32!',
         email: 'email!',
         profileId: 'objectId',
@@ -484,7 +483,7 @@ Model.define('users', {
 
 //Define Post Model
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         content: 'string!',
         authorId: 'objectId!',
@@ -585,7 +584,7 @@ A: Use `$in` batch query, which has less impact on performance. Suggestions:
 3. Use `limit` to limit the amount of associated data
 
 **Q: How to implement many-to-many? **
-A: v1.2.0 is not directly supported yet. It can be implemented through an intermediate table:
+A: Use an intermediate collection when a relationship needs extra fields or many-to-many ownership:
 ```javascript
 // users ←→ user_roles ←→ roles
 relations: {
@@ -778,8 +777,3 @@ interface PopulateOptions {
 - [Model API Documentation](../model.md)
 - [Sample code](https://github.com/vextjs/monSQLize/blob/main/examples/docs/populate-relations.ts)
 - [GitHub Issues](https://github.com/vextjs/monSQLize/issues)
-
----
-
-**Last updated**: 2026-06-01
-**Version**: v2.0.0

@@ -1,18 +1,5 @@
 # findOne Method Reference
 
-## 📑 Table of Contents
-
-- [Overview](#overview)
-- [Method Signature](#method-signature)
-- [Parameters](#parameters)
-- [Return Value](#return-value)
-- [Usage Patterns](#usage-patterns)
-- [Error Handling](#error-handling)
-- [Best Practices](#best-practices)
-- [Related Methods](#related-methods)
-
----
-
 ## Overview
 
 `findOne` is a basic query method provided by monSQLize. It queries the first document that matches the criteria from a MongoDB collection and supports query criteria, sorting, projection, caching, and related options.
@@ -27,8 +14,8 @@ async findOne(query = {}, options = {})
 
 ### query Parameter
 
-**Type**: `Object`  
-**Default**: `{}`  
+**Type**: `Object`
+**Default**: `{}`
 **Required**: No
 
 MongoDB query criteria object. All MongoDB query operators are supported.

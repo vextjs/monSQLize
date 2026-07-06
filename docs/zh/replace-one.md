@@ -1,23 +1,5 @@
 # replaceOne() - 完整替换文档
 
-## 📑 目录
-
-- [语法](#语法)
-- [参数](#参数)
-- [返回值](#返回值)
-- [与 updateOne 的关键区别](#与-updateone-的关键区别)
-- [示例](#示例)
-- [常见场景](#常见场景)
-- [错误处理](#错误处理)
-- [常见错误](#常见错误)
-- [性能建议](#性能建议)
-- [缓存行为](#缓存行为)
-- [何时使用 replaceOne](#何时使用-replaceone)
-- [最佳实践](#最佳实践)
-- [相关方法](#相关方法)
-- [参考资料](#参考资料)
-
----
 
 完整替换集合中第一个匹配筛选条件的文档。**注意**: 这会替换整个文档（除了 _id），未在新文档中的字段将被删除。
 
@@ -49,7 +31,7 @@ collection(collectionName).replaceOne(filter, replacement, options)
 }
 ```
 
-**重要**: 
+**重要**:
 - ❌ 不能使用 `$set`, `$inc` 等操作符
 - ✅ 直接提供完整的新文档对象
 - `_id` 字段会自动保留
@@ -553,4 +535,3 @@ if (result.matchedCount === 0) {
 ## 参考资料
 
 - [MongoDB replaceOne 文档](https://docs.mongodb.com/manual/reference/method/db.collection.replaceOne/)
-

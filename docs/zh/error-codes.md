@@ -4,7 +4,7 @@
 
 monSQLize 使用统一的错误码体系来标识不同类型的错误，帮助开发者准确识别和处理异常情况。所有错误对象都包含 `code` 属性，可以通过该属性判断错误类型并执行相应的处理逻辑。
 
-当前 main / Unreleased 版本中，配置、缓存、SSH、连接池、查询链、集合管理、事务和表达式编译等用户常见路径也统一抛出带 `code` 的错误对象；错误 `message` 继续保留原有可读文案。
+配置、缓存、SSH、连接池、查询链、集合管理、事务和表达式编译等用户常见路径都会抛出带 `code` 的错误对象；错误 `message` 保留可读文案。
 
 ### 错误对象结构
 
@@ -1037,11 +1037,6 @@ function logError(error, context = {}) {
 
 - [API 文档索引](./api-index.md)
 - [事务管理](./transaction.md)
-- [多连接池管理](./multi-pool.md)
+- [连接池配置](./multi-pool.md)
 - [链式池/库访问 API](./pool-chain-api.md)
 - [连接配置](./connection.md)
-
----
-
-**文档版本**: Unreleased (main)
-**最后更新**: 2026-06-09

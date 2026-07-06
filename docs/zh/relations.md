@@ -1,13 +1,14 @@
 ﻿# Relations API - 关系定义
 
-**版本**: v1.0.6+  
 **功能**: Model 层关系定义，支持 hasOne/hasMany/belongsTo
 
 ---
 
 ## 📖 概述
 
-Relations 用于定义 Model 之间的关系，为 Populate 关联查询提供基础配置。
+Relations 用于定义 Model 文档如何指向关联集合，并为 `populate()` 提供配置。
+
+本页 Model schema 示例使用 monSQLize 传入的 runtime 作用域 `s` 命名空间。应用代码不需要为了这些示例导入 root `schema-dsl` 入口。
 
 ### 核心特性
 
@@ -28,7 +29,7 @@ Relations 用于定义 Model 之间的关系，为 Populate 关联查询提供�
 import { Model } from 'monsqlize';
 
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         // 关系名: 配置
         posts: {
@@ -54,7 +55,7 @@ Model.define('users', {
 ```javascript
 // User hasOne Profile
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         profile: {
             from: 'profiles',
@@ -97,7 +98,7 @@ populate 后:
 ```javascript
 // User hasMany Posts
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         posts: {
             from: 'posts',
@@ -144,7 +145,7 @@ populate 后:
 ```javascript
 // Post belongsTo User
 Model.define('posts', {
-    schema: (dsl) => dsl({ title: 'string!' }),
+    schema: (s) => s({ title: 'string!' }),
     relations: {
         author: {
             from: 'users',
@@ -197,7 +198,7 @@ populate 后:
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         // 完整配置
         posts: {
@@ -233,7 +234,7 @@ console.log(user.articles);  // 使用 as 指定的名称
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         email: 'email!'
     }),
@@ -248,7 +249,7 @@ Model.define('users', {
 });
 
 Model.define('profiles', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         userId: 'objectId!',
         bio: 'string',
         avatar: 'url',
@@ -269,7 +270,7 @@ console.log(`${user.username}: ${user.profile.bio}`);
 
 ```javascript
 Model.define('users', {
-    schema: (dsl) => dsl({ username: 'string!' }),
+    schema: (s) => s({ username: 'string!' }),
     relations: {
         posts: {
             from: 'posts',
@@ -281,7 +282,7 @@ Model.define('users', {
 });
 
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         content: 'string!',
         authorId: 'objectId!'
@@ -303,7 +304,7 @@ users.forEach(user => {
 
 ```javascript
 Model.define('posts', {
-    schema: (dsl) => dsl({ title: 'string!' }),
+    schema: (s) => s({ title: 'string!' }),
     relations: {
         author: {
             from: 'users',
@@ -332,7 +333,7 @@ posts.forEach(post => {
 ```javascript
 // 1. 定义学生
 Model.define('students', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         name: 'string!',
         studentNo: 'string!'
     }),
@@ -348,7 +349,7 @@ Model.define('students', {
 
 // 2. 定义课程
 Model.define('courses', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         name: 'string!',
         code: 'string!'
     }),
@@ -364,7 +365,7 @@ Model.define('courses', {
 
 // 3. 定义中间表
 Model.define('student_course', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         studentId: 'objectId!',
         courseId: 'objectId!',
         enrolledAt: 'date'
@@ -412,7 +413,7 @@ const studentsWithCourses = await Student.find()
 
 ```javascript
 Model.define('comments', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         content: 'string!',
         parentId: 'objectId'  // 父评论ID（null 表示顶级评论）
     }),
@@ -510,7 +511,7 @@ const users = await User.find()
 ```javascript
 // ✅ 好：为外键添加索引
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string!',
         userId: 'objectId!'
     }),
@@ -663,7 +664,7 @@ Model.define('users', {
 
 ```javascript
 Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         authorId: 'objectId!',
         reviewerId: 'objectId'
     }),
@@ -703,7 +704,7 @@ import { Model } from 'monsqlize';
 
 // 1. 用户
 Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string!',
         email: 'email!'
     }),
@@ -725,7 +726,7 @@ Model.define('users', {
 
 // 2. 商品
 Model.define('products', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         name: 'string!',
         price: 'number!',
         categoryId: 'objectId!'
@@ -748,7 +749,7 @@ Model.define('products', {
 
 // 3. 订单
 Model.define('orders', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         orderNo: 'string!',
         userId: 'objectId!',
         status: 'string!'
@@ -771,7 +772,7 @@ Model.define('orders', {
 
 // 4. 订单项
 Model.define('order_items', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         orderId: 'objectId!',
         productId: 'objectId!',
         quantity: 'number!',
@@ -789,7 +790,7 @@ Model.define('order_items', {
 
 // 5. 分类
 Model.define('categories', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         name: 'string!',
         parentId: 'objectId'
     }),
@@ -915,11 +916,4 @@ User → Posts
 // ✅ 使用嵌入：订单和订单项（不单独查询）
 Order { items: [ { productId, quantity }, ... ] }
 ```
-
----
-
-**文档版本**: v2.0.0
-**最后更新**: 2026-06-01
-**维护者**: monSQLize Team
-
 

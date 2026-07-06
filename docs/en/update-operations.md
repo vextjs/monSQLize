@@ -1,21 +1,4 @@
-﻿# Update operation details
-
-> **Applicable version**: v1.0.8+
-> **Last updated**: 2026-01-15
-
----
-
-## 📋 Table of Contents
-
-- [1. Overview](#1-overview)
-- [2. Traditional update operator](#2-traditional-update-operator)
-- [3. Aggregation pipeline update (v1.0.8+)](#3-aggregation-pipeline-update-v108)
-- [4. Comparison of usage scenarios](#4-comparison-of-usage-scenarios)
-- [5. Best Practices](#5-best-practices)
-- [6. Performance considerations](#6-performance-considerations)
-- [7. FAQ](#7-faq)
-
----
+# Update operation details
 
 ## 1. Overview
 
@@ -23,19 +6,17 @@ monSQLize provides three update methods:
 
 | Method | Description | Aggregation pipeline support |
 |------|------|-------------|
-| `updateOne()` | Update a single matching document | ✅ v1.0.8+ |
-| `updateMany()` | Update all matching documents | ✅ v1.0.8+ |
-| `updateBatch()` | Update a large number of documents in batches | ✅ v1.0.8+ |
+| `updateOne()` | Update a single matching document | Supported |
+| `updateMany()` | Update all matching documents | Supported |
+| `updateBatch()` | Update a large number of documents in batches | Supported |
 
-Starting from **v1.0.8**, all update methods support **aggregation pipeline** syntax, providing more powerful field calculation and conversion capabilities.
+Current update methods support aggregation pipeline syntax for field calculation and conversion.
 
 ---
 
 ## 2. Traditional update operator
 
-
 ## 2.1 Common operators
-
 
 ### $set - Set field value
 
@@ -46,7 +27,6 @@ await users.updateOne(
 );
 ```
 
-
 ### $unset - delete a field
 
 ```javascript
@@ -55,7 +35,6 @@ await users.updateOne(
     { $unset: { tempField: '' } }
 );
 ```
-
 
 ### $inc - increase/decrease value
 
@@ -66,7 +45,6 @@ await users.updateOne(
 );
 ```
 
-
 ### $push - Add elements to an array
 
 ```javascript
@@ -76,7 +54,6 @@ await users.updateOne(
 );
 ```
 
-
 ### $pull - remove elements from an array
 
 ```javascript
@@ -85,7 +62,6 @@ await users.updateOne(
     { $pull: { tags: 'oldTag' } }
 );
 ```
-
 
 ## 2.2 Combination use
 
@@ -102,8 +78,7 @@ await users.updateOne(
 
 ---
 
-## 3. Aggregation pipeline update (v1.0.8+)
-
+## 3. Aggregation pipeline update
 
 ## 3.1 Basic concepts
 
@@ -119,7 +94,6 @@ Aggregation pipeline updates allow you to use aggregate expressions in update op
 
 **MongoDB version requirements**: MongoDB 4.2+
 
-
 ## 3.2 Basic syntax
 
 ```javascript
@@ -134,7 +108,6 @@ await collection.updateOne(
 );
 ```
 
-
 ## 3.3 Supported operators
 
 | Operator | Description | Example |
@@ -146,9 +119,7 @@ await collection.updateOne(
 | `$replaceRoot` | Replace root document | `{ $replaceRoot: { newRoot: '$nested' } }` |
 | `$replaceWith` | Replacement document (alias for $replaceRoot) | `{ $replaceWith: '$newDoc' }` |
 
-
 ## 3.4 Usage scenarios
-
 
 ### Scenario 1: Calculation between fields ⭐
 
@@ -177,7 +148,6 @@ await orders.updateOne(
 - ✅Complete calculation in one operation
 - ✅ Avoid querying first and then calculating
 - ✅ Server-side computing, reducing network round-trips
-
 
 ### Scenario 2: Conditional assignment ⭐
 
@@ -210,7 +180,6 @@ await users.updateOne(
 - ✅ Atomic operations to avoid race conditions
 - ✅ Code is more concise
 
-
 ### Scenario 3: Array operation ⭐
 
 **Requirement**: Extract the first element of the array as the default value
@@ -229,7 +198,6 @@ await products.updateOne(
     ]
 );
 ```
-
 
 ### Scenario 4: String concatenation ⭐
 
@@ -257,7 +225,6 @@ await users.updateOne(
 );
 ```
 
-
 ### Scenario 5: Date calculation ⭐
 
 **Requirement**: Set expiration time (creation time + 30 days)
@@ -276,7 +243,6 @@ await subscriptions.updateOne(
     ]
 );
 ```
-
 
 ### Scenario 6: Multi-stage conversion ⭐
 
@@ -312,7 +278,6 @@ await products.updateOne(
 );
 ```
 
-
 ### Scenario 7: Complex business logic ⭐
 
 **Requirement**: Automatic transfer of order status
@@ -343,7 +308,6 @@ await orders.updateOne(
 );
 ```
 
-
 ## 3.5 Comparison with traditional methods
 
 | Requirements | Traditional approach | Aggregation pipeline approach | Advantages |
@@ -357,7 +321,6 @@ await orders.updateOne(
 ---
 
 ## 4. Comparison of usage scenarios
-
 
 ## 4.1 When to use traditional operators?
 
@@ -375,7 +338,6 @@ await users.updateOne(
     { $set: { status: 'active' }, $inc: { loginCount: 1 } }
 );
 ```
-
 
 ## 4.2 When to use aggregation pipelines?
 
@@ -400,7 +362,6 @@ await orders.updateOne(
 
 ## 5. Best Practices
 
-
 ## 5.1 Choose the appropriate method
 
 ```javascript
@@ -419,7 +380,6 @@ await orders.updateOne({ orderId: 'ORDER-123' }, [
     { $set: { total: { $add: ['$price', '$tax'] } } }
 ]);
 ```
-
 
 ## 5.2 Reasonable use of multi-stage
 
@@ -451,7 +411,6 @@ await products.updateOne({ productId: 'p1' }, [
 ]);
 ```
 
-
 ## 5.3 Error handling
 
 ```javascript
@@ -471,9 +430,7 @@ try {
 }
 ```
 
-
 ## 5.4 Performance Optimization
-
 
 ### Using index
 
@@ -482,7 +439,6 @@ try {
 await users.createIndex({ userId: 1 });
 await users.updateOne({ userId: 'user1' }, [...]);
 ```
-
 
 ### Avoid overly complex expressions
 
@@ -519,7 +475,6 @@ await users.updateOne({ userId: 'user1' }, [
 
 ## 6. Performance considerations
 
-
 ## 6.1 Performance comparison
 
 | Operation Types | Traditional Operators | Aggregation Pipelines | Performance Differences |
@@ -528,7 +483,6 @@ await users.updateOne({ userId: 'user1' }, [
 | Calculation between fields | Not supported | Fast | - |
 | Conditional logic | Multiple operations | Completed in one go | 50%+ faster |
 | Complex expressions | Not supported | Medium | - |
-
 
 ## 6.2 Performance recommendations
 
@@ -560,7 +514,6 @@ await users.updateOne({ userId: 'user1' }, [
 
 ## 7. FAQ
 
-
 ## Q1: Will the aggregation pipeline automatically convert ObjectId?
 
 **A**: No. Strings in the aggregation pipeline remain intact and are not automatically converted to ObjectIds.
@@ -578,7 +531,6 @@ await users.updateOne({ _id }, [
 ]);
 ```
 
-
 ## Q2: What expression operators does the aggregation pipeline support?
 
 **A**: Supports most aggregate expression operators, including:
@@ -591,7 +543,6 @@ await users.updateOne({ _id }, [
 - **Type**: `$type`, `$convert`, `$toDouble`, `$toString`
 
 For the complete list, please refer to: [MongoDB Aggregation Expression](https://www.mongodb.com/docs/manual/reference/operator/aggregation/)
-
 
 ## Q3: Will an error be reported for an empty array?
 
@@ -607,7 +558,6 @@ await users.updateOne({ _id }, [
     { $set: { updatedAt: new Date() } }
 ]);
 ```
-
 
 ## Q4: How to debug aggregation pipeline?
 
@@ -633,7 +583,6 @@ await users.updateOne({ _id }, [
 ]);
 ```
 
-
 ## Q5: Will the cache become invalid after the aggregation pipeline is updated?
 
 **A**: Yes. Like traditional update operations, the relevant cache will be automatically invalidated after the aggregation pipeline is updated.
@@ -658,9 +607,3 @@ await users.find({ status: 'active' }, { cache: 5000 });
 - [MongoDB Aggregation Pipeline Documentation](https://www.mongodb.com/docs/manual/tutorial/update-documents-with-aggregation-pipeline/)
 - [MongoDB Aggregation Expression](https://www.mongodb.com/docs/manual/reference/operator/aggregation/)
 - [monSQLize API Documentation](./api-index.md)
-
----
-
-**Document version**: v1.0.0
-**Applies to**: monSQLize v1.0.8+
-**Last updated**: 2026-01-15

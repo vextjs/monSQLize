@@ -1,43 +1,41 @@
-# monSQLize TS Documentation
+# monSQLize Documentation
 
-> This documentation targets the **TypeScript rewrite of monSQLize (v2)** and is aligned with the v1-compatible public API surface.
+This documentation starts with the common application path: connect to MongoDB, run collection operations, add Model validation when needed, then enable cache, transactions, pools, sync, and operations features deliberately.
 
-## Current Documentation Coverage
+## Main Documentation Paths
 
-| Topic | Current entry | Status | Notes |
-|------|---------------|--------|-------|
-| Quick start / installation / connection / basic queries | [`getting-started.md`](./getting-started.md) | ✅ | Aligned with the current runtime and full TypeScript types |
-| Common recipes | [`recipes.md`](./recipes.md) | ✅ | Copy-ready paths for basic connection, cache, Redis, SSH, pools, locks, and Model usage |
-| Cache / function cache | [`cache-and-function-cache.md`](./cache-and-function-cache.md) | ✅ | `MemoryCache` / `withCache()` / `FunctionCache` |
-| Write path policy | [`write-path-policy.md`](./write-path-policy.md) | ✅ | Optional runtime guard for Model-only write namespaces |
-| Examples mapping / gallery | [`examples.md`](./examples.md) | ✅ | Maps documentation topics to official examples |
-| Advanced capability index | [Capability index](./capability-index.md) | ✅ | Index of the current advanced capability surface |
-| Verification / architecture / engineering governance | [`verification-entrypoints.md`](./verification-entrypoints.md) / [`runtime-architecture.md`](./runtime-architecture.md) / [`support-matrix.md`](./support-matrix.md) / [`release-preflight.md`](./release-preflight.md) | ✅ | Unified entry points for verification, private real-env boundaries, runtime structure, and release constraints |
+| Goal | Start here | Notes |
+|------|------------|-------|
+| Install, connect, and run the first query | [`getting-started.md`](./getting-started.md) | Shortest path for a MongoDB-backed collection |
+| Pick a common setup pattern | [`recipes.md`](./recipes.md) | Common scenarios for connection, cache, Redis, SSH, pools, and Model usage |
+| Match docs to runnable source | [`examples.md`](./examples.md) | Links each topic to a GitHub example source |
+| Add database caching | [`cache.md`](./cache.md) | Collection query cache, Redis L2 cache, and distributed invalidation |
+| Control collection-vs-Model writes | [`write-path-policy.md`](./write-path-policy.md) | Optional guard when selected namespaces must go through Model writes |
+| Browse the full API surface | [`api-index.md`](./api-index.md) | Reference entry for lower-level and compatibility APIs |
+| Check runtime boundaries | [`capability-index.md`](./capability-index.md) | Capability map with links to deeper reference pages |
 
 ## Recommended Reading Order
 
 1. Package entry: [repository README](../../README.md)
 2. Quick start: [`getting-started.md`](./getting-started.md)
-3. Recipes: [`recipes.md`](./recipes.md)
-4. Cache guide: [`cache-and-function-cache.md`](./cache-and-function-cache.md)
+3. Common scenarios: [`recipes.md`](./recipes.md)
+4. Cache guide: [`cache.md`](./cache.md)
 5. Write path policy: [`write-path-policy.md`](./write-path-policy.md)
-6. Capability index: [Capability index](./capability-index.md)
-7. Engineering and boundaries:
-   - [`verification-entrypoints.md`](./verification-entrypoints.md)
-   - [`support-matrix.md`](./support-matrix.md)
-   - [`release-preflight.md`](./release-preflight.md)
-   - [`roadmap-boundaries.md`](./roadmap-boundaries.md)
-8. Runnable examples:
-   - `examples/README.md`
-   - `examples/quick-start/basic-connect.ts`
-   - `examples/cache/with-cache.ts`
-   - `examples/docs/*.ts`
+6. Examples:
+   - [examples/README.md](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)
+   - [examples/quick-start/basic-connect.ts](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)
+   - [examples/docs](https://github.com/vextjs/monSQLize/tree/main/examples/docs)
    - [`examples.md`](./examples.md)
+7. API and runtime reference:
+   - [`api-index.md`](./api-index.md)
+   - [`capability-index.md`](./capability-index.md)
+   - [`support-matrix.md`](./support-matrix.md)
 
-## Documentation Boundary
+## Source and Verification
 
-- This directory records the **formal entries that are fully owned and continuously verified in the current repository**.
-- Documentation, examples, types, and tests use the current TypeScript version as the source of truth and no longer depend on the legacy external repository.
+- The website is generated from [`docs/en`](https://github.com/vextjs/monSQLize/tree/main/docs/en) and [`docs/zh`](https://github.com/vextjs/monSQLize/tree/main/docs/zh).
+- Runnable examples live in [`examples`](https://github.com/vextjs/monSQLize/tree/main/examples).
+- Public package behavior should match the package root exports, public types, and runnable examples.
 
 ## Running Examples
 
@@ -48,7 +46,4 @@ npm run build
 npm run test:examples
 ```
 
-Notes:
-
-- `basic-connect.ts` starts a temporary local MongoDB environment through the repository's in-memory MongoDB helper and validates the TypeScript consumption path.
-- `with-cache.ts` does not require MongoDB or Redis. It demonstrates the minimal current cache API usage and type signatures.
+`npm run test:examples` starts temporary MongoDB test servers through the repository example runner, compiles the TypeScript examples, runs them, and cleans up the temporary data directories.

@@ -1,71 +1,6 @@
 # Chaining Methods
 
-## Table of Contents
-
-- [Overview](#overview)
-- [🔵 MongoDB native vs monSQLize extension](#mongodb-native-vs-monsqlize-extension)
-- [Supported chain methods](#supported-chain-methods)
-- [find() chain method](#find-chain-method)
-- [aggregate() chain method](#aggregate-chain-method)
-- [aggregate() chain method (supported chain method)](#aggregate-chain-method-supported-chain-method)
-- [Usage example](#usage-example)
-- [Basic chain call](#basic-chain-call)
-- [Sort query](#sort-query)
-- [Field projection](#field-projection)
-- [Complex query combination](#complex-query-combination)
-- [Use index hints](#use-index-hints)
-- [Query execution plan](#query-execution-plan)
-- [Streaming query](#streaming-query)
-- [aggregate chain call](#aggregate-chain-call)
-- [Explicit toArray() call](#explicit-toarray-call)
-- [Compare with options parameter](#compare-with-options-parameter)
-- [Chain calling method (new)](#chain-calling-method-new)
-- [options parameter mode (original, still supported)](#options-parameter-mode-original-still-supported)
-- [Promise Compatibility](#promise-compatibility)
-- [Parameter verification](#parameter-verification)
-- [Execution protection](#execution-protection)
-- [Cache support](#cache-support)
-- [Backward compatibility](#backward-compatibility)
-- [Fully backwards compatible](#fully-backwards-compatible)
-- [Automatic detection](#automatic-detection)
-- [Performance Notes](#performance-notes)
-- [Cache key generation](#cache-key-generation)
-- [Execution efficiency](#execution-efficiency)
-- [Best Practices](#best-practices)
-- [1. Choose the appropriate calling method](#1-choose-the-appropriate-calling-method)
-- [2. Make full use of TypeScript type hints](#2-make-full-use-of-typescript-type-hints)
-- [3. Error handling](#3-error-handling)
-- [4. Avoid repeated execution](#4-avoid-repeated-execution)
-- [Frequently Asked Questions (FAQ)](#frequently-asked-questions-faq)
-- [Q: Which one is better, chain call or options parameter?](#q-which-one-is-better-chain-call-or-options-parameter)
-- [Q: Will chain calls affect caching?](#q-will-chain-calls-affect-caching)
-- [Q: Can they be mixed?](#q-can-they-be-mixed)
-- [Q: Is the order of execution important?](#q-is-the-order-of-execution-important)
-- [Q: How to debug chained queries?](#q-how-to-debug-chained-queries)
-- [Related documents](#related-documents)
-- [Update log](#update-log)
-
-## Overview
-
-monSQLize now supports a complete MongoDB-style chain call API, providing a more intuitive and flexible way to build queries. The chain calling method is fully compatible with the options parameter method, and you can choose either method according to your needs.
-
-
-## 🔵 MongoDB native vs monSQLize extension
-
-All chained methods in this document are cursor methods natively supported by MongoDB, and monSQLize provides complete encapsulation and implementation:
-
-- ✅ **MongoDB native support**: All listed chain methods correspond to the native methods of MongoDB cursors
-- 🔄 **monSQLize package**: Based on the native method, it adds functions such as caching, error handling, and performance monitoring.
-- 📚 **Reference**: [MongoDB Cursor official document](https://www.mongodb.com/docs/manual/reference/method/js-cursor/)
-
-**MonSQLize unique extension parameters** (only available in options mode):
-- `cache` - Cache TTL configuration (monSQLize extension)
-- `stream` - Streaming return (called by `.stream()` method)
-
----
-
 ## Supported chain methods
-
 
 ## find() chain method
 
@@ -97,11 +32,9 @@ All methods are **MongoDB natively supported** ✅
 
 ---
 
-
 ## aggregate() chain method
 
 All methods are **MongoDB natively supported** ✅
-
 
 ## aggregate() chain method (supported chain method)
 
@@ -129,7 +62,6 @@ All methods are **MongoDB natively supported** ✅
 
 ## Usage example
 
-
 ## Basic chain call
 
 ```javascript
@@ -145,7 +77,6 @@ const results = await collection("products")
 console.log(`${results.length} products found`);
 ```
 
-
 ## Sort query
 
 ```javascript
@@ -158,7 +89,6 @@ const results = await collection("products")
 console.log(`Highest price: ${results[0].price}`);
 ```
 
-
 ## Field projection
 
 ```javascript
@@ -170,7 +100,6 @@ const results = await collection("products")
 
 console.log("Fields:", Object.keys(results[0])); // ['_id', 'name', 'price', 'author']
 ```
-
 
 ## Complex query combination
 
@@ -188,7 +117,6 @@ const results = await collection("products")
 console.log(`${results.length} products found`);
 ```
 
-
 ## Use index hints
 
 ```javascript
@@ -200,7 +128,6 @@ const results = await collection("products")
 
 console.log(`Use index query to find ${results.length} products`);
 ```
-
 
 ## Query execution plan
 
@@ -217,7 +144,6 @@ console.log(`Scan documents: ${plan.executionStats.totalDocsExamined}`);
 console.log(`Returned document: ${plan.executionStats.nReturned}`);
 console.log(`Execution time: ${plan.executionStats.executionTimeMillis}ms`);
 ```
-
 
 ## Streaming query
 
@@ -238,7 +164,6 @@ stream.on("end", () => {
 });
 ```
 
-
 ## aggregate chain call
 
 ```javascript
@@ -255,7 +180,6 @@ const results = await collection("orders")
 
 console.log(`Found ${results.length} categories`);
 ```
-
 
 ## Explicit toArray() call
 
@@ -274,7 +198,6 @@ console.log(`Found ${results.length} highly rated products`);
 
 ## Compare with options parameter
 
-
 ## Chain calling method (new)
 
 ```javascript
@@ -284,7 +207,6 @@ const results = await collection("products")
     .limit(10)
     .project({ name: 1, price: 1 });
 ```
-
 
 ## options parameter mode (original, still supported)
 
@@ -398,7 +320,6 @@ const results2 = await collection("products")
 
 ## Backward compatibility
 
-
 ## Fully backwards compatible
 
 All existing options parameter code does not need to be modified and will still work correctly:
@@ -416,7 +337,6 @@ const results = await collection("products")
     .limit(10)
     .sort({ price: -1 });
 ```
-
 
 ## Automatic detection
 
@@ -442,7 +362,6 @@ const results = collection("products").find(
 
 ## Performance Notes
 
-
 ## Cache key generation
 
 The chain call and options parameter methods generate the same cache key and share the cache:
@@ -464,7 +383,6 @@ const results2 = await collection("products").find(
 //If results1 is cached, results2 will be fetched directly from cache
 ```
 
-
 ## Execution efficiency
 
 Chained calls will not affect query execution efficiency:
@@ -476,7 +394,6 @@ Chained calls will not affect query execution efficiency:
 ---
 
 ## Best Practices
-
 
 ## 1. Choose the appropriate calling method
 
@@ -490,7 +407,6 @@ The **options parameter applies to**:
 - Centralized management when there are many options
 - Existing code maintenance
 
-
 ## 2. Make full use of TypeScript type hints
 
 ```typescript
@@ -501,7 +417,6 @@ const results = await collection("products")
     .sort({ price: -1 })  //TypeScript knows that sort requires object
     .project({ name: 1 }); //TypeScript knows the return type
 ```
-
 
 ## 3. Error handling
 
@@ -520,7 +435,6 @@ try {
 }
 ```
 
-
 ## 4. Avoid repeated execution
 
 ```javascript
@@ -538,23 +452,19 @@ const results2 = await collection("products").find({}).limit(10);
 
 ## Frequently Asked Questions (FAQ)
 
-
 ## Q: Which one is better, chain call or options parameter?
 
 **A**: The functions of the two are completely equivalent, and the choice depends on personal preference and scenario:
 - **Chain call**: more intuitive and suitable for dynamically building queries
 - **options parameter**: more concise, suitable for simple static queries
 
-
 ## Q: Will chain calls affect caching?
 
 **A**: No. Chained calls and options parameters use the same cache key generation logic and share the cache.
 
-
 ## Q: Can they be mixed?
 
 **A**: Not recommended. While it's technically possible (by passing empty options and then chaining the calls), it leads to cluttered code. It is recommended to choose one method and be consistent with it.
-
 
 ## Q: Is the order of execution important?
 
@@ -565,7 +475,6 @@ const results2 = await collection("products").find({}).limit(10);
 .limit(10).skip(5)
 .skip(5).limit(10)
 ```
-
 
 ## Q: How to debug chained queries?
 
@@ -595,8 +504,6 @@ console.log("Query plan:", plan);
 
 | Version | Date | Updates |
 |------|------|---------|
-| v1.0.0 | 2025-11-12 | First release of chain call support |
-
 ---
 
 **Feedback and Suggestions**: If you have questions or suggestions, please submit [GitHub Issue](https://github.com/vextjs/monSQLize/issues).

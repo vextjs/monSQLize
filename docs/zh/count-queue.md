@@ -1,24 +1,5 @@
 ﻿# Count 队列控制
 
-> **版本**: v1.0.0+  
-> **用途**: 控制高并发场景下的 countDocuments 并发数量，避免压垮数据库
-
----
-
-## 📖 目录
-
-- [概述](#概述)
-- [为什么需要队列控制](#为什么需要队列控制)
-- [快速开始](#快速开始)
-- [配置选项](#配置选项)
-- [使用场景](#使用场景)
-- [性能对比](#性能对比)
-- [最佳实践](#最佳实践)
-- [故障排查](#故障排查)
-- [API 参考](#api-参考)
-
----
-
 ## 概述
 
 Count 队列控制是 monSQLize 的高级特性，用于限制同时执行的 `countDocuments` 操作数量。
@@ -311,32 +292,18 @@ await collection.findPage({
 // 10 分钟内再次查询：直接返回缓存，不执行 count
 ```
 
-### 3. 配合分布式锁（多实例场景）
+### 3. 多实例并发需要单独规划
 
-```javascript
-// 推荐：队列 + 分布式锁
-const msq = new MonSQLize({
-    countQueue: {
-        concurrency: 8  // 单实例最多 8 个
-    },
-    distributed: {
-        redis: { host: 'localhost', port: 6379 },
-        lock: { enabled: true }  // 跨实例去重
-    }
-});
-
-// 效果：
-// - 4 个实例，只有 1 个执行 count
-// - 该实例内最多 8 个并发
-// - 数据库最多 8 个并发 count
-```
+`countQueue.concurrency` 是单个 Node.js 进程内的限制。假设 4 个实例都配置 `concurrency: 8`，数据库仍可能看到最多 32 个并发 count。需要全局上限时，请降低单实例并发，或在应用层、网关、任务调度器、数据库容量策略中做统一背压。
 
 ### 4. 监控队列状态
 
 ```javascript
-// 定期检查队列状态（需要内部 API 支持）
+// 需要直接队列指标时，可以使用公开的 CountQueue 类
+const queue = new MonSQLize.CountQueue({ concurrency: 8 });
+
 setInterval(() => {
-    const stats = getQueueStats();  // 获取队列统计
+    const stats = queue.getStats();
     
     if (stats.rejected > 10) {
         console.warn('队列拒绝次数过多，考虑增加 maxQueueSize');
@@ -426,9 +393,9 @@ countQueue: {
     concurrency: 4  // 从 16 减少到 4
 }
 
-// 或使用分布式锁（多实例场景）
-distributed: {
-    lock: { enabled: true }
+// 多实例部署时，降低单实例并发
+countQueue: {
+    concurrency: 2
 }
 ```
 
@@ -472,8 +439,4 @@ interface CountQueueStats {
 - [缓存配置](./cache.md)
 - [分布式部署](./distributed-deployment.md)
 - 性能优化
-
----
-
-**最后更新**: 2025-01-02
 

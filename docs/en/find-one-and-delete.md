@@ -1,21 +1,5 @@
 ﻿# findOneAndDelete() - Atomic find and delete
 
-## Table of Contents
-
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [filter (Object, required)](#filter-object-required)
-- [options (Object, optional)](#options-object-optional)
-- [Return value](#return-value)
-- [Core Features](#core-features)
-- [Atomic guarantee](#atomic-guarantee)
-- [Common scenarios](#common-scenarios)
-- [Scenario 1: Task queue consumption](#scenario-1-task-queue-consumption)
-- [Scenario 2: Session cleanup](#scenario-2-session-cleanup)
-- [Scenario 3: Distributed lock release](#scenario-3-distributed-lock-release)
-- [Differences from other methods](#differences-from-other-methods)
-- [Related methods](#related-methods)
-
 ## Syntax
 
 ```javascript
@@ -184,4 +168,3 @@ async function releaseLock(lockKey, ownerId) {
 - [deleteMany()](./delete-many.md) - Delete documents in batches
 - [findOneAndUpdate()](./find-one-and-update.md) - Atomic find and update
 - [findOneAndReplace()](./find-one-and-replace.md) - Atomic find and replace
-

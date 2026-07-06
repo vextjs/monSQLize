@@ -2,17 +2,6 @@
 
 运维监控方法用于检查数据库健康状态、获取版本信息、监控服务器性能等。
 
----
-
-## 目录
-
-- [ping()](#ping) - 检测数据库连接
-- [buildInfo()](#buildinfo) - 获取版本信息
-- [serverStatus()](#serverstatus) - 获取服务器状态
-- [stats()](#stats) - 获取数据库统计
-
----
-
 ## ping()
 
 检测数据库连接是否正常。
@@ -472,9 +461,4 @@ async function generateDatabaseReport() {
 - [数据库操作](./database-ops.md) - listDatabases, dropDatabase
 - [集合管理](./collection-management.md) - 集合统计和管理
 - [集合管理示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts) - 当前 TypeScript 示例
-
----
-
-**最后更新**: 2025-12-02  
-**版本**: v0.3.0
 

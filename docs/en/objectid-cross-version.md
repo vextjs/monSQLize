@@ -2,7 +2,7 @@
 
 ## Overview
 
-monSQLize supports ObjectId compatibility across BSON versions starting from **v1.1.1** and can seamlessly handle ObjectId objects from other MongoDB libraries (such as mongoose).
+monSQLize automatically normalizes compatible ObjectId values across BSON versions, so ObjectId objects from libraries such as mongoose can be used in MongoDB adapter reads and writes.
 
 ## Problem background
 
@@ -14,7 +14,7 @@ const dataFromMongoose = await MongooseModel.findOne({ ... }).lean();
 
 //monSQLize uses mongodb@6.x (bson@6.x)
 await msq.collection('orders').insertOne(dataFromMongoose);
-//❌ Error: Unsupported BSON version, bson types must be from bson 6.x.x
+// Error without conversion: Unsupported BSON version, bson types must be from bson 6.x.x
 ```
 
 **Root Cause**:
@@ -27,7 +27,7 @@ await msq.collection('orders').insertOne(dataFromMongoose);
 monSQLize has built-in **automatic cross-version ObjectId conversion** function, without manual processing:
 
 
-## ✅ Automatic conversion (recommended)
+## Automatic conversion
 
 ```javascript
 import MonSQLize from 'monsqlize';
@@ -61,7 +61,7 @@ const legacyUserId = mongoose.Types.ObjectId('507f1f77bcf86cd799439011');
 
 //automatic conversion
 await msq.collection('users').insertOne({
-  userId: legacyUserId,  //✅ Automatic conversion
+  userId: legacyUserId,  // Automatic conversion
   name: 'Alice'
 });
 ```
@@ -109,7 +109,7 @@ await msq.collection('groups').insertOne({
 ```javascript
 //The ObjectId in the query conditions will also be automatically converted
 const result = await msq.collection('orders').find({
-  userId: mongooseObjectId  //✅ Automatic conversion
+  userId: mongooseObjectId  // Automatic conversion
 });
 ```
 
@@ -129,7 +129,7 @@ const result = await msq.collection('orders').find({
 
 ## Manual preprocessing (only when the application layer really needs it)
 
-v2 currently promises **automatic cross-version ObjectId conversion**. During the migration period, the legacy helper subpath is no longer recommended as a formal dependency entry.
+The public contract is **automatic cross-version ObjectId conversion**. Legacy helper subpaths are compatibility surfaces and are not recommended as formal dependency entry points.
 
 If the business really needs to explicitly normalize the data before entering monSQLize, please do the preprocessing at the application layer and then hand the results to monSQLize; do not treat the old helper subpath as a long-term public API.
 
@@ -149,7 +149,3 @@ The current v2 converter does not emit per-value conversion logs. To inspect con
 - [MongoDB official driver version compatibility](https://www.mongodb.com/docs/drivers/node/current/compatibility/)
 - [Mongoose version selection guide](https://mongoosejs.com/docs/version-selection.html)
 - [BSON Specification](http://bsonspec.org/)
-
-## Update log
-
-- **v1.1.1** (2026-01-27): Added cross-version ObjectId compatibility support

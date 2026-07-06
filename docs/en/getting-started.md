@@ -1,8 +1,8 @@
 # Getting Started
 
-## Scope
+## What This Page Covers
 
-This page covers the minimal onboarding path supported by the current TypeScript version of `monSQLize`:
+This page covers the shortest path from installation to a working MongoDB-backed collection:
 
 - Installation
 - Initializing `MonSQLize`
@@ -17,12 +17,11 @@ This page covers the minimal onboarding path supported by the current TypeScript
 npm install monsqlize
 ```
 
-### Current Dependency Boundary
+### Requirements
 
-- Runtime dependencies: `mongodb`, `schema-dsl`, `ssh2`, `ioredis`
-- Current Node.js baseline: `>=18.0.0`
-
-`ssh2` powers SSH tunnel support, and `ioredis` powers Redis cache and distributed capabilities. Both are installed together with `npm install monsqlize` and are used directly when their corresponding features are enabled.
+- Node.js 18 or newer.
+- A MongoDB URI, such as `mongodb://localhost:27017`.
+- Optional Redis, SSH tunnel, cache, Model, and sync features are configured only when your application uses them.
 
 ## Minimal Connection Example
 
@@ -59,7 +58,7 @@ npm run build
 npm run test:examples
 ```
 
-The current official example is `examples/quick-start/basic-connect.ts`. During verification, it is compiled before it runs. The example:
+The current official example is [`examples/quick-start/basic-connect.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts). During verification, it is compiled before it runs. The example:
 
 1. Starts an in-memory MongoDB instance.
 2. Creates and connects a `MonSQLize` instance.
@@ -67,26 +66,18 @@ The current official example is `examples/quick-start/basic-connect.ts`. During 
 4. Reads the document back and prints the result.
 5. Closes the connection and cleans up the temporary database.
 
-## Current Formal Coverage
+## Next Steps
 
-### Covered
-
-- `connect()` / `close()`
-- `collection()` / `db()` / `use()`
-- Basic query façade: `find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch`
-- Basic and convenience writes: `insertOne`, `updateOne`, `deleteOne`, `insertMany`, `updateMany`, `deleteMany`, `replaceOne`, `findOneAnd*`, `upsertOne`
-- Batch write extensions: `insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne`
-
-### Related Examples
-
-- `examples/quick-start/basic-connect.ts`
-- `examples/docs/find.ts`
-- `examples/docs/find-one.ts`
-- `examples/docs/find-page.ts`
-- [`examples.md`](./examples.md)
+- Learn query basics in [`find.md`](./find.md), [`findOne.md`](./findOne.md), and [`findPage.md`](./findPage.md).
+- Compare runnable examples in [`examples.md`](./examples.md).
+- Open the source examples on GitHub:
+  - [`examples/quick-start/basic-connect.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)
+  - [`examples/docs/find.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find.ts)
+  - [`examples/docs/find-one.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-one.ts)
+  - [`examples/docs/find-page.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-page.ts)
 
 ## Common Notes
 
 1. Calling `collection()` before `connect()` triggers `NOT_CONNECTED`.
 2. Missing `config.uri` triggers `INVALID_CONFIG`.
-3. This repository is the TypeScript rewrite. Its public consumption entries are `dist/cjs/index.cjs`, `dist/esm/index.mjs`, and `dist/types/index.d.ts`.
+3. Application code should import from the package root: `import MonSQLize from 'monsqlize'` or `const MonSQLize = require('monsqlize')`.

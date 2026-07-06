@@ -1,71 +1,15 @@
-# 企业级多连接池管理
-
-> **版本**: v1.0.8+  
-> **更新日期**: 2026-02-03
-
----
-
-## 📑 目录
-
-- [简介](#简介)
-  - [功能特性](#功能特性)
-  - [适用场景](#适用场景)
-  - [版本要求](#版本要求)
-  - [架构概览](#架构概览)
-- [快速开始](#快速开始)
-  - [安装](#安装)
-  - [5分钟上手](#5分钟上手)
-  - [完整示例](#完整示例)
-- [核心概念](#核心概念)
-  - [连接池角色](#连接池角色)
-  - [选择策略](#选择策略)
-  - [健康检查](#健康检查)
-  - [故障转移](#故障转移)
-- [API 详细文档](#api-详细文档)
-  - [ConnectionPoolManager](#connectionpoolmanager)
-    - [构造函数](#构造函数)
-    - [addPool()](#addpool)
-    - [removePool()](#removepool)
-    - [selectPool()](#selectpool)
-    - [getPoolNames()](#getpoolnames)
-    - [getPoolStats()](#getpoolstats)
-    - [getPoolHealth()](#getpoolhealth)
-    - [startHealthCheck()](#starthealthcheck)
-    - [stopHealthCheck()](#stophealthcheck)
-    - [close()](#close)
-  - [返回值结构](#返回值结构)
-  - [错误处理](#错误处理)
-- [配置详解](#配置详解)
-  - [管理器配置](#管理器配置)
-  - [连接池配置](#连接池配置)
-  - [健康检查配置](#健康检查配置)
-  - [故障转移配置](#故障转移配置)
-  - [配置示例](#配置示例)
-- [使用场景](#使用场景)
-  - [读写分离](#读写分离)
-  - [负载均衡](#负载均衡)
-  - [报表分析](#报表分析)
-  - [多租户系统](#多租户系统)
-  - [灾备切换](#灾备切换)
-- [最佳实践](#最佳实践)
-  - [连接池规划](#连接池规划)
-  - [性能优化](#性能优化)
-  - [监控和告警](#监控和告警)
-  - [生产环境配置](#生产环境配置)
-- [故障排查](#故障排查)
-  - [常见问题](#常见问题)
-  - [错误代码](#错误代码)
-  - [调试技巧](#调试技巧)
-- [完整示例](#完整示例)
-  - [基础示例](#基础示例-1)
-  - [高级示例](#高级示例-1)
-  - [生产环境示例](#生产环境示例-1)
-
----
+# 连接池与多连接池配置
 
 ## 简介
 
-monSQLize 的多连接池功能允许您在单个应用程序中管理多个 MongoDB 连接池，实现企业级的高可用和高性能数据库访问。
+当应用需要多个 MongoDB 连接时，例如主库 + 只读副本、分析库或租户专属连接池，使用本页配置连接池。当前 `monSQLize` 的推荐使用方式是在创建 `MonSQLize` 实例时一次性声明连接池：
+
+- `pools: PoolConfig[]` 定义命名连接池
+- `poolStrategy` 定义选择策略
+- `poolFallback` 定义故障降级行为
+- `maxPoolsCount` 限制连接池数量
+
+`ConnectionPoolManager` 仍是公开导出的底层管理器，适合需要手动注册、移除或直接选择池的进阶场景。普通业务代码优先使用 `msq.pool(name)`、`msq.pool(name).use(db)`、`scopedCollection()` 和 Model `connection.pool`。
 
 ### 功能特性
 
@@ -86,10 +30,10 @@ monSQLize 的多连接池功能允许您在单个应用程序中管理多个 Mon
 | 🎯 **多租户系统** | 为不同租户使用不同的数据库连接 | 数据隔离和性能保障 |
 | 🎯 **灾备切换** | 主库故障时自动切换到备库 | 故障恢复时间 < 5秒 |
 
-### 版本要求
+### 运行要求
 
-- **monSQLize**: ≥ v1.0.8
-- **Node.js**: ≥ 14.x
+- **monSQLize**: 当前 npm 包 `monsqlize`
+- **Node.js**: ≥ 18.x
 - **MongoDB**: ≥ 4.0
 
 ### 架构概览
@@ -130,63 +74,51 @@ monSQLize 的多连接池功能允许您在单个应用程序中管理多个 Mon
 ### 安装
 
 ```bash
-npm install monsqlize@1.0.8
+npm install monsqlize
 # 或
-yarn add monsqlize@1.0.8
+yarn add monsqlize
 ```
 
 ### 5分钟上手
 
-**第一步：导入模块**
-```javascript
-import { ConnectionPoolManager } from 'monsqlize';
-```
+```ts
+import MonSQLize from 'monsqlize';
 
-**第二步：创建管理器**
-```javascript
-const manager = new ConnectionPoolManager({
-    maxPoolsCount: 10,
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: 'app',
+    config: { uri: 'mongodb://primary.example.com:27017' },
+    pools: [
+        {
+            name: 'primary',
+            uri: 'mongodb://primary.example.com:27017/app',
+            role: 'primary',
+            options: { maxPoolSize: 50 },
+        },
+        {
+            name: 'analytics',
+            uri: 'mongodb://analytics.example.com:27017/app',
+            role: 'analytics',
+            tags: ['reporting'],
+            options: { maxPoolSize: 10 },
+        },
+    ],
     poolStrategy: 'auto',
-    logger: console
-});
-```
-
-**第三步：添加连接池**
-```javascript
-// 添加主库
-await manager.addPool({
-    name: 'primary',
-    uri: 'mongodb://localhost:27017/mydb',
-    role: 'primary'
+    poolFallback: { enabled: true, fallbackStrategy: 'primary' },
+    maxPoolsCount: 5,
 });
 
-// 添加只读副本
-await manager.addPool({
-    name: 'secondary',
-    uri: 'mongodb://localhost:27018/mydb',
-    role: 'secondary'
-});
+await msq.connect();
+
+const reports = msq.pool('analytics').collection('reports');
+const rows = await reports.find({ status: 'ready' });
+
+console.log(`查询到 ${rows.length} 条报表记录`);
 ```
 
-**第四步：启动健康检查**
-```javascript
-manager.startHealthCheck();
-```
+`connect()` 会根据 `pools` 自动创建并启动 `ConnectionPoolManager`。如果没有传入 `pools`，调用 `msq.pool(name)` 会抛出 `NO_POOL_MANAGER` / `INVALID_CONFIG` 类错误；如果池名称不存在，会抛出 `POOL_NOT_FOUND` 并带出可用池名称。
 
-**第五步：使用连接池**
-```javascript
-// 自动选择最佳连接池（读操作会选择 secondary）
-const pool = manager.selectPool('read');
-
-// 执行查询
-const users = await pool.collection('users').find({ status: 'active' }).toArray();
-
-console.log(`查询到 ${users.length} 个用户`);
-```
-
-**完成！** 🎉
-
-### 完整示例
+### 进阶：直接使用 ConnectionPoolManager
 
 ```javascript
 import { ConnectionPoolManager } from 'monsqlize';
@@ -357,15 +289,16 @@ const pool = manager.selectPool('read', { pool: 'analytics' });
 | 状态 | 说明 | 行为 | 恢复方式 |
 |------|------|------|---------|
 | **up** | 健康 | 正常使用 | - |
+| **degraded** | 已出现失败但未达到 down 阈值 | 仍可被选择，但需要监控 | 健康检查成功后恢复为 `up`，连续失败达到阈值后变为 `down` |
 | **down** | 故障 | 不使用，等待恢复 | 健康检查成功后自动恢复 |
-| **unknown** | 未知 | 初始状态，谨慎使用 | 首次健康检查后确定 |
 
 **检查机制**:
 1. 使用 `db.admin().ping()` 命令
 2. 设置超时时间（默认 3000ms）
-3. 连续失败达到阈值（默认 3次）→ 标记为 down
-4. down 状态仍会继续检查
-5. 成功一次 → 立即恢复为 up
+3. 检查失败会先标记为 degraded
+4. 连续失败达到重试阈值（默认 3 次）→ 标记为 down
+5. down 状态仍会继续检查
+6. 成功一次 → 立即恢复为 up
 
 ### 故障转移
 
@@ -655,7 +588,7 @@ getPoolStats(): Record<string, PoolStats>
 ```typescript
 {
     [poolName: string]: {
-        status: 'up' | 'down' | 'unknown',
+        status: 'up' | 'degraded' | 'down' | 'unknown',
         connections: number,       // 当前连接数
         available: number,         // 可用连接数
         waiting: number,           // 等待连接数
@@ -713,11 +646,11 @@ getPoolHealth(): Map<string, HealthStatus>
 **返回值**:
 ```typescript
 Map<string, {
-    status: 'up' | 'down' | 'unknown',
+    status: 'up' | 'down' | 'degraded',
     consecutiveFailures: number,   // 连续失败次数
-    lastCheck: number,             // 最后检查时间戳
-    lastSuccess: number,           // 最后成功时间戳
-    lastError: Error | null        // 最后错误信息
+    lastCheckTime: Date | null,    // 最后检查时间
+    lastError: Error | null,       // 最后错误信息
+    uptime: number                 // 可用率
 }>
 ```
 
@@ -744,7 +677,7 @@ if (downPools.length > 0) {
 
 // 详细健康报告
 for (const [name, status] of health.entries()) {
-    const lastCheckTime = new Date(status.lastCheck).toISOString();
+    const lastCheckTime = status.lastCheckTime?.toISOString() ?? '尚未检查';
     console.log(`
 池名称: ${name}
 状态: ${status.status}
@@ -1469,70 +1402,61 @@ setInterval(checkAlerts, 30000);
 #### 完整生产环境示例
 
 ```javascript
-import { ConnectionPoolManager } from 'monsqlize';
-const winston = require('winston');
+import MonSQLize from 'monsqlize';
 
-// 自定义日志
-const logger = winston.createLogger({
-    level: 'info',
-    format: winston.format.json(),
-    transports: [
-        new winston.transports.File({ filename: 'pool-error.log', level: 'error' }),
-        new winston.transports.File({ filename: 'pool-combined.log' })
-    ]
-});
+const logger = {
+    info: (message, meta) => console.info(message, meta ?? ''),
+    warn: (message, meta) => console.warn(message, meta ?? ''),
+    error: (message, meta) => console.error(message, meta ?? ''),
+};
 
-// 创建管理器
-const manager = new ConnectionPoolManager({
-    maxPoolsCount: 20,
+const pools = JSON.parse(process.env.MONGO_POOLS ?? '[]');
+
+const msq = new MonSQLize({
+    type: 'mongodb',
+    databaseName: process.env.MONGO_DATABASE ?? 'mydb',
+    config: {
+        uri: process.env.MONGO_URI ?? 'mongodb://primary.example.com:27017/mydb',
+    },
+    pools: pools.map((pool) => ({
+        healthCheck: {
+            enabled: true,
+            interval: 5000,
+            timeout: 3000,
+            retries: 3,
+        },
+        ...pool,
+    })),
     poolStrategy: 'leastConnections',
     poolFallback: {
         enabled: true,
         fallbackStrategy: 'secondary',
         retryDelay: 500,
-        maxRetries: 5
+        maxRetries: 5,
     },
-    logger
+    maxPoolsCount: 20,
+    logger,
 });
 
-// 从环境变量加载配置
-async function initPools() {
-    const pools = JSON.parse(process.env.MONGO_POOLS || '[]');
-    
-    for (const config of pools) {
-        await manager.addPool({
-            ...config,
-            healthCheck: {
-                enabled: true,
-                interval: 5000,
-                timeout: 3000,
-                retries: 3
-            }
-        });
-    }
-    
-    manager.startHealthCheck();
-    logger.info(`连接池管理器已初始化，共 ${pools.length} 个池`);
+async function start() {
+    await msq.connect();
+    logger.info(`monSQLize 已连接，共配置 ${pools.length} 个连接池`);
 }
 
-// 优雅退出
 async function gracefulShutdown() {
-    logger.info('正在关闭连接池管理器...');
-    await manager.close();
-    logger.info('连接池管理器已关闭');
+    logger.info('正在关闭 monSQLize...');
+    await msq.close();
+    logger.info('monSQLize 已关闭');
     process.exit(0);
 }
 
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
-// 启动
-initPools().catch(error => {
+start().catch((error) => {
     logger.error('初始化失败:', error);
     process.exit(1);
 });
-
-module.exports = manager;
 ```
 
 #### 环境变量配置
@@ -1746,7 +1670,7 @@ try {
 
 ---
 
-## 完整示例（企业级多连接池管理）
+## 完整底层管理器示例
 
 ### 基础示例
 
@@ -1939,36 +1863,8 @@ advancedExample().catch(console.error);
 
 ## 相关文档
 
-- [monSQLize 主文档](../../README.md)
 - [连接管理](./connection.md)
-- [多连接池健康检查详解](./multi-pool-health-check.md) - 健康检查机制、问题处理、运维通知
-- [事务优化](./transaction-optimizations.md)
+- [链式池访问 API](./pool-chain-api.md)
+- [健康检查](./multi-pool-health-check.md)
 - [分布式部署](./distributed-deployment.md)
-
-
----
-
-**文档版本**: v1.0.8  
-**最后更新**: 2026-02-03  
-**维护者**: monSQLize Team
-
-
----
-
-## 📮 反馈与贡献
-
-如果您发现文档错误或有改进建议，欢迎：
-- 提交 Issue
-- 提交 Pull Request
-- 联系维护团队
-
----
-
-## 🔗 相关文档（企业级多连接池管理）
-
-- [链式池/库访问 API（v1.3.0+）](./pool-chain-api.md) — 使用 `pool()` / `use()` 进行跨池跨库链式访问
-- [错误码参考](./error-codes.md) — 包含 `NO_POOL_MANAGER` / `POOL_NOT_FOUND` 等新错误码
-- [Model 层文档](./model.md)
-
-**祝您使用愉快！** 🎉
-
+- [错误码参考](./error-codes.md)

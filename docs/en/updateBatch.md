@@ -1,71 +1,6 @@
 # updateBatch - Update documents in batches
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [Applicable scenarios](#applicable-scenarios)
-- [API parameter description](#api-parameter-description)
-- [Method signature](#method-signature)
-- [Detailed explanation of parameters](#detailed-explanation-of-parameters)
-- [Return value](#return-value)
-- [Progress callback parameters](#progress-callback-parameters)
-- [Usage example](#usage-example)
-- [1. Basic usage - batch modification status](#1-basic-usage-batch-modification-status)
-- [2. With progress monitoring - data migration](#2-with-progress-monitoring-data-migration)
-- [3. $set - Set field value](#3-set-set-field-value)
-- [4. $inc - increase or decrease the value](#4-inc-increase-or-decrease-the-value)
-- [5. $push - add array elements](#5-push-add-array-elements)
-- [6. $pull - delete array elements](#6-pull-delete-array-elements)
-- [7. $mul - multiplication operation](#7-mul-multiplication-operation)
-- [8. Multiple operator combinations](#8-multiple-operator-combinations)
-- [9. Using arrayFilters - Update specific elements in an array](#9-using-arrayfilters-update-specific-elements-in-an-array)
-- [10. Error handling - retry strategy (recommended)](#10-error-handling-retry-strategy-recommended)
-- [11. Upsert is not supported](#11-upsert-is-not-supported)
-- [12. Complex query conditions](#12-complex-query-conditions)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [1. Batch size selection](#1-batch-size-selection)
-- [2. Index optimization](#2-index-optimization)
-- [3. Avoid full table scan](#3-avoid-full-table-scan)
-- [4. Update operation optimization](#4-update-operation-optimization)
-- [FAQ](#faq)
-- [Q1: What is the difference between updateBatch and updateMany?](#q1-what-is-the-difference-between-updatebatch-and-updatemany)
-- [Q2: Will updateBatch cause data inconsistency?](#q2-will-updatebatch-cause-data-inconsistency)
-- [Q3: Why must we use the update operator?](#q3-why-must-we-use-the-update-operator)
-- [Q4: How to update _id in batches?](#q4-how-to-update-id-in-batches)
-- [Q5: What update operators does updateBatch support?](#q5-what-update-operators-does-updatebatch-support)
-- [Q6: How to estimate the update time?](#q6-how-to-estimate-the-update-time)
-- [Q7: Can it be used in transactions?](#q7-can-it-be-used-in-transactions)
-- [References](#references)
-
-## Overview
-
-The `updateBatch` method updates a large number of documents in batches through streaming queries. It is suitable for scenarios where thousands or even millions of data need to be updated to avoid memory pressure and performance problems caused by one-time updates.
-
-
-## Features
-
-- ✅ **Streaming Query** - Streaming API based on `find()`, constant memory usage
-- ✅ **Progress Monitoring** - View update progress and percentage in real time
-- ✅ **Error Handling** - Supports four strategies of stop/skip/collect/retry
-- ✅ **Auto Retry** - Automatically retry failed batches when the network is unstable
-- ✅ **Cache Invalidation** - Automatically invalidate related collection cache
-- ✅ **FULL OPERATORS** - Supports all MongoDB update operators
-
-
-## Applicable scenarios
-
-| Scenario | Data volume | Recommended method | Reason |
-|------|--------|---------|------|
-| Batch price adjustment | > 100,000 | **updateBatch** | Avoid too many updates at one time |
-| Data migration | > 10,000 | **updateBatch** | Can monitor progress |
-| Batch status modification | > 100,000 | **updateBatch** | Progress monitoring required |
-| Update a small amount of data | < 1000 | updateMany | updateMany is simpler |
-
----
-
 ## API parameter description
-
 
 ## Method signature
 
@@ -76,7 +11,6 @@ collection(name: string).updateBatch(
   options?: UpdateBatchOptions
 ): Promise<UpdateBatchResult>
 ```
-
 
 ## Detailed explanation of parameters
 
@@ -106,7 +40,6 @@ collection(name: string).updateBatch(
 | **arrayFilters** | `Array` | - | Array filters |
 | **comment** | `string` | - | Operation comments (for log tracking) |
 
-
 ## Return value
 
 ```typescript
@@ -121,7 +54,6 @@ collection(name: string).updateBatch(
   retries: Array<Object>      //Retry record list
 }
 ```
-
 
 ## Progress callback parameters
 
@@ -141,7 +73,6 @@ collection(name: string).updateBatch(
 
 ## Usage example
 
-
 ## 1. Basic usage - batch modification status
 
 ```javascript
@@ -154,7 +85,6 @@ const result = await collection('orders').updateBatch(
 
 console.log(`Update ${result.modifiedCount} orders`);
 ```
-
 
 ## 2. With progress monitoring - data migration
 
@@ -184,7 +114,6 @@ Migration progress: 80% (400000/500000 items)
 Migration progress: 100% (500000/500000 items)
 ```
 
-
 ## 3. $set - Set field value
 
 ```javascript
@@ -201,7 +130,6 @@ await collection('users').updateBatch(
 );
 ```
 
-
 ## 4. $inc - increase or decrease the value
 
 ```javascript
@@ -217,7 +145,6 @@ await collection('products').updateBatch(
     { batchSize: 3000 }
 );
 ```
-
 
 ## 5. $push - add array elements
 
@@ -238,7 +165,6 @@ await collection('users').updateBatch(
 );
 ```
 
-
 ## 6. $pull - delete array elements
 
 ```javascript
@@ -255,7 +181,6 @@ await collection('users').updateBatch(
     { batchSize: 5000 }
 );
 ```
-
 
 ## 7. $mul - multiplication operation
 
@@ -274,7 +199,6 @@ await collection('products').updateBatch(
     }
 );
 ```
-
 
 ## 8. Multiple operator combinations
 
@@ -295,7 +219,6 @@ await collection('products').updateBatch(
 );
 ```
 
-
 ## 9. Using arrayFilters - Update specific elements in an array
 
 ```javascript
@@ -314,7 +237,6 @@ await collection('orders').updateBatch(
     }
 );
 ```
-
 
 ## 10. Error handling - retry strategy (recommended)
 
@@ -335,7 +257,6 @@ const result = await collection('users').updateBatch(
 
 console.log(`Update completed, retry ${result.retries.length} times`);
 ```
-
 
 ## 11. Upsert is not supported
 
@@ -361,7 +282,6 @@ await collection('user_settings').upsertOne(
     }
 );
 ```
-
 
 ## 12. Complex query conditions
 
@@ -395,7 +315,6 @@ await collection('orders').updateBatch(
 
 ## Performance optimization suggestions
 
-
 ## 1. Batch size selection
 
 | Data volume | Recommended batchSize | Reason |
@@ -416,7 +335,6 @@ await collection('users').updateBatch(
 );
 ```
 
-
 ## 2. Index optimization
 
 ```javascript
@@ -430,7 +348,6 @@ await collection('orders').updateBatch(
     { batchSize: 5000 }
 );
 ```
-
 
 ## 3. Avoid full table scan
 
@@ -447,7 +364,6 @@ await collection('users').updateBatch(
     { $set: { status: 'updated' } }
 );
 ```
-
 
 ## 4. Update operation optimization
 
@@ -469,7 +385,6 @@ await collection('users').updateBatch(filter, {
 
 ## FAQ
 
-
 ## Q1: What is the difference between updateBatch and updateMany?
 
 | Compare items | updateBatch | updateMany |
@@ -485,7 +400,6 @@ await collection('users').updateBatch(filter, {
 - Data volume < 10000 items → use `updateMany`
 - Data volume ≥ 10000 → use `updateBatch`
 
-
 ## Q2: Will updateBatch cause data inconsistency?
 
 **Answer**: `updateBatch` processes matching `_id` values through a cursor and writes them in batches. It does not create a MongoDB transaction or guarantee snapshot isolation by itself. If you need a transactional snapshot, run it inside an explicit transaction and pass the transaction `session`.
@@ -498,7 +412,6 @@ await collection('users').updateBatch(
     { batchSize: 5000 }
 );
 ```
-
 
 ## Q3: Why must we use the update operator?
 
@@ -517,7 +430,6 @@ await collection('users').updateBatch(
     { $set: { status: 'new' } }
 );
 ```
-
 
 ## Q4: How to update _id in batches?
 
@@ -539,7 +451,6 @@ await collection('users').updateBatch(
     }
 );
 ```
-
 
 ## Q5: What update operators does updateBatch support?
 
@@ -567,7 +478,6 @@ await collection('users').updateBatch(
 **Other operators**:
 - `$currentDate` - Set current date
 
-
 ## Q6: How to estimate the update time?
 
 ```javascript
@@ -579,7 +489,6 @@ const estimatedTime = totalCount / 35000;  //about 29 seconds
 
 console.log(`Estimated time: ${Math.ceil(estimatedTime)} seconds`);
 ```
-
 
 ## Q7: Can it be used in transactions?
 
@@ -618,8 +527,3 @@ try {
 - [MongoDB update operator](https://www.mongodb.com/docs/manual/reference/operator/update/)
 - [Usage Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/batch-operations.ts)
 - [Batch write test](../../test/unit/writes/batch.test.ts)
-
----
-
-**Updated date**: 2025-12-30
-**Version**: v1.0

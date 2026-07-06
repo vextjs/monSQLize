@@ -1,52 +1,32 @@
-# find 方法详细文档
-
-## 📑 目录
-
-- [概述](#概述)
-- [调用方式](#调用方式)
-- [方法签名](#方法签名)
-- [参数说明](#参数说明)
-- [返回值](#返回值)
-- [使用模式](#使用模式)
-- [性能优化建议](#性能优化建议)
-- [错误处理](#错误处理)
-- [与 findPage 的区别](#与-findpage-的区别)
-- [参考资料](#参考资料)
-- [常见问题 FAQ](#常见问题-faq)
-- [最佳实践](#最佳实践)
-- [版本历史](#版本历史)
-
----
+# find()
 
 ## 概述
 
-`find` 是 monSQLize 提供的基础查询方法，用于从 MongoDB 集合中查询多条文档记录。支持查询条件、排序、分页、投影、流式处理和缓存等功能。
+`find()` 用于从 MongoDB 集合读取多条文档。列表查询、排序、分页、投影、流式读取、缓存读取，以及任何返回零条或多条记录的查询，都可以从这个方法开始。
 
-### ✨ ObjectId 自动转换（v1.3.0+）
+### ObjectId 自动转换
 
-从 v1.3.0 版本开始，`find` 方法支持 **ObjectId 字符串自动转换**。当查询条件中包含 ObjectId 字符串时，会自动转换为 MongoDB 的 ObjectId 对象，无需手动调用 `new ObjectId()`。
+查询条件中包含合法 24 位十六进制 ObjectId 字符串时，monSQLize 会在发送给 MongoDB 前完成转换。多数来自 HTTP 参数的 ID 可以直接按字符串传入，不需要手动调用 `new ObjectId()`。
 
 ```javascript
-// ✅ v1.3.0+: 自动转换 ObjectId 字符串
 const posts = await collection('posts').find({
-    authorId: '507f1f77bcf86cd799439011',      // 自动转换为 ObjectId
-    categoryId: '507f1f77bcf86cd799439012'     // 自动转换为 ObjectId
+    authorId: '507f1f77bcf86cd799439011',
+    categoryId: '507f1f77bcf86cd799439012'
 });
 
-// ✅ 复杂查询也支持
 const docs = await collection('docs').find({
     $or: [
-        { authorId: userId1 },   // 自动转换
-        { editorId: userId2 }    // 自动转换
+        { authorId: userId1 },
+        { editorId: userId2 }
     ]
 });
 ```
 
-**了解更多**: 详见 [ObjectId 自动转换文档](./objectid-auto-convert.md)
+如果业务字段本身可能是 24 位十六进制字符串，见 [ObjectId 自动转换](./objectid-auto-convert.md) 中的逃生开关。
 
 ## 调用方式
 
-monSQLize 提供两种查询方式，功能完全等价：
+monSQLize 支持链式调用和 options 参数两种写法。选择团队更容易阅读的写法即可。
 
 ### 方式 1: 链式调用（推荐）
 
@@ -88,7 +68,7 @@ const results = await collection('products')
 
 📚 **详细文档**: 查看 [链式调用完整 API 文档](./chaining-api.md)
 
-### 方式 2: options 参数（传统方式，完全兼容）
+### 方式 2: options 参数
 
 ```javascript
 const results = await collection('products').find(
@@ -102,7 +82,7 @@ const results = await collection('products').find(
 );
 ```
 
-**两种方式完全等价**，可以根据个人偏好和场景选择使用。
+两种写法进入同一查询路径。
 
 ---
 
@@ -203,7 +183,6 @@ comment: 'AdminDashboard:getTotalActive:admin_user_5'
   }
 }
 ```
-
 **参考文档**：
 - [MongoDB comment 参数官方文档](https://www.mongodb.com/docs/manual/reference/command/find/#std-label-find-cmd-comment)
 - [Database Profiler](https://www.mongodb.com/docs/manual/reference/command/profile/)
@@ -946,7 +925,3 @@ async function batchProcess(collectionName, processFunc, batchSize = 1000) {
   });
 }
 ```
-
-## 版本历史
-
-- **v1.0.0** (2025-01-12): 初始版本，完整的 find 方法文档

@@ -1,36 +1,14 @@
 # ES Module (import) 支持说明
 
-**版本**: 1.0  
-**最后更新**: 2025-01-02
+## 概述
+
+monSQLize 支持 **ES Module (import)** 和 **CommonJS (require)** 两种导入方式。
 
 ---
 
-## 📑 目录
+## 支持的导入方式
 
-- [📋 概述](#-概述)
-- [🎯 支持的导入方式](#-支持的导入方式)
-- [📦 Package.json 配置](#-packagejson-配置)
-- [🚀 使用示例](#-使用示例)
-- [📚 导入方式对比](#-导入方式对比)
-- [🔧 可用的导出](#-可用的导出)
-- [🧪 测试 ES Module 支持](#-测试-es-module-支持)
-- [💡 最佳实践](#-最佳实践)
-- [🎯 迁移指南](#-迁移指南)
-- [⚠️ 注意事项](#️-注意事项)
-- [📊 兼容性矩阵](#-兼容性矩阵)
-- [🎉 总结](#-总结)
-
----
-
-## 📋 概述
-
-monSQLize 现已完全支持 **ES Module (import)** 和 **CommonJS (require)** 两种导入方式。
-
----
-
-## 🎯 支持的导入方式
-
-### 方式 1: CommonJS (require) ✅
+### 方式 1: CommonJS (require)
 
 ```javascript
 // 传统的 CommonJS 方式
@@ -44,7 +22,7 @@ const msq = new MonSQLize({
 await msq.connect();
 ```
 
-### 方式 2: ES Module (import) ✅ 新增
+### 方式 2: ES Module (import)
 
 ```javascript
 // 现代的 ES Module 方式
@@ -60,7 +38,7 @@ await msq.connect();
 
 ---
 
-## 📦 Package.json 配置
+## Package.json 配置
 
 monSQLize 的 package.json 已配置双模式支持：
 
@@ -82,7 +60,7 @@ monSQLize 的 package.json 已配置双模式支持：
 
 ---
 
-## 🚀 使用示例
+## 使用示例
 
 ### CommonJS 项目
 
@@ -158,7 +136,7 @@ node app.js  # 如果 package.json 中 "type": "module"
 
 ---
 
-## 📚 导入方式对比
+## 导入方式对比
 
 ### 默认导出
 
@@ -193,7 +171,7 @@ import MonSQLize, { Logger, MemoryCache } from 'monsqlize';
 
 ---
 
-## 🔧 可用的导出
+## 可用的导出
 
 ### 默认导出（可用的导出）
 
@@ -211,7 +189,7 @@ import MonSQLize, { Logger, MemoryCache } from 'monsqlize';
 
 ---
 
-## 🧪 测试 ES Module 支持
+## 测试 ES Module 支持
 
 ### 运行 ESM 测试
 
@@ -222,14 +200,14 @@ npm run test:runtime
 
 ### 测试内容
 
-1. ✅ 默认导出 (`import MonSQLize`)
-2. ✅ 命名导出 (`import { Logger }`)
-3. ✅ 实例创建
-4. ✅ 连接和基本操作
+1. 默认导出 (`import MonSQLize`)
+2. 命名导出 (`import { Logger }`)
+3. 实例创建
+4. 连接和基本操作
 
 ---
 
-## 💡 最佳实践
+## 最佳实践
 
 ### 1. 选择合适的导入方式
 
@@ -279,7 +257,7 @@ const msq: MonSQLize = new MonSQLize({
 
 ---
 
-## 🎯 迁移指南
+## 迁移指南
 
 ### 从 CommonJS 迁移到 ES Module
 
@@ -323,7 +301,7 @@ await msq.connect();  // 无需包装在 async 函数中
 
 ---
 
-## ⚠️ 注意事项
+## 注意事项
 
 ### 1. 文件扩展名
 
@@ -351,10 +329,10 @@ const __dirname = dirname(__filename);
 ES Module 中不能使用 `require()`，必须使用 `import`:
 
 ```javascript
-// ❌ ES Module 中不可用
+// ES Module 中不可用
 const fs = require('fs');
 
-// ✅ 正确方式
+// 正确方式
 import fs from 'fs';
 ```
 
@@ -373,35 +351,35 @@ const module = await import('./module.js');
 
 ---
 
-## 📊 兼容性矩阵
+## 兼容性矩阵
 
 | Node.js 版本 | CommonJS | ES Module |
 |-------------|----------|-----------|
-| 12.x | ✅ 支持 | ⚠️ 实验性 |
-| 14.x | ✅ 支持 | ✅ 支持 |
-| 16.x | ✅ 支持 | ✅ 支持 |
-| 18.x | ✅ 支持 | ✅ 支持 (推荐) |
-| 20.x | ✅ 支持 | ✅ 支持 (推荐) |
-| 22.x | ✅ 支持 | ✅ 支持 (推荐) |
+| 12.x | 支持 | 实验性 |
+| 14.x | 支持 | 支持 |
+| 16.x | 支持 | 支持 |
+| 18.x | 支持 | 支持 (推荐) |
+| 20.x | 支持 | 支持 (推荐) |
+| 22.x | 支持 | 支持 (推荐) |
 
 ---
 
-## 🎉 总结
+## 总结
 
-### ✅ monSQLize 现已支持
+### monSQLize 支持
 
 1. **CommonJS (require)** - 传统方式，兼容性好
 2. **ES Module (import)** - 现代方式，更好的优化
 
-### ✅ 特性
+### 特性
 
 - 🔄 双模式支持，无缝切换
 - 📦 正确的 package.json 配置
-- 🧪 完整的测试覆盖
-- 📚 详细的文档说明
-- 💡 最佳实践指导
+- 完整的测试覆盖
+- 详细的文档说明
+- 最佳实践指导
 
-### ✅ 用户无需修改代码
+### 用户无需修改代码
 
 - 现有 CommonJS 项目无需改动
 - 新项目可以直接使用 ES Module

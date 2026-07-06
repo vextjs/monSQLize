@@ -1,44 +1,5 @@
 # updateMany() - Update documents in batches
 
-## Table of Contents
-
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [filter (Object, required)](#filter-object-required)
-- [update (Object, required)](#update-object-required)
-- [options (Object, optional)](#options-object-optional)
-- [Return value](#return-value)
-- [Upsert semantics](#upsert-semantics)
-- [Example](#example)
-- [Batch update status](#batch-update-status)
-- [Batch increment](#batch-increment)
-- [Conditional batch update](#conditional-batch-update)
-- [Add fields in batches](#add-fields-in-batches)
-- [Delete fields in batches](#delete-fields-in-batches)
-- [Use array filter](#use-array-filter)
-- [Complex updates with multiple conditions](#complex-updates-with-multiple-conditions)
-- [Batch update nested fields](#batch-update-nested-fields)
-- [Performance optimization](#performance-optimization)
-- [1. Use index optimization filtering](#1-use-index-optimization-filtering)
-- [2. Process large-scale updates in batches](#2-process-large-scale-updates-in-batches)
-- [3. Performance test example](#3-performance-test-example)
-- [Differences from updateOne](#differences-from-updateone)
-- [Common scenarios](#common-scenarios)
-- [Scenario 1: Batch activation of users](#scenario-1-batch-activation-of-users)
-- [Scenario 2: Mark expired data in batches](#scenario-2-mark-expired-data-in-batches)
-- [Scenario 3: Bulk price adjustment](#scenario-3-bulk-price-adjustment)
-- [Scenario 4: Batch data migration](#scenario-4-batch-data-migration)
-- [Error handling](#error-handling)
-- [Caching behavior](#caching-behavior)
-- [Slow query log](#slow-query-log)
-- [Best Practices](#best-practices)
-- [1. Verify update results](#1-verify-update-results)
-- [2. Add operation comments](#2-add-operation-comments)
-- [3. Use transaction processing key batch update](#3-use-transaction-processing-key-batch-update)
-- [4. Monitor update progress](#4-monitor-update-progress)
-- [Related methods](#related-methods)
-- [References](#references)
-
 ## Syntax
 
 ```javascript
@@ -46,7 +7,6 @@ collection(collectionName).updateMany(filter, update, options)
 ```
 
 ## Parameters
-
 
 ## filter (Object, required)
 Filter criteria to match the documents to be updated.
@@ -56,7 +16,6 @@ Filter criteria to match the documents to be updated.
 { age: { $gte: 18, $lt: 65 }, role: "user" }
 ```
 
-
 ## update (Object, required)
 For update operations, the update operator must be used.
 
@@ -64,7 +23,6 @@ For update operations, the update operator must be used.
 { $set: { status: "active", updatedAt: new Date() } }
 { $inc: { views: 1 } }
 ```
-
 
 ## options (Object, optional)
 
@@ -102,7 +60,6 @@ Return `Promise<UpdateResult>`:
 
 ## Example
 
-
 ## Batch update status
 
 ```javascript
@@ -114,7 +71,6 @@ const result = await collection("users").updateMany(
 
 console.log("Updated:", result.modifiedCount, "users");
 ```
-
 
 ## Batch increment
 
@@ -128,7 +84,6 @@ const result = await collection("products").updateMany(
 console.log("Updated:", result.modifiedCount, "products");
 ```
 
-
 ## Conditional batch update
 
 ```javascript
@@ -141,7 +96,6 @@ const result = await collection("orders").updateMany(
   { $set: { priority: "high" } }
 );
 ```
-
 
 ## Add fields in batches
 
@@ -159,7 +113,6 @@ await collection("articles").updateMany(
 );
 ```
 
-
 ## Delete fields in batches
 
 ```javascript
@@ -169,7 +122,6 @@ await collection("documents").updateMany(
   { $unset: { tempField: "", debugMode: "" } }
 );
 ```
-
 
 ## Use array filter
 
@@ -183,7 +135,6 @@ await collection("students").updateMany(
   }
 );
 ```
-
 
 ## Complex updates with multiple conditions
 
@@ -200,7 +151,6 @@ await collection("users").updateMany(
   }
 );
 ```
-
 
 ## Batch update nested fields
 
@@ -219,7 +169,6 @@ await collection("users").updateMany(
 
 ## Performance optimization
 
-
 ## 1. Use index optimization filtering
 
 ```javascript
@@ -229,7 +178,6 @@ await collection("users").updateMany(
   { $set: { status: "active" } }
 );
 ```
-
 
 ## 2. Process large-scale updates in batches
 
@@ -266,7 +214,6 @@ while (true) {
   console.log(`Processed ${batchSize} documents`);
 }
 ```
-
 
 ## 3. Performance test example
 
@@ -313,7 +260,6 @@ await collection("users").updateMany(
 
 ## Common scenarios
 
-
 ## Scenario 1: Batch activation of users
 
 ```javascript
@@ -334,7 +280,6 @@ const result = await collection("users").updateMany(
 console.log(`Activated ${result.modifiedCount} users`);
 ```
 
-
 ## Scenario 2: Mark expired data in batches
 
 ```javascript
@@ -354,7 +299,6 @@ await collection("sessions").updateMany(
 );
 ```
 
-
 ## Scenario 3: Bulk price adjustment
 
 ```javascript
@@ -367,7 +311,6 @@ await collection("products").updateMany(
   }
 );
 ```
-
 
 ## Scenario 4: Batch data migration
 
@@ -449,7 +392,6 @@ await collection("logs").updateMany(
 
 ## Best Practices
 
-
 ## 1. Verify update results
 
 ```javascript
@@ -465,7 +407,6 @@ if (result.matchedCount !== result.modifiedCount) {
 }
 ```
 
-
 ## 2. Add operation comments
 
 ```javascript
@@ -475,7 +416,6 @@ await collection("users").updateMany(
   { comment: "Batch activation of users - Operation activity 202511" }
 );
 ```
-
 
 ## 3. Use transaction processing key batch update
 
@@ -502,7 +442,6 @@ try {
   await session.endSession();
 }
 ```
-
 
 ## 4. Monitor update progress
 

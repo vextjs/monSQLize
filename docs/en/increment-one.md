@@ -1,46 +1,5 @@
 # incrementOne() - Atomic increment/decrement field value
 
-## Table of Contents
-
-- [Method overview](#method-overview)
-- [Why is incrementOne needed?](#why-is-incrementone-needed)
-- [Core Advantages](#core-advantages)
-- [Method signature](#method-signature)
-- [Parameter description](#parameter-description)
-- [Basic example](#basic-example)
-- [Example 1: Increment (default +1)](#example-1-increment-default-1)
-- [Example 2: Specify increment](#example-2-specify-increment)
-- [Example 3: Decrement (negative number)](#example-3-decrement-negative-number)
-- [Example 4: Simultaneous operation of multiple fields](#example-4-simultaneous-operation-of-multiple-fields)
-- [Example 5: Return updated document](#example-5-return-updated-document)
-- [Real scene example](#real-scene-example)
-- [Scenario 1: Statistics of login times](#scenario-1-statistics-of-login-times)
-- [Scenario 2: Points System](#scenario-2-points-system)
-- [Scenario 3: Article views](#scenario-3-article-views)
-- [Scenario 4: Inventory Management](#scenario-4-inventory-management)
-- [Scenario 5: Multi-dimensional statistics](#scenario-5-multi-dimensional-statistics)
-- [Detailed explanation of option parameters](#detailed-explanation-of-option-parameters)
-- [returnDocument - return timing](#returndocument-return-timing)
-- [projection - field projection](#projection-field-projection)
-- [Performance Notes](#performance-notes)
-- [Atomic guarantee](#atomic-guarantee)
-- [Performance comparison](#performance-comparison)
-- [Error handling](#error-handling)
-- [Error type](#error-type)
-- [Error handling example](#error-handling-example)
-- [Best Practices](#best-practices)
-- [✅ Recommended practices](#recommended-practices)
-- [❌ Things to avoid](#things-to-avoid)
-- [Compare with other methods](#compare-with-other-methods)
-- [vs updateOne({ $inc })](#vs-updateone-inc)
-- [FAQ](#faq)
-- [Q1: What is the difference between incrementOne and updateOne?](#q1-what-is-the-difference-between-incrementone-and-updateone)
-- [Q2: Does it support concurrency?](#q2-does-it-support-concurrency)
-- [Q3: Can it be reduced?](#q3-can-it-be-reduced)
-- [Q4: What happens when the field does not exist?](#q4-what-happens-when-the-field-does-not-exist)
-- [Q5: How to operate multiple fields at the same time?](#q5-how-to-operate-multiple-fields-at-the-same-time)
-- [See also](#see-also)
-
 ## Method overview
 
 `incrementOne` is a convenience method for atomically incrementing or decrementing a field value in a single document, simplifying the use of `updateOne({ $inc })`.
@@ -503,4 +462,3 @@ await collection('users').incrementOne(
 - [findOneAndUpdate()](./find-one-and-update.md) - Find and update
 - [upsertOne()](./upsert-one.md) - Update if it exists, insert if it does not exist
 - [MongoDB official documentation: $inc operator](https://www.mongodb.com/docs/manual/reference/operator/update/inc/)
-

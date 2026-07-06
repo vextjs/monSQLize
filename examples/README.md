@@ -3,12 +3,12 @@
 Runnable TypeScript examples for every major monSQLize API.
 Each file uses an in-memory MongoDB server (`mongodb-memory-server`) — no real database needed.
 
-> 当前共 **56 个**可执行 TypeScript 示例，另有 `examples/helpers/bootstrap.ts` 作为示例辅助模块；可执行示例统一由 `npm run test:examples` 编译并执行。
+> This repository currently includes **56** runnable TypeScript examples. `examples/helpers/bootstrap.ts` is a shared helper module, and `npm run test:examples` compiles and runs the executable examples.
 
 ## Prerequisites
 
 ```bash
-npm install       # install all deps
+npm install
 npm run build     # build the library
 ```
 
@@ -43,7 +43,6 @@ npm run test:examples
 | File | Description |
 |------|-------------|
 | [`cache/with-cache.ts`](cache/with-cache.ts) | Per-collection cache TTL, hit/miss, `invalidate()` |
-| [`docs/function-cache.ts`](docs/function-cache.ts) | `withCache()` and `FunctionCache` with custom keys, stats, and invalidation |
 
 ### Docs — CRUD
 
@@ -105,7 +104,7 @@ npm run test:examples
 
 | File | Description |
 |------|-------------|
-| [`docs/cache-multilevel.ts`](docs/cache-multilevel.ts) | Multi-level cache: L1 MemoryCache + L2 Redis stub + DistributedCacheInvalidator + FunctionCache |
+| [`docs/cache-multilevel.ts`](docs/cache-multilevel.ts) | Multi-level database cache: L1 MemoryCache + L2 Redis stub + DistributedCacheInvalidator |
 | [`docs/objectid.ts`](docs/objectid.ts) | ObjectId auto-conversion: insert/find/findByIds/update/delete with plain string IDs |
 | [`docs/pool.ts`](docs/pool.ts) | ConnectionPoolManager — multi-pool routing with auto/round-robin/weighted strategies |
 | [`docs/pool-chain-api.ts`](docs/pool-chain-api.ts) | Runtime `pool().use().collection()` and pool-scoped model routing |
@@ -116,10 +115,11 @@ npm run test:examples
 
 ### Docs — Legacy Compatibility
 
-These examples remain runnable for existing users, but they are not primary monSQLize capabilities. New business locks and Saga orchestration should live in the application or framework runtime.
+These examples remain runnable for existing users, but they are not primary monSQLize capabilities. New non-database function caching, business locks, and Saga orchestration should live in the application or framework runtime.
 
 | File | Description |
 |------|-------------|
+| [`docs/function-cache.ts`](docs/function-cache.ts) | Legacy `withCache()` / `FunctionCache` compatibility |
 | [`docs/lock.ts`](docs/lock.ts) | Legacy lock compatibility — acquire/release/try-lock |
 | [`docs/lock-timeout.ts`](docs/lock-timeout.ts) | Legacy lock contention / timeout / recovery flow |
 | [`docs/saga.ts`](docs/saga.ts) | Legacy Saga compatibility — multi-step workflow with rollback |
@@ -158,7 +158,6 @@ node .generated/examples-dist/examples/docs/aggregate-advanced.js
 node .generated/examples-dist/examples/docs/batch-operations.js
 node .generated/examples-dist/examples/docs/chaining-api.js
 node .generated/examples-dist/examples/docs/expression-functions.js
-node .generated/examples-dist/examples/docs/function-cache.js
 node .generated/examples-dist/examples/docs/model.js
 node .generated/examples-dist/examples/docs/hooks.js
 node .generated/examples-dist/examples/docs/collection-management.js
@@ -185,6 +184,7 @@ node .generated/examples-dist/examples/docs/sync.js
 node .generated/examples-dist/examples/docs/sync-target-failure.js
 
 # Legacy compatibility examples
+node .generated/examples-dist/examples/docs/function-cache.js
 node .generated/examples-dist/examples/docs/lock.js
 node .generated/examples-dist/examples/docs/lock-timeout.js
 node .generated/examples-dist/examples/docs/saga.js

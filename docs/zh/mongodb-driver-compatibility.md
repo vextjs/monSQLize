@@ -1,27 +1,6 @@
 # MongoDB 驱动版本兼容性指南
 
-**文档版本**: 当前 main / unreleased
-**最后更新**: 2026-06-10
-**适用版本**: monSQLize v2.0.2+
-
----
-
-## 📑 目录
-
-- [概述](#概述)
-- [当前支持的驱动版本](#当前支持的驱动版本)
-- [monSQLize 对版本差异的处理](#monsqlize-对版本差异的处理)
-- [monSQLize 的兼容性保证](#monsqlize-的兼容性保证)
-- [未来驱动升级指南](#未来驱动升级指南)
-- [测试策略](#测试策略)
-- [开发者指南](#开发者指南)
-- [相关资源](#相关资源)
-- [FAQ](#faq)
-- [更新日志](#更新日志)
-
----
-
-## 📋 概述
+## 概述
 
 本文档说明 monSQLize 如何处理 MongoDB Node.js 驱动的版本差异，以及如何确保未来驱动升级时的兼容性。
 
@@ -29,16 +8,16 @@
 
 ---
 
-## 🎯 当前支持的驱动版本
+## 当前支持的驱动版本
 
 ### 当前支持矩阵
 
 | MongoDB 驱动版本 | 支持状态 | 测试状态 | 说明 |
 |-----------------|---------|---------|------|
-| **6.x** (6.21.0) | ✅ 运行时基线 | ✅ 默认验证 | package 精确依赖，开箱即用 |
-| **7.x** (7.2.0) | ✅ 扩展兼容 | ✅ 矩阵验证 | 用于提前发现上游 breaking change |
-| **4.x / 5.x** | ℹ️ 历史兼容参考 | ⚠️ 不在当前默认矩阵 | 旧版本迁移背景；新项目建议使用默认依赖 |
-| **8.x+** | ⚠️ 待评估 | ⏸️ 未纳入当前矩阵 | 升级前需按本文验证流程确认 |
+| **6.x** (6.21.0) | 运行时基线 | 默认验证 | package 精确依赖，开箱即用 |
+| **7.x** (7.2.0) | 扩展兼容 | 矩阵验证 | 用于提前发现上游 breaking change |
+| **4.x / 5.x** | 历史兼容参考 | 不在当前默认矩阵 | 旧版本迁移背景；新项目建议使用默认依赖 |
+| **8.x+** | 待评估 | ⏸️ 未纳入当前矩阵 | 升级前需按本文验证流程确认 |
 
 ### 依赖声明
 
@@ -58,7 +37,7 @@
 
 ---
 
-## ✅ monSQLize 对版本差异的处理
+## monSQLize 对版本差异的处理
 
 ### 1. findOneAnd* 方法的返回值
 
@@ -99,7 +78,7 @@ const result = await collection.findOneAndUpdate(filter, update);
 }
 ```
 
-#### ✅ monSQLize 当前行为
+#### monSQLize 当前行为
 
 **使用默认安装时，用户代码直接接收文档或 `null`：**
 
@@ -109,12 +88,12 @@ const user = await collection.findOneAndUpdate(
   { $set: { age: 31 } }
 );
 
-// ✅ 所有版本都返回统一格式：文档本身
+// 所有版本都返回统一格式：文档本身
 console.log(user);  // { _id: ..., name: "Alice", age: 31 }
 
 // 不需要判断版本：
-// ❌ 不需要: if (result.value) return result.value;
-// ❌ 不需要: if (result.ok) return result;
+// 不需要: if (result.value) return result.value;
+// 不需要: if (result.ok) return result;
 ```
 
 **实现边界**:
@@ -124,9 +103,9 @@ console.log(user);  // { _id: ..., name: "Alice", age: 31 }
 - 如果应用强制覆盖为历史 Driver 4.x / 5.x，需要自行验证返回值差异，不建议新项目这样做。
 
 **适用的方法**：
-- ✅ findOneAndUpdate
-- ✅ findOneAndReplace
-- ✅ findOneAndDelete
+- findOneAndUpdate
+- findOneAndReplace
+- findOneAndDelete
 
 ---
 
@@ -179,7 +158,7 @@ console.log(result);
 
 ---
 
-## 🛡️ monSQLize 的兼容性保证
+## monSQLize 的兼容性保证
 
 ### 核心策略：精确依赖 + 薄封装 + 矩阵验证
 
@@ -222,7 +201,7 @@ findOneAndDeleteDocument(collection, filter, options)
 
 ---
 
-## 🚀 未来驱动升级指南
+## 未来驱动升级指南
 
 ### 升级前检查清单
 
@@ -346,7 +325,7 @@ function handleFindOneAndResult(result, options = {}, logger = null) {
 
 ---
 
-## 📊 测试策略
+## 测试策略
 
 ### 测试覆盖范围
 
@@ -361,14 +340,14 @@ function handleFindOneAndResult(result, options = {}, logger = null) {
 ### 关键测试场景
 
 **必须测试的场景**:
-1. ✅ 找到文档并修改
-2. ✅ 未找到文档（返回 null）
-3. ✅ upsert 插入新文档
-4. ✅ 返回更新前的文档（`returnDocument: "before"`）
-5. ✅ 返回更新后的文档（`returnDocument: "after"`）
-6. ✅ 包含完整元数据（`includeResultMetadata: true`）
-7. ✅ 缓存自动失效
-8. ✅ 并发安全性
+1. 找到文档并修改
+2. 未找到文档（返回 null）
+3. upsert 插入新文档
+4. 返回更新前的文档（`returnDocument: "before"`）
+5. 返回更新后的文档（`returnDocument: "after"`）
+6. 包含完整元数据（`includeResultMetadata: true`）
+7. 缓存自动失效
+8. 并发安全性
 
 ### 自动化测试命令
 
@@ -385,7 +364,7 @@ npm ls mongodb
 
 ---
 
-## 🔧 开发者指南
+## 开发者指南
 
 ### 添加新的 findOneAnd* 风格方法
 
@@ -423,7 +402,7 @@ async function customFindOneAndModify(filter, modification, options = {}) {
 
 ---
 
-## 📖 相关资源
+## 相关资源
 
 ### 内部文档
 
@@ -445,7 +424,7 @@ async function customFindOneAndModify(filter, modification, options = {}) {
 
 ---
 
-## ❓ FAQ
+## FAQ
 
 ### Q1: 如果我使用的是 MongoDB 驱动 5.x，会有问题吗？
 
@@ -491,24 +470,8 @@ console.log("MongoDB Driver Version:", mongodb.version);
 
 **A**: 目前不计划支持多版本。原因：
 
-- ✅ 增加维护成本
-- ✅ 增加测试复杂度
-- ✅ MongoDB 驱动遵循语义化版本，主版本间差异明确
+- 增加维护成本
+- 增加测试复杂度
+- MongoDB 驱动遵循语义化版本，主版本间差异明确
 
 推荐做法：随 MongoDB 驱动主版本升级而升级 monSQLize。
-
----
-
-## 📝 更新日志
-
-| 日期 | 版本 | 变更 |
-|------|------|------|
-| 2026-06-10 | 当前 main | 更新为 `mongodb@6.21.0` 运行时基线与 Driver 7.2.0 扩展验证口径 |
-| 2025-11-17 | 1.0 | 初始版本 - 添加驱动 6.x 兼容性说明 |
-
----
-
-**维护者**: monSQLize 开发团队  
-**联系方式**: 通过 GitHub Issues 提问  
-**最后审核**: 2025-11-17
-

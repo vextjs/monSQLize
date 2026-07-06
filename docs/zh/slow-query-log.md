@@ -1,38 +1,19 @@
-﻿# 慢查询日志持久化存储功能文档
-
-> **版本**: v1.0.1  
-> **最后更新**: 2025-12-29  
-> **状态**: 已完成
-
----
-
-## 📑 目录
-
-1. [功能概述](#功能概述)
-2. [快速开始](#快速开始)
-3. [配置说明](#配置说明)
-4. [API参考](#api参考)
-5. [使用示例](#使用示例)
-6. [最佳实践](#最佳实践)
-7. [故障排查](#故障排查)
-8. [性能优化](#性能优化)
-
----
+﻿# 慢查询日志持久化
 
 ## 功能概述
 
 ### 什么是慢查询日志持久化存储？
 
-慢查询日志持久化存储是 monSQLize v1.0.1 引入的新功能，它可以自动将超过阈值的查询记录保存到持久化存储中（当前支持MongoDB），方便后续分析和优化。
+慢查询日志持久化会记录超过 `slowQueryMs` 阈值的操作，并让你后续查询聚合后的慢查询统计。当前 MongoDB runtime 默认写入 MongoDB，也可以在本地或自定义场景使用 memory 存储。
 
 ### 核心特性
 
-- ✅ **零配置启用** - `slowQueryLog: true` 一行启用
-- ✅ **方案B去重** - 相同查询模式自动聚合统计
-- ✅ **批量写入** - 异步批量处理，性能无损（<2ms额外开销）
-- ✅ **自动过期** - TTL索引自动清理历史数据（默认7天）
-- ✅ **查询接口** - 内置API查询慢查询日志
-- ✅ **多数据库支持** - 架构支持MongoDB/PostgreSQL/MySQL扩展
+- **简单启用**：通过 `slowQueryLog: true` 和 `slowQueryMs` 开启。
+- **聚合记录**：相同 `queryHash`、database、collection、operation 的记录会 upsert 到同一条统计行。
+- **批量写入**：默认启用，可配置批量大小、刷新间隔和缓冲上限。
+- **自动过期**：MongoDB 存储会在 `lastSeen` 上创建 TTL 索引。
+- **查询 API**：通过 `getSlowQueryLogs(filter, options)` 查询慢查询统计。
+- **当前存储后端**：`mongodb` 和 `memory`。
 
 ### 工作原理
 
@@ -60,7 +41,7 @@
        ▼
 ┌─────────────────┐
 │ bulkWrite upsert│ ← MongoDB存储
-│ (方案B去重)      │
+│ 聚合统计行       │
 └─────────────────┘
 ```
 
@@ -99,7 +80,7 @@ await msq.close();
 ### 自动效果
 
 - 慢查询自动保存到 `admin.slow_query_logs` 集合
-- 相同查询自动去重聚合（方案B）
+- 相似查询按 `queryHash`、database、collection、operation 聚合
 - TTL索引自动清理7天前的数据
 - 复用业务连接，无额外连接开销
 
@@ -116,21 +97,11 @@ const msq = new MonSQLize({
   type: 'mongodb',
   config: { uri: 'mongodb://localhost:27017/mydb' },
   
-  // 全局慢查询阈值（毫秒）
-  slowQueryMs: 1000,  // 默认1000ms
-  
-  // 慢查询日志配置
-  slowQuery: {
-    enabled: true,           // 是否启用慢查询监控（默认true）
-    threshold: 1000,         // 阈值（毫秒），会覆盖 slowQueryMs
-    includeStack: false,     // 是否包含堆栈信息（调试用）
-    logLevel: 'warn',        // 日志级别：debug/info/warn/error
-    outputFormat: 'json',    // 输出格式：json/text
-    excludeOperations: []    // 排除的操作类型：['find', 'aggregate']
-  },
-  
-  // 慢查询持久化存储（可选）
-  slowQueryLog: true  // 或详细配置对象
+  // 全局慢查询阈值（毫秒），默认 500
+  slowQueryMs: 1000,
+
+  // 启用持久化；也可以传入 slowQueryLog 配置对象
+  slowQueryLog: true
 });
 ```
 
@@ -138,13 +109,16 @@ const msq = new MonSQLize({
 
 | 选项 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `slowQueryMs` | number | 1000 | 全局慢查询阈值（毫秒） |
-| `slowQuery.enabled` | boolean | true | 是否启用慢查询监控 |
-| `slowQuery.threshold` | number | 1000 | 慢查询阈值，优先级高于 slowQueryMs |
-| `slowQuery.includeStack` | boolean | false | 是否记录调用堆栈（调试用） |
-| `slowQuery.logLevel` | string | 'warn' | 日志级别 |
-| `slowQuery.outputFormat` | string | 'json' | 输出格式 |
-| `slowQuery.excludeOperations` | string[] | [] | 排除的操作类型 |
+| `slowQueryMs` | number | `500` | 全局阈值；用于 slow-query 事件，并在启用 `slowQueryLog` 时作为 `slowQueryLog.filter.minExecutionTimeMs` 的默认值，除非显式配置该字段。 |
+| `slowQueryLog` | boolean 或 object | `false` | `true` 表示按默认值启用持久化；对象配置支持 `enabled`、`storage`、`batch`、`filter`、`advanced`。 |
+| `slowQueryLog.storage.type` | `'mongodb' \| 'memory'` | MongoDB runtime 默认 `'mongodb'` | 存储后端。当前不支持其他存储名称。 |
+| `slowQueryLog.storage.useBusinessConnection` | boolean | `true` | 是否复用主 MongoDB 连接；设为 `false` 时必须提供 `storage.uri`。 |
+| `slowQueryLog.storage.database` | string | `'admin'` | MongoDB 存储使用的数据库。 |
+| `slowQueryLog.storage.collection` | string | `'slow_query_logs'` | MongoDB 存储使用的集合。 |
+| `slowQueryLog.storage.ttl` | number | `604800` | `lastSeen` TTL 索引的过期秒数。 |
+| `slowQueryLog.batch.enabled` | boolean | `true` | 是否批量缓冲写入。 |
+| `slowQueryLog.filter.*` | object | 空过滤 | 排除 database、collection、operation，或设置 `minExecutionTimeMs`。 |
+| `slowQueryLog.advanced.errorHandling` | `'log' \| 'throw' \| 'silent'` | `'log'` | 持久化失败时的处理方式。 |
 
 ### 操作级配置
 
@@ -218,22 +192,21 @@ Documents returned: 10
 #### 使用自定义Logger
 
 ```javascript
-const winston = require('winston');
-
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.json(),
-  transports: [
-    new winston.transports.File({ filename: 'slow-query.log' }),
-    new winston.transports.Console()
-  ]
-});
+const logger = {
+  warn(message, fields) {
+    process.stdout.write(`${JSON.stringify({ level: 'warn', message, ...fields })}\n`);
+  },
+  error(message, error) {
+    process.stderr.write(`${JSON.stringify({ level: 'error', message, error: String(error) })}\n`);
+  }
+};
 
 const msq = new MonSQLize({
   type: 'mongodb',
   config: { uri: '...' },
-  logger: logger,  // 使用Winston日志器
-  slowQueryMs: 1000
+  logger,
+  slowQueryMs: 1000,
+  slowQueryLog: true
 });
 ```
 
@@ -275,12 +248,11 @@ slowQueryLog: true  // 使用所有默认值
 
 **默认配置**：
 - `enabled: true` - 启用
-- `storage.type: 'mongodb'` - 存储类型（自动推断）
+- `storage.type: 'mongodb'` - MongoDB runtime 使用 MongoDB 存储
 - `storage.useBusinessConnection: true` - 复用业务连接
-- `storage.mongodb.database: 'admin'` - 存储到admin数据库
-- `storage.mongodb.collection: 'slow_query_logs'` - 集合名
-- `storage.mongodb.ttl: 604800` - 7天过期
-- `deduplication.enabled: true` - 启用去重
+- `storage.database: 'admin'` - 存储到 admin 数据库
+- `storage.collection: 'slow_query_logs'` - 集合名
+- `storage.ttl: 604800` - 7 天过期
 - `batch.enabled: true` - 启用批量写入
 - `batch.size: 10` - 批量大小
 - `batch.interval: 5000` - 5秒刷新
@@ -291,9 +263,7 @@ slowQueryLog: true  // 使用所有默认值
 slowQueryLog: {
   enabled: true,
   storage: {
-    mongodb: {
-      ttl: 3 * 24 * 3600  // 只修改TTL为3天
-    }
+    ttl: 3 * 24 * 3600  // 只修改 TTL 为 3 天
   }
 }
 ```
@@ -309,20 +279,9 @@ slowQueryLog: {
     type: 'mongodb',                    // 存储类型
     useBusinessConnection: false,        // 不复用连接
     uri: 'mongodb://admin-host:27017',  // 独立连接URI
-    
-    mongodb: {
-      database: 'admin',
-      collection: 'slow_query_logs',
-      ttl: 7 * 24 * 3600,
-      ttlField: 'lastSeen'
-    }
-  },
-  
-  // 去重配置
-  deduplication: {
-    enabled: true,                      // 启用方案B
-    strategy: 'aggregate',              // 聚合策略
-    keepRecentExecutions: 0             // 不保留详情
+    database: 'admin',
+    collection: 'slow_query_logs',
+    ttl: 7 * 24 * 3600
   },
   
   // 批量配置
@@ -349,26 +308,12 @@ slowQueryLog: {
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `type` | string | null（自动推断） | 存储类型：mongodb/postgresql/mysql/file |
+| `type` | `'mongodb' \| 'memory'` | `'mongodb'` | 存储后端。其他值会被配置校验拒绝。 |
 | `useBusinessConnection` | boolean | true | 是否复用业务连接 |
 | `uri` | string | null | 独立连接URI（useBusinessConnection=false时必填） |
-
-#### storage.mongodb MongoDB存储配置
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
 | `database` | string | 'admin' | 存储数据库 |
 | `collection` | string | 'slow_query_logs' | 存储集合 |
 | `ttl` | number | 604800（7天） | TTL过期时间（秒） |
-| `ttlField` | string | 'lastSeen' | TTL字段名 |
-
-#### deduplication 去重配置
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `enabled` | boolean | true | 是否启用去重 |
-| `strategy` | string | 'aggregate' | 去重策略：aggregate（方案B）/none（方案A） |
-| `keepRecentExecutions` | number | 0 | 保留最近N次执行详情（v1.5+） |
 
 #### batch 批量配置
 
@@ -394,7 +339,7 @@ slowQueryLog: {
 
 ### getSlowQueryLogs(filter, options)
 
-查询慢查询日志（支持方案B聚合数据）
+查询慢查询日志聚合数据。
 
 **参数**：
 
@@ -507,9 +452,7 @@ const msq = new MonSQLize({
   slowQueryLog: {
     enabled: true,
     storage: {
-      mongodb: {
-        ttl: 24 * 3600  // 保留1天
-      }
+      ttl: 24 * 3600  // 保留1天
     }
   }
 });
@@ -532,7 +475,7 @@ const msq = new MonSQLize({
 });
 ```
 
-### 示例5：方案A（不去重）
+### 示例5：本地分析使用 memory 存储
 
 ```javascript
 const msq = new MonSQLize({
@@ -541,8 +484,8 @@ const msq = new MonSQLize({
   slowQueryMs: 500,
   slowQueryLog: {
     enabled: true,
-    deduplication: {
-      enabled: false  // 关闭去重，每次新增记录
+    storage: {
+      type: 'memory'
     }
   }
 });
@@ -587,9 +530,11 @@ const apiMsq = new MonSQLize({
   type: 'mongodb',
   config: { uri: '...' },
   slowQueryMs: 200,  // 200ms阈值
-  slowQuery: {
-    logLevel: 'error',  // 只记录严重慢查询
-    excludeOperations: []
+  slowQueryLog: {
+    enabled: true,
+    filter: {
+      excludeOperations: []
+    }
   }
 });
 
@@ -598,9 +543,11 @@ const analyticsMsq = new MonSQLize({
   type: 'mongodb',
   config: { uri: '...' },
   slowQueryMs: 5000,  // 5秒阈值
-  slowQuery: {
-    logLevel: 'info',
-    excludeOperations: []  // 记录所有操作
+  slowQueryLog: {
+    enabled: true,
+    filter: {
+      excludeOperations: []
+    }
   }
 });
 
@@ -802,11 +749,9 @@ const activeUsers = await collection('users').find(
 ```javascript
 // 根据存储容量和分析需求设置TTL
 storage: {
-  mongodb: {
-    ttl: 7 * 24 * 3600    // 1周（推荐）- 平衡存储和分析需求
-    // ttl: 30 * 24 * 3600   // 1月 - 长期趋势分析
-    // ttl: 1 * 24 * 3600    // 1天 - 存储敏感场景
-  }
+  ttl: 7 * 24 * 3600    // 1周（推荐）- 平衡存储和分析需求
+  // ttl: 30 * 24 * 3600   // 30天 - 长期趋势分析
+  // ttl: 1 * 24 * 3600    // 1天 - 存储敏感场景
 }
 ```
 
@@ -888,30 +833,24 @@ setInterval(async () => {
 #### 5. 集成日志系统
 
 ```javascript
-// 与Winston集成
-const winston = require('winston');
-
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({ 
-      filename: 'slow-query.log',
-      maxsize: 10485760,  // 10MB
-      maxFiles: 5
-    }),
-    new winston.transports.Console()
-  ]
-});
+const logger = {
+  info(message, fields) {
+    process.stdout.write(`${JSON.stringify({ level: 'info', message, ...fields })}\n`);
+  },
+  warn(message, fields) {
+    process.stdout.write(`${JSON.stringify({ level: 'warn', message, ...fields })}\n`);
+  },
+  error(message, error) {
+    process.stderr.write(`${JSON.stringify({ level: 'error', message, error: String(error) })}\n`);
+  }
+};
 
 const msq = new MonSQLize({
   type: 'mongodb',
   config: { uri: '...' },
-  logger: logger,  // 使用自定义日志器
-  slowQueryMs: 1000
+  logger,
+  slowQueryMs: 1000,
+  slowQueryLog: true
 });
 ```
 
@@ -947,7 +886,7 @@ const msq = new MonSQLize({
 **解决方案**：
 1. 检查配置是否正确
 2. 检查日志输出是否有错误
-3. 手动调用 `msq.slowQueryLogManager.queue.flush()`
+3. 如果启用了批量写入，可在读取最近日志前调用 `await msq.getSlowQueryLogManager()?.queue?.flush()`
 
 ### 问题2：存储连接失败
 
@@ -965,6 +904,7 @@ const msq = new MonSQLize({
 ```javascript
 // 检查URI是否正确
 storage: {
+  useBusinessConnection: false,
   uri: 'mongodb://localhost:27017/admin'  // 确认URI正确
 }
 
@@ -988,7 +928,8 @@ const allLogs = await msq.getSlowQueryLogs({}, { limit: 100 });
 console.log('总数:', allLogs.length);
 
 // 检查TTL设置
-console.log('TTL:', msq.slowQueryLogManager.config.storage.mongodb.ttl);
+const manager = msq.getSlowQueryLogManager();
+console.log('TTL:', manager?.config.storage.ttl);
 ```
 
 ---
@@ -1016,20 +957,16 @@ console.log('TTL:', msq.slowQueryLogManager.config.storage.mongodb.ttl);
    }
    ```
 
-2. **使用方案B去重**（默认启用）
+2. **保留内置聚合键**
    ```javascript
-   deduplication: {
-     enabled: true,     // ✅ 启用去重
-     strategy: 'aggregate'
-   }
+   // MongoDB 存储按 queryHash + database + collection + operation upsert。
+   // 当前没有面向用户的聚合开关。
    ```
 
 3. **合理设置TTL**
    ```javascript
    storage: {
-     mongodb: {
-       ttl: 7 * 24 * 3600  // 7天过期
-     }
+     ttl: 7 * 24 * 3600  // 7天过期
    }
    ```
 
@@ -1085,21 +1022,7 @@ db.slow_query_logs.createIndex({ database: 1, collection: 1 });
 db.slow_query_logs.createIndex({ count: -1 });
 ```
 
-### B. 版本历史
+### B. 相关链接
 
-| 版本 | 日期 | 变更 |
-|------|------|------|
-| v1.3.1 | 2025-12-22 | 首次发布，支持MongoDB存储 |
-
-### C. 相关链接
-
-- [需求方案文档]
 - [使用示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/slow-query-log.ts)
-- [配置设计说明]
-
----
-
-**文档版本**: v1.3.1  
-**最后更新**: 2025-12-22  
-**维护者**: AI助手
 

@@ -10,7 +10,7 @@ MonSQLizeRuntime (src/entry/runtime-core.ts)
 │   ├── runtime-helpers.ts
 │   └── runtime-compat-accessors.ts
 ├── capabilities
-│   ├── cache / function-cache
+│   ├── cache / legacy function-cache compatibility
 │   ├── model
 │   ├── pool
 │   ├── sync

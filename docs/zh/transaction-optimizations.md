@@ -1,35 +1,18 @@
 # 事务性能优化指南
 
-**版本**: Unreleased (main)
-**更新日期**: 2026-06-09
-**状态**: 当前 main 文档；正式发布版本以 changelog 为准
-
----
-
-## 📚 目录
-
-- [概述](#概述)
-- [优化1: 只读优化](#优化1-只读优化)
-- [优化2: 文档级别锁](#优化2-文档级别锁)
-- [性能对比](#性能对比)
-- [使用建议](#使用建议)
-- [监控指标](#监控指标)
-
----
-
 ## 概述
 
-本文档介绍当前 main / Unreleased 中记录的两个重要性能优化：
+本文档说明调优事务吞吐与缓存一致性时真正需要关注的行为：
 
-1. **只读优化** - 只读事务不失效缓存，减少 30% DB 访问
-2. **文档级别锁** - 提升 10-100倍并发性能
+1. **只读事务统计** - 未记录写入失效的事务会在 `getTransactionStats()` 中单独计数。
+2. **进程内缓存失效屏障** - 事务内写入记录失效 pattern，只在事务成功 commit 后 flush。
 
 ### 适用场景
 
-| 优化 | 适用场景 | 收益 |
+| 优化 | 适用场景 | 预期效果 |
 |------|---------|------|
-| **只读优化** | 查询密集型应用、报表系统 | 减少30% DB访问 |
-| **文档级别锁** | 高并发用户操作、多租户系统 | 10-100倍并发提升 |
+| **只读事务统计** | 查询密集型应用、报表任务 | 衡量事务流量中只读占比 |
+| **缓存失效屏障** | 缓存读 + 事务写混合场景 | 缩短同进程 stale cache 回填窗口；跨实例仍是 best-effort |
 
 ---
 
@@ -37,7 +20,6 @@
 
 ### 工作原理
 
-**传统方式**（v2.0.0之前）:
 ```javascript
 await msq.withTransaction(async (tx) => {
     // 读操作
@@ -46,28 +28,13 @@ await msq.withTransaction(async (tx) => {
         { session: tx.session }
     );
     
-    // ❌ 问题：即使是只读，也会失效缓存
-    // 下次查询需要从 DB 加载
-});
-```
-
-**优化后**（当前 main / Unreleased）:
-```javascript
-await msq.withTransaction(async (tx) => {
-    // 读操作
-    const user = await collection('users').findOne(
-        { _id: 1 },
-        { session: tx.session }
-    );
-    
-    // ✅ 只读事务：不失效缓存
-    // 下次查询可以命中缓存
+    // 未记录写入失效，因此事务统计会把它计为只读事务。
 });
 ```
 
 ### 使用方式
 
-**无需任何代码改动！** 系统自动识别只读事务。
+无需额外代码。事务没有记录写入失效 pattern 时，会被统计为只读事务。
 
 ```javascript
 // 自动识别为只读事务
@@ -82,78 +49,32 @@ await msq.withTransaction(async (tx) => {
         { session: tx.session }
     ).toArray();
     
-    // ✅ 没有写操作，自动识别为只读事务
+    // 没有写操作，因此事务统计会记录为只读。
 });
 ```
 
-### 性能收益
+## 优化2: 缓存失效屏障
 
-**测试场景**: 100个并发只读查询
+### 工作原理
 
-| 指标 | v2.0.0 | 当前 main / Unreleased | 提升 |
-|------|--------|--------|------|
-| DB 查询次数 | 100 | 70 | -30% |
-| 平均响应时间 | 50ms | 35ms | 30% |
-| 缓存命中率 | 0% | 30% | +30% |
+事务通过 monSQLize helper 写入时，runtime 会记录读缓存失效 pattern。commit 前会标记 dirty barrier 并清理受影响缓存；MongoDB commit 成功后再 flush 已记录的失效并释放进程内缓存锁。
 
----
-
-## 优化2: 文档级别锁
-
-### 工作原理（优化2: 文档级别锁）
-
-**传统方式**（v2.0.0之前）:
 ```javascript
-// 事务1：更新用户1
 await msq.withTransaction(async (tx) => {
     await collection('users').updateOne(
         { _id: 1 },
         { $set: { balance: 100 } },
         { session: tx.session }
     );
-    // 🔒 锁定整个 users 集合的缓存
-});
-
-// 事务2：更新用户2（会被阻塞）
-await msq.withTransaction(async (tx) => {
-    await collection('users').updateOne(
-        { _id: 2 },
-        { $set: { balance: 200 } },
-        { session: tx.session }
-    );
-    // ❌ 与事务1冲突，外部写入 users:* 被阻止
+    // 受影响的读缓存 namespace 会围绕 commit 被标记 dirty 并失效。
 });
 ```
 
-**优化后**（当前 main / Unreleased）:
-```javascript
-// 事务1：更新用户1
-await msq.withTransaction(async (tx) => {
-    await collection('users').updateOne(
-        { _id: 1 },
-        { $set: { balance: 100 } },
-        { session: tx.session }
-    );
-    // 🔒 仅锁定 users:1
-});
+### 使用方式
 
-// 事务2：更新用户2（不会被阻塞）
-await msq.withTransaction(async (tx) => {
-    await collection('users').updateOne(
-        { _id: 2 },
-        { $set: { balance: 200 } },
-        { session: tx.session }
-    );
-    // ✅ 不冲突！可以并发执行
-});
-```
-
-### 使用方式（优化2: 文档级别锁）
-
-**无需任何代码改动！** 系统自动使用文档级别锁。
+已有事务写入只要继续传入 `session: tx.session` 即可，无需额外配置。
 
 ```javascript
-// 并发更新不同用户（自动使用文档级别锁）
 await Promise.all([
     msq.withTransaction(async (tx) => {
         await collection('users').updateOne(
@@ -171,91 +92,33 @@ await Promise.all([
     })
 ]);
 
-// ✅ 两个事务并发执行，互不阻塞
+// MongoDB 控制写冲突；monSQLize 只协调缓存失效。
 ```
 
-### 支持的查询类型
+### 边界
 
-| 查询类型 | 锁粒度 | 示例 |
-|---------|-------|------|
-| 简单 _id 查询 | ✅ 文档级别 | `{ _id: 1 }` |
-| $in 查询 | ✅ 文档级别 | `{ _id: { $in: [1, 2, 3] } }` |
-| 非 _id 查询 | 🔄 集合级别（回退） | `{ status: 'active' }` |
-| 范围查询 | 🔄 集合级别（回退） | `{ age: { $gt: 18 } }` |
-
-### 性能收益（优化2: 文档级别锁）
-
-**测试场景**: 10个并发事务，更新不同用户
-
-| 指标 | v2.0.0（集合锁） | 当前 main / Unreleased（文档锁） | 提升 |
-|------|-----------------|----------------|------|
-| 并发度 | 1x（串行） | 10x（并行） | 10倍 |
-| 总耗时 | 500ms | 50ms | 10倍 |
-| 吞吐量 | 20 TPS | 200 TPS | 10倍 |
-
----
-
-## 性能对比
-
-### 场景1: 电商秒杀（高并发写入不同商品）
-
-**配置**:
-- 1000个并发用户
-- 100个不同商品
-- 每个用户购买不同商品
-
-**结果**:
-
-| 版本 | 吞吐量 | P95延迟 | 成功率 |
-|------|-------|---------|--------|
-| v2.0.0 | 50 TPS | 500ms | 95% |
-| 当前 main / Unreleased | 800 TPS | 80ms | 99% |
-| **提升** | **16倍** | **6.25倍** | **+4%** |
-
-### 场景2: 社交网络（高并发更新不同用户）
-
-**配置**:
-- 10000个并发操作
-- 5000个不同用户
-- 用户点赞、评论、关注
-
-**结果**:
-
-| 版本 | 吞吐量 | P99延迟 | 锁竞争率 |
-|------|-------|---------|---------|
-| v2.0.0 | 100 TPS | 2000ms | 80% |
-| 当前 main / Unreleased | 5000 TPS | 100ms | 2% |
-| **提升** | **50倍** | **20倍** | **-97.5%** |
-
-### 场景3: 多租户SaaS（隔离度高）
-
-**配置**:
-- 100个租户
-- 每个租户独立操作自己的数据
-
-**结果**:
-
-| 版本 | 吞吐量 | 资源利用率 | 隔离性 |
-|------|-------|-----------|--------|
-| v2.0.0 | 200 TPS | 30% | 低 |
-| 当前 main / Unreleased | 10000 TPS | 85% | 高 |
-| **提升** | **50倍** | **2.8倍** | **优秀** |
+| 主题 | 当前行为 |
+|------|----------|
+| 锁范围 | 进程内 `CacheLockManager`，不是分布式互斥锁 |
+| 缓存失效 | MongoDB commit 后 best-effort；缓存失败不会回滚数据库提交 |
+| 跨实例缓存 | 配置 distributed invalidation 后最终收敛 |
+| 性能 | 取决于实际 workload，应看 `getTransactionStats()` 和应用指标，不承诺固定倍数 |
 
 ---
 
 ## 使用建议
 
-### 1. 优先使用文档级别锁
+### 1. 缩小事务写入范围
 
-✅ **推荐场景**:
-- 高并发用户操作（社交、电商、SaaS）
-- 分布式任务处理
-- 多租户系统
+推荐：
+- 让事务尽量短。
+- 只给必须进入事务的操作传入 `session: tx.session`。
+- 使用有索引的目标过滤条件，让 MongoDB 更容易处理写冲突。
 
-❌ **不适用场景**:
-- 批量操作为主（update 大量记录）
-- 范围查询为主（无法提取文档键）
-- 单用户/低并发
+避免：
+- 在事务回调里执行长耗时网络调用。
+- 未测量前把大量批量更新塞进一个事务。
+- 把 monSQLize 缓存锁当成跨进程业务锁。
 
 ### 2. 充分利用只读优化
 
@@ -371,31 +234,23 @@ setInterval(() => {
 
 ## 常见问题
 
-### Q1: 文档级别锁会增加内存使用吗？
+### Q1: 缓存屏障会增加内存使用吗？
 
-**A**: 会略微增加，但影响很小。
+**A**: 屏障和缓存锁元数据是进程内、短生命周期的。若有大量并发长事务，应同时观察 `activeTransactions` 与进程 RSS。
 
-- 每个文档锁：~100字节
-- 100个并发事务，每个锁10个文档：100 * 10 * 100B = 100KB
-- **结论**: 内存影响可忽略不计
+### Q2: 如何观察事务行为？
 
-### Q2: 如何判断查询是否使用了文档级别锁？
-
-**A**: 查看日志：
-
-```text
-[Transaction] Using document-level locks for 3 documents
-[Transaction] Added 3 cache lock(s)
-```
-
-或者查看事务统计：
+**A**: 使用单个事务统计和聚合统计：
 
 ```javascript
 const tx = await msq.startSession();
 await tx.start();
 // ... 执行操作
 const stats = tx.getStats();
-console.log('锁定的键数量:', stats.lockedKeysCount);
+console.log('记录的失效操作数:', stats.operationCount);
+console.log('锁定键数量:', stats.lockedKeysCount);
+
+console.log(msq.getTransactionStats());
 ```
 
 ### Q3: 只读优化会影响数据一致性吗？
@@ -406,17 +261,19 @@ console.log('锁定的键数量:', stats.lockedKeysCount);
 - 只是不失效缓存，不影响数据准确性
 - 事务内读取的数据仍然是一致的快照
 
-### Q4: 可以禁用这些优化吗？
+### Q4: 单次事务可以禁用缓存锁吗？
 
-**A**: 可以（不推荐）。
+**A**: 可以。向事务 options 传入 `enableCacheLock: false` 后，会保留 MongoDB driver 事务语义，但不启用进程内缓存锁。缓存失效仍遵循文档中的 best-effort 边界。
 
 ```javascript
-// 禁用文档级别锁（回退到集合级别）
-await tx.recordInvalidation(pattern, {
-    operation: 'write',
-    query: filter,
-    collection: collectionName,
-    useDocumentLock: false  // 禁用
+await msq.withTransaction(async (tx) => {
+    await collection('users').updateOne(
+        { _id: 1 },
+        { $set: { status: 'active' } },
+        { session: tx.session }
+    );
+}, {
+    enableCacheLock: false
 });
 ```
 
@@ -424,23 +281,16 @@ await tx.recordInvalidation(pattern, {
 
 ## 总结
 
-### 优化效果
+### 应该观测什么
 
-| 场景 | 优化前 | 优化后 | 提升 |
-|------|-------|--------|------|
-| 高并发写入不同文档 | 50 TPS | 800 TPS | 16倍 |
-| 只读查询密集 | 100% DB查询 | 70% DB查询 | -30% |
-| 混合读写 | 100 TPS | 500 TPS | 5倍 |
+| 场景 | 有用指标 |
+|------|----------|
+| 查询密集事务流 | `readOnlyRatio`、事务外 cache hit rate |
+| 写入密集事务流 | `successRate`、`p95Duration`、MongoDB write conflict |
+| 混合读写 | 事务时长与 callback 内操作数 |
 
 ### 建议
 
-1. ✅ **立即启用** - 无需代码改动，自动生效
-2. ✅ **监控指标** - 定期检查 `getStats()`
-3. ✅ **按需调优** - 根据实际场景调整配置
-
----
-
-**文档版本**: Unreleased (main)
-**最后更新**: 2026-06-09
-**维护者**: monSQLize Team
-
+1. 保持事务 callback 短小且幂等。
+2. 定期查看 `getTransactionStats()`。
+3. 基于观测结果调 timeout、retry 与 cache-lock 配置。

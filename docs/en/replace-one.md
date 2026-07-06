@@ -1,47 +1,5 @@
 # replaceOne() - Complete document replacement
 
-## Table of Contents
-
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [filter (Object, required)](#filter-object-required)
-- [replacement (Object, required)](#replacement-object-required)
-- [options (Object, optional)](#options-object-optional)
-- [Return value](#return-value)
-- [Key differences from updateOne](#key-differences-from-updateone)
-- [Behavior comparison example](#behavior-comparison-example)
-- [Example](#example)
-- [Basic replacement](#basic-replacement)
-- [Configuration management scenario](#configuration-management-scenario)
-- [Use upsert](#use-upsert)
-- [Preserve _id replacement](#preserve-id-replacement)
-- [Custom _id replacement](#custom-id-replacement)
-- [Replace with empty document (clear all fields)](#replace-with-empty-document-clear-all-fields)
-- [Nested object replacement](#nested-object-replacement)
-- [Common scenarios](#common-scenarios)
-- [Scenario 1: Configuration file management](#scenario-1-configuration-file-management)
-- [Scenario 2: Document version management](#scenario-2-document-version-management)
-- [Scenario 3: Complete state machine switching](#scenario-3-complete-state-machine-switching)
-- [Scenario 4: Clean and rebuild the document](#scenario-4-clean-and-rebuild-the-document)
-- [Error handling](#error-handling)
-- [Common mistakes](#common-mistakes)
-- [Error 1: Using update operator](#error-1-using-update-operator)
-- [Mistake 2: Not realizing fields will be deleted](#mistake-2-not-realizing-fields-will-be-deleted)
-- [Performance recommendations](#performance-recommendations)
-- [1. Filter using index fields](#1-filter-using-index-fields)
-- [2. Pay attention to performance when using it with findOne](#2-pay-attention-to-performance-when-using-it-with-findone)
-- [Caching behavior](#caching-behavior)
-- [When to use replaceOne](#when-to-use-replaceone)
-- [✅ Suitable for scenarios where replaceOne is used](#suitable-for-scenarios-where-replaceone-is-used)
-- [❌ Scenarios where replaceOne is not suitable](#scenarios-where-replaceone-is-not-suitable)
-- [Decision tree](#decision-tree)
-- [Best Practices](#best-practices)
-- [1. Clarify the document structure](#1-clarify-the-document-structure)
-- [2. Use TypeScript/JSDoc to define types](#2-use-typescript-jsdoc-to-define-types)
-- [3. Verify the replacement result](#3-verify-the-replacement-result)
-- [Related methods](#related-methods)
-- [References](#references)
-
 ## Syntax
 
 ```javascript
@@ -50,7 +8,6 @@ collection(collectionName).replaceOne(filter, replacement, options)
 
 ## Parameters
 
-
 ## filter (Object, required)
 Filter criteria to match documents to replace.
 
@@ -58,7 +15,6 @@ Filter criteria to match documents to replace.
 { userId: "user123" }
 { configKey: "app-settings" }
 ```
-
 
 ## replacement (Object, required)
 Replacement document, **cannot contain update operators** (such as `$set`).
@@ -76,7 +32,6 @@ Replacement document, **cannot contain update operators** (such as `$set`).
 - ❌ Cannot use `$set`, `$inc` and other operators
 - ✅ Provide complete new document objects directly
 - The `_id` field will be automatically retained
-
 
 ## options (Object, optional)
 
@@ -112,7 +67,6 @@ Return `Promise<ReplaceResult>`:
 | **Usage scenarios** | Complete replacement | Partial update |
 | **_id handle** | Reserved | Reserved |
 
-
 ## Behavior comparison example
 
 ```javascript
@@ -138,7 +92,6 @@ await collection("users").replaceOne(
 
 ## Example
 
-
 ## Basic replacement
 
 ```javascript
@@ -155,7 +108,6 @@ const result = await collection("users").replaceOne(
 console.log("Replaced:", result.modifiedCount);
 ```
 
-
 ## Configuration management scenario
 
 ```javascript
@@ -171,7 +123,6 @@ await collection("configs").replaceOne(
   }
 );
 ```
-
 
 ## Use upsert
 
@@ -195,7 +146,6 @@ if (result.upsertedId) {
 }
 ```
 
-
 ## Preserve _id replacement
 
 ```javascript
@@ -214,7 +164,6 @@ await collection("users").replaceOne(
 );
 ```
 
-
 ## Custom _id replacement
 
 ```javascript
@@ -231,7 +180,6 @@ await collection("documents").replaceOne(
 );
 ```
 
-
 ## Replace with empty document (clear all fields)
 
 ```javascript
@@ -242,7 +190,6 @@ await collection("temp").replaceOne(
 );
 //Result: { _id: <original-id> }
 ```
-
 
 ## Nested object replacement
 
@@ -268,7 +215,6 @@ await collection("users").replaceOne(
 ```
 
 ## Common scenarios
-
 
 ## Scenario 1: Configuration file management
 
@@ -296,7 +242,6 @@ await collection("configs").replaceOne(
 );
 ```
 
-
 ## Scenario 2: Document version management
 
 ```javascript
@@ -320,7 +265,6 @@ await collection("documents").replaceOne(
 );
 ```
 
-
 ## Scenario 3: Complete state machine switching
 
 ```javascript
@@ -340,7 +284,6 @@ await collection("tasks").replaceOne(
   }
 );
 ```
-
 
 ## Scenario 4: Clean and rebuild the document
 
@@ -383,7 +326,6 @@ try {
 
 ## Common mistakes
 
-
 ## Error 1: Using update operator
 
 ```javascript
@@ -406,7 +348,6 @@ await collection("users").updateOne(
   { $set: { name: "Alice" } }
 );
 ```
-
 
 ## Mistake 2: Not realizing fields will be deleted
 
@@ -441,7 +382,6 @@ await collection("users").updateOne(
 
 ## Performance recommendations
 
-
 ## 1. Filter using index fields
 
 ```javascript
@@ -457,7 +397,6 @@ await collection("users").replaceOne(
   newDocument
 );
 ```
-
 
 ## 2. Pay attention to performance when using it with findOne
 
@@ -495,7 +434,6 @@ await collection("configs").replaceOne(
 
 ## When to use replaceOne
 
-
 ## ✅ Suitable for scenarios where replaceOne is used
 
 1. **Configuration Management** - complete replacement of configuration objects
@@ -503,14 +441,12 @@ await collection("configs").replaceOne(
 3. **State Machine** - Complete state switching
 4. **Data Cleaning** - Delete old fields and rebuild
 
-
 ## ❌ Scenarios where replaceOne is not suitable
 
 1. **Partial Update** - Use `updateOne` instead
 2. **Count Up** - `$inc` using `updateOne`
 3. **Array Operation** - `$push`/`$pull` using `updateOne`
 4. **Keep unmodified fields** - use `updateOne`
-
 
 ## Decision tree
 
@@ -528,7 +464,6 @@ Need to update documentation?
 ```
 
 ## Best Practices
-
 
 ## 1. Clarify the document structure
 
@@ -548,7 +483,6 @@ await collection("configs").replaceOne(
   newDocument
 );
 ```
-
 
 ## 2. Use TypeScript/JSDoc to define types
 
@@ -571,7 +505,6 @@ const newUser = {
 
 await collection("users").replaceOne({ userId: "user123" }, newUser);
 ```
-
 
 ## 3. Verify the replacement result
 
@@ -599,4 +532,3 @@ if (result.matchedCount === 0) {
 ## References
 
 - [MongoDB replaceOne document](https://docs.mongodb.com/manual/reference/method/db.collection.replaceOne/)
-

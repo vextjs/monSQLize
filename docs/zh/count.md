@@ -1,21 +1,5 @@
 # count 方法详细文档
 
-## 📑 目录
-
-- [概述](#概述)
-- [方法签名](#方法签名)
-- [参数说明](#参数说明)
-- [返回值](#返回值)
-- [使用模式](#使用模式)
-- [错误处理](#错误处理)
-- [性能优化建议](#性能优化建议)
-- [最佳实践](#最佳实践)
-- [常见问题](#常见问题)
-- [相关方法](#相关方法)
-- [示例代码](#示例代码)
-- [测试用例](#测试用例)
-
----
 
 ## 概述
 
@@ -33,8 +17,8 @@ async count(query = {}, options = {})
 
 查询条件对象，使用 MongoDB 标准查询语法。
 
-**类型**：`Object`  
-**必填**：否  
+**类型**：`Object`
+**必填**：否
 **默认值**：`{}`（空对象表示统计所有文档）
 
 **示例**：
@@ -76,7 +60,7 @@ async count(query = {}, options = {})
 - ✅ **MongoDB 原生**: 该参数是 MongoDB 官方支持的标准功能
 - 🔧 **monSQLize 扩展**: monSQLize 独有的扩展功能
 
-**MongoDB 参考文档**: 
+**MongoDB 参考文档**:
 - [countDocuments()](https://www.mongodb.com/docs/manual/reference/method/db.collection.countDocuments/)
 - [estimatedDocumentCount()](https://www.mongodb.com/docs/manual/reference/method/db.collection.estimatedDocumentCount/)
 
@@ -271,7 +255,7 @@ const recentOrders = await collection('orders').count({
 ```javascript
 // 强制使用索引
 const count = await collection('orders').count(
-  { 
+  {
     status: 'completed',
     createdAt: { $gte: new Date('2025-01-01') }
   },
@@ -391,12 +375,12 @@ const count = await collection('users').count({ role: 'admin' });
 // ✅ 推荐：频繁统计启用缓存
 const getDashboardStats = async () => {
   const totalUsers = await collection('users').count({}, { cache: 60000 });  // 1 分钟缓存
-  
+
   const activeUsers = await collection('users').count(
     { status: 'active' },
     { cache: 60000 }
   );
-  
+
   return { totalUsers, activeUsers };
 };
 ```
@@ -440,7 +424,7 @@ const sampleCount = await collection('orders').count(
 
 ### Q: 如何提升大数据量统计性能？
 
-**A**: 
+**A**:
 1. 为查询字段创建索引
 2. 使用缓存减少重复统计
 3. 考虑使用聚合管道预计算统计数据
@@ -448,7 +432,7 @@ const sampleCount = await collection('orders').count(
 
 ### Q: count 会扫描所有文档吗？
 
-**A**: 
+**A**:
 - 有索引：只扫描索引，不扫描文档
 - 无索引：需要扫描所有文档
 - 空查询：使用集合元数据，不扫描文档
@@ -468,4 +452,3 @@ const sampleCount = await collection('orders').count(
 ## 测试用例
 
 完整的测试用例请参考：`test/integration/mongodb/queries.test.ts`
-

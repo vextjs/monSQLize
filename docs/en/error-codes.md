@@ -4,7 +4,7 @@
 
 monSQLize uses a unified error code system to identify different types of errors, helping developers accurately identify and handle exceptions. All error objects contain the `code` attribute, through which the error type can be determined and corresponding processing logic executed.
 
-In the current main / Unreleased version, common user paths such as configuration, cache, SSH, connection pool, query chain, collection management, transaction and expression compilation also uniformly throw error objects with `code`; error `message` continues to retain the original readable copy.
+Common user paths such as configuration, cache, SSH, connection pools, query chains, collection management, transactions, and expression compilation throw error objects with `code`; error `message` remains human-readable.
 
 
 ## Error object structure
@@ -1085,11 +1085,6 @@ function logError(error, context = {}) {
 
 - [API Documentation Index](./api-index.md)
 - [Transaction Management](./transaction.md)
-- [Multiple connection pool management](./multi-pool.md)
+- [Pool configuration](./multi-pool.md)
 - [Chain Pool/Library Access API](./pool-chain-api.md)
 - [Connection configuration](./connection.md)
-
----
-
-**Document version**: Unreleased (main)
-**Last updated**: 2026-06-09

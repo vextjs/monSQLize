@@ -11,7 +11,7 @@ import { setupExample, teardownExample } from '../helpers/bootstrap.js';
 
 // ── 1. Define models (static, before connecting) ──────────────────────────
 MonSQLize.Model.define('posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string',
         authorId: 'string',
         status: 'string',
@@ -27,7 +27,7 @@ MonSQLize.Model.define('posts', {
 });
 
 MonSQLize.Model.define('users', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         firstName: 'string',
         lastName: 'string',
         nickname: 'string',

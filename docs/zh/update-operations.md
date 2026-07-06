@@ -1,21 +1,5 @@
-﻿# Update 操作详解
+# Update 操作详解
 
-> **适用版本**: v1.0.8+  
-> **最后更新**: 2026-01-15
-
----
-
-## 📋 目录
-
-- [1. 概述](#1-概述)
-- [2. 传统更新操作符](#2-传统更新操作符)
-- [3. 聚合管道更新 (v1.0.8+)](#3-聚合管道更新-v108)
-- [4. 使用场景对比](#4-使用场景对比)
-- [5. 最佳实践](#5-最佳实践)
-- [6. 性能考虑](#6-性能考虑)
-- [7. 常见问题](#7-常见问题)
-
----
 
 ## 1. 概述
 
@@ -23,11 +7,11 @@ monSQLize 提供了三种 update 方法：
 
 | 方法 | 说明 | 聚合管道支持 |
 |------|------|-------------|
-| `updateOne()` | 更新单个匹配的文档 | ✅ v1.0.8+ |
-| `updateMany()` | 更新所有匹配的文档 | ✅ v1.0.8+ |
-| `updateBatch()` | 分批更新大量文档 | ✅ v1.0.8+ |
+| `updateOne()` | 更新单个匹配的文档 | 支持 |
+| `updateMany()` | 更新所有匹配的文档 | 支持 |
+| `updateBatch()` | 分批更新大量文档 | 支持 |
 
-从 **v1.0.8** 开始，所有 update 方法都支持**聚合管道**语法，提供更强大的字段计算和转换能力。
+当前 update 方法支持聚合管道语法，可用于字段计算和转换。
 
 ---
 
@@ -95,7 +79,7 @@ await users.updateOne(
 
 ---
 
-## 3. 聚合管道更新 (v1.0.8+)
+## 3. 聚合管道更新
 
 ### 3.1 基础概念
 
@@ -624,10 +608,3 @@ await users.find({ status: 'active' }, { cache: 5000 });
 - [MongoDB 聚合管道文档](https://www.mongodb.com/docs/manual/tutorial/update-documents-with-aggregation-pipeline/)
 - [MongoDB 聚合表达式](https://www.mongodb.com/docs/manual/reference/operator/aggregation/)
 - [monSQLize API 文档](./api-index.md)
-
----
-
-**文档版本**: v1.0.0  
-**适用于**: monSQLize v1.0.8+  
-**最后更新**: 2026-01-15
-

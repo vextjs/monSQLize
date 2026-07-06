@@ -1,55 +1,37 @@
-﻿# findByIds() - 批量通过 _id 查询多个文档
-
-## 📑 目录
-
-- [方法概述](#方法概述)
-- [方法签名](#方法签名)
-- [基础示例](#基础示例)
-- [真实场景示例](#真实场景示例)
-- [选项参数详解](#选项参数详解)
-- [性能说明](#性能说明)
-- [错误处理](#错误处理)
-- [最佳实践](#最佳实践)
-- [与其他方法对比](#与其他方法对比)
-- [常见问题](#常见问题)
-- [另请参阅](#另请参阅)
-
----
+# findByIds Reference
 
 ## 方法概述
 
-`findByIds` 是一个便利方法，用于批量通过 `_id` 数组查询多个文档，简化了 `find({ _id: { $in: ids } })` 的使用。
+`findByIds(ids, options)` 是一个可选的多个 `_id` 查询 helper。它会归一化 ObjectId 形态的值、去重重复 id，并执行 `_id: { $in: ... }` 查询。
 
-### 为什么需要 findByIds？
+也可以直接使用标准 `find()` API。普通查询路径同样支持 ObjectId 自动转换：
 
-**传统方式**（使用 `find`）：
 ```javascript
-// ❌ 需要手动构建 $in 查询，且需要转换 ObjectId
-const { ObjectId } = require('mongodb');
 const users = await collection('users').find({
-  _id: { $in: userIds.map(id => new ObjectId(id)) }
-}).toArray();
+  _id: { $in: userIds }
+});
 ```
 
-**使用 findByIds**：
+当项目希望把“多个 id 查询”写成独立 helper，或需要 `preserveOrder` 保持输入顺序时，可以使用 `findByIds()`：
+
 ```javascript
-// ✅ 自动转换 ObjectId，自动去重，代码简洁
-const users = await collection('users').findByIds(userIds);
+const users = await collection('users').findByIds(userIds, {
+  preserveOrder: true
+});
 ```
 
-### 核心优势
+### 行为摘要
 
-| 优势 | 说明 |
+| 行为 | 说明 |
 |------|------|
-| **自动类型转换** | 字符串 ID 自动转换为 ObjectId |
-| **自动去重** | 重复的 ID 只查询一次 |
-| **性能优化** | 1 次查询替代 N 次查询 |
-| **代码简化** | 减少 75% 的样板代码 |
+| ObjectId 归一化 | 支持 ObjectId 形态字符串与 ObjectId 值混用 |
+| 去重 | 重复 id 只查询一次 |
+| 顺序 | 默认按 MongoDB 返回顺序；设置 `preserveOrder: true` 后按输入 id 顺序返回 |
+| 缺失 id | 不存在的文档不会出现在返回数组中 |
 
 ---
 
 ## 方法签名
-
 ```typescript
 async findByIds(
   ids: Array<string | ObjectId>,
@@ -68,14 +50,14 @@ async findByIds(
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `ids` | Array<string \| ObjectId> | ✅ | _id 数组（支持字符串和 ObjectId 混合） |
-| `options` | Object | ❌ | 查询选项 |
-| `options.projection` / `options.project` | Object | ❌ | 字段投影（同 find）。`project` 是 `projection` 的别名；两者同时存在时 `projection` 优先。 |
-| `options.sort` | Object | ❌ | 排序方式 |
-| `options.cache` | number | ❌ | 缓存时间（毫秒） |
-| `options.maxTimeMS` | number | ❌ | 查询超时（毫秒） |
-| `options.comment` | string | ❌ | 查询注释 |
-| `options.preserveOrder` | boolean | ❌ | 是否保持 ids 数组的顺序（默认 false） |
+| `ids` | Array<string \| ObjectId> | 是 | _id 数组，支持字符串和 ObjectId 混合 |
+| `options` | Object | 否 | 查询选项 |
+| `options.projection` / `options.project` | Object | 否 | 字段投影。`project` 是 `projection` 的别名；两者同时存在时 `projection` 优先。 |
+| `options.sort` | Object | 否 | 排序方式 |
+| `options.cache` | number | 否 | 缓存 TTL（毫秒） |
+| `options.maxTimeMS` | number | 否 | 查询超时（毫秒） |
+| `options.comment` | string | 否 | 查询注释 |
+| `options.preserveOrder` | boolean | 否 | 是否保持输入 ids 顺序；默认 `false` |
 
 ### 返回值说明
 
@@ -419,49 +401,41 @@ const users = await collection('users').findByIds(orderedIds, {
 
 ---
 
-## 性能说明
+## 使用建议
 
-### 性能对比
+`findByIds()` 会在规范化和去重输入 ID 后执行一次 `_id: { $in: ... }` 查询。实际耗时取决于 ID 数量、文档大小、projection、索引、网络、缓存配置和部署拓扑。
 
-| 方法 | 查询次数 | 平均耗时 | 推荐场景 |
-|------|---------|---------|---------|
-| **findByIds(100个)** | 1次 | 10-20ms | ✅ 批量查询 |
-| **find({ _id: { $in }})** | 1次 | 10-20ms | ⚠️ 需要手动处理 |
-| **findOneById x100** | 100次 | 1000-2000ms | ❌ 不推荐 |
+### 用 projection 减少返回字段
 
-### 性能优化建议
+```javascript
+const users = await collection('users').findByIds(ids, {
+  projection: { name: 1, email: 1 }
+});
+```
 
-1. **使用 projection 减少数据量**
-   ```javascript
-   // ✅ 推荐：只查询需要的字段
-   const users = await collection('users').findByIds(ids, {
-     projection: { name: 1, email: 1 }
-   });
-   ```
+### 对适合缓存的重复读取启用缓存
 
-2. **启用缓存加速重复查询**
-   ```javascript
-   // ✅ 推荐：缓存热门数据
-   const users = await collection('users').findByIds(hotUserIds, {
-     cache: 60000  // 1 分钟
-   });
-   ```
+```javascript
+const users = await collection('users').findByIds(hotUserIds, {
+  cache: 60000  // 1 分钟
+});
+```
 
-3. **避免过大的 ID 数组**
-   ```javascript
-   // ❌ 避免：一次查询超过 1000 个
-   const users = await collection('users').findByIds(tenThousandIds);
+### 控制批量大小
 
-   // ✅ 推荐：分批查询
-   const batchSize = 100;
-   const results = [];
-   for (let i = 0; i < ids.length; i += batchSize) {
-     const batch = await collection('users').findByIds(
-       ids.slice(i, i + batchSize)
-     );
-     results.push(...batch);
-   }
-   ```
+不要把无限制的用户输入直接传进单次 `$in` 查询。应结合 payload 大小、延迟目标和 MongoDB 命令限制设置服务级批量大小。
+
+```javascript
+const batchSize = 100;
+const results = [];
+
+for (let i = 0; i < ids.length; i += batchSize) {
+  const batch = await collection('users').findByIds(
+    ids.slice(i, i + batchSize)
+  );
+  results.push(...batch);
+}
+```
 
 ---
 
@@ -500,62 +474,30 @@ try {
 
 ---
 
-## 最佳实践
+## 使用模式
 
-### ✅ 推荐做法
+### 一次查询关联文档
 
-1. **使用 findByIds 替代循环查询**
-   ```javascript
-   // ✅ 推荐：1 次查询
-   const users = await collection('users').findByIds(userIds);
-   
-   // ❌ 避免：N 次查询
-   const users = await Promise.all(
-     userIds.map(id => collection('users').findOneById(id))
-   );
-   ```
+```javascript
+const userIds = [...new Set(comments.map(c => c.userId))];
+const users = await collection('users').findByIds(userIds);
+```
 
-2. **自动去重，无需手动处理**
-   ```javascript
-   // ✅ 推荐：自动去重
-   const users = await collection('users').findByIds(userIds);
-   
-   // ❌ 不需要手动去重
-   const uniqueIds = [...new Set(userIds)];
-   const users = await collection('users').findByIds(uniqueIds);
-   ```
+### 交给辅助方法处理重复 ID
 
-3. **检查缺失的 ID**
-   ```javascript
-   // ✅ 推荐：检查缺失
-   const users = await collection('users').findByIds(userIds);
-   if (users.length < userIds.length) {
-     console.warn('部分用户不存在');
-   }
-   ```
+```javascript
+const users = await collection('users').findByIds(userIds);
+```
 
-### ❌ 避免的做法
+### 对完整性敏感时检查缺失文档
 
-1. **避免过大的 ID 数组**
-   ```javascript
-   // ❌ 避免：一次查询 10000+ 个
-   const users = await collection('users').findByIds(hugeIdArray);
-   
-   // ✅ 推荐：分批查询
-   const users = await batchQuery(hugeIdArray, 100);
-   ```
+```javascript
+const users = await collection('users').findByIds(userIds);
 
-2. **避免重复查询**
-   ```javascript
-   // ❌ 避免：每次都查询
-   for (const comment of comments) {
-     const user = await collection('users').findOneById(comment.userId);
-   }
-   
-   // ✅ 推荐：批量查询
-   const userIds = [...new Set(comments.map(c => c.userId))];
-   const users = await collection('users').findByIds(userIds);
-   ```
+if (users.length < userIds.length) {
+  console.warn('部分用户不存在');
+}
+```
 
 ---
 
@@ -565,19 +507,19 @@ try {
 
 | 维度 | findByIds | findOneById |
 |------|-----------|-------------|
-| **查询数量** | 批量（N 个） | 单个 |
-| **查询次数** | 1 次 | N 次 |
-| **性能** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **使用场景** | 批量关联查询 | 单个文档查询 |
+| **范围** | 多个 ID | 一个 ID |
+| **查询形态** | `_id: { $in: ids }` | `_id: id` |
+| **辅助行为** | 去重输入，可按输入顺序返回 | 单文档便利封装 |
+| **适用场景** | 批量关联记录 | 一个已知文档 |
 
 ### vs find({ _id: { $in }})
 
 | 维度 | findByIds | find({ _id: { $in }}) |
 |------|-----------|-----------------------|
-| **代码行数** | 1 行 | 3-5 行 |
-| **自动转换 ObjectId** | ✅ | ❌ |
-| **自动去重** | ✅ | ❌ |
-| **代码可读性** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+| **ObjectId 转换** | 支持 | 支持 |
+| **去重** | 内置 | 需要时在调用前处理 |
+| **按输入顺序返回** | `preserveOrder: true` | 需要时在查询后处理 |
+| **适用场景** | 仅按 ID 批量读取的辅助方法 | 通用查询路径 |
 
 ---
 
@@ -585,10 +527,7 @@ try {
 
 ### Q1: findByIds 和 find 有什么区别？
 
-**A**: `findByIds` 是 `find({ _id: { $in: ids } })` 的便利方法：
-- ✅ 自动转换 ObjectId（字符串 → ObjectId）
-- ✅ 自动去重（重复 ID 只查询一次）
-- ✅ 更简洁的 API
+**A**: `findByIds()` 是仅按 ID 批量读取时可选的便利封装。`find({ _id: { $in: ids } })` 仍是标准查询路径，并且同样支持 ObjectId 自动转换。需要内置去重和可选按输入顺序返回时，可以使用 `findByIds()`。
 
 ### Q2: 如何处理不存在的 ID？
 
@@ -605,9 +544,7 @@ const users = await collection('users').findByIds([
 
 ### Q3: 支持多少个 ID？
 
-**A**: 理论上没有限制，但建议：
-- 单次查询 ≤ 1000 个 ID（性能最优）
-- 超过 1000 个建议分批查询
+**A**: monSQLize 没有额外设置固定上限，但查询仍受 MongoDB 命令大小、BSON 限制和你的服务延迟目标约束。对于很大或来自用户输入的数组，应设置应用级批量大小并分批处理。
 
 ### Q4: preserveOrder 选项有性能影响吗？
 
@@ -617,7 +554,7 @@ const users = await collection('users').findByIds([
 
 ### Q5: 会自动去重吗？
 
-**A**: ✅ 是的！重复的 ID 只会查询一次。
+**A**: 是。重复 ID 会在查询前去重。
 
 ```javascript
 const users = await collection('users').findByIds([
@@ -628,7 +565,7 @@ const users = await collection('users').findByIds([
 
 ### Q6: 支持缓存吗？
 
-**A**: ✅ 支持！使用 `cache` 选项。
+**A**: 支持。结果适合缓存时可以使用 `cache` 选项。
 
 ```javascript
 const users = await collection('users').findByIds(ids, {
@@ -638,11 +575,7 @@ const users = await collection('users').findByIds(ids, {
 
 ### Q7: 性能如何？
 
-**A**: 性能优秀：
-- 有索引：10-20ms（查询 100 个）
-- 无索引：50-100ms（全表扫描）
-
-**优化建议**: `_id` 字段默认有索引，无需额外创建。
+**A**: 需要在你的环境中测量。MongoDB 默认会为 `_id` 字段创建索引，但延迟仍受 ID 数量、projection、文档大小、网络、缓存和部署拓扑影响。生产调优建议使用 MongoDB profiler、APM 或服务指标。
 
 ---
 

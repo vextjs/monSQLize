@@ -1,19 +1,5 @@
 # findAndCount
 
-## 📑 Table of Contents
-
-- [Basic Usage](#basic-usage)
-- [Parameters](#parameters)
-- [Return Value](#return-value)
-- [Examples](#examples)
-- [Performance Benefits](#performance-benefits)
-- [Notes](#notes)
-- [Comparison with the Traditional Approach](#comparison-with-the-traditional-approach)
-- [Related Methods](#related-methods)
-- [Test Coverage](#test-coverage)
-
----
-
 A convenience method that returns query results and the total count at the same time. It runs `find()` and `countDocuments()` in parallel and is well suited for pagination scenarios.
 
 ## Basic Usage
@@ -60,8 +46,8 @@ const pageSize = 20;
 
 const { data, total } = await collection.findAndCount(
     { category: 'electronics' },
-    { 
-        limit: pageSize, 
+    {
+        limit: pageSize,
         skip: (page - 1) * pageSize,
         sort: { createdAt: -1 }
     }
@@ -89,7 +75,7 @@ const { data, total } = await collection.findAndCount(
 ```javascript
 const { data, total } = await collection.findAndCount(
     { category: 'news' },
-    { 
+    {
         limit: 20,
         cache: 60000  // cache for 60 seconds
     }
@@ -144,4 +130,3 @@ const { data, total } = await collection.findAndCount(
 - ✅ Performance test: 1 test
 
 **Test coverage**: 100%
-

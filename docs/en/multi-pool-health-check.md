@@ -1,22 +1,5 @@
 # Detailed explanation of the multi-connection pool health check mechanism
 
-> **Creation time**: 2026-02-03
-> **Applicable version**: v1.0.8+
-
----
-
-## 📋 Table of Contents
-
-- [Overview of health check mechanism](#overview-of-health-check-mechanism)
-- [Problem Discovery Mechanism](#problem-discovery-mechanism)
-- [Problem handling process](#problem-handling-process)
-- [Operation and maintenance notification method](#operation-and-maintenance-notification-method)
-- [Monitoring integration solution](#monitoring-integration-solution)
-- [Alarm configuration example](#alarm-configuration-example)
-- [FAQ](#faq)
-
----
-
 ## Overview of health check mechanism
 
 ## Working principle
@@ -51,19 +34,17 @@ Status: down
 🔔 Trigger alarm
 ```
 
-
 ## Health status
 
 | Status | Meaning | selectPool behavior | Recovery method |
 |------|------|----------------|---------|
 | **up** | Health | ✅ Normal use | - |
+| **degraded** | A health check failed but the pool has not crossed the down threshold | ⚠️ Still selectable, monitor closely | Restores to `up` after a successful check or becomes `down` after another failure |
 | **down** | Failure | ❌ Skip this pool and use other healthy pools | Automatically recover after successful health check |
-| **unknown** | Unknown | ⚠️ Use with caution | Confirmed after first health check |
 
 ---
 
 ## Problem discovery mechanism
-
 
 ## 1. Health check automatic discovery
 
@@ -74,35 +55,27 @@ Status: down
 - Timeout (default 3 seconds)
 - Continuous failure threshold (default 3 times)
 
-**Code Example**:
+**Public API example**:
 ```javascript
-// Health-check flow used by the pool manager
-async _checkHealth(poolName) {
-    const pool = this._poolManager._getPool(poolName);
+const manager = new ConnectionPoolManager();
 
-    try {
-        //Execute ping command
-        await pool.db().admin().ping();
+await manager.addPool({
+    name: 'primary',
+    uri: 'mongodb://localhost:27017/main',
+    role: 'primary',
+    healthCheck: {
+        enabled: true,
+        interval: 5000,
+        timeout: 3000,
+        retries: 3,
+    },
+});
 
-        //Success: reset failure count
-        this.updateStatus(poolName, 'up', null);
+manager.startHealthCheck('primary');
 
-    } catch (error) {
-        //Failure: Increase failure count
-        const currentStatus = this._status.get(poolName);
-        currentStatus.consecutiveFailures++;
-
-        //Threshold reached: marked as down
-        if (currentStatus.consecutiveFailures >= config.retries) {
-            this.updateStatus(poolName, 'down', error);
-
-            //🔔 Trigger events (can be used for alarms)
-            this.emit('poolDown', poolName, error);
-        }
-    }
-}
+const health = manager.getHealthStatus();
+console.log(health.primary.status); // 'up' | 'degraded' | 'down'
 ```
-
 
 ## 2. Found when selectingPool
 
@@ -110,27 +83,17 @@ async _checkHealth(poolName) {
 
 **Discovery**:
 ```javascript
-selectPool(operation, options) {
-    //Get a list of healthy connection pools
-    let candidates = this._getHealthyPools();
-
-    //If there is no healthy pool
-    if (candidates.length === 0) {
-        //🔔 Alarm triggered: All connection pools failed
-        this._logger.error('[CRITICAL] All connection pools failed and services cannot be provided');
-
-        //Processed according to failover strategy
-        if (this._fallbackConfig.enabled) {
-            candidates = this._handleAllPoolsDown(operation);
-        } else {
-            throw new Error('No available connection pool');
-        }
+try {
+    const pool = manager.selectPool('read');
+    const users = await pool.collection(undefined, 'users').find({}).toArray();
+    console.log(users);
+} catch (error) {
+    if (error.message.includes('No available connection pool')) {
+        logger.error('[CRITICAL] All connection pools failed and services cannot be provided');
     }
-
-    // ...
+    throw error;
 }
 ```
-
 
 ## 3. Found during actual use
 
@@ -155,7 +118,6 @@ try {
 ---
 
 ## Problem handling process
-
 
 ## Automatic processing process
 
@@ -183,7 +145,6 @@ Problem discovery
 └─ error: throw an error
 ```
 
-
 ## Downgrade strategy example
 
 ```javascript
@@ -204,52 +165,38 @@ try {
     // - secondary strategy: use replicas (possibly write to replicas)
     // - error strategy: throw an error directly
 } catch (error) {
-    if (error.message.includes('readonly')) {
-        // Downgrade to read-only mode
-        logger.warn('The main database fails and the system enters read-only mode.');
+    if (error.message.includes('No available connection pool')) {
+        // No eligible pool is available for this operation
+        logger.warn('No eligible connection pool is available for the current operation.');
 
         // Trigger alarm
         sendAlert({
             level: 'critical',
-            message: 'The main database fails and the system is downgraded to read-only mode.',
+            message: 'No available connection pool for the current operation.',
             time: new Date()
         });
     }
 }
 ```
 
-
 ## Automatic recovery mechanism
 
 ```javascript
-//HealthChecker continuously checks the down status of the connection pool
-async _checkHealth(poolName) {
-    const status = this._status.get(poolName);
+// The manager continues to health-check down pools.
+// Poll the public status map to observe recovery.
+const before = manager.getHealthStatus().primary?.status;
 
-    //Even if it is in the down state, it will still continue to check
-    if (status.status === 'down') {
-        try {
-            await pool.db().admin().ping();
-
-            //Check successful: immediately restore to up
-            this.updateStatus(poolName, 'up', null);
-
-            //🔔 Trigger recovery event
-            this.emit('poolRecovered', poolName);
-
-            this._logger.info(`[HealthChecker] Connection pool restored: ${poolName}`);
-
-        } catch (error) {
-            //Still fails and remains in down state
-        }
+setTimeout(() => {
+    const after = manager.getHealthStatus().primary?.status;
+    if (before === 'down' && after === 'up') {
+        logger.info('[PoolManager] Connection pool restored: primary');
     }
-}
+}, 5000);
 ```
 
 ---
 
 ## Operation and maintenance notification method
-
 
 ## Method 1: Logging (Basic)
 
@@ -257,21 +204,11 @@ async _checkHealth(poolName) {
 
 ```javascript
 //Pass in logger when creating the manager
-const winston = require('winston');
-
-const logger = winston.createLogger({
-    level: 'info',
-    format: winston.format.json(),
-    transports: [
-        new winston.transports.File({
-            filename: 'pool-error.log',
-            level: 'error'
-        }),
-        new winston.transports.File({
-            filename: 'pool-combined.log'
-        })
-    ]
-});
+const logger = {
+    info: (message, meta) => console.info(message, meta ?? ''),
+    warn: (message, meta) => console.warn(message, meta ?? ''),
+    error: (message, meta) => console.error(message, meta ?? ''),
+};
 
 const manager = new ConnectionPoolManager({
     logger
@@ -297,7 +234,6 @@ grep "Connection pool marked as failed" pool-combined.log | wc -l
 grep "Connection pool marked as failed" pool-combined.log | tail -10
 ```
 
-
 ## Method 2: Regular monitoring (recommended)
 
 **Check your health regularly**:
@@ -318,7 +254,7 @@ setInterval(async () => {
             downPools.push({
                 name,
                 lastError: status.lastError?.message,
-                downSince: new Date(status.lastCheck - (Date.now() - status.lastSuccess))
+                lastCheckTime: status.lastCheckTime?.toISOString() ?? null
             });
         }
     }
@@ -374,76 +310,35 @@ pm2 start monitor.js --name "pool-monitor"
 pm2 logs pool-monitor
 ```
 
+## Method 3: Application-level status transitions
 
-## Method 3: Event Listening (Advanced)
-
-**Extended HealthChecker support events** (needs to be implemented in code):
+`ConnectionPoolManager` exposes health snapshots, not public health events. If your application needs notifications, compare consecutive snapshots:
 
 ```javascript
-//Add event triggering in HealthChecker
-const EventEmitter = require('events');
+let previous = manager.getHealthStatus();
 
-class HealthChecker extends EventEmitter {
-    updateStatus(poolName, status, error) {
-        const oldStatus = this._status.get(poolName)?.status;
+setInterval(async () => {
+    const current = manager.getHealthStatus();
 
-        //update status
-        this._status.set(poolName, {
-            status,
-            consecutiveFailures: status === 'up' ? 0 : this._status.get(poolName).consecutiveFailures,
-            lastCheck: Date.now(),
-            lastSuccess: status === 'up' ? Date.now() : this._status.get(poolName).lastSuccess,
-            lastError: error
-        });
-
-        //🔔 Trigger event
-        if (oldStatus !== status) {
-            this.emit('statusChanged', {
-                poolName,
-                oldStatus,
-                newStatus: status,
-                error
+    for (const [poolName, status] of Object.entries(current)) {
+        const oldStatus = previous[poolName]?.status;
+        if (oldStatus && oldStatus !== status.status) {
+            await sendAlert({
+                level: status.status === 'down' ? 'critical' : 'info',
+                message: `Connection pool ${poolName}: ${oldStatus} -> ${status.status}`,
+                error: status.lastError?.message,
+                timestamp: new Date().toISOString()
             });
-
-            if (status === 'down') {
-                this.emit('poolDown', { poolName, error });
-            } else if (status === 'up' && oldStatus === 'down') {
-                this.emit('poolRecovered', { poolName });
-            }
         }
     }
-}
 
-//Use event listening when you own a custom health checker
-const healthChecker = new HealthChecker();
-healthChecker.on('poolDown', ({ poolName, error }) => {
-    console.error(`🚨 Connection pool failure: ${poolName}`, error.message);
-
-    //🔔 Send alert
-    sendAlert({
-        level: 'critical',
-        message: `Connection pool ${poolName} failure`,
-        error: error.message,
-        timestamp: new Date().toISOString()
-    });
-});
-
-healthChecker.on('poolRecovered', ({ poolName }) => {
-    console.info(`✅ The connection pool has been restored: ${poolName}`);
-
-    //🔔 Send recovery notification
-    sendAlert({
-        level: 'info',
-        message: `Connection pool ${poolName} has been restored`,
-        timestamp: new Date().toISOString()
-    });
-});
+    previous = current;
+}, 30000);
 ```
 
 ---
 
 ## Monitoring integration solution
-
 
 ## Option 1: Integrate Prometheus + Grafana
 
@@ -458,7 +353,7 @@ const manager = require('./pool-manager');
 //Create indicator
 const poolHealthGauge = new prometheus.Gauge({
     name: 'monsqlize_pool_health',
-    help: 'Pool health status (1=up, 0=down)',
+    help: 'Pool health status (1=up, 0.5=degraded, 0=down)',
     labelNames: ['pool_name']
 });
 
@@ -486,11 +381,12 @@ setInterval(() => {
     const stats = manager.getPoolStats();
 
     for (const [name, status] of health.entries()) {
-        poolHealthGauge.set({ pool_name: name }, status.status === 'up' ? 1 : 0);
+        const value = status.status === 'up' ? 1 : status.status === 'degraded' ? 0.5 : 0;
+        poolHealthGauge.set({ pool_name: name }, value);
     }
 
     for (const [name, stat] of Object.entries(stats)) {
-        poolConnectionsGauge.set({ pool_name: name }, stat.connections);
+        poolConnectionsGauge.set({ pool_name: name }, stat.connections ?? 0);
         poolErrorRate.set({ pool_name: name }, stat.errorRate);
         poolResponseTime.set({ pool_name: name }, stat.avgResponseTime);
     }
@@ -542,7 +438,6 @@ groups:
           summary: "Connection pool response is slow: {{ $labels.pool_name }}"
           description: "The average response time of connection pool {{ $labels.pool_name }} is {{ $value }}ms"
 ```
-
 
 ## Solution 2: Integrate Enterprise WeChat/DingTalk
 
@@ -605,7 +500,6 @@ await sendWeChatAlert({
 });
 ```
 
-
 ## Option 3: Integrate email alerts
 
 ```javascript
@@ -645,7 +539,6 @@ async function sendEmailAlert(message) {
 ---
 
 ## Alarm configuration example
-
 
 ## Complete production environment alarm system
 
@@ -724,7 +617,7 @@ setInterval(async () => {
                     message: alertConfig.rules.poolDown.message(name),
                     details: {
                         error: status.lastError?.message,
-                        lastSuccess: new Date(status.lastSuccess).toISOString()
+                        lastCheckTime: status.lastCheckTime?.toISOString() ?? null
                     },
                     timestamp: new Date().toISOString()
                 });
@@ -811,7 +704,6 @@ async function sendAlert(message) {
 
 ## FAQ
 
-
 ## Q1: Will health checks affect performance?
 
 **A**: The impact is minimal.
@@ -825,33 +717,31 @@ async function sendAlert(message) {
 - Network: ~100 bytes per check
 - Response time: 1-3ms
 
-
 ## Q2: How to customize health check logic?
 
-**A**: Currently the fixed `ping` command is used. If you need to customize it, you need to modify the code:
+**A**: The public health-check contract exposes configuration for enabling checks, interval, timeout, and retry threshold. It does not expose a custom health-check callback.
 
 ```javascript
-//In HealthChecker.js
-async _checkHealth(poolName) {
-    //Custom check logic
-    try {
-        //Method 1: Execute custom query
-        await pool.collection('health_check').findOne({});
+const manager = new ConnectionPoolManager();
 
-        //Method 2: Check replication latency
-        const status = await pool.db().admin().replSetGetStatus();
-        const lag = calculateReplicationLag(status);
-        if (lag > 5000) {  //Delay exceeds 5 seconds
-            throw new Error('Replication lag too high');
-        }
+await manager.addPool({
+    name: 'primary',
+    uri: 'mongodb://localhost:27017/main',
+    healthCheck: {
+        enabled: true,
+        interval: 10000,
+        timeout: 3000,
+        retries: 3,
+    },
+});
 
-        this.updateStatus(poolName, 'up', null);
-    } catch (error) {
-        // ...
-    }
+// If you need replication-lag or domain-specific checks, run them in
+// application monitoring and combine the result with getHealthStatus().
+async function checkReplicationLag(client) {
+    const status = await client.db().admin().command({ replSetGetStatus: 1 });
+    return calculateReplicationLag(status);
 }
 ```
-
 
 ## Q3: How to ensure that no data is lost after the main database fails?
 
@@ -883,7 +773,6 @@ try {
 }
 ```
 
-
 ## Q4: How to test the alarm system?
 
 **A**: Manual trigger fault:
@@ -914,8 +803,3 @@ tail -f pool-error.log
 **Recommended plan**:
 - Basics: Regular monitoring script + Enterprise WeChat/DingTalk
 - Advanced: Prometheus + Grafana + Alert Rules
-
----
-
-**Update time**: 2026-02-03
-**Maintainer**: monSQLize Team

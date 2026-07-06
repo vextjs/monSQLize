@@ -1,22 +1,5 @@
 # updateOne() - 更新单个文档
 
-## 📑 目录
-
-- [语法](#语法)
-- [参数](#参数)
-- [返回值](#返回值)
-- [示例](#示例)
-- [错误处理](#错误处理)
-- [常见错误](#常见错误)
-- [性能建议](#性能建议)
-- [缓存行为](#缓存行为)
-- [慢查询日志](#慢查询日志)
-- [与其他方法的对比](#与其他方法的对比)
-- [最佳实践](#最佳实践)
-- [相关方法](#相关方法)
-- [参考资料](#参考资料)
-
----
 
 更新集合中第一个匹配筛选条件的文档。
 
@@ -82,7 +65,7 @@ collection(collectionName).updateOne(filter, update, options)
 }
 ```
 
-**注意**: 
+**注意**:
 - `matchedCount` 可能大于 `modifiedCount`（匹配但值相同时不修改）
 - 未匹配时 `matchedCount` 和 `modifiedCount` 都为 0
 
@@ -308,7 +291,7 @@ await collection("users").updateOne(
 // 下次查询将从数据库获取最新数据
 ```
 
-**注意**: 
+**注意**:
 - 仅当 `modifiedCount > 0` 时才会失效缓存
 - 缓存失效是自动的，无需手动调用
 
@@ -404,4 +387,3 @@ if (result.matchedCount === 0) {
 
 - [MongoDB 更新操作符文档](https://docs.mongodb.com/manual/reference/operator/update/)
 - [MongoDB updateOne 文档](https://docs.mongodb.com/manual/reference/method/db.collection.updateOne/)
-

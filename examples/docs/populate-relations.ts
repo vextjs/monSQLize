@@ -16,7 +16,7 @@ interface ProfileDoc { bio: string; website?: string; userId: string; }
 
 // Define models with relations (static, before connect)
 MonSQLize.Model.define('blog_authors', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         username: 'string',
         email: 'string',
     }),
@@ -27,7 +27,7 @@ MonSQLize.Model.define('blog_authors', {
 });
 
 MonSQLize.Model.define('blog_posts', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string',
         authorId: 'string',
         status: 'string',
@@ -40,7 +40,7 @@ MonSQLize.Model.define('blog_posts', {
 });
 
 MonSQLize.Model.define('blog_profiles', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         bio: 'string',
         website: 'string',
         userId: 'string',

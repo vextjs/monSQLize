@@ -1,44 +1,16 @@
 # 连接管理文档
 
-## 📑 目录
-
-- [概述](#概述)
-- [核心特性](#核心特性)
-- [连接管理 API](#连接管理-api)
-  - [connect()](#connect)
-  - [collection()](#collection)
-  - [db()](#db)
-  - [close()](#close)
-- [跨库访问](#跨库访问)
-- [错误处理](#错误处理)
-- [最佳实践](#最佳实践)
-  - [1. 连接复用](#1-连接复用)
-  - [2. 资源管理](#2-资源管理)
-  - [3. 连接失败重试](#3-连接失败重试)
-  - [4. 单元测试中的连接管理](#4-单元测试中的连接管理)
-- [配置选项](#配置选项)
-  - [完整配置示例](#完整配置示例)
-  - [配置分类说明](#配置分类说明)
-  - [常用配置场景](#常用配置场景)
-  - [配置验证](#配置验证)
-  - [环境变量配置](#环境变量配置)
-  - [配置优先级](#配置优先级)
-- [常见问题](#常见问题)
-- [参考资料](#参考资料)
-
----
-
 ## 概述
 
-monSQLize 提供了完善的数据库连接管理功能，包括并发连接保护、参数验证、资源清理等。本文档详细说明连接管理的各个方面。
+monSQLize 提供 MongoDB 应用常用的连接管理能力，包括安全复用连接、参数校验、资源清理和跨库访问。本文档说明连接 API 与相关配置项。
 
 ## 核心特性
 
-- ✅ **并发连接保护**：确保高并发场景下只建立一个连接
-- ✅ **参数验证**：集合名和数据库名自动校验
-- ✅ **资源清理**：正确释放所有资源，防止内存泄漏
-- ✅ **错误处理**：连接失败自动清理锁状态
-- ✅ **跨库访问**：支持访问不同数据库的集合
+- **安全复用连接**：并发调用 `connect()` 会等待同一次连接尝试
+- **参数验证**：集合名和数据库名会在使用前校验
+- **资源清理**：`close()` 会释放客户端资源和运行时缓存
+- **错误处理**：连接失败后可以安全重试
+- **跨库访问**：一个实例可以访问其他数据库中的集合
 
 ---
 
@@ -91,7 +63,7 @@ const analyticsEvents = use('analytics').collection('events');
 
 ### 并发连接保护
 
-`connect()` 方法内置并发锁机制，确保高并发场景下只建立一个连接。
+`connect()` 可以在并发请求中安全调用。并发调用会等待同一次连接尝试，避免重复打开多个客户端连接。
 
 #### 工作原理
 
@@ -232,7 +204,7 @@ async close()
 - ✅ 关闭 MongoDB 客户端连接
 - ✅ 清理实例 ID 缓存（`_iidCache`）
 - ✅ 清理连接锁（`_connecting`）
-- ✅ 清理 ModelInstance 缓存（v1.2.1+）
+- 清理 ModelInstance 缓存
 - ✅ 释放所有内部引用
 
 #### 使用示例（close()）
@@ -573,13 +545,24 @@ const msq = new MonSQLize({
   databaseName: 'myapp',              // 默认数据库名【必需】
   
   config: {
-    uri: 'mongodb://localhost:27017', // MongoDB 连接字符串【必需】
+    uri: 'mongodb://mongouser:pass@mongodb.internal:27017/myapp', // MongoDB 连接字符串【必需】
     options: {                         // MongoDB 客户端选项【可选】
       maxPoolSize: 10,                // 连接池最大连接数【默认: 10】
       minPoolSize: 2,                 // 连接池最小连接数【默认: 2】
       serverSelectionTimeoutMS: 5000, // 服务器选择超时【默认: 30000】
       socketTimeoutMS: 45000,         // Socket 超时【默认: 360000】
       family: 4                       // IP 版本（4 或 6）【默认: 4】
+    },
+    ssh: {
+      host: 'jump-server.example.com',
+      port: 22,
+      username: 'user',
+      password: 'your-password',
+      dstHost: 'mongodb.internal',
+      dstPort: 27017,
+      localPort: 27018,
+      readyTimeout: 20000,
+      keepaliveInterval: 30000
     }
   },
   
@@ -606,7 +589,7 @@ const msq = new MonSQLize({
     maxSize: 100000,                  // 最大缓存条目数【默认: 100000】
     maxAge: 3600000,                  // 默认缓存时长（毫秒）【默认: 3600000 (1小时)】
     enableStats: true,                // 启用统计信息【默认: true】
-    autoInvalidate: true,             // 🆕 v1.1.6: 启用精准缓存失效【默认: false】
+    autoInvalidate: true,             // 启用精准缓存失效【默认: false】
     
     // Redis 缓存配置（当 type='redis' 时）
     redis: {
@@ -629,7 +612,7 @@ const msq = new MonSQLize({
   // 命名空间配置（用于缓存隔离）
   // ========================================
   namespace: {
-    scope: 'database',                // 'global' | 'database' | 'collection'【默认: 'database'】
+    scope: 'database',                // 'database' | 'connection'【默认: 'database'】
     instanceId: 'server-01'           // 实例 ID【默认: undefined】
   },
   
@@ -644,28 +627,29 @@ const msq = new MonSQLize({
   },
   
   // ========================================
-  // 多连接池配置（v1.0.8+）
+  // 多连接池配置。推荐在 new MonSQLize(...) 时声明。
   // ========================================
-  pools: {                            // 多连接池配置【默认: undefined (单连接池模式)】
-    primary: {
-      uri: 'mongodb://localhost:27017',
+  pools: [                            // PoolConfig[]【默认: undefined (单连接池模式)】
+    {
+      name: 'primary',
+      uri: 'mongodb://primary:27017/app',
+      role: 'primary',
       options: { maxPoolSize: 10 }
     },
-    secondary: {
-      uri: 'mongodb://secondary:27017',
-      options: { maxPoolSize: 5 }
-    },
-    analytics: {
-      uri: 'mongodb://analytics:27017',
+    {
+      name: 'analytics',
+      uri: 'mongodb://analytics:27017/app',
+      role: 'analytics',
+      tags: ['reporting'],
       options: { maxPoolSize: 3 }
     }
-  },
-  poolStrategy: 'auto',               // 'auto' | 'manual'【默认: 'auto'】
-  poolFallback: true,                 // 主池失败时是否降级【默认: false】
+  ],
+  poolStrategy: 'auto',               // 'auto' | 'roundRobin' | 'weighted' | 'leastConnections' | 'manual'
+  poolFallback: { enabled: true, fallbackStrategy: 'primary' },
   maxPoolsCount: 5,                   // 最大连接池数量【默认: 10】
   
   // ========================================
-  // ObjectId 自动转换配置（v1.3.0+）
+  // ObjectId 自动转换配置
   // ========================================
   autoConvertObjectId: true,          // 启用自动转换【默认: true】
   
@@ -693,54 +677,46 @@ const msq = new MonSQLize({
   },
   
   // ========================================
-  // 慢查询日志持久化存储配置（v1.3.1+）
+  // 慢查询日志持久化存储配置
   // ========================================
   slowQueryLog: {
     enabled: true,                    // 启用持久化存储【默认: false】
-    storage: 'mongodb',               // 存储类型: 'mongodb' | 'file'【默认: 'mongodb'】
-    collection: 'slow_queries',       // MongoDB 集合名【默认: 'slow_queries'】
-    databaseName: 'logs',             // 数据库名【默认: 当前数据库】
-    
-    // 文件存储配置（当 storage='file' 时）
-    file: {
-      path: './logs/slow-queries.log',  // 日志文件路径【必需】
-      maxSize: '10M',                 // 单个文件最大大小【默认: '10M'】
-      maxFiles: 5                     // 最多保留文件数【默认: 5】
+    storage: {
+      type: 'mongodb',                // 'mongodb' | 'memory'
+      useBusinessConnection: true,    // 复用当前 MongoDB 连接
+      database: 'logs',
+      collection: 'slow_queries',
+      ttl: 7 * 24 * 3600              // 秒
     },
-    
-    // 过滤器【默认: undefined (记录所有)】
-    filter: (query) => {
-      return query.duration > 1000;   // 只记录 > 1秒的查询
+    filter: {
+      minExecutionTimeMs: 1000,
+      excludeCollections: ['healthchecks']
     }
   },
   
   // ========================================
-  // Model 自动加载配置（v1.4.0+）
+  // Model 自动加载配置
   // ========================================
   models: {
-    enabled: true,                    // 启用 Model 自动加载【默认: false】
-    dir: './models',                  // Model 文件目录【默认: './models'】
-    pattern: '**/*.js',               // 文件匹配模式【默认: '**/*.js'】
-    
-    // 自定义加载器【默认: require】
-    loader: (filePath) => {
-      return require(filePath);
-    }
+    path: './models',
+    pattern: '*.model.{js,mjs,cjs}',
+    recursive: false
   },
   
   // ========================================
-  // 数据同步配置（v1.0.9+）
+  // 数据同步配置
   // ========================================
   sync: {
     enabled: true,                    // 启用 Change Stream 同步【默认: false】
     collections: ['users', 'orders'], // 监听的集合列表【必需】
     
-    // 同步目标配置
-    target: {
-      type: 'mongodb',                // 目标类型【默认: 'mongodb'】
-      uri: 'mongodb://backup:27017',  // 目标 URI【必需】
-      databaseName: 'backup'          // 目标数据库【必需】
-    },
+    targets: [
+      {
+        name: 'backup',
+        uri: 'mongodb://backup:27017',
+        databaseName: 'backup'
+      }
+    ],
     
     // Resume Token 配置
     resumeToken: {
@@ -749,35 +725,6 @@ const msq = new MonSQLize({
       strictLoad: true,               // token 损坏或不可读时停止启动【默认: 同 strictSave】
       strictSave: true                // token 保存失败时停止同步【默认: true】
     }
-  },
-  
-  // ========================================
-  // SSH 隧道配置（配置在 config.ssh 中）
-  // ========================================
-  config: {
-    uri: 'mongodb://mongouser:pass@mongodb.internal:27017/mydb',
-    ssh: {
-      host: 'jump-server.example.com',  // SSH 服务器地址【必需】
-      port: 22,                         // SSH 端口【默认: 22】
-      username: 'user',                 // SSH 用户名【必需】
-      
-      // 认证方式 1: 密码【password / privateKey / privateKeyPath 三选一】
-      password: 'your-password',
-      
-      // 认证方式 2: 私钥文件路径（推荐，支持 ~ 展开）
-      privateKeyPath: '~/.ssh/id_rsa',
-      
-      // 认证方式 3: 私钥内容
-      privateKey: '-----BEGIN RSA PRIVATE KEY-----...',
-      passphrase: 'key-passphrase',    // 私钥密码【默认: undefined】
-      
-      // 目标 MongoDB 服务器（可从 uri 自动解析，通常无需手动指定）
-      dstHost: 'mongodb.internal',     // 覆盖自动解析的 host
-      dstPort: 27017,                  // 覆盖自动解析的 port
-      localPort: 27018,                // 固定本地端口【默认: 随机】
-      readyTimeout: 20000,             // SSH 握手超时（毫秒）【默认: 20000】
-      keepaliveInterval: 30000,        // 心跳间隔（毫秒）【默认: 30000】
-    },
   },
 });
 ```
@@ -812,7 +759,7 @@ const msq = new MonSQLize({
 | `cache.maxSize` | number | 100000 | 内存缓存最大条目数 |
 | `cache.maxAge` | number | 3600000 | 默认缓存时长（毫秒） |
 | `cache.enableStats` | boolean | true | 启用缓存统计信息 |
-| `cache.autoInvalidate` | boolean | false | 🆕 v1.1.6: 启用精准缓存失效 |
+| `cache.autoInvalidate` | boolean | false | 启用精准缓存失效 |
 | `cache.redis` | object | - | Redis 连接配置 |
 | `cache.distributed.enabled` | boolean | false | 启用分布式缓存失效 |
 
@@ -822,7 +769,7 @@ const msq = new MonSQLize({
 |--------|------|--------|------|
 | `namespace` | object | {scope:'database'} | 命名空间配置（缓存隔离） |
 | `countQueue` | object | {enabled:true} | Count 队列配置 |
-| `pools` | object | - | 多连接池配置 |
+| `pools` | `PoolConfig[]` | - | 多连接池配置，需在构造函数中声明，每个池包含 `name` 与 `uri` |
 | `autoConvertObjectId` | boolean \| object | true | ObjectId 自动转换。默认按值转换，支持 `enabled`、`excludeFields`、`{ field: false }` 与 `maxDepth` 逃生开关 |
 | `cursorSecret` | string | - | `findPage()` 游标 token 的 HMAC 签名密钥 |
 | `requireCursorSecret` | boolean | false | 为 true 时，未配置 `cursorSecret` 的 `findPage()` 会拒绝执行 |
@@ -835,7 +782,7 @@ const msq = new MonSQLize({
 | `sync.resumeToken.strictSave` | boolean | `true` | 为 true 时，token 保存失败会在 resume token 推进前停止 Change Stream 同步 |
 | `sync.resumeToken.saveRetries` | number | `0` | strict token save 失败前的重试次数 |
 | `sync.resumeToken.saveRetryDelayMs` | number | `100` | token 保存重试间隔（毫秒） |
-| `config.ssh` | object | - | SSH 隧道配置（`ssh2` 已随 monsqlize 安装） |
+| `config.ssh` | object | - | 通过堡垒机连接 MongoDB 时使用的 SSH 隧道配置 |
 
 ### 常用配置场景
 

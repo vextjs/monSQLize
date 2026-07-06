@@ -1,21 +1,5 @@
 # incrementOne() - 原子递增/递减字段值
 
-## 📑 目录
-
-- [方法概述](#方法概述)
-- [方法签名](#方法签名)
-- [基础示例](#基础示例)
-- [真实场景示例](#真实场景示例)
-- [选项参数详解](#选项参数详解)
-- [性能说明](#性能说明)
-- [错误处理](#错误处理)
-- [最佳实践](#最佳实践)
-- [与其他方法对比](#与其他方法对比)
-- [常见问题](#常见问题)
-- [另请参阅](#另请参阅)
-
----
-
 ## 方法概述
 
 `incrementOne` 是一个便利方法，用于原子地递增或递减单个文档的字段值，简化了 `updateOne({ $inc })` 的使用。
@@ -451,4 +435,3 @@ await collection('users').incrementOne(
 - [findOneAndUpdate()](./find-one-and-update.md) - 查找并更新
 - [upsertOne()](./upsert-one.md) - 存在则更新，不存在则插入
 - [MongoDB 官方文档：$inc 操作符](https://www.mongodb.com/docs/manual/reference/operator/update/inc/)
-

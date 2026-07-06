@@ -1,51 +1,5 @@
 # deleteMany() - delete documents in batches
 
-## Table of Contents
-
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [filter (required)](#filter-required)
-- [options (optional)](#options-optional)
-- [Return value](#return-value)
-- [Core Features](#core-features)
-- [✅ Delete all matching documents](#delete-all-matching-documents)
-- [✅ Automatic cache invalidation](#automatic-cache-invalidation)
-- [✅ Slow query monitoring](#slow-query-monitoring)
-- [Common scenarios](#common-scenarios)
-- [Scenario 1: Batch cleaning of expired data](#scenario-1-batch-cleaning-of-expired-data)
-- [Scenario 2: Delete user-related data in batches](#scenario-2-delete-user-related-data-in-batches)
-- [Scenario 3: Cleaning test data](#scenario-3-cleaning-test-data)
-- [Scenario 4: Clean logs by time range](#scenario-4-clean-logs-by-time-range)
-- [Scenario 5: Optimizing bulk deletions using index hints](#scenario-5-optimizing-bulk-deletions-using-index-hints)
-- [Scenario 6: Conditional batch deletion](#scenario-6-conditional-batch-deletion)
-- [Differences from other methods](#differences-from-other-methods)
-- [vs deleteOne](#vs-deleteone)
-- [vs findOneAndDelete](#vs-findoneanddelete)
-- [Performance considerations for batch deletion](#performance-considerations-for-batch-deletion)
-- [1. Mass deletion strategy](#1-mass-deletion-strategy)
-- [2. Use index optimization to delete](#2-use-index-optimization-to-delete)
-- [3. Use index hints](#3-use-index-hints)
-- [4. Monitor deletion progress](#4-monitor-deletion-progress)
-- [Error handling](#error-handling)
-- [Invalid filter criteria](#invalid-filter-criteria)
-- [Operation timeout](#operation-timeout)
-- [Write attention error](#write-attention-error)
-- [Security Advice](#security-advice)
-- [⚠️ Query before deleting](#query-before-deleting)
-- [⚠️ Avoid using empty filters](#avoid-using-empty-filters)
-- [⚠️ Use soft delete as an alternative](#use-soft-delete-as-an-alternative)
-- [⚠️ Record deletion operation log](#record-deletion-operation-log)
-- [Notes](#notes)
-- [⚠️ Deletion is irreversible](#deletion-is-irreversible)
-- [⚠️ Scope of cache invalidation](#scope-of-cache-invalidation)
-- [⚠️Performance impact](#performance-impact)
-- [⚠️ Index maintenance](#index-maintenance)
-- [Utility functions](#utility-functions)
-- [Safe batch deletion function](#safe-batch-deletion-function)
-- [Related methods](#related-methods)
-- [Sample code](#sample-code)
-- [MongoDB Documentation](#mongodb-documentation)
-
 ## Syntax
 
 ```javascript
@@ -53,7 +7,6 @@ collection(name).deleteMany(filter, options?)
 ```
 
 ## Parameters
-
 
 ## filter (required)
 
@@ -77,7 +30,6 @@ await collection("sessions").deleteMany({
 //Danger: delete all documents
 await collection("users").deleteMany({});
 ```
-
 
 ## options (optional)
 
@@ -106,7 +58,6 @@ Return an object containing the results of the deletion:
 
 ## Core Features
 
-
 ## ✅ Delete all matching documents
 
 Unlike `deleteOne()`, `deleteMany()` deletes all matching documents.
@@ -116,7 +67,6 @@ Unlike `deleteOne()`, `deleteMany()` deletes all matching documents.
 const result = await collection("users").deleteMany({ status: "inactive" });
 console.log(`${result.deletedCount} users deleted`); //It could be 0, 1, 5, 100...
 ```
-
 
 ## ✅ Automatic cache invalidation
 
@@ -139,7 +89,6 @@ const remainingUsers = await collection("users").find(
 ); // []
 ```
 
-
 ## ✅ Slow query monitoring
 
 Delete operations that exceed the threshold (default 1000ms) will automatically record a warning log.
@@ -154,7 +103,6 @@ await collection("logs").deleteMany({
 
 ## Common scenarios
 
-
 ## Scenario 1: Batch cleaning of expired data
 
 ```javascript
@@ -165,7 +113,6 @@ const result = await collection("sessions").deleteMany({
 
 console.log(`Cleaned ${result.deletedCount} expired sessions`);
 ```
-
 
 ## Scenario 2: Delete user-related data in batches
 
@@ -178,7 +125,6 @@ const result = await collection("orders").deleteMany({
 console.log(`User's ${result.deletedCount} orders deleted`);
 ```
 
-
 ## Scenario 3: Cleaning test data
 
 ```javascript
@@ -189,7 +135,6 @@ const result = await collection("users").deleteMany({
 
 console.log(`Cleaned ${result.deletedCount} test users`);
 ```
-
 
 ## Scenario 4: Clean logs by time range
 
@@ -204,7 +149,6 @@ const result = await collection("logs").deleteMany({
 
 console.log(`${result.deletedCount} old logs deleted`);
 ```
-
 
 ## Scenario 5: Optimizing bulk deletions using index hints
 
@@ -226,7 +170,6 @@ const result = await collection("analytics").deleteMany(
 console.log(`${result.deletedCount} analysis records deleted`);
 ```
 
-
 ## Scenario 6: Conditional batch deletion
 
 ```javascript
@@ -241,7 +184,6 @@ console.log(`${result.deletedCount} low quality orders deleted`);
 ```
 
 ## Differences from other methods
-
 
 ## vs deleteOne
 
@@ -263,7 +205,6 @@ const result2 = await collection("users").deleteMany({ status: "inactive" });
 console.log(result2.deletedCount); // 0, 1, 5, 100...
 ```
 
-
 ## vs findOneAndDelete
 
 | Features | deleteMany | findOneAndDelete |
@@ -274,7 +215,6 @@ console.log(result2.deletedCount); // 0, 1, 5, 100...
 | **Usage scenarios** | Batch cleaning | Document content before deletion |
 
 ## Performance considerations for batch deletion
-
 
 ## 1. Mass deletion strategy
 
@@ -313,7 +253,6 @@ while (true) {
 }
 ```
 
-
 ## 2. Use index optimization to delete
 
 ```javascript
@@ -325,7 +264,6 @@ const result = await collection("logs").deleteMany({
   createdAt: { $lt: new Date("2023-01-01") }
 });
 ```
-
 
 ## 3. Use index hints
 
@@ -342,7 +280,6 @@ await collection("events").deleteMany(
   }
 );
 ```
-
 
 ## 4. Monitor deletion progress
 
@@ -364,7 +301,6 @@ console.log(`Actual deletion of ${result.deletedCount} items`);
 
 ## Error handling
 
-
 ## Invalid filter criteria
 
 ```javascript
@@ -376,7 +312,6 @@ try {
   console.error(error.message); // "filter must be of object type"
 }
 ```
-
 
 ## Operation timeout
 
@@ -393,7 +328,6 @@ try {
   }
 }
 ```
-
 
 ## Write attention error
 
@@ -413,7 +347,6 @@ try {
 ```
 
 ## Security Advice
-
 
 ## ⚠️ Query before deleting
 
@@ -436,7 +369,6 @@ if (confirmed) {
 }
 ```
 
-
 ## ⚠️ Avoid using empty filters
 
 ```javascript
@@ -450,7 +382,6 @@ if (CONFIRM_DELETE_ALL) {
   console.log(`The collection has been cleared and ${result.deletedCount} documents have been deleted.`);
 }
 ```
-
 
 ## ⚠️ Use soft delete as an alternative
 
@@ -478,7 +409,6 @@ const activeUsers = await collection("users").find({
 });
 ```
 
-
 ## ⚠️ Record deletion operation log
 
 ```javascript
@@ -505,7 +435,6 @@ await collection("audit_logs").insertOne({
 
 ## Notes
 
-
 ## ⚠️ Deletion is irreversible
 
 ```javascript
@@ -513,7 +442,6 @@ await collection("audit_logs").insertOne({
 const result = await collection("users").deleteMany({ status: "inactive" });
 console.log(`${result.deletedCount} users permanently deleted`);
 ```
-
 
 ## ⚠️ Scope of cache invalidation
 
@@ -526,7 +454,6 @@ await collection("users").deleteMany({ status: "inactive" });
 // The cache for the entire users collection will be cleared,
 // including cache entries for other queries.
 ```
-
 
 ## ⚠️Performance impact
 
@@ -546,13 +473,11 @@ if (isOffPeak) {
 }
 ```
 
-
 ## ⚠️ Index maintenance
 
 When a large number of documents are deleted, the index is updated automatically, which may take some time.
 
 ## Utility functions
-
 
 ## Safe batch deletion function
 

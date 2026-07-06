@@ -1,37 +1,16 @@
-# 缓存策略文档
-
-## 📑 目录
-
-- [概述](#概述)
-- [核心特性](#核心特性)
-- [缓存配置](#缓存配置)
-  - [全局缓存配置](#全局缓存配置)
-  - [查询级缓存配置](#查询级缓存配置)
-- [缓存键生成](#缓存键生成)
-- [TTL（生存时间）过期](#ttl生存时间过期)
-- [LRU（最近最少使用）淘汰](#lru最近最少使用淘汰)
-- [多层缓存](#多层缓存)
-- [缓存失效机制](#缓存失效机制)
-- [统计监控](#统计监控)
-- [性能基准](#性能基准)
-- [最佳实践](#最佳实践)
-- [常见问题](#常见问题)
-- [缓存失效 API](#缓存失效-api)
-- [参考资料](#参考资料)
-
----
+# 缓存 API
 
 ## 概述
 
-monSQLize 提供了强大的内置缓存系统，支持 TTL（生存时间）、LRU（最近最少使用）淘汰策略、多层缓存、缓存失效机制和统计监控。本文档详细说明缓存的配置和使用。
+monSQLize 提供面向集合读操作的数据库查询缓存、可选本地/远端缓存组合、手动失效和统计能力。缓存失效用于让常见应用读缓存足够及时，但它不是与 MongoDB 写入原子绑定的提交步骤。
 
-> ⚠️ 若你关心的是公开缓存类/函数（`MemoryCache`、`createRedisCacheAdapter()`、`DistributedCacheInvalidator`、`withCache()`、`FunctionCache`）的升级迁移，请优先阅读 [`cache-hub 直调迁移说明`](./cache-hub-migration.md)。本页主要覆盖 monSQLize 的查询缓存与多层缓存接入方式。
+> ⚠️ 若你正在迁移公开缓存兼容导出，请先阅读 [`cache-hub 直调迁移说明`](./cache-hub-migration.md)。本页覆盖 monSQLize 数据库查询缓存与多层缓存接入；`withCache()` / `FunctionCache` 是 legacy 兼容导出，不属于当前非数据库缓存主路径。
 
 ## 核心特性
 
 - ✅ **TTL 过期**：自动淘汰过期数据
 - ✅ **LRU 淘汰**：缓存满时淘汰最少使用的条目
-- ✅ **多层缓存架构**：本地缓存（LRU-Cache）+ 远端缓存（Redis/Memcached）
+- ✅ **多层缓存架构**：本地缓存 + 可选远端 `CacheLike`，常见实现是 Redis
 - ✅ **双层缓存机制**：查询结果缓存 + Bookmark 分页缓存
 - ✅ **手动失效**：通过 `invalidate()` 方法清理指定集合的缓存
 - ✅ **统计监控**：命中率、淘汰统计、内存占用
@@ -106,17 +85,18 @@ const staticConfig = await collection('config').findOne(
 
 ## 缓存键生成
 
-缓存键由以下部分组成：
-- 数据库名
-- 集合名
-- 查询条件（stringify）
-- 投影（stringify）
-- 排序（stringify）
-- limit/skip
+缓存键包含数据库与集合命名空间、操作名、标准化后的查询或聚合 pipeline，以及会影响返回结果的 driver options。
+
+runtime 使用 BSON-aware 的稳定指纹生成缓存键：
+
+- `ObjectId` 会表示为 `{ $oid }`。
+- `Date` 会表示为 `{ $date }`。
+- `RegExp` 会表示为 `{ $regex, $flags }`。
+- `cache`、`meta`、`explain`、`stream` 这类控制选项不会单独生成一个数据缓存条目。
 
 ```javascript
-// 示例：缓存键生成
-const key = `${dbName}:${collName}:${hash(query)}:${hash(projection)}:${hash(sort)}:${limit}:${skip}`;
+// 概念形态，不是公开 API：
+const key = `${operation}:${namespace}:${stableQueryFingerprint}:${stableOptionsFingerprint}`;
 ```
 
 **相同查询的不同参数会生成不同的缓存键**：
@@ -748,85 +728,23 @@ const page100 = await collection('products').findPage({
 
 ---
 
-## 缓存失效机制
+## 缓存失效行为
 
-### 🆕 精准失效（v1.1.6+）
+写入通过 monSQLize 执行时，runtime 会在写入前标记集合读缓存命名空间为 dirty、清理匹配的读缓存 pattern，并在写入路径结束后清理 dirty marker。dirty marker 存在期间，读操作会绕过缓存并避免把旧数据重新写回缓存。
 
-**精准失效**只清除真正受影响的缓存，而不是整个集合的缓存。
+这是 best-effort 的缓存一致性模型：
 
-#### 配置方式
+- 如果数据库写入已经完成，后续缓存失效或分布式广播失败不会回滚数据库写入。
+- 事务内写入会先记录待失效 pattern，只在事务成功 commit 后 flush。
+- 跨实例缓存失效需要配置 `cache.distributed` 与 Redis Pub/Sub，并且仍是最终收敛，不是与数据库 commit 原子绑定。
+- `invalidate()` 仍适用于外部工具改数据、应用侧额外缓存或需要手动刷新缓存的场景。
 
-**方式1: 实例级别全局配置**（推荐）
-
-所有写操作默认启用精准失效：
-
-```javascript
-import MonSQLize from 'monsqlize';
-
-const msq = new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'shop',
-  config: { uri: 'mongodb://localhost:27017' },
-  cache: {
-    maxEntries: 100000,
-    autoInvalidate: true  // 🆕 全局启用精准失效（默认 false）
-  }
-});
-
-// 连接后，所有写操作自动启用精准失效
-const { collection } = await msq.connect();
-
-// ✅ 自动精准失效（使用实例配置）
-await collection('products').insertOne({
-  name: 'New Product',
-  category: 'electronics'
-});
-
-// ✅ 自动精准失效（使用实例配置）
-await collection('products').updateOne(
-  { _id: productId },
-  { $set: { price: 99 } }
-);
-```
-
-**方式2: 写操作级别配置**（覆盖实例配置）
-
-单次操作控制是否启用精准失效：
-
-```javascript
-// 实例配置 autoInvalidate = false
-const msq = new MonSQLize({
-  cache: { maxEntries: 100000 }  // 默认不自动失效
-});
-
-const { collection } = await msq.connect();
-
-// ✅ 单次操作启用精准失效（覆盖实例配置）
-await collection('products').insertOne(
-  { name: 'New Product', category: 'electronics' },
-  { autoInvalidate: true }  // 单次启用
-);
-
-// ❌ 使用实例配置（不失效）
-await collection('products').updateOne(
-  { _id: productId },
-  { $set: { price: 99 } }
-);
-```
-
-**配置优先级**: 写操作配置 > 实例配置
-
-**⚠️ 重要说明**：
-- `autoInvalidate` 选项**只用于写操作**（insert/update/delete）
-- 查询操作（find/findOne）**不支持** `autoInvalidate` 选项
-- 查询只需要使用 `cache` 选项指定缓存时间
-
-#### 精准失效示例
+### 写入失效示例
 
 ```javascript
 const { collection } = await msq.connect();
 
-// 1. 查询并缓存（两个不同的查询）
+// 1. 查询并缓存数据
 await collection('products').find(
   { category: 'electronics' },
   { cache: 60000 }
@@ -837,64 +755,18 @@ await collection('products').find(
   { cache: 60000 }
 );
 
-// 2. 插入新商品（只影响 electronics 缓存）
-await collection('products').insertOne(
-  { name: 'New Phone', category: 'electronics', price: 999 },
-  { autoInvalidate: true }
+// 2. 通过 monSQLize 写入会失效该集合的读缓存条目
+await collection('products').insertOne({
+  name: 'New Phone',
+  category: 'electronics',
+  price: 999
+});
+
+// 3. 下一次缓存读会从 MongoDB 重新填充
+await collection('products').find(
+  { category: 'electronics' },
+  { cache: 60000 }
 );
-
-// ✅ 精准失效：只清除匹配 { category: 'electronics' } 的缓存
-// ✅ 保留：{ category: 'books' } 的缓存不受影响
-```
-
-
-#### 支持的查询条件
-
-精准失效支持简单查询条件：
-
-✅ **支持的操作符**：
-- 相等匹配：`{ status: 'active' }`
-- `$eq`：`{ status: { $eq: 'active' } }`
-- `$ne`：`{ status: { $ne: 'deleted' } }`
-- `$gt`, `$gte`, `$lt`, `$lte`：`{ price: { $gte: 100 } }`
-- `$in`：`{ category: { $in: ['a', 'b'] } }`
-- `$nin`：`{ status: { $nin: ['deleted'] } }`
-
-❌ **不支持的操作符**（自动跳过，按 TTL 过期）：
-- `$regex`, `$exists`, `$type`
-- `$elemMatch`, `$size`, `$all`
-- `$where`
-
-#### ObjectId 字段支持
-
-精准失效完全支持 ObjectId 字段（包括 `_id`）：
-
-```javascript
-// ✅ 使用字符串 _id（自动规范化）
-await collection('users').find(
-  { _id: "507f1f77bcf86cd799439011" },
-  { cache: 5000 }
-);
-
-await collection('users').updateOne(
-  { _id: "507f1f77bcf86cd799439011" },
-  { $set: { name: 'Updated' } },
-  { autoInvalidate: true }
-);
-// ✅ 精准失效成功
-
-// ✅ 关联查询
-await collection('orders').find(
-  { userId: userId.toString() },
-  { cache: 5000 }
-);
-
-await collection('orders').updateMany(
-  { userId: userId.toString() },
-  { $set: { status: 'shipped' } },
-  { autoInvalidate: true }
-);
-// ✅ 精准失效成功
 ```
 
 
@@ -1285,7 +1157,7 @@ for (const name of collections) {
 
 **注意**：
 - 当使用外部工具修改数据后，仍需手动调用 `invalidate()` 清理缓存
-- 对于通过 monSQLize 发起的写操作，可结合 `autoInvalidate` 使用自动失效
+- 通过 monSQLize 发起的写操作已经会执行读缓存失效路径
 - 若你的缓存策略跨进程/跨节点，建议同时结合分布式失效广播
 
 ### Q: 如何禁用缓存？

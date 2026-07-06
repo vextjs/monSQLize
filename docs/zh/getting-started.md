@@ -1,8 +1,8 @@
 # 快速开始
 
-## 适用范围
+## 本页内容
 
-本页覆盖当前 TS 版 `monSQLize` 已正式承接的最小上手路径：
+本页给出从安装到完成一次 MongoDB 集合读写的最短路径：
 
 - 安装
 - 初始化 `MonSQLize`
@@ -17,12 +17,11 @@
 npm install monsqlize
 ```
 
-### 当前依赖边界
+### 运行前提
 
-- 运行时依赖：`mongodb`、`schema-dsl`、`ssh2`、`ioredis`
-- 当前 Node.js 基线：`>=18.0.0`
-
-说明：`ssh2` 用于 SSH 隧道能力，`ioredis` 用于 Redis 缓存与分布式能力；两者均随 `npm install monsqlize` 一并安装，按功能启用开关直接使用。
+- Node.js 18 或更高版本。
+- 一个 MongoDB 连接 URI，例如 `mongodb://localhost:27017`。
+- Redis、SSH 隧道、缓存、Model、同步等能力只在你的应用启用对应配置时才需要关注。
 
 ## 最小连接示例
 
@@ -59,7 +58,7 @@ npm run build
 npm run test:examples
 ```
 
-当前官方示例文件是 `examples/quick-start/basic-connect.ts`，验证时会先编译再执行。该示例会：
+当前官方示例文件是 [`examples/quick-start/basic-connect.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)，验证时会先编译再执行。该示例会：
 
 1. 启动内存 MongoDB
 2. 创建 `MonSQLize` 实例并连接
@@ -67,27 +66,19 @@ npm run test:examples
 4. 读回该数据并打印结果
 5. 关闭连接并清理临时数据库
 
-## 当前正式承接范围
+## 下一步
 
-### 已正式承接
-
-- `connect()` / `close()`
-- `collection()` / `db()` / `use()`
-- 基础查询 façade：`find` / `findOne` / `count` / `aggregate` / `distinct` / `findPage` / `watch`
-- 基础与便利写入：`insertOne`、`updateOne`、`deleteOne`、`insertMany`、`updateMany`、`deleteMany`、`replaceOne`、`findOneAnd*`、`upsertOne`
-- 批量写入扩展：`insertBatch` / `updateBatch` / `deleteBatch` / `incrementOne`
-
-### 配套示例
-
-- `examples/quick-start/basic-connect.ts`
-- `examples/docs/find.ts`
-- `examples/docs/find-one.ts`
-- `examples/docs/find-page.ts`
-- [`examples.md`](./examples.md)
+- 阅读基础查询：[`find.md`](./find.md)、[`findOne.md`](./findOne.md)、[`findPage.md`](./findPage.md)。
+- 在 [`examples.md`](./examples.md) 查看文档主题与示例源码的对应关系。
+- 直接打开 GitHub 示例源码：
+  - [`examples/quick-start/basic-connect.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)
+  - [`examples/docs/find.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find.ts)
+  - [`examples/docs/find-one.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-one.ts)
+  - [`examples/docs/find-page.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-page.ts)
 
 ## 常见注意事项
 
 1. `connect()` 前直接访问 `collection()` 会触发 `NOT_CONNECTED`。
 2. 缺少 `config.uri` 会触发 `INVALID_CONFIG`。
-3. 当前仓库是 TS 重写版本，对外消费入口为 `dist/cjs/index.cjs`、`dist/esm/index.mjs` 和 `dist/types/index.d.ts`。
+3. 应用代码从包根入口导入：`import MonSQLize from 'monsqlize'` 或 `const MonSQLize = require('monsqlize')`。
 

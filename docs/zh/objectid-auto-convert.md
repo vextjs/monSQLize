@@ -1,28 +1,8 @@
 # ObjectId 自动转换
 
-> **版本**: v1.3.0+  
-> **类型**: 功能特性  
-> **分类**: 数据类型处理
-
----
-
-## 📑 目录
-
-- [概述](#概述)
-- [为什么需要自动转换](#为什么需要自动转换)
-- [转换规则](#转换规则)
-- [配置选项](#配置选项)
-- [使用示例](#使用示例)
-- [支持的方法](#支持的方法)
-- [高级配置](#高级配置)
-- [性能考量](#性能考量)
-- [常见问题](#常见问题)
-
----
-
 ## 概述
 
-从 v1.3.0 版本开始，monSQLize 支持 **ObjectId 字符串自动转换** 功能。当你在 MongoDB 操作中传入合法的 24 位十六进制字符串时，monSQLize 可以在执行前将其转换为 MongoDB 的 ObjectId 对象。
+monSQLize 可以在执行操作前，把合法的 24 位十六进制字符串转换为 MongoDB `ObjectId`。这让应用代码可以直接传入来自请求参数的字符串 ID。
 
 **核心优势**:
 - ✅ **简化代码**: 无需手动调用 `new ObjectId()`
@@ -35,7 +15,7 @@
 
 ## 为什么需要自动转换
 
-### 传统方式（v1.3.0 之前）
+### 手动转换
 
 ```javascript
 const { ObjectId } = require('mongodb');
@@ -64,7 +44,7 @@ const result = await collection('orders').updateOne(
 );
 ```
 
-### 自动转换方式（v1.3.0+）
+### 自动转换
 
 ```javascript
 // ✅ 自动转换，无需手动处理
@@ -180,10 +160,10 @@ const posts = await collection('posts').find({
     categoryId: categoryId   // ✅ 自动转换
 });
 
-// findById（便利方法）
-const product = await collection('products').findOneById(
-    '507f1f77bcf86cd799439011'  // ✅ 自动转换
-);
+// _id 查询
+const product = await collection('products').findOne({
+    _id: '507f1f77bcf86cd799439011'  // 自动转换
+});
 ```
 
 ### 复杂查询条件
@@ -259,6 +239,8 @@ await collection('posts').deleteMany({
 ## 支持的方法
 
 ObjectId 自动转换在以下方法中生效：
+
+普通 ID 查询直接使用 MongoDB 心智模型即可：单条用 `findOne({ _id })`，多条用 `find({ _id: { $in: ids } })`。`findOneById(id)` 与 `findByIds(ids)` 仍作为 API 参考方法保留，但不是使用自动转换的必要入口。
 
 ### 查询方法
 - ✅ `find(query)`
@@ -493,9 +475,4 @@ await collection('posts').insertOne({
 - [update-one 方法](./update-one.md)
 - [delete-one 方法](./delete-one.md)
 - [配置选项](./connection.md)
-
----
-
-**最后更新**: 2026-01-08  
-**版本**: v1.0.6
 

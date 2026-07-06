@@ -1,67 +1,6 @@
 # deleteBatch - delete documents in batches
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [Applicable scenarios](#applicable-scenarios)
-- [API parameter description](#api-parameter-description)
-- [Method signature](#method-signature)
-- [Detailed explanation of parameters](#detailed-explanation-of-parameters)
-- [Return value](#return-value)
-- [Progress callback parameters](#progress-callback-parameters)
-- [Usage example](#usage-example)
-- [1. Basic usage - clear expired logs](#1-basic-usage-clear-expired-logs)
-- [2. With progress monitoring - cleaning large amounts of data](#2-with-progress-monitoring-cleaning-large-amounts-of-data)
-- [3. No pre-count - avoid performance overhead](#3-no-pre-count-avoid-performance-overhead)
-- [4. Error handling - stop strategy (default)](#4-error-handling-stop-strategy-default)
-- [5. Error handling - skip strategy](#5-error-handling-skip-strategy)
-- [6. Error handling - retry strategy (recommended)](#6-error-handling-retry-strategy-recommended)
-- [7. Error handling - collect strategy](#7-error-handling-collect-strategy)
-- [8. Complex query conditions](#8-complex-query-conditions)
-- [9. Use comment to track operations](#9-use-comment-to-track-operations)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [1. Batch size selection](#1-batch-size-selection)
-- [2. Whether to count in advance](#2-whether-to-count-in-advance)
-- [3. Index optimization](#3-index-optimization)
-- [4. Wrong strategy selection](#4-wrong-strategy-selection)
-- [FAQ](#faq)
-- [Q1: What is the difference between deleteBatch and deleteMany?](#q1-what-is-the-difference-between-deletebatch-and-deletemany)
-- [Q2: Will deleteBatch cause data inconsistency?](#q2-will-deletebatch-cause-data-inconsistency)
-- [Q3: How do I know which documents have been deleted?](#q3-how-do-i-know-which-documents-have-been-deleted)
-- [Q4: Will deleteBatch trigger slow query logs?](#q4-will-deletebatch-trigger-slow-query-logs)
-- [Q5: Can deleteBatch be used in a transaction?](#q5-can-deletebatch-be-used-in-a-transaction)
-- [Q6: How to estimate the deletion time?](#q6-how-to-estimate-the-deletion-time)
-- [References](#references)
-
-## Overview
-
-The `deleteBatch` method deletes a large number of documents in batches through streaming queries. It is suitable for scenarios where thousands or even millions of data need to be deleted to avoid memory pressure and performance problems caused by one-time deletion.
-
-
-## Features
-
-- ✅ **Streaming Query** - Streaming API based on `find()`, constant memory usage
-- ✅ **Progress Monitoring** - View deletion progress and percentage in real time
-- ✅ **Error Handling** - Supports four strategies of stop/skip/collect/retry
-- ✅ **Auto Retry** - Automatically retry failed batches when the network is unstable
-- ✅ **Cache Invalidation** - Automatically invalidate related collection cache
-- ✅ **Slow Query Log** - Integrated into existing slow query log system
-
-
-## Applicable scenarios
-
-| Scenario | Data volume | Recommended method | Reason |
-|------|--------|---------|------|
-| Clean up expired logs | > 100,000 | **deleteBatch** | Avoid deleting too many at once |
-| Delete test data | > 10,000 | **deleteBatch** | Can monitor progress |
-| Data archive cleaning | > 100,000 | **deleteBatch** | Progress monitoring required |
-| Delete a small amount of data | < 1000 | deleteMany | deleteMany is simpler |
-
----
-
 ## API parameter description
-
 
 ## Method signature
 
@@ -71,7 +10,6 @@ collection(name: string).deleteBatch(
   options?: DeleteBatchOptions
 ): Promise<DeleteBatchResult>
 ```
-
 
 ## Detailed explanation of parameters
 
@@ -93,7 +31,6 @@ collection(name: string).deleteBatch(
 | **writeConcern** | `object` | `{ w: 1 }` | Write confirmation level |
 | **comment** | `string` | - | Operation comments (for log tracking) |
 
-
 ## Return value
 
 ```typescript
@@ -106,7 +43,6 @@ collection(name: string).deleteBatch(
   retries: Array<Object>      //Retry record list
 }
 ```
-
 
 ## Progress callback parameters
 
@@ -126,7 +62,6 @@ collection(name: string).deleteBatch(
 
 ## Usage example
 
-
 ## 1. Basic usage - clear expired logs
 
 ```javascript
@@ -140,7 +75,6 @@ const result = await collection('logs').deleteBatch(
 
 console.log(`Delete ${result.deletedCount} expired logs`);
 ```
-
 
 ## 2. With progress monitoring - cleaning large amounts of data
 
@@ -166,7 +100,6 @@ Progress: 80% (400000/500000 items)
 Progress: 100% (500000/500000 items)
 ```
 
-
 ## 3. No pre-count - avoid performance overhead
 
 ```javascript
@@ -184,7 +117,6 @@ const result = await collection('logs').deleteBatch(
 );
 ```
 
-
 ## 4. Error handling - stop strategy (default)
 
 ```javascript
@@ -201,7 +133,6 @@ if (result.errors.length > 0) {
 }
 ```
 
-
 ## 5. Error handling - skip strategy
 
 ```javascript
@@ -216,7 +147,6 @@ const result = await collection('temp_data').deleteBatch(
 console.log(`Successfully deleted: ${result.deletedCount} items`);
 console.log(`Failure batch: ${result.errors.length}`);
 ```
-
 
 ## 6. Error handling - retry strategy (recommended)
 
@@ -237,7 +167,6 @@ const result = await collection('logs').deleteBatch(
 console.log(`Number of retries: ${result.retries.length}`);
 ```
 
-
 ## 7. Error handling - collect strategy
 
 ```javascript
@@ -254,7 +183,6 @@ result.errors.forEach((err, idx) => {
     console.log(`Batch ${err.batchIndex + 1} Error: ${err.message}`);
 });
 ```
-
 
 ## 8. Complex query conditions
 
@@ -279,7 +207,6 @@ const result = await collection('orders').deleteBatch(
 );
 ```
 
-
 ## 9. Use comment to track operations
 
 ```javascript
@@ -295,7 +222,6 @@ const result = await collection('logs').deleteBatch(
 ---
 
 ## Performance optimization suggestions
-
 
 ## 1. Batch size selection
 
@@ -316,7 +242,6 @@ await collection('logs').deleteBatch(
 );
 ```
 
-
 ## 2. Whether to count in advance
 
 ```javascript
@@ -335,7 +260,6 @@ else {
 }
 ```
 
-
 ## 3. Index optimization
 
 ```javascript
@@ -349,7 +273,6 @@ await collection('logs').deleteBatch(
 );
 ```
 
-
 ## 4. Wrong strategy selection
 
 | Scenario | Recommended strategy | Reason |
@@ -362,7 +285,6 @@ await collection('logs').deleteBatch(
 ---
 
 ## FAQ
-
 
 ## Q1: What is the difference between deleteBatch and deleteMany?
 
@@ -379,7 +301,6 @@ await collection('logs').deleteBatch(
 - Data volume < 10000 items → use `deleteMany`
 - Data volume ≥ 10000 → use `deleteBatch`
 
-
 ## Q2: Will deleteBatch cause data inconsistency?
 
 **Answer**: `deleteBatch` processes matching `_id` values through a cursor and deletes them in batches. It does not create a MongoDB transaction or guarantee snapshot isolation by itself. If you need a transactional snapshot, run it inside an explicit transaction and pass the transaction `session`.
@@ -391,7 +312,6 @@ await collection('logs').deleteBatch(
     { batchSize: 5000 }
 );
 ```
-
 
 ## Q3: How do I know which documents have been deleted?
 
@@ -410,7 +330,6 @@ await collection('logs').updateBatch(
 );
 ```
 
-
 ## Q4: Will deleteBatch trigger slow query logs?
 
 **Answer**: Yes. If the delete operation exceeds the threshold (default 500ms), slow query logs will be recorded.
@@ -424,7 +343,6 @@ await collection('logs').updateBatch(
 //   batchCount: 100
 // }
 ```
-
 
 ## Q5: Can deleteBatch be used in a transaction?
 
@@ -451,7 +369,6 @@ try {
 }
 ```
 
-
 ## Q6: How to estimate the deletion time?
 
 ```javascript
@@ -474,8 +391,3 @@ console.log(`Estimated time: ${Math.ceil(estimatedTime)} seconds`);
 - [deleteMany - Batch deletion (small data volume)](./delete-many.md)
 - [Usage Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/batch-operations.ts)
 - [Batch write test](../../test/unit/writes/batch.test.ts)
-
----
-
-**Updated date**: 2025-12-30
-**Version**: v1.0

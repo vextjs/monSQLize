@@ -2,35 +2,6 @@
 
 Create multiple indexes at once to improve deployment efficiency.
 
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-  - [indexSpecs (required)](#indexspecs-required)
-- [Return value](#return-value)
-- [Comparison with createIndex](#comparison-with-createindex)
-- [Code Example](#code-example)
-- [Example 1: Basic batch creation](#example-1-basic-batch-creation)
-- [Example 2: Mixed index types](#example-2-mixed-index-types)
-- [Example 3: Application initialization](#example-3-application-initialization)
-- [Example 4: Deployment script](#example-4-deployment-script)
-- [Example 5: Error handling](#example-5-error-handling)
-- [Partial failure handling](#partial-failure-handling)
-- [Behavior description](#behavior-description)
-- [Recommended practices](#recommended-practices)
-- [Performance optimization](#performance-optimization)
-- [1. Batch vs single](#1-batch-vs-single)
-- [2. Background creation](#2-background-creation)
-- [Best Practices](#best-practices)
-- [1. Configuration management](#1-configuration-management)
-- [2. Environmental distinction](#2-environmental-distinction)
-- [3. Version control](#3-version-control)
-- [Related methods](#related-methods)
-- [Reference resources](#reference-resources)
-
 ## Overview
 
 The `createIndexes()` method is used to create multiple indexes in batches. Compared with calling `createIndex()` multiple times, batch creation is more efficient and is especially suitable for initial deployment and index maintenance.
@@ -502,4 +473,3 @@ module.exports = {
 
 - [MongoDB createIndexes documentation](https://www.mongodb.com/docs/manual/reference/method/db.collection.createIndexes/)
 - [Batch Operation Best Practices](https://www.mongodb.com/docs/manual/core/bulk-write-operations/)
-

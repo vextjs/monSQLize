@@ -1,34 +1,16 @@
-﻿# MongoDB transaction functionality documentation
-
-**Version**: v1.0.0
-**Updated date**: 2025-11-19
-
----
-
-## 📚 Table of Contents
-
-- [Overview](#overview)
-- [Quick Start](#quick-start)
-- [Configuration Options](#configuration-options)
-- [API Reference](#api-reference)
-- [Caching Policy](#caching-policy)
-- [Best Practice](#best-practice)
-- [FAQ](#faq)
-- [Performance Optimization](#performance-optimization)
-
----
+﻿# MongoDB Transaction Guide
 
 ## Overview
 
-monSQLize provides complete MongoDB transaction support, ensuring data atomicity, consistency, isolation, and durability (ACID).
+monSQLize wraps MongoDB driver sessions with `withTransaction()` and `startSession()` helpers. The ACID boundary is MongoDB's transaction/session boundary; monSQLize adds retry, timeout, statistics, and cache-invalidation coordination around that driver behavior.
 
 
 ## Core Features
 
 - ✅ **Automatic Transaction Management** (withTransaction - Recommended)
 - ✅ **Manual transaction management** (startSession - Advanced usage)
-- ✅ **Intelligent caching strategy** (optional caching within transactions, normal caching outside transactions)
-- ✅ **Cache lock mechanism** (prevent dirty data)
+- ✅ **Transaction-aware cache policy** (session reads bypass shared query cache; writes record post-commit invalidations)
+- ✅ **Process-local cache barrier/lock** (short-lived protection around cache invalidation)
 - ✅ **Auto-Retry** (Auto-retry on transient errors)
 - ✅ **Timeout processing** (automatically interrupt long transactions)
 - ✅ **Monitoring indicators** (execution time, success rate, etc.)
@@ -38,8 +20,7 @@ monSQLize provides complete MongoDB transaction support, ensuring data atomicity
 ## Prerequisites
 
 - ✅ MongoDB 4.0+ replica set or sharded cluster
-- ✅ Node.js 14+
-- ✅ monSQLize v1.0.0+
+- ✅ Node.js 18+
 
 ---
 
@@ -348,37 +329,14 @@ const user = await collection('users').findOne(
 ```
 
 
-## Optional strategy: Enable caching within a transaction (performance optimization)
+## Session reads and cache
 
-**Usage scenario**: Query the same data multiple times within a transaction, and the snapshot data at the beginning of the transaction can be accepted.
-
-```javascript
-await msq.withTransaction(async (tx) => {
-    //⚡ First query: read from database and cache (valid only within transaction)
-    const product = await collection('products').findOne(
-        { _id: 'SKU123' },
-        {
-            session: tx.session,
-            cache: 60000,           //Enable caching
-            txCacheIsolation: true  //Intra-transaction cache isolation
-        }
-    );
-
-    //⚡ Second query: read from cache (fast)
-    const productAgain = await collection('products').findOne(
-        { _id: 'SKU123' },
-        { session: tx.session, cache: 60000 }
-    );
-
-    //✅ After commit: recorded cache invalidations are flushed
-    //❌ After rollback: recorded cache invalidations are discarded
-});
-```
+When an operation receives `session: tx.session`, monSQLize forwards the session to the MongoDB driver and skips the shared query-result cache. There is no separate transaction-cache isolation flag in the public API. Keep repeated transaction reads inside the driver snapshot, or move cacheable reads outside the transaction when that is safe for your workflow.
 
 
 ## Cache lock mechanism (automatic)
 
-**Function**: Prevent external operations from writing dirty data to the cache during transaction execution.
+**Function**: Record cache invalidation intent during the transaction and keep a short-lived, process-local barrier while invalidation is prepared and flushed.
 
 ```javascript
 await msq.withTransaction(async (tx) => {
@@ -390,14 +348,15 @@ await msq.withTransaction(async (tx) => {
     );
     //🔒 Automatically add cache lock: users:1
 
-    //2. External attempts to cache the data (will be blocked)
-    //❌ Cache writes are skipped (because the key is locked)
+    //2. Other reads in this process bypass or avoid refilling affected cache keys
 
     //3. Transaction submission
     await tx.commit();
-    //🔓 Automatically release lock + invalid cache
+    //🔓 Release process-local lock + flush recorded invalidations
 });
 ```
+
+The cache lock manager is process-local. Cross-instance cache coherence depends on post-commit distributed invalidation when configured, and remains best-effort/eventual rather than an atomic cache/DB commit.
 
 
 ## Cache strategy comparison
@@ -405,8 +364,8 @@ await msq.withTransaction(async (tx) => {
 | Strategy | Advantages | Disadvantages | Applicable scenarios |
 |------|------|------|---------|
 | **No caching (default)** | High data consistency and simplicity | Slightly lower performance | Most scenarios |
-| **Enable cache** | High performance (multiple queries) | Slightly higher complexity | Query the same data multiple times within a transaction |
-| **Cache Lock** | Prevent dirty data (automatic) | Slightly reduce concurrency | Automatically enabled, no configuration required |
+| **Session reads** | Uses MongoDB snapshot semantics | Does not use shared query cache | Reads inside the transaction |
+| **Cache barrier/lock** | Reduces stale cache refill windows in this process | Cross-instance coherence is still eventual | Automatically used for transaction invalidation |
 
 ---
 
@@ -586,7 +545,7 @@ If performance optimization is required, the `cache` option can be enabled expli
 
 **A**: The impact is minimal. Reason:
 - The lock is only in effect for the duration of the transaction (usually a short period of time)
-- The lock is memory level (no I/O involved)
+- The lock is process-local memory (no network I/O)
 - Checking of locks is very fast (O(1) hash lookup)
 
 The cache lock is process-local. Cross-instance cache coherence is handled by distributed invalidation after commit on a best-effort basis; use application/framework-level coordination when a critical section must be mutually exclusive across processes.
@@ -706,11 +665,4 @@ if (stats) {
 ## Related documents
 
 - [MongoDB transaction official document](https://docs.mongodb.com/manual/core/transactions/)
-- [Design Document]
 - [Sample code](https://github.com/vextjs/monSQLize/blob/main/examples/docs/transaction.ts)
-
----
-
-**Document version**: v1.0.0
-**Last updated**: 2025-11-19
-**Contributor**: monSQLize team

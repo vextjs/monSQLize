@@ -2,7 +2,7 @@
  * Multi-level cache: L1 in-process MemoryCache + L2 Redis adapter + DistributedCacheInvalidator.
  * See: docs/cache-and-function-cache.md
  *
- * This example demonstrates the full cache hierarchy:
+ * This example demonstrates the database-runtime cache hierarchy:
  *   L1 — MemoryCache (process-local, sub-millisecond)
  *   L2 — Redis adapter (cross-process, optional)
  *   Distributed invalidation — push a single signal to flush all nodes
@@ -73,10 +73,11 @@ class InMemoryRedisStub {
 }
 
 async function main() {
-    const { msq, server } = await setupExample('example-cache-multilevel');
-
     // ── L1 cache — in-process MemoryCache ────────────────────────────────────
     const l1 = new MonSQLize.MemoryCache({ maxEntries: 500, defaultTtl: 60_000 });
+    const { msq, server } = await setupExample('example-cache-multilevel', {
+        cache: l1,
+    });
 
     // ── L2 cache — Redis adapter (stubbed) ───────────────────────────────────
     const redisPeers = [] as InMemoryRedisStub[];
@@ -113,39 +114,17 @@ async function main() {
         { username: 'carol', email: 'carol@example.com', role: 'user',  score: 88 },
     ]);
 
-    // ── withCache: wraps a fetch function with L1 cache ───────────────────────
-    console.log('=== withCache: L1 hit / miss ===');
-    let fetchCount = 0;
-    const getAdmins = MonSQLize.withCache(async () => {
-        fetchCount++;
-        return users.find({ role: 'admin' });
-    }, { namespace: 'users:admins', ttl: 30_000, cache: l1 });
+    // ── Collection query cache — database-runtime cache path ─────────────────
+    console.log('=== Collection query cache: L1 hit / miss ===');
+    const admins1 = await users.find({ role: 'admin' }, { cache: 30_000 });
+    console.log(`  Query #1 (miss) — results: ${admins1.length}`);
 
-    const admins1 = await getAdmins();
-    console.log(`  Fetch #1 (miss) — count: ${fetchCount}, results: ${admins1.length}`);
+    const admins2 = await users.find({ role: 'admin' }, { cache: 30_000 });
+    console.log(`  Query #2 (hit)  — results: ${admins2.length}`);
 
-    const admins2 = await getAdmins();
-    console.log(`  Fetch #2 (hit)  — count: ${fetchCount}, results: ${admins2.length}`);
-
-    // ── FunctionCache: named-function registry ────────────────────────────────
-    // FunctionCache(cacheOrDb, options?) — pass l1 as the cache backend
-    console.log('\n=== FunctionCache: named functions ===');
-    const fnCache = new MonSQLize.FunctionCache(l1, {
-        namespace: 'user-service',
-        ttl: 60_000,
-    });
-
-    // register(name, fn, options?) — fn must be (...args: unknown[]) => Promise<unknown>
-    fnCache.register('getTopUsers', async (...args: unknown[]) => {
-        const limit = args[0] as number;
-        const all = await users.find({});
-        return all.sort((a: UserDoc, b: UserDoc) => b.score - a.score).slice(0, limit);
-    });
-
-    const top3a = await fnCache.execute('getTopUsers', 3) as UserDoc[];
-    console.log(`  Top 3 (miss): ${top3a.map(u => u.username).join(', ')}`);
-    const top3b = await fnCache.execute('getTopUsers', 3) as UserDoc[];
-    console.log(`  Top 3 (hit):  ${top3b.map(u => u.username).join(', ')}`);
+    await users.invalidate();
+    const admins3 = await users.find({ role: 'admin' }, { cache: 30_000 });
+    console.log(`  Query #3 (after invalidate) — results: ${admins3.length}`);
 
     // ── Manual L2 set/get ─────────────────────────────────────────────────────
     console.log('\n=== L2 Redis adapter: direct set/get ===');

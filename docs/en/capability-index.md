@@ -13,7 +13,7 @@ Principles:
 
 | Layer | Current status | Scope |
 |-------|----------------|-------|
-| Shared runtime | Stable where exposed by the current runtime | Cache, function cache, pools, transactions, model constraints, sync, slow-query logging, and runtime diagnostics |
+| Shared runtime | Stable where exposed by the current runtime | Database cache, pools, transactions, model constraints, sync, slow-query logging, and runtime diagnostics |
 | MongoDB adapter | Stable | `collection()`, `db()`, `use()`, `pool()`, query/write helpers, aggregation, indexes, transactions, Change Streams |
 | MySQL adapter | Planned / in development | Future database-native adapter, no current public runtime API |
 | PostgreSQL adapter | Planned / in development | Future database-native adapter, no current public runtime API |
@@ -23,9 +23,11 @@ Principles:
 | Model | `msq.model()` / `MonSQLize.Model` | Supports model registration, relations, virtuals, populate, and common query entries |
 | write-path-policy | `writePathPolicy` | Optional runtime guard for Model-only write namespaces |
 | transaction | `startSession()` / `withTransaction()` | Supports MongoDB transaction wrappers and transaction statistics |
-| pool | `pool()` / `ConnectionPoolManager` | Supports multi-pool configuration, selection strategies, fallback, and status inspection |
+| pool | `pools` / `pool()` / `ConnectionPoolManager` | Declare `pools: PoolConfig[]` in the constructor, route with `pool()`, and use the low-level manager for advanced inspection or manual management |
 | sync | `startSync()` / `stopSync()` / `getSyncStats()` | Supports Change Stream sync start, stop, and status inspection |
 | slow-query-log | `recordSlowQuery()` / `getSlowQueryLogs()` | Supports slow-query recording, querying, and runtime management |
+
+`withCache()` and `FunctionCache` remain exported for legacy compatibility, but they are not recommended as current monSQLize capability entry points for new non-database caching usage.
 
 ## 1. Model
 

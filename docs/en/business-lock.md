@@ -1,60 +1,10 @@
-﻿# Business-level distributed lock
+# Business-level distributed lock
 
-> **Deprecated compatibility page**: monSQLize keeps `withLock()`, `acquireLock()`, and `tryAcquireLock()` for existing callers, but business locking is no longer a recommended monSQLize capability. Prefer application/framework-level locking, such as the VextJS runtime layer, for new payment/order critical sections. This page is intentionally hidden from the main documentation navigation.
-
-> **Version**: v1.0.1
-> **Status**: Legacy compatibility
-> **Dependencies**: Redis (ioredis)
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Compatibility Scope](#compatibility-scope)
-- [Legacy scenarios](#legacy-scenarios)
-- [Not applicable scenarios](#not-applicable-scenarios)
-- [Legacy usage example](#legacy-usage-example)
-- [1. Install dependencies](#1-install-dependencies)
-- [2. Configuration](#2-configuration)
-- [3. Use](#3-use)
-- [API Reference](#api-reference)
-- [withLock(key, callback, options?)](#withlockkey-callback-options)
-- [acquireLock(key, options?)](#acquirelockkey-options)
-- [tryAcquireLock(key, options?)](#tryacquirelockkey-options)
-- [getLockStats()](#getlockstats)
-- [Configuration options](#configuration-options)
-- [Global configuration](#global-configuration)
-- [API level configuration](#api-level-configuration)
-- [Usage scenarios](#usage-scenarios)
-- [Scenario 1: Inventory deduction (complex business)](#scenario-1-inventory-deduction-complex-business)
-- [Scenario 2: Order creation (lock + transaction)](#scenario-2-order-creation-lock-transaction)
-- [Scenario 3: Scheduled task prevention](#scenario-3-scheduled-task-prevention)
-- [Scenario 4: External API call](#scenario-4-external-api-call)
-- [Cooperate with transactions](#cooperate-with-transactions)
-- [Error handling](#error-handling)
-- [Error type](#error-type)
-- [Processing example](#processing-example)
-- [Downgrade strategy](#downgrade-strategy)
-- [Best Practices](#best-practices)
-- [1. Unified management of lock keys](#1-unified-management-of-lock-keys)
-- [2. Lock granularity selection](#2-lock-granularity-selection)
-- [3. TTL settings](#3-ttl-settings)
-- [4. Error handling](#4-error-handling)
-- [5. Monitoring statistics](#5-monitoring-statistics)
-- [FAQ](#faq)
-- [Q1: What is the difference between business locks and transaction locks?](#q1-what-is-the-difference-between-business-locks-and-transaction-locks)
-- [Q2: When is a business lock required?](#q2-when-is-a-business-lock-required)
-- [Q3: What should I do if Redis is unavailable?](#q3-what-should-i-do-if-redis-is-unavailable)
-- [Q4: What happens if the lock times out?](#q4-what-happens-if-the-lock-times-out)
-- [Q5: How to avoid deadlock?](#q5-how-to-avoid-deadlock)
-- [Q6: Does lock renewal support?](#q6-does-lock-renewal-support)
-- [Comparison with professional lock library](#comparison-with-professional-lock-library)
-- [Reference](#reference)
+> **Deprecated compatibility page**: monSQLize keeps `withLock()`, `acquireLock()`, and `tryAcquireLock()` for existing callers, but business locking is no longer a recommended monSQLize capability. Prefer application/framework-level locking, such as the VextJS runtime layer, for new payment/order critical sections.
 
 ## Overview
 
-monSQLize v1.0.1 introduced business lock APIs for historical callers. In the current v2 runtime these APIs are compatibility helpers, not the recommended boundary for new cross-process critical sections.
+monSQLize keeps business lock APIs for historical callers. These APIs are compatibility helpers, not the recommended boundary for new cross-process critical sections.
 
 > **Current runtime boundary**: In the current v2 runtime, the convenience APIs `msq.withLock()`, `msq.acquireLock()`, and `msq.tryAcquireLock()` use the built-in process-local `LockManager`. They coordinate callers inside the same Node.js process, but they do not provide cross-worker or cross-instance mutual exclusion by themselves. The process-local lock also does not auto-renew while the callback is running; if the callback runs longer than `ttl`, the lock can expire before the callback returns. For Egg.js cluster workers, payment flows, order de-duplication, or other cross-process critical sections, wire and verify a Redis-backed `DistributedCacheLockManager` path explicitly and pair it with idempotency or fencing at the business layer.
 
@@ -607,7 +557,7 @@ setInterval(() => {
 
 ## Q1: What is the difference between business locks and transaction locks?
 
-| Comparison items | Transaction lock (original) | Business lock (v1.0.1) |
+| Comparison items | Transaction lock | Business lock compatibility API |
 |--------|--------------|----------------|
 | **Purpose** | Protect cache consistency | Protect business logic |
 | **Lifecycle** | Transaction duration | User defined |

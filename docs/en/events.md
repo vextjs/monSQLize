@@ -1,41 +1,4 @@
-# Event system documentation
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Core Features](#core-features)
-- [Event type](#event-type)
-- [connected](#connected)
-- [closed](#closed)
-- [error](#error)
-- [slow-query](#slow-query)
-- [query](#query)
-- [Event listening method](#event-listening-method)
-- [on()](#on)
-- [once()](#once)
-- [off()](#off)
-- [removeAllListeners()](#removealllisteners)
-- [Usage scenarios](#usage-scenarios)
-- [1. Logging](#1-logging)
-- [2. Performance monitoring](#2-performance-monitoring)
-- [3. Alarm system](#3-alarm-system)
-- [4. Debug mode](#4-debug-mode)
-- [5. Connection health check](#5-connection-health-check)
-- [Best Practices](#best-practices)
-- [1. The production environment only listens to necessary events](#1-the-production-environment-only-listens-to-necessary-events)
-- [2. Use structured logs](#2-use-structured-logs)
-- [3. Avoid blocking event processing](#3-avoid-blocking-event-processing)
-- [4. Clean up the listener](#4-clean-up-the-listener)
-- [5. Hierarchical alarm](#5-hierarchical-alarm)
-- [FAQ](#faq)
-- [Q: Will query events affect performance?](#q-will-query-events-affect-performance)
-- [Q: When does the slow-query event trigger?](#q-when-does-the-slow-query-event-trigger)
-- [Q: What is the difference between error event and try-catch?](#q-what-is-the-difference-between-error-event-and-try-catch)
-- [Q: How to use events in unit testing?](#q-how-to-use-events-in-unit-testing)
-- [Q: Will events from multiple instances interfere with each other?](#q-will-events-from-multiple-instances-interfere-with-each-other)
-- [Related documents](#related-documents)
-- [watch events](#watch-events)
-- [References](#references)
+# Events
 
 ## Overview
 
@@ -610,18 +573,17 @@ msq.on('error', (data) => {
 ## 2. Use structured logs
 
 ```javascript
-const winston = require('winston');
-
-const logger = winston.createLogger({
-  format: winston.format.json(),
-  transports: [
-    new winston.transports.File({ filename: 'db-slow-queries.log' })
-  ]
-});
+const logger = {
+  warn(message, fields) {
+    process.stdout.write(`${JSON.stringify({ level: 'warn', message, ...fields })}\n`);
+  },
+  error(message, fields) {
+    process.stderr.write(`${JSON.stringify({ level: 'error', message, ...fields })}\n`);
+  }
+};
 
 msq.on('slow-query', (data) => {
-  logger.warn({
-    event: 'slow-query',
+  logger.warn('slow-query', {
     iid: data.iid,
     operation: data.operation,
     collection: data.collectionName,
@@ -820,6 +782,5 @@ watcher.on('change', (change) => {
 ## References
 
 - [Node.js EventEmitter Documentation](https://nodejs.org/api/events.html)
-- [Logging Best Practices](https://www.npmjs.com/package/winston)
 - [Alarm system design](https://prometheus.io/docs/alerting/latest/overview/)
 - [monSQLize README](../../README.md)

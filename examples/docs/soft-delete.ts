@@ -14,7 +14,7 @@ interface ArticleDoc { title: string; author: string; status: string; }
 
 // Define model with soft delete enabled (static, before connect)
 MonSQLize.Model.define('articles', {
-    schema: (dsl) => dsl({
+    schema: (s) => s({
         title: 'string',
         author: 'string',
         status: 'string',

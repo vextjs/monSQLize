@@ -1,24 +1,5 @@
 ﻿# explain method detailed documentation
 
-## 📑 Table of Contents
-
-- [Overview](#overview)
-- [Core Features](#core-features)
-- [Usage scenarios](#usage-scenarios)
-- [Method signature](#method-signature)
-- [Parameter description](#parameter-description)
-- [verbosity mode](#verbosity-mode)
-- [Usage example](#usage-example)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [Explain of aggregation pipeline](#explain-of-aggregation-pipeline)
-- [monSQLize explain versus native MongoDB](#monsqlize-explain-versus-native-mongodb)
-- [Notes](#notes)
-- [Error handling](#error-handling)
-- [FAQ](#faq)
-- [References](#references)
-
----
-
 ## Overview
 
 The `explain` method is used to analyze query execution plans to help diagnose performance issues and optimize query strategies. **Use MongoDB's native `Cursor.explain()` method directly**, which returns the query execution plan instead of actual data and is specifically used for performance diagnosis.
@@ -79,7 +60,7 @@ await collection('products')
 // find query - full options
 await collection('products').find(
   { category: 'electronics' },
-  { 
+  {
     sort: { price: 1 },
     limit: 10,
     projection: { name: 1, price: 1 },
@@ -114,8 +95,6 @@ await collection('products').distinct(
 - ✅ Supports all query options such as sort, limit, skip, projection, hint, etc.
 - ✅ Supports all query methods (find, aggregate, count, distinct)
 - ✅ Concentrated parameters and clear code
-
-
 
 ## Parameter description
 
@@ -606,12 +585,12 @@ try {
   );
 } catch (error) {
   console.error('Explain fail:', error.message);
-  
+
   // Common error types
   if (error.message.includes('verbosity')) {
     console.log('Valid verbosity values: queryPlanner, executionStats, allPlansExecution');
   }
-  
+
   if (error.message.includes('hint')) {
     console.log('The specified hint index does not exist');
   }
@@ -666,9 +645,9 @@ try {
 // 1. Use hint to force the use of indexes
 const plan = await collection('users').find(
   { name: 'Alice' },
-  { 
+  {
     hint: { name: 1 },
-    explain: 'executionStats' 
+    explain: 'executionStats'
   }
 );
 

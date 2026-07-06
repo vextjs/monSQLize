@@ -1,18 +1,5 @@
 ﻿# findPage 方法详细文档
 
-## 📑 目录
-
-- [概述](#概述)
-- [方法签名](#方法签名)
-- [参数说明](#参数说明)
-- [返回值](#返回值)
-- [使用模式](#使用模式)
-- [错误处理](#错误处理)
-- [性能优化建议](#性能优化建议)
-- [常见问题 (FAQ)](#常见问题-faq)
-- [相关文档](#相关文档)
-
----
 
 ## 概述
 
@@ -588,7 +575,7 @@ const smallResult = await collection('categories').findPage({
   query: { active: true },
   sort: { name: 1 },
   limit: 30,
-  totals: { 
+  totals: {
     mode: 'sync',
     maxTimeMS: 2000,
     hint: { active: 1 }  // 使用索引加速统计
@@ -602,7 +589,7 @@ async function getPaginatedDataWithTotal(query, page) {
     sort: { createdAt: -1 },
     limit: 50,
     page,
-    totals: { 
+    totals: {
       mode: 'async',
       maxTimeMS: 5000,
       ttlMs: 600000  // 缓存 10 分钟
@@ -649,7 +636,7 @@ stream1.on('data', (doc) => {
   // 只处理当前文档，不累积
   processOrder(doc);
   processedCount++;
-  
+
   if (processedCount % 10000 === 0) {
     console.log(`已处理 ${processedCount} 条订单`);
   }
@@ -687,12 +674,12 @@ async function exportToCSV() {
   writeStream.write('id,email,name,registeredAt\n');
 
   stream.pipe(csvTransform).pipe(writeStream);
-  
+
   await new Promise((resolve, reject) => {
     writeStream.on('finish', resolve);
     writeStream.on('error', reject);
   });
-  
+
   console.log('导出完成');
 }
 ```
@@ -915,12 +902,12 @@ while (true) {
   });
 
   console.log(`第 ${pageNum} 页: ${result.items.length} 条`);
-  
+
   if (!result.pageInfo.hasNext) {
     console.log('所有数据处理完毕');
     break;
   }
-  
+
   cursor = result.pageInfo.endCursor;
   pageNum++;
 }
@@ -1185,7 +1172,7 @@ function OrderList() {
 
   const loadMore = async () => {
     if (loading || !hasMore) return;
-    
+
     setLoading(true);
     try {
       const response = await fetch('/api/orders', {
@@ -1198,9 +1185,9 @@ function OrderList() {
           after: cursor
         })
       });
-      
+
       const result = await response.json();
-      
+
       setOrders(prev => [...prev, ...result.items]);
       setCursor(result.pageInfo.endCursor);
       setHasMore(result.pageInfo.hasNext);
@@ -1221,13 +1208,13 @@ function OrderList() {
       {orders.map(order => (
         <div key={order._id}>{order.orderId}</div>
       ))}
-      
+
       {hasMore && (
         <button onClick={loadMore} disabled={loading}>
           {loading ? '加载中...' : '加载更多'}
         </button>
       )}
-      
+
       {!hasMore && <div>没有更多数据了</div>}
     </div>
   );
@@ -1239,14 +1226,14 @@ function OrderList() {
 app.post('/api/orders', async (req, res) => {
   try {
     const { query, sort, limit, after } = req.body;
-    
+
     const result = await collection('orders').findPage({
       query,
       sort,
       limit: Math.min(limit, 100),  // 限制最大值
       after
     });
-    
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });

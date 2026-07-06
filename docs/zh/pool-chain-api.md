@@ -1,35 +1,8 @@
 # 链式池/库访问 API（Chain Access API）
 
-> **版本**: v1.3.0+  
-> **更新日期**: 2026-04-26
-
----
-
-## 📑 目录
-
-- [概述](#概述)
-- [API 总览](#api-总览)
-- [pool(poolName)](#poolpoolname)
-  - [pool().collection()](#poolcollection)
-  - [pool().model()](#poolmodel)
-  - [pool().use()](#pooluse)
-  - [pool().use().collection()](#poolusecollection)
-  - [pool().use().model()](#poolusemodelkey)
-- [use(dbName)](#usedbname)
-  - [use().collection()](#usecollection)
-  - [use().model()](#usemodelkey)
-- [scopedCollection()](#scopedcollection)
-- [scopedModel()](#scopedmodel)
-- [链式组合示例](#链式组合示例)
-- [错误处理](#错误处理)
-- [与旧 API 对比](#与旧-api-对比)
-- [TypeScript 类型](#typescript-类型)
-
----
-
 ## 概述
 
-v1.3.0 新增四个方法，支持从同一个 MonSQLize 实例**链式访问**不同连接池和数据库：
+使用这些访问器，可以在同一个 `MonSQLize` 实例中把操作路由到指定连接池或数据库：
 
 | 方法 | 用途 |
 |------|------|
@@ -79,7 +52,7 @@ const accessor = msq.pool('cn');
 ```
 
 **参数**：
-- `poolName` {string} — 已在 `ConnectionPoolManager` 中注册的连接池名称
+- `poolName` {string} — 构造函数 `pools: PoolConfig[]` 中声明、并在 `connect()` 后可用的连接池名称
 
 **返回值**：`PoolAccessor` — 包含 `collection`、`model`、`use` 三个方法
 
@@ -89,7 +62,7 @@ const accessor = msq.pool('cn');
 |--------|---------|
 | `NOT_CONNECTED` | 未调用 `connect()` |
 | `NO_POOL_MANAGER` | MonSQLize 未配置多连接池（构造函数未传 pools） |
-| `POOL_NOT_FOUND` | `poolName` 未在 PoolManager 中注册 |
+| `POOL_NOT_FOUND` | `poolName` 未在构造函数 `pools[]` 中声明，或对应连接池初始化失败 |
 
 ---
 
@@ -245,8 +218,8 @@ const m2 = msq.scopedModel('BillingInvoice', { pool: 'cn', database: 'analytics'
 |--------|---------|
 | `NOT_CONNECTED` | 未调用 `connect()` |
 | `MODEL_NOT_DEFINED` | `key` 未注册 |
-| `NO_POOL_MANAGER` | 传了 `pool` 但未配置 PoolManager |
-| `POOL_NOT_FOUND` | `pool` 未注册 |
+| `NO_POOL_MANAGER` | 传了 `pool` 但构造函数未配置 `pools[]` |
+| `POOL_NOT_FOUND` | `pool` 未在构造函数 `pools[]` 中声明，或初始化失败 |
 
 ---
 
@@ -269,11 +242,13 @@ const report = await msq.use('analytics').collection('monthly').findOne({ month:
 
 ```javascript
 const msq = new MonSQLize({
-  uri: 'mongodb://primary:27017',
-  pools: {
-    cn: { uri: 'mongodb://cn-server:27017' },
-    eu: { uri: 'mongodb://eu-server:27017' },
-  }
+  type: 'mongodb',
+  databaseName: 'main',
+  config: { uri: 'mongodb://primary:27017' },
+  pools: [
+    { name: 'cn', uri: 'mongodb://cn-server:27017/main', role: 'primary' },
+    { name: 'eu', uri: 'mongodb://eu-server:27017/main', role: 'primary' },
+  ]
 });
 await msq.connect();
 
@@ -327,15 +302,15 @@ try {
 
 ---
 
-## 与旧 API 对比
+## 如何选择访问方式
 
-| 需求 | v1.2.x（旧） | v1.3.0+（新） |
-|------|------------|-------------|
-| 默认池默认库的 Collection | `msq.collection('users')` | `msq.collection('users')`（不变）|
-| 默认池切换数据库 | 不支持 | `msq.use('billing').collection('invoices')` |
-| 切换连接池 | 需手动从 PoolManager 取出池实例 | `msq.pool('cn').collection('users')` |
-| 切换连接池 + 数据库 | 不支持 | `msq.pool('cn').use('billing').collection('invoices')` |
-| Model 跨池访问 | 不支持 | `msq.pool('cn').model('BillingInvoice')` |
+| 需求 | 使用方式 |
+|------|----------|
+| 默认池默认库的 Collection | `msq.collection('users')` |
+| 默认池切换数据库 | `msq.use('billing').collection('invoices')` |
+| 切换连接池 | `msq.pool('cn').collection('users')` |
+| 切换连接池和数据库 | `msq.pool('cn').use('billing').collection('invoices')` |
+| 指定连接池上的 Model | `msq.pool('cn').model('BillingInvoice')` |
 
 ---
 
@@ -367,12 +342,7 @@ class MonSQLize {
 
 ## 相关文档
 
-- [多连接池管理](./multi-pool.md)
+- [连接池配置](./multi-pool.md)
 - [Model 层文档](./model.md)
 - [错误码参考](./error-codes.md)
 - [连接配置](./connection.md)
-
----
-
-**文档版本**: v1.3.0  
-**最后更新**: 2026-04-26

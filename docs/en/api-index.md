@@ -8,22 +8,21 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 |----------|-------------|
 | [Native API comparison](mongodb-native-vs-extensions.md) | **MongoDB native APIs vs monSQLize extensions** |
 | [Connection configuration](connection.md) | Connection management and configuration |
-| [Multi-pool management](multi-pool.md) | **Enterprise-grade multi-pool management: read/write split, load balancing, and failover (v1.0.8+)** |
-| [Chain pool/database access](pool-chain-api.md) | **Chain pool/database access API: pool() / use() / scopedCollection() / scopedModel() (v1.3.0+)** |
-| [ObjectId auto conversion](objectid-auto-convert.md) | **ObjectId auto conversion: simpler ObjectId handling (v1.3.0+)** |
-| [Model layer](model.md) | **Model layer: schema validation, custom methods, lifecycle hooks (v1.0.3+)** |
-| [Populate API](populate.md) | **Populate API: relation queries with six supported methods (v1.0.6+)** |
-| [Relations API](relations.md) | **Relations API: hasOne / hasMany / belongsTo relation definitions (v1.0.6+)** |
-| [Hooks API](hooks.md) | **Hooks API: insert / update / delete / find lifecycle hooks (v1.0.6+)** |
-| [Relations and Populate](model/relations.md) | **Relations and Populate: relation definitions and related-data population (v1.2.0+)** |
-| [Nested Populate](model/nested-populate.md) | **Nested Populate: multi-level relation population (v1.2.0+)** |
-| [SSH tunnel](ssh-tunnel.md) | **SSH tunnel: securely connect to private-network databases (v1.3+)** |
+| [Pool configuration](multi-pool.md) | Multi-pool configuration and runtime routing: declare `pools: PoolConfig[]` in the constructor and access pools through `pool()` / `use()` |
+| [Chain pool/database access](pool-chain-api.md) | Chain pool/database access API: `pool()` / `use()` / `scopedCollection()` / `scopedModel()` |
+| [ObjectId auto conversion](objectid-auto-convert.md) | ObjectId auto conversion for MongoDB query and write paths |
+| [Model layer](model.md) | Model schema validation, methods, hooks, relations, and runtime binding |
+| [Populate API](populate.md) | Load related documents declared by Model relations |
+| [Relations API](relations.md) | Define `hasOne` / `hasMany` / `belongsTo`-style relationships |
+| [Hooks API](hooks.md) | Standard Model lifecycle hooks for create, update, delete, and find flows |
+| [Relations and Populate](model/relations.md) | Model relationship definitions and related-data population |
+| [Nested Populate](model/nested-populate.md) | Multi-level relation population |
+| [SSH tunnel](ssh-tunnel.md) | **SSH tunnel: securely connect to private-network databases** |
 | [Error code reference](error-codes.md) | **Error code reference: complete error-code definitions and handling guide** |
 | [Cache system](cache.md) | Cache system (LRU + TTL) |
-| [Function cache](function-cache.md) | **Function cache: add caching to any async function (v1.1.4+)** |
 | [Transaction management](transaction.md) | Transaction management (automatic retry, cache locks) |
 | [Write path policy](write-path-policy.md) | Optional runtime policy for Model-only write namespaces |
-| [Change Stream sync](sync-backup.md) | **Change Stream data sync: real-time backup to multiple databases (v1.0.8+)** |
+| [Change Stream sync](sync-backup.md) | **Change Stream data sync: real-time backup to multiple databases** |
 | [Transaction optimizations](transaction-optimizations.md) | Transaction optimization strategies |
 | [Distributed deployment](distributed-deployment.md) | **Distributed deployment guide for multi-instance cache consistency** |
 | [Event system](events.md) | Event system |
@@ -36,8 +35,8 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 |----------|--------|-------------|
 | [Find documents](find.md) | `find()` | Query multiple documents |
 | [Find one document](findOne.md) | `findOne()` | Query one document |
-| [Find one by id](find-one-by-id.md) | `findOneById()` | Convenience method for querying one document by `_id` |
-| [Find by ids](find-by-ids.md) | `findByIds()` | Convenience method for querying multiple documents by `_id` |
+| [Find one by id helper](find-one-by-id.md) | `findOneById()` | Optional reference helper for `_id` lookup; regular `findOne({ _id })` also supports ObjectId auto conversion |
+| [Find by ids helper](find-by-ids.md) | `findByIds()` | Optional reference helper for multiple `_id` values; regular `find({ _id: { $in } })` also supports ObjectId auto conversion |
 | [Paginated find](findPage.md) | `findPage()` | Cursor pagination query |
 | [Count documents](count.md) | `count()` | Count documents |
 | [Distinct values](distinct.md) | `distinct()` | Distinct query |
@@ -230,7 +229,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [ObjectId cross-version notes](objectid-cross-version.md) | ObjectId cross-version notes |
 | [ObjectId cross-version FAQ](objectid-cross-version-faq.md) | ObjectId cross-version FAQ |
 | [ObjectId logging optimization](objectid-logging-optimization.md) | ObjectId logging optimization |
-| [Cache and function-cache comparison](cache-and-function-cache.md) | Cache and function-cache comparison |
+| [Cache API overview](cache-and-function-cache.md) | Current database-runtime cache entries and legacy function-cache boundary |
 | [`cache-hub` migration](cache-hub-migration.md) | `cache-hub` migration |
 | [Slow-query logging](slow-query-log.md) | Slow-query logging |
 | [Failure recovery examples](failure-recovery-examples.md) | Failure recovery examples |
@@ -252,15 +251,3 @@ Recommended reading order for new users:
 6. [Cache system](cache.md) - Understand the cache mechanism.
 7. [Transaction management](transaction.md) - Learn transaction management.
 8. [Distributed deployment](distributed-deployment.md) - Multi-instance deployment for production.
-
----
-
-**Document count**: 98
-**Index coverage**: 98/98, including this index page
-**Last updated**: 2026-06-30
-
-Recent additions:
-
-- [Write path policy](write-path-policy.md) - Optional Model-only write namespace guard
-- [ESM support](esm-support.md) - ES Module (`import`) support
-- [findOneAnd return values](findOneAnd-return-value-unified.md) - Return-value unification notes

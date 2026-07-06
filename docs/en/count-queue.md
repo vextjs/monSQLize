@@ -1,24 +1,5 @@
 ﻿# Count queue control
 
-> **Version**: v1.0.0+
-> **Purpose**: Control the number of concurrent countDocuments in high concurrency scenarios to avoid overwhelming the database
-
----
-
-## 📖 Table of Contents
-
-- [Overview](#overview)
-- [Why queue control is needed](#why-queue-control-is-needed)
-- [Quick Start](#quick-start)
-- [Configuration Options](#configuration-options)
-- [Usage Scenario](#usage-scenarios)
-- [Performance comparison](#performance-comparison)
-- [Best Practice](#best-practices)
-- [Troubleshooting](#troubleshooting)
-- [API Reference](#api-reference)
-
----
-
 ## Overview
 
 Count queue control is an advanced feature of monSQLize that limits the number of `countDocuments` operations that can be executed simultaneously.
@@ -329,33 +310,19 @@ await collection.findPage({
 ```
 
 
-## 3. Cooperate with distributed locks (multi-instance scenario)
+## 3. Plan multi-instance concurrency explicitly
 
-```javascript
-//Recommended: queue + distributed lock
-const msq = new MonSQLize({
-    countQueue: {
-        concurrency: 8  //Up to 8 single instances
-    },
-    distributed: {
-        redis: { host: 'localhost', port: 6379 },
-        lock: { enabled: true }  //Cross-instance deduplication
-    }
-});
-
-//Effect:
-//- 4 instances, only 1 executing count
-//- Maximum of 8 concurrencies within this instance
-//- The database has a maximum of 8 concurrent counts
-```
+`countQueue.concurrency` is per Node.js process. If you run four instances with `concurrency: 8`, the database may still see up to 32 concurrent count operations. For strict fleet-wide limits, set a lower per-instance value or enforce global backpressure in your application, gateway, job scheduler, or database capacity plan.
 
 
 ## 4. Monitor queue status
 
 ```javascript
-//Periodically check queue status (requires internal API support)
+//Use the public CountQueue class when you need direct queue metrics
+const queue = new MonSQLize.CountQueue({ concurrency: 8 });
+
 setInterval(() => {
-    const stats = getQueueStats();  //Get queue statistics
+    const stats = queue.getStats();
 
     if (stats.rejected > 10) {
         console.warn('The number of queue rejections is too many, consider increasing maxQueueSize');
@@ -449,9 +416,9 @@ countQueue: {
     concurrency: 4  //Reduced from 16 to 4
 }
 
-//Or use distributed locks (multi-instance scenario)
-distributed: {
-    lock: { enabled: true }
+//For multi-instance deployments, lower per-instance concurrency
+countQueue: {
+    concurrency: 2
 }
 ```
 
@@ -497,7 +464,3 @@ interface CountQueueStats {
 - [Cache Configuration](./cache.md)
 - [Distributed deployment](./distributed-deployment.md)
 - Performance optimization
-
----
-
-**Last updated**: 2025-01-02

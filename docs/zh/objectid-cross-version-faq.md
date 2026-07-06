@@ -162,7 +162,7 @@ const bob = await User.findOne({ username: 'bob' });
 
 ### 已解决 ✅
 
-**v1.1.1 默认完全静默** - 不输出任何 ObjectId 转换日志。
+ObjectId 转换默认保持静默，不输出逐值转换日志。
 
 ```javascript
 // 默认配置（无任何日志）
@@ -182,7 +182,7 @@ await msq.collection('users').insertOne(dataWithObjectIds);
 - ❌ 污染日志输出
 - ❌ 增加日志存储开销
 
-所以 v1.1.1 默认完全关闭这些日志。
+因此转换器默认关闭这些日志。
 
 ### 当前 v2 运行时如何验证转换？
 

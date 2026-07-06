@@ -2,45 +2,6 @@
 
 Safely deletes the specified index of the collection.
 
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-  - [indexName (required)](#indexname-required)
-- [Return value](#return-value)
-- [Code Example](#code-example)
-- [Example 1: Delete a single index](#example-1-delete-a-single-index)
-- [Example 2: Delete after checking](#example-2-delete-after-checking)
-- [Example 3: Error handling](#example-3-error-handling)
-- [Example 4: Batch deletion process](#example-4-batch-deletion-process)
-- [Example 5: Safe delete mode](#example-5-safe-delete-mode)
-- [Error handling](#error-handling)
-- [1. Index does not exist](#1-index-does-not-exist)
-- [2. Disable deletion of _id index](#2-disable-deletion-of-id-index)
-- [3. Insufficient permissions](#3-insufficient-permissions)
-- [Security Advice](#security-advice)
-- [1. Backup before deletion](#1-backup-before-deletion)
-- [2. Precautions for production environment](#2-precautions-for-production-environment)
-- [3. Rollback plan](#3-rollback-plan)
-- [Related methods](#related-methods)
-- [dropIndexes() - drop all indexes](#dropindexes-drop-all-indexes)
-- [Syntax (dropIndexes() - drop all indexes)](#syntax-dropindexes-drop-all-indexes)
-- [Parameters (dropIndexes() - drop all indexes)](#parameters-dropindexes-drop-all-indexes)
-- [Return value (dropIndexes() - delete all indexes)](#return-value-dropindexes-delete-all-indexes)
-- [Code example (dropIndexes() - drop all indexes)](#code-example-dropindexes-drop-all-indexes)
-  - [Example 1: Delete all indexes](#example-1-delete-all-indexes)
-  - [Example 2: Rebuild all indexes](#example-2-rebuild-all-indexes)
-  - [Example 3: Processing when the collection does not exist](#example-3-processing-when-the-collection-does-not-exist)
-- [Security advice (dropIndexes() - drop all indexes)](#security-advice-dropindexes-drop-all-indexes)
-- [Best Practices](#best-practices)
-- [1. Index life cycle management](#1-index-life-cycle-management)
-- [2. Index maintenance window](#2-index-maintenance-window)
-- [3. A/B testing index](#3-a-b-testing-index)
-- [Reference resources](#reference-resources)
-
 ## Overview
 
 The `dropIndex()` method is used to delete the specified index of the collection. Support security check and prohibit deletion of `_id` index.

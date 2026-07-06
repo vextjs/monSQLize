@@ -133,6 +133,37 @@ body::after {
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.84), transparent 72%);
 }
 
+.rspress-doc > h2[id="table-of-contents"],
+.rspress-doc > h2[id="-table-of-contents"],
+.rspress-doc > h2[id="contents"],
+.rspress-doc > h2[id="toc"],
+.rspress-doc > h2[id="目录"],
+.rspress-doc > h2[id="-目录"],
+.rspress-doc > h2[id="目录导航"],
+.rspress-doc > h2[id="table-of-contents"] + ul,
+.rspress-doc > h2[id="-table-of-contents"] + ul,
+.rspress-doc > h2[id="contents"] + ul,
+.rspress-doc > h2[id="toc"] + ul,
+.rspress-doc > h2[id="目录"] + ul,
+.rspress-doc > h2[id="-目录"] + ul,
+.rspress-doc > h2[id="目录导航"] + ul,
+.rspress-doc > h2[id="table-of-contents"] + ul + hr,
+.rspress-doc > h2[id="-table-of-contents"] + ul + hr,
+.rspress-doc > h2[id="contents"] + ul + hr,
+.rspress-doc > h2[id="toc"] + ul + hr,
+.rspress-doc > h2[id="目录"] + ul + hr,
+.rspress-doc > h2[id="-目录"] + ul + hr,
+.rspress-doc > h2[id="目录导航"] + ul + hr,
+.rp-toc-item[href="#table-of-contents"],
+.rp-toc-item[href="#-table-of-contents"],
+.rp-toc-item[href="#contents"],
+.rp-toc-item[href="#toc"],
+.rp-toc-item[href="#目录"],
+.rp-toc-item[href="#-目录"],
+.rp-toc-item[href="#目录导航"] {
+  display: none;
+}
+
 .rp-home-background {
   background:
     linear-gradient(120deg, rgba(16, 185, 129, 0.13), transparent 34%),

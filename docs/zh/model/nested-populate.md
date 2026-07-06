@@ -4,8 +4,8 @@
 
 深度 populate 允许你在填充关联数据时，进一步填充关联数据的关联数据，形成多层嵌套的数据结构。
 
-**版本**: v1.3.0+  
-**状态**: ✅ 已实现
+本页 Model schema 示例使用 monSQLize 传入的 runtime 作用域 `s` 命名空间。应用代码不需要为了这些示例导入 root `schema-dsl` 入口。
+
 
 ---
 
@@ -148,7 +148,7 @@ import { Model } from 'monsqlize';
 
 // User Model
 Model.define('users', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     username: 'string!',
     profileId: 'objectId'
   }),
@@ -170,7 +170,7 @@ Model.define('users', {
 
 // Post Model
 Model.define('posts', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     title: 'string!',
     authorId: 'objectId'
   }),
@@ -192,7 +192,7 @@ Model.define('posts', {
 
 // Comment Model
 Model.define('comments', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     content: 'string!',
     postId: 'objectId',
     authorId: 'objectId'
@@ -408,8 +408,4 @@ await User.find().populate({
 - [Model API 参考](../model.md)
 
 ---
-
-**更新日期**: 2026-01-07  
-**版本**: v1.3.0+  
-**状态**: ✅ 已实现并测试
 

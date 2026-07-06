@@ -411,8 +411,3 @@ await collection("users").findOneAndUpdate(
 - [updateOne() detailed documentation](./update-one.md)
 - [replaceOne() detailed documentation](./replace-one.md)
 - [MongoDB Upsert official document](https://docs.mongodb.com/manual/reference/method/db.collection.update/#upsert-option)
-
----
-
-**Version**: v1.1.2
-**Last updated**: 2026-01-28

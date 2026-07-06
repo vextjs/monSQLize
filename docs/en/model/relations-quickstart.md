@@ -1,7 +1,5 @@
 ﻿# relations Quick Start Guide (5 minutes)
 
-**Applicable version**: monSQLize v1.2.0+
-**Updated**: 2026-01-06
 **Prerequisite knowledge**: Understand the basics of MongoDB (collections, fields, foreign keys)
 
 ---
@@ -34,7 +32,7 @@ import { Model } from 'monsqlize';
 
 //Define User Model
 Model.define('User', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     username: 'string!',
     email: 'email!',
     profileId: 'objectId'    //foreign key
@@ -52,7 +50,7 @@ Model.define('User', {
 
 //Define Profile Model (optional, you can populate even if you don’t define it)
 Model.define('Profile', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     bio: 'string',
     avatar: 'url'
   })
@@ -84,7 +82,7 @@ console.log(user);
 ```
 
 
-## Step 3: Done! 🎉
+## Step 3: Done!
 
 It's that simple, no need to write it manually:
 ```javascript
@@ -257,7 +255,7 @@ relations: {
 
 //✅ Solution: Create index
 Model.define('User', {
-  schema: (dsl) => dsl({ profileId: 'objectId' }),
+  schema: (s) => s({ profileId: 'objectId' }),
   indexes: [
     { key: { profileId: 1 } }  //← Create indexes for foreign keys
   ],
@@ -290,11 +288,11 @@ single: true  //Return single document { bio: '...' }
 
 ## Have you mastered the basic functions? View advanced topics
 
-- **Select Field**: `.populate('profile', { select: 'bio avatar' })` (v1.3.0)
-- **Sort and Limitations**: `.populate('posts', { sort: { createdAt: -1 }, limit: 10 })` (v1.3.0)
-- **Nested populate**: populate related data with related data (v1.3.0)
-- **Performance Optimization**: Enable $lookup aggregation optimization (v1.3.0)
-- **Cache Integration**: Related data can also be cached (v1.3.0)
+- **Select Field**: `.populate('profile', { select: 'bio avatar' })`
+- **Sort and Limitations**: `.populate('posts', { sort: { createdAt: -1 }, limit: 10 })`
+- **Nested populate**: populate related data with related data
+- **Performance Optimization**: Enable $lookup aggregation optimization
+- **Cache Integration**: Related data can also be cached
 
 
 ## View full document
@@ -316,7 +314,7 @@ const { Model } = msq;
 
 // 1. Profile Model
 Model.define('Profile', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     bio: 'string:0-500',
     avatar: 'url',
     location: 'string'
@@ -325,7 +323,7 @@ Model.define('Profile', {
 
 // 2. Post Model
 Model.define('Post', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     title: 'string:1-200!',
     content: 'string!',
     authorId: 'objectId!',
@@ -339,7 +337,7 @@ Model.define('Post', {
 
 //3. User Model (including relations)
 Model.define('User', {
-  schema: (dsl) => dsl({
+  schema: (s) => s({
     username: 'string:3-32!',
     email: 'email!',
     profileId: 'objectId'
@@ -397,8 +395,8 @@ example();
 ## Q: Will populate affect performance?
 
 **A**:
--Basic implementation (v1.2.0): performance is about 1.3-1.5 times that of native queries
-- After optimization (v1.3.0): $lookup aggregation can be enabled, and the performance is close to native (1.1-1.2 times)
+- Populate batches related IDs and avoids the common N+1 query pattern.
+- Direct MongoDB `$lookup` is still the right tool when you need a fully custom aggregation pipeline.
 - Recommendation: Create indexes for foreign keys + enable caching
 
 
@@ -413,19 +411,19 @@ example();
 
 **A**:
 - The system automatically detects circular references and prevents infinite recursion
-- v1.3.0 supports nested populate, but there is a depth limit (default 3 levels)
+- Nested populate supports depth control; keep relationship graphs shallow and set explicit limits for deep branches.
 
 
 ## Q: What is the difference with MongoDB $lookup?
 
 **A**:
 - relations is a simplified version of $lookup
-- v1.2.0 uses multiple queries (simple implementation)
-- v1.3.0 can automatically optimize for $lookup aggregation (better performance)
+- populate can batch related IDs and avoid the common N+1 query pattern
+- use MongoDB `$lookup` directly when you need a fully custom aggregation pipeline
 
 ---
 
-## 🎉 Congratulations! You have mastered the basics of relations
+##  Congratulations! You have mastered the basics of relations
 
 **5 minutes to learn**:
 - ✅ Understand the core concepts of relations (3 fields)
@@ -444,7 +442,3 @@ example();
 - ⭐ If it was helpful, please give the project a star
 
 ---
-
-**Document version**: v1.0
-**Last updated**: 2026-01-06
-**Applicable version**: monSQLize v1.2.0+

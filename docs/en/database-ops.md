@@ -2,36 +2,6 @@
 
 Database-level management operations, including listing databases, deleting databases, listing collections, etc.
 
----
-
-## Table of Contents
-
-- [listDatabases()](#listdatabases)
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [Return value](#return-value)
-- [Example](#example)
-- [dropDatabase()](#dropdatabase)
-- [Security mechanism](#security-mechanism)
-- [Syntax (dropDatabase())](#syntax-dropdatabase)
-- [Parameters (dropDatabase())](#parameters-dropdatabase)
-- [Return value (dropDatabase())](#return-value-dropdatabase)
-- [Example (dropDatabase())](#example-dropdatabase)
-  - [❌ Error: No confirmation provided](#error-no-confirmation-provided)
-  - [✅ Correct: Provide confirmation](#correct-provide-confirmation)
-  - [⚠️ Production environment: additional confirmation required](#production-environment-additional-confirmation-required)
-- [Error handling](#error-handling)
-- [listCollections()](#listcollections)
-- [Syntax (listCollections())](#syntax-listcollections)
-- [Parameters (listCollections())](#parameters-listcollections)
-- [Return value (listCollections())](#return-value-listcollections)
-- [Example (listCollections())](#example-listcollections)
-- [runCommand()](#runcommand)
-- [Syntax (runCommand())](#syntax-runcommand)
-- [Parameters (runCommand())](#parameters-runcommand)
-- [Example (runCommand())](#example-runcommand)
-- [Related documents](#related-documents)
-
 ## listDatabases()
 
 List all databases on the MongoDB server.
@@ -262,8 +232,3 @@ console.log('Size (MB):', collStats.size);
 - [Operation and Maintenance Monitoring](./admin.md) - ping, buildInfo, serverStatus, stats
 - [Collection Management](./collection-management.md) - Collection level operations
 - [Collection Management Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts)
-
----
-
-**Last updated**: 2025-12-02
-**Version**: v0.3.0

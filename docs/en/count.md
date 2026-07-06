@@ -1,22 +1,5 @@
 # count Method Reference
 
-## 📑 Table of Contents
-
-- [Overview](#overview)
-- [Method Signature](#method-signature)
-- [Parameters](#parameters)
-- [Return Value](#return-value)
-- [Usage Patterns](#usage-patterns)
-- [Error Handling](#error-handling)
-- [Performance Optimization Recommendations](#performance-optimization-recommendations)
-- [Best Practices](#best-practices)
-- [FAQ](#faq)
-- [Related Methods](#related-methods)
-- [Example Code](#example-code)
-- [Test Cases](#test-cases)
-
----
-
 ## Overview
 
 `count` is a statistical query method provided by monSQLize. It quickly counts the number of MongoDB collection documents that match specific criteria. Internally, it uses MongoDB's recommended native `countDocuments()` and `estimatedDocumentCount()` methods, and supports index hints, caching, performance optimization, and related options.
@@ -33,8 +16,8 @@ async count(query = {}, options = {})
 
 Query criteria object using standard MongoDB query syntax.
 
-**Type**: `Object`  
-**Required**: No  
+**Type**: `Object`
+**Required**: No
 **Default**: `{}`. An empty object counts all documents.
 
 **Examples**:
@@ -271,7 +254,7 @@ Use `hint` to force an index and `explain` to inspect the execution plan:
 ```javascript
 // Force an index
 const count = await collection('orders').count(
-  { 
+  {
     status: 'completed',
     createdAt: { $gte: new Date('2025-01-01') }
   },
@@ -391,12 +374,12 @@ const count = await collection('users').count({ role: 'admin' });
 // ✅ Recommended: enable cache for frequent counts
 const getDashboardStats = async () => {
   const totalUsers = await collection('users').count({}, { cache: 60000 });  // 1-minute cache
-  
+
   const activeUsers = await collection('users').count(
     { status: 'active' },
     { cache: 60000 }
   );
-  
+
   return { totalUsers, activeUsers };
 };
 ```
@@ -440,7 +423,7 @@ const sampleCount = await collection('orders').count(
 
 ### Q: How can I improve count performance on large datasets?
 
-**A**: 
+**A**:
 1. Create indexes for queried fields
 2. Use caching to reduce repeated counts
 3. Consider using aggregation pipelines to precompute statistics
@@ -448,7 +431,7 @@ const sampleCount = await collection('orders').count(
 
 ### Q: Does count scan all documents?
 
-**A**: 
+**A**:
 - With an index: it scans only the index, not the documents
 - Without an index: it needs to scan all documents
 - Empty query: it uses collection metadata and does not scan documents
@@ -468,4 +451,3 @@ For the complete usage example, see `examples/docs/count.ts`.
 ## Test Cases
 
 For the complete test cases, see `test/integration/mongodb/queries.test.ts`.
-

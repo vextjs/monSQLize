@@ -1,21 +1,5 @@
 # distinct method detailed documentation
 
-## 📑 Table of Contents
-
-- [Overview](#overview)
-- [Method signature](#method-signature)
-- [Parameter description](#parameter-description)
-- [Return value](#return-value)
-- [Usage mode](#usage-mode)
-- [Performance optimization suggestions](#performance-optimization-suggestions)
-- [FAQ](#faq)
-- [Usage suggestions](#usage-suggestions)
-- [Related methods](#related-methods)
-- [Best Practices](#best-practices)
-- [Sample code](#sample-code)
-
----
-
 ## Overview
 
 `distinct` is the field deduplication query method provided by monSQLize, which is used to obtain all unique values ​​of the specified field from the MongoDB collection. **Directly uses MongoDB's native `Collection.distinct()` method**, which supports query condition filtering, sorting rules and extended options.
@@ -128,7 +112,7 @@ try {
       { inStock: true },
       { session }
     );
-    
+
     // Other transaction operations...
   });
 } finally {
@@ -392,7 +376,7 @@ try {
       { status: 'active' },
       { session }
     );
-    
+
     // Perform other actions based on roles
     for (const role of roles) {
       await collection('permissions').updateMany(
@@ -495,7 +479,7 @@ collection('products').distinct('category', { inStock: true }, {
   collation: { locale: 'en', strength: 1 },
   comment: 'getCategories',
   session: clientSession,
-  
+
   // monSQLize extended options
   cache: 5 * 60 * 1000,  // Cache for 5 minutes
   explain: 'executionStats'  // Performance analysis
@@ -641,7 +625,7 @@ try {
    ```javascript
    // ❌ Scan all documents
    const tags = await collection('products').distinct('tags');
-   
+
    // ✅ Only scan items on sale
    const tags = await collection('products').distinct('tags', { inStock: true });
    ```

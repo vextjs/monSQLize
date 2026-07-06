@@ -2,7 +2,7 @@
 
 ## 概述
 
-monSQLize 从 **v1.1.1** 开始支持跨 BSON 版本的 ObjectId 兼容，可以无缝处理来自其他 MongoDB 库（如 mongoose）的 ObjectId 对象。
+monSQLize 会自动规范化跨 BSON 版本的兼容 ObjectId 值，因此来自 mongoose 等库的 ObjectId 对象可以用于 MongoDB adapter 的读写路径。
 
 ## 问题背景
 
@@ -14,7 +14,7 @@ const dataFromMongoose = await MongooseModel.findOne({ ... }).lean();
 
 // monSQLize 使用 mongodb@6.x (bson@6.x)
 await msq.collection('orders').insertOne(dataFromMongoose);
-// ❌ 错误：Unsupported BSON version, bson types must be from bson 6.x.x
+// 未转换时的错误：Unsupported BSON version, bson types must be from bson 6.x.x
 ```
 
 **根本原因**：
@@ -26,7 +26,7 @@ await msq.collection('orders').insertOne(dataFromMongoose);
 
 monSQLize 内置了**自动跨版本 ObjectId 转换**功能，无需手动处理：
 
-### ✅ 自动转换（推荐）
+### 自动转换
 
 ```javascript
 import MonSQLize from 'monsqlize';
@@ -36,7 +36,7 @@ const dataFromMongoose = await MongooseModel.findOne({ ... }).lean();
 
 // 直接插入，monSQLize 自动转换 ObjectId
 const result = await msq.collection('orders').insertOne(dataFromMongoose);
-// ✅ 成功：自动将旧版本 ObjectId 转换为 bson@6.x 版本
+// 自动转换为当前 MongoDB driver 可接受的 ObjectId
 ```
 
 ### 工作原理
@@ -123,7 +123,7 @@ const result = await msq.collection('orders').find({
 
 ## 手动预处理（仅在应用层确有需要时）
 
-v2 当前对外承诺的是**自动跨版本 ObjectId 转换**。迁移期 legacy helper 子路径不再建议作为正式依赖入口。
+当前对外承诺是**自动跨版本 ObjectId 转换**。legacy helper 子路径属于兼容面，不建议作为正式依赖入口。
 
 如果业务确实需要在进入 monSQLize 前显式归一化数据，请在应用层自行做预处理，再把结果交给 monSQLize；不要把旧 helper 子路径当作长期公开 API。
 
@@ -143,7 +143,3 @@ v2 当前对外承诺的是**自动跨版本 ObjectId 转换**。迁移期 legac
 - [MongoDB 官方驱动版本兼容性](https://www.mongodb.com/docs/drivers/node/current/compatibility/)
 - [Mongoose 版本选择指南](https://mongoosejs.com/docs/version-selection.html)
 - [BSON 规范](http://bsonspec.org/)
-
-## 更新日志
-
-- **v1.1.1** (2026-01-27)：新增跨版本 ObjectId 兼容性支持

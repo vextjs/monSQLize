@@ -1,54 +1,6 @@
 # MongoDB driver version compatibility guide
 
-**Documentation version**: currently main / unreleased
-**Last updated**: 2026-06-10
-**Applicable version**: monSQLize v2.0.2+
-
----
-
-## Table of Contents
-
-- [📋 Overview](#overview)
-- [🎯 Currently supported driver versions](#currently-supported-driver-versions)
-- [Current support matrix](#current-support-matrix)
-- [Dependency declaration](#dependency-declaration)
-- [✅ monSQLize's handling of version differences](#monsqlizes-handling-of-version-differences)
-- [1. Return value of findOneAnd* method](#1-return-value-of-findoneand-method)
-  - [MongoDB driver version differences](#mongodb-driver-version-differences)
-  - [✅ monSQLize current behavior](#monsqlize-current-behavior)
-- [2. `includeResultMetadata` explicit control](#2-includeresultmetadata-explicit-control)
-- [Other affected methods](#other-affected-methods)
-- [🛡️ monSQLize compatibility guarantee](#monsqlize-compatibility-guarantee)
-- [Core strategy: precise dependency + thin packaging + matrix verification](#core-strategy-precise-dependency-thin-packaging-matrix-verification)
-- [Key implementation locations](#key-implementation-locations)
-- [Version management mechanism](#version-management-mechanism)
-- [Exception handling](#exception-handling)
-- [🚀 Future driver upgrade guide](#future-driver-upgrade-guide)
-- [Pre-upgrade checklist](#pre-upgrade-checklist)
-  - [Step 1: Read the official documentation ✅](#step-1-read-the-official-documentation)
-  - [Step 2: Local Test ✅](#step-2-local-test)
-  - [Step 3: Check the log output ✅](#step-3-check-the-log-output)
-  - [Step 4: Fix compatibility issues ✅](#step-4-fix-compatibility-issues)
-  - [Step 5: Regression Testing ✅](#step-5-regression-testing)
-- [Fix example: How to adapt driver 7.x (assumed)](#fix-example-how-to-adapt-driver-7x-assumed)
-- [📊 Test Strategy](#test-strategy)
-- [Test coverage](#test-coverage)
-- [Key test scenarios](#key-test-scenarios)
-- [Automated test commands](#automated-test-commands)
-- [🔧 Developer Guide](#developer-guide)
-- [Add new findOneAnd* style methods](#add-new-findoneand-style-methods)
-- [📖 Related resources](#related-resources)
-- [Internal documentation](#internal-documentation)
-- [External resources](#external-resources)
-- [❓ FAQ](#faq)
-- [Q1: Will there be any problems if I am using MongoDB driver 5.x?](#q1-will-there-be-any-problems-if-i-am-using-mongodb-driver-5x)
-- [Q2: How to know the driver version currently used?](#q2-how-to-know-the-driver-version-currently-used)
-- [Q3: What should I do if the test fails after upgrading to a future driver major version?](#q3-what-should-i-do-if-the-test-fails-after-upgrading-to-a-future-driver-major-version)
-- [Q4: Why are only the findOneAnd* methods affected?](#q4-why-are-only-the-findoneand-methods-affected)
-- [Q5: Will multiple driver versions be supported in the future?](#q5-will-multiple-driver-versions-be-supported-in-the-future)
-- [📝 Update log](#update-log)
-
-## 📋 Overview
+## Overview
 
 This document explains how monSQLize handles version differences in the MongoDB Node.js driver and how to ensure compatibility for future driver upgrades.
 
@@ -56,17 +8,17 @@ This document explains how monSQLize handles version differences in the MongoDB 
 
 ---
 
-## 🎯 Currently supported driver versions
+## Currently supported driver versions
 
 
 ## Current support matrix
 
 | MongoDB driver version | Support status | Test status | Description |
 |-----------------|---------|---------|------|
-| **6.x** (6.21.0) | ✅ Runtime Baseline | ✅ Default Verification | Package Exact Dependencies, Out of the Box |
-| **7.x** (7.2.0) | ✅ Extension compatible | ✅ Matrix verification | Used to detect upstream breaking changes in advance |
-| **4.x / 5.x** | ℹ️ Historical compatibility reference | ⚠️ Not in the current default matrix | Old version migration background; new projects are recommended to use default dependencies |
-| **8.x+** | ⚠️ To be evaluated | ⏸️ Not included in the current matrix | You need to confirm according to the verification process in this article before upgrading |
+| **6.x** (6.21.0) | Runtime Baseline | Default Verification | Package Exact Dependencies, Out of the Box |
+| **7.x** (7.2.0) | Extension compatible | Matrix verification | Used to detect upstream breaking changes in advance |
+| **4.x / 5.x** | Historical compatibility reference | Not in the current default matrix | Old version migration background; new projects are recommended to use default dependencies |
+| **8.x+** | To be evaluated | ⏸️ Not included in the current matrix | You need to confirm according to the verification process in this article before upgrading |
 
 
 ## Dependency declaration
@@ -87,7 +39,7 @@ Statement in `package.json`:
 
 ---
 
-## ✅ monSQLize's handling of version differences
+## monSQLize's handling of version differences
 
 
 ## 1. Return value of findOneAnd* method
@@ -131,7 +83,7 @@ const result = await collection.findOneAndUpdate(filter, update);
 ```
 
 
-### ✅ monSQLize current behavior
+### monSQLize current behavior
 
 **When using the default installation, the user code receives the document directly or `null`: **
 
@@ -141,12 +93,12 @@ const user = await collection.findOneAndUpdate(
   { $set: { age: 31 } }
 );
 
-//✅ All versions return the same format: the document itself
+//All versions return the same format: the document itself
 console.log(user);  // { _id: ..., name: "Alice", age: 31 }
 
 //No need to judge version:
-//❌ Not required: if (result.value) return result.value;
-//❌ Not required: if (result.ok) return result;
+//Not required: if (result.value) return result.value;
+//Not required: if (result.ok) return result;
 ```
 
 **Implementation Boundary**:
@@ -156,9 +108,9 @@ console.log(user);  // { _id: ..., name: "Alice", age: 31 }
 - If the application is forced to overwrite the historical Driver 4.x / 5.x, you need to verify the return value difference by yourself. This is not recommended for new projects.
 
 **Applicable methods**:
-- ✅ findOneAndUpdate
-- ✅ findOneAndReplace
-- ✅ findOneAndDelete
+- findOneAndUpdate
+- findOneAndReplace
+- findOneAndDelete
 
 ---
 
@@ -213,7 +165,7 @@ console.log(result);
 
 ---
 
-## 🛡️ monSQLize compatibility guarantee
+## monSQLize compatibility guarantee
 
 
 ## Core strategy: precise dependency + thin packaging + matrix verification
@@ -260,7 +212,7 @@ findOneAndDeleteDocument(collection, filter, options)
 
 ---
 
-## 🚀 Future driver upgrade guide
+## Future driver upgrade guide
 
 
 ## Pre-upgrade checklist
@@ -391,7 +343,7 @@ function handleFindOneAndResult(result, options = {}, logger = null) {
 
 ---
 
-## 📊 Test Strategy
+## Test Strategy
 
 
 ## Test coverage
@@ -408,14 +360,14 @@ function handleFindOneAndResult(result, options = {}, logger = null) {
 ## Key test scenarios
 
 **Required test scenarios**:
-1. ✅ Find the document and modify it
-2. ✅ Document not found (returns null)
-3. ✅ upsert inserts a new document
-4. ✅ Return to the document before update (`returnDocument: "before"`)
-5. ✅ Return to the updated document (`returnDocument: "after"`)
-6. ✅ Contains complete metadata (`includeResultMetadata: true`)
-7. ✅ Cache automatically expires
-8. ✅ Concurrency safety
+1. Find the document and modify it
+2. Document not found (returns null)
+3. upsert inserts a new document
+4. Return to the document before update (`returnDocument: "before"`)
+5. Return to the updated document (`returnDocument: "after"`)
+6. Contains complete metadata (`includeResultMetadata: true`)
+7. Cache automatically expires
+8. Concurrency safety
 
 
 ## Automated test commands
@@ -433,7 +385,7 @@ npm ls mongodb
 
 ---
 
-## 🔧 Developer Guide
+## Developer Guide
 
 
 ## Add new findOneAnd* style methods
@@ -472,7 +424,7 @@ async function customFindOneAndModify(filter, modification, options = {}) {
 
 ---
 
-## 📖 Related resources
+## Related resources
 
 
 ## Internal documentation
@@ -496,7 +448,7 @@ async function customFindOneAndModify(filter, modification, options = {}) {
 
 ---
 
-## ❓ FAQ
+## FAQ
 
 
 ## Q1: Will there be any problems if I am using MongoDB driver 5.x?
@@ -547,24 +499,8 @@ If you need help, please attach `test:compatibility` and server matrix output to
 
 **A**: There are currently no plans to support multiple versions. Reason:
 
-- ✅ Increased maintenance costs
-- ✅ Increase test complexity
-- ✅ MongoDB driver follows semantic versioning, and the differences between major versions are clear
+- Increased maintenance costs
+- Increase test complexity
+- MongoDB driver follows semantic versioning, and the differences between major versions are clear
 
 Recommended practice: Upgrade monSQLize with the major version upgrade of the MongoDB driver.
-
----
-
-## 📝 Update log
-
-| Date | Version | Changes |
-|------|------|------|
-| 2026-06-10 | Current main | Updated to `mongodb@6.21.0` runtime baseline and Driver 7.2.0 extended verification caliber |
-| 2025-11-17 | 1.0 | Initial version - Add driver 6.x compatibility instructions |
-
----
-
-**Maintainer**: monSQLize development team
-**Contact**: Ask questions via GitHub Issues
-**Last review**: 2025-11-17
-

@@ -1,34 +1,16 @@
 ﻿# 分布式部署指南
 
-**版本**: Unreleased (main)
-**更新日期**: 2026-06-09
-
----
-
-## 📚 目录
-
-- [概述](#概述)
-- [架构选择](#架构选择)
-- [分布式环境下的风险](#分布式环境下的风险)
-- [解决方案](#解决方案)
-- [配置指南](#配置指南)
-- [最佳实践](#最佳实践)
-- [性能考虑](#性能考虑)
-- [故障排查](#故障排查)
-
----
-
 ## 概述
 
-monSQLize 支持单实例和多实例部署。在**单实例**环境下，所有缓存和事务机制都能完美工作。但在**多实例（分布式）**环境下，需要额外配置才能保证数据一致性。
+monSQLize 支持单实例和多实例部署。**单实例**环境通常只需要本地查询缓存。多实例部署中，如果缓存读需要跨进程收敛，应使用 Redis 远端缓存与分布式失效。
 
 ### 为什么需要分布式支持？
 
 在多实例部署中，每个实例都有独立的本地缓存和锁管理器。如果不做特殊处理，会导致：
 
-1. ❌ **缓存不一致**：实例 A 更新数据后，实例 B 的本地缓存仍是旧数据
-2. ❌ **事务隔离性失效**：实例 A 事务期间，实例 B 可能读到中间状态并写入缓存
-3. ❌ **业务逻辑错误**：余额计算、库存扣减等场景可能出错
+1. **缓存不一致窗口**：实例 A 更新数据后，实例 B 的本地缓存可能在失效广播到达前短暂保留旧值。
+2. **事务与缓存边界**：MongoDB 事务保持 session 语义，缓存失效在 commit 后 best-effort flush。
+3. **关键业务临界区**：余额、库存、支付类路径仍需要业务侧幂等、fencing 或显式锁。
 
 ---
 
@@ -144,7 +126,7 @@ const msq = new MonSQLize({
     local: { maxSize: 1000 },
     remote: MonSQLize.createRedisCacheAdapter(redis),  // Redis 缓存
     
-    // 🆕 启用分布式缓存失效
+    // 启用分布式缓存失效
     distributed: {
       enabled: true,           // ✅ 必需：启用
       instanceId: 'instance-1' // ❌ 可选：默认自动生成（建议手动设置）
@@ -225,7 +207,7 @@ await businessLock.withLock(`payment:${paymentId}`, async () => {
 });
 ```
 
-`transaction.distributedLock` 在 v2 runtime 中仅作为 v1 兼容配置占位保留，并未接入事务缓存锁。跨实例强一致需要禁用关键读路径缓存，或在业务/框架层显式协调。
+`transaction.distributedLock` 仅作为兼容配置占位保留，并未接入事务缓存锁。跨实例强一致需要禁用关键读路径缓存，或在业务/框架层显式协调。
 
 ---
 
@@ -443,7 +425,7 @@ const msq = new MonSQLize({
       backfillLocalOnRemoteHit: true  // 远端命中时回填本地
     },
     
-    // 🆕 分布式缓存失效
+    // 分布式缓存失效
     distributed: {
       enabled: true,                           // ✅ 必需：启用
       instanceId: process.env.INSTANCE_ID,    // ❌ 可选：默认自动生成（建议使用环境变量）
@@ -482,13 +464,13 @@ await msq.close();
 | 选项 | 类型 | 必需 | 默认值 | 说明 |
 |-----|------|------|--------|------|
 | `enabled` | Boolean | ✅ | - | 是否启用分布式缓存失效 |
-| `redis` | Object | ❌ | 自动从 `remote` 提取 | ioredis 实例（可选，默认复用 `cache.remote` 的 Redis） |
+| `redis` | Object | `redis` / `redisUrl` 二选一 | - | 已有 Redis-like 实例，需要支持 `duplicate()`。 |
 | `redisUrl` | String | ❌ | - | Redis 连接 URL（与 redis 二选一，不推荐） |
 | `instanceId` | String | ❌ | `instance-${timestamp}-${random}` | 实例标识，默认自动生成（如 `instance-1732521234567-a2b3c4d5e`），**强烈建议手动设置** |
 | `channel` | String | ❌ | `'monsqlize:cache:invalidate'` | Pub/Sub 频道名 |
 
 **⚠️ 重要说明**：
-- **`redis` 和 `redisUrl`**：都是可选的
+- **`redis` 和 `redisUrl`**：分布式失效需要二选一
   - **推荐**：不配置 `redis`，自动从 `cache.remote` 复用 Redis 实例
   - 如需单独配置：使用 `redis` 参数（可复用实例）
   - 不推荐：使用 `redisUrl`（会创建新连接）
@@ -499,7 +481,7 @@ await msq.close();
 
 #### transaction.distributedLock（兼容配置占位）
 
-`transaction.distributedLock` 为 v1 配置兼容保留，但 v2 runtime 不会把它接入事务缓存锁。事务缓存锁仍是进程内语义。跨实例关键临界区请显式使用 `DistributedCacheLockManager` 等业务锁，并配合幂等 / fencing；严格新鲜度读路径请禁用或绕过缓存。
+`transaction.distributedLock` 仅作为兼容配置占位保留，不会接入事务缓存锁。事务缓存锁仍是进程内语义。跨实例关键临界区请显式使用 `DistributedCacheLockManager` 等业务锁，并配合幂等 / fencing；严格新鲜度读路径请禁用或绕过缓存。
 
 ---
 
@@ -914,8 +896,8 @@ const msq = new MonSQLize({
     remote: MonSQLize.createRedisCacheAdapter(redis),
     distributed: {
       enabled: true,              // ✅ 必需：启用
-      instanceId: 'instance-1'    // ❌ 可选：默认自动生成（建议手动设置）
-      // redis                    // ❌ 可选：默认自动从 remote 复用（ES6 简写）
+      redis,
+      instanceId: 'instance-1'    // 可选，建议设置，便于日志与排查
     }
   }
 });
@@ -926,7 +908,7 @@ const msq = new MonSQLize({
 - 但**强烈建议手动设置**，便于调试和日志追踪
 - 每个实例的 `instanceId` 必须不同
 - 建议使用环境变量：`instanceId: process.env.INSTANCE_ID`
-- `redis` 参数可省略，会自动从 `remote` 复用
+- 需要显式设置 `redis` 或 `redisUrl`；runtime 不会从 `cache.remote` 推导 Pub/Sub 配置。
 
 ---
 
@@ -936,9 +918,4 @@ const msq = new MonSQLize({
 - [缓存一致性说明](./cache.md)
 - [事务功能文档](./transaction.md)
 - [Redis 缓存适配器](https://github.com/vextjs/monSQLize/blob/main/src/capabilities/cache/redis-cache-adapter.ts)
-
----
-
-**更新日期**: 2025-11-25  
-**维护者**: monSQLize Team
 

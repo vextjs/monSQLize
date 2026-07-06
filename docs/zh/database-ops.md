@@ -2,17 +2,6 @@
 
 数据库级别的管理操作，包括列出数据库、删除数据库、列出集合等。
 
----
-
-## 目录
-
-- [listDatabases()](#listdatabases) - 列出所有数据库
-- [dropDatabase()](#dropdatabase) - 删除数据库（危险）
-- [listCollections()](#listcollections) - 列出所有集合
-- [runCommand()](#runcommand) - 执行任意命令
-
----
-
 ## listDatabases()
 
 列出 MongoDB 服务器上的所有数据库。
@@ -223,9 +212,4 @@ console.log('Size (MB):', collStats.size);
 - [运维监控](./admin.md) - ping, buildInfo, serverStatus, stats
 - [集合管理](./collection-management.md) - 集合级别操作
 - [集合管理示例](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts)
-
----
-
-**最后更新**: 2025-12-02  
-**版本**: v0.3.0
 

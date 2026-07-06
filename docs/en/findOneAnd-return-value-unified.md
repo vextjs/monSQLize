@@ -1,50 +1,12 @@
-﻿# Unified description of return value of findOneAnd* method
+# findOneAnd* return value behavior
 
-**Documentation version**: currently main / unreleased
-**Last updated**: 2026-06-10
-**Applicable version**: monSQLize v2.0.2+
-
----
-
-## Table of Contents
-
-- [📋 Overview](#overview)
-- [❓ Problem background](#problem-background)
-- [MongoDB Driver version differences](#mongodb-driver-version-differences)
-  - [Driver 4.x return format](#driver-4x-return-format)
-  - [Driver 5.x return format](#driver-5x-return-format)
-  - [Driver 6.x / 7.x default return format](#driver-6x-7x-default-return-format)
-- [Question](#question)
-- [✅ monSQLize solution](#monsqlize-solution)
-- [Default relies on unified user experience](#default-relies-on-unified-user-experience)
-- [🔧 Implementation principle](#implementation-principle)
-- [Driver thin package](#driver-thin-package)
-- [Validation boundaries](#validation-boundaries)
-- [📊Applicable methods](#applicable-methods)
-- [1. findOneAndUpdate ✅](#1-findoneandupdate)
-- [2. findOneAndReplace ✅](#2-findoneandreplace)
-- [3. findOneAndDelete ✅](#3-findoneanddelete)
-- [🎯 User experience comparison](#user-experience-comparison)
-- [❌ Use native Driver (requires manual processing)](#use-native-driver-requires-manual-processing)
-- [✅ Use monSQLize (automatic processing)](#use-monsqlize-automatic-processing)
-- [🧪 Test verification](#test-verification)
-- [Test coverage](#test-coverage)
-- [Run the test](#run-the-test)
-- [💡 Best Practices](#best-practices)
-- [1. Use monSQLize without modifying the code](#1-use-monsqlize-without-modifying-the-code)
-- [2. Avoid overwriting the default Driver in the application](#2-avoid-overwriting-the-default-driver-in-the-application)
-- [3. Handle non-existent situations](#3-handle-non-existent-situations)
-- [🎉 Summary](#summary)
-- [✅ Advantages of monSQLize](#advantages-of-monsqlize)
-- [📚 Related documents](#related-documents)
-
-## 📋 Overview
+## Overview
 
 This document details how monSQLize uniformly handles the return value differences of the `findOneAndUpdate`, `findOneAndReplace`, and `findOneAndDelete` methods in different MongoDB Driver versions.
 
 ---
 
-## ❓ Problem background
+## Problem background
 
 
 ## MongoDB Driver version differences
@@ -72,7 +34,7 @@ console.log(result);
   }
 }
 
-//❌ Need to extract value manually
+//Needs manual value extraction
 const user = result.value;
 ```
 
@@ -91,7 +53,7 @@ console.log(result);
   value: { _id: ..., name: "Alice", age: 31 }  //Return only documents
 }
 
-//❌ Still need to extract value
+//Still needs value extraction
 const user = result.value;
 ```
 
@@ -112,7 +74,7 @@ console.log(result);
   age: 31
 }
 
-//✅ The default is already the document itself
+// The default is already the document itself
 const user = result;
 ```
 
@@ -122,7 +84,7 @@ const user = result;
 If you use the MongoDB Driver directly, the user code needs to handle different return values depending on the version:
 
 ```javascript
-//❌ Users need to manually handle version differences
+//Users need to manually handle driver-version differences
 const result = await collection.findOneAndUpdate(filter, update);
 
 let user;
@@ -137,7 +99,7 @@ if (driverVersion === 4) {
 
 ---
 
-## ✅ monSQLize solution
+## monSQLize solution
 
 
 ## Default relies on unified user experience
@@ -145,24 +107,24 @@ if (driverVersion === 4) {
 monSQLize installs `mongodb@6.21.0` with the package by default, and verifies the Driver 7.2.0 extension matrix. When using the default installation, `findOneAnd*` directly returns the document or `null`, **users do not need to install additionally or select the driver version**.
 
 ```javascript
-//✅ Use default monSQLize installation
+//Use default monSQLize installation
 const user = await collection.findOneAndUpdate(
   { name: 'Alice' },
   { $set: { age: 31 } }
 );
 
-//✅ Return the document itself directly (not result.value)
+//Return the document itself directly (not result.value)
 console.log(user);
 //Output: { _id: ..., name: "Alice", age: 31 }
 
-//✅ No need to judge the version
-//✅ No need to extract value
-//✅ The code is concise and clear
+//No need to check the driver version
+//No need to extract value
+//The code is concise and clear
 ```
 
 ---
 
-## 🔧 Implementation principle
+## Implementation principle
 
 
 ## Driver thin package
@@ -193,15 +155,15 @@ async findOneAndUpdate(filter, update, options = {}) {
 
 ---
 
-## 📊Applicable methods
+## Applicable methods
 
 monSQLize unifies the return values ​​for the following 3 methods:
 
 
-## 1. findOneAndUpdate ✅
+## 1. findOneAndUpdate
 
 ```javascript
-//✅ All versions return to a unified format
+//All supported driver versions return a unified format
 const updatedUser = await collection.findOneAndUpdate(
   { name: 'Alice' },
   { $set: { age: 31 } },
@@ -212,10 +174,10 @@ console.log(updatedUser);  // { _id: ..., name: "Alice", age: 31 }
 ```
 
 
-## 2. findOneAndReplace ✅
+## 2. findOneAndReplace
 
 ```javascript
-//✅ All versions return to a unified format
+//All supported driver versions return a unified format
 const replacedUser = await collection.findOneAndReplace(
   { name: 'Alice' },
   { name: 'Alice', age: 31, status: 'active' },
@@ -226,10 +188,10 @@ console.log(replacedUser);  // { _id: ..., name: "Alice", age: 31, status: "acti
 ```
 
 
-## 3. findOneAndDelete ✅
+## 3. findOneAndDelete
 
 ```javascript
-//✅ All versions return to a unified format
+//All supported driver versions return a unified format
 const deletedUser = await collection.findOneAndDelete({ name: 'Alice' });
 
 console.log(deletedUser);  // { _id: ..., name: "Alice", age: 31 }
@@ -237,27 +199,27 @@ console.log(deletedUser);  // { _id: ..., name: "Alice", age: 31 }
 
 ---
 
-## 🎯 User experience comparison
+## User experience comparison
 
 
-## ❌ Use native Driver (requires manual processing)
+## Use native Driver directly
 
 ```javascript
 const { MongoClient } = require('mongodb');
 const client = await MongoClient.connect('mongodb://localhost:27017');
 const collection = client.db('mydb').collection('users');
 
-//❌ Return complex objects
+//Returns a metadata wrapper object
 const result = await collection.findOneAndUpdate(
   { name: 'Alice' },
   { $set: { age: 31 } },
   { returnDocument: 'after' }
 );
 
-//❌ Need to extract value manually
+//Needs manual value extraction
 const user = result.value;
 
-//❌ Need to determine whether it exists
+//Need to determine whether the document exists
 if (!user) {
   console.log('User does not exist');
   return;
@@ -267,7 +229,7 @@ console.log(user.name);
 ```
 
 
-## ✅ Use monSQLize (automatic processing)
+## Use monSQLize
 
 ```javascript
 import MonSQLize from 'monsqlize';
@@ -275,14 +237,14 @@ const msq = new MonSQLize({ type: 'mongodb', config: { uri: '...' } });
 await msq.connect();
 const collection = msq.collection('users');
 
-//✅ Return directly to the document
+//Return the document directly
 const user = await collection.findOneAndUpdate(
   { name: 'Alice' },
   { $set: { age: 31 } },
   { returnDocument: 'after' }
 );
 
-//✅Use directly
+//Use directly
 if (!user) {
   console.log('User does not exist');
   return;
@@ -293,7 +255,7 @@ console.log(user.name);  //concise and clear
 
 ---
 
-## 🧪 Test verification
+## Test verification
 
 
 ## Test coverage
@@ -302,8 +264,8 @@ monSQLize verifies the default driver baseline and extended drivers against the 
 
 | Driver version | Test status | findOneAndUpdate | findOneAndReplace | findOneAndDelete |
 |------------|---------|-----------------|------------------|-----------------|
-| 6.21.0 | ✅ Default baseline | ✅ docs/null | ✅ docs/null | ✅ docs/null |
-| 7.2.0 | ✅ Extended Validation | ✅ docs/null | ✅ docs/null | ✅ docs/null |
+| 6.21.0 | Default baseline | document/null | document/null | document/null |
+| 7.2.0 | Extended validation | document/null | document/null | document/null |
 | 4.x / 5.x | ℹ️ Historical background | ⚠️ Native metadata form | ⚠️ Native metadata form | ⚠️ Native metadata form |
 
 
@@ -322,13 +284,13 @@ npm ls mongodb
 
 ---
 
-## 💡 Best Practices
+## Best Practices
 
 
 ## 1. Use monSQLize without modifying the code
 
 ```javascript
-//✅ Recommendation: Use monSQLize
+//Recommended: use monSQLize
 const user = await collection.findOneAndUpdate(filter, update);
 //Return the document directly, all versions are consistent
 ```
@@ -337,7 +299,7 @@ const user = await collection.findOneAndUpdate(filter, update);
 ## 2. Avoid overwriting the default Driver in the application
 
 ```javascript
-//✅ Recommendation: Use the default runtime dependency of monSQLize
+//Recommended: use the default runtime dependency of monSQLize
 //Package manager does not require additional declaration of mongodb
 //If you must cover the driver, please run the compatibility matrix first
 ```
@@ -360,10 +322,10 @@ console.log(user.name);
 
 ---
 
-## 🎉 Summary
+## Summary
 
 
-## ✅ Advantages of monSQLize
+## Advantages of monSQLize
 
 1. **Default installation means unified experience**
    - Default Driver baseline returns document or `null`
@@ -387,7 +349,7 @@ console.log(user.name);
 
 ---
 
-## 📚 Related documents
+## Related documents
 
 - 📖[MongoDB Driver Compatibility Guide](./mongodb-driver-compatibility.md)
 - 📖[Compatibility Matrix Configuration](../../test/compatibility/matrix.json)

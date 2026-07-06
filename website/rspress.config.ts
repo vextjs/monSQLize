@@ -44,9 +44,14 @@ type NavSource = NavLinkSource | NavMenuSource;
 
 const navSource: NavSource[] = [
   {
-    en: 'API Reference',
-    zh: 'API 参考',
-    link: '/api-index'
+    en: 'Quick Start',
+    zh: '快速开始',
+    link: '/getting-started'
+  },
+  {
+    en: 'Common Scenarios',
+    zh: '常用场景',
+    link: '/recipes'
   },
   {
     en: 'Examples',
@@ -59,9 +64,9 @@ const navSource: NavSource[] = [
     link: '/model'
   },
   {
-    en: 'Advanced',
-    zh: '高级能力',
-    link: '/capability-index'
+    en: 'API Reference',
+    zh: 'API 参考',
+    link: '/api-index'
   },
   {
     en: 'Versions',
@@ -103,10 +108,10 @@ const englishFooterMessage = `
   <nav class="msq-footer__grid" aria-label="monSQLize footer">
     <div>
       <h2>Docs</h2>
-      <a href="api-index.html">API Reference</a>
+      <a href="getting-started.html">Quick Start</a>
+      <a href="recipes.html">Common Scenarios</a>
       <a href="examples.html">Examples</a>
-      <a href="model.html">Model</a>
-      <a href="capability-index.html">Advanced</a>
+      <a href="api-index.html">API Reference</a>
     </div>
     <div>
       <h2>Ecosystem</h2>
@@ -144,10 +149,10 @@ const chineseFooterMessage = `
   <nav class="msq-footer__grid" aria-label="monSQLize 页脚">
     <div>
       <h2>文档</h2>
-      <a href="api-index.html">API 参考</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="recipes.html">常用场景</a>
       <a href="examples.html">示例</a>
-      <a href="model.html">Model</a>
-      <a href="capability-index.html">高级能力</a>
+      <a href="api-index.html">API 参考</a>
     </div>
     <div>
       <h2>生态</h2>
@@ -176,106 +181,101 @@ const chineseFooterMessage = `
 const sidebarSource: SidebarGroupSource[] = [
   {
     en: 'Getting Started',
-    zh: '快速入门',
+    zh: '快速开始',
     items: [
       { en: 'Home', zh: '首页', link: '/' },
-      { en: 'Getting Started', zh: '快速开始', link: '/getting-started' },
-      { en: 'Examples', zh: '示例总览', link: '/examples' },
-      { en: 'Recipes', zh: '常见配方', link: '/recipes' },
-      { en: 'Connection Management', zh: '连接管理', link: '/connection' },
+      { en: 'Quick Start', zh: '快速开始', link: '/getting-started' },
+      { en: 'Examples', zh: '示例', link: '/examples' },
       { en: 'ESM Support', zh: 'ESM 支持', link: '/esm-support' },
       { en: 'Documentation Index', zh: '文档索引', link: '/api-index' }
     ]
   },
   {
-    en: 'Query Operations',
-    zh: '查询操作',
+    en: 'Common Scenarios',
+    zh: '常用场景',
     items: [
-      { en: 'find()', zh: 'find()', link: '/find' },
-      { en: 'findOne()', zh: 'findOne()', link: '/findOne' },
-      { en: 'findPage()', zh: 'findPage()', link: '/findPage' },
-      { en: 'findAndCount()', zh: 'findAndCount()', link: '/find-and-count' },
-      { en: 'count()', zh: 'count()', link: '/count' },
-      { en: 'distinct()', zh: 'distinct()', link: '/distinct' },
-      { en: 'aggregate()', zh: 'aggregate()', link: '/aggregate' },
-      { en: 'explain()', zh: 'explain()', link: '/explain' },
-      { en: 'watch()', zh: 'watch()', link: '/watch' }
-    ]
-  },
-  {
-    en: 'ObjectId and ID Queries',
-    zh: 'ObjectId 与 ID 查询',
-    items: [
-      { en: 'ObjectId Auto Conversion', zh: 'ObjectId 自动转换', link: '/objectid-auto-convert' },
-      { en: 'findOneById()', zh: 'findOneById()', link: '/find-one-by-id' },
-      { en: 'findByIds()', zh: 'findByIds()', link: '/find-by-ids' },
-      { en: 'ObjectId Conversion Scope', zh: 'ObjectId 转换范围', link: '/objectid-conversion-scope' },
-      { en: 'ObjectId Cross-Version', zh: 'ObjectId 跨版本', link: '/objectid-cross-version' },
-      { en: 'ObjectId Cross-Version FAQ', zh: 'ObjectId 跨版本 FAQ', link: '/objectid-cross-version-faq' },
-      { en: 'ObjectId Logging Optimization', zh: 'ObjectId 日志优化', link: '/objectid-logging-optimization' }
-    ]
-  },
-  {
-    en: 'Chain Queries',
-    zh: '链式查询',
-    items: [
-      { en: 'Chain API Overview', zh: '链式 API 概览', link: '/chaining-api' },
-      { en: 'Chain Method Reference', zh: '链式方法参考', link: '/chaining-methods' }
-    ]
-  },
-  {
-    en: 'Write Operations',
-    zh: '写入操作',
-    items: [
-      { en: 'Write Operations Overview', zh: '写入操作概览', link: '/write-operations' },
-      { en: 'insertOne()', zh: 'insertOne()', link: '/insert-one' },
-      { en: 'insertMany()', zh: 'insertMany()', link: '/insert-many' },
-      { en: 'insertBatch()', zh: 'insertBatch()', link: '/insertBatch' },
-      { en: 'updateOne()', zh: 'updateOne()', link: '/update-one' },
-      { en: 'updateMany()', zh: 'updateMany()', link: '/update-many' },
-      { en: 'updateBatch()', zh: 'updateBatch()', link: '/updateBatch' },
-      { en: 'Update Operations Reference', zh: '更新操作参考', link: '/update-operations' },
-      { en: 'Aggregation Pipeline Updates', zh: '聚合管道更新', link: '/update-aggregation' },
-      { en: 'deleteOne()', zh: 'deleteOne()', link: '/delete-one' },
-      { en: 'deleteMany()', zh: 'deleteMany()', link: '/delete-many' },
-      { en: 'deleteBatch()', zh: 'deleteBatch()', link: '/deleteBatch' },
-      { en: 'replaceOne()', zh: 'replaceOne()', link: '/replace-one' },
-      { en: 'findOneAndUpdate()', zh: 'findOneAndUpdate()', link: '/find-one-and-update' },
-      { en: 'findOneAndReplace()', zh: 'findOneAndReplace()', link: '/find-one-and-replace' },
-      { en: 'findOneAndDelete()', zh: 'findOneAndDelete()', link: '/find-one-and-delete' },
-      { en: 'upsertOne()', zh: 'upsertOne()', link: '/upsert-one' },
+      { en: 'Common Scenarios', zh: '常用场景', link: '/recipes' },
       { en: 'Quick Upsert Guide', zh: '快速 Upsert 指南', link: '/upsert-guide' },
-      { en: 'Quick Upsert', zh: '快捷 Upsert', link: '/quick-upsert' },
-      { en: 'incrementOne()', zh: 'incrementOne()', link: '/increment-one' }
+      { en: 'Quick Upsert API', zh: '快捷 Upsert API', link: '/quick-upsert' },
+      { en: 'Failure Recovery Examples', zh: '失败恢复示例', link: '/failure-recovery-examples' }
     ]
   },
   {
-    en: 'Expression System',
-    zh: '表达式系统',
+    en: 'Connection and Instances',
+    zh: '连接与实例',
     items: [
+      { en: 'Connection Management', zh: '连接管理', link: '/connection' },
+      { en: 'Collection Management', zh: '集合管理', link: '/collection-management' },
+      { en: 'Database Operations', zh: '数据库操作', link: '/database-ops' },
+      { en: 'readPreference', zh: 'readPreference', link: '/readPreference' }
+    ]
+  },
+  {
+    en: 'Query and Write',
+    zh: '查询与写入',
+    items: [
+      {
+        en: 'Query Methods',
+        zh: '查询方法',
+        items: [
+          { en: 'find()', zh: 'find()', link: '/find' },
+          { en: 'findOne()', zh: 'findOne()', link: '/findOne' },
+          { en: 'findPage()', zh: 'findPage()', link: '/findPage' },
+          { en: 'findAndCount()', zh: 'findAndCount()', link: '/find-and-count' },
+          { en: 'count()', zh: 'count()', link: '/count' },
+          { en: 'distinct()', zh: 'distinct()', link: '/distinct' },
+          { en: 'aggregate()', zh: 'aggregate()', link: '/aggregate' },
+          { en: 'explain()', zh: 'explain()', link: '/explain' },
+          { en: 'watch()', zh: 'watch()', link: '/watch' }
+        ]
+      },
+      {
+        en: 'ObjectId',
+        zh: 'ObjectId',
+        items: [
+          { en: 'ObjectId Auto Conversion', zh: 'ObjectId 自动转换', link: '/objectid-auto-convert' },
+          { en: 'ObjectId Conversion Scope', zh: 'ObjectId 转换范围', link: '/objectid-conversion-scope' }
+        ]
+      },
+      {
+        en: 'Chain Query API',
+        zh: '链式查询 API',
+        items: [
+          { en: 'Chain API Overview', zh: '链式 API 概览', link: '/chaining-api' },
+          { en: 'Chain Method Reference', zh: '链式方法参考', link: '/chaining-methods' }
+        ]
+      },
+      {
+        en: 'Write Methods',
+        zh: '写入方法',
+        items: [
+          { en: 'Write Operations Overview', zh: '写入操作概览', link: '/write-operations' },
+          { en: 'insertOne()', zh: 'insertOne()', link: '/insert-one' },
+          { en: 'insertMany()', zh: 'insertMany()', link: '/insert-many' },
+          { en: 'insertBatch()', zh: 'insertBatch()', link: '/insertBatch' },
+          { en: 'updateOne()', zh: 'updateOne()', link: '/update-one' },
+          { en: 'updateMany()', zh: 'updateMany()', link: '/update-many' },
+          { en: 'updateBatch()', zh: 'updateBatch()', link: '/updateBatch' },
+          { en: 'Update Operations Reference', zh: '更新操作参考', link: '/update-operations' },
+          { en: 'Aggregation Pipeline Updates', zh: '聚合管道更新', link: '/update-aggregation' },
+          { en: 'deleteOne()', zh: 'deleteOne()', link: '/delete-one' },
+          { en: 'deleteMany()', zh: 'deleteMany()', link: '/delete-many' },
+          { en: 'deleteBatch()', zh: 'deleteBatch()', link: '/deleteBatch' },
+          { en: 'replaceOne()', zh: 'replaceOne()', link: '/replace-one' },
+          { en: 'findOneAndUpdate()', zh: 'findOneAndUpdate()', link: '/find-one-and-update' },
+          { en: 'findOneAndReplace()', zh: 'findOneAndReplace()', link: '/find-one-and-replace' },
+          { en: 'findOneAndDelete()', zh: 'findOneAndDelete()', link: '/find-one-and-delete' },
+          { en: 'upsertOne()', zh: 'upsertOne()', link: '/upsert-one' },
+          { en: 'incrementOne()', zh: 'incrementOne()', link: '/increment-one' }
+        ]
+      },
+      { en: 'Write Path Policy', zh: '写路径策略', link: '/write-path-policy' },
       { en: 'Expression Function Reference', zh: '表达式函数参考', link: '/expression-functions' }
     ]
   },
   {
-    en: 'Transactions',
-    zh: '事务',
-    items: [
-      { en: 'Transaction Management', zh: '事务管理', link: '/transaction' },
-      { en: 'Transaction Optimizations', zh: '事务优化', link: '/transaction-optimizations' }
-    ]
-  },
-  {
-    en: 'Cache System',
-    zh: '缓存系统',
-    items: [
-      { en: 'Cache API Overview', zh: '缓存 API 概览', link: '/cache-and-function-cache' },
-      { en: 'Cache API', zh: 'Cache API', link: '/cache' },
-      { en: 'FunctionCache', zh: 'FunctionCache', link: '/function-cache' }
-    ]
-  },
-  {
-    en: 'Model Layer',
-    zh: 'Model 层',
+    en: 'Model and Schema',
+    zh: 'Model 与 Schema',
     items: [
       { en: 'Model Overview', zh: 'Model 概览', link: '/model' },
       { en: 'Populate API', zh: 'Populate API', link: '/populate' },
@@ -287,59 +287,71 @@ const sidebarSource: SidebarGroupSource[] = [
     ]
   },
   {
-    en: 'Connection Pools',
-    zh: '连接池',
+    en: 'Cache',
+    zh: '缓存',
     items: [
-      { en: 'Multi-Pool Management', zh: '多连接池管理', link: '/multi-pool' },
-      { en: 'Health Checks', zh: '健康检查', link: '/multi-pool-health-check' },
-      { en: 'Pool Chain API', zh: '链式池访问 API', link: '/pool-chain-api' },
-      { en: 'readPreference', zh: 'readPreference', link: '/readPreference' }
+      { en: 'Cache API', zh: '缓存 API', link: '/cache' }
     ]
   },
   {
-    en: 'Index Management',
-    zh: '索引管理',
+    en: 'Transactions',
+    zh: '事务',
     items: [
+      { en: 'Transaction Management', zh: '事务管理', link: '/transaction' },
+      { en: 'Transaction Optimizations', zh: '事务优化', link: '/transaction-optimizations' }
+    ]
+  },
+  {
+    en: 'Pools and Deployment',
+    zh: '连接池与部署',
+    items: [
+      { en: 'Pool Configuration', zh: '连接池配置', link: '/multi-pool' },
+      { en: 'Health Checks', zh: '健康检查', link: '/multi-pool-health-check' },
+      { en: 'Pool Chain API', zh: '链式池访问 API', link: '/pool-chain-api' },
+      { en: 'SSH Tunnel', zh: 'SSH 隧道', link: '/ssh-tunnel' },
+      { en: 'Distributed Deployment Guide', zh: '分布式部署指南', link: '/distributed-deployment' },
+      { en: 'Distributed Deployment Quick Reference', zh: '分布式部署快速参考', link: '/distributed-deployment-quickref' }
+    ]
+  },
+  {
+    en: 'Sync and Observability',
+    zh: '同步与可观测',
+    items: [
+      { en: 'Change Stream Sync', zh: 'Change Stream 同步', link: '/sync-backup' },
+      { en: 'Slow Query Logging', zh: '慢查询日志', link: '/slow-query-log' },
+      { en: 'Event System', zh: '事件系统', link: '/events' },
+      { en: 'Count Queue', zh: '数量队列', link: '/count-queue' },
+      { en: 'Bookmark Pagination', zh: '书签分页', link: '/bookmarks' }
+    ]
+  },
+  {
+    en: 'API Reference',
+    zh: 'API 参考',
+    items: [
+      { en: 'API Index', zh: 'API 索引', link: '/api-index' },
+      { en: 'Capability Map', zh: '能力总览', link: '/capability-index' },
       { en: 'Create Index', zh: '创建索引', link: '/create-index' },
       { en: 'Create Indexes in Bulk', zh: '批量创建索引', link: '/create-indexes' },
       { en: 'Drop Index', zh: '删除索引', link: '/drop-index' },
-      { en: 'List Indexes', zh: '列出索引', link: '/list-indexes' }
-    ]
-  },
-  {
-    en: 'Advanced Capabilities',
-    zh: '高级能力',
-    items: [
-      { en: 'Capability Index', zh: '能力索引', link: '/capability-index' },
-      { en: 'Slow Query Logging', zh: '慢查询日志', link: '/slow-query-log' },
-      { en: 'Bookmark Pagination', zh: '书签分页', link: '/bookmarks' },
-      { en: 'Count Queue', zh: '数量队列', link: '/count-queue' },
-      { en: 'Event System', zh: '事件系统', link: '/events' },
+      { en: 'List Indexes', zh: '列出索引', link: '/list-indexes' },
       { en: 'Database Administration', zh: '数据库管理', link: '/admin' },
-      { en: 'Collection Management', zh: '集合管理', link: '/collection-management' },
-      { en: 'Change Stream Sync', zh: 'Change Stream 同步', link: '/sync-backup' },
-      { en: 'SSH Tunnel', zh: 'SSH 隧道', link: '/ssh-tunnel' },
-      { en: 'Database Operations', zh: '数据库操作', link: '/database-ops' }
-    ]
-  },
-  {
-    en: 'Distributed Deployment',
-    zh: '分布式部署',
-    items: [
-      { en: 'Distributed Deployment Guide', zh: '分布式部署指南', link: '/distributed-deployment' },
-      { en: 'Quick Reference', zh: '快速参考', link: '/distributed-deployment-quickref' }
-    ]
-  },
-  {
-    en: 'Reference',
-    zh: '参考',
-    items: [
       { en: 'Error Code Reference', zh: '错误码参考', link: '/error-codes' },
       { en: 'Data Validation', zh: '数据验证', link: '/validation' },
       { en: 'Utilities', zh: '工具方法', link: '/utilities' },
+      { en: 'findOneAnd Return Value Unification', zh: 'findOneAnd 返回值统一', link: '/findOneAnd-return-value-unified' }
+    ]
+  },
+  {
+    en: 'Compatibility and Legacy',
+    zh: '兼容与历史',
+    items: [
       { en: 'MongoDB Driver Compatibility', zh: 'MongoDB Driver 兼容性', link: '/mongodb-driver-compatibility' },
       { en: 'MongoDB Native vs Extensions', zh: 'MongoDB 原生 vs 扩展', link: '/mongodb-native-vs-extensions' },
-      { en: 'findOneAnd Return Value Unification', zh: 'findOneAnd 返回值统一', link: '/findOneAnd-return-value-unified' }
+      { en: 'ObjectId Cross-Version', zh: 'ObjectId 跨版本', link: '/objectid-cross-version' },
+      { en: 'ObjectId Cross-Version FAQ', zh: 'ObjectId 跨版本 FAQ', link: '/objectid-cross-version-faq' },
+      { en: 'ObjectId Logging Optimization', zh: 'ObjectId 日志优化', link: '/objectid-logging-optimization' },
+      { en: 'Support Matrix', zh: '支持矩阵', link: '/support-matrix' },
+      { en: 'Cache Hub Migration', zh: 'Cache Hub 迁移', link: '/cache-hub-migration' }
     ]
   }
 ];
@@ -550,9 +562,6 @@ export default defineConfig({
         nav: englishNav,
         sidebar: {
           '/': englishSidebar
-        },
-        footer: {
-          message: englishFooterMessage
         }
       },
       {
@@ -563,9 +572,6 @@ export default defineConfig({
         nav: chineseNav,
         sidebar: {
           '/zh/': chineseSidebar
-        },
-        footer: {
-          message: chineseFooterMessage
         }
       }
     ],

@@ -1,53 +1,22 @@
-# findOneById method detailed documentation
-
-## 📑 Table of Contents
-
-- [Overview](#overview)
-- [Why do you need findOneById?](#why-do-you-need-findonebyid)
-- [Method signature](#method-signature)
-- [Usage example](#usage-example)
-- [Real scene example](#real-scene-example)
-- [Error handling](#error-handling)
-- [Performance Notes](#performance-notes)
-- [Compare with other methods](#compare-with-other-methods)
-- [Best Practices](#best-practices)
-- [FAQ](#faq)
-- [Related documents](#related-documents)
-
----
+# findOneById Reference
 
 ## Overview
 
-`findOneById` is a convenience method provided by monSQLize for quickly querying a single document via `_id`. It automatically handles string to ObjectId conversion, simplifying the most common query scenarios.
+`findOneById(id, options)` is an optional helper for looking up one document by `_id`. It validates and normalizes the id value, then runs the equivalent `_id` lookup through the same query helper path used by the MongoDB adapter.
 
-## Why do you need findOneById?
-
-### Problem: Too much boilerplate code
+You do not need this helper for ordinary `_id` queries. The standard query APIs also support ObjectId auto conversion, so the following form remains the main path:
 
 ```javascript
-// ❌ Traditional method: ObjectId conversion needs to be handled manually
-const { ObjectId } = require('mongodb');
 const userId = '507f1f77bcf86cd799439011';  // from request parameters
-const user = await collection('users').findOne({ 
-  _id: new ObjectId(userId)  // Manual conversion
-});
+const user = await collection('users').findOne({ _id: userId });
 ```
 
-### Solution: findOneById
+Use `findOneById()` when your codebase prefers a dedicated `_id` helper or when you want a compact reference API for id-only lookups:
 
 ```javascript
-// ✅ Use findOneById: automatic conversion, concise and clear
 const userId = '507f1f77bcf86cd799439011';
-const user = await collection('users').findOneById(userId);  // Automatic conversion ✨
+const user = await collection('users').findOneById(userId);
 ```
-
-**income**:
-- ✅ Reduce boilerplate code by 80%
-- ✅ Automatic type conversion (String → ObjectId)
-- ✅ Clearer semantics (explicitly query by ID)
-- ✅ Complete parameter validation and error handling
-
----
 
 ## Method signature
 
@@ -59,7 +28,7 @@ async findOneById(id, options = {})
 
 | Parameters | Type | Required | Description |
 |------|------|------|------|
-| `id` | String \| ObjectId | is | the `_id` of the document, the string will be automatically converted to ObjectId |
+| `id` | String \| ObjectId | Yes | Document `_id`; ObjectId-shaped strings are normalized |
 | `options` | Object | No | Query option, same as `findOne` option |
 
 ### options object properties
@@ -157,8 +126,8 @@ const user = await collection('users').findOneById(userId, {
   cache: 5000
 });
 
-// Time 1: Query the database (10-50ms)
-// Time 2: Return from cache (0.001ms) ⚡
+// First read queries the database.
+// Repeated reads can be served from cache while the cache entry is valid.
 ```
 
 #### 3.2 Combination of caching and projection
@@ -300,7 +269,7 @@ async function updateUser(userId, updates) {
     { _id: new ObjectId(userId) },
     { $set: updates }
   );
-  // ✅ Cache automatically expires
+  // Cache automatically expires.
 
   // 2. Query the latest data (obtained from the database)
   const user = await collection('users').findOneById(userId, {
@@ -390,55 +359,33 @@ async function getUserById(userId) {
 
 ---
 
-## Performance Notes
+## Usage guidance
 
-### Performance comparison
-
-| Method | Query time (no cache) | Query time (cache hit) | Code complexity |
-|------|------------------|---------------------|-----------|
-| `findOne({ _id })` | 10-50ms | Not supported | ⭐⭐⭐ |
-| `findOneById` | 10-50ms | 0.001ms | ⭐ |
-
-**in conclusion**:
-- Comparable performance without cache
-- `findOneById` is faster with cache (supports caching)
-- Code simplicity `findOneById` wins
-
-### Performance optimization suggestions
-
-#### 1. Proper use of cache
+### Cache only data that can tolerate staleness
 
 ```javascript
-// ✅ Recommendation: Cache basic user information for 10 seconds
 const user = await collection('users').findOneById(userId, {
   projection: ['name', 'email', 'avatar'],
   cache: 10000
 });
 
-// ❌ Not recommended: Do not cache data with high real-time requirements
 const balance = await collection('accounts').findOneById(accountId, {
   projection: ['balance'],
   cache: 0  // Don't cache balances
 });
 ```
 
-#### 2. Use field projection
+### Use field projection for compact responses
 
 ```javascript
-// ✅ Recommendation: Only query the required fields
 const user = await collection('users').findOneById(userId, {
-  projection: ['name', 'email']  // Only 2 fields are returned
+  projection: ['name', 'email']
 });
-
-// ❌ Not recommended: return all fields (including large fields)
-const user = await collection('users').findOneById(userId);
-// May include avatar (large picture), history (large array), etc.
 ```
 
-#### 3. Set a reasonable timeout
+### Set a timeout for latency-sensitive paths
 
 ```javascript
-// ✅ Recommended: Set timeout to prevent slow queries
 const user = await collection('users').findOneById(userId, {
   maxTimeMS: 3000  // 3 seconds timeout
 });
@@ -450,79 +397,53 @@ const user = await collection('users').findOneById(userId, {
 
 ### vs findOne
 
-| dimensions | findOne | findOneById |
+| Dimension | `findOne({ _id })` | `findOneById(id)` |
 |------|---------|-------------|
-| **Query method** | `findOne({ _id: ... })` | `findOneById(id)` |
-| **Automatic conversion** | ❌ Manual conversion required | ✅ Automatic conversion |
-| **Code length** | 3 lines | 1 line |
-| **Semantic clarity** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Flexibility** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-
-**Usage Suggestions**:
-- Query via `_id` → Use `findOneById` ✅
-- Complex query conditions → Use `findOne` ✅
+| ObjectId auto conversion | Supported | Supported |
+| Query shape | Any filter shape | `_id` only |
+| Chain API | Use the normal query APIs | Not chainable; pass options directly |
+| Best fit | Main query path | Optional id-only helper/reference |
 
 ### Code comparison
 
 ```javascript
-// ❌ Using findOne (traditional way)
-const { ObjectId } = require('mongodb');
 const userId = req.params.id;
 
 const user = await collection('users').findOne(
-  { _id: new ObjectId(userId) },  // Manual conversion
+  { _id: userId },
   { projection: { password: 0 } }
 );
 
-// ✅ Use findOneById (recommended method)
 const userId = req.params.id;
 
 const user = await collection('users').findOneById(userId, {
   projection: { password: 0 }
 });
-
-// The code is reduced by 30% and the semantics are clearer
 ```
 
 ---
 
 ## Best Practices
 
-### 1. Use findOneById uniformly
+### 1. Exclude sensitive fields
 
 ```javascript
-// ✅ Recommendation: uniformly use findOneById for ID query
-const user = await collection('users').findOneById(userId);
-const order = await collection('orders').findOneById(orderId);
-const product = await collection('products').findOneById(productId);
-
-// ❌ Not recommended: mix the two methods
-const user = await collection('users').findOne({ _id: new ObjectId(userId) });
-const order = await collection('orders').findOneById(orderId);
-```
-
-### 2. Exclude sensitive fields
-
-```javascript
-// ✅ Recommended: Always exclude sensitive fields
 const user = await collection('users').findOneById(userId, {
   projection: { password: 0, salt: 0, token: 0 }
 });
 ```
 
-### 3. Add query comments (production environment)
+### 2. Add query comments on paths you need to trace
 
 ```javascript
-// ✅ Recommendation: Add comments for production environment
 const user = await collection('users').findOneById(userId, {
   comment: `${req.service}:getUser:${req.traceId}`
 });
 ```
 
-### 4. Set up cache appropriately
+### 3. Set cache according to data freshness
 
 ```javascript
-// ✅ Recommendation: Set cache according to data characteristics
 const user = await collection('users').findOneById(userId, {
   projection: ['name', 'avatar'],
   cache: 10000  // Basic information cache for 10 seconds
@@ -540,21 +461,15 @@ const balance = await collection('accounts').findOneById(accountId, {
 
 ### Q1: What is the difference between findOneById and findOne({ _id })?
 
-**A**: Functionally the same, but `findOneById` is more concise:
-
-1. **Automatic type conversion**: Automatically convert string to ObjectId
-2. **Clearer semantics**: Explicitly express query by ID
-3. **Less boilerplate code**: 30% reduction in code size
+**A**: For `_id` lookups they are functionally equivalent in the current MongoDB adapter. Both use ObjectId auto conversion. `findOneById` is kept as a compact id-only helper, while `findOne({ _id })` remains the main query path and supports normal filter composition.
 
 ### Q2: Can other fields be queried?
 
 **A**: No, `findOneById` is specifically used for queries via `_id`. If you need to query other fields, use `findOne`.
 
 ```javascript
-// ❌ Error: findOneById can only query _id
 // There is no such method as findOneByUserId
 
-// ✅ Correct: Use findOne to query other fields
 const user = await collection('users').findOne({ userId: 'USER-001' });
 ```
 
@@ -563,12 +478,10 @@ const user = await collection('users').findOne({ userId: 'USER-001' });
 **A**: Not supported. `findOneById` returns Promise directly and does not support chain calls. If chained calls are required, use `findOne`.
 
 ```javascript
-// ❌ Not supported
 const user = await collection('users')
   .findOneById(userId)
   .project({ name: 1 });  // mistake!
 
-// ✅ Use options object
 const user = await collection('users').findOneById(userId, {
   projection: { name: 1 }
 });
@@ -591,7 +504,7 @@ if (!user) {
 
 ### Q5: How is the performance?
 
-**A**: Comparable performance to `findOne({ _id })`, both use `_id` index, very fast (usually <10ms). If caching is enabled, the second query takes only 0.001ms.
+**A**: It uses the same `_id` lookup shape as `findOne({ _id })`. Actual latency depends on deployment, network, driver options, cache configuration, and document size. Use MongoDB profiling or your APM tooling for real numbers.
 
 ---
 
@@ -601,7 +514,3 @@ if (!user) {
 - [find method document](./find.md)
 - [Cache System Documentation](./cache.md)
 - [Field Projection Document](./find.md#projection-configuration)
-
----
-
-**Last updated**: 2025-11-18

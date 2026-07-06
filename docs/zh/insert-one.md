@@ -1,23 +1,5 @@
 # insertOne() - 插入单个文档
 
-## 📑 目录
-
-- [语法](#语法)
-- [参数](#参数)
-- [返回值](#返回值)
-- [核心特性](#核心特性)
-- [常见场景](#常见场景)
-- [错误处理](#错误处理)
-- [与其他方法的区别](#与其他方法的区别)
-- [性能优化建议](#性能优化建议)
-- [最佳实践](#最佳实践)
-- [注意事项](#注意事项)
-- [实用工具函数](#实用工具函数)
-- [相关方法](#相关方法)
-- [示例代码](#示例代码)
-- [MongoDB 文档](#mongodb-文档)
-
----
 
 `insertOne()` 方法向集合中插入单个文档。
 
@@ -117,8 +99,8 @@ const monsqlize = new MonSQLize({
 });
 
 // 慢插入操作会被记录
-await collection("large_docs").insertOne({ 
-  data: { /* 大量数据 */ } 
+await collection("large_docs").insertOne({
+  data: { /* 大量数据 */ }
 });
 // 日志: [WARN] [insertOne] 慢操作警告 { duration: 650ms, ... }
 ```
@@ -222,7 +204,7 @@ try {
     _id: "user123",
     name: "Alice"
   });
-  
+
   // 再次插入相同的 _id 会失败
   await collection("users").insertOne({
     _id: "user123",  // 重复的 _id
@@ -256,7 +238,7 @@ try {
     name: "Alice",
     email: "alice@example.com"
   });
-  
+
   // 插入相同 email 会失败
   await collection("users").insertOne({
     name: "Bob",
@@ -377,15 +359,15 @@ const result = await collection("items").insertMany(items);
 await collection("users").insertOne({ name: "Alice" });
 
 // 字符串 - 如果有业务 ID，可以使用
-await collection("products").insertOne({ 
+await collection("products").insertOne({
   _id: "SKU-12345",  // 业务 ID
-  name: "Laptop" 
+  name: "Laptop"
 });
 
 // 数字 - 如果有序列号
-await collection("orders").insertOne({ 
+await collection("orders").insertOne({
   _id: 100001,  // 订单号
-  customerId: "cust123" 
+  customerId: "cust123"
 });
 ```
 
@@ -451,7 +433,7 @@ try {
       { userId: "user123", name: "Alice" },
       { session }
     );
-    
+
     // 插入用户配置
     await collection("user_settings").insertOne(
       { userId: "user123", theme: "dark" },
@@ -520,7 +502,7 @@ await collection("users").insertOne({ name: "Alice" });
  */
 async function safeInsertOne(collectionName, document, options = {}) {
   const { maxRetries = 3, retryDelay = 100 } = options;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const result = await collection(collectionName).insertOne(document);
@@ -530,7 +512,7 @@ async function safeInsertOne(collectionName, document, options = {}) {
         // 重复键不重试
         return { success: false, error: "文档已存在", code: error.code };
       }
-      
+
       if (attempt < maxRetries) {
         console.warn(`插入失败 (尝试 ${attempt}/${maxRetries})，${retryDelay}ms 后重试...`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
@@ -565,4 +547,3 @@ if (result.success) {
 ## MongoDB 文档
 
 - [MongoDB insertOne 文档](https://www.mongodb.com/docs/manual/reference/method/db.collection.insertOne/)
-

@@ -1,24 +1,12 @@
-# 🚀 分布式部署快速参考
+# 分布式部署快速参考
 
----
-
-## 📑 目录
-
-- [最简配置](#最简配置只需3行)
-- [完整配置](#完整配置推荐)
-- [参数速查表](#参数速查表)
-- [常见场景](#常见场景)
-- [环境变量设置](#环境变量设置)
-- [关键点记忆](#关键点记忆)
-- [验证配置](#验证配置)
-
----
-
-## 最简配置（只需3行）
+## 最小配置
 
 ```javascript
 distributed: {
-  enabled: true  // 只需这一行！其他都是可选的
+  enabled: true,
+  redisUrl: process.env.REDIS_URL,
+  instanceId: process.env.INSTANCE_ID
 }
 ```
 
@@ -40,7 +28,8 @@ const msq = new MonSQLize({
     remote: MonSQLize.createRedisCacheAdapter(redis),  // ① Redis 缓存
     distributed: {
       enabled: true,                              // ② 启用分布式失效
-      instanceId: process.env.INSTANCE_ID         // ③ 实例ID（建议设置）
+      redis,                                      // ③ Pub/Sub 连接
+      instanceId: process.env.INSTANCE_ID         // ④ 实例ID（建议设置）
     }
   }
 });
@@ -54,14 +43,15 @@ const msq = new MonSQLize({
 
 | 参数 | 必需？ | 默认值 |
 |-----|-------|--------|
-| `enabled` | ✅ 是 | - |
-| `redis` | ❌ 否 | 自动从 `remote` 提取 |
+| `enabled` | 否 | 配置块存在时默认为启用 |
+| `redis` | `redis` / `redisUrl` 二选一 | 不会从 `remote` 推导 |
+| `redisUrl` | `redis` / `redisUrl` 二选一 | - |
 | `instanceId` | ❌ 否 | `instance-${timestamp}-${random}` |
 | `channel` | ❌ 否 | `'monsqlize:cache:invalidate'` |
 
 ### transaction.distributedLock（兼容配置占位）
 
-`transaction.distributedLock` 为 v1 配置兼容保留。v2 runtime 不会把它接入事务缓存锁，事务缓存锁仍是进程内语义。
+`transaction.distributedLock` 仅作为兼容配置占位保留，不会接入事务缓存锁；事务缓存锁仍是进程内语义。
 
 跨实例临界区请使用显式业务协调，例如 `DistributedCacheLockManager` + 幂等 / fencing；严格新鲜度读路径请绕过缓存。
 
@@ -74,6 +64,7 @@ const msq = new MonSQLize({
 ```javascript
 distributed: {
   enabled: true,
+  redisUrl: process.env.REDIS_URL,
   instanceId: process.env.INSTANCE_ID  // 使用环境变量
 }
 ```
@@ -87,6 +78,7 @@ const msq = new MonSQLize({
   cache: {
     distributed: {
       enabled: true,
+      redisUrl: process.env.REDIS_URL,
       instanceId: process.env.INSTANCE_ID
     }
   }
@@ -108,6 +100,7 @@ await lock.withLock(`payment:${paymentId}`, async () => {
 ```javascript
 distributed: {
   enabled: true,
+  redisUrl: process.env.REDIS_URL,
   instanceId: process.env.HOSTNAME  // 使用Pod名称
 }
 ```
@@ -150,8 +143,8 @@ env:
 
 ## 关键点记忆
 
-1. **`enabled: true`** - 唯一必需的配置
-2. **`redis`** - 自动从 `remote` 复用，无需重复配置
+1. **`redis` 或 `redisUrl`** - 分布式失效必需；runtime 不会读取 `cache.remote` 自动推导
+2. **`enabled`** - 配置块存在时默认启用；可设为 `false` 临时关闭
 3. **`instanceId`** - 可选但建议设置，便于调试
 4. **跨实例强一致流程** - 使用显式业务协调，或绕过缓存
 

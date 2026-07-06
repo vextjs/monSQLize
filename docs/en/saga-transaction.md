@@ -1,43 +1,8 @@
 # Saga distributed transactions
 
-> **Deprecated compatibility page**: monSQLize keeps Saga APIs for existing callers, but Saga orchestration is no longer a recommended monSQLize capability. Prefer application/framework-level workflow orchestration, such as the VextJS runtime layer, for new business flows. This page is intentionally hidden from the main documentation navigation.
+> **Deprecated compatibility page**: monSQLize keeps Saga APIs for existing callers, but Saga orchestration is no longer a recommended monSQLize capability. Prefer application/framework-level workflow orchestration, such as the VextJS runtime layer, for new business flows.
 
-monSQLize v1.1.0 introduced a Saga API that is now kept for legacy compatibility. For new workflows, put orchestration, durability, recovery, and reconciliation in the application/framework layer.
-
-## Table of Contents
-
-- [What is Saga](#what-is-saga)
-- [Core Features](#core-features)
-- [Usage scenarios](#usage-scenarios)
-- [Applicable scenarios](#applicable-scenarios)
-- [Not applicable scenarios](#not-applicable-scenarios)
-- [Quick start](#quick-start)
-- [Installation](#installation)
-- [Basic usage](#basic-usage)
-- [API Documentation](#api-documentation)
-- [defineSaga(config)](#definesagaconfig)
-- [executeSaga(name, data)](#executesaganame-data)
-- [listSagas()](#listsagas)
-- [getSagaStats()](#getsagastats)
-- [SagaContext API](#sagacontext-api)
-- [ctx.data](#ctxdata)
-- [ctx.set(key, value)](#ctxsetkey-value)
-- [ctx.get(key)](#ctxgetkey)
-- [ctx.executionId](#ctxexecutionid)
-- [Best Practices](#best-practices)
-- [1. Clearly define compensation operations](#1-clearly-define-compensation-operations)
-- [2. Save key information to context](#2-save-key-information-to-context)
-- [3. Idempotent design](#3-idempotent-design)
-- [4. Error handling](#4-error-handling)
-- [5. Single process mode vs Redis mode](#5-single-process-mode-vs-redis-mode)
-- [FAQ](#faq)
-- [Q1: What is the difference between Saga and withTransaction?](#q1-what-is-the-difference-between-saga-and-withtransaction)
-- [Q2: What should I do if compensation fails?](#q2-what-should-i-do-if-compensation-fails)
-- [Q3: How to debug Saga?](#q3-how-to-debug-saga)
-- [Q4: Can Saga be nested?](#q4-can-saga-be-nested)
-- [Q5: How to test Saga?](#q5-how-to-test-saga)
-- [Example](#example)
-- [Version history](#version-history)
+monSQLize keeps the Saga API for legacy compatibility. For new workflows, put orchestration, durability, recovery, and reconciliation in the application/framework layer.
 
 ## What is Saga
 
@@ -87,10 +52,10 @@ Complex business processes longer than 60 seconds
 
 ## Installation
 
-Saga functionality is built into monSQLize v1.1.0+ and requires no additional installation.
+Saga functionality is built into the current `monsqlize` package and requires no additional installation.
 
 ```bash
-npm install monsqlize@^1.1.0
+npm install monsqlize
 ```
 
 
@@ -618,14 +583,3 @@ assert(result.success === true);
 
 For complete examples please refer to:
 - [Saga runnable example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/saga.ts)
-
----
-
-## Version history
-
-- **v1.1.0** (2026-01-17): First release of Saga function
-
----
-
-_Document update time: 2026-01-17_
-_Version: v1.1.0_

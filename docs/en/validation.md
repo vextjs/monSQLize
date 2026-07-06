@@ -1,32 +1,6 @@
-﻿# Schema Validation API
+# Schema Validation API
 
 Collection-level document verification capabilities ensure data quality.
-
----
-
-## Table of Contents
-
-- [setValidator()](#setvalidator)
-- [Syntax](#syntax)
-- [Parameters](#parameters)
-- [Validation rule format](#validation-rule-format)
-  - [1. JSON Schema (recommended)](#1-json-schema-recommended)
-  - [2. Query expression](#2-query-expression)
-- [Example](#example)
-- [setValidationLevel()](#setvalidationlevel)
-- [Verification level](#verification-level)
-- [Syntax (setValidationLevel())](#syntax-setvalidationlevel)
-- [Example (setValidationLevel())](#example-setvalidationlevel)
-- [setValidationAction()](#setvalidationaction)
-- [Verify behavior](#verify-behavior)
-- [Syntax (setValidationAction())](#syntax-setvalidationaction)
-- [Example (setValidationAction())](#example-setvalidationaction)
-- [getValidator()](#getvalidator)
-- [Syntax (getValidator())](#syntax-getvalidator)
-- [Return value](#return-value)
-- [Example (getValidator())](#example-getvalidator)
-- [Complete example](#complete-example)
-- [Related documents](#related-documents)
 
 ## setValidator()
 
@@ -324,8 +298,3 @@ setupValidation().catch(console.error);
 
 - [Collection Management](./collection-management.md) - collMod, stats
 - [Collection Management Example](https://github.com/vextjs/monSQLize/blob/main/examples/docs/collection-management.ts)
-
----
-
-**Last updated**: 2025-12-02
-**Version**: v0.3.0

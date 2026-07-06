@@ -172,7 +172,7 @@ const bob = await User.findOne({ username: 'bob' });
 
 ## Solved ✅
 
-**v1.1.1 is completely silent by default** - does not output any ObjectId conversion logs.
+ObjectId conversion is silent by default and does not emit per-value conversion logs.
 
 ```javascript
 //Default configuration (no logs)
@@ -193,7 +193,7 @@ Based on user feedback, ObjectId conversion log:
 - ❌ Pollution log output
 - ❌ Increase log storage overhead
 
-So v1.1.1 turns these logs off completely by default.
+The converter keeps these logs off by default.
 
 
 ## How to verify conversion in current v2 runtime

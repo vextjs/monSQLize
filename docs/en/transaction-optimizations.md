@@ -1,36 +1,19 @@
 # Transaction Performance Optimization Guide
 
-**Version**: Unreleased (main)
-**Updated date**: 2026-06-09
-**Status**: Current main document; the official release version shall be subject to changelog
-
----
-
-## 📚 Table of Contents
-
-- [Overview](#overview)
-- [Optimization 1: Read-only optimization](#optimization-1-read-only-optimization)
-- [Optimization 2: Document level lock](#optimization-2-document-level-lock)
-- [Performance comparison](#performance-comparison)
-- [Usage Suggestions](#usage-suggestions)
-- [Monitoring Indicators](#monitoring-indicators)
-
----
-
 ## Overview
 
-This document describes two important performance optimizations currently documented in main/Unreleased:
+This page explains the transaction behavior that matters when you tune throughput and cache consistency:
 
-1. **Read-only optimization** - Read-only transactions do not invalidate cache, reducing DB access by 30%
-2. **Document Level Lock** - Improve concurrency performance by 10-100 times
+1. **Read-only transaction accounting** - transactions with no recorded write invalidation are counted separately in `getTransactionStats()`.
+2. **Process-local cache invalidation barrier** - writes inside a transaction record invalidation patterns and flush them only after a successful commit.
 
 
 ## Applicable scenarios
 
-| Optimization | Applicable scenarios | Revenue |
+| Optimization | Applicable scenarios | What to expect |
 |------|---------|------|
-| **Read-only optimization** | Query-intensive applications and reporting systems | Reduce 30% DB access |
-| **Document level lock** | Highly concurrent user operations, multi-tenant system | 10-100 times concurrency improvement |
+| **Read-only accounting** | Query-heavy flows and report jobs | Measure how much transaction traffic is read-only |
+| **Cache invalidation barrier** | Cached read + transactional write workloads | Shorter stale-cache refill windows inside one process; cross-instance coherence remains best-effort |
 
 ---
 
@@ -39,7 +22,6 @@ This document describes two important performance optimizations currently docume
 
 ## Working principle
 
-**Traditional way** (before v2.0.0):
 ```javascript
 await msq.withTransaction(async (tx) => {
     //Read operation
@@ -48,29 +30,14 @@ await msq.withTransaction(async (tx) => {
         { session: tx.session }
     );
 
-    //❌ Problem: Even if it is read-only, the cache will be invalidated
-    //The next query needs to be loaded from DB
-});
-```
-
-**After optimization** (currently main/Unreleased):
-```javascript
-await msq.withTransaction(async (tx) => {
-    //Read operation
-    const user = await collection('users').findOne(
-        { _id: 1 },
-        { session: tx.session }
-    );
-
-    //✅ Read-only transactions: no cache invalidation
-    //The next query can hit the cache
+    //No write invalidation is recorded, so this transaction is counted as read-only.
 });
 ```
 
 
 ## How to use
 
-**No code changes required! ** The system automatically recognizes read-only transactions.
+No code changes are required. A transaction is counted as read-only when it does not record write invalidation patterns.
 
 ```javascript
 //Automatically recognized as a read-only transaction
@@ -85,81 +52,34 @@ await msq.withTransaction(async (tx) => {
         { session: tx.session }
     ).toArray();
 
-    //✅ There is no write operation and it is automatically recognized as a read-only transaction.
+    //There is no write operation, so transaction stats record it as read-only.
 });
 ```
 
 
-## Performance Gains
+## Optimization 2: cache invalidation barrier
 
-**Test scenario**: 100 concurrent read-only queries
+## Working principle
 
-| Metrics | v2.0.0 | Current main / Unreleased | Improvements |
-|------|--------|--------|------|
-| DB query times | 100 | 70 | -30% |
-| Average response time | 50ms | 35ms | 30% |
-| Cache hit rate | 0% | 30% | +30% |
+When a transaction performs writes through monSQLize helpers, the runtime records read-cache invalidation patterns. Before commit it marks a dirty barrier and clears affected cache entries. After the MongoDB commit succeeds, it flushes the recorded invalidations and releases the process-local cache lock.
 
----
-
-## Optimization 2: Document level lock
-
-
-## Working principle (Optimization 2: Document level lock)
-
-**Traditional way** (before v2.0.0):
 ```javascript
-//Transaction 1: Update user 1
 await msq.withTransaction(async (tx) => {
     await collection('users').updateOne(
         { _id: 1 },
         { $set: { balance: 100 } },
         { session: tx.session }
     );
-    //🔒 Lock the cache of the entire users collection
-});
-
-//Transaction 2: Update user 2 (will be blocked)
-await msq.withTransaction(async (tx) => {
-    await collection('users').updateOne(
-        { _id: 2 },
-        { $set: { balance: 200 } },
-        { session: tx.session }
-    );
-    //❌ Conflict with transaction 1, external writes to users:* are blocked
-});
-```
-
-**After optimization** (currently main/Unreleased):
-```javascript
-//Transaction 1: Update user 1
-await msq.withTransaction(async (tx) => {
-    await collection('users').updateOne(
-        { _id: 1 },
-        { $set: { balance: 100 } },
-        { session: tx.session }
-    );
-    //🔒 Only lock users:1
-});
-
-//Transaction 2: Update user 2 (will not be blocked)
-await msq.withTransaction(async (tx) => {
-    await collection('users').updateOne(
-        { _id: 2 },
-        { $set: { balance: 200 } },
-        { session: tx.session }
-    );
-    //✅ No conflict! Can be executed concurrently
+    //The affected read-cache namespace is marked dirty and invalidated around commit.
 });
 ```
 
 
-## Usage (Optimization 2: Document level lock)
+## Usage
 
-**No code changes required! ** The system automatically uses document level locks.
+No code changes are required when you already pass `session: tx.session` into write helpers.
 
 ```javascript
-//Concurrent updates for different users (automatically using document level locks)
 await Promise.all([
     msq.withTransaction(async (tx) => {
         await collection('users').updateOne(
@@ -177,97 +97,35 @@ await Promise.all([
     })
 ]);
 
-//✅ Two transactions are executed concurrently and do not block each other.
+//MongoDB controls write conflicts. monSQLize only coordinates cache invalidation.
 ```
 
 
-## Supported query types
+## Boundary
 
-| Query Type | Lock Granularity | Example |
-|---------|-------|------|
-| Simple _id query | ✅ Document level | `{ _id: 1 }` |
-| $in query | ✅ Document level | `{ _id: { $in: [1, 2, 3] } }` |
-| Non-_id query | 🔄 Collection level (fallback) | `{ status: 'active' }` |
-| Range query | 🔄 Collection level (fallback) | `{ age: { $gt: 18 } }` |
-
-
-## Performance gains (Optimization 2: Document level lock)
-
-**Test scenario**: 10 concurrent transactions, updating different users
-
-| Metrics | v2.0.0 (Collection Lock) | Current main / Unreleased (Document Lock) | Promotion |
-|------|-----------------|----------------|------|
-| Concurrency | 1x (serial) | 10x (parallel) | 10 times |
-| Total time taken | 500ms | 50ms | 10 times |
-| Throughput | 20 TPS | 200 TPS | 10x |
-
----
-
-## Performance comparison
-
-
-## Scenario 1: E-commerce flash sale (high concurrency writing of different products)
-
-**Configuration**:
-- 1000 concurrent users
-- 100 different products
--Each user purchases different items
-
-**Result**:
-
-| Version | Throughput | P95 Latency | Success Rate |
-|------|-------|---------|--------|
-| v2.0.0 | 50 TPS | 500ms | 95% |
-| Current main / Unreleased | 800 TPS | 80ms | 99% |
-| **Improvement** | **16 times** | **6.25 times** | **+4%** |
-
-
-## Scenario 2: Social network (high concurrent updates to different users)
-
-**Configuration**:
-- 10,000 concurrent operations
-- 5000 different users
-- Users like, comment, and follow
-
-**Result**:
-
-| Version | Throughput | P99 Latency | Lock Contention Rate |
-|------|-------|---------|---------|
-| v2.0.0 | 100 TPS | 2000ms | 80% |
-| Current main / Unreleased | 5000 TPS | 100ms | 2% |
-| **Improvement** | **50x** | **20x** | **-97.5%** |
-
-
-## Scenario 3: Multi-tenant SaaS (high isolation)
-
-**Configuration**:
-- 100 tenants
-- Each tenant operates its own data independently
-
-**Result**:
-
-| Version | Throughput | Resource Utilization | Isolation |
-|------|-------|-----------|--------|
-| v2.0.0 | 200 TPS | 30% | Low |
-| Current main / Unreleased | 10000 TPS | 85% | High |
-| **Improvement** | **50 times** | **2.8 times** | **Excellent** |
+| Topic | Current behavior |
+|-------|------------------|
+| Lock scope | Process-local `CacheLockManager`; not a distributed mutex |
+| Cache invalidation | Best-effort after MongoDB commit; a cache failure does not roll back the DB commit |
+| Cross-instance cache | Eventual convergence through distributed invalidation when configured |
+| Performance | Workload-dependent; use `getTransactionStats()` and application metrics instead of assuming fixed gains |
 
 ---
 
 ## Usage suggestions
 
 
-## 1. Prioritize the use of document level locks
+## 1. Keep transactional writes narrow
 
-✅ **Recommended Scenario**:
-- Highly concurrent user operations (social, e-commerce, SaaS)
-- Distributed task processing
-- Multi-tenant system
+Recommended:
+- Keep transactions short.
+- Pass `session: tx.session` only to the operations that must be part of the transaction.
+- Prefer targeted filters and indexed queries so MongoDB can resolve conflicts efficiently.
 
-❌ **Not applicable scenarios**:
-- Mainly batch operations (update a large number of records)
-- Range query mainly (cannot extract document key)
-- Single user/low concurrency
+Avoid:
+- Long-running transactions with network calls inside the callback.
+- Large batch updates inside one transaction unless you have measured the lock and oplog impact.
+- Relying on monSQLize cache locks as cross-process business locks.
 
 
 ## 2. Make full use of read-only optimization
@@ -389,32 +247,23 @@ setInterval(() => {
 ## FAQ
 
 
-## Q1: Will document-level locking increase memory usage?
+## Q1: Will cache barriers increase memory usage?
 
-**A**: There will be a slight increase, but the impact will be small.
+**A**: The barrier and cache-lock metadata are process-local and short-lived. Watch `activeTransactions` and your process RSS if you run many concurrent long transactions.
 
-- Lock per document: ~100 bytes
-- 100 concurrent transactions, 10 documents per lock: 100 * 10 * 100B = 100KB
-- **Conclusion**: Negligible memory impact
+## Q2: How do I inspect transaction behavior?
 
-
-## Q2: How to determine whether a query uses document-level locks?
-
-**A**: View log:
-
-```text
-[Transaction] Using document-level locks for 3 documents
-[Transaction] Added 3 cache lock(s)
-```
-
-Or view transaction statistics:
+**A**: Use aggregate transaction stats and per-transaction stats:
 
 ```javascript
 const tx = await msq.startSession();
 await tx.start();
 //... perform operations
 const stats = tx.getStats();
-console.log('Number of locked keys:', stats.lockedKeysCount);
+console.log('Recorded invalidations:', stats.operationCount);
+console.log('Locked key count:', stats.lockedKeysCount);
+
+console.log(msq.getTransactionStats());
 ```
 
 
@@ -427,17 +276,19 @@ console.log('Number of locked keys:', stats.lockedKeysCount);
 - Data read within a transaction is still a consistent snapshot
 
 
-## Q4: Can these optimizations be disabled?
+## Q4: Can cache locking be disabled for one transaction?
 
-**A**: Yes (not recommended).
+**A**: Yes. Pass `enableCacheLock: false` to transaction options when you want driver transaction semantics without the process-local cache lock. Cache invalidation still follows the documented best-effort boundary.
 
 ```javascript
-//Disable document level locking (fallback to collection level)
-await tx.recordInvalidation(pattern, {
-    operation: 'write',
-    query: filter,
-    collection: collectionName,
-    useDocumentLock: false  //Disable
+await msq.withTransaction(async (tx) => {
+    await collection('users').updateOne(
+        { _id: 1 },
+        { $set: { status: 'active' } },
+        { session: tx.session }
+    );
+}, {
+    enableCacheLock: false
 });
 ```
 
@@ -446,23 +297,17 @@ await tx.recordInvalidation(pattern, {
 ## Summary
 
 
-## Optimization effect
+## What to measure
 
-| Scenario | Before optimization | After optimization | Improvement |
-|------|-------|--------|------|
-| High concurrency writing to different documents | 50 TPS | 800 TPS | 16 times |
-| Read-only query intensive | 100% DB query | 70% DB query | -30% |
-| Mixed read and write | 100 TPS | 500 TPS | 5x |
+| Scenario | Useful metric |
+|------|------|
+| Query-heavy transaction flow | `readOnlyRatio`, cache hit rate outside transactions |
+| Write-heavy transaction flow | `successRate`, `p95Duration`, MongoDB write conflicts |
+| Mixed read/write flow | Transaction duration and number of operations inside the callback |
 
 
 ## Suggestions
 
-1. ✅ **Activate now** - no code changes required, automatically effective
-2. ✅ **Monitoring Indicators** - Check `getStats()` regularly
-3. ✅ **On-demand tuning** - Adjust configuration according to actual scenarios
-
----
-
-**Document version**: Unreleased (main)
-**Last updated**: 2026-06-09
-**Maintainer**: monSQLize Team
+1. Keep transaction callbacks small and idempotent.
+2. Monitor `getTransactionStats()` regularly.
+3. Tune timeout, retry, and cache-lock settings from measured behavior.

@@ -1,37 +1,8 @@
 # Chain pool/database access API (Chain Access API)
 
-> **Version**: v1.3.0+
-> **Updated date**: 2026-04-26
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [API Overview](#api-overview)
-- [pool(poolName)](#poolpoolname)
-- [pool().collection()](#poolcollection)
-- [pool().model()](#poolmodel)
-- [pool().use()](#pooluse)
-- [pool().use().collection()](#poolusecollection)
-- [pool().use().model(key)](#poolusemodelkey)
-- [use(dbName)](#usedbname)
-- [use().collection()](#usecollection)
-- [use().model(key)](#usemodelkey)
-- [scopedCollection()](#scopedcollection)
-- [scopedModel()](#scopedmodel)
-- [Chain combination example](#chain-combination-example)
-- [Single pool and multiple databases](#single-pool-and-multiple-databases)
-- [Multiple pools and multiple databases](#multiple-pools-and-multiple-databases)
-- [Cooperate with Model](#cooperate-with-model)
-- [Error handling](#error-handling)
-- [Comparison with old API](#comparison-with-old-api)
-- [TypeScript types](#typescript-types)
-- [Related documents](#related-documents)
-
 ## Overview
 
-v1.3.0 adds four new methods to support chain access to different connection pools and databases from the same MonSQLize instance:
+Use these accessors to route work to a specific connection pool or database from the same `MonSQLize` instance:
 
 | Method | Purpose |
 |------|------|
@@ -81,7 +52,7 @@ const accessor = msq.pool('cn');
 ```
 
 **Parameters**:
-- `poolName` {string} — The name of the connection pool registered in `ConnectionPoolManager`
+- `poolName` {string} — The connection pool name declared in the constructor `pools: PoolConfig[]` and made available after `connect()`
 
 **Return value**: `PoolAccessor` — includes three methods: `collection`, `model`, and `use`
 
@@ -91,10 +62,9 @@ const accessor = msq.pool('cn');
 |--------|---------|
 | `NOT_CONNECTED` | `connect()` not called |
 | `NO_POOL_MANAGER` | MonSQLize is not configured with multiple connection pools (the constructor does not pass pools) |
-| `POOL_NOT_FOUND` | `poolName` is not registered in PoolManager |
+| `POOL_NOT_FOUND` | `poolName` is not declared in constructor `pools[]` or the corresponding pool failed to initialize |
 
 ---
-
 
 ## pool().collection()
 
@@ -106,7 +76,6 @@ const docs = await users.find({ status: 'active' }).toArray();
 ```
 
 ---
-
 
 ## pool().model()
 
@@ -127,7 +96,6 @@ const result = await Invoice.find({ status: 'paid' });
 
 ---
 
-
 ## pool().use()
 
 On the specified connection pool, further switch the database and return `ScopedAccessor`.
@@ -137,7 +105,6 @@ const accessor = msq.pool('cn').use('billing');
 ```
 
 ---
-
 
 ## pool().use().collection()
 
@@ -149,7 +116,6 @@ const rows = await invoices.find({ month: '2026-04' }).toArray();
 ```
 
 ---
-
 
 ## pool().use().model(key)
 
@@ -183,7 +149,6 @@ const accessor = msq.use('billing');
 
 ---
 
-
 ## use().collection()
 
 Get the Collection on the specified database.
@@ -194,7 +159,6 @@ const today = await logs.find({ date: '2026-04-26' }).toArray();
 ```
 
 ---
-
 
 ## use().model(key)
 
@@ -254,13 +218,12 @@ const m2 = msq.scopedModel('BillingInvoice', { pool: 'cn', database: 'analytics'
 |--------|---------|
 | `NOT_CONNECTED` | `connect()` not called |
 | `MODEL_NOT_DEFINED` | `key` is not registered |
-| `NO_POOL_MANAGER` | `pool` was passed but PoolManager was not configured |
-| `POOL_NOT_FOUND` | `pool` is not registered |
+| `NO_POOL_MANAGER` | `pool` was passed but constructor `pools[]` was not configured |
+| `POOL_NOT_FOUND` | `pool` is not declared in constructor `pools[]` or failed to initialize |
 
 ---
 
 ## Chain combination example
-
 
 ## Single pool and multiple databases
 
@@ -275,16 +238,17 @@ const invoices = await msq.use('billing').collection('invoices').find({}).toArra
 const report = await msq.use('analytics').collection('monthly').findOne({ month: '2026-04' });
 ```
 
-
 ## Multiple pools and multiple databases
 
 ```javascript
 const msq = new MonSQLize({
-  uri: 'mongodb://primary:27017',
-  pools: {
-    cn: { uri: 'mongodb://cn-server:27017' },
-    eu: { uri: 'mongodb://eu-server:27017' },
-  }
+  type: 'mongodb',
+  databaseName: 'main',
+  config: { uri: 'mongodb://primary:27017' },
+  pools: [
+    { name: 'cn', uri: 'mongodb://cn-server:27017/main', role: 'primary' },
+    { name: 'eu', uri: 'mongodb://eu-server:27017/main', role: 'primary' },
+  ]
 });
 await msq.connect();
 
@@ -294,7 +258,6 @@ const cnInvoices = await msq.pool('cn').use('billing').collection('invoices').fi
 // eu pool, billing database
 const euInvoices = await msq.pool('eu').use('billing').collection('invoices').find({}).toArray();
 ```
-
 
 ## Cooperate with Model
 
@@ -339,15 +302,15 @@ The `POOL_NOT_FOUND` error contains the `err.available` field, which lists all c
 
 ---
 
-## Comparison with old API
+## Choosing an access style
 
-| Requirements | v1.2.x (old) | v1.3.0+ (new) |
-|------|------------|-------------|
-| Collection on the default pool and default database | `msq.collection('users')` | `msq.collection('users')` (unchanged) |
-| Switch database on the default pool | Not supported | `msq.use('billing').collection('invoices')` |
-| Switch connection pool | Manually retrieve the pool instance from PoolManager | `msq.pool('cn').collection('users')` |
-| Switch connection pool + database | Not supported | `msq.pool('cn').use('billing').collection('invoices')` |
-| Model cross-pool access | Not supported | `msq.pool('cn').model('BillingInvoice')` |
+| Need | Use |
+|------|-----|
+| Collection on the default pool and default database | `msq.collection('users')` |
+| Switch database on the default pool | `msq.use('billing').collection('invoices')` |
+| Switch connection pool | `msq.pool('cn').collection('users')` |
+| Switch connection pool and database | `msq.pool('cn').use('billing').collection('invoices')` |
+| Model on a specific pool | `msq.pool('cn').model('BillingInvoice')` |
 
 ---
 
@@ -379,12 +342,7 @@ See the [public type declarations](../../types/index.d.ts) for details.
 
 ## Related documents
 
-- [Multiple connection pool management](./multi-pool.md)
+- [Pool configuration](./multi-pool.md)
 - [Model layer document](./model.md)
 - [Error code reference](./error-codes.md)
 - [Connection configuration](./connection.md)
-
----
-
-**Document version**: v1.3.0
-**Last updated**: 2026-04-26

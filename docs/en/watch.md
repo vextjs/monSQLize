@@ -1,55 +1,8 @@
-# watch method API documentation
-
-> **Version**: v1.1.0
-> **Status**: ✅ Achieved
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Basic usage](#basic-usage)
-- [API Reference](#api-reference)
-- [collection.watch([pipeline], [options])](#collectionwatchpipeline-options)
-- [Configuration options](#configuration-options)
-- [MongoDB native options](#mongodb-native-options)
-- [ChangeStream native method](#changestream-native-method)
-- [cs.on(event, handler)](#csonevent-handler)
-- [cs.once(event, handler)](#csonceevent-handler)
-- [cs.close()](#csclose)
-- [cs.closed](#csclosed)
-- [cs.resumeToken](#csresumetoken)
-- [cs.next()](#csnext)
-- [Usage example](#usage-example)
-- [Example 1: Basic monitoring](#example-1-basic-monitoring)
-- [Example 2: Filter events](#example-2-filter-events)
-- [Example 3: Error handling](#example-3-error-handling)
-- [Example 4: Statistics monitoring (via ChangeStreamSyncManager)](#example-4-statistics-monitoring-via-changestreamsyncmanager)
-- [Example 5: Graceful shutdown](#example-5-graceful-shutdown)
-- [Cache invalidation integration](#cache-invalidation-integration)
-- [Solution 1: Manual processing (lightweight scenario recommended)](#solution-1-manual-processing-lightweight-scenario-recommended)
-- [Solution 2: ChangeStreamSyncManager (recommended for production scenarios)](#solution-2-changestreamsyncmanager-recommended-for-production-scenarios)
-- [Notes](#notes)
-- [1. MongoDB version requirements](#1-mongodb-version-requirements)
-- [2. Performance impact](#2-performance-impact)
-- [3. resumeToken expires](#3-resumetoken-expires)
-- [4. Memory management](#4-memory-management)
-- [Troubleshooting](#troubleshooting)
-- [Problem 1: watch closes immediately](#problem-1-watch-closes-immediately)
-- [Issue 2: ChangeStream closed unexpectedly](#issue-2-changestream-closed-unexpectedly)
-- [Question 3: Cache integration](#question-3-cache-integration)
-- [watch event vs global event](#watch-event-vs-global-event)
-- [Difference description](#difference-description)
-- [Usage scenario comparison](#usage-scenario-comparison)
-- [Example: Use both](#example-use-both)
-- [Related documents](#related-documents)
-- [Version history](#version-history)
+# watch() API
 
 ## Overview
 
-The `watch()` method directly returns the native `ChangeStream<T>` object of MongoDB Change Streams, supporting real-time monitoring of data changes in the collection. If you need automatic breakpoint resumption, multi-target synchronization or cache invalidation, please use it in conjunction with [`ChangeStreamSyncManager`](./sync-backup.md).
-
----
+`watch()` returns the MongoDB driver's native `ChangeStream<T>` object. Use it when you want direct driver-level event handling. If you need persisted resume tokens, multi-target fanout, idempotency markers, and lifecycle stats, use [`ChangeStreamSyncManager`](./sync-backup.md).
 
 ## Basic usage
 
@@ -77,7 +30,6 @@ watcher.on('change', (change) => {
 
 ## API Reference
 
-
 ## collection.watch([pipeline], [options])
 
 Monitor collection data changes.
@@ -94,7 +46,6 @@ Monitor collection data changes.
 ---
 
 ## Configuration options
-
 
 ## MongoDB native options
 
@@ -114,7 +65,6 @@ Monitor collection data changes.
 
 `watch()` returns the MongoDB-driven `ChangeStream<T>` object, which supports the following native APIs:
 
-
 ## cs.on(event, handler)
 
 Listen for events (EventEmitter interface).
@@ -125,11 +75,9 @@ Listen for events (EventEmitter interface).
 - `'close'`: Close
 - `'end'`: end of stream
 
-
 ## cs.once(event, handler)
 
 Listen for events (one-time).
-
 
 ## cs.close()
 
@@ -137,20 +85,17 @@ Close ChangeStream.
 
 **Return value**: `Promise<void>`
 
-
 ## cs.closed
 
 Read-only property that checks whether the ChangeStream has been closed.
 
 **Type**: `boolean`
 
-
 ## cs.resumeToken
 
 Read-only attribute, obtains the latest resumeToken (used for resumed transmission).
 
 **Type**: `unknown`
-
 
 ## cs.next()
 
@@ -164,7 +109,6 @@ Explicitly get the next change event (iterator pattern).
 
 ## Usage example
 
-
 ## Example 1: Basic monitoring
 
 ```javascript
@@ -175,7 +119,6 @@ watcher.on('change', (change) => {
   console.log('Document ID:', change.documentKey._id);
 });
 ```
-
 
 ## Example 2: Filter events
 
@@ -190,7 +133,6 @@ watcher.on('change', (change) => {
 });
 ```
 
-
 ## Example 3: Error handling
 
 ```javascript
@@ -204,7 +146,6 @@ cs.on('close', () => {
   console.log('Change Stream is closed');
 });
 ```
-
 
 ## Example 4: Statistics monitoring (via ChangeStreamSyncManager)
 
@@ -221,7 +162,6 @@ setInterval(() => {
   console.log('Synced events:', stats.syncedCount, 'Error:', stats.errorCount);
 }, 60000);
 ```
-
 
 ## Example 5: Graceful shutdown
 
@@ -242,7 +182,6 @@ process.on('SIGTERM', async () => {
 
 > ⚠️ `collection.watch()` itself **does not provide** built-in cache invalidation function. If you want to integrate watch with cache, there are two options:
 
-
 ## Solution 1: Manual processing (lightweight scenario recommended)
 
 ```javascript
@@ -256,7 +195,6 @@ cs.on('change', async (change) => {
   }
 });
 ```
-
 
 ## Solution 2: ChangeStreamSyncManager (recommended for production scenarios)
 
@@ -279,12 +217,11 @@ const syncManager = new MonSQLize.ChangeStreamSyncManager({
 await syncManager.start();
 ```
 
-**Cross-instance synchronization**: If you need distributed cache synchronization, please use [`DistributedCacheInvalidator`](./cache-and-function-cache.md), which supports broadcasting invalidation signals to other instances through Pub/Sub.
+**Cross-instance cache invalidation**: use the Cache API with `cache.distributed` configured, then follow the deployment notes in [Distributed Deployment](./distributed-deployment.md).
 
 ---
 
 ## Notes
-
 
 ## 1. MongoDB version requirements
 
@@ -332,12 +269,10 @@ const msq = new MonSQLize({
 });
 ```
 
-
 ## 2. Performance impact
 
 - watch itself has little impact on performance (natively supported by MongoDB)
 - ChangeStream monitoring is asynchronous and does not block the main process
-
 
 ## 3. resumeToken expires
 
@@ -347,7 +282,6 @@ The MongoDB oplog has a size limit and the resumeToken may expire (default hours
 - Monitor `error` events and detect `ChangeStreamHistoryLost` errors
 - Close the current ChangeStream and call `collection.watch()` again (without `resumeAfter`)
 - If you need to automatically handle breakpoint resumption, please use [`ChangeStreamSyncManager`](./sync-backup.md)
-
 
 ## 4. Memory management
 
@@ -360,13 +294,11 @@ Long-running watches need to pay attention to:
 
 ## Troubleshooting
 
-
 ## Problem 1: watch closes immediately
 
 **Reason**: MongoDB is not a replica set environment
 
 **Solution**: Use replica set or `mongodb-memory-server`
-
 
 ## Issue 2: ChangeStream closed unexpectedly
 
@@ -394,7 +326,6 @@ See the [Cache Invalidation Integration](#cache-invalidation-integration) chapte
 
 ## watch event vs global event
 
-
 ## Difference description
 
 monSQLize has two event systems:
@@ -411,7 +342,6 @@ monSQLize has two event systems:
 - Applicable scenarios: real-time data synchronization, cache invalidation
 - Documentation: This document
 
-
 ## Usage scenario comparison
 
 | Requirements | Usage |
@@ -421,7 +351,6 @@ monSQLize has two event systems:
 | Monitor data changes | `cs.on('change', ...)` |
 | Application layer cache invalidation | `cs.on('change', ...)` + manual cache.delete |
 | Cross-system data synchronization | `cs.on('change', ...)` or `ChangeStreamSyncManager` |
-
 
 ## Example: Use both
 
@@ -461,7 +390,3 @@ cs.on('change', (change) => {
 - [Event System](./events.md)
 
 ---
-
-## Version history
-
-- **v1.1.0** (2025-12): First release of watch function
