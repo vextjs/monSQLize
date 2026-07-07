@@ -44,11 +44,6 @@ type NavSource = NavLinkSource | NavMenuSource;
 
 const navSource: NavSource[] = [
   {
-    en: 'Common Scenarios',
-    zh: '常用场景',
-    link: '/recipes'
-  },
-  {
     en: 'Examples',
     zh: '示例',
     link: '/examples'
@@ -104,7 +99,7 @@ const englishFooterMessage = `
     <div>
       <h2>Docs</h2>
       <a href="getting-started.html">Quick Start</a>
-      <a href="recipes.html">Common Scenarios</a>
+      <a href="recipes.html">Guides</a>
       <a href="examples.html">Examples</a>
       <a href="api-index.html">API Reference</a>
     </div>
@@ -145,7 +140,7 @@ const chineseFooterMessage = `
     <div>
       <h2>文档</h2>
       <a href="getting-started.html">快速开始</a>
-      <a href="recipes.html">常用场景</a>
+      <a href="recipes.html">场景指南</a>
       <a href="examples.html">示例</a>
       <a href="api-index.html">API 参考</a>
     </div>
@@ -175,29 +170,18 @@ const chineseFooterMessage = `
 
 const sidebarSource: SidebarGroupSource[] = [
   {
-    en: 'Getting Started',
-    zh: '快速开始',
+    en: 'Quick Start',
+    zh: '快速入门',
     items: [
       { en: 'Home', zh: '首页', link: '/' },
       { en: 'Quick Start', zh: '快速开始', link: '/getting-started' },
-      { en: 'Examples', zh: '示例', link: '/examples' },
-      { en: 'ESM Support', zh: 'ESM 支持', link: '/esm-support' },
-      { en: 'Documentation Index', zh: '文档索引', link: '/api-index' }
+      { en: 'Import and ESM', zh: '导入与 ESM', link: '/esm-support' },
+      { en: 'Examples', zh: '示例总览', link: '/examples' }
     ]
   },
   {
-    en: 'Common Scenarios',
-    zh: '常用场景',
-    items: [
-      { en: 'Common Scenarios', zh: '常用场景', link: '/recipes' },
-      { en: 'Quick Upsert Guide', zh: '快速 Upsert 指南', link: '/upsert-guide' },
-      { en: 'Quick Upsert API', zh: '快捷 Upsert API', link: '/quick-upsert' },
-      { en: 'Failure Recovery Examples', zh: '失败恢复示例', link: '/failure-recovery-examples' }
-    ]
-  },
-  {
-    en: 'Connection and Instances',
-    zh: '连接与实例',
+    en: 'Connection',
+    zh: '连接',
     items: [
       { en: 'Connection Management', zh: '连接管理', link: '/connection' },
       { en: 'Collection Management', zh: '集合管理', link: '/collection-management' },
@@ -225,22 +209,6 @@ const sidebarSource: SidebarGroupSource[] = [
         ]
       },
       {
-        en: 'ObjectId',
-        zh: 'ObjectId',
-        items: [
-          { en: 'ObjectId Auto Conversion', zh: 'ObjectId 自动转换', link: '/objectid-auto-convert' },
-          { en: 'ObjectId Conversion Scope', zh: 'ObjectId 转换范围', link: '/objectid-conversion-scope' }
-        ]
-      },
-      {
-        en: 'Chain Query API',
-        zh: '链式查询 API',
-        items: [
-          { en: 'Chain API Overview', zh: '链式 API 概览', link: '/chaining-api' },
-          { en: 'Chain Method Reference', zh: '链式方法参考', link: '/chaining-methods' }
-        ]
-      },
-      {
         en: 'Write Methods',
         zh: '写入方法',
         items: [
@@ -264,6 +232,22 @@ const sidebarSource: SidebarGroupSource[] = [
           { en: 'incrementOne()', zh: 'incrementOne()', link: '/increment-one' }
         ]
       },
+      {
+        en: 'ObjectId',
+        zh: 'ObjectId',
+        items: [
+          { en: 'ObjectId Auto Conversion', zh: 'ObjectId 自动转换', link: '/objectid-auto-convert' },
+          { en: 'ObjectId Conversion Scope', zh: 'ObjectId 转换范围', link: '/objectid-conversion-scope' }
+        ]
+      },
+      {
+        en: 'Chaining API',
+        zh: '链式查询 API',
+        items: [
+          { en: 'Chaining API Overview', zh: '链式 API 概览', link: '/chaining-api' },
+          { en: 'Chaining Method Reference', zh: '链式方法参考', link: '/chaining-methods' }
+        ]
+      },
       { en: 'Write Path Policy', zh: '写路径策略', link: '/write-path-policy' },
       { en: 'Expression Function Reference', zh: '表达式函数参考', link: '/expression-functions' }
     ]
@@ -285,7 +269,8 @@ const sidebarSource: SidebarGroupSource[] = [
     en: 'Cache',
     zh: '缓存',
     items: [
-      { en: 'Cache API', zh: '缓存 API', link: '/cache' }
+      { en: 'Cache API', zh: '缓存 API', link: '/cache' },
+      { en: 'Bookmark Pagination', zh: '游标分页', link: '/bookmarks' }
     ]
   },
   {
@@ -315,8 +300,17 @@ const sidebarSource: SidebarGroupSource[] = [
       { en: 'Change Stream Sync', zh: 'Change Stream 同步', link: '/sync-backup' },
       { en: 'Slow Query Logging', zh: '慢查询日志', link: '/slow-query-log' },
       { en: 'Event System', zh: '事件系统', link: '/events' },
-      { en: 'Count Queue', zh: '数量队列', link: '/count-queue' },
-      { en: 'Bookmark Pagination', zh: '书签分页', link: '/bookmarks' }
+      { en: 'Count Queue', zh: '数量队列', link: '/count-queue' }
+    ]
+  },
+  {
+    en: 'Guides',
+    zh: '场景指南',
+    items: [
+      { en: 'Guides', zh: '场景指南', link: '/recipes' },
+      { en: 'Upsert Guide', zh: 'Upsert 指南', link: '/upsert-guide' },
+      { en: 'Quick Upsert API', zh: 'Quick Upsert API', link: '/quick-upsert' },
+      { en: 'Failure Recovery Examples', zh: '失败恢复示例', link: '/failure-recovery-examples' }
     ]
   },
   {
@@ -332,16 +326,16 @@ const sidebarSource: SidebarGroupSource[] = [
       { en: 'Database Administration', zh: '数据库管理', link: '/admin' },
       { en: 'Error Code Reference', zh: '错误码参考', link: '/error-codes' },
       { en: 'Data Validation', zh: '数据验证', link: '/validation' },
-      { en: 'Utilities', zh: '工具方法', link: '/utilities' },
-      { en: 'findOneAnd Return Value Unification', zh: 'findOneAnd 返回值统一', link: '/findOneAnd-return-value-unified' }
+      { en: 'Utilities', zh: '工具方法', link: '/utilities' }
     ]
   },
   {
-    en: 'Compatibility and Legacy',
-    zh: '兼容与历史',
+    en: 'Compatibility and Migration',
+    zh: '兼容与迁移',
     items: [
       { en: 'MongoDB Driver Compatibility', zh: 'MongoDB Driver 兼容性', link: '/mongodb-driver-compatibility' },
       { en: 'MongoDB Native vs Extensions', zh: 'MongoDB 原生 vs 扩展', link: '/mongodb-native-vs-extensions' },
+      { en: 'findOneAnd Return Value', zh: 'findOneAnd 返回值统一', link: '/findOneAnd-return-value-unified' },
       { en: 'ObjectId Cross-Version', zh: 'ObjectId 跨版本', link: '/objectid-cross-version' },
       { en: 'ObjectId Cross-Version FAQ', zh: 'ObjectId 跨版本 FAQ', link: '/objectid-cross-version-faq' },
       { en: 'ObjectId Logging Optimization', zh: 'ObjectId 日志优化', link: '/objectid-logging-optimization' },

@@ -1,6 +1,6 @@
-# Common Scenarios
+# Guides
 
-Use this page when you already know the feature you want to turn on and need the smallest configuration shape, the key options, and the first place to look when something fails.
+Use these guides when you already know the feature you want to turn on and need the smallest configuration shape, the key options, and the first place to look when something fails.
 
 ## Connect to MongoDB
 

@@ -181,7 +181,7 @@
 | [API 参考索引](api-index.md) | 当前 API 参考索引 |
 | [入门指南](getting-started.md) | 入门指南 |
 | [示例索引](examples.md) | 示例索引 |
-| [常用场景](recipes.md) | 连接、缓存、Redis、SSH、连接池与 Model 的常用场景 |
+| [场景指南](recipes.md) | 连接、缓存、Redis、SSH、连接池与 Model 的场景指南 |
 | [能力索引](capability-index.md) | 能力索引 |
 
 ---

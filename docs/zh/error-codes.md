@@ -1035,7 +1035,7 @@ function logError(error, context = {}) {
 
 ## 参考资料
 
-- [API 文档索引](./api-index.md)
+- [API 参考](./api-index.md)
 - [事务管理](./transaction.md)
 - [连接池配置](./multi-pool.md)
 - [链式池/库访问 API](./pool-chain-api.md)

@@ -7,10 +7,10 @@
 | 目标 | 入口 | 说明 |
 |------|------|------|
 | 安装、连接、完成第一次查询 | [`getting-started.md`](./getting-started.md) | MongoDB 集合最短上手路径 |
-| 选择常见配置场景 | [`recipes.md`](./recipes.md) | 连接、缓存、Redis、SSH、连接池、Model 的常用场景 |
 | 对照文档与可运行源码 | [`examples.md`](./examples.md) | 每个主题都链接到 GitHub 示例源码 |
 | 添加数据库缓存 | [`cache.md`](./cache.md) | 集合查询缓存、Redis 二级缓存、分布式失效 |
 | 控制 collection 与 Model 写入路径 | [`write-path-policy.md`](./write-path-policy.md) | 需要某些命名空间必须经过 Model 写入时使用 |
+| 查看场景指南 | [`recipes.md`](./recipes.md) | 连接、缓存、Redis、SSH、连接池、Model 的场景指南 |
 | 浏览完整 API | [`api-index.md`](./api-index.md) | 低层 API 与兼容 API 的参考入口 |
 | 查看运行时边界 | [`capability-index.md`](./capability-index.md) | 能力总览与深入页面入口 |
 
@@ -18,14 +18,14 @@
 
 1. 根入口说明：[仓库 README](../../README.md)
 2. 上手路径：[`getting-started.md`](./getting-started.md)
-3. 常用场景：[`recipes.md`](./recipes.md)
-4. 缓存专题：[`cache.md`](./cache.md)
-5. 写路径策略：[`write-path-policy.md`](./write-path-policy.md)
-6. 可执行示例：
+3. 可执行示例：
    - [examples/README.md](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)
    - [examples/quick-start/basic-connect.ts](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)
    - [examples/docs](https://github.com/vextjs/monSQLize/tree/main/examples/docs)
    - [`examples.md`](./examples.md)
+4. 缓存专题：[`cache.md`](./cache.md)
+5. 写路径策略：[`write-path-policy.md`](./write-path-policy.md)
+6. 场景指南：[`recipes.md`](./recipes.md)
 7. API 与运行时参考：
    - [`api-index.md`](./api-index.md)
    - [`capability-index.md`](./capability-index.md)

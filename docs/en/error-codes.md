@@ -1083,7 +1083,7 @@ function logError(error, context = {}) {
 
 ## References
 
-- [API Documentation Index](./api-index.md)
+- [API Reference](./api-index.md)
 - [Transaction Management](./transaction.md)
 - [Pool configuration](./multi-pool.md)
 - [Chain Pool/Library Access API](./pool-chain-api.md)

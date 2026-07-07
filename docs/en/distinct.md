@@ -143,7 +143,7 @@ collation: {
 }
 ```
 
-**Common Scenarios**:
+**Guides**:
 - Requires case-insensitive deduplication (such as email, username)
 - Correct deduplication in multi-language environments
 - Natural deduplication of numeric strings

@@ -258,7 +258,7 @@ collation: {
 }
 ```
 
-**Common Scenarios**:
+**Guides**:
 - Requires case-insensitive queries and sorting
 - Correct sorting in multiple languages
 - Natural ordering of numeric strings
