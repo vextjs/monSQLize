@@ -489,7 +489,6 @@ See the current support and verification documents:
 - [Chinese documentation](https://github.com/vextjs/monSQLize/blob/main/docs/zh/README.md)
 - [English common scenarios](https://github.com/vextjs/monSQLize/blob/main/docs/en/recipes.md)
 - [Support matrix](https://github.com/vextjs/monSQLize/blob/main/docs/en/support-matrix.md)
-- [Verification entry points](https://github.com/vextjs/monSQLize/blob/main/docs/en/verification-entrypoints.md)
 - [test/compatibility/README.md](https://github.com/vextjs/monSQLize/blob/main/test/compatibility/README.md)
 - [test/validation/VERIFICATION-PROGRESS.md](https://github.com/vextjs/monSQLize/blob/main/test/validation/VERIFICATION-PROGRESS.md)
 

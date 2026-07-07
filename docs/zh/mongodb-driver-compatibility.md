@@ -4,7 +4,7 @@
 
 本文档说明 monSQLize 如何处理 MongoDB Node.js 驱动的版本差异，以及如何确保未来驱动升级时的兼容性。
 
-**当前口径**: monSQLize 默认随包安装 `mongodb@6.21.0` 作为运行时基线；Driver 7.2.0 已通过扩展兼容性验证。Driver 4.x / 5.x 属于历史兼容背景，不再作为当前默认支持矩阵。
+**当前基线**: monSQLize 以 `mongodb@6.21.0` 作为运行时依赖基线；Driver 7.2.0 已通过扩展兼容性验证。Driver 4.x / 5.x 属于历史兼容背景，不再作为当前支持矩阵。
 
 ---
 
@@ -16,7 +16,7 @@
 |-----------------|---------|---------|------|
 | **6.x** (6.21.0) | 运行时基线 | 默认验证 | package 精确依赖，开箱即用 |
 | **7.x** (7.2.0) | 扩展兼容 | 矩阵验证 | 用于提前发现上游 breaking change |
-| **4.x / 5.x** | 历史兼容参考 | 不在当前默认矩阵 | 旧版本迁移背景；新项目建议使用默认依赖 |
+| **4.x / 5.x** | 历史兼容参考 | 不在当前矩阵 | 旧版本迁移背景；新项目建议使用当前包依赖基线 |
 | **8.x+** | 待评估 | ⏸️ 未纳入当前矩阵 | 升级前需按本文验证流程确认 |
 
 ### 依赖声明
@@ -31,8 +31,8 @@
 ```
 
 **说明**: 
-- 用户安装 monSQLize 后默认获得 `mongodb@6.21.0`，无需额外安装 MongoDB driver。
-- Driver 7.2.0 通过兼容性验证，但不是当前 package 的默认运行时依赖。
+- 用户安装 monSQLize 后会通过当前包依赖基线获得 `mongodb@6.21.0`，无需额外安装 MongoDB driver。
+- Driver 7.2.0 通过兼容性验证，但不是当前 package 的运行时依赖基线。
 - 如包管理器裁剪、覆盖依赖或 workspace 解析导致 driver 不可用，优先恢复完整安装，再执行本文验证命令。
 
 ---
@@ -41,7 +41,7 @@
 
 ### 1. findOneAnd* 方法的返回值
 
-这是最重要的差异。当前 monSQLize 默认运行在 MongoDB Driver 6.21.0 上，并通过 Driver 7.2.0 扩展矩阵验证公共 API 行为。
+这是最重要的差异。当前 monSQLize 运行时依赖基线是 MongoDB Driver 6.21.0，并通过 Driver 7.2.0 扩展矩阵验证公共 API 行为。
 
 #### MongoDB 驱动版本差异
 
@@ -80,7 +80,7 @@ const result = await collection.findOneAndUpdate(filter, update);
 
 #### monSQLize 当前行为
 
-**使用默认安装时，用户代码直接接收文档或 `null`：**
+**使用当前 monSQLize 包依赖基线时，用户代码直接接收文档或 `null`：**
 
 ```javascript
 const user = await collection.findOneAndUpdate(
@@ -145,16 +145,16 @@ console.log(result);
 
 | 方法 | Driver 5.x 历史默认 | Driver 6.21.0 / 7.2.0 默认 | 当前建议 |
 |------|---------|---------|---------|
-| **findOneAndUpdate** | `{ value, ok, lastErrorObject }` | 文档对象或 `null` | 使用默认依赖，无需提取 `value` |
-| **findOneAndReplace** | `{ value, ok, lastErrorObject }` | 文档对象或 `null` | 使用默认依赖，无需提取 `value` |
-| **findOneAndDelete** | `{ value, ok, lastErrorObject }` | 文档对象或 `null` | 使用默认依赖，无需提取 `value` |
+| **findOneAndUpdate** | `{ value, ok, lastErrorObject }` | 文档对象或 `null` | 使用当前依赖基线，无需提取 `value` |
+| **findOneAndReplace** | `{ value, ok, lastErrorObject }` | 文档对象或 `null` | 使用当前依赖基线，无需提取 `value` |
+| **findOneAndDelete** | `{ value, ok, lastErrorObject }` | 文档对象或 `null` | 使用当前依赖基线，无需提取 `value` |
 | **updateOne** | `{ acknowledged, matchedCount, ... }` | 相同 | 按原生结果处理 |
 | **updateMany** | `{ acknowledged, matchedCount, ... }` | 相同 | 按原生结果处理 |
 | **deleteOne** | `{ acknowledged, deletedCount }` | 相同 | 按原生结果处理 |
 | **deleteMany** | `{ acknowledged, deletedCount }` | 相同 | 按原生结果处理 |
 | **replaceOne** | `{ acknowledged, matchedCount, ... }` | 相同 | 按原生结果处理 |
 
-**注**: Driver 4.x / 5.x 只作为历史迁移参考。当前文档不再把它们作为默认安装后的用户验证路径。
+**注**: Driver 4.x / 5.x 只作为历史迁移参考。当前文档不再把它们作为常规用户验证路径。
 
 ---
 
@@ -189,7 +189,7 @@ findOneAndDeleteDocument(collection, filter, options)
 
 ### 版本治理机制
 
-- 默认安装路径不需要用户声明 `mongodb`。
+- 正常 monSQLize 使用不需要用户直接声明 `mongodb`。
 - 兼容性验证临时覆盖 driver 版本，验证后恢复 `mongodb@6.21.0`。
 - CI 兼容性检查应以 `npm ls mongodb` 和 `npm run test:compatibility` 作为证据。
 
@@ -197,7 +197,7 @@ findOneAndDeleteDocument(collection, filter, options)
 
 - 没有匹配文档时，`findOneAnd*` 返回 `null`。
 - 如果调用方显式传入 `includeResultMetadata: true`，返回值遵循 MongoDB Driver 原生元数据结构。
-- 如果应用覆盖为历史 Driver 并得到 `{ value, ok, lastErrorObject }`，应先恢复默认依赖或在应用层完成迁移验证。
+- 如果应用覆盖为历史 Driver 并得到 `{ value, ok, lastErrorObject }`，应先恢复当前包依赖基线或在应用层完成迁移验证。
 
 ---
 
@@ -230,7 +230,7 @@ npm install mongodb@next --no-save --package-lock=false
 npm run test:compatibility
 npm run test:server-matrix
 
-# 4. 恢复默认运行时依赖
+# 4. 恢复当前运行时依赖基线
 npm install mongodb@6.21.0 --no-save --package-lock=false
 ```
 
@@ -428,7 +428,7 @@ async function customFindOneAndModify(filter, modification, options = {}) {
 
 ### Q1: 如果我使用的是 MongoDB 驱动 5.x，会有问题吗？
 
-**A**: 当前默认安装不会解析到 Driver 5.x。若应用通过 package manager overrides 强制替换为 5.x，请先恢复默认依赖：
+**A**: 当前依赖基线不会解析到 Driver 5.x。若应用通过 package manager overrides 强制替换为 5.x，请先恢复当前包依赖基线：
 
 ```bash
 npm install mongodb@6.21.0

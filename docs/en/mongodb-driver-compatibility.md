@@ -4,7 +4,7 @@
 
 This document explains how monSQLize handles version differences in the MongoDB Node.js driver and how to ensure compatibility for future driver upgrades.
 
-**Current Caliber**: monSQLize is installed with `mongodb@6.21.0` as the runtime baseline by default; Driver 7.2.0 has passed extended compatibility verification. Driver 4.x / 5.x belongs to the historical compatibility background and is no longer the current default support matrix.
+**Current baseline**: monSQLize uses `mongodb@6.21.0` as the runtime dependency baseline; Driver 7.2.0 has passed extended compatibility verification. Driver 4.x / 5.x belongs to the historical compatibility background and is no longer part of the current support matrix.
 
 ---
 
@@ -17,7 +17,7 @@ This document explains how monSQLize handles version differences in the MongoDB 
 |-----------------|---------|---------|------|
 | **6.x** (6.21.0) | Runtime Baseline | Default Verification | Package Exact Dependencies, Out of the Box |
 | **7.x** (7.2.0) | Extension compatible | Matrix verification | Used to detect upstream breaking changes in advance |
-| **4.x / 5.x** | Historical compatibility reference | Not in the current default matrix | Old version migration background; new projects are recommended to use default dependencies |
+| **4.x / 5.x** | Historical compatibility reference | Not in the current matrix | Old version migration background; new projects should stay on the current package dependency baseline |
 | **8.x+** | To be evaluated | ⏸️ Not included in the current matrix | You need to confirm according to the verification process in this article before upgrading |
 
 
@@ -85,7 +85,7 @@ const result = await collection.findOneAndUpdate(filter, update);
 
 ### monSQLize current behavior
 
-**When using the default installation, the user code receives the document directly or `null`: **
+**With the current monSQLize package dependency baseline, user code receives the document directly or `null`:**
 
 ```javascript
 const user = await collection.findOneAndUpdate(
@@ -152,16 +152,16 @@ console.log(result);
 
 | Methods | Driver 5.x Historical Defaults | Driver 6.21.0 / 7.2.0 Defaults | Current Recommendations |
 |------|---------|---------|---------|
-| **findOneAndUpdate** | `{ value, ok, lastErrorObject }` | Document object or `null` | Use default dependency, no need to extract `value` |
-| **findOneAndReplace** | `{ value, ok, lastErrorObject }` | Document object or `null` | Use default dependency, no need to extract `value` |
-| **findOneAndDelete** | `{ value, ok, lastErrorObject }` | Document object or `null` | Use default dependency, no need to extract `value` |
+| **findOneAndUpdate** | `{ value, ok, lastErrorObject }` | Document object or `null` | Use the current dependency baseline; no need to extract `value` |
+| **findOneAndReplace** | `{ value, ok, lastErrorObject }` | Document object or `null` | Use the current dependency baseline; no need to extract `value` |
+| **findOneAndDelete** | `{ value, ok, lastErrorObject }` | Document object or `null` | Use the current dependency baseline; no need to extract `value` |
 | **updateOne** | `{ acknowledged, matchedCount, ... }` | Same | Process as native results |
 | **updateMany** | `{ acknowledged, matchedCount, ... }` | Same | Process as native results |
 | **deleteOne** | `{ acknowledged, deletedCount }` | Same | Process as native results |
 | **deleteMany** | `{ acknowledged, deletedCount }` | Same | Process as native results |
 | **replaceOne** | `{ acknowledged, matchedCount, ... }` | Same | Process as native result |
 
-**Note**: Driver 4.x / 5.x is only used as a reference for historical migration. The current documentation no longer lists them as the default post-installation user authentication paths.
+**Note**: Driver 4.x / 5.x is only used as a reference for historical migration. The current documentation no longer lists them as the normal user verification path.
 
 ---
 
@@ -199,7 +199,7 @@ findOneAndDeleteDocument(collection, filter, options)
 
 ## Version management mechanism
 
-- The default installation path does not require user declaration `mongodb`.
+- Normal monSQLize usage does not require users to declare `mongodb` directly.
 - Compatibility verification temporarily overwrites the driver version and restores `mongodb@6.21.0` after verification.
 - CI compatibility checks should use `npm ls mongodb` and `npm run test:compatibility` as evidence.
 
@@ -208,7 +208,7 @@ findOneAndDeleteDocument(collection, filter, options)
 
 - When there is no matching document, `findOneAnd*` returns `null`.
 - If the caller explicitly passes in `includeResultMetadata: true`, the return value follows the MongoDB Driver native metadata structure.
-- If the application is overwritten as a historical driver and gets `{ value, ok, lastErrorObject }`, you should first restore the default dependencies or complete migration verification at the application layer.
+- If the application is overwritten as a historical driver and gets `{ value, ok, lastErrorObject }`, you should first restore the package dependency baseline or complete migration verification at the application layer.
 
 ---
 
@@ -244,7 +244,7 @@ npm install mongodb@next --no-save --package-lock=false
 npm run test:compatibility
 npm run test:server-matrix
 
-# 4. Restore default runtime dependencies
+# 4. Restore the current runtime dependency baseline
 npm install mongodb@6.21.0 --no-save --package-lock=false
 ```
 
@@ -453,7 +453,7 @@ async function customFindOneAndModify(filter, modification, options = {}) {
 
 ## Q1: Will there be any problems if I am using MongoDB driver 5.x?
 
-**A**: The current default installation does not resolve to Driver 5.x. If the application is forcibly replaced with 5.x through package manager overrides, please restore the default dependencies first:
+**A**: The current dependency baseline does not resolve to Driver 5.x. If the application is forcibly replaced with 5.x through package manager overrides, please restore the package dependency baseline first:
 
 ```bash
 npm install mongodb@6.21.0

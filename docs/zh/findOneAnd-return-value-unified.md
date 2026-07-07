@@ -10,7 +10,7 @@
 
 ### MongoDB Driver 版本差异
 
-在 MongoDB Node.js Driver 的不同版本中，`findOneAnd*` 方法的返回值格式存在重大差异。当前 monSQLize 默认随包安装 `mongodb@6.21.0`；Driver 7.2.0 作为扩展矩阵验证版本。
+在 MongoDB Node.js Driver 的不同版本中，`findOneAnd*` 方法的返回值格式存在重大差异。当前 monSQLize 以 `mongodb@6.21.0` 作为运行时依赖基线；Driver 7.2.0 作为扩展矩阵验证版本。
 
 #### Driver 4.x 返回格式
 
@@ -96,12 +96,12 @@ if (driverVersion === 4) {
 
 ## monSQLize 的解决方案
 
-### 默认依赖统一用户体验
+### 当前依赖基线下的统一用户体验
 
-monSQLize 默认随包安装 `mongodb@6.21.0`，并验证 Driver 7.2.0 扩展矩阵。使用默认安装时，`findOneAnd*` 直接返回文档或 `null`，**用户无需额外安装或选择 driver 版本**。
+monSQLize 当前包依赖基线为 `mongodb@6.21.0`，并验证 Driver 7.2.0 扩展矩阵。在当前依赖基线下，`findOneAnd*` 直接返回文档或 `null`，**用户无需额外安装或选择 driver 版本**。
 
 ```javascript
-// 使用默认 monSQLize 安装
+// 使用当前 monSQLize 包依赖基线
 const user = await collection.findOneAndUpdate(
   { name: 'Alice' },
   { $set: { age: 31 } }
@@ -143,7 +143,7 @@ async findOneAndUpdate(filter, update, options = {}) {
 
 - `mongodb@6.21.0` 是默认运行时基线。
 - Driver 7.2.0 通过兼容性矩阵作为扩展验证。
-- Driver 4.x / 5.x 的 `{ value, ok, lastErrorObject }` 是历史迁移背景，不建议在新项目覆盖默认依赖。
+- Driver 4.x / 5.x 的 `{ value, ok, lastErrorObject }` 是历史迁移背景，不建议在新项目覆盖当前包依赖基线。
 
 ---
 
@@ -308,14 +308,14 @@ console.log(user.name);
 
 ### monSQLize 的优势
 
-1. **默认安装即统一体验**
-   - 默认 Driver 基线返回文档或 `null`
+1. **当前依赖基线即统一体验**
+   - 当前 Driver 基线返回文档或 `null`
    - 用户无需手动提取 `value`
    - 代码更简洁清晰
 
 2. **版本升级有验证入口**
    - 兼容性矩阵覆盖 `mongodb@6.21.0` 与 Driver 7.2.0
-   - 用户代码无需为默认安装增加版本判断
+   - 用户代码无需为当前依赖基线增加版本判断
    - 新主版本升级前先跑矩阵验证
 
 3. **完整测试覆盖**
@@ -338,5 +338,5 @@ console.log(user.name);
 
 ---
 
-**结论**: 使用 monSQLize 默认安装时，`findOneAnd*` 方法返回文档或 `null`，用户不需要额外安装 driver，也不需要手动处理 `result.value`。
+**结论**: 使用 monSQLize 当前包依赖基线时，`findOneAnd*` 方法返回文档或 `null`，用户不需要额外安装 driver，也不需要手动处理 `result.value`。
 

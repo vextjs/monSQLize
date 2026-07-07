@@ -62,16 +62,16 @@ const analyticsEvents = use('analytics').collection('events');
 
 ---
 
-### Concurrent Connection Protection
+### Concurrent connect() calls
 
-`connect()` is safe to call from concurrent request handlers. Concurrent calls wait for the same connection attempt instead of opening duplicate clients.
+`connect()` is safe to call from concurrent startup tasks or request handlers. Concurrent callers wait for the same connection attempt instead of opening duplicate MongoDB clients.
 
-#### How It Works
+#### What to expect
 
-1. First call: starts the connection and caches the promise.
-2. Concurrent calls: wait for the same promise.
-3. Successful connection: clears the lock and returns the connection object.
-4. Failed connection: clears the lock and rethrows the error.
+1. The first caller starts the connection attempt.
+2. Other callers wait for that attempt to finish.
+3. Successful callers receive the connected runtime accessors.
+4. If the attempt fails, all waiting callers receive the same error and the next `connect()` call can retry.
 
 #### High-Concurrency Example
 
@@ -94,7 +94,7 @@ console.log(results[0] === results[9]);  // true
 console.log('Only one connection was established.');
 ```
 
-#### Benefits of Concurrent Protection
+#### Benefits
 
 - Prevents connection-pool exhaustion.
 - Reduces connection overhead.
@@ -103,9 +103,9 @@ console.log('Only one connection was established.');
 
 ---
 
-### Parameter Validation
+### Accepted collection and database names
 
-`collection()` and `db()` validate their inputs so invalid collection or database names fail early.
+`collection()` and `db()` fail early when a collection or database name is missing or invalid.
 
 #### collection() Validation
 
@@ -203,13 +203,12 @@ Closes the database connection and releases internal resources.
 async close()
 ```
 
-#### Cleanup Scope
+#### What close() releases
 
 - Closes the MongoDB client connection.
-- Clears the instance ID cache (`_iidCache`).
-- Clears the connection lock (`_connecting`).
-- Clears the `ModelInstance` cache.
-- Releases internal references.
+- Releases the current connection attempt state.
+- Clears cached runtime Model instances for this MonSQLize instance.
+- Releases runtime-owned references that should not survive after shutdown.
 
 #### Usage Example
 
@@ -334,7 +333,7 @@ try {
   // Connection failure.
   console.error('Connection failed:', err.message);
 
-  // The connection lock has been cleared, so retrying is safe.
+  // A failed attempt does not leave the instance stuck; retrying is safe.
   console.log('The connection can be retried.');
 }
 ```
@@ -969,7 +968,7 @@ await use('logs').collection('errors').find({});
 
 ### Q: How do I retry after a failed connection?
 
-After a connection failure, the `_connecting` lock is cleared automatically, so retrying is safe.
+After a connection failure, the instance can retry on the next `connect()` call.
 
 ```javascript
 async function connectWithRetry() {

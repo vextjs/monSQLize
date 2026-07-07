@@ -102,12 +102,12 @@ if (driverVersion === 4) {
 ## monSQLize solution
 
 
-## Default relies on unified user experience
+## Current dependency baseline
 
-monSQLize installs `mongodb@6.21.0` with the package by default, and verifies the Driver 7.2.0 extension matrix. When using the default installation, `findOneAnd*` directly returns the document or `null`, **users do not need to install additionally or select the driver version**.
+monSQLize declares `mongodb@6.21.0` as its current runtime dependency baseline and verifies the Driver 7.2.0 extension matrix. In normal monSQLize usage, `findOneAnd*` directly returns the document or `null`, **users do not need to install an additional driver or choose a driver version**.
 
 ```javascript
-//Use default monSQLize installation
+// Use the current monSQLize package dependency baseline
 const user = await collection.findOneAndUpdate(
   { name: 'Alice' },
   { $set: { age: 31 } }
@@ -151,7 +151,7 @@ async findOneAndUpdate(filter, update, options = {}) {
 
 - `mongodb@6.21.0` is the default runtime baseline.
 - Driver 7.2.0 passed the compatibility matrix as an extended validation.
-- `{ value, ok, lastErrorObject }` of Driver 4.x / 5.x is a historical migration background, and it is not recommended to overwrite the default dependencies in new projects.
+- `{ value, ok, lastErrorObject }` of Driver 4.x / 5.x is a historical migration background, and it is not recommended to overwrite the current package dependency baseline in new projects.
 
 ---
 
@@ -334,7 +334,7 @@ console.log(user.name);
 
 2. **There is a verification entrance for version upgrade**
    - Compatibility matrix covers `mongodb@6.21.0` with Driver 7.2.0
-   - User code does not need to add version judgment for default installation
+   - User code does not need driver-version branching in normal monSQLize usage
    - Run matrix verification before upgrading to new major version
 
 3. **Full Test Coverage**
@@ -357,4 +357,4 @@ console.log(user.name);
 
 ---
 
-**Conclusion**: When using the default installation of monSQLize, the `findOneAnd*` method returns the document or `null`. Users do not need to install additional drivers or manually handle `result.value`.
+**Conclusion**: With the current monSQLize package dependency baseline, the `findOneAnd*` method returns the document or `null`. Users do not need to install additional drivers or manually handle `result.value`.
