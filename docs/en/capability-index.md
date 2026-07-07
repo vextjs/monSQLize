@@ -22,12 +22,11 @@ Principles:
 |------------|----------------------|-------|
 | Model | `msq.model()` / `MonSQLize.Model` | Supports model registration, relations, virtuals, populate, and common query entries |
 | write-path-policy | `writePathPolicy` | Optional runtime guard for Model-only write namespaces |
+| cache | Query `cache` options / `msq.cache` | Database query cache, multi-layer cache access, invalidation, and statistics |
 | transaction | `startSession()` / `withTransaction()` | Supports MongoDB transaction wrappers and transaction statistics |
 | pool | `pools` / `pool()` / `ConnectionPoolManager` | Declare `pools: PoolConfig[]` in the constructor, route with `pool()`, and use the low-level manager for advanced inspection or manual management |
 | sync | `startSync()` / `stopSync()` / `getSyncStats()` | Supports Change Stream sync start, stop, and status inspection |
 | slow-query-log | `recordSlowQuery()` / `getSlowQueryLogs()` | Supports slow-query recording, querying, and runtime management |
-
-`withCache()` and `FunctionCache` remain exported for legacy compatibility, but they are not recommended as current monSQLize capability entry points for new non-database caching usage.
 
 ## 1. Model
 
@@ -36,7 +35,7 @@ Available entries:
 - `Model.define/get/list/undefine/redefine`
 - `msq.model()`
 - relations / virtuals / populate
-- `findOneById()` / `findByIds()` / `findAndCount()`
+- common model queries such as `findOne()` and `findAndCount()`
 
 Model documentation and examples:
 

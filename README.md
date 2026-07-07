@@ -392,8 +392,6 @@ Cache capabilities include:
 - Automatic invalidation after writes.
 - Cache namespace, TTL, and distributed invalidation controls.
 
-`withCache()` and `FunctionCache` remain exported for legacy compatibility, but non-database function caching is no longer promoted as a current monSQLize feature area.
-
 ## Advanced Capabilities
 
 ### Transactions
@@ -527,9 +525,9 @@ npm run verify:full
 npm run release:preflight
 ```
 
-Release preflight runs linting, type checks, size guards, runtime checks, compatibility checks, refactor guards, production dependency audit, the default test suite, and `npm pack --dry-run`.
+The package self-check command runs linting, type checks, size guards, runtime checks, compatibility checks, refactor guards, production dependency audit, the default test suite, and `npm pack --dry-run`.
 
-`npm run release:publish` runs the preflight gate once and then calls `npm publish --ignore-scripts` so the final publish step does not repeat the full lifecycle gate. Raw `npm publish` is still guarded by `prepublishOnly`.
+`npm run release:publish` runs the package self-check once and then calls `npm publish --ignore-scripts` so the final publish step does not repeat the full lifecycle check. Raw `npm publish` is still guarded by `prepublishOnly`.
 
 Optional commands:
 

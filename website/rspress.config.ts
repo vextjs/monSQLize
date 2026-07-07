@@ -350,8 +350,7 @@ const sidebarSource: SidebarGroupSource[] = [
       { en: 'ObjectId Cross-Version', zh: 'ObjectId 跨版本', link: '/objectid-cross-version' },
       { en: 'ObjectId Cross-Version FAQ', zh: 'ObjectId 跨版本 FAQ', link: '/objectid-cross-version-faq' },
       { en: 'ObjectId Logging Optimization', zh: 'ObjectId 日志优化', link: '/objectid-logging-optimization' },
-      { en: 'Support Matrix', zh: '支持矩阵', link: '/support-matrix' },
-      { en: 'Cache Hub Migration', zh: 'Cache Hub 迁移', link: '/cache-hub-migration' }
+      { en: 'Support Matrix', zh: '支持矩阵', link: '/support-matrix' }
     ]
   }
 ];
@@ -519,6 +518,19 @@ export default defineConfig({
   globalStyles: path.join(import.meta.dirname, 'styles', 'home.css'),
   description: 'A database-native TypeScript production data runtime layer with MongoDB stable today, plus cache, pools, transactions, models, sync, and observability.',
   outDir: 'dist',
+  route: {
+    exclude: [
+      '**/function-cache.md',
+      '**/cache-and-function-cache.md',
+      '**/cache-hub-migration.md',
+      '**/find-one-by-id.md',
+      '**/find-by-ids.md',
+      '**/file-dependency-governance.md',
+      '**/capability-traceability.md',
+      '**/release-preflight.md',
+      '**/verification-entrypoints.md'
+    ]
+  },
   locales: [
     {
       lang: 'en',

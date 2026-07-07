@@ -286,8 +286,3 @@ const doc = await collection("users").findOneAndUpdate(
 - **[Upsert 操作完整指南](./upsert-guide.md)** - 包含所有场景和最佳实践
 - **[findOneAndUpdate() 文档](./find-one-and-update.md)** - 详细 API 说明
 - **[updateOne() 文档](./update-one.md)** - 简单场景的替代方案
-
----
-
-**日期**: 2026-01-28  
-**版本**: v1.1.2

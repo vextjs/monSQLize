@@ -27,7 +27,7 @@ features:
   - icon: ⚡
     title: 智能两级缓存
     details: L1 内存 LRU 加可选 L2 Redis，基于 cache-hub 提供模式化失效与分布式缓存同步。
-    link: /zh/cache-and-function-cache.html
+    link: /zh/cache.html
   - icon: 🔎
     title: MongoDB 适配器 API
     details: findPage、findAndCount、stream、explain、ID 便利方法与链式 builder 明确保持 MongoDB 语义。

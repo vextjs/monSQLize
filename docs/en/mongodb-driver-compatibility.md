@@ -201,7 +201,7 @@ findOneAndDeleteDocument(collection, filter, options)
 
 - The default installation path does not require user declaration `mongodb`.
 - Compatibility verification temporarily overwrites the driver version and restores `mongodb@6.21.0` after verification.
-- CI/pre-release checks should have `npm ls mongodb` and `npm run test:compatibility` as evidence.
+- CI compatibility checks should use `npm ls mongodb` and `npm run test:compatibility` as evidence.
 
 
 ## Exception handling

@@ -191,7 +191,7 @@ findOneAndDeleteDocument(collection, filter, options)
 
 - 默认安装路径不需要用户声明 `mongodb`。
 - 兼容性验证临时覆盖 driver 版本，验证后恢复 `mongodb@6.21.0`。
-- CI / 发布前检查应以 `npm ls mongodb` 和 `npm run test:compatibility` 作为证据。
+- CI 兼容性检查应以 `npm ls mongodb` 和 `npm run test:compatibility` 作为证据。
 
 ### 异常情况处理
 

@@ -35,8 +35,6 @@
 |------|------|------|
 | [查询多个文档](find.md) | `find()` | 查询多个文档 |
 | [查询单个文档](findOne.md) | `findOne()` | 查询单个文档 |
-| [按 id 查询辅助方法](find-one-by-id.md) | `findOneById()` | `_id` 查询的可选 reference helper；普通 `findOne({ _id })` 也支持 ObjectId 自动转换 |
-| [按 ids 批量查询辅助方法](find-by-ids.md) | `findByIds()` | 多个 `_id` 查询的可选 reference helper；普通 `find({ _id: { $in } })` 也支持 ObjectId 自动转换 |
 | [分页查询](findPage.md) | `findPage()` | 游标分页查询 |
 | [统计文档数量](count.md) | `count()` | 统计文档数量 |
 | [去重查询](distinct.md) | `distinct()` | 去重查询 |
@@ -183,7 +181,7 @@
 | [API 参考索引](api-index.md) | 当前 API 参考索引 |
 | [入门指南](getting-started.md) | 入门指南 |
 | [示例索引](examples.md) | 示例索引 |
-| [常见配方](recipes.md) | 常见配方 |
+| [常用场景](recipes.md) | 连接、缓存、Redis、SSH、连接池与 Model 的常用场景 |
 | [能力索引](capability-index.md) | 能力索引 |
 
 ---
@@ -204,17 +202,13 @@
 
 ---
 
-## 运行时、部署与治理
+## 运行时与部署
 
 | 文档 | 说明 |
 |------|------|
-| [运行时架构](runtime-architecture.md) | 运行时架构 |
+| [运行时一致性与边界](runtime-architecture.md) | 运行时能力边界与一致性契约 |
 | [支持矩阵](support-matrix.md) | 支持矩阵 |
 | [路线图边界](roadmap-boundaries.md) | 路线图边界 |
-| [文件依赖治理](file-dependency-governance.md) | 文件依赖治理 |
-| [能力可追溯性](capability-traceability.md) | 能力可追溯性 |
-| [发布前检查](release-preflight.md) | 发布前检查 |
-| [验证入口](verification-entrypoints.md) | 验证入口 |
 | [验证说明](validation.md) | 验证说明 |
 
 ---
@@ -227,8 +221,7 @@
 | [ObjectId 跨版本说明](objectid-cross-version.md) | ObjectId 跨版本说明 |
 | [ObjectId 跨版本 FAQ](objectid-cross-version-faq.md) | ObjectId 跨版本 FAQ |
 | [ObjectId 日志优化](objectid-logging-optimization.md) | ObjectId 日志优化 |
-| [缓存 API 概览](cache-and-function-cache.md) | 当前数据库 runtime 缓存入口与 legacy 函数缓存边界 |
-| [cache-hub 迁移](cache-hub-migration.md) | cache-hub 迁移 |
+| [缓存 API](cache.md) | 数据库查询缓存、多层缓存接入、缓存失效与统计 |
 | [慢查询日志](slow-query-log.md) | 慢查询日志 |
 | [故障恢复示例](failure-recovery-examples.md) | 故障恢复示例 |
 | [多连接池健康检查](multi-pool-health-check.md) | 多连接池健康检查 |

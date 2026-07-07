@@ -69,19 +69,19 @@ import type { SlowQueryLogConfigInput, SlowQueryLogEntry, SlowQueryLogFilter, Sl
 import type { ChangeStreamSyncManager, SyncConfig, SyncStats } from './sync';
 import type { Transaction, TransactionOptions, TransactionStats } from './transaction';
 
-/** Write path policy mode. `allow-both` preserves the existing collection and model write behavior. @since v2.0.8 */
+/** Write path policy mode. `allow-both` preserves the existing collection and model write behavior. */
 export type WritePathPolicyMode = 'allow-both' | 'model-only';
 
-/** Controls whether native raw access is available under a write path policy. @since v2.0.8 */
+/** Controls whether native raw access is available under a write path policy. */
 export type WritePathPolicyRawMode = 'inherit' | 'allow' | 'block';
 
-/** Controls whether collection/database management writes are available under a write path policy. @since v2.0.8 */
+/** Controls whether collection/database management writes are available under a write path policy. */
 export type WritePathPolicyManagementMode = 'inherit' | 'allow' | 'block';
 
-/** Controls violation handling; `warn` logs and allows for migration observation. @since v2.0.8 */
+/** Controls violation handling; `warn` logs and allows for migration observation. */
 export type WritePathPolicyViolationAction = 'throw' | 'warn';
 
-/** Per-namespace write path policy rule. @since v2.0.8 */
+/** Per-namespace write path policy rule. */
 export interface WritePathPolicyRule {
     /** Write policy mode. Default: `allow-both`. */
     mode?: WritePathPolicyMode;
@@ -93,7 +93,7 @@ export interface WritePathPolicyRule {
     onViolation?: WritePathPolicyViolationAction;
 }
 
-/** Runtime write path policy configuration. @since v2.0.8 */
+/** Runtime write path policy configuration. */
 export interface WritePathPolicyOptions {
     /**
      * Default rule applied when no namespace override matches.
@@ -112,7 +112,7 @@ export type MonSQLizeSchemaDslRuntime = Pick<
     's' | 'dsl' | 'validate' | 'registerExtensions' | 'dispose'
 >;
 
-/** schema-dsl runtime integration. Omit to let monSQLize create one isolated runtime per MonSQLize instance. @since v2.0.8 */
+/** schema-dsl runtime integration. Omit to let monSQLize create one isolated runtime per MonSQLize instance. */
 export interface SchemaDslRuntimeConfig {
     /** Disable model schema-dsl compilation and validation when false. Default: true. */
     enabled?: boolean;
@@ -186,7 +186,7 @@ export interface MonSQLizeOptions {
         [key: string]: unknown;
     };
     logger?: LoggerLike | null;
-    /** Isolated schema-dsl runtime configuration for Model schema compilation and validation. @since v2.0.8 */
+    /** Isolated schema-dsl runtime configuration for Model schema compilation and validation. */
     schemaDsl?: false | SchemaDslRuntimeConfig;
     pools?: PoolConfig[];
     poolStrategy?: PoolStrategy;
@@ -268,7 +268,6 @@ export interface MonSQLizeOptions {
     /**
      * Optional write path governance. By default both collection and model write APIs remain available.
      * Use `model-only` per default or namespace to require writes through the model API.
-     * @since v2.0.8
      */
     writePathPolicy?: WritePathPolicyOptions;
 }

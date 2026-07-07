@@ -35,8 +35,6 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 |----------|--------|-------------|
 | [Find documents](find.md) | `find()` | Query multiple documents |
 | [Find one document](findOne.md) | `findOne()` | Query one document |
-| [Find one by id helper](find-one-by-id.md) | `findOneById()` | Optional reference helper for `_id` lookup; regular `findOne({ _id })` also supports ObjectId auto conversion |
-| [Find by ids helper](find-by-ids.md) | `findByIds()` | Optional reference helper for multiple `_id` values; regular `find({ _id: { $in } })` also supports ObjectId auto conversion |
 | [Paginated find](findPage.md) | `findPage()` | Cursor pagination query |
 | [Count documents](count.md) | `count()` | Count documents |
 | [Distinct values](distinct.md) | `distinct()` | Distinct query |
@@ -185,7 +183,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [API reference index](api-index.md) | Current API reference index |
 | [Getting started](getting-started.md) | Getting started guide |
 | [Examples](examples.md) | Example index |
-| [Recipes](recipes.md) | Common recipes |
+| [Common scenarios](recipes.md) | Connection, cache, Redis, SSH, pool, and Model usage scenarios |
 | [Capability index](capability-index.md) | Capability index |
 
 ---
@@ -206,17 +204,13 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 
 ---
 
-## Runtime, Deployment, and Governance
+## Runtime and Deployment
 
 | Document | Description |
 |----------|-------------|
-| [Runtime architecture](runtime-architecture.md) | Runtime architecture |
+| [Runtime consistency and boundaries](runtime-architecture.md) | Runtime capability boundaries and consistency contracts |
 | [Support matrix](support-matrix.md) | Support matrix |
 | [Roadmap boundaries](roadmap-boundaries.md) | Roadmap boundaries |
-| [File dependency governance](file-dependency-governance.md) | File dependency governance |
-| [Capability traceability](capability-traceability.md) | Capability traceability |
-| [Release preflight](release-preflight.md) | Release preflight |
-| [Verification entry points](verification-entrypoints.md) | Verification entry points |
 | [Validation notes](validation.md) | Validation notes |
 
 ---
@@ -229,8 +223,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [ObjectId cross-version notes](objectid-cross-version.md) | ObjectId cross-version notes |
 | [ObjectId cross-version FAQ](objectid-cross-version-faq.md) | ObjectId cross-version FAQ |
 | [ObjectId logging optimization](objectid-logging-optimization.md) | ObjectId logging optimization |
-| [Cache API overview](cache-and-function-cache.md) | Current database-runtime cache entries and legacy function-cache boundary |
-| [`cache-hub` migration](cache-hub-migration.md) | `cache-hub` migration |
+| [Cache API](cache.md) | Database query cache, multi-layer cache access, invalidation, and statistics |
 | [Slow-query logging](slow-query-log.md) | Slow-query logging |
 | [Failure recovery examples](failure-recovery-examples.md) | Failure recovery examples |
 | [Multi-pool health checks](multi-pool-health-check.md) | Multi-pool health checks |

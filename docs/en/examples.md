@@ -33,8 +33,6 @@ node .generated/examples-dist/examples/docs/find.js
 |----------|---------|
 | [`find.md`](./find.md) | [`examples/docs/find.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find.ts) |
 | [`findOne.md`](./findOne.md) | [`examples/docs/find-one.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-one.ts) |
-| [`find-one-by-id.md`](./find-one-by-id.md) | [`examples/docs/find-one-by-id.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-one-by-id.ts) |
-| [`find-by-ids.md`](./find-by-ids.md) | [`examples/docs/find-by-ids.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-by-ids.ts) |
 | [`findPage.md`](./findPage.md) | [`examples/docs/find-page.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-page.ts) |
 | [`find-and-count.md`](./find-and-count.md) | [`examples/docs/find-and-count.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-and-count.ts) |
 | [`count.md`](./count.md) | [`examples/docs/count.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/count.ts) |

@@ -297,8 +297,3 @@ const doc = await collection("users").findOneAndUpdate(
 - **[Complete Guide to Upsert Operations](./upsert-guide.md)** - Contains all scenarios and best practices
 - **[findOneAndUpdate() documentation](./find-one-and-update.md)** - Detailed API description
 - **[updateOne() documentation](./update-one.md)** - Alternative for simple scenarios
-
----
-
-**Date**: 2026-01-28
-**Version**: v1.1.2

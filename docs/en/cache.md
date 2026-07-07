@@ -4,7 +4,7 @@
 
 monSQLize provides database query caching for collection reads, optional local/remote cache composition, manual invalidation and statistics. Cache invalidation is designed to keep read caches fresh enough for common application workloads, but it is not an atomic commit step with MongoDB writes.
 
-> ⚠️ If you are migrating public cache compatibility exports, read the [`cache-hub` direct-call migration guide](./cache-hub-migration.md) first. This page covers monSQLize database query cache and multi-layer cache access; `withCache()` / `FunctionCache` are legacy compatibility exports and are outside the current non-database cache path.
+This page covers the current database-runtime cache path: query result cache, bookmark cache, Redis-backed remote cache, distributed invalidation, and cache statistics.
 
 ## Core Features
 

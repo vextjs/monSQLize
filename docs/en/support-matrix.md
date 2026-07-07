@@ -25,12 +25,12 @@
 - **Full functional gate**: `npm run verify:full`
 - **Coverage governance**: `npm run test:coverage`
 - **Matrix**: `npm run test:server-matrix`
-- **Release preflight (public access)**: `npm run release:preflight`
+- **Package self-check**: `npm run release:preflight`
 - **Private real env**: `npm run test:real-env:private`
 
 ## Public verification and private verification boundaries
 
-- `verify:fast` / `verify:full` / `test:server-matrix` / `release:preflight` are all **publicly reproducible** verification portals; `test:coverage` is an independent coverage management portal.
+- `verify:fast` / `verify:full` / `test:server-matrix` / `release:preflight` are all **publicly reproducible** verification commands; `test:coverage` is an independent coverage command.
 - `npm test` now covers smoke / compatibility / unit / integration by default; migrated TypeScript tests are first compiled to `.generated/test-dist/test/**` and then executed, and independent migration runners are no longer retained.
 - `test:real-env:private` and `verify:release` belong to **explicit opt-in** private real environment verification, which requires the operator to inject SSH/Mongo environment variables by themselves.
 - GitHub Actions only runs public access by default and does not assume any private SSH/Mongo resources exist.

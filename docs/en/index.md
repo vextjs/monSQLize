@@ -27,7 +27,7 @@ features:
   - icon: ⚡
     title: Smart Two-Level Cache
     details: L1 memory LRU plus optional L2 Redis, powered by cache-hub with pattern invalidation and distributed sync.
-    link: /cache-and-function-cache.html
+    link: /cache.html
   - icon: 🔎
     title: MongoDB Adapter APIs
     details: findPage, findAndCount, stream, explain, ID helpers, and chain builders stay explicit to MongoDB semantics.

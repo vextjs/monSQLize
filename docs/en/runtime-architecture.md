@@ -1,8 +1,10 @@
-# Core runtime structure description
+# Runtime consistency and boundaries
 
-> Goal: Give subsequent maintainers a structural diagram of "from entry to capability layer" to avoid continuing to pile logic back to `runtime-core.ts`.
+monSQLize is a database-native runtime layer. It coordinates MongoDB access, model validation, cache, transactions, pools, sync, and observability, but it does not turn those capabilities into one global strict-consistency system.
 
-## Module layering
+Use this page to decide which entry point to use and where application-level guarantees are still required.
+
+## Runtime layers
 
 ```text
 MonSQLizeRuntime (src/entry/runtime-core.ts)
@@ -10,7 +12,7 @@ MonSQLizeRuntime (src/entry/runtime-core.ts)
 │   ├── runtime-helpers.ts
 │   └── runtime-compat-accessors.ts
 ├── capabilities
-│   ├── cache / legacy function-cache compatibility
+│   ├── database query cache
 │   ├── model
 │   ├── pool
 │   ├── sync
@@ -23,8 +25,6 @@ MonSQLizeRuntime (src/entry/runtime-core.ts)
     ├── expression
     └── errors / logger / utils
 ```
-
-## Maintain boundaries
 
 ## Runtime consistency contract
 
@@ -40,50 +40,26 @@ monSQLize provides runtime coordination helpers, not a global strict-consistency
 
 Use application/framework-level coordination, explicit `DistributedCacheLockManager` business locks, idempotency keys, fencing tokens, durable outbox/journals, or cache bypassing when a flow requires cross-instance strict consistency.
 
+## Choosing the right entry point
 
-## `runtime-core.ts`
+| Need | Recommended entry |
+|------|-------------------|
+| Normal collection access | `const { collection } = await msq.connect()` |
+| Model schema validation and hooks | `msq.model()` or `MonSQLize.Model` |
+| Model-only writes for selected namespaces | `writePathPolicy` |
+| Query cache | Query `cache` options plus `msq.cache` invalidation/stat APIs |
+| Multi-pool routing | Constructor `pools: PoolConfig[]`, then `msq.pool()` |
+| Transactions | `startSession()` and `withTransaction()` |
+| Change Stream fanout | `startSync()`, `stopSync()`, and `getSyncStats()` |
+| Strict business locks | `DistributedCacheLockManager` with an application idempotency/fencing design |
 
-Only responsible for:
+## When to add application-level guarantees
 
-- runtime main class public API
-- Ability assembly
-- Connect / close / collection / db / model and other entry delegates
+Add explicit application guarantees when a workflow requires all of the following at the same time:
 
-The heap should not continue:
+1. Database write success and cache visibility must be atomic.
+2. Sync targets cannot tolerate replay.
+3. A lock must protect multiple Node.js processes or multiple regions.
+4. A batch operation must behave exactly like a sequence of per-document business operations.
 
-- Complex write orchestration
-- expression parsing details
-- sync records/stores details
-- compat-only type cleaning logic
-
-
-## `runtime-helpers.ts` / `runtime-compat-accessors.ts`
-
-Responsible for:
-
-- Assembly details of runtime and model/accessor
-- getter/cache/dbInstance bridge for v1 compatible paths
-
-
-## capability / adapter layer
-
-Responsible for:
-
-- True behavioral semantics
-- Corresponding module’s internal helpers, queues, storage, and orchestration
-
-## Current hot spot governance results
-
-| Hot Topics | Current Strategies |
-|------|----------|
-| `slow-query-log` | Split into config/queue/records/storage/manager |
-| `writes` | Split into utils/basic/batch |
-| `expression` | The compiler has been separated, and only the public API and traversal remain at the entrance |
-| `collection-accessor` | The writing path has been moved to the helper, and the main file has returned façade |
-| `ModelInstance` | mutation orchestration has moved out of the master file |
-
-## Subsequent maintenance rules
-
-1. New capabilities are given priority to enter `capabilities/` or `adapters/`, do not change `runtime-core.ts` first.
-2. When compat-only logic is involved, `runtime-compat-accessors.ts` is entered first.
-3. After hotspot reconstruction, at least add `test:refactor-guard` + corresponding capability layer regression.
+For those paths, combine monSQLize with durable outbox records, idempotency keys, application-level retries, or cache bypassing for the critical read path.

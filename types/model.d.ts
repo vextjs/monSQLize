@@ -3,7 +3,6 @@ import type { SchemaDslRuntime } from 'schema-dsl/runtime';
 
 /**
  * Runtime-scoped schema-dsl namespace passed to Model schema callbacks.
- * @since v2.0.8
  */
 export type ModelSchemaDsl = SchemaDslRuntime['s'];
 
