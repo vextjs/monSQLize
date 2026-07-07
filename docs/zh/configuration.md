@@ -510,7 +510,7 @@ await users.find({});                      // 使用 3000。
 
 ## 相关文档
 
-- [快速开始](./getting-started.md)
+- [安装](./getting-started.md)
 - [连接管理](./connection.md)
 - [缓存 API](./cache.md)
 - [连接池配置](./multi-pool.md)

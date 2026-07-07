@@ -20,7 +20,7 @@ tsc -p tsconfig.examples.json
 node .generated/examples-dist/examples/docs/find.js
 ```
 
-## 快速开始
+## 入门示例
 
 | 文档 | 示例 |
 |------|------|

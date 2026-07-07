@@ -8,7 +8,7 @@ Database-native production data runtime layer for TypeScript services. monSQLize
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-brightgreen)](https://nodejs.org/)
 
 Documentation: [English](https://vextjs.github.io/monSQLize/) · [简体中文](https://vextjs.github.io/monSQLize/zh/)
-Quick path: [Getting Started](https://vextjs.github.io/monSQLize/getting-started) · [Basic Operations](https://vextjs.github.io/monSQLize/basic-operations)
+Quick path: [Installation](https://vextjs.github.io/monSQLize/getting-started) · [Basic Usage](https://vextjs.github.io/monSQLize/basic-operations)
 Configuration reference: [English](https://vextjs.github.io/monSQLize/configuration) · [简体中文](https://vextjs.github.io/monSQLize/zh/configuration)
 
 ```bash
@@ -129,7 +129,7 @@ await users.updateOne(
 await msq.close();
 ```
 
-Next, use the [Basic Operations guide](https://vextjs.github.io/monSQLize/basic-operations) for common CRUD, pagination, read cache, and Model entry-point examples.
+Next, use the [Basic Usage guide](https://vextjs.github.io/monSQLize/basic-operations) for common CRUD, pagination, read cache, and Model entry-point examples.
 
 ### ESM and TypeScript
 

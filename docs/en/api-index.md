@@ -7,7 +7,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | Document | Description |
 |----------|-------------|
 | [Native API comparison](mongodb-native-vs-extensions.md) | **MongoDB native APIs vs monSQLize extensions** |
-| [Basic operations](basic-operations.md) | Common CRUD, pagination, read cache, and Model entry-point examples |
+| [Basic usage](basic-operations.md) | Common CRUD, pagination, read cache, and Model entry-point examples |
 | [Configuration reference](configuration.md) | Complete `new MonSQLize(options)` constructor options |
 | [Connection management](connection.md) | Connection lifecycle and accessors |
 | [Pool configuration](multi-pool.md) | Multi-pool configuration and runtime routing: declare `pools: PoolConfig[]` in the constructor and access pools through `pool()` / `use()` |
@@ -184,8 +184,8 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [Documentation index](README.md) | Documentation directory index |
 | [Site home](index.md) | Documentation site home |
 | [API reference index](api-index.md) | Current API reference index |
-| [Getting started](getting-started.md) | Getting started guide |
-| [Basic operations](basic-operations.md) | Common operations after the first connection succeeds |
+| [Installation](getting-started.md) | Installation and minimal connection validation |
+| [Basic usage](basic-operations.md) | Common operations after the first connection succeeds |
 | [Examples](examples.md) | Example index |
 | [Common scenarios](recipes.md) | Connection, cache, Redis, SSH, pool, and Model usage scenarios |
 | [Capability index](capability-index.md) | Capability index |
@@ -236,12 +236,12 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 
 ---
 
-## Quick Start Path
+## Start Path
 
 Recommended reading order for new users:
 
-1. [Getting started](getting-started.md) - Install, connect, and run the first query.
-2. [Basic operations](basic-operations.md) - Run common CRUD, pagination, cache, and Model entry-point examples.
+1. [Installation](getting-started.md) - Install, connect, and run the first query.
+2. [Basic usage](basic-operations.md) - Run common CRUD, pagination, cache, and Model entry-point examples.
 3. [Configuration reference](configuration.md) - Choose constructor options for the service.
 4. [Connection management](connection.md) - Learn connection lifecycle and accessors.
 5. [Find documents](find.md) - Learn query details.

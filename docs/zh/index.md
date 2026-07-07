@@ -11,10 +11,10 @@ hero:
     alt: monSQLize hero mark
   actions:
     - theme: brand
-      text: 快速开始
+      text: 安装
       link: /zh/getting-started.html
     - theme: alt
-      text: 基础常用操作
+      text: 快速上手
       link: /zh/basic-operations.html
     - theme: alt
       text: 完整配置

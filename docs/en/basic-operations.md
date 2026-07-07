@@ -1,8 +1,8 @@
-# Basic Operations
+# Basic Usage
 
 ## What This Page Covers
 
-Use this page after [Getting Started](./getting-started.md). It shows the daily collection operations most applications need before you open the full API reference:
+After installation and the first connection, use this page to run the common data flow most applications need. The examples follow the usual development order: write and query data first, then paginate, update, cache reads, and decide when to switch to `model()`:
 
 - Insert one or many documents
 - Query one document or a list

@@ -11,10 +11,10 @@ hero:
     alt: monSQLize hero mark
   actions:
     - theme: brand
-      text: Quick Start
+      text: Installation
       link: /getting-started.html
     - theme: alt
-      text: Basic Operations
+      text: Basic Usage
       link: /basic-operations.html
     - theme: alt
       text: Configuration

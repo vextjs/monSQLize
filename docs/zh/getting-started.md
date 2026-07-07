@@ -1,8 +1,8 @@
-# 快速开始
+# 安装
 
 ## 本页内容
 
-本页给出从安装到完成一次 MongoDB 集合读写的最短路径：
+本页给出安装 monSQLize 并完成一次 MongoDB 最小连接验证的路径：
 
 - 安装
 - 初始化 `MonSQLize`
@@ -10,7 +10,7 @@
 - `collection()`
 - 基础写入与查询
 - 连接关闭
-- 后续常用操作入口
+- 后续快速上手入口
 
 ## 安装
 
@@ -69,7 +69,7 @@ npm run test:examples
 
 ## 下一步
 
-- 继续完成日常 CRUD、分页、缓存和 Model 入口：[`basic-operations.md`](./basic-operations.md)。
+- 继续快速上手常用 CRUD、分页、缓存和 Model 入口：[`basic-operations.md`](./basic-operations.md)。
 - 查看构造函数完整参数：[`configuration.md`](./configuration.md)。
 - 阅读查询细节：[`find.md`](./find.md)、[`findOne.md`](./findOne.md)、[`findPage.md`](./findPage.md)。
 - 在 [`examples.md`](./examples.md) 查看文档主题与示例源码的对应关系。

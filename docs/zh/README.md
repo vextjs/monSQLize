@@ -6,8 +6,8 @@
 
 | 目标 | 入口 | 说明 |
 |------|------|------|
-| 安装、连接、完成第一次查询 | [`getting-started.md`](./getting-started.md) | MongoDB 集合最短上手路径 |
-| 完成常用集合操作 | [`basic-operations.md`](./basic-operations.md) | 日常 CRUD、分页、缓存 TTL 与 Model 入口选择 |
+| 安装、连接、完成第一次查询 | [`getting-started.md`](./getting-started.md) | 安装与最小连接验证 |
+| 快速上手常用集合操作 | [`basic-operations.md`](./basic-operations.md) | 日常 CRUD、分页、缓存 TTL 与 Model 入口选择 |
 | 配置 `new MonSQLize(options)` | [`configuration.md`](./configuration.md) | 构造函数完整参数、默认值、缓存、Redis、Model、同步、连接池与日志 |
 | 对照文档与可运行源码 | [`examples.md`](./examples.md) | 每个主题都链接到 GitHub 示例源码 |
 | 添加数据库缓存 | [`cache.md`](./cache.md) | 集合查询缓存、Redis 二级缓存、分布式失效 |
@@ -19,8 +19,8 @@
 ## 推荐阅读顺序
 
 1. 根入口说明：[仓库 README](../../README.md)
-2. 上手路径：[`getting-started.md`](./getting-started.md)
-3. 基础常用操作：[`basic-operations.md`](./basic-operations.md)
+2. 安装：[`getting-started.md`](./getting-started.md)
+3. 快速上手：[`basic-operations.md`](./basic-operations.md)
 4. 构造配置：[`configuration.md`](./configuration.md)
 5. 可执行示例：
    - [examples/README.md](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)

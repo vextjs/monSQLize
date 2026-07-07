@@ -510,7 +510,7 @@ await users.find({});                      // Uses 3000.
 
 ## Related pages
 
-- [Getting Started](./getting-started.md)
+- [Installation](./getting-started.md)
 - [Connection Management](./connection.md)
 - [Cache API](./cache.md)
 - [Pool Configuration](./multi-pool.md)

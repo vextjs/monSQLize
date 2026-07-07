@@ -20,7 +20,7 @@ tsc -p tsconfig.examples.json
 node .generated/examples-dist/examples/docs/find.js
 ```
 
-## Quick Start
+## Intro Examples
 
 | Document | Example |
 |----------|---------|

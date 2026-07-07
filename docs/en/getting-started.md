@@ -1,8 +1,8 @@
-# Getting Started
+# Installation
 
 ## What This Page Covers
 
-This page covers the shortest path from installation to a working MongoDB-backed collection:
+This page covers the path from installing monSQLize to validating a minimal MongoDB-backed collection:
 
 - Installation
 - Initializing `MonSQLize`
@@ -10,7 +10,7 @@ This page covers the shortest path from installation to a working MongoDB-backed
 - `collection()`
 - Basic writes and queries
 - Closing the connection
-- Where to continue with common operations
+- Where to continue with basic usage
 
 ## Installation
 
@@ -69,7 +69,7 @@ The current official example is [`examples/quick-start/basic-connect.ts`](https:
 
 ## Next Steps
 
-- Continue with daily CRUD, pagination, cache, and Model entry points in [`basic-operations.md`](./basic-operations.md).
+- Continue with common CRUD, pagination, cache, and Model entry points in [`basic-operations.md`](./basic-operations.md).
 - Review all constructor options in [`configuration.md`](./configuration.md).
 - Learn query details in [`find.md`](./find.md), [`findOne.md`](./findOne.md), and [`findPage.md`](./findPage.md).
 - Compare runnable examples in [`examples.md`](./examples.md).

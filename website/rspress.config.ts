@@ -98,8 +98,8 @@ const englishFooterMessage = `
   <nav class="msq-footer__grid" aria-label="monSQLize footer">
     <div>
       <h2>Docs</h2>
-      <a href="getting-started.html">Quick Start</a>
-      <a href="basic-operations.html">Basic Operations</a>
+      <a href="getting-started.html">Installation</a>
+      <a href="basic-operations.html">Basic Usage</a>
       <a href="configuration.html">Configuration</a>
       <a href="recipes.html">Guides</a>
       <a href="examples.html">Examples</a>
@@ -141,8 +141,8 @@ const chineseFooterMessage = `
   <nav class="msq-footer__grid" aria-label="monSQLize 页脚">
     <div>
       <h2>文档</h2>
-      <a href="getting-started.html">快速开始</a>
-      <a href="basic-operations.html">基础常用操作</a>
+      <a href="getting-started.html">安装</a>
+      <a href="basic-operations.html">快速上手</a>
       <a href="configuration.html">完整配置</a>
       <a href="recipes.html">场景指南</a>
       <a href="examples.html">示例</a>
@@ -177,8 +177,8 @@ const sidebarSource: SidebarGroupSource[] = [
     en: 'Quick Start',
     zh: '快速入门',
     items: [
-      { en: 'Quick Start', zh: '快速开始', link: '/getting-started' },
-      { en: 'Basic Operations', zh: '基础常用操作', link: '/basic-operations' },
+      { en: 'Installation', zh: '安装', link: '/getting-started' },
+      { en: 'Basic Usage', zh: '快速上手', link: '/basic-operations' },
       { en: 'Import and ESM', zh: '导入与 ESM', link: '/esm-support' }
     ]
   },

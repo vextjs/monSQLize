@@ -7,7 +7,7 @@
 | 文档 | 说明 |
 |------|------|
 | [原生 API 对比](mongodb-native-vs-extensions.md) | **MongoDB 原生 vs monSQLize 扩展功能对比** |
-| [基础常用操作](basic-operations.md) | 常用 CRUD、分页、读缓存与 Model 入口示例 |
+| [快速上手](basic-operations.md) | 常用 CRUD、分页、读缓存与 Model 入口示例 |
 | [完整配置参考](configuration.md) | `new MonSQLize(options)` 构造函数完整参数 |
 | [连接管理](connection.md) | 连接生命周期与访问器 |
 | [连接池配置](multi-pool.md) | 多连接池配置与运行时路由：在构造函数中声明 `pools: PoolConfig[]`，通过 `pool()` / `use()` 访问 |
@@ -182,8 +182,8 @@
 | [文档目录索引](README.md) | docs 目录索引 |
 | [文档站首页](index.md) | 文档站首页 |
 | [API 参考索引](api-index.md) | 当前 API 参考索引 |
-| [入门指南](getting-started.md) | 入门指南 |
-| [基础常用操作](basic-operations.md) | 第一次连接成功后的常用操作 |
+| [安装](getting-started.md) | 安装与最小连接验证 |
+| [快速上手](basic-operations.md) | 第一次连接成功后的常用操作 |
 | [示例索引](examples.md) | 示例索引 |
 | [场景指南](recipes.md) | 连接、缓存、Redis、SSH、连接池与 Model 的场景指南 |
 | [能力索引](capability-index.md) | 能力索引 |
@@ -234,12 +234,12 @@
 
 ---
 
-## 快速开始路径
+## 入门路径
 
 **新用户推荐阅读顺序**:
 
-1. [快速开始](getting-started.md) - 安装、连接并完成第一次查询
-2. [基础常用操作](basic-operations.md) - 完成常用 CRUD、分页、缓存和 Model 入口示例
+1. [安装](getting-started.md) - 安装、连接并完成第一次查询
+2. [快速上手](basic-operations.md) - 完成常用 CRUD、分页、缓存和 Model 入口示例
 3. [完整配置参考](configuration.md) - 选择服务需要的构造参数
 4. [连接管理](connection.md) - 了解连接生命周期与访问器
 5. [查询多个文档](find.md) - 学习查询细节
