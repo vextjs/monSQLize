@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Document verification matrix for the current 98 English documentation slugs. Chinese docs inherit coverage by slug parity.",
+  "description": "Document verification matrix for the current English documentation slugs. Chinese docs inherit coverage by slug parity.",
   "entries": [
     {
       "doc": "README",
@@ -28,6 +28,13 @@
       "kind": "doc-check",
       "target": "docs/en/api-index.md",
       "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "basic-operations",
+      "kind": "example",
+      "target": "examples/quick-start/basic-operations.ts",
+      "runner": "test:examples",
       "status": "covered"
     },
     {
@@ -105,6 +112,13 @@
       "kind": "shared-example",
       "target": "examples/quick-start/basic-connect.ts",
       "runner": "test:examples",
+      "status": "covered"
+    },
+    {
+      "doc": "configuration",
+      "kind": "doc-check",
+      "target": "docs/en/configuration.md",
+      "runner": "check:docs-examples",
       "status": "covered"
     },
     {

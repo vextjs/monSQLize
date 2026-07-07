@@ -7,6 +7,8 @@ This documentation starts with the common application path: connect to MongoDB, 
 | Goal | Start here | Notes |
 |------|------------|-------|
 | Install, connect, and run the first query | [`getting-started.md`](./getting-started.md) | Shortest path for a MongoDB-backed collection |
+| Run common collection operations | [`basic-operations.md`](./basic-operations.md) | Daily CRUD, pagination, cache TTL, and Model entry-point guidance |
+| Configure `new MonSQLize(options)` | [`configuration.md`](./configuration.md) | Complete constructor options, defaults, cache, Redis, Model, sync, pools, and logging |
 | Match docs to runnable source | [`examples.md`](./examples.md) | Links each topic to a GitHub example source |
 | Add database caching | [`cache.md`](./cache.md) | Collection query cache, Redis L2 cache, and distributed invalidation |
 | Control collection-vs-Model writes | [`write-path-policy.md`](./write-path-policy.md) | Optional guard when selected namespaces must go through Model writes |
@@ -18,15 +20,18 @@ This documentation starts with the common application path: connect to MongoDB, 
 
 1. Package entry: [repository README](../../README.md)
 2. Quick start: [`getting-started.md`](./getting-started.md)
-3. Examples:
+3. Basic operations: [`basic-operations.md`](./basic-operations.md)
+4. Constructor configuration: [`configuration.md`](./configuration.md)
+5. Examples:
    - [examples/README.md](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)
    - [examples/quick-start/basic-connect.ts](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)
+   - [examples/quick-start/basic-operations.ts](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-operations.ts)
    - [examples/docs](https://github.com/vextjs/monSQLize/tree/main/examples/docs)
    - [`examples.md`](./examples.md)
-4. Cache guide: [`cache.md`](./cache.md)
-5. Write path policy: [`write-path-policy.md`](./write-path-policy.md)
-6. Scenario guides: [`recipes.md`](./recipes.md)
-7. API and runtime reference:
+6. Cache guide: [`cache.md`](./cache.md)
+7. Write path policy: [`write-path-policy.md`](./write-path-policy.md)
+8. Scenario guides: [`recipes.md`](./recipes.md)
+9. API and runtime reference:
    - [`api-index.md`](./api-index.md)
    - [`capability-index.md`](./capability-index.md)
    - [`support-matrix.md`](./support-matrix.md)

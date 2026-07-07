@@ -3,7 +3,7 @@
 Runnable TypeScript examples for every major monSQLize API.
 Each file uses an in-memory MongoDB server (`mongodb-memory-server`) — no real database needed.
 
-> This repository currently includes **56** runnable TypeScript examples. `examples/helpers/bootstrap.ts` is a shared helper module, and `npm run test:examples` compiles and runs the executable examples.
+> This repository currently includes **57** runnable TypeScript examples. `examples/helpers/bootstrap.ts` is a shared helper module, and `npm run test:examples` compiles and runs the executable examples.
 
 ## Prerequisites
 
@@ -37,6 +37,7 @@ npm run test:examples
 | File | Description |
 |------|-------------|
 | [`quick-start/basic-connect.ts`](quick-start/basic-connect.ts) | Connect, CRUD lifecycle, disconnect |
+| [`quick-start/basic-operations.ts`](quick-start/basic-operations.ts) | Daily CRUD, pagination, read cache, and Model entry-point guidance |
 
 ### Cache
 
@@ -132,6 +133,7 @@ These examples remain runnable for existing users, but they are not primary monS
 tsc -p tsconfig.examples.json
 
 node .generated/examples-dist/examples/quick-start/basic-connect.js
+node .generated/examples-dist/examples/quick-start/basic-operations.js
 node .generated/examples-dist/examples/cache/with-cache.js
 node .generated/examples-dist/examples/docs/insert.js
 node .generated/examples-dist/examples/docs/insert-many.js

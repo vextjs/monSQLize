@@ -7,6 +7,8 @@
 | 目标 | 入口 | 说明 |
 |------|------|------|
 | 安装、连接、完成第一次查询 | [`getting-started.md`](./getting-started.md) | MongoDB 集合最短上手路径 |
+| 完成常用集合操作 | [`basic-operations.md`](./basic-operations.md) | 日常 CRUD、分页、缓存 TTL 与 Model 入口选择 |
+| 配置 `new MonSQLize(options)` | [`configuration.md`](./configuration.md) | 构造函数完整参数、默认值、缓存、Redis、Model、同步、连接池与日志 |
 | 对照文档与可运行源码 | [`examples.md`](./examples.md) | 每个主题都链接到 GitHub 示例源码 |
 | 添加数据库缓存 | [`cache.md`](./cache.md) | 集合查询缓存、Redis 二级缓存、分布式失效 |
 | 控制 collection 与 Model 写入路径 | [`write-path-policy.md`](./write-path-policy.md) | 需要某些命名空间必须经过 Model 写入时使用 |
@@ -18,15 +20,18 @@
 
 1. 根入口说明：[仓库 README](../../README.md)
 2. 上手路径：[`getting-started.md`](./getting-started.md)
-3. 可执行示例：
+3. 基础常用操作：[`basic-operations.md`](./basic-operations.md)
+4. 构造配置：[`configuration.md`](./configuration.md)
+5. 可执行示例：
    - [examples/README.md](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)
    - [examples/quick-start/basic-connect.ts](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)
+   - [examples/quick-start/basic-operations.ts](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-operations.ts)
    - [examples/docs](https://github.com/vextjs/monSQLize/tree/main/examples/docs)
    - [`examples.md`](./examples.md)
-4. 缓存专题：[`cache.md`](./cache.md)
-5. 写路径策略：[`write-path-policy.md`](./write-path-policy.md)
-6. 场景指南：[`recipes.md`](./recipes.md)
-7. API 与运行时参考：
+6. 缓存专题：[`cache.md`](./cache.md)
+7. 写路径策略：[`write-path-policy.md`](./write-path-policy.md)
+8. 场景指南：[`recipes.md`](./recipes.md)
+9. API 与运行时参考：
    - [`api-index.md`](./api-index.md)
    - [`capability-index.md`](./capability-index.md)
    - [`support-matrix.md`](./support-matrix.md)

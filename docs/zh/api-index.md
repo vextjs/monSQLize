@@ -7,7 +7,9 @@
 | 文档 | 说明 |
 |------|------|
 | [原生 API 对比](mongodb-native-vs-extensions.md) | **MongoDB 原生 vs monSQLize 扩展功能对比** |
-| [连接配置](connection.md) | 连接管理和配置 |
+| [基础常用操作](basic-operations.md) | 常用 CRUD、分页、读缓存与 Model 入口示例 |
+| [完整配置参考](configuration.md) | `new MonSQLize(options)` 构造函数完整参数 |
+| [连接管理](connection.md) | 连接生命周期与访问器 |
 | [连接池配置](multi-pool.md) | 多连接池配置与运行时路由：在构造函数中声明 `pools: PoolConfig[]`，通过 `pool()` / `use()` 访问 |
 | [链式池/库访问](pool-chain-api.md) | 链式池/库访问 API：`pool()` / `use()` / `scopedCollection()` / `scopedModel()` |
 | [ObjectId 自动转换](objectid-auto-convert.md) | MongoDB 查询和写入路径的 ObjectId 自动转换 |
@@ -109,6 +111,7 @@
 | 文档 | 说明 |
 |------|------|
 | [工具函数](utilities.md) | 工具函数 |
+| [完整配置参考](configuration.md) | 构造默认值、缓存、Redis、Model、同步、连接池、日志与校验 |
 | [集合管理](collection-management.md) | 集合管理 |
 | [读偏好设置](readPreference.md) | 读偏好设置 |
 | [Count 队列控制](count-queue.md) | Count 队列控制 |
@@ -180,6 +183,7 @@
 | [文档站首页](index.md) | 文档站首页 |
 | [API 参考索引](api-index.md) | 当前 API 参考索引 |
 | [入门指南](getting-started.md) | 入门指南 |
+| [基础常用操作](basic-operations.md) | 第一次连接成功后的常用操作 |
 | [示例索引](examples.md) | 示例索引 |
 | [场景指南](recipes.md) | 连接、缓存、Redis、SSH、连接池与 Model 的场景指南 |
 | [能力索引](capability-index.md) | 能力索引 |
@@ -234,11 +238,14 @@
 
 **新用户推荐阅读顺序**:
 
-1. [连接配置](connection.md) - 了解如何连接数据库
-2. [查询多个文档](find.md) - 学习基础查询
-3. [插入单个文档](insert-one.md) / [批量插入文档](insert-many.md) - 学习插入数据
-4. [更新单个文档](update-one.md) / [批量更新文档](update-many.md) - 学习更新数据
-5. [删除单个文档](delete-one.md) / [批量删除文档](delete-many.md) - 学习删除数据
-6. [缓存系统](cache.md) - 了解缓存机制
-7. [事务管理](transaction.md) - 学习事务管理
-8. [分布式部署](distributed-deployment.md) - 多实例部署说明
+1. [快速开始](getting-started.md) - 安装、连接并完成第一次查询
+2. [基础常用操作](basic-operations.md) - 完成常用 CRUD、分页、缓存和 Model 入口示例
+3. [完整配置参考](configuration.md) - 选择服务需要的构造参数
+4. [连接管理](connection.md) - 了解连接生命周期与访问器
+5. [查询多个文档](find.md) - 学习查询细节
+6. [插入单个文档](insert-one.md) / [批量插入文档](insert-many.md) - 学习插入数据
+7. [更新单个文档](update-one.md) / [批量更新文档](update-many.md) - 学习更新数据
+8. [删除单个文档](delete-one.md) / [批量删除文档](delete-many.md) - 学习删除数据
+9. [缓存系统](cache.md) - 了解缓存机制
+10. [事务管理](transaction.md) - 学习事务管理
+11. [分布式部署](distributed-deployment.md) - 多实例部署说明

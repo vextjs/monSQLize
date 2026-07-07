@@ -467,7 +467,7 @@ compensate: async (ctx) => {
 const msq = new MonSQLize({
     type: 'mongodb',
     config: { uri: '...' },
-    cache: false  //Or do not configure cache
+    cache: { enabled: false }  //Or omit cache configuration
 });
 ```
 
@@ -530,7 +530,7 @@ Enable logging:
 const msq = new MonSQLize({
     type: 'mongodb',
     config: { uri: '...' },
-    logger: { level: 'debug' }  //Enable verbose logging
+    logger: console  //Pass a LoggerLike implementation
 });
 ```
 

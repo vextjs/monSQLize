@@ -24,7 +24,7 @@ const msq = new MonSQLize({
   config: { uri: 'mongodb://...' },
   cache: {
     multiLevel: true,
-    local: { maxSize: 1000 },
+    local: { maxEntries: 1000 },
     remote: MonSQLize.createRedisCacheAdapter(redis),  // ① Redis 缓存
     distributed: {
       enabled: true,                              // ② 启用分布式失效

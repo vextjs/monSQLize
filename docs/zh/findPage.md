@@ -536,7 +536,7 @@ const msq = new MonSQLize({
     maxPages: 10000     // 最多缓存 10000 页的书签
   },
   cache: {
-    maxSize: 100000,    // 最大缓存条目数
+    maxEntries: 100000, // 最大缓存条目数
     enableStats: true   // 启用统计
   }
 });

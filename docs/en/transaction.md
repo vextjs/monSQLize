@@ -40,8 +40,8 @@ const msq = new MonSQLize({
         options: {}
     },
     cache: {
-        ttl: 60000,    //Cache for 60 seconds
-        maxSize: 1000  //Up to 1000 items
+        defaultTtl: 60000, //Cache for 60 seconds
+        maxEntries: 1000  //Up to 1000 items
     }
 });
 

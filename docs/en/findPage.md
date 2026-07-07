@@ -535,7 +535,7 @@ const msq = new MonSQLize({
     maxPages: 10000     // Cache up to 10,000 pages of bookmarks
   },
   cache: {
-    maxSize: 100000,    // Maximum number of cache entries
+    maxEntries: 100000, // Maximum number of cache entries
     enableStats: true   // Enable statistics
   }
 });

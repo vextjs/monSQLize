@@ -37,8 +37,8 @@ const msq = new MonSQLize({
         options: {}
     },
     cache: {
-        ttl: 60000,    // 缓存60秒
-        maxSize: 1000  // 最多1000条
+        defaultTtl: 60000, // 缓存60秒
+        maxEntries: 1000  // 最多1000条
     }
 });
 

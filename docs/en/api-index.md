@@ -7,7 +7,9 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | Document | Description |
 |----------|-------------|
 | [Native API comparison](mongodb-native-vs-extensions.md) | **MongoDB native APIs vs monSQLize extensions** |
-| [Connection configuration](connection.md) | Connection management and configuration |
+| [Basic operations](basic-operations.md) | Common CRUD, pagination, read cache, and Model entry-point examples |
+| [Configuration reference](configuration.md) | Complete `new MonSQLize(options)` constructor options |
+| [Connection management](connection.md) | Connection lifecycle and accessors |
 | [Pool configuration](multi-pool.md) | Multi-pool configuration and runtime routing: declare `pools: PoolConfig[]` in the constructor and access pools through `pool()` / `use()` |
 | [Chain pool/database access](pool-chain-api.md) | Chain pool/database access API: `pool()` / `use()` / `scopedCollection()` / `scopedModel()` |
 | [ObjectId auto conversion](objectid-auto-convert.md) | ObjectId auto conversion for MongoDB query and write paths |
@@ -109,6 +111,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | Document | Description |
 |----------|-------------|
 | [Utility functions](utilities.md) | Utility functions |
+| [Configuration reference](configuration.md) | Constructor defaults, cache, Redis, Model, sync, pools, logging, and validation |
 | [Collection management](collection-management.md) | Collection management |
 | [Read preference](readPreference.md) | Read preference settings |
 | [Count queue](count-queue.md) | Count queue control for high-concurrency optimization |
@@ -182,6 +185,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [Site home](index.md) | Documentation site home |
 | [API reference index](api-index.md) | Current API reference index |
 | [Getting started](getting-started.md) | Getting started guide |
+| [Basic operations](basic-operations.md) | Common operations after the first connection succeeds |
 | [Examples](examples.md) | Example index |
 | [Common scenarios](recipes.md) | Connection, cache, Redis, SSH, pool, and Model usage scenarios |
 | [Capability index](capability-index.md) | Capability index |
@@ -236,11 +240,14 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 
 Recommended reading order for new users:
 
-1. [Connection configuration](connection.md) - Learn how to connect to a database.
-2. [Find documents](find.md) - Learn basic queries.
-3. [Insert one document](insert-one.md) / [Insert many documents](insert-many.md) - Learn inserts.
-4. [Update one document](update-one.md) / [Update many documents](update-many.md) - Learn updates.
-5. [Delete one document](delete-one.md) / [Delete many documents](delete-many.md) - Learn deletes.
-6. [Cache system](cache.md) - Understand the cache mechanism.
-7. [Transaction management](transaction.md) - Learn transaction management.
-8. [Distributed deployment](distributed-deployment.md) - Multi-instance deployment for production.
+1. [Getting started](getting-started.md) - Install, connect, and run the first query.
+2. [Basic operations](basic-operations.md) - Run common CRUD, pagination, cache, and Model entry-point examples.
+3. [Configuration reference](configuration.md) - Choose constructor options for the service.
+4. [Connection management](connection.md) - Learn connection lifecycle and accessors.
+5. [Find documents](find.md) - Learn query details.
+6. [Insert one document](insert-one.md) / [Insert many documents](insert-many.md) - Learn inserts.
+7. [Update one document](update-one.md) / [Update many documents](update-many.md) - Learn updates.
+8. [Delete one document](delete-one.md) / [Delete many documents](delete-many.md) - Learn deletes.
+9. [Cache system](cache.md) - Understand the cache mechanism.
+10. [Transaction management](transaction.md) - Learn transaction management.
+11. [Distributed deployment](distributed-deployment.md) - Multi-instance deployment for production.

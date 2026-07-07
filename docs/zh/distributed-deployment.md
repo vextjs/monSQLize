@@ -49,8 +49,8 @@ const msq = new MonSQLize({
   databaseName: 'mydb',
   config: { uri: 'mongodb://localhost:27017' },
   cache: {
-    maxSize: 1000,
-    ttl: 60000
+    maxEntries: 1000,
+    defaultTtl: 60000
   }
 });
 ```
@@ -123,7 +123,7 @@ const msq = new MonSQLize({
   
   cache: {
     multiLevel: true,
-    local: { maxSize: 1000 },
+    local: { maxEntries: 1000 },
     remote: MonSQLize.createRedisCacheAdapter(redis),  // Redis 缓存
     
     // 启用分布式缓存失效
@@ -184,7 +184,7 @@ const msq = new MonSQLize({
   
   cache: {
     multiLevel: true,
-    local: { maxSize: 1000 },
+    local: { maxEntries: 1000 },
     remote: MonSQLize.createRedisCacheAdapter(redis),
     
     // 分布式缓存失效
@@ -232,7 +232,7 @@ const msq = new MonSQLize({
   
   cache: {
     // 禁用缓存（所有查询直接访问数据库）
-    maxSize: 0
+    enabled: false
   }
 });
 ```
@@ -315,7 +315,7 @@ const redis = new Redis('redis://localhost:6379');
 
 cache: {
   multiLevel: true,
-  local: { maxSize: 1000 },
+  local: { maxEntries: 1000 },
   remote: MonSQLize.createRedisCacheAdapter(redis),
   
   distributed: {
@@ -411,7 +411,7 @@ const msq = new MonSQLize({
     
     // 本地缓存配置
     local: {
-      maxSize: 1000,       // 最多缓存 1000 条
+      maxEntries: 1000,    // 最多缓存 1000 条
       maxMemory: 0,        // 无内存限制
       enableStats: true    // 启用统计
     },
@@ -690,7 +690,7 @@ const cache = isDistributedEnvironment() ? {
   multiLevel: true,
   distributed: { enabled: true, ... }
 } : {
-  maxSize: 1000
+  maxEntries: 1000
 };
 ```
 
@@ -702,7 +702,7 @@ const cache = isDistributedEnvironment() ? {
 |---------|---------|------|
 | **一般应用** | 分布式缓存失效 | `distributed.enabled = true` |
 | **金融/支付** | 缓存失效 + 显式业务协调 | `distributed.enabled = true`<br>业务锁 + 幂等 / fencing |
-| **强一致性** | 禁用缓存 | `maxSize = 0` |
+| **强一致性** | 禁用缓存 | `cache.enabled = false` |
 | **开发环境** | 本地缓存 | 默认配置 |
 
 ---
@@ -735,7 +735,7 @@ console.log(cache.getStats());  // 缓存统计
 // 如果 Redis 连接失败，仍然可以使用本地缓存
 cache: {
   multiLevel: true,
-  local: { maxSize: 1000 },
+  local: { maxEntries: 1000 },
   remote: MonSQLize.createRedisCacheAdapter('redis://...'),
   
   distributed: {
@@ -796,8 +796,8 @@ cache: {
 
 3. 查看日志
    ```javascript
-   // 启用 debug 日志
-   logger: { level: 'debug' }
+   // 传入 LoggerLike 实现
+   logger: console
    ```
 
 4. 检查实例 ID
@@ -892,7 +892,7 @@ const msq = new MonSQLize({
   config: { uri: 'mongodb://...' },
   cache: {
     multiLevel: true,
-    local: { maxSize: 1000 },
+    local: { maxEntries: 1000 },
     remote: MonSQLize.createRedisCacheAdapter(redis),
     distributed: {
       enabled: true,              // ✅ 必需：启用

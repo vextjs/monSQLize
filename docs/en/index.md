@@ -14,6 +14,12 @@ hero:
       text: Quick Start
       link: /getting-started.html
     - theme: alt
+      text: Basic Operations
+      link: /basic-operations.html
+    - theme: alt
+      text: Configuration
+      link: /configuration.html
+    - theme: alt
       text: Examples
       link: /examples.html
     - theme: alt

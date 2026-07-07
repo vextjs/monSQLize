@@ -585,7 +585,7 @@ const msq = new MonSQLize({
 
   cache: {
     multiLevel: true,
-    local: { maxSize: 10000 },  //Local cache 10,000 items
+    local: { maxEntries: 10000 },  //Local cache 10,000 items
     remote: MonSQLize.createRedisCacheAdapter('redis://localhost:6379/0')
   }
 });

@@ -35,7 +35,7 @@ No parameters.
 ### Return value
 
 ```javascript
-MultiLevelCache | null  //Cache instance, or null if caching is not enabled
+CacheLike  // MemoryCache, MultiLevelCache, Redis adapter, or a custom CacheLike
 ```
 
 
@@ -45,7 +45,7 @@ MultiLevelCache | null  //Cache instance, or null if caching is not enabled
 |------|------|
 | `get(key)` | Get cached value |
 | `set(key, value, ttl)` | Set cache value |
-| `delete(key)` | Delete cache items |
+| `del(key)` | Delete cache items |
 | `clear()` | Clear all cache |
 | `keys(pattern)` | Get a list of cache keys matching the pattern |
 | `getStats()` | Get cache statistics |
@@ -67,20 +67,16 @@ const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
-  cacheEnabled: true  //Enable caching
+  cache: {
+    maxEntries: 1000,
+    defaultTtl: 60000
+  }
 });
 
 await msq.connect();
 
-//Get cache instance
 const cache = msq.getCache();
-
-if (cache) {
-  console.log('✅ Caching is enabled');
-  console.log('Cache type:', cache.constructor.name);
-} else {
-  console.log('⚠️ Caching is not enabled');
-}
+console.log('Cache type:', cache.constructor.name);
 ```
 
 ---
@@ -90,17 +86,15 @@ if (cache) {
 
 ```javascript
 const cache = msq.getCache();
+const stats = cache.getStats();
 
-if (cache) {
-  const stats = cache.getStats();
-  console.log('Cache statistics:', {
-    hits: stats.hits,
-    misses: stats.misses,
-    hitRate: `${(stats.hits / (stats.hits + stats.misses) * 100).toFixed(2)}%`,
-    cacheItems: stats.size,
-    memoryUsage: `${(stats.memoryUsage / 1024 / 1024).toFixed(2)} MB`
-  });
-}
+console.log('Cache statistics:', {
+  hits: stats.hits,
+  misses: stats.misses,
+  hitRate: `${(stats.hits / (stats.hits + stats.misses) * 100).toFixed(2)}%`,
+  cacheItems: stats.size,
+  memoryUsage: `${(stats.memoryUsage / 1024 / 1024).toFixed(2)} MB`
+});
 ```
 
 **Example output**:
@@ -123,19 +117,14 @@ Memory usage: '2.34 MB'
 const { collection } = await msq.connect();
 const cache = msq.getCache();
 
-if (cache) {
-  //Manually set cache
-  const cacheKey = 'custom:data:123';
-  cache.set(cacheKey, { id: 123, name: 'Product A' }, 3600000); //1 hour
+const cacheKey = 'custom:data:123';
+await cache.set(cacheKey, { id: 123, name: 'Product A' }, 3600000); //1 hour
 
-  //Get cache manually
-  const cached = cache.get(cacheKey);
-  console.log('Cached data:', cached);
+const cached = await cache.get(cacheKey);
+console.log('Cached data:', cached);
 
-  //Manually delete cache
-  cache.delete(cacheKey);
-  console.log('✅ Cache has been deleted');
-}
+await cache.del(cacheKey);
+console.log('✅ Cache has been deleted');
 ```
 
 ---
@@ -146,15 +135,11 @@ if (cache) {
 ```javascript
 const cache = msq.getCache();
 
-if (cache) {
-  //Clear all cache
-  cache.clear();
-  console.log('✅ All caches have been cleared');
+await cache.clear();
+console.log('✅ All caches have been cleared');
 
-  //Verify
-  const stats = cache.getStats();
-  console.log('Number of cached items:', stats.size);  //should be 0
-}
+const stats = cache.getStats();
+console.log('Number of cached items:', stats.size);  //should be 0
 ```
 
 ---
@@ -181,10 +166,16 @@ No parameters.
 
 ```javascript
 {
-  limit: number,          //Default query limit
-  cache: number | false,  //Default cache TTL (milliseconds)
-  maxTimeMS: number,      //Default query timeout (milliseconds)
-  bookmarkTTL: number     //Bookmark cache TTL (milliseconds)
+  type: 'mongodb',
+  databaseName: string | undefined,
+  maxTimeMS: number,
+  findLimit: number,
+  findMaxLimit: number,
+  findMaxSkip: number,
+  findPageMaxLimit: number,
+  autoConvertObjectId: boolean | object,
+  namespace: object,
+  slowQueryLog: object | false
 }
 ```
 
@@ -206,7 +197,7 @@ if (cache) {
 
   //Build schemas using namespaces (more precise)
   const pattern = `*"collection":"${ns.collection}"*"db":"${ns.db}"*`;
-  const productsCacheKeys = cache.keys(pattern);
+  const productsCacheKeys = await cache.keys(pattern);
 
   console.log('products collection cache information:');
   console.log('Number of cache keys:', productsCacheKeys.length);
@@ -227,7 +218,7 @@ const cache = msq.getCache();
 
 if (cache) {
   //Use only collection names (may match collections of the same name from other databases)
-  const productsCacheKeys = cache.keys('*"collection":"products"*');
+  const productsCacheKeys = await cache.keys('*"collection":"products"*');
 
   console.log('Products collection cache quantity:', productsCacheKeys.length);
 }
@@ -254,15 +245,15 @@ const cache = msq.getCache();
 
 if (cache) {
   //Get cache keys for all find operations
-  const findCacheKeys = cache.keys('*"op":"find"*');
+  const findCacheKeys = await cache.keys('*"op":"find"*');
   console.log('Number of find operation caches:', findCacheKeys.length);
 
   //Get cache keys for all count operations
-  const countCacheKeys = cache.keys('*"op":"count"*');
+  const countCacheKeys = await cache.keys('*"op":"count"*');
   console.log('count number of operation caches:', countCacheKeys.length);
 
   //Get the find operation cache of the products collection
-  const productsFind = cache.keys('*"collection":"products"*"op":"find"*');
+  const productsFind = await cache.keys('*"collection":"products"*"op":"find"*');
   console.log('products find cache quantity:', productsFind.length);
 }
 ```
@@ -273,7 +264,7 @@ if (cache) {
 ### 7. Analyze cache usage (simplified method ⭐)
 
 ```javascript
-const { collection } = await msq.getCache();
+const { collection } = await msq.connect();
 const cache = msq.getCache();
 
 if (cache) {
@@ -281,7 +272,7 @@ if (cache) {
   async function getCacheInfoByCollection(collectionName) {
     const ns = collection(collectionName).getNamespace();
     const pattern = `*"collection":"${ns.collection}"*"db":"${ns.db}"*`;
-    const allKeys = cache.keys(pattern);
+    const allKeys = await cache.keys(pattern);
 
     const info = {
       collection: ns.collection,
@@ -356,7 +347,7 @@ class CacheManager {
 
     const ns = this.msq.collection(collectionName).getNamespace();
     const pattern = `*"collection":"${ns.collection}"*"db":"${ns.db}"*`;
-    const keys = this.cache.keys(pattern);
+    const keys = await this.cache.keys(pattern);
 
     return {
       collection: ns.collection,
@@ -391,10 +382,10 @@ class CacheManager {
   }
 
   //Get the cache distribution of all collections
-  getAllCollectionsCacheInfo() {
+  async getAllCollectionsCacheInfo() {
     if (!this.cache) return null;
 
-    const allKeys = this.cache.keys('*');
+    const allKeys = await this.cache.keys('*');
     const collectionsMap = {};
 
     for (const key of allKeys) {
@@ -438,7 +429,7 @@ const globalStats = cacheManager.getGlobalStats();
 console.log('Global cache statistics:', globalStats);
 
 //Get the cache distribution of all collections
-const allCollections = cacheManager.getAllCollectionsCacheInfo();
+const allCollections = await cacheManager.getAllCollectionsCacheInfo();
 console.log('All collection cache:', allCollections);
 ```
 
@@ -456,10 +447,12 @@ const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
-  defaults: {
-    limit: 50,
-    cache: 10000,
-    maxTimeMS: 5000
+  maxTimeMS: 5000,
+  findLimit: 50,
+  findPageMaxLimit: 200,
+  cache: {
+    maxEntries: 1000,
+    defaultTtl: 10000
   }
 });
 
@@ -473,10 +466,10 @@ console.log('Default configuration:', defaults);
 **Example output**:
 ```javascript
 {
-  limit: 50,
-  cache: 10000,
   maxTimeMS: 5000,
-  bookmarkTTL: 300000
+  findLimit: 50,
+  findPageMaxLimit: 200,
+  namespace: { scope: 'database' }
 }
 ```
 
@@ -493,16 +486,11 @@ const defaults = msq.getDefaults();
 
 //No parameters are specified when querying, and default values are used.
 const products = await collection('products').find(
-  { status: 'active' },
-  {
-    //limit: use defaults.limit (50)
-    //cache: use defaults.cache (10000)
-    //maxTimeMS: use defaults.maxTimeMS (5000)
-  }
+  { status: 'active' }
 );
 
 console.log(`Query results: ${products.length} documents`);
-console.log(`Default limits applied: ${defaults.limit}`);
+console.log(`Default limits applied: ${defaults.findLimit}`);
 ```
 
 ---
@@ -513,21 +501,14 @@ console.log(`Default limits applied: ${defaults.limit}`);
 ```javascript
 const defaults = msq.getDefaults();
 
-//Check if caching is enabled
-if (defaults.cache === false) {
-  console.log('⚠️ Caching disabled');
-} else {
-  console.log(`✅ Cache is enabled, default TTL: ${defaults.cache}ms`);
-}
-
 //Check query timeout
 if (defaults.maxTimeMS < 3000) {
   console.warn(`⚠️Shorter query timeout: ${defaults.maxTimeMS}ms`);
 }
 
 //Check paging limits
-if (defaults.limit > 100) {
-  console.warn(`⚠️ The default paging limit is large: ${defaults.limit}`);
+if (defaults.findLimit > 100) {
+  console.warn(`⚠️ The default paging limit is large: ${defaults.findLimit}`);
 }
 ```
 
@@ -542,14 +523,16 @@ const msq1 = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
-  defaults: { limit: 20, cache: 5000 }
+  findLimit: 20,
+  maxTimeMS: 3000
 });
 
 const msq2 = new MonSQLize({
   type: 'mongodb',
   databaseName: 'analytics',
   config: { uri: 'mongodb://localhost:27017' },
-  defaults: { limit: 100, cache: false }
+  findLimit: 100,
+  cache: { enabled: false }
 });
 
 await msq1.connect();
@@ -559,8 +542,8 @@ console.log('Example 1 configuration:', msq1.getDefaults());
 console.log('Example 2 configuration:', msq2.getDefaults());
 
 //Output:
-//Example 1 configuration: { limit: 20, cache: 5000, maxTimeMS: 3000, bookmarkTTL: 300000 }
-//Example 2 configuration: { limit: 100, cache: false, maxTimeMS: 3000, bookmarkTTL: 300000 }
+//Example 1 configuration includes { findLimit: 20, maxTimeMS: 3000 }
+//Example 2 configuration includes { findLimit: 100 }
 ```
 
 ---
@@ -731,7 +714,7 @@ const cache = msq.getCache();
 
 if (cache) {
   //Periodically output cache statistics
-  setInterval(() => {
+  setInterval(async () => {
     const stats = cache.getStats();
     const hitRate = (stats.hits / (stats.hits + stats.misses) * 100).toFixed(2);
 
@@ -760,15 +743,15 @@ const cache = msq.getCache();
 
 if (cache) {
   //Recommendation: Use getNamespace() to get the exact namespace
-  setInterval(() => {
+  setInterval(async () => {
     const ns = collection('products').getNamespace();
     const pattern = `*"collection":"${ns.collection}"*"db":"${ns.db}"*`;
-    const productsKeys = cache.keys(pattern);
+    const productsKeys = await cache.keys(pattern);
 
     //Statistics by operation type
-    const findKeys = cache.keys(`${pattern}*"op":"find"*`);
-    const countKeys = cache.keys(`${pattern}*"op":"count"*`);
-    const findOneKeys = cache.keys(`${pattern}*"op":"findOne"*`);
+    const findKeys = await cache.keys(`${pattern}*"op":"find"*`);
+    const countKeys = await cache.keys(`${pattern}*"op":"count"*`);
+    const findOneKeys = await cache.keys(`${pattern}*"op":"findOne"*`);
 
     console.log('products collection cache:', {
       namespace: `${ns.db}.${ns.collection}`,
@@ -800,16 +783,16 @@ const defaults = msq.getDefaults();
 function validateConfig(defaults) {
   const warnings = [];
 
-  if (defaults.limit > 100) {
-    warnings.push(`The limit is too large (${defaults.limit}), which may affect performance`);
+  if (defaults.findLimit > 100) {
+    warnings.push(`findLimit is large (${defaults.findLimit}), which may affect broad queries`);
   }
 
   if (defaults.maxTimeMS < 1000) {
     warnings.push(`maxTimeMS is too small (${defaults.maxTimeMS}), which may cause query timeout`);
   }
 
-  if (defaults.cache !== false && defaults.cache < 1000) {
-    warnings.push(`cache TTL is too small (${defaults.cache}), cache effect is limited`);
+  if (defaults.findPageMaxLimit > defaults.findMaxLimit) {
+    warnings.push(`findPageMaxLimit should not exceed findMaxLimit`);
   }
 
   if (warnings.length > 0) {
@@ -867,43 +850,40 @@ Use `getCache()` to implement cache warm-up:
 const { collection } = await msq.connect();
 const cache = msq.getCache();
 
-if (cache) {
-  //Warm up popular data
-  async function prewarmCache() {
-    console.log('Start cache warm-up...');
+async function prewarmCache() {
+  console.log('Start cache warm-up...');
 
-    //Warm up popular products
-    const hotProducts = await collection('products').find(
-      { featured: true },
-      {
-        limit: 100,
-        cache: 3600000  //1 hour
-      }
-    );
+  //Warm up popular products
+  const hotProducts = await collection('products').find(
+    { featured: true },
+    {
+      limit: 100,
+      cache: 3600000  //1 hour
+    }
+  );
 
-    console.log(`✅ ${hotProducts.length} hot products have been preheated`);
+  console.log(`✅ ${hotProducts.length} hot products have been preheated`);
 
-    //Warm up user configuration
-    const userConfigs = await collection('configs').find(
-      { type: 'user' },
-      {
-        limit: 50,
-        cache: 7200000  //2 hours
-      }
-    );
+  //Warm up user configuration
+  const userConfigs = await collection('configs').find(
+    { type: 'user' },
+    {
+      limit: 50,
+      cache: 7200000  //2 hours
+    }
+  );
 
-    console.log(`✅ ${userConfigs.length} user configurations have been warmed up`);
+  console.log(`✅ ${userConfigs.length} user configurations have been warmed up`);
 
-    //Show cache statistics
-    const stats = cache.getStats();
-    console.log('Cache warm-up completed:', {
-      cacheItems: stats.size,
-      memoryUsage: `${(stats.memoryUsage / 1024 / 1024).toFixed(2)} MB`
-    });
-  }
-
-  await prewarmCache();
+  //Show cache statistics
+  const stats = cache.getStats();
+  console.log('Cache warm-up completed:', {
+    cacheItems: stats.size,
+    memoryUsage: `${(stats.memoryUsage / 1024 / 1024).toFixed(2)} MB`
+  });
 }
+
+await prewarmCache();
 ```
 
 ---
@@ -911,31 +891,20 @@ if (cache) {
 ## FAQ
 
 
-## Q1: What should I do if `getCache()` returns `null`?
+## Q1: How do I disable the runtime cache?
 
-**A**: Description cache is not enabled and `cacheEnabled: true` needs to be configured during initialization:
+**A**: `getCache()` returns the active `CacheLike` instance. To disable storage while keeping the runtime API stable, configure the cache object with `enabled: false`:
 
 ```javascript
-//❌ Caching is not enabled
 const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
-  config: { uri: 'mongodb://localhost:27017' }
+  config: { uri: 'mongodb://localhost:27017' },
+  cache: { enabled: false }
 });
 
 const cache = msq.getCache();
-console.log(cache);  // null
-
-//✅ Enable caching
-const msqWithCache = new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'shop',
-  config: { uri: 'mongodb://localhost:27017' },
-  cacheEnabled: true  //Enable caching
-});
-
-const cacheEnabled = msqWithCache.getCache();
-console.log(cacheEnabled);  //MultiLevelCache instance
+console.log(cache.constructor.name);
 ```
 
 ---
@@ -978,10 +947,8 @@ console.log('✅ products collection cache cleared');
 
 //Or manually clear all caches
 const cache = msq.getCache();
-if (cache) {
-  cache.clear();
-  console.log('✅ All caches cleared');
-}
+await cache.clear();
+console.log('✅ All caches cleared');
 ```
 
 For details, see: [Caching Policy Document](./cache.md)
@@ -995,10 +962,10 @@ For details, see: [Caching Policy Document](./cache.md)
 
 ```javascript
 const defaults = msq.getDefaults();
-console.log('Default limit:', defaults.limit);  // 20
+console.log('Default limit:', defaults.findLimit);  // 20
 
 //❌ The default configuration cannot be modified
-//defaults.limit = 50; // invalid
+//defaults.findLimit = 50; // invalid
 
 //✅ Override default value when querying
 const result = await collection('products').find(
@@ -1055,19 +1022,19 @@ if (cache) {
   //Method 1: Use getNamespace() (recommended, more precise)
   const ns = collection('products').getNamespace();
   const pattern = `*"collection":"${ns.collection}"*"db":"${ns.db}"*`;
-  const productsKeys = cache.keys(pattern);
+  const productsKeys = await cache.keys(pattern);
 
   console.log(`Products collection cache quantity: ${productsKeys.length}`);
   console.log(`Namespace: ${ns.db}.${ns.collection}`);
 
   //Method 2: Use collection name only (simple but possible cross-database match)
-  const simpleKeys = cache.keys('*"collection":"products"*');
+  const simpleKeys = await cache.keys('*"collection":"products"*');
   console.log(`Simple match: ${simpleKeys.length}`);
 
   //Statistics by operation type (mode using getNamespace)
-  const findKeys = cache.keys(`${pattern}*"op":"find"*`);
-  const countKeys = cache.keys(`${pattern}*"op":"count"*`);
-  const findOneKeys = cache.keys(`${pattern}*"op":"findOne"*`);
+  const findKeys = await cache.keys(`${pattern}*"op":"find"*`);
+  const countKeys = await cache.keys(`${pattern}*"op":"count"*`);
+  const findOneKeys = await cache.keys(`${pattern}*"op":"findOne"*`);
 
   console.log('Cache details:', {
 Total: productsKeys.length,

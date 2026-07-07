@@ -2,7 +2,7 @@
 
 Every core API in the documentation site should map, as much as possible, to an example that can run directly inside the current repository.
 
-> See the [official examples index](https://github.com/vextjs/monSQLize/blob/main/examples/README.md) for the full source list. `npm run test:examples` compiles and executes the current **56** TypeScript examples. [`examples/helpers/bootstrap.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/helpers/bootstrap.ts) is a helper module and is not executed on its own.
+> See the [official examples index](https://github.com/vextjs/monSQLize/blob/main/examples/README.md) for the full source list. `npm run test:examples` compiles and executes the current **57** TypeScript examples. [`examples/helpers/bootstrap.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/helpers/bootstrap.ts) is a helper module and is not executed on its own.
 
 ## How to Run
 
@@ -25,6 +25,7 @@ node .generated/examples-dist/examples/docs/find.js
 | Document | Example |
 |----------|---------|
 | [`getting-started.md`](./getting-started.md) | [`examples/quick-start/basic-connect.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts) |
+| [`basic-operations.md`](./basic-operations.md) | [`examples/quick-start/basic-operations.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-operations.ts) |
 | [`cache.md`](./cache.md) | [`examples/docs/cache-multilevel.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/cache-multilevel.ts) |
 
 ## Query Operations

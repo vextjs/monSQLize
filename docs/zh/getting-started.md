@@ -10,6 +10,7 @@
 - `collection()`
 - 基础写入与查询
 - 连接关闭
+- 后续常用操作入口
 
 ## 安装
 
@@ -68,10 +69,13 @@ npm run test:examples
 
 ## 下一步
 
-- 阅读基础查询：[`find.md`](./find.md)、[`findOne.md`](./findOne.md)、[`findPage.md`](./findPage.md)。
+- 继续完成日常 CRUD、分页、缓存和 Model 入口：[`basic-operations.md`](./basic-operations.md)。
+- 查看构造函数完整参数：[`configuration.md`](./configuration.md)。
+- 阅读查询细节：[`find.md`](./find.md)、[`findOne.md`](./findOne.md)、[`findPage.md`](./findPage.md)。
 - 在 [`examples.md`](./examples.md) 查看文档主题与示例源码的对应关系。
 - 直接打开 GitHub 示例源码：
   - [`examples/quick-start/basic-connect.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)
+  - [`examples/quick-start/basic-operations.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-operations.ts)
   - [`examples/docs/find.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find.ts)
   - [`examples/docs/find-one.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-one.ts)
   - [`examples/docs/find-page.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-page.ts)

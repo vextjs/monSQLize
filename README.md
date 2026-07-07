@@ -8,6 +8,8 @@ Database-native production data runtime layer for TypeScript services. monSQLize
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-brightgreen)](https://nodejs.org/)
 
 Documentation: [English](https://vextjs.github.io/monSQLize/) · [简体中文](https://vextjs.github.io/monSQLize/zh/)
+Quick path: [Getting Started](https://vextjs.github.io/monSQLize/getting-started) · [Basic Operations](https://vextjs.github.io/monSQLize/basic-operations)
+Configuration reference: [English](https://vextjs.github.io/monSQLize/configuration) · [简体中文](https://vextjs.github.io/monSQLize/zh/configuration)
 
 ```bash
 npm install monsqlize
@@ -101,8 +103,8 @@ const msq = new MonSQLize({
     uri: 'mongodb://localhost:27017'
   },
   cache: {
-    enabled: true,
-    ttl: 60_000
+    maxEntries: 10000,
+    defaultTtl: 60_000
   }
 });
 
@@ -126,6 +128,8 @@ await users.updateOne(
 
 await msq.close();
 ```
+
+Next, use the [Basic Operations guide](https://vextjs.github.io/monSQLize/basic-operations) for common CRUD, pagination, read cache, and Model entry-point examples.
 
 ### ESM and TypeScript
 
@@ -497,6 +501,7 @@ See the current support and verification documents:
 Current TypeScript documentation and examples are the source of truth for the v2 package:
 
 - Complete docs: [English](https://vextjs.github.io/monSQLize/) · [简体中文](https://vextjs.github.io/monSQLize/zh/)
+- Constructor configuration: [English](https://vextjs.github.io/monSQLize/configuration) · [简体中文](https://vextjs.github.io/monSQLize/zh/configuration)
 - Common scenarios: [English](https://vextjs.github.io/monSQLize/recipes) · [简体中文](https://vextjs.github.io/monSQLize/zh/recipes)
 - Example source: [examples index](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)
 - Documentation source: [docs/en](https://github.com/vextjs/monSQLize/tree/main/docs/en) · [docs/zh](https://github.com/vextjs/monSQLize/tree/main/docs/zh)
@@ -539,7 +544,7 @@ npm run test:server-matrix
 npm run test:real-env:private
 ```
 
-`check:docs-examples` verifies the 98/98 bilingual documentation matrix, runnable-example runner parity, shared-example targets, doc-check targets, and user-facing path text.
+`check:docs-examples` verifies the bilingual documentation matrix, runnable-example runner parity, shared-example targets, doc-check targets, and user-facing path text.
 
 `test:examples`, `test:server-matrix`, and `config.useMemoryServer` use a fixed `mongodb-memory-server` policy: MongoDB `7.0.14` by default, binaries cached under `.cache/mongodb-memory-server/binaries`, and temporary data paths created under `.cache/mongodb-memory-server/db` with forced cleanup for project-managed paths. Stale managed data paths whose owner PID is no longer alive are pruned before new memory-server launches. Override with `MONSQLIZE_MEMORY_MONGO_BINARY_VERSION`, `MONSQLIZE_REPLSET_BINARY_VERSION`, `MONGOMS_DOWNLOAD_DIR`, or `MONSQLIZE_MEMORY_SERVER_DB_DIR` when needed.
 

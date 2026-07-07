@@ -10,6 +10,7 @@ This page covers the shortest path from installation to a working MongoDB-backed
 - `collection()`
 - Basic writes and queries
 - Closing the connection
+- Where to continue with common operations
 
 ## Installation
 
@@ -68,10 +69,13 @@ The current official example is [`examples/quick-start/basic-connect.ts`](https:
 
 ## Next Steps
 
-- Learn query basics in [`find.md`](./find.md), [`findOne.md`](./findOne.md), and [`findPage.md`](./findPage.md).
+- Continue with daily CRUD, pagination, cache, and Model entry points in [`basic-operations.md`](./basic-operations.md).
+- Review all constructor options in [`configuration.md`](./configuration.md).
+- Learn query details in [`find.md`](./find.md), [`findOne.md`](./findOne.md), and [`findPage.md`](./findPage.md).
 - Compare runnable examples in [`examples.md`](./examples.md).
 - Open the source examples on GitHub:
   - [`examples/quick-start/basic-connect.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-connect.ts)
+  - [`examples/quick-start/basic-operations.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/quick-start/basic-operations.ts)
   - [`examples/docs/find.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find.ts)
   - [`examples/docs/find-one.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-one.ts)
   - [`examples/docs/find-page.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/find-page.ts)

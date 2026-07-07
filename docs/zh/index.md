@@ -14,6 +14,12 @@ hero:
       text: 快速开始
       link: /zh/getting-started.html
     - theme: alt
+      text: 基础常用操作
+      link: /zh/basic-operations.html
+    - theme: alt
+      text: 完整配置
+      link: /zh/configuration.html
+    - theme: alt
       text: 示例
       link: /zh/examples.html
     - theme: alt

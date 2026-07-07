@@ -99,6 +99,8 @@ const englishFooterMessage = `
     <div>
       <h2>Docs</h2>
       <a href="getting-started.html">Quick Start</a>
+      <a href="basic-operations.html">Basic Operations</a>
+      <a href="configuration.html">Configuration</a>
       <a href="recipes.html">Guides</a>
       <a href="examples.html">Examples</a>
       <a href="api-index.html">API Reference</a>
@@ -140,6 +142,8 @@ const chineseFooterMessage = `
     <div>
       <h2>文档</h2>
       <a href="getting-started.html">快速开始</a>
+      <a href="basic-operations.html">基础常用操作</a>
+      <a href="configuration.html">完整配置</a>
       <a href="recipes.html">场景指南</a>
       <a href="examples.html">示例</a>
       <a href="api-index.html">API 参考</a>
@@ -173,10 +177,9 @@ const sidebarSource: SidebarGroupSource[] = [
     en: 'Quick Start',
     zh: '快速入门',
     items: [
-      { en: 'Home', zh: '首页', link: '/' },
       { en: 'Quick Start', zh: '快速开始', link: '/getting-started' },
-      { en: 'Import and ESM', zh: '导入与 ESM', link: '/esm-support' },
-      { en: 'Examples', zh: '示例总览', link: '/examples' }
+      { en: 'Basic Operations', zh: '基础常用操作', link: '/basic-operations' },
+      { en: 'Import and ESM', zh: '导入与 ESM', link: '/esm-support' }
     ]
   },
   {
@@ -184,6 +187,7 @@ const sidebarSource: SidebarGroupSource[] = [
     zh: '连接',
     items: [
       { en: 'Connection Management', zh: '连接管理', link: '/connection' },
+      { en: 'Configuration Reference', zh: '完整配置参考', link: '/configuration' },
       { en: 'Collection Management', zh: '集合管理', link: '/collection-management' },
       { en: 'Database Operations', zh: '数据库操作', link: '/database-ops' },
       { en: 'readPreference', zh: 'readPreference', link: '/readPreference' }
@@ -307,6 +311,7 @@ const sidebarSource: SidebarGroupSource[] = [
     en: 'Guides',
     zh: '场景指南',
     items: [
+      { en: 'Examples', zh: '示例总览', link: '/examples' },
       { en: 'Guides', zh: '场景指南', link: '/recipes' },
       { en: 'Upsert Guide', zh: 'Upsert 指南', link: '/upsert-guide' },
       { en: 'Quick Upsert API', zh: 'Quick Upsert API', link: '/quick-upsert' },

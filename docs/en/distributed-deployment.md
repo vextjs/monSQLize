@@ -51,8 +51,8 @@ const msq = new MonSQLize({
   databaseName: 'mydb',
   config: { uri: 'mongodb://localhost:27017' },
   cache: {
-    maxSize: 1000,
-    ttl: 60000
+    maxEntries: 1000,
+    defaultTtl: 60000
   }
 });
 ```
@@ -127,7 +127,7 @@ const msq = new MonSQLize({
 
   cache: {
     multiLevel: true,
-    local: { maxSize: 1000 },
+    local: { maxEntries: 1000 },
     remote: MonSQLize.createRedisCacheAdapter(redis),  //Redis cache
 
     // Enable distributed cache invalidation
@@ -189,7 +189,7 @@ const msq = new MonSQLize({
 
   cache: {
     multiLevel: true,
-    local: { maxSize: 1000 },
+    local: { maxEntries: 1000 },
     remote: MonSQLize.createRedisCacheAdapter(redis),
 
     //Distributed cache invalidation
@@ -238,7 +238,7 @@ const msq = new MonSQLize({
 
   cache: {
     //Disable caching (all queries access the database directly)
-    maxSize: 0
+    enabled: false
   }
 });
 ```
@@ -324,7 +324,7 @@ const redis = new Redis('redis://localhost:6379');
 
 cache: {
   multiLevel: true,
-  local: { maxSize: 1000 },
+  local: { maxEntries: 1000 },
   remote: MonSQLize.createRedisCacheAdapter(redis),
 
   distributed: {
@@ -422,7 +422,7 @@ const msq = new MonSQLize({
 
     //Local cache configuration
     local: {
-      maxSize: 1000,       //Cache up to 1000 items
+      maxEntries: 1000,    //Cache up to 1000 items
       maxMemory: 0,        //No memory limit
       enableStats: true    //Enable statistics
     },
@@ -713,7 +713,7 @@ const cache = isDistributedEnvironment() ? {
   multiLevel: true,
   distributed: { enabled: true, ... }
 } : {
-  maxSize: 1000
+  maxEntries: 1000
 };
 ```
 
@@ -726,7 +726,7 @@ const cache = isDistributedEnvironment() ? {
 |---------|---------|------|
 | **General Application** | Distributed Cache Invalidation | `distributed.enabled = true` |
 | **Finance/Payment** | Cache invalidation + explicit business coordination | `distributed.enabled = true`<br>Business lock + idempotency/fencing |
-| **Strong Consistency** | Disable caching | `maxSize = 0` |
+| **Strong Consistency** | Disable caching | `cache.enabled = false` |
 | **Development Environment** | Local Cache | Default Configuration |
 
 ---
@@ -761,7 +761,7 @@ Degrade strategy when distributed components fail:
 //If the Redis connection fails, you can still use the local cache
 cache: {
   multiLevel: true,
-  local: { maxSize: 1000 },
+  local: { maxEntries: 1000 },
   remote: MonSQLize.createRedisCacheAdapter('redis://...'),
 
   distributed: {
@@ -826,8 +826,8 @@ cache: {
 
 3. View logs
    ```javascript
-   //Enable debug logging
-   logger: { level: 'debug' }
+   //Pass a LoggerLike implementation
+   logger: console
    ```
 
 4. Check the instance ID
@@ -926,7 +926,7 @@ const msq = new MonSQLize({
   config: { uri: 'mongodb://...' },
   cache: {
     multiLevel: true,
-    local: { maxSize: 1000 },
+    local: { maxEntries: 1000 },
     remote: MonSQLize.createRedisCacheAdapter(redis),
     distributed: {
       enabled: true,              //✅ Required: Enable

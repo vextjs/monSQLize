@@ -17,6 +17,7 @@ const {
 const projectRoot = path.resolve(__dirname, '..');
 const exampleScripts = [
     '.generated/examples-dist/examples/quick-start/basic-connect.js',
+    '.generated/examples-dist/examples/quick-start/basic-operations.js',
     '.generated/examples-dist/examples/cache/with-cache.js',
     '.generated/examples-dist/examples/docs/insert.js',
     '.generated/examples-dist/examples/docs/insert-many.js',

@@ -449,7 +449,7 @@ compensate: async (ctx) => {
 const msq = new MonSQLize({
     type: 'mongodb',
     config: { uri: '...' },
-    cache: false  // 或不配置 cache
+    cache: { enabled: false }  // 或不配置 cache
 });
 ```
 
@@ -509,7 +509,7 @@ if (!result.success && !result.compensation.success) {
 const msq = new MonSQLize({
     type: 'mongodb',
     config: { uri: '...' },
-    logger: { level: 'debug' }  // 启用详细日志
+    logger: console  // 传入 LoggerLike 实现
 });
 ```
 

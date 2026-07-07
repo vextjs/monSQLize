@@ -31,7 +31,7 @@ const cache = msq.getCache()
 #### 返回值
 
 ```javascript
-MultiLevelCache | null  // 缓存实例，如果缓存未启用则返回 null
+CacheLike  // MemoryCache、MultiLevelCache、Redis adapter 或自定义 CacheLike
 ```
 
 #### 缓存实例方法
@@ -40,7 +40,7 @@ MultiLevelCache | null  // 缓存实例，如果缓存未启用则返回 null
 |------|------|
 | `get(key)` | 获取缓存值 |
 | `set(key, value, ttl)` | 设置缓存值 |
-| `delete(key)` | 删除缓存项 |
+| `del(key)` | 删除缓存项 |
 | `clear()` | 清空所有缓存 |
 | `keys(pattern)` | 获取匹配模式的缓存键列表 |
 | `getStats()` | 获取缓存统计信息 |
@@ -60,20 +60,16 @@ const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
-  cacheEnabled: true  // 启用缓存
+  cache: {
+    maxEntries: 1000,
+    defaultTtl: 60000
+  }
 });
 
 await msq.connect();
 
-// 获取缓存实例
 const cache = msq.getCache();
-
-if (cache) {
-  console.log('✅ 缓存已启用');
-  console.log('缓存类型:', cache.constructor.name);
-} else {
-  console.log('⚠️ 缓存未启用');
-}
+console.log('缓存类型:', cache.constructor.name);
 ```
 
 ---
@@ -82,17 +78,15 @@ if (cache) {
 
 ```javascript
 const cache = msq.getCache();
+const stats = cache.getStats();
 
-if (cache) {
-  const stats = cache.getStats();
-  console.log('缓存统计:', {
-    命中次数: stats.hits,
-    未命中次数: stats.misses,
-    命中率: `${(stats.hits / (stats.hits + stats.misses) * 100).toFixed(2)}%`,
-    缓存项数量: stats.size,
-    内存使用: `${(stats.memoryUsage / 1024 / 1024).toFixed(2)} MB`
-  });
-}
+console.log('缓存统计:', {
+  命中次数: stats.hits,
+  未命中次数: stats.misses,
+  命中率: `${(stats.hits / (stats.hits + stats.misses) * 100).toFixed(2)}%`,
+  缓存项数量: stats.size,
+  内存使用: `${(stats.memoryUsage / 1024 / 1024).toFixed(2)} MB`
+});
 ```
 
 **输出示例**：
@@ -114,19 +108,14 @@ if (cache) {
 const { collection } = await msq.connect();
 const cache = msq.getCache();
 
-if (cache) {
-  // 手动设置缓存
-  const cacheKey = 'custom:data:123';
-  cache.set(cacheKey, { id: 123, name: 'Product A' }, 3600000); // 1小时
-  
-  // 手动获取缓存
-  const cached = cache.get(cacheKey);
-  console.log('缓存数据:', cached);
-  
-  // 手动删除缓存
-  cache.delete(cacheKey);
-  console.log('✅ 缓存已删除');
-}
+const cacheKey = 'custom:data:123';
+await cache.set(cacheKey, { id: 123, name: 'Product A' }, 3600000); // 1小时
+
+const cached = await cache.get(cacheKey);
+console.log('缓存数据:', cached);
+
+await cache.del(cacheKey);
+console.log('✅ 缓存已删除');
 ```
 
 ---
@@ -136,15 +125,11 @@ if (cache) {
 ```javascript
 const cache = msq.getCache();
 
-if (cache) {
-  // 清空所有缓存
-  cache.clear();
-  console.log('✅ 所有缓存已清空');
-  
-  // 验证
-  const stats = cache.getStats();
-  console.log('缓存项数量:', stats.size);  // 应该是 0
-}
+await cache.clear();
+console.log('✅ 所有缓存已清空');
+
+const stats = cache.getStats();
+console.log('缓存项数量:', stats.size);  // 应该是 0
 ```
 
 ---
@@ -167,10 +152,16 @@ const defaults = msq.getDefaults()
 
 ```javascript
 {
-  limit: number,          // 默认查询限制
-  cache: number | false,  // 默认缓存 TTL（毫秒）
-  maxTimeMS: number,      // 默认查询超时（毫秒）
-  bookmarkTTL: number     // Bookmark 缓存 TTL（毫秒）
+  type: 'mongodb',
+  databaseName: string | undefined,
+  maxTimeMS: number,
+  findLimit: number,
+  findMaxLimit: number,
+  findMaxSkip: number,
+  findPageMaxLimit: number,
+  autoConvertObjectId: boolean | object,
+  namespace: object,
+  slowQueryLog: object | false
 }
 ```
 
@@ -191,7 +182,7 @@ if (cache) {
   
   // 使用命名空间构建模式（更精确）
   const pattern = `*"collection":"${ns.collection}"*"db":"${ns.db}"*`;
-  const productsCacheKeys = cache.keys(pattern);
+  const productsCacheKeys = await cache.keys(pattern);
   
   console.log('products 集合缓存信息:');
   console.log('  缓存键数量:', productsCacheKeys.length);
@@ -212,7 +203,7 @@ const cache = msq.getCache();
 
 if (cache) {
   // 仅使用集合名（可能匹配其他数据库的同名集合）
-  const productsCacheKeys = cache.keys('*"collection":"products"*');
+  const productsCacheKeys = await cache.keys('*"collection":"products"*');
   
   console.log('products 集合缓存数量:', productsCacheKeys.length);
 }
@@ -238,15 +229,15 @@ const cache = msq.getCache();
 
 if (cache) {
   // 获取所有 find 操作的缓存键
-  const findCacheKeys = cache.keys('*"op":"find"*');
+  const findCacheKeys = await cache.keys('*"op":"find"*');
   console.log('find 操作缓存数量:', findCacheKeys.length);
   
   // 获取所有 count 操作的缓存键
-  const countCacheKeys = cache.keys('*"op":"count"*');
+  const countCacheKeys = await cache.keys('*"op":"count"*');
   console.log('count 操作缓存数量:', countCacheKeys.length);
   
   // 获取 products 集合的 find 操作缓存
-  const productsFind = cache.keys('*"collection":"products"*"op":"find"*');
+  const productsFind = await cache.keys('*"collection":"products"*"op":"find"*');
   console.log('products find 缓存数量:', productsFind.length);
 }
 ```
@@ -256,7 +247,7 @@ if (cache) {
 #### 7. 分析缓存使用情况（简化方法 ⭐）
 
 ```javascript
-const { collection } = await msq.getCache();
+const { collection } = await msq.connect();
 const cache = msq.getCache();
 
 if (cache) {
@@ -264,7 +255,7 @@ if (cache) {
   async function getCacheInfoByCollection(collectionName) {
     const ns = collection(collectionName).getNamespace();
     const pattern = `*"collection":"${ns.collection}"*"db":"${ns.db}"*`;
-    const allKeys = cache.keys(pattern);
+    const allKeys = await cache.keys(pattern);
     
     const info = {
       collection: ns.collection,
@@ -338,7 +329,7 @@ class CacheManager {
     
     const ns = this.msq.collection(collectionName).getNamespace();
     const pattern = `*"collection":"${ns.collection}"*"db":"${ns.db}"*`;
-    const keys = this.cache.keys(pattern);
+    const keys = await this.cache.keys(pattern);
     
     return {
       collection: ns.collection,
@@ -373,10 +364,10 @@ class CacheManager {
   }
   
   // 获取所有集合的缓存分布
-  getAllCollectionsCacheInfo() {
+  async getAllCollectionsCacheInfo() {
     if (!this.cache) return null;
     
-    const allKeys = this.cache.keys('*');
+    const allKeys = await this.cache.keys('*');
     const collectionsMap = {};
     
     for (const key of allKeys) {
@@ -420,7 +411,7 @@ const globalStats = cacheManager.getGlobalStats();
 console.log('全局缓存统计:', globalStats);
 
 // 获取所有集合的缓存分布
-const allCollections = cacheManager.getAllCollectionsCacheInfo();
+const allCollections = await cacheManager.getAllCollectionsCacheInfo();
 console.log('所有集合缓存:', allCollections);
 ```
 
@@ -437,10 +428,12 @@ const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
-  defaults: {
-    limit: 50,
-    cache: 10000,
-    maxTimeMS: 5000
+  maxTimeMS: 5000,
+  findLimit: 50,
+  findPageMaxLimit: 200,
+  cache: {
+    maxEntries: 1000,
+    defaultTtl: 10000
   }
 });
 
@@ -454,10 +447,10 @@ console.log('默认配置:', defaults);
 **输出示例**：
 ```javascript
 {
-  limit: 50,
-  cache: 10000,
   maxTimeMS: 5000,
-  bookmarkTTL: 300000
+  findLimit: 50,
+  findPageMaxLimit: 200,
+  namespace: { scope: 'database' }
 }
 ```
 
@@ -473,16 +466,11 @@ const defaults = msq.getDefaults();
 
 // 查询时未指定参数，使用默认值
 const products = await collection('products').find(
-  { status: 'active' },
-  {
-    // limit: 使用 defaults.limit (50)
-    // cache: 使用 defaults.cache (10000)
-    // maxTimeMS: 使用 defaults.maxTimeMS (5000)
-  }
+  { status: 'active' }
 );
 
 console.log(`查询结果: ${products.length} 个文档`);
-console.log(`应用的默认限制: ${defaults.limit}`);
+console.log(`应用的默认限制: ${defaults.findLimit}`);
 ```
 
 ---
@@ -492,21 +480,14 @@ console.log(`应用的默认限制: ${defaults.limit}`);
 ```javascript
 const defaults = msq.getDefaults();
 
-// 检查缓存是否启用
-if (defaults.cache === false) {
-  console.log('⚠️ 缓存已禁用');
-} else {
-  console.log(`✅ 缓存已启用，默认 TTL: ${defaults.cache}ms`);
-}
-
 // 检查查询超时
 if (defaults.maxTimeMS < 3000) {
   console.warn(`⚠️ 查询超时较短: ${defaults.maxTimeMS}ms`);
 }
 
 // 检查分页限制
-if (defaults.limit > 100) {
-  console.warn(`⚠️ 默认分页限制较大: ${defaults.limit}`);
+if (defaults.findLimit > 100) {
+  console.warn(`⚠️ 默认分页限制较大: ${defaults.findLimit}`);
 }
 ```
 
@@ -520,14 +501,16 @@ const msq1 = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
-  defaults: { limit: 20, cache: 5000 }
+  findLimit: 20,
+  maxTimeMS: 3000
 });
 
 const msq2 = new MonSQLize({
   type: 'mongodb',
   databaseName: 'analytics',
   config: { uri: 'mongodb://localhost:27017' },
-  defaults: { limit: 100, cache: false }
+  findLimit: 100,
+  cache: { enabled: false }
 });
 
 await msq1.connect();
@@ -537,8 +520,8 @@ console.log('实例 1 配置:', msq1.getDefaults());
 console.log('实例 2 配置:', msq2.getDefaults());
 
 // 输出:
-// 实例 1 配置: { limit: 20, cache: 5000, maxTimeMS: 3000, bookmarkTTL: 300000 }
-// 实例 2 配置: { limit: 100, cache: false, maxTimeMS: 3000, bookmarkTTL: 300000 }
+// 实例 1 配置包含 { findLimit: 20, maxTimeMS: 3000 }
+// 实例 2 配置包含 { findLimit: 100 }
 ```
 
 ---
@@ -699,7 +682,7 @@ const cache = msq.getCache();
 
 if (cache) {
   // 定时输出缓存统计
-  setInterval(() => {
+  setInterval(async () => {
     const stats = cache.getStats();
     const hitRate = (stats.hits / (stats.hits + stats.misses) * 100).toFixed(2);
     
@@ -727,15 +710,15 @@ const cache = msq.getCache();
 
 if (cache) {
   // 推荐：使用 getNamespace() 获取精确的命名空间
-  setInterval(() => {
+  setInterval(async () => {
     const ns = collection('products').getNamespace();
     const pattern = `*"collection":"${ns.collection}"*"db":"${ns.db}"*`;
-    const productsKeys = cache.keys(pattern);
+    const productsKeys = await cache.keys(pattern);
     
     // 按操作类型统计
-    const findKeys = cache.keys(`${pattern}*"op":"find"*`);
-    const countKeys = cache.keys(`${pattern}*"op":"count"*`);
-    const findOneKeys = cache.keys(`${pattern}*"op":"findOne"*`);
+    const findKeys = await cache.keys(`${pattern}*"op":"find"*`);
+    const countKeys = await cache.keys(`${pattern}*"op":"count"*`);
+    const findOneKeys = await cache.keys(`${pattern}*"op":"findOne"*`);
     
     console.log('products 集合缓存:', {
       命名空间: `${ns.db}.${ns.collection}`,
@@ -766,16 +749,16 @@ const defaults = msq.getDefaults();
 function validateConfig(defaults) {
   const warnings = [];
   
-  if (defaults.limit > 100) {
-    warnings.push(`limit 过大 (${defaults.limit})，可能影响性能`);
+  if (defaults.findLimit > 100) {
+    warnings.push(`findLimit 较大 (${defaults.findLimit})，可能影响宽查询`);
   }
   
   if (defaults.maxTimeMS < 1000) {
     warnings.push(`maxTimeMS 过小 (${defaults.maxTimeMS})，可能导致查询超时`);
   }
   
-  if (defaults.cache !== false && defaults.cache < 1000) {
-    warnings.push(`cache TTL 过小 (${defaults.cache})，缓存效果有限`);
+  if (defaults.findPageMaxLimit > defaults.findMaxLimit) {
+    warnings.push('findPageMaxLimit 不应超过 findMaxLimit');
   }
   
   if (warnings.length > 0) {
@@ -831,74 +814,60 @@ logWithNamespace('products', 'INFO', '查询完成', { count: result.length });
 const { collection } = await msq.connect();
 const cache = msq.getCache();
 
-if (cache) {
-  // 预热热门数据
-  async function prewarmCache() {
-    console.log('开始缓存预热...');
+async function prewarmCache() {
+  console.log('开始缓存预热...');
     
-    // 预热热门产品
-    const hotProducts = await collection('products').find(
-      { featured: true },
-      {
-        limit: 100,
-        cache: 3600000  // 1小时
-      }
-    );
+  // 预热热门产品
+  const hotProducts = await collection('products').find(
+    { featured: true },
+    {
+      limit: 100,
+      cache: 3600000  // 1小时
+    }
+  );
     
-    console.log(`✅ 已预热 ${hotProducts.length} 个热门产品`);
+  console.log(`✅ 已预热 ${hotProducts.length} 个热门产品`);
     
-    // 预热用户配置
-    const userConfigs = await collection('configs').find(
-      { type: 'user' },
-      {
-        limit: 50,
-        cache: 7200000  // 2小时
-      }
-    );
-    
-    console.log(`✅ 已预热 ${userConfigs.length} 个用户配置`);
-    
-    // 显示缓存统计
-    const stats = cache.getStats();
-    console.log('缓存预热完成:', {
-      缓存项: stats.size,
-      内存使用: `${(stats.memoryUsage / 1024 / 1024).toFixed(2)} MB`
-    });
-  }
-  
-  await prewarmCache();
+  // 预热用户配置
+  const userConfigs = await collection('configs').find(
+    { type: 'user' },
+    {
+      limit: 50,
+      cache: 7200000  // 2小时
+    }
+  );
+
+  console.log(`✅ 已预热 ${userConfigs.length} 个用户配置`);
+
+  // 显示缓存统计
+  const stats = cache.getStats();
+  console.log('缓存预热完成:', {
+    缓存项: stats.size,
+    内存使用: `${(stats.memoryUsage / 1024 / 1024).toFixed(2)} MB`
+  });
 }
+
+await prewarmCache();
 ```
 
 ---
 
 ## 常见问题
 
-### Q1: `getCache()` 返回 `null` 怎么办？
+### Q1: 如何禁用运行时缓存？
 
-**A**: 说明缓存未启用，需要在初始化时配置 `cacheEnabled: true`：
+**A**: `getCache()` 返回当前活动的 `CacheLike` 实例。需要禁用缓存存储时，请使用 `cache.enabled: false`，同时保留稳定的运行时 API：
 
 ```javascript
-// ❌ 缓存未启用
 const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'shop',
-  config: { uri: 'mongodb://localhost:27017' }
+  config: { uri: 'mongodb://localhost:27017' },
+  cache: { enabled: false }
 });
 
 const cache = msq.getCache();
-console.log(cache);  // null
-
-// ✅ 启用缓存
-const msqWithCache = new MonSQLize({
-  type: 'mongodb',
-  databaseName: 'shop',
-  config: { uri: 'mongodb://localhost:27017' },
-  cacheEnabled: true  // 启用缓存
-});
-
-const cacheEnabled = msqWithCache.getCache();
-console.log(cacheEnabled);  // MultiLevelCache 实例
+console.log(cache.constructor.name);
 ```
 
 ---
@@ -939,10 +908,8 @@ console.log('✅ products 集合缓存已清除');
 
 // 或者手动清除所有缓存
 const cache = msq.getCache();
-if (cache) {
-  cache.clear();
-  console.log('✅ 所有缓存已清除');
-}
+await cache.clear();
+console.log('✅ 所有缓存已清除');
 ```
 
 详见：[缓存策略文档](./cache.md)
@@ -955,10 +922,10 @@ if (cache) {
 
 ```javascript
 const defaults = msq.getDefaults();
-console.log('默认 limit:', defaults.limit);  // 20
+console.log('默认 limit:', defaults.findLimit);  // 20
 
 // ❌ 不能修改默认配置
-// defaults.limit = 50;  // 无效
+// defaults.findLimit = 50;  // 无效
 
 // ✅ 在查询时覆盖默认值
 const result = await collection('products').find(
@@ -1013,19 +980,19 @@ if (cache) {
   // 方法 1：使用 getNamespace()（推荐，更精确）
   const ns = collection('products').getNamespace();
   const pattern = `*"collection":"${ns.collection}"*"db":"${ns.db}"*`;
-  const productsKeys = cache.keys(pattern);
+  const productsKeys = await cache.keys(pattern);
   
   console.log(`products 集合缓存数量: ${productsKeys.length}`);
   console.log(`命名空间: ${ns.db}.${ns.collection}`);
   
   // 方法 2：仅使用集合名（简单但可能跨数据库匹配）
-  const simpleKeys = cache.keys('*"collection":"products"*');
+  const simpleKeys = await cache.keys('*"collection":"products"*');
   console.log(`简单匹配: ${simpleKeys.length}`);
   
   // 按操作类型统计（使用 getNamespace 的模式）
-  const findKeys = cache.keys(`${pattern}*"op":"find"*`);
-  const countKeys = cache.keys(`${pattern}*"op":"count"*`);
-  const findOneKeys = cache.keys(`${pattern}*"op":"findOne"*`);
+  const findKeys = await cache.keys(`${pattern}*"op":"find"*`);
+  const countKeys = await cache.keys(`${pattern}*"op":"count"*`);
+  const findOneKeys = await cache.keys(`${pattern}*"op":"findOne"*`);
   
   console.log('缓存详情:', {
     总数: productsKeys.length,
