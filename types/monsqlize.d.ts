@@ -609,7 +609,15 @@ export default class MonSQLize implements MonSQLizeInstance {
     static hasExpressionInObject: typeof hasExpressionInObject;
     static hasExpressionInPipeline: typeof hasExpressionInPipeline;
     static createRedisCacheAdapter: typeof createRedisCacheAdapter;
+    /**
+     * @deprecated Retained for v1 compatibility. Non-database function caching is no longer a recommended monSQLize feature path;
+     * use `cache-hub` directly or an application-owned cache layer for new generic function-cache usage.
+     */
     static withCache: typeof withCache;
+    /**
+     * @deprecated Retained for v1 compatibility. Non-database function caching is no longer a recommended monSQLize feature path;
+     * use `cache-hub` directly or an application-owned cache layer for new generic function-cache usage.
+     */
     static FunctionCache: typeof FunctionCache;
     static adaptLegacyCacheLike: typeof adaptLegacyCacheLike;
     static MultiLevelCache: typeof MultiLevelCache;

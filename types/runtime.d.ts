@@ -253,11 +253,19 @@ export interface FunctionCacheOptions extends HubFunctionCacheOptions {
     defaultTTL?: number;
 }
 
+/**
+ * @deprecated Retained for v1 compatibility. Non-database function caching is no longer a recommended monSQLize feature path;
+ * use `cache-hub` directly or an application-owned cache layer for new generic function-cache usage.
+ */
 export declare function withCache<TArgs extends unknown[], TResult>(
     fn: (...args: TArgs) => Promise<TResult>,
     options?: WithCacheOptions<(...args: TArgs) => Promise<TResult>>,
 ): CachedFunction<TArgs, TResult>;
 
+/**
+ * @deprecated Retained for v1 compatibility. Non-database function caching is no longer a recommended monSQLize feature path;
+ * use `cache-hub` directly or an application-owned cache layer for new generic function-cache usage.
+ */
 export declare class FunctionCache {
     constructor(cacheOrDb?: CacheLike | { getCache(): CacheLike; }, options?: FunctionCacheOptions);
     register(name: string, fn: (...args: unknown[]) => Promise<unknown>, options?: {
