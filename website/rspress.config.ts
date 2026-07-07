@@ -44,11 +44,6 @@ type NavSource = NavLinkSource | NavMenuSource;
 
 const navSource: NavSource[] = [
   {
-    en: 'Quick Start',
-    zh: '快速开始',
-    link: '/getting-started'
-  },
-  {
     en: 'Common Scenarios',
     zh: '常用场景',
     link: '/recipes'
