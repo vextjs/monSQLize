@@ -29,8 +29,6 @@ const msq = new MonSQLize({
 | `cache.autoInvalidate` | `boolean` | `false` | monSQLize 写入成功后，按集合粒度广泛失效读缓存。 |
 | `cache.distributed` | `object` | 关闭 | 多实例部署时用 Redis Pub/Sub 广播缓存失效。 |
 
-`cacheAutoInvalidate` 仍作为兼容别名保留。新代码优先使用 `cache.autoInvalidate`。
-
 ## 查询 TTL
 
 读缓存按查询显式开启：
@@ -60,4 +58,3 @@ const msq = new MonSQLize({
 ```
 
 需要精准控制的写路径，优先使用单次写入的 `cache.invalidate`。见 [缓存失效](./cache-invalidation.md)。
-

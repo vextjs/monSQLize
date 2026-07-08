@@ -29,8 +29,6 @@ const msq = new MonSQLize({
 | `cache.autoInvalidate` | `boolean` | `false` | Broadly invalidate collection read caches after successful monSQLize writes. |
 | `cache.distributed` | `object` | disabled | Redis Pub/Sub invalidation for multi-instance deployments. |
 
-`cacheAutoInvalidate` is kept as a compatibility alias. Prefer `cache.autoInvalidate` in new code.
-
 ## Query TTL
 
 Read caching is opt-in per query:
@@ -60,4 +58,3 @@ const msq = new MonSQLize({
 ```
 
 For precise write paths, prefer per-write `cache.invalidate`. See [Cache Invalidation](./cache-invalidation.md).
-

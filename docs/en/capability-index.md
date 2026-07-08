@@ -39,8 +39,8 @@ Available entries:
 
 Model documentation and examples:
 
-- Docs: `docs/model.md`, `docs/populate.md`, `docs/relations.md`
-- Example: `examples/docs/model.ts`
+- Docs: [Model Overview](./model.md), [Populate](./populate.md), [Relations](./relations.md), [Nested Populate](./model/nested-populate.md)
+- Examples: [model.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/model.ts), [populate-relations.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/populate-relations.ts)
 
 ## 2. write-path-policy
 
@@ -50,7 +50,7 @@ Available entries:
 - `writePathPolicy.namespaces`
 - `WritePathPolicyOptions`
 
-Use this when selected namespaces should be written through `msq.model()` instead of direct `collection()` writes. See `docs/en/write-path-policy.md`.
+Use this when selected namespaces should be written through `msq.model()` instead of direct `collection()` writes. See [Write Path Policy](./write-path-policy.md).
 
 ## 3. transaction
 
@@ -86,23 +86,22 @@ Available entries:
 
 These capabilities include topic pages and runnable examples:
 
-- sync: `docs/sync-backup.md`, examples `examples/docs/sync.ts` and `examples/docs/sync-target-failure.ts`
-- slow-query-log: `docs/slow-query-log.md`, example `examples/docs/slow-query-log.ts`
+- sync: [Change Stream Sync](./sync-backup.md), examples [sync.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync.ts) and [sync-target-failure.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync-target-failure.ts)
+- slow-query-log: [Slow Query Logging](./slow-query-log.md), example [slow-query-log.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/slow-query-log.ts)
 
-Future documentation will continue to cover runtime fault injection, real deployment topology, and performance boundaries.
+For deployment and failure behavior, continue with [Distributed Deployment](./distributed-deployment.md) and [Failure Recovery Examples](./failure-recovery-examples.md).
 
 ## 6. Recommended Entries in This Repository
 
-1. Documentation home: `docs/index.md`
-2. API index: `docs/api-index.md`
-3. Example index: `docs/examples.md`
-4. Runnable examples: `examples/docs/*.ts`
+1. Documentation home: [README](./README.md)
+2. API index: [API Index](./api-index.md)
+3. Example index: [Examples](./examples.md)
+4. Runnable examples: [examples/docs](https://github.com/vextjs/monSQLize/tree/main/examples/docs)
 
-## 7. Suggested Expansion Order
+## 7. Common Reading Paths
 
-The most natural next expansion order is:
-
-1. Model topic
-2. transaction topic
-3. pool topic
-4. sync / slow-query-log advanced topics
+1. Model path: [Model Overview](./model.md), [Relations](./relations.md), [Populate](./populate.md)
+2. Transaction path: [Transactions](./transaction.md), [Transaction Optimizations](./transaction-optimizations.md)
+3. Pool path: [Pool Configuration](./multi-pool.md), [Pool Chain API](./pool-chain-api.md)
+4. Cache path: [Cache Configuration](./cache-configuration.md), [Cache Creation](./cache-creation.md), [Cache Invalidation](./cache-invalidation.md)
+5. Sync and observability path: [Change Stream Sync](./sync-backup.md), [Slow Query Logging](./slow-query-log.md)

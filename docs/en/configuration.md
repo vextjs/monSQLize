@@ -119,7 +119,6 @@ The Redis cache adapter and distributed invalidator can share the same Redis URL
 | `config` | `MongoConnectConfig` | none | MongoDB connection config. |
 | `cache` | `MemoryCache`, `CacheLike`, `MultiLevelCacheOptions`, or plain cache config | memory cache | Runtime query-cache backend. |
 | `cache.autoInvalidate` | `boolean` | `false` | Broadly invalidate collection read caches after successful monSQLize writes; disabled by default. |
-| `cacheAutoInvalidate` | `boolean` | `false` | Compatibility alias for `cache.autoInvalidate`; prefer `cache.autoInvalidate` in new code. |
 | `logger` | `LoggerLike \| null` | `null` | Custom logger. Must expose `debug`, `info`, `warn`, and `error`. |
 | `schemaDsl` | `false \| SchemaDslRuntimeConfig` | isolated runtime | Model schema-dsl runtime integration. |
 | `models` | `string \| { path, pattern?, recursive? }` | none | Auto-load Model definition files on connect. |
@@ -275,6 +274,15 @@ const msq = new MonSQLize({
 
 Cache invalidation is best-effort and eventually coherent across instances. MongoDB writes are not rolled back if cache invalidation or distributed publishing fails after the write.
 
+| `cache.distributed` option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `true` when the block is present | Set to `false` to keep the object shape while disabling Pub/Sub. |
+| `redis` | Redis-like instance | none | Existing Redis client used for publish/subscribe. Can be the same instance as the L2 cache. |
+| `redisUrl` | `string` | none | Redis URL used when monSQLize creates the Pub/Sub client. |
+| `url` / `uri` | `string` | none | Aliases for `redisUrl`. |
+| `channel` | `string` | `monsqlize:cache:invalidate` | Pub/Sub channel shared by all instances that should receive invalidation messages. |
+| `instanceId` | `string` | generated value | Instance identifier used to ignore messages published by the same runtime. |
+
 ## Logger config
 
 Pass `console`, `null`, or a logger object with all four log-level methods. Objects such as `{ level: 'debug' }` are ignored because they do not satisfy the logger interface.
@@ -316,15 +324,33 @@ const msq = new MonSQLize({
 });
 ```
 
-| Option | Description |
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `schemaDsl` | `false \| object` | isolated runtime | Omit it for the default isolated runtime; set to `false` only when Model schema validation is intentionally disabled. |
+| `schemaDsl.enabled` | `boolean` | `true` | Set to `false` to disable validation while keeping the object shape. |
+| `schemaDsl.runtime` | schema-dsl runtime | none | Existing runtime. monSQLize uses it but does not dispose it on `close()`. |
+| `schemaDsl.options` | `SchemaDslRuntimeOptions` | none | Options passed when monSQLize creates the runtime. |
+| `schemaDsl.extensions` | `unknown[]` | none | Extension definitions registered before Model schema compilation. |
+| `models` | `string \| object` | none | File path or `{ path, pattern, recursive }` for auto-loading Model definitions. |
+| `autoIndex` | `boolean \| object` | `true` | Global automatic Model index creation control. Model-level `options.autoIndex` overrides this value. |
+
+| `autoIndex` form | Effect |
 |---|---|
-| `schemaDsl: false` | Disables model schema-dsl compilation and validation. |
-| `schemaDsl.enabled` | Set to `false` to disable without removing the object. |
-| `schemaDsl.runtime` | Existing schema-dsl runtime. monSQLize uses it but does not dispose it. |
-| `schemaDsl.options` | Options used when monSQLize creates the runtime. |
-| `schemaDsl.extensions` | Extension definitions registered before model schema compilation. |
-| `models` | File path or `{ path, pattern, recursive }` for auto-loading model definitions. |
-| `autoIndex` | Global automatic Model index creation control. |
+| `true` | Schedule declared Model indexes when the Model instance is created. |
+| `false` | Do not schedule automatic Model index creation. You can still call `ensureIndexes()` explicitly. |
+| `{ enabled: boolean }` | Object form for toggling automatic index creation. |
+| `{ emitEvents: boolean }` | Emits Model index lifecycle events when automatic index tasks run. |
+
+Automatic index creation only creates missing indexes. It does not drop, rename, or rebuild conflicting indexes; use `ensureIndexes({ dryRun: true })` to inspect planned work before changing production indexes.
+
+## Namespace config
+
+Use `namespace` when several monSQLize instances share one cache backend and their cache keys must remain isolated.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `namespace.scope` | `'database' \| 'connection'` | `'database'` | Controls the namespace boundary used by runtime cache keys. |
+| `namespace.instanceId` | `string` | none | Prefixes query-cache keys and invalidation patterns for one runtime instance. Use this when multiple apps share the same Redis/cache backend. |
 
 ## Write path policy
 
@@ -467,6 +493,33 @@ const msq = new MonSQLize({
 ```
 
 Transaction cache locks are process-local. For cross-instance critical sections, use application-level idempotency/fencing or an explicit business lock.
+
+| `transaction` option | Type | Default | Description |
+|---|---|---|---|
+| `enableRetry` | `boolean` | manager default | Enables transaction retry for retryable failures. |
+| `maxRetries` | `number` | manager default | Maximum retry attempts. |
+| `retryDelay` | `number` | manager default | Initial retry delay in milliseconds. |
+| `retryBackoff` | `number` | manager default | Backoff multiplier between retries. |
+| `defaultTimeout` / `maxDuration` | `number` | manager default | Transaction timeout in milliseconds. |
+| `defaultReadConcern` | MongoDB read concern | none | Default read concern passed to transaction options. |
+| `defaultWriteConcern` | MongoDB write concern | none | Default write concern passed to transaction options. |
+| `defaultReadPreference` | MongoDB read preference | none | Default read preference passed to transaction options. |
+| `lockMaxDuration` | `number` | `30000` in the cache-lock manager | Process-local transaction cache-lock duration in milliseconds. |
+| `lockCleanupInterval` | `number` | `60000` in the cache-lock manager | Process-local cache-lock cleanup interval in milliseconds. |
+| `maxStatsSamples` | `number` | manager default | Maximum retained transaction statistics samples. |
+| `distributedLock` | `object` | none | Compatibility placeholder. It does not enable distributed transaction cache locks in the v2 runtime. |
+
+## Count queue config
+
+`countQueue` is a process-local cooperative queue for count-heavy paths such as paginated totals.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `countQueue` | `boolean \| object` | enabled | Set to `false` to bypass the queue. `true` uses defaults. |
+| `countQueue.enabled` | `boolean` | `true` | Enables the queue when using object form. |
+| `countQueue.concurrency` | `number` | implementation default | Maximum concurrent count runners in this process. |
+| `countQueue.maxQueueSize` | `number` | implementation default | Maximum pending count jobs before new jobs are rejected. |
+| `countQueue.timeout` | `number` | implementation default | Queue wait timeout in milliseconds. It does not forcibly cancel an already running MongoDB operation. |
 
 ## Runtime validation
 
