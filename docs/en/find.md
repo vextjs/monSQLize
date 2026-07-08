@@ -718,7 +718,7 @@ try {
 
 **A**: Cache invalidation mechanism:
 - Automatically expires when TTL time is reached
-- Calling `collection.invalidate()` manually fails
+- Calling `collection.invalidate()` manually clears matching collection read caches
 - The cache is cleared after the process is restarted
 - The cache key is generated based on the query parameters. If the parameters change, the cache will become invalid.
 

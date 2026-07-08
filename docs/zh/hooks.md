@@ -115,8 +115,9 @@ hooks: (model) => ({
             // ctx: Hook上下文
             // result: update操作的返回结果
             
-            // 清除缓存
-            await cache.invalidate('users', filter);
+            // 清理受影响的查询缓存
+            await model.invalidate('find');
+            await model.invalidate('findOne');
             
             return result;
         }
@@ -135,6 +136,7 @@ hooks: (model) => ({
         before: async (ctx, filter) => {
             // ctx: Hook上下文
             // filter: 查询条件
+            ctx.filter = filter;
             
             // 可以阻止删除
             const user = await model.findOne(filter);
@@ -152,6 +154,7 @@ hooks: (model) => ({
             // result: delete操作的返回结果
             
             // 级联删除
+            const filter = ctx.filter;
             await Post.deleteMany({ userId: filter._id });
             
             return result;
@@ -379,16 +382,21 @@ Model.define('products', {
     schema: (s) => s({ name: 'string!', price: 'number!' }),
     hooks: (model) => ({
         update: {
+            before: async (ctx, filter, update) => {
+                ctx.filter = filter;
+                return [filter, update];
+            },
             after: async (ctx, result) => {
-                // 更新后清除缓存
-                await cache.del('products:list');
-                await cache.del(`products:${filter._id}`);
+                // 更新后清理受影响的商品查询缓存
+                await model.invalidate('find');
+                await model.invalidate('findOne');
             }
         },
         delete: {
             after: async (ctx, result) => {
-                // 删除后清除缓存
-                await cache.del('products:list');
+                // 删除后清理受影响的商品查询缓存
+                await model.invalidate('find');
+                await model.invalidate('findOne');
             }
         }
     })
@@ -404,6 +412,7 @@ Model.define('users', {
         delete: {
             before: async (ctx, filter) => {
                 // 删除前检查
+                ctx.filter = filter;
                 const user = await model.findOne(filter);
                 if (!user) {
                     throw new Error('用户不存在');
@@ -411,6 +420,7 @@ Model.define('users', {
             },
             after: async (ctx, result) => {
                 // 删除后级联删除关联数据
+                const filter = ctx.filter;
                 await Post.deleteMany({ userId: filter._id });
                 await Comment.deleteMany({ userId: filter._id });
                 await Profile.deleteOne({ userId: filter._id });
@@ -883,9 +893,12 @@ Model.define('users', {
                     throw new Error('用户名已存在');
                 }
                 
+                ctx.docs = docs;
                 return docs;
             },
             after: async (ctx, result) => {
+                const docs = ctx.docs;
+
                 // 创建用户资料
                 await Profile.insertOne({
                     userId: result.insertedId,
@@ -913,8 +926,9 @@ Model.define('users', {
                 return [filter, update];
             },
             after: async (ctx, result) => {
-                // 清除缓存
-                await cache.del('users:list');
+                // 清理受影响的用户查询缓存
+                await model.invalidate('find');
+                await model.invalidate('findOne');
                 
                 console.log(`用户信息已更新: ${result.modifiedCount} 条`);
             }
@@ -922,6 +936,7 @@ Model.define('users', {
         delete: {
             before: async (ctx, filter) => {
                 // 禁止删除管理员
+                ctx.filter = filter;
                 const user = await model.findOne(filter);
                 if (user.role === 'admin') {
                     throw new Error('不能删除管理员账户');
@@ -929,6 +944,7 @@ Model.define('users', {
             },
             after: async (ctx, result) => {
                 // 级联删除
+                const filter = ctx.filter;
                 await Post.deleteMany({ userId: filter._id });
                 await Comment.deleteMany({ userId: filter._id });
                 await Profile.deleteOne({ userId: filter._id });
@@ -979,9 +995,12 @@ Model.define('posts', {
                         .replace(/[^a-z0-9]+/g, '-');
                 }
                 
+                ctx.docs = docs;
                 return docs;
             },
             after: async (ctx, result) => {
+                const docs = ctx.docs;
+
                 // 增加用户文章计数
                 await User.updateOne(
                     { _id: docs.authorId },
@@ -1001,17 +1020,24 @@ Model.define('posts', {
                 return [filter, update];
             },
             after: async (ctx, result) => {
-                // 清除缓存
-                await cache.del('posts:list');
+                // 清理受影响的文章查询缓存
+                await model.invalidate('find');
             }
         },
         delete: {
+            before: async (ctx, filter) => {
+                ctx.filter = filter;
+                ctx.post = await model.findOne(filter);
+                return filter;
+            },
             after: async (ctx, result) => {
+                const filter = ctx.filter;
+
                 // 删除关联评论
                 await Comment.deleteMany({ postId: filter._id });
                 
                 // 减少用户文章计数
-                const post = await model.findOne(filter);
+                const post = ctx.post;
                 if (post) {
                     await User.updateOne(
                         { _id: post.authorId },
