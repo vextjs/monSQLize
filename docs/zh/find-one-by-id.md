@@ -259,17 +259,25 @@ async function getUsersByIds(userIds) {
 // 提示：单个文档按 ID 查询用 findOneById()；批量 ID 查询用 findByIds()。
 ```
 
-### 场景 5: 缓存失效处理
+### 场景 5: 显式缓存失效处理
 
 ```javascript
-// 更新用户后，缓存自动失效
 async function updateUser(userId, updates) {
   // 1. 更新用户
   await collection('users').updateOne(
     { _id: new ObjectId(userId) },
-    { $set: updates }
+    { $set: updates },
+    {
+      cache: {
+        invalidate: [{
+          operation: 'findOneById',
+          id: userId,
+          options: { projection: { password: 0 } }
+        }]
+      }
+    }
   );
-  // 缓存自动失效。
+  // 上面的 cache.invalidate 会清理对应的 ID 查询缓存。
 
   // 2. 查询最新数据（从数据库获取）
   const user = await collection('users').findOneById(userId, {

@@ -8,7 +8,7 @@ import { Collection, Document, FindOneAndDeleteOptions, FindOneAndReplaceOptions
 import { normalizeProjection } from '../../../utils/normalize';
 import { createError, ErrorCodes } from '../../../core/errors';
 import type { IncrementOneOptions } from '../../../../types/collection';
-import { createIncrementUpdate } from './write-utils';
+import { createIncrementUpdate, stripWriteCacheControlOptions } from './write-utils';
 
 /** Thin wrapper around `collection.insertOne`; delegates directly to the MongoDB driver. */
 export async function insertOneDocument<TSchema extends Document = Document>(
@@ -148,7 +148,7 @@ export async function incrementOneDocument<TSchema extends Document = Document>(
     }
 
     const updateDocument = createIncrementUpdate(field, increment, options.$set);
-    const { $set, projection, returnDocument, ...driverOptions } = options;
+    const { $set, projection, returnDocument, ...driverOptions } = stripWriteCacheControlOptions(options);
     void $set;
     const normalizedProjection = normalizeProjection(projection as string[] | Record<string, unknown> | null | undefined);
     const findOptions: Record<string, unknown> = {

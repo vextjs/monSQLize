@@ -27,15 +27,16 @@ import type {
 import {
     buildAggregateDriverOptions,
     buildCountDriverOptions,
-    buildCollectionCacheNamespace,
     buildFindDriverOptions,
-    buildResultCacheKeyOptions,
     hasSessionOption,
     isCollectionCacheBarrierActive,
     normalizeFindProjectionOptions,
     normalizeQueryFilter,
-    stableCacheKeyString,
 } from './query-helpers';
+import {
+    buildAggregateCacheKey,
+    buildFindCacheKey,
+} from './query-cache-keys';
 
 // ── Re-exports from extracted modules (backwards compatibility) ───────────────
 export type {
@@ -254,9 +255,7 @@ export class FindChain<TSchema extends Document = Document> implements FindChain
     }
 
     private buildCacheKey(): string {
-        const keyOptions = buildResultCacheKeyOptions(this.buildExecuteOptions());
-        const namespace = buildCollectionCacheNamespace(this.collection, this.defaults);
-        return `find:${namespace}:${stableCacheKeyString(this.normalizedQuery)}:${stableCacheKeyString(keyOptions)}`;
+        return buildFindCacheKey(this.collection, this.defaults, this.normalizedQuery, this.buildExecuteOptions());
     }
 
     private wrapResult<TResult>(op: string, startTs: number, result: TResult): TResult | ResultWithMeta<TResult> {
@@ -389,9 +388,7 @@ class AggregateChain<TResult = unknown, TSchema extends Document = Document> imp
     }
 
     private buildCacheKey(): string {
-        const keyOptions = buildResultCacheKeyOptions(this.buildExecuteOptions());
-        const namespace = buildCollectionCacheNamespace(this.collection, this.defaults);
-        return `aggregate:${namespace}:${stableCacheKeyString(this.pipeline)}:${stableCacheKeyString(keyOptions)}`;
+        return buildAggregateCacheKey(this.collection, this.defaults, this.pipeline, this.buildExecuteOptions());
     }
 
     explain(verbosity: boolean | string = 'queryPlanner'): Promise<unknown> {

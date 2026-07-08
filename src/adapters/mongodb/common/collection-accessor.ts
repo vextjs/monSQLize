@@ -82,22 +82,22 @@ import {
 } from '../writes';
 import { convertObjectIdStrings, convertUpdateDocument } from '../utils/objectid-converter';
 import {
-    buildReadCacheInvalidationPatterns,
-    getTransactionInvalidator,
     invalidateReadCachesAfterWrite as invalidateAccessorReadCachesAfterWrite,
     invalidateReadCachesForNamespace as invalidateAccessorReadCachesForNamespace,
-    isRecord,
     prepareReadCachesBeforeWrite as prepareAccessorReadCachesBeforeWrite,
+    recordTransactionWriteOperation,
     resolveAggregateWriteTarget,
 } from './collection-accessor-cache-helpers';
 import {
-    buildResultCacheKeyOptions,
-    buildCollectionCacheNamespace,
     hasSessionOption,
     isCollectionCacheBarrierActive,
     normalizeFindProjectionOptions,
-    stableCacheKeyString,
 } from '../queries/query-helpers';
+import {
+    buildCountCacheKey,
+    buildDistinctCacheKey,
+    buildFindOneCacheKey,
+} from '../queries/query-cache-keys';
 import {
     deleteBatchForAccessor,
     incrementOneForAccessor,
@@ -153,14 +153,6 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         return convertUpdateDocument(val as unknown, autoConvertObjectId) as T;
     }
 
-    private buildReadCacheInvalidationPatterns(
-        dbName: string,
-        collectionName: string,
-        operation?: 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string,
-    ): string[] {
-        return buildReadCacheInvalidationPatterns(dbName, collectionName, this.management.defaults, operation);
-    }
-
     private async invalidateReadCachesForNamespace(
         dbName: string,
         collectionName: string,
@@ -175,6 +167,13 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
         );
     }
 
+    private buildCacheCollectionView(dbName: string, collectionName: string): Collection<TSchema> {
+        return {
+            namespace: `${dbName}.${collectionName}`,
+            collectionName,
+        } as unknown as Collection<TSchema>;
+    }
+
     private async invalidateReadCaches(operation?: 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string): Promise<number> {
         return this.invalidateReadCachesForNamespace(this.dbName, this.collectionName, operation);
     }
@@ -182,6 +181,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
     private async invalidateReadCachesAfterWrite(options?: unknown): Promise<number> {
         return invalidateAccessorReadCachesAfterWrite(
             this.management.queryCache,
+            this.collectionRef,
             this.dbName,
             this.collectionName,
             this.management.defaults,
@@ -241,8 +241,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             && !hasSessionOption(driverOptions)
             && !(await isCollectionCacheBarrierActive(this.management.queryCache, this.collectionRef, this.management.defaults))
         ) {
-            const keyOptions = buildResultCacheKeyOptions(driverOptions);
-            const cacheKey = `findOne:${buildCollectionCacheNamespace(this.collectionRef, this.management.defaults)}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(keyOptions)}`;
+            const cacheKey = buildFindOneCacheKey(this.collectionRef, this.management.defaults, normalizedQuery, driverOptions);
             const cached = await Promise.resolve(this.management.queryCache.get(cacheKey)) as TSchema | null | undefined;
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'findOne', rawOptions, startTs, cached) as never) as ReturnType<Collection<TSchema>['findOne']>;
@@ -319,7 +318,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             && !hasSessionOption(keyOptions)
             && !(await isCollectionCacheBarrierActive(this.management.queryCache, this.collectionRef, this.management.defaults))
         ) {
-            const cacheKey = `count:${buildCollectionCacheNamespace(this.collectionRef, this.management.defaults)}:${stableCacheKeyString(normalizedQuery ?? {})}:${stableCacheKeyString(buildResultCacheKeyOptions(keyOptions))}`;
+            const cacheKey = buildCountCacheKey(this.collectionRef, this.management.defaults, normalizedQuery, keyOptions);
             const cached = await Promise.resolve(this.management.queryCache.get(cacheKey));
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'count', merged, startTs, cached as number) as never) as ReturnType<Collection<TSchema>['countDocuments']>;
@@ -364,10 +363,17 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             writeTarget
                 ? {
                     onWriteComplete: async () => {
-                        await this.invalidateReadCachesForNamespace(
+                        recordTransactionWriteOperation(options);
+                        await invalidateAccessorReadCachesAfterWrite(
+                            this.management.queryCache,
+                            this.buildCacheCollectionView(
+                                writeTarget.dbName ?? this.dbName,
+                                writeTarget.collectionName,
+                            ),
                             writeTarget.dbName ?? this.dbName,
                             writeTarget.collectionName,
-                            'all',
+                            this.management.defaults,
+                            options,
                         );
                     },
                 }
@@ -413,7 +419,7 @@ export class MongoCollectionAccessor<TSchema extends Document = Document> {
             && !hasSessionOption(driverOptions)
             && !(await isCollectionCacheBarrierActive(this.management.queryCache, this.collectionRef, this.management.defaults))
         ) {
-            const cacheKey = `distinct:${buildCollectionCacheNamespace(this.collectionRef, this.management.defaults)}:${stableCacheKeyString({ key, query: normalizedQuery ?? {} })}:${stableCacheKeyString(buildResultCacheKeyOptions(driverOptions))}`;
+            const cacheKey = buildDistinctCacheKey(this.collectionRef, this.management.defaults, key, normalizedQuery, driverOptions);
             const cached = await Promise.resolve(this.management.queryCache.get(cacheKey));
             if (cached !== undefined) {
                 return Promise.resolve(wrapQueryResultWithMeta(this.collectionRef, this.management.defaults, 'distinct', rawOptions, startTs, cached) as never) as ReturnType<Collection<TSchema>['distinct']>;

@@ -366,7 +366,7 @@ await collection('data').insertBatch(data, {
 - 每个批次独立插入
 - `insertedIds` 按原始顺序映射
 - 错误处理与批次关联
-- 缓存自动失效
+- 支持显式缓存失效
 
 ### Q: 如何处理部分失败的情况？
 

@@ -72,6 +72,12 @@ export function initAutoConvertConfig(
  */
 export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults {
     const o = options;
+    const cacheOptions = o.cache && typeof o.cache === 'object' && !Array.isArray(o.cache)
+        ? o.cache as Record<string, unknown>
+        : undefined;
+    const cacheAutoInvalidate = typeof cacheOptions?.autoInvalidate === 'boolean'
+        ? cacheOptions.autoInvalidate
+        : o.cacheAutoInvalidate;
     const autoConvertConfig = initAutoConvertConfig(
         o.autoConvertObjectId,
         o.type ?? 'mongodb',
@@ -85,6 +91,7 @@ export function buildRuntimeDefaults(options: MonSQLizeOptions): RuntimeDefaults
         slowQueryMs: o.slowQueryMs ?? 500,
         namespace: o.namespace ?? { scope: 'database' },
         writePathPolicy: normalizeWritePathPolicy(o.writePathPolicy),
+        cacheAutoInvalidate,
     };
     // v1-compat: autoConvertObjectId defaults to true for MongoDB type (mirrors v1 behaviour)
     defaults.autoConvertObjectId = o.autoConvertObjectId !== undefined

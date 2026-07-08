@@ -36,8 +36,9 @@ await msq.close();
 
 ```ts
 import MonSQLize from 'monsqlize';
+import Redis from 'ioredis';
 
-const redisUrl = 'redis://127.0.0.1:6379/0';
+const redis = new Redis('redis://127.0.0.1:6379/0');
 
 const msq = new MonSQLize({
   type: 'mongodb',
@@ -68,17 +69,17 @@ const msq = new MonSQLize({
       enableStats: true
     },
     redis: {
-      url: redisUrl,
+      redis,
       timeoutMs: 300,
       prefix: 'shop:'
     },
     distributed: {
-      redisUrl,
+      redis,
       channel: 'shop:cache:invalidate',
       instanceId: 'api-1'
-    }
+    },
+    autoInvalidate: false
   },
-  cacheAutoInvalidate: true,
 
   logger: console,
 
@@ -117,7 +118,8 @@ The Redis cache adapter and distributed invalidator can share the same Redis URL
 | `database` | `string` | none | Alias that takes priority over `databaseName`. |
 | `config` | `MongoConnectConfig` | none | MongoDB connection config. |
 | `cache` | `MemoryCache`, `CacheLike`, `MultiLevelCacheOptions`, or plain cache config | memory cache | Runtime query-cache backend. |
-| `cacheAutoInvalidate` | `boolean` | `false` | Auto-invalidate collection query caches after monSQLize writes. |
+| `cache.autoInvalidate` | `boolean` | `false` | Broadly invalidate collection read caches after successful monSQLize writes; disabled by default. |
+| `cacheAutoInvalidate` | `boolean` | `false` | Compatibility alias for `cache.autoInvalidate`; prefer `cache.autoInvalidate` in new code. |
 | `logger` | `LoggerLike \| null` | `null` | Custom logger. Must expose `debug`, `info`, `warn`, and `error`. |
 | `schemaDsl` | `false \| SchemaDslRuntimeConfig` | isolated runtime | Model schema-dsl runtime integration. |
 | `models` | `string \| { path, pattern?, recursive? }` | none | Auto-load Model definition files on connect. |
@@ -247,10 +249,12 @@ const msq = new MonSQLize({
 
 ### Distributed invalidation
 
-`cache.distributed` enables Redis Pub/Sub invalidation messages between monSQLize instances. It does not automatically infer a Pub/Sub connection from `cache.remote`; configure `redisUrl`, `url`, `uri`, or an existing Redis-like `redis` instance explicitly.
+`cache.distributed` enables Redis Pub/Sub invalidation messages between monSQLize instances. It does not automatically infer a Pub/Sub connection from the L2 cache; configure `redisUrl`, `url`, `uri`, or an existing Redis-like `redis` instance explicitly. The same Redis instance can be used for both L2 cache and distributed invalidation.
 
 ```ts
-const redisUrl = 'redis://127.0.0.1:6379/0';
+import Redis from 'ioredis';
+
+const redis = new Redis('redis://127.0.0.1:6379/0');
 
 const msq = new MonSQLize({
   type: 'mongodb',
@@ -258,9 +262,9 @@ const msq = new MonSQLize({
   config: { uri: 'mongodb://127.0.0.1:27017' },
   cache: {
     memory: { maxEntries: 10000 },
-    redis: { url: redisUrl },
+    redis: { redis },
     distributed: {
-      redisUrl,
+      redis,
       channel: 'shop:cache:invalidate',
       instanceId: 'api-1',
       enabled: true
@@ -505,7 +509,7 @@ await users.find({});                      // Uses 3000.
 | Passing a boolean as constructor cache config | `cache: { enabled: false }` or query-level `{ cache: 0 }` |
 | Selecting Redis through a cache type string and host/port object | `MonSQLize.createRedisCacheAdapter(redisUrl)` or `cache.redis.url` |
 | Passing only a logger level | `logger: console` or a logger with `debug/info/warn/error` |
-| Relying on the remote cache field to create Pub/Sub | Add `cache.distributed.redisUrl` explicitly |
+| Relying on the L2 cache field to create Pub/Sub | Add `cache.distributed.redisUrl`, or pass the same instance as `cache.distributed.redis` |
 | Omitting `type` | Set `type: 'mongodb'` |
 
 ## Related pages

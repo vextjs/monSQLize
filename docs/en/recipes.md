@@ -58,7 +58,7 @@ await msq.connect();
 | `cache.maxEntries` | No | Maximum entry count for the memory cache. |
 | `cache.enableStats` | No | Enables cache hit/miss statistics. |
 
-Memory cache needs no external service and is the quickest way to verify cached reads locally. Writes invalidate collection query cache; transaction writes flush pending invalidations after commit.
+Memory cache needs no external service and is the quickest way to verify cached reads locally. Writes clear collection query cache only when `cache.invalidate`, `autoInvalidate`, or global `cache.autoInvalidate` is configured; transaction writes flush pending invalidations after commit.
 
 Example source: [`examples/cache/with-cache.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/cache/with-cache.ts)
 

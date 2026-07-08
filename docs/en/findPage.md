@@ -552,7 +552,7 @@ const result = await collection('products').findPage({
 **Caching Best Practices**:
 - Enable caching for popular queries
 - Set a reasonable TTL based on the data update frequency
-- Writes through the monSQLize collection accessor invalidate read caches automatically; after native driver writes or external jobs, call `collection.invalidate('findPage')`
+- Writes do not invalidate `findPage` read caches by default; use `cache.invalidate`, `autoInvalidate: true`, or call `collection.invalidate('findPage')` manually when needed.
 
 ### 4. Correctly handle total statistics
 
@@ -1066,12 +1066,12 @@ console.log(dataResult);
 
 **Cache Invalidation**:
 - TTL controls automatic expiration.
-- Writes through the monSQLize collection accessor automatically invalidate read caches.
+- Writes through the monSQLize collection accessor clear read caches only when `cache.invalidate`, `autoInvalidate: true`, or global `cache.autoInvalidate` is configured.
 - If data is changed through the native MongoDB driver, another process, or an external job, manually invalidate the related cache.
 
 ```javascript
 // Update data
-await collection('products').update(
+await collection('products').updateOne(
   { _id: productId },
   { $set: { price: 99 } }
 );

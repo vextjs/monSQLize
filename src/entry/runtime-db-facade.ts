@@ -44,6 +44,12 @@ type RuntimeAccessorConfig<TRuntime> = {
  * injecting cache, query cache, logger, and runtime defaults.
  */
 export function createRuntimeDbFacade(host: RuntimeDbFacadeHost, databaseName: string): DbFacade {
+    const cacheOptions = host.options.cache && typeof host.options.cache === 'object' && !Array.isArray(host.options.cache)
+        ? host.options.cache as Record<string, unknown>
+        : undefined;
+    const cacheAutoInvalidate = typeof cacheOptions?.autoInvalidate === 'boolean'
+        ? cacheOptions.autoInvalidate
+        : host.options.cacheAutoInvalidate === true;
     return new DbFacadeImpl(
         databaseName,
         host._client.db(databaseName),
@@ -54,8 +60,7 @@ export function createRuntimeDbFacade(host: RuntimeDbFacadeHost, databaseName: s
             getQueryCache: () => host.resolveAdapterCache(),
             logger: host._logger,
             defaults: host._runtimeDefaults,
-            // v2: cacheAutoInvalidate top-level option; v1 compat: cache.autoInvalidate nested field.
-            cacheAutoInvalidate: !!host.options.cacheAutoInvalidate || !!(host.options.cache as Record<string, unknown> | undefined)?.autoInvalidate,
+            cacheAutoInvalidate,
         },
     ) as DbFacade;
 }

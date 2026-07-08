@@ -341,7 +341,7 @@ const products = await collection('products').find(
 **Performance Features**:
 - Read latency: 1-2ms (network + Redis query)
 - Cache capacity: depends on Redis memory (up to GB level)
-- Cache consistency: shared across instances; a short-lived dirty barrier makes reads bypass and avoid refilling query cache while invalidation is in progress, but invalidation is still eventually coherent and is not atomic with database commits
+- Cache consistency: shared across instances; write-side invalidation is an explicit best-effort step, distributed publish is eventually coherent, and neither is atomic with database commits
 
 ---
 
@@ -749,13 +749,14 @@ const page100 = await collection('products').findPage({
 
 ## Cache invalidation behavior
 
-When a write goes through monSQLize, the runtime marks the collection read-cache namespace as dirty before the write, clears matching read-cache patterns, then clears the dirty marker after the write path finishes. While the dirty marker exists, reads bypass cache and avoid refilling stale data.
+Writes do not invalidate read caches by default. When a write should clear cache, use per-write `cache.invalidate` for precise entries or `autoInvalidate: true` for collection-wide broad invalidation. See [Cache Invalidation](./cache-invalidation.md).
 
 This is a best-effort cache consistency model:
 
 - MongoDB writes are not rolled back if cache invalidation or distributed publish fails after the write.
-- Transactional writes record invalidation patterns and flush them only after a successful commit.
+- Transactional writes record invalidation intents and flush them only after a successful commit; abort does not flush.
 - Cross-instance invalidation requires `cache.distributed` with Redis Pub/Sub and remains eventual, not exactly atomic with the database commit.
+- `cache.invalidate: false` or `cache.invalidate: []` overrides global `cache.autoInvalidate: true` for the current write.
 - `invalidate()` is still useful when data is changed outside monSQLize or when an application-owned cache must be refreshed manually.
 
 ### Write invalidation example
@@ -774,12 +775,23 @@ await collection('products').find(
   { cache: 60000 }
 );
 
-// 2. Writes through monSQLize invalidate read-cache entries for this collection.
-await collection('products').insertOne({
-  name: 'New Phone',
-  category: 'electronics',
-  price: 999
-});
+// 2. Precisely invalidate the affected find cache.
+await collection('products').insertOne(
+  {
+    name: 'New Phone',
+    category: 'electronics',
+    price: 999
+  },
+  {
+    cache: {
+      invalidate: [{
+        operation: 'find',
+        query: { category: 'electronics' },
+        options: { cache: 60000 }
+      }]
+    }
+  }
+);
 
 // 3. The next cached read refills from MongoDB.
 await collection('products').find(
@@ -1191,7 +1203,7 @@ for (const name of collections) {
 
 **Note**:
 - After using external tools to modify data, you still need to manually call `invalidate()` to clear the cache
-- Write operations initiated through monSQLize already run the read-cache invalidation path.
+- Writes through monSQLize clear read caches only when `cache.invalidate`, per-write `autoInvalidate`, or global `cache.autoInvalidate` is configured.
 - If your caching strategy is cross-process/cross-node, it is recommended to combine it with distributed invalidation broadcast.
 
 
@@ -1340,7 +1352,7 @@ await clearAllCache();
 
 ## Instructions for use
 
-**Important note**: The current version of monSQLize already supports write operations such as `insertOne` / `updateOne` / `deleteOne`; when writing through monSQLize, the relevant cache will be processed according to the current invalidation policy. `invalidate()` is still used in the following scenarios:
+**Important note**: monSQLize supports write operations such as `insertOne` / `updateOne` / `deleteOne`; related caches are cleared only when an invalidation policy is explicitly configured. `invalidate()` is still used in the following scenarios:
 
 1. **Explicit cleanup after external writes**:
    - After directly modifying data using MongoDB Shell, Compass or other applications

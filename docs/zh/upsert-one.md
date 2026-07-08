@@ -597,7 +597,7 @@ await collection('users').upsertOne(
 
 ### Q6: 支持缓存吗？
 
-**A**: ✅ 支持！操作成功后会自动失效相关缓存。
+**A**: ✅ 支持显式缓存失效。操作成功后默认不清理查询缓存；需要清理时，使用 `cache.invalidate` 或 `autoInvalidate: true`。
 
 ### Q7: 如何处理唯一键冲突？
 

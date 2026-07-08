@@ -33,6 +33,12 @@ function deepMerge(base: Record<string, unknown>, patch: Record<string, unknown>
  * are overridden by the corresponding options fields (undefined preserves the built-in value).
  */
 export function buildPublicDefaults(options: MonSQLizeOptions): Readonly<Record<string, unknown>> {
+    const cacheOptions = options.cache && typeof options.cache === 'object' && !Array.isArray(options.cache)
+        ? options.cache as Record<string, unknown>
+        : undefined;
+    const cacheAutoInvalidate = typeof cacheOptions?.autoInvalidate === 'boolean'
+        ? cacheOptions.autoInvalidate
+        : options.cacheAutoInvalidate;
     return Object.freeze(deepMerge({
         maxTimeMS: 2000,
         findLimit: 500,
@@ -57,7 +63,7 @@ export function buildPublicDefaults(options: MonSQLizeOptions): Readonly<Record<
         autoConvertObjectId: options.autoConvertObjectId,
         log: options.log as Record<string, unknown> | undefined,
         slowQueryLog: options.slowQueryLog,
-        cacheAutoInvalidate: options.cacheAutoInvalidate,
+        cacheAutoInvalidate,
         writePathPolicy: options.writePathPolicy,
     } as Record<string, unknown>));
 }

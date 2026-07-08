@@ -328,4 +328,40 @@ describe('P3-A cache facade', () => {
         await invalidatorA.close();
         await invalidatorB.close();
     });
+
+    it('DistributedCacheInvalidator broadcasts exact key invalidation', async () => {
+        const bus: FakeConnection[] = [];
+        const localA = new MonSQLize.MemoryCache();
+        const localB = new MonSQLize.MemoryCache();
+        localA.set('user:1', { id: 1 });
+        localB.set('user:1', { id: 1 });
+        localB.set('user:2', { id: 2 });
+
+        const connA = createConnection(bus);
+        const connB = createConnection(bus);
+        bus.push(connA, connB);
+
+        const invalidatorA = new MonSQLize.DistributedCacheInvalidator({
+            cache: { local: localA },
+            channel: 'cache-test-key',
+            instanceId: 'node-a-key',
+            redis: connA,
+        });
+        const invalidatorB = new MonSQLize.DistributedCacheInvalidator({
+            cache: { local: localB },
+            channel: 'cache-test-key',
+            instanceId: 'node-b-key',
+            redis: connB,
+        });
+
+        await invalidatorA.invalidateKey('user:1');
+        await new Promise((resolve) => setImmediate(resolve));
+
+        assert.deepEqual(localA.get('user:1'), { id: 1 });
+        assert.equal(localB.get('user:1'), undefined);
+        assert.deepEqual(localB.get('user:2'), { id: 2 });
+
+        await invalidatorA.close();
+        await invalidatorB.close();
+    });
 });

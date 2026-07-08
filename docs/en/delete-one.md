@@ -62,9 +62,9 @@ const result = await collection("users").deleteOne({ status: "inactive" });
 console.log(result.deletedCount); //1 (or 0 if no match)
 ```
 
-## ✅ Automatic cache invalidation
+## ✅ Explicit cache invalidation
 
-After the deletion is successful, monSQLize will automatically clean up the related cache keys.
+After deletion succeeds, monSQLize does not clear query caches by default. Use `cache.invalidate` or `autoInvalidate: true` when the write should clear cache.
 
 ```javascript
 //First query (from database)
@@ -73,8 +73,19 @@ const user = await collection("users").findOne(
   { cache: 5000 }
 );
 
-//Delete user (automatically clear cache)
-await collection("users").deleteOne({ userId: "user123" });
+//Delete user and precisely clear the cached query when needed
+await collection("users").deleteOne(
+  { userId: "user123" },
+  {
+    cache: {
+      invalidate: [{
+        operation: "findOne",
+        query: { userId: "user123" },
+        options: { cache: 5000 }
+      }]
+    }
+  }
+);
 
 //Query again (will not be returned from cache because it has been cleaned)
 const deletedUser = await collection("users").findOne(
@@ -345,11 +356,14 @@ Deleting a document does not delete the index, it is automatically updated.
 
 ## ⚠️ Scope of cache invalidation
 
-Automatic cache invalidation clears the cache for the entire collection, not just deleted documents:
+`autoInvalidate: true` clears the cache for the entire collection, not just deleted documents:
 
 ```javascript
-//Delete a user
-await collection("users").deleteOne({ userId: "user123" });
+//Delete a user and request collection-wide broad invalidation
+await collection("users").deleteOne(
+  { userId: "user123" },
+  { autoInvalidate: true }
+);
 
 //The cache of all users collections will be cleared
 //Include cached queries from other users

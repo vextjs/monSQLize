@@ -346,7 +346,7 @@ function handleFindOneAndResult(result, options = {}, logger = null) {
 4. 返回更新前的文档（`returnDocument: "before"`）
 5. 返回更新后的文档（`returnDocument: "after"`）
 6. 包含完整元数据（`includeResultMetadata: true`）
-7. 缓存自动失效
+7. 显式缓存失效
 8. 并发安全性
 
 ### 自动化测试命令

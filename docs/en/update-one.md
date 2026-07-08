@@ -273,13 +273,13 @@ await collection("users").updateMany(
 
 ## Caching behavior
 
-`updateOne` will **automatically invalidate the relevant cache** after successfully modifying the document:
+`updateOne` does not clear query caches by default after a successful modification. Use `cache.invalidate` or `autoInvalidate: true` when the write should clear cache:
 
 ```javascript
 //Query and cache
 await collection("users").find({ userId: "user123" }, { cache: 5000 });
 
-//Update documentation - automatically clear cache
+//Update document and clear cache when needed
 await collection("users").updateOne(
   { userId: "user123" },
   { $set: { status: "active" } }
@@ -290,7 +290,7 @@ await collection("users").updateOne(
 
 **Note**:
 - Invalid cache only if `modifiedCount > 0`
-- Cache invalidation is automatic and does not need to be called manually
+- Cache invalidation must be configured explicitly; writes do not clear read caches by default
 
 ## Slow query log
 

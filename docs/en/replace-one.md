@@ -418,7 +418,7 @@ const oldDoc = await collection("users").findOneAndReplace(
 
 ## Caching behavior
 
-`replaceOne` will **automatically invalidate the relevant cache** after successfully modifying the document:
+`replaceOne` does not clear query caches by default after a successful replacement. Use `cache.invalidate` or `autoInvalidate: true` when the write should clear cache:
 
 ```javascript
 //Query and cache

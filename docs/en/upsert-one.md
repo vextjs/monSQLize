@@ -560,7 +560,7 @@ await collection('users').upsertOne(
 
 ## Q6: Does it support caching?
 
-**A**: ✅ Support! After the operation is successful, the relevant cache will be automatically invalidated.
+**A**: ✅ Explicit cache invalidation is supported. The operation does not clear query caches by default; use `cache.invalidate` or `autoInvalidate: true` when needed.
 
 ## Q7: How to deal with unique key conflicts?
 

@@ -11,10 +11,10 @@ import type { MongoClient, ClientSession } from 'mongodb';
 import type { CacheLike } from '../cache';
 import {
     clearCacheInvalidationBarrier,
-    markCacheInvalidationBarrier,
 } from '../../core/cache-invalidation-barrier';
 import { createError, ErrorCodes } from '../../core/errors';
 import type { LoggerLike } from '../../core/logger';
+import type { CacheInvalidationIntent } from '../../types/internal/query';
 import type {
     MongoSession,
     TransactionInfo,
@@ -156,6 +156,8 @@ export class Transaction {
     private startedAt: number | null = null;
     private timeoutTimer: NodeJS.Timeout | null = null;
     readonly pendingInvalidations = new Set<string>();
+    private readonly pendingInvalidationIntents = new Map<string, CacheInvalidationIntent>();
+    private recordedWriteOperationCount = 0;
     private recordedInvalidationCount = 0;
 
     constructor(
@@ -204,7 +206,6 @@ export class Transaction {
         if (this.state !== 'active') {
             throw createError(ErrorCodes.INVALID_OPERATION, `Cannot commit transaction in state: ${this.state}`);
         }
-        await this.preparePendingInvalidations();
         if (typeof (this.session as unknown as Record<string, unknown>).commitTransaction === 'function') {
             await commitTransactionWithRetry(this.session, this.options.logger);
         }
@@ -221,6 +222,7 @@ export class Transaction {
             });
             this.options.lockManager?.releaseLocks(this.id);
             this.pendingInvalidations.clear();
+            this.pendingInvalidationIntents.clear();
             this.clearTimeout();
         }
     }
@@ -245,6 +247,7 @@ export class Transaction {
             this.state = 'aborted';
             this.options.lockManager?.releaseLocks(this.id);
             this.pendingInvalidations.clear();
+            this.pendingInvalidationIntents.clear();
             this.clearTimeout();
         }
     }
@@ -264,43 +267,52 @@ export class Transaction {
      * @since v1.4.0
      */
     async recordInvalidation(pattern: string): Promise<void> {
-        if (!this.pendingInvalidations.has(pattern)) {
+        await this.recordCacheInvalidation({ type: 'pattern', value: pattern });
+    }
+
+    async recordCacheInvalidation(intent: CacheInvalidationIntent): Promise<void> {
+        if (!intent.value) {
+            return;
+        }
+        const id = `${intent.type}:${intent.value}`;
+        if (!this.pendingInvalidationIntents.has(id)) {
             this.recordedInvalidationCount += 1;
         }
-        this.pendingInvalidations.add(pattern);
-        this.options.lockManager?.addLock(pattern, this.id);
+        this.pendingInvalidationIntents.set(id, intent);
+        this.pendingInvalidations.add(intent.value);
+        this.options.lockManager?.addLock(intent.value, this.id);
+    }
+
+    recordWriteOperation(): void {
+        this.recordedWriteOperationCount += 1;
     }
 
     private async flushPendingInvalidations(): Promise<void> {
-        if (!this.options.cache?.delPattern) {
+        if (!this.options.cache) {
             return;
         }
-        for (const pattern of this.pendingInvalidations) {
-            await this.options.cache.delPattern(pattern);
-        }
-    }
-
-    private async preparePendingInvalidations(): Promise<void> {
-        if (!this.options.cache?.delPattern || this.pendingInvalidations.size === 0) {
-            return;
-        }
-        const patterns = [...this.pendingInvalidations];
-        try {
-            await markCacheInvalidationBarrier(this.options.cache, patterns);
-            for (const pattern of patterns) {
-                await this.options.cache.delPattern(pattern);
+        const cacheWithDelete = this.options.cache as CacheLike & { delete?: (key: string) => unknown | Promise<unknown> };
+        for (const intent of this.pendingInvalidationIntents.values()) {
+            if (intent.type === 'pattern') {
+                await this.options.cache.delPattern?.(intent.value);
+            } else if (typeof cacheWithDelete.del === 'function') {
+                await cacheWithDelete.del(intent.value);
+            } else if (typeof cacheWithDelete.delete === 'function') {
+                await cacheWithDelete.delete(intent.value);
             }
-        } catch (error) {
-            await clearCacheInvalidationBarrier(this.options.cache, patterns).catch(() => undefined);
-            throw error;
         }
     }
 
     private async clearPendingInvalidationBarriers(): Promise<void> {
-        if (!this.options.cache || this.pendingInvalidations.size === 0) {
+        if (!this.options.cache || this.pendingInvalidationIntents.size === 0) {
             return;
         }
-        await clearCacheInvalidationBarrier(this.options.cache, this.pendingInvalidations);
+        const patterns = [...this.pendingInvalidationIntents.values()]
+            .filter((intent) => intent.type === 'pattern')
+            .map((intent) => intent.value);
+        if (patterns.length > 0) {
+            await clearCacheInvalidationBarrier(this.options.cache, patterns);
+        }
     }
 
     /**
@@ -343,14 +355,14 @@ export class Transaction {
             id: this.id,
             state: this.state,
             duration: this.getDuration(),
-            hasWriteOperation: this.recordedInvalidationCount > 0,
-            operationCount: this.recordedInvalidationCount,
+            hasWriteOperation: this.hasWriteOperation(),
+            operationCount: this.recordedWriteOperationCount || this.recordedInvalidationCount,
             lockedKeysCount: this.recordedInvalidationCount,
         };
     }
 
     hasWriteOperation(): boolean {
-        return this.recordedInvalidationCount > 0;
+        return this.recordedWriteOperationCount > 0 || this.recordedInvalidationCount > 0;
     }
 
     private clearTimeout(): void {

@@ -4,8 +4,8 @@
 
 This page explains the transaction behavior that matters when you tune throughput and cache consistency:
 
-1. **Read-only transaction accounting** - transactions with no recorded write invalidation are counted separately in `getTransactionStats()`.
-2. **Process-local cache invalidation barrier** - writes inside a transaction record invalidation patterns and flush them only after a successful commit.
+1. **Read-only transaction accounting** - transactions that do not run monSQLize write helpers are counted separately in `getTransactionStats()`.
+2. **Process-local cache invalidation barrier** - transaction writes with explicit invalidation record intents and flush them only after a successful commit.
 
 
 ## Applicable scenarios
@@ -30,14 +30,14 @@ await msq.withTransaction(async (tx) => {
         { session: tx.session }
     );
 
-    //No write invalidation is recorded, so this transaction is counted as read-only.
+    //No write helper runs, so this transaction is counted as read-only.
 });
 ```
 
 
 ## How to use
 
-No code changes are required. A transaction is counted as read-only when it does not record write invalidation patterns.
+No code changes are required for read-only transactions. A transaction is counted as read-only when it does not run monSQLize write helpers.
 
 ```javascript
 //Automatically recognized as a read-only transaction
@@ -61,23 +61,32 @@ await msq.withTransaction(async (tx) => {
 
 ## Working principle
 
-When a transaction performs writes through monSQLize helpers, the runtime records read-cache invalidation patterns. Before commit it marks a dirty barrier and clears affected cache entries. After the MongoDB commit succeeds, it flushes the recorded invalidations and releases the process-local cache lock.
+When a transaction performs writes through monSQLize helpers with explicit cache invalidation configured, the runtime records read-cache invalidation intents. After the MongoDB commit succeeds, it flushes the recorded invalidations and releases the process-local cache lock; abort does not flush.
 
 ```javascript
 await msq.withTransaction(async (tx) => {
     await collection('users').updateOne(
         { _id: 1 },
         { $set: { balance: 100 } },
-        { session: tx.session }
+        {
+            session: tx.session,
+            cache: {
+                invalidate: [{
+                    operation: 'findOne',
+                    query: { _id: 1 },
+                    options: { cache: 5000 }
+                }]
+            }
+        }
     );
-    //The affected read-cache namespace is marked dirty and invalidated around commit.
+    //The configured cache invalidation intent is flushed after commit.
 });
 ```
 
 
 ## Usage
 
-No code changes are required when you already pass `session: tx.session` into write helpers.
+When you want transaction writes to clear cached reads, pass `session: tx.session` together with `cache.invalidate` or `autoInvalidate: true`.
 
 ```javascript
 await Promise.all([
@@ -85,14 +94,20 @@ await Promise.all([
         await collection('users').updateOne(
             { _id: 1 },
             { $inc: { balance: 100 } },
-            { session: tx.session }
+            {
+                session: tx.session,
+                cache: { invalidate: true }
+            }
         );
     }),
     msq.withTransaction(async (tx) => {
         await collection('users').updateOne(
             { _id: 2 },
             { $inc: { balance: 200 } },
-            { session: tx.session }
+            {
+                session: tx.session,
+                cache: { invalidate: true }
+            }
         );
     })
 ]);

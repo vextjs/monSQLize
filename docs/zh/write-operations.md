@@ -2,7 +2,7 @@
 
 ## 概述
 
-本页介绍 collection 级别的插入 API。需要 MongoDB 原生写入行为，同时希望使用 monSQLize 的缓存失效、统一错误和慢操作监控时，可以使用这些方法。
+本页介绍 collection 级别的插入 API。需要 MongoDB 原生写入行为，同时希望使用 monSQLize 的显式缓存失效、统一错误和慢操作监控时，可以使用这些方法。
 
 | 方法 | 用途 | 性能 | 适用场景 |
 |------|------|------|---------|
@@ -18,7 +18,7 @@
 - 所有参数（writeConcern、ordered、comment 等）都是 MongoDB 原生支持
 
 **monSQLize 扩展功能**: 🔧
-- ✅ **自动缓存失效** - 插入后自动清理相关缓存（monSQLize 独有）
+- ✅ **显式缓存失效** - 插入后可通过 `cache.invalidate` 或 `autoInvalidate` 清理相关缓存
 - ✅ **统一错误码** - DUPLICATE_KEY/VALIDATION_ERROR 等统一错误处理
 - ✅ **慢查询监控** - 自动记录耗时超过阈值的写入操作
 - ✅ **详细日志** - DEBUG/WARN 级别的操作日志
@@ -306,9 +306,9 @@ try {
 
 ---
 
-#### 7. 自动缓存失效
+#### 7. 显式缓存失效
 
-写入成功后，monSQLize 会触发相关集合查询缓存的失效。缓存失效是写入后的 best-effort 步骤，具体一致性边界见 [缓存 API](./cache.md)。
+写入成功后，monSQLize 默认不清理查询缓存。需要清理时，在写入 options 里使用 `cache.invalidate` 精准失效，或使用 `autoInvalidate: true` 做集合级 broad 失效。缓存失效是写入后的 best-effort 步骤，具体一致性边界见 [缓存失效](./cache-invalidation.md)。
 
 ```javascript
 // 第 1 步: 查询产品（缓存结果）
@@ -318,13 +318,24 @@ const products1 = await collection('products').find(
 );
 console.log('首次查询:', products1.length);  // 输出: 10
 
-// 第 2 步: 插入新产品（自动失效缓存）
-await collection('products').insertOne({
-  name: 'New Product',
-  category: 'electronics',
-  price: 599
-});
-console.log('插入后已触发缓存失效');
+// 第 2 步: 插入新产品，并精准失效受影响的查询缓存
+await collection('products').insertOne(
+  {
+    name: 'New Product',
+    category: 'electronics',
+    price: 599
+  },
+  {
+    cache: {
+      invalidate: [{
+        operation: 'find',
+        query: { category: 'electronics' },
+        options: { cache: 60000 }
+      }]
+    }
+  }
+);
+console.log('插入后已按显式配置触发缓存失效');
 
 // 第 3 步: 再次查询（缓存已失效，重新查询数据库）
 const products2 = await collection('products').find(
@@ -334,7 +345,7 @@ const products2 = await collection('products').find(
 console.log('插入后查询:', products2.length);  // 输出: 11（新数据）
 ```
 
-**自动失效的缓存操作**:
+**可配置失效的缓存操作**:
 - ✅ `find()`
 - ✅ `findOne()`
 - ✅ `count()`
@@ -522,7 +533,7 @@ await msq.connect();
 
 ### Q: 插入后需要手动清理缓存吗？
 
-**A**: 不需要，`insertOne` 和 `insertMany` 会**自动失效相关缓存**。
+**A**: 默认需要你显式配置。使用 `cache.invalidate` 精准清理，或使用 `autoInvalidate: true` broad 清理相关缓存。
 
 ### Q: 如何处理重复键错误？
 

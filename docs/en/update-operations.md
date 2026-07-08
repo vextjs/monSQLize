@@ -585,13 +585,13 @@ await users.updateOne({ _id }, [
 
 ## Q5: Will the cache become invalid after the aggregation pipeline is updated?
 
-**A**: Yes. Like traditional update operations, the relevant cache will be automatically invalidated after the aggregation pipeline is updated.
+**A**: Not by default. Configure `cache.invalidate` or `autoInvalidate: true` when an aggregation pipeline update should clear related cache entries.
 
 ```javascript
 //Query and cache
 await users.find({ status: 'active' }, { cache: 5000 });
 
-//Aggregation pipeline updates (cache will be automatically invalidated)
+//Aggregation pipeline update with explicit cache invalidation
 await users.updateOne({ userId: 'user1' }, [
     { $set: { status: 'inactive' } }
 ]);

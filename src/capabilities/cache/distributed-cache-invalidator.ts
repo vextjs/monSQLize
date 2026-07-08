@@ -3,6 +3,8 @@ import { createError, ErrorCodes } from '../../core/errors';
 
 export interface DistributedCacheLike {
     delPattern?(pattern: string): Promise<unknown> | unknown;
+    del?(key: string): Promise<unknown> | unknown;
+    delete?(key: string): Promise<unknown> | unknown;
     local?: DistributedCacheLike;
     remote?: DistributedCacheLike;
 }
@@ -94,7 +96,7 @@ export class DistributedCacheInvalidator {
         this.sub.on('message', async (channel: string, rawMessage: string) => {
             if (channel !== this.channel) return;
 
-            let message: { type?: unknown; instanceId?: unknown; pattern?: unknown };
+            let message: { type?: unknown; instanceId?: unknown; pattern?: unknown; key?: unknown };
             try {
                 message = JSON.parse(rawMessage);
             } catch {
@@ -102,16 +104,30 @@ export class DistributedCacheInvalidator {
                 return;
             }
 
-            if (message.type !== 'invalidate') return;
+            const messageType = String(message.type ?? '');
+            const isPatternInvalidation = messageType === 'invalidate' || messageType === 'delPattern';
+            const isKeyInvalidation = messageType === 'invalidateKey' || messageType === 'del' || messageType === 'delete';
+            if (!isPatternInvalidation && !isKeyInvalidation) return;
             if (message.instanceId === this.instanceId) return;
 
             this._stats.messagesReceived++;
 
             try {
-                for (const targetCache of this._getTargetCaches()) {
-                    await targetCache.delPattern?.(String(message.pattern));
+                if (isPatternInvalidation) {
+                    for (const targetCache of this._getPatternTargetCaches()) {
+                        await targetCache.delPattern?.(String(message.pattern));
+                    }
+                    this._logger?.debug?.(`[DistributedCacheInvalidator] Invalidated cache targets: ${String(message.pattern)}`);
+                } else {
+                    for (const targetCache of this._getKeyTargetCaches()) {
+                        if (typeof targetCache.del === 'function') {
+                            await targetCache.del(String(message.key));
+                        } else {
+                            await targetCache.delete?.(String(message.key));
+                        }
+                    }
+                    this._logger?.debug?.(`[DistributedCacheInvalidator] Invalidated cache key targets: ${String(message.key)}`);
                 }
-                this._logger?.debug?.(`[DistributedCacheInvalidator] Invalidated cache targets: ${String(message.pattern)}`);
                 this._stats.invalidationsTriggered++;
             } catch (err: unknown) {
                 this._stats.errors++;
@@ -120,7 +136,7 @@ export class DistributedCacheInvalidator {
         });
     }
 
-    private _getTargetCaches(): DistributedCacheLike[] {
+    private _getPatternTargetCaches(): DistributedCacheLike[] {
         const targets = new Set<DistributedCacheLike>();
 
         if (typeof this._cache?.delPattern === 'function') {
@@ -130,6 +146,24 @@ export class DistributedCacheInvalidator {
             targets.add(this._cache.local);
         }
         if (this._cache?.remote && typeof this._cache.remote.delPattern === 'function') {
+            targets.add(this._cache.remote);
+        }
+
+        return [...targets];
+    }
+
+    private _getKeyTargetCaches(): DistributedCacheLike[] {
+        const targets = new Set<DistributedCacheLike>();
+        const supportsKeyDelete = (cache: DistributedCacheLike | undefined): cache is DistributedCacheLike =>
+            typeof cache?.del === 'function' || typeof cache?.delete === 'function';
+
+        if (supportsKeyDelete(this._cache)) {
+            targets.add(this._cache);
+        }
+        if (supportsKeyDelete(this._cache?.local)) {
+            targets.add(this._cache.local);
+        }
+        if (supportsKeyDelete(this._cache?.remote)) {
             targets.add(this._cache.remote);
         }
 
@@ -150,6 +184,26 @@ export class DistributedCacheInvalidator {
             await this.pub.publish(this.channel, message);
             this._stats.messagesSent++;
             this._logger?.debug?.(`[DistributedCacheInvalidator] Published invalidation: ${pattern}`);
+        } catch (err: unknown) {
+            this._stats.errors++;
+            throw err;
+        }
+    }
+
+    async invalidateKey(key: string): Promise<void> {
+        if (!key) return;
+
+        const message = JSON.stringify({
+            type: 'invalidateKey',
+            key,
+            instanceId: this.instanceId,
+            timestamp: Date.now(),
+        });
+
+        try {
+            await this.pub.publish(this.channel, message);
+            this._stats.messagesSent++;
+            this._logger?.debug?.(`[DistributedCacheInvalidator] Published key invalidation: ${key}`);
         } catch (err: unknown) {
             this._stats.errors++;
             throw err;

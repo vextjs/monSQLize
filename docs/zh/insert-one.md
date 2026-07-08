@@ -71,16 +71,16 @@ const result = await collection("users").insertOne({
 console.log(result.insertedId); // ObjectId("507f1f77bcf86cd799439011")
 ```
 
-### ✅ 自动缓存失效
+### ✅ 显式缓存失效
 
-插入成功后，monSQLize 会自动清理该集合相关的缓存。
+插入成功后，monSQLize 默认不清理查询缓存。需要清理时，使用 `cache.invalidate` 精准失效，或使用 `autoInvalidate: true` 做集合级 broad 失效。
 
 ```javascript
 // 查询并缓存
 const users = await collection("users").find({}, { cache: 5000 });
 console.log(users.length); // 10
 
-// 插入新用户（自动清理缓存）
+// 插入新用户，并按需清理缓存
 await collection("users").insertOne({ name: "Alice" });
 
 // 再次查询（不会从缓存返回，会查询数据库）

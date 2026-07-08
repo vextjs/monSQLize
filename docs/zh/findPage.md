@@ -553,7 +553,7 @@ const result = await collection('products').findPage({
 **缓存最佳实践**：
 - 热门查询启用缓存
 - 根据数据更新频率设置合理的 TTL
-- 通过 monSQLize collection accessor 写入时会自动失效读缓存；如果绕过 accessor 使用原生 driver 或外部任务写入，需调用 `collection.invalidate('findPage')`
+- 写入默认不失效 `findPage` 读缓存；需要写后清理时，使用 `cache.invalidate`、`autoInvalidate: true` 或手动调用 `collection.invalidate('findPage')`
 
 ### 4. 正确处理总数统计
 
@@ -1067,12 +1067,12 @@ console.log(dataResult);
 
 **缓存失效**：
 - TTL 会控制缓存自动过期
-- 通过 monSQLize collection accessor 写入时会自动失效读缓存
+- 通过 monSQLize collection accessor 写入时，只有显式配置 `cache.invalidate`、`autoInvalidate: true` 或全局 `cache.autoInvalidate` 才会清理读缓存
 - 如果通过原生 MongoDB driver、其他进程或外部任务改写数据，需要手动失效相关缓存
 
 ```javascript
 // 更新数据
-await collection('products').update(
+await collection('products').updateOne(
   { _id: productId },
   { $set: { price: 99 } }
 );

@@ -16,15 +16,16 @@ import { createError, ErrorCodes } from '../../../core/errors';
 import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/query';
 import {
     buildFindDriverOptions,
-    buildCollectionCacheNamespace,
-    buildResultCacheKeyOptions,
     hasSessionOption,
     isCollectionCacheBarrierActive,
     isHexObjectIdString,
     normalizeFindProjectionOptions,
     parseRequiredObjectId,
-    stableCacheKeyString,
 } from './query-helpers';
+import {
+    buildFindByIdsCacheKey,
+    buildFindOneByIdCacheKey,
+} from './query-cache-keys';
 
 function getCacheTtl(rawOptions: Record<string, unknown>): number {
     return typeof rawOptions.cache === 'number' && rawOptions.cache > 0 ? rawOptions.cache : 0;
@@ -61,9 +62,7 @@ export async function findOneByIdDocument<TSchema extends Document = Document>(
         && !hasSessionOption(baseOptions)
         && !(await isCollectionCacheBarrierActive(queryCache, collection, defaults))
     ) {
-        const keyOptions = buildResultCacheKeyOptions(baseOptions);
-        const namespace = buildCollectionCacheNamespace(collection, defaults);
-        const cacheKey = `findOneById:${namespace}:${objectId.toString()}:${stableCacheKeyString(keyOptions)}`;
+        const cacheKey = buildFindOneByIdCacheKey(collection, defaults, objectId, baseOptions);
         const cached = await Promise.resolve(queryCache.get(cacheKey)) as TSchema | null | undefined;
         if (cached !== undefined) {
             return cached;
@@ -157,15 +156,11 @@ export async function findByIdsDocuments<TSchema extends Document = Document>(
     const driverOptions = buildFindDriverOptions(baseOptions);
 
     const cacheTTL = getCacheTtl(rawOptions);
-    const namespace = buildCollectionCacheNamespace(collection, defaults);
     const cacheKey = cacheTTL > 0
         && queryCache
         && !hasSessionOption(baseOptions)
         && !(await isCollectionCacheBarrierActive(queryCache, collection, defaults))
-        ? `findByIds:${namespace}:${stableCacheKeyString({
-            ids: uniqueIds.map((item) => item.toString()),
-            options: buildResultCacheKeyOptions(baseOptions),
-        })}`
+        ? buildFindByIdsCacheKey(collection, defaults, uniqueIds, baseOptions)
         : null;
 
     let results: TSchema[];

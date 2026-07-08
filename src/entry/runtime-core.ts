@@ -210,8 +210,13 @@ export class MonSQLizeRuntime {
         const cacheInput = hasDistributedCfg
             ? {
                 ...(rawCacheInput as Record<string, unknown>),
-                publish: (msg: { type: string; pattern: string; ts: number }) => {
-                    void this._distributedInvalidator?.invalidate(msg.pattern).catch((error: unknown) => {
+                publish: (msg: { type: string; pattern?: string; key?: string; ts: number }) => {
+                    const publishTask = msg.key
+                        ? this._distributedInvalidator?.invalidateKey(msg.key)
+                        : msg.pattern
+                            ? this._distributedInvalidator?.invalidate(msg.pattern)
+                            : undefined;
+                    void publishTask?.catch((error: unknown) => {
                         this._logger?.warn?.('[Cache] distributed invalidation publish failed.', error);
                     });
                 },

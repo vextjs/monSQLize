@@ -66,8 +66,10 @@ const multiLevelCache = new MonSQLize.MultiLevelCache({ local: memoryCache });
 multiLevelCache.setPublish((msg: MultiLevelInvalidationMessage) => {
     if (msg.type === 'invalidateTag') {
         expectType<string>(msg.tag);
-    } else {
+    } else if (msg.type === 'delPattern') {
         expectType<string>(msg.pattern);
+    } else {
+        expectType<string>(msg.key);
     }
 });
 multiLevelCache.setLockManager(lockManager);

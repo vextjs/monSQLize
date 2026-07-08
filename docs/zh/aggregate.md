@@ -53,7 +53,7 @@ async aggregate(pipeline = [], options = {})
 - ✅ **MongoDB 原生**: 该参数是 MongoDB 官方支持的标准功能
 - 🔧 **monSQLize 扩展**: monSQLize 独有的扩展功能
 
-当聚合管道最后一个阶段是 `$out` 或 `$merge` 时，monSQLize 会把该 aggregate 视为写入型管道：跳过 aggregate 结果缓存，并在成功执行后失效目标集合的读缓存。
+当聚合管道最后一个阶段是 `$out` 或 `$merge` 时，monSQLize 会把该 aggregate 视为写入型管道：跳过 aggregate 结果缓存。只有配置了 `cache.invalidate`、`autoInvalidate: true` 或全局 `cache.autoInvalidate` 时，才会清理目标集合的读缓存。
 
 **MongoDB 参考文档**:
 - [aggregate() 方法](https://www.mongodb.com/docs/manual/reference/method/db.collection.aggregate/)
@@ -1186,7 +1186,7 @@ await collection('students').aggregate([
 
 - **编译时间**: <1ms
 - **缓存命中率**: >90%
-- **自动失效**: 智能管理
+- **显式失效**: 通过 `cache.invalidate`、`autoInvalidate` 或全局 `cache.autoInvalidate` 管理
 
 ```javascript
 // 相同表达式会自动缓存

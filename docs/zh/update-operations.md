@@ -586,13 +586,13 @@ await users.updateOne({ _id }, [
 
 ### Q5: 聚合管道更新后缓存会失效吗？
 
-**A**: 会。与传统更新操作一样，聚合管道更新后会自动失效相关缓存。
+**A**: 默认不会。聚合管道更新后需要显式配置 `cache.invalidate` 或 `autoInvalidate: true` 才会清理相关缓存。
 
 ```javascript
 // 查询并缓存
 await users.find({ status: 'active' }, { cache: 5000 });
 
-// 聚合管道更新（缓存会自动失效）
+// 聚合管道更新，并按需清理缓存
 await users.updateOne({ userId: 'user1' }, [
     { $set: { status: 'inactive' } }
 ]);

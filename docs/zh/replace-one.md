@@ -421,13 +421,13 @@ const oldDoc = await collection("users").findOneAndReplace(
 
 ## 缓存行为
 
-`replaceOne` 在成功修改文档后会**自动失效相关缓存**：
+`replaceOne` 成功修改文档后默认不清理查询缓存；需要清理时，使用 `cache.invalidate` 或 `autoInvalidate: true`：
 
 ```javascript
 // 查询并缓存
 await collection("configs").find({ configKey: "app-settings" }, { cache: 5000 });
 
-// 替换文档 - 自动清理缓存
+// 替换文档，并按需清理缓存
 await collection("configs").replaceOne(
   { configKey: "app-settings" },
   newConfig

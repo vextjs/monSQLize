@@ -8,12 +8,12 @@
 |---------|-------------|-----------|---------|
 | **查询操作** | | | 智能缓存、游标分页、慢查询日志 |
 | **插入操作** | | | 高性能批量插入 (10-50x)、慢查询监控 |
-| **更新操作** | | | 自动缓存失效、完整错误处理 |
-| **删除操作** | | | 自动缓存失效、慢查询监控 |
+| **更新操作** | | | 显式缓存失效、完整错误处理 |
+| **删除操作** | | | 显式缓存失效、慢查询监控 |
 | **聚合操作** | | | 缓存支持、流式处理 |
 | **执行计划** | | | 集成到查询链 |
 | **跨库访问** | 手动切换 | | 一行代码切换 |
-| **缓存管理** | | | TTL/LRU/自动失效/多层缓存 |
+| **缓存管理** | | | TTL/LRU/显式失效/多层缓存 |
 | **性能监控** | 需配置 | | 开箱即用的慢查询日志 |
 
 ---
@@ -109,7 +109,7 @@ const products2 = await collection('products').find(
 | 特性 | MongoDB 原生 | monSQLize |
 |------|-------------|-----------|
 | **查询缓存** | 无 | TTL + LRU |
-| **自动失效** | 无 | 写操作后自动清理 |
+| **显式失效** | 无 | `cache.invalidate` / `autoInvalidate` |
 | **命名空间隔离** | 无 | 按实例/数据库/集合隔离 |
 | **并发去重** | 无 | 防止缓存击穿 |
 | **缓存统计** | 无 | 命中率/淘汰次数 |
@@ -121,7 +121,7 @@ const products2 = await collection('products').find(
 
 ---
 
-## 2. 自动缓存失效
+## 2. 显式缓存失效
 
 ### MongoDB 原生：手动管理缓存
 
@@ -150,44 +150,54 @@ await db.collection('products').insertOne({
 cache.delete('products:electronics');  // 容易忘记或清理不完整
 ```
 
-### monSQLize：自动缓存失效
+### monSQLize：显式缓存失效
 
 ```javascript
-// monSQLize：自动管理缓存一致性
+// monSQLize：显式管理缓存一致性
 const products = await collection('products').find(
   { category: 'electronics' },
   { cache: 5000 }
 );
 // 缓存已自动创建
 
-// 插入新数据
-await collection('products').insertOne({ 
-  name: 'New Product', 
-  category: 'electronics' 
-});
-// 自动清理所有 products 集合的缓存
+// 插入新数据，并精准清理受影响的查询缓存
+await collection('products').insertOne(
+  {
+    name: 'New Product',
+    category: 'electronics'
+  },
+  {
+    cache: {
+      invalidate: [{
+        operation: 'find',
+        query: { category: 'electronics' },
+        options: { cache: 5000 }
+      }]
+    }
+  }
+);
 
-// 再次查询：自动从数据库获取最新数据
+// 再次查询：缓存已按显式策略清理，从数据库获取最新数据
 const freshProducts = await collection('products').find(
   { category: 'electronics' },
   { cache: 5000 }
 );
-// 数据是最新的，无需手动管理
+// 数据是最新的，失效范围由写入 options 决定
 ```
 
-### 自动失效支持的操作
+### 显式失效支持的操作
 
 | 操作 | MongoDB 原生 | monSQLize |
 |------|-------------|-----------|
-| insertOne / insertMany | 手动失效 | 自动失效 |
-| updateOne / updateMany | 手动失效 | 自动失效 |
-| deleteOne / deleteMany | 手动失效 | 自动失效 |
-| replaceOne | 手动失效 | 自动失效 |
-| findOneAndUpdate | 手动失效 | 自动失效 |
-| findOneAndReplace | 手动失效 | 自动失效 |
-| findOneAndDelete | 手动失效 | 自动失效 |
+| insertOne / insertMany | 手动失效 | 显式失效 |
+| updateOne / updateMany | 手动失效 | 显式失效 |
+| deleteOne / deleteMany | 手动失效 | 显式失效 |
+| replaceOne | 手动失效 | 显式失效 |
+| findOneAndUpdate | 手动失效 | 显式失效 |
+| findOneAndReplace | 手动失效 | 显式失效 |
+| findOneAndDelete | 手动失效 | 显式失效 |
 
-**好处**: 防止缓存不一致，确保数据始终是最新的。
+**好处**: 把清理范围放在写入处声明，避免默认 broad 失效带来的删除和回填压力。
 
 ---
 
@@ -594,7 +604,7 @@ const products2 = await collection('products').find(
 | **远端缓存** | 无 | Redis 支持 |
 | **多层缓存** | 无 | 本地 + Redis |
 | **自动回填** | 无 | Redis 命中时回填本地 |
-| **缓存一致性** | 无 | 写操作自动失效 |
+| **缓存一致性** | 无 | 显式写后失效 |
 
 **详细文档**: [多层缓存](./cache.md#多层缓存)
 
@@ -721,7 +731,7 @@ msq.on('error', (data) => {
 - **深度分页** - 列表页、搜索结果等
 - **多数据库应用** - 需要跨库访问
 - **性能监控** - 需要慢查询告警
-- **复杂业务** - 需要自动缓存失效
+- **复杂业务** - 需要显式缓存失效
 
 ---
 
@@ -734,7 +744,7 @@ msq.on('error', (data) => {
 | **性能（有缓存）** | ☆☆☆☆ |  | 缓存命中 1000x |
 | **深度分页** | ☆☆☆ |  | 深度分页 250x |
 | **易用性** |  |  | 更简洁的 API |
-| **可维护性** |  |  | 自动缓存失效 |
+| **可维护性** |  |  | 显式缓存失效 |
 | **可观测性** | ☆☆☆ |  | 开箱即用监控 |
 
 ---

@@ -204,6 +204,7 @@ const sidebarSource: SidebarGroupSource[] = [
           { en: 'find()', zh: 'find()', link: '/find' },
           { en: 'findOne()', zh: 'findOne()', link: '/findOne' },
           { en: 'findPage()', zh: 'findPage()', link: '/findPage' },
+          { en: 'Bookmark Pagination', zh: '游标分页书签', link: '/bookmarks' },
           { en: 'findAndCount()', zh: 'findAndCount()', link: '/find-and-count' },
           { en: 'count()', zh: 'count()', link: '/count' },
           { en: 'distinct()', zh: 'distinct()', link: '/distinct' },
@@ -273,8 +274,9 @@ const sidebarSource: SidebarGroupSource[] = [
     en: 'Cache',
     zh: '缓存',
     items: [
-      { en: 'Cache API', zh: '缓存 API', link: '/cache' },
-      { en: 'Bookmark Pagination', zh: '游标分页', link: '/bookmarks' }
+      { en: 'Cache Configuration', zh: '缓存配置', link: '/cache-configuration' },
+      { en: 'Cache Creation', zh: '缓存创建', link: '/cache-creation' },
+      { en: 'Cache Invalidation', zh: '缓存失效', link: '/cache-invalidation' }
     ]
   },
   {

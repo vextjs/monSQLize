@@ -68,17 +68,28 @@ const result = await collection("users").insertOne({
 console.log(result.insertedId); // ObjectId("507f1f77bcf86cd799439011")
 ```
 
-## ✅ Automatic cache invalidation
+## ✅ Explicit cache invalidation
 
-After the insertion is successful, monSQLize will automatically clear the cache related to the collection.
+After the insertion succeeds, monSQLize does not clear query caches by default. Use `cache.invalidate` or `autoInvalidate: true` when the write should clear cache.
 
 ```javascript
 //Query and cache
 const users = await collection("users").find({}, { cache: 5000 });
 console.log(users.length); // 10
 
-//Insert new user (automatically clear cache)
-await collection("users").insertOne({ name: "Alice" });
+//Insert new user and precisely clear the cached query when needed
+await collection("users").insertOne(
+  { name: "Alice" },
+  {
+    cache: {
+      invalidate: [{
+        operation: "find",
+        query: {},
+        options: { cache: 5000 }
+      }]
+    }
+  }
+);
 
 //Query again (will not return from cache, will query the database)
 const updatedUsers = await collection("users").find({}, { cache: 5000 });
@@ -477,14 +488,17 @@ await collection("files").insertOne({
 
 ## ⚠️ Scope of cache invalidation
 
-Inserting clears the entire collection's cache:
+`autoInvalidate: true` clears the entire collection's related cache:
 
 ```javascript
 //Query and cache
 await collection("users").find({ status: "active" }, { cache: 5000 });
 
-//Insert new user (clear cache of all users collection)
-await collection("users").insertOne({ name: "Alice" });
+//Insert new user and request collection-wide broad invalidation
+await collection("users").insertOne(
+  { name: "Alice" },
+  { autoInvalidate: true }
+);
 
 //The cache above is cleared even if the new user's status is not "active"
 ```

@@ -59,6 +59,27 @@
       "status": "covered"
     },
     {
+      "doc": "cache-configuration",
+      "kind": "doc-check",
+      "target": "docs/en/cache-configuration.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "cache-creation",
+      "kind": "doc-check",
+      "target": "docs/en/cache-creation.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
+      "doc": "cache-invalidation",
+      "kind": "doc-check",
+      "target": "docs/en/cache-invalidation.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
       "doc": "cache-and-function-cache",
       "kind": "example",
       "target": "examples/cache/with-cache.ts",

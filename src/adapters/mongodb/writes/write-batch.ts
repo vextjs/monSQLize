@@ -12,7 +12,7 @@ import type {
     UpdateBatchOptions,
     UpdateBatchResult,
 } from '../../../../types/collection';
-import { sleep, splitIntoBatches } from './write-utils';
+import { sleep, splitIntoBatches, stripWriteCacheControlOptions } from './write-utils';
 
 type DriverOptions = Record<string, unknown>;
 type BatchCursor = AsyncIterable<{ _id: unknown }> & { close?: () => Promise<unknown> | unknown };
@@ -183,7 +183,7 @@ export async function insertBatchDocuments<TSchema extends Document = Document>(
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'documents array must not be empty');
     }
 
-    const rawOptions = options as BatchWriteOptions & Parameters<Collection<TSchema>['insertMany']>[1] & {
+    const rawOptions = stripWriteCacheControlOptions(options) as BatchWriteOptions & Parameters<Collection<TSchema>['insertMany']>[1] & {
         concurrency?: number;
         onError?: 'stop' | 'skip' | 'collect' | 'retry';
         retryAttempts?: number;
@@ -357,7 +357,7 @@ export async function updateBatchDocuments<TSchema extends Document = Document>(
         }
     }
 
-    const rawOptions = options as UpdateBatchOptions & Parameters<Collection<TSchema>['updateMany']>[2] & {
+    const rawOptions = stripWriteCacheControlOptions(options) as UpdateBatchOptions & Parameters<Collection<TSchema>['updateMany']>[2] & {
         onError?: 'stop' | 'skip' | 'collect' | 'retry';
         retryAttempts?: number;
         retryDelay?: number;
@@ -480,7 +480,7 @@ export async function deleteBatchDocuments<TSchema extends Document = Document>(
         throw createError(ErrorCodes.INVALID_ARGUMENT, 'filter must be a non-array object');
     }
 
-    const rawOptions = options as UpdateBatchOptions & Parameters<Collection<TSchema>['deleteMany']>[1] & {
+    const rawOptions = stripWriteCacheControlOptions(options) as UpdateBatchOptions & Parameters<Collection<TSchema>['deleteMany']>[1] & {
         estimateProgress?: boolean;
         onProgress?: (progress: Record<string, unknown>) => void;
         onError?: 'stop' | 'skip' | 'collect' | 'retry';

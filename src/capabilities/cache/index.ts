@@ -29,6 +29,7 @@ export type {
 import type { CacheLike, LockManager as CacheLockLike } from 'cache-hub';
 
 type PublishMessage =
+    | { type: 'del' | 'delete' | 'invalidateKey'; key: string; ts: number }
     | { type: 'delPattern'; pattern: string; ts: number }
     | { type: 'invalidateTag'; tag: string; ts: number };
 type PublishFn = (msg: PublishMessage) => void;

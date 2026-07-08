@@ -361,13 +361,13 @@ try {
 
 ## 缓存行为
 
-`updateMany` 在成功修改文档后会**自动失效相关缓存**：
+`updateMany` 成功修改文档后默认不清理查询缓存；需要清理时，使用 `cache.invalidate` 或 `autoInvalidate: true`：
 
 ```javascript
 // 缓存查询结果
 await collection("users").find({ status: "inactive" }, { cache: 5000 });
 
-// 批量更新 - 自动清理缓存
+// 批量更新，并按需清理缓存
 await collection("users").updateMany(
   { status: "inactive" },
   { $set: { status: "active" } }

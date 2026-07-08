@@ -22,6 +22,8 @@ import {
     updateManyDocuments,
     updateOneDocument,
 } from '../writes';
+import { stripWriteCacheControlOptions } from '../writes/write-utils';
+import { recordTransactionWriteOperation } from './collection-accessor-cache-helpers';
 
 export type AccessorWriteContext<TSchema extends Document = Document> = {
     dbName: string;
@@ -130,6 +132,10 @@ async function runPostWriteInvalidation<TSchema extends Document>(
     }
 }
 
+function markTransactionWrite(options?: unknown): void {
+    recordTransactionWriteOperation(options);
+}
+
 async function runPreWriteInvalidation<TSchema extends Document>(
     context: AccessorWriteContext<TSchema>,
     options?: unknown,
@@ -153,7 +159,8 @@ export async function insertOneForAccessor<TSchema extends Document = Document>(
     const startedAt = Date.now();
     try {
         await runPreWriteInvalidation(context, options);
-        result = await insertOneDocument(context.collectionRef, context.cvDoc(doc), options);
+        result = await insertOneDocument(context.collectionRef, context.cvDoc(doc), stripWriteCacheControlOptions(options));
+        markTransactionWrite(options);
     } catch (err: unknown) {
         const mongoErr = err as { code?: number; message?: string };
         if (mongoErr?.code === 11000) {
@@ -212,7 +219,8 @@ export async function insertManyForAccessor<TSchema extends Document = Document>
     try {
         const convertedDocs = documents.map((document) => context.cvDoc(document)) as typeof documents;
         await runPreWriteInvalidation(context, options);
-        result = await insertManyDocuments(context.collectionRef, convertedDocs, options);
+        result = await insertManyDocuments(context.collectionRef, convertedDocs, stripWriteCacheControlOptions(options));
+        markTransactionWrite(options);
     } catch (err: unknown) {
         const mongoErr = err as { code?: number; message?: string };
         if (mongoErr?.code === 11000) {
@@ -259,7 +267,8 @@ export async function updateOneForAccessor<TSchema extends Document = Document>(
         ? update
         : context.cvUpdate(update);
     await runPreWriteInvalidation(context, options);
-    const result = await updateOneDocument(context.collectionRef, normalizedFilter, finalUpdate, options);
+    const result = await updateOneDocument(context.collectionRef, normalizedFilter, finalUpdate, stripWriteCacheControlOptions(options));
+    markTransactionWrite(options);
     if (result.modifiedCount > 0 || result.upsertedId) {
         await runPostWriteInvalidation(context, options);
     }
@@ -276,7 +285,8 @@ export async function updateManyForAccessor<TSchema extends Document = Document>
     assertUpdateDocument(update);
 
     await runPreWriteInvalidation(context, options);
-    const result = await updateManyDocuments(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
+    const result = await updateManyDocuments(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), stripWriteCacheControlOptions(options));
+    markTransactionWrite(options);
     if (result.modifiedCount > 0 || result.upsertedId) {
         await runPostWriteInvalidation(context, options);
     }
@@ -293,7 +303,8 @@ export async function replaceOneForAccessor<TSchema extends Document = Document>
     assertReplacementDocument(replacement);
 
     await runPreWriteInvalidation(context, options);
-    const result = await replaceOneDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), options);
+    const result = await replaceOneDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), stripWriteCacheControlOptions(options));
+    markTransactionWrite(options);
     await runPostWriteInvalidation(context, options);
     return result;
 }
@@ -308,7 +319,8 @@ export async function findOneAndReplaceForAccessor<TSchema extends Document = Do
     assertReplacementDocument(replacement);
 
     await runPreWriteInvalidation(context, options);
-    const result = await findOneAndReplaceDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), options);
+    const result = await findOneAndReplaceDocument(context.collectionRef, context.cvFilter(filter), context.cvDoc(replacement), stripWriteCacheControlOptions(options));
+    markTransactionWrite(options);
     if (result) {
         await runPostWriteInvalidation(context, options);
     }
@@ -325,7 +337,8 @@ export async function findOneAndUpdateForAccessor<TSchema extends Document = Doc
     assertUpdateDocument(update);
 
     await runPreWriteInvalidation(context, options);
-    const result = await findOneAndUpdateDocument(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), options);
+    const result = await findOneAndUpdateDocument(context.collectionRef, context.cvFilter(filter), context.cvUpdate(update), stripWriteCacheControlOptions(options));
+    markTransactionWrite(options);
     if (result) {
         await runPostWriteInvalidation(context, options);
     }
@@ -340,7 +353,8 @@ export async function findOneAndDeleteForAccessor<TSchema extends Document = Doc
     assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
 
     await runPreWriteInvalidation(context, options);
-    const result = await findOneAndDeleteDocument(context.collectionRef, context.cvFilter(filter), options);
+    const result = await findOneAndDeleteDocument(context.collectionRef, context.cvFilter(filter), stripWriteCacheControlOptions(options));
+    markTransactionWrite(options);
     if (result) {
         await runPostWriteInvalidation(context, options);
     }
@@ -364,8 +378,9 @@ export async function upsertOneForAccessor<TSchema extends Document = Document>(
         context.collectionRef,
         context.cvFilter(filter),
         context.cvUpdate(updateDoc) as Parameters<Collection<TSchema>['updateOne']>[1],
-        options,
+        stripWriteCacheControlOptions(options),
     );
+    markTransactionWrite(options);
     await runPostWriteInvalidation(context, options);
     const normalizedResult = result.upsertedId === null
         ? { ...result, upsertedId: undefined }
@@ -381,7 +396,8 @@ export async function deleteOneForAccessor<TSchema extends Document = Document>(
     assertObjectArgument(filter, 'filter', 'filter must be an object');
 
     await runPreWriteInvalidation(context, options);
-    const result = await deleteOneDocument(context.collectionRef, context.cvFilter(filter), options);
+    const result = await deleteOneDocument(context.collectionRef, context.cvFilter(filter), stripWriteCacheControlOptions(options));
+    markTransactionWrite(options);
     if (result.deletedCount > 0) {
         await runPostWriteInvalidation(context, options);
     }
@@ -396,7 +412,8 @@ export async function deleteManyForAccessor<TSchema extends Document = Document>
     assertObjectArgument(filter, 'filter', 'filter must be a non-empty object');
 
     await runPreWriteInvalidation(context, options);
-    const result = await deleteManyDocuments(context.collectionRef, context.cvFilter(filter), options);
+    const result = await deleteManyDocuments(context.collectionRef, context.cvFilter(filter), stripWriteCacheControlOptions(options));
+    markTransactionWrite(options);
     if (result.deletedCount > 0) {
         await runPostWriteInvalidation(context, options);
     }

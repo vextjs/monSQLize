@@ -1,9 +1,25 @@
-import type { Document } from 'mongodb';
+import type { Collection, Document } from 'mongodb';
 import {
     clearCacheInvalidationBarrier,
-    markCacheInvalidationBarrier,
 } from '../../../core/cache-invalidation-barrier';
-import type { QueryCacheLike, RuntimeDefaults } from '../../../types/internal/query';
+import type {
+    CacheInvalidationEntry,
+    CacheInvalidationIntent,
+    CacheInvalidationOperation,
+    QueryCacheLike,
+    RuntimeDefaults,
+    WriteCacheControlOptions,
+} from '../../../types/internal/query';
+import {
+    buildAggregateCacheKey,
+    buildCountCacheKey,
+    buildDistinctCacheKey,
+    buildFindByIdsCacheKey,
+    buildFindCacheKey,
+    buildFindOneByIdCacheKey,
+    buildFindOneCacheKey,
+    buildFindPageCacheKey,
+} from '../queries/query-cache-keys';
 
 type AggregateWriteTarget = {
     dbName?: string;
@@ -12,6 +28,8 @@ type AggregateWriteTarget = {
 
 type TransactionInvalidator = {
     recordInvalidation(pattern: string): Promise<void> | void;
+    recordCacheInvalidation?(intent: CacheInvalidationIntent): Promise<void> | void;
+    recordWriteOperation?(): void;
 };
 
 type SessionWithTransaction = {
@@ -19,7 +37,7 @@ type SessionWithTransaction = {
     __monSQLizeTransaction?: TransactionInvalidator;
 };
 
-type ReadCacheOperation = 'find' | 'findOne' | 'count' | 'findPage' | 'all' | string;
+type ReadCacheOperation = CacheInvalidationOperation | string;
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -38,6 +56,14 @@ export function getTransactionInvalidator(options: unknown): TransactionInvalida
         return null;
     }
     return transaction;
+}
+
+export function recordTransactionWriteOperation(options: unknown): void {
+    try {
+        getTransactionInvalidator(options)?.recordWriteOperation?.();
+    } catch {
+        // Transaction write stats are derived metadata and must not turn a completed DB write into a failed write.
+    }
 }
 
 function resolveCollectionTarget(value: unknown): AggregateWriteTarget | null {
@@ -123,6 +149,10 @@ export function buildReadCacheInvalidationPatterns(
                 ? forNamespaces('count')
                 : operation === 'findPage'
                     ? findPagePatterns
+                    : operation === 'findOneById'
+                        ? forNamespaces('findOneById')
+                        : operation === 'findByIds'
+                            ? forNamespaces('findByIds')
                     : operation === 'aggregate'
                         ? aggregatePatterns
                         : operation === 'distinct'
@@ -139,6 +169,231 @@ export function buildReadCacheInvalidationPatterns(
                             ];
     patterns.push(...legacyNamespacePatterns);
     return patterns;
+}
+
+function isKnownOperation(value: string): value is CacheInvalidationOperation {
+    return [
+        'find',
+        'findOne',
+        'count',
+        'findPage',
+        'aggregate',
+        'distinct',
+        'findOneById',
+        'findByIds',
+        'all',
+    ].includes(value);
+}
+
+function getExplicitInvalidate(value: unknown): unknown {
+    if (!isRecord(value)) {
+        return undefined;
+    }
+    const cacheOptions = value.cache;
+    if (!isRecord(cacheOptions)) {
+        return undefined;
+    }
+    return Object.prototype.hasOwnProperty.call(cacheOptions, 'invalidate')
+        ? cacheOptions.invalidate
+        : undefined;
+}
+
+function isExplicitNoopInvalidate(value: unknown): boolean {
+    return value === false || (Array.isArray(value) && value.length === 0);
+}
+
+function getWriteCacheControl(value: unknown): WriteCacheControlOptions {
+    if (!isRecord(value)) {
+        return {};
+    }
+    const cache = isRecord(value.cache) ? value.cache : undefined;
+    return {
+        ...(typeof value.autoInvalidate === 'boolean' ? { autoInvalidate: value.autoInvalidate } : {}),
+        ...(cache ? {
+            cache: {
+                ...(typeof cache.autoInvalidate === 'boolean' ? { autoInvalidate: cache.autoInvalidate } : {}),
+                ...(Object.prototype.hasOwnProperty.call(cache, 'invalidate')
+                    ? { invalidate: cache.invalidate as NonNullable<WriteCacheControlOptions['cache']>['invalidate'] }
+                    : {}),
+            },
+        } : {}),
+    };
+}
+
+function patternsToIntents(patterns: string[]): CacheInvalidationIntent[] {
+    return patterns.map((value) => ({ type: 'pattern', value }));
+}
+
+function uniqueIntents(intents: CacheInvalidationIntent[]): CacheInvalidationIntent[] {
+    const seen = new Set<string>();
+    const output: CacheInvalidationIntent[] = [];
+    for (const intent of intents) {
+        const key = `${intent.type}:${intent.value}`;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        output.push(intent);
+    }
+    return output;
+}
+
+function entryToIntents<TSchema extends Document>(
+    collection: Collection<TSchema>,
+    dbName: string,
+    collectionName: string,
+    defaults: RuntimeDefaults | undefined,
+    entry: CacheInvalidationEntry,
+): CacheInvalidationIntent[] {
+    if (typeof entry === 'string') {
+        if (isKnownOperation(entry)) {
+            return patternsToIntents(buildReadCacheInvalidationPatterns(dbName, collectionName, defaults, entry));
+        }
+        return [{ type: entry.includes('*') ? 'pattern' : 'key', value: entry }];
+    }
+    if (!isRecord(entry)) {
+        return [];
+    }
+    const intents: CacheInvalidationIntent[] = [];
+    if (typeof entry.cacheKey === 'string' && entry.cacheKey.length > 0) {
+        intents.push({ type: 'key', value: entry.cacheKey });
+    }
+    if (Array.isArray(entry.cacheKeys)) {
+        for (const key of entry.cacheKeys) {
+            if (typeof key === 'string' && key.length > 0) {
+                intents.push({ type: 'key', value: key });
+            }
+        }
+    }
+    if (typeof entry.pattern === 'string' && entry.pattern.length > 0) {
+        intents.push({ type: 'pattern', value: entry.pattern });
+    }
+    if (Array.isArray(entry.patterns)) {
+        for (const pattern of entry.patterns) {
+            if (typeof pattern === 'string' && pattern.length > 0) {
+                intents.push({ type: 'pattern', value: pattern });
+            }
+        }
+    }
+    if (intents.length > 0) {
+        return intents;
+    }
+
+    const operation = entry.operation ?? entry.op;
+    if (typeof operation !== 'string') {
+        return [];
+    }
+
+    const descriptorOptions = isRecord(entry.options) ? entry.options : undefined;
+    if (operation === 'find') {
+        if (entry.query !== undefined || descriptorOptions !== undefined) {
+            return [{ type: 'key', value: buildFindCacheKey(collection, defaults, entry.query, descriptorOptions) }];
+        }
+    } else if (operation === 'findOne') {
+        if (entry.query !== undefined || descriptorOptions !== undefined) {
+            return [{ type: 'key', value: buildFindOneCacheKey(collection, defaults, entry.query, descriptorOptions) }];
+        }
+    } else if (operation === 'count') {
+        if (entry.query !== undefined || descriptorOptions !== undefined) {
+            return [{ type: 'key', value: buildCountCacheKey(collection, defaults, entry.query, descriptorOptions) }];
+        }
+    } else if (operation === 'distinct') {
+        if (typeof entry.field === 'string' && entry.field.length > 0) {
+            return [{ type: 'key', value: buildDistinctCacheKey(collection, defaults, entry.field, entry.query, descriptorOptions) }];
+        }
+    } else if (operation === 'aggregate') {
+        if (Array.isArray(entry.pipeline) || descriptorOptions !== undefined) {
+            return [{ type: 'key', value: buildAggregateCacheKey(collection, defaults, entry.pipeline, descriptorOptions) }];
+        }
+    } else if (operation === 'findPage') {
+        const findPageOptions = isRecord(entry.options)
+            ? { ...entry.options }
+            : {};
+        if (entry.query !== undefined && findPageOptions.query === undefined) {
+            findPageOptions.query = entry.query;
+        }
+        return [{ type: 'key', value: buildFindPageCacheKey(collection, defaults, findPageOptions as never).key }];
+    } else if (operation === 'findOneById') {
+        if (entry.id !== undefined) {
+            return [{ type: 'key', value: buildFindOneByIdCacheKey(collection, defaults, entry.id, descriptorOptions) }];
+        }
+    } else if (operation === 'findByIds') {
+        if (Array.isArray(entry.ids)) {
+            return [{ type: 'key', value: buildFindByIdsCacheKey(collection, defaults, entry.ids, descriptorOptions) }];
+        }
+    }
+
+    return patternsToIntents(buildReadCacheInvalidationPatterns(dbName, collectionName, defaults, operation));
+}
+
+function resolveExplicitInvalidationIntents<TSchema extends Document>(
+    collection: Collection<TSchema>,
+    dbName: string,
+    collectionName: string,
+    defaults: RuntimeDefaults | undefined,
+    invalidate: unknown,
+): CacheInvalidationIntent[] {
+    if (invalidate === true) {
+        return patternsToIntents(buildReadCacheInvalidationPatterns(dbName, collectionName, defaults, 'all'));
+    }
+    const entries = Array.isArray(invalidate) ? invalidate : [invalidate];
+    return uniqueIntents(entries.flatMap((entry) =>
+        entryToIntents(collection, dbName, collectionName, defaults, entry as CacheInvalidationEntry),
+    ));
+}
+
+export function resolveWriteCacheInvalidationIntents<TSchema extends Document>(
+    collection: Collection<TSchema>,
+    dbName: string,
+    collectionName: string,
+    defaults: RuntimeDefaults | undefined,
+    options?: unknown,
+): CacheInvalidationIntent[] {
+    const explicitInvalidate = getExplicitInvalidate(options);
+    if (isExplicitNoopInvalidate(explicitInvalidate)) {
+        return [];
+    }
+    if (explicitInvalidate !== undefined) {
+        return resolveExplicitInvalidationIntents(collection, dbName, collectionName, defaults, explicitInvalidate);
+    }
+
+    const control = getWriteCacheControl(options);
+    const autoInvalidate = control.cache?.autoInvalidate === true
+        || control.autoInvalidate === true
+        || defaults?.cacheAutoInvalidate === true;
+    return autoInvalidate
+        ? patternsToIntents(buildReadCacheInvalidationPatterns(dbName, collectionName, defaults, 'all'))
+        : [];
+}
+
+async function deleteCacheKey(queryCache: QueryCacheLike, key: string): Promise<number> {
+    if (typeof queryCache.del === 'function') {
+        const deleted = await Promise.resolve(queryCache.del(key));
+        return Number(deleted === true ? 1 : deleted || 0);
+    }
+    if (typeof queryCache.delete === 'function') {
+        const deleted = await Promise.resolve(queryCache.delete(key));
+        return Number(deleted === true ? 1 : deleted || 0);
+    }
+    return 0;
+}
+
+export async function applyCacheInvalidationIntents(
+    queryCache: QueryCacheLike | null | undefined,
+    intents: CacheInvalidationIntent[],
+): Promise<number> {
+    if (!queryCache || intents.length === 0) {
+        return 0;
+    }
+    let deleted = 0;
+    for (const intent of uniqueIntents(intents)) {
+        if (intent.type === 'pattern') {
+            deleted += Number(await Promise.resolve(queryCache.delPattern?.(intent.value) ?? 0));
+        } else {
+            deleted += await deleteCacheKey(queryCache, intent.value);
+        }
+    }
+    return deleted;
 }
 
 export async function invalidateReadCachesForNamespace(
@@ -165,12 +420,11 @@ export async function prepareReadCachesBeforeWrite(
     defaults: RuntimeDefaults | undefined,
     options?: unknown,
 ): Promise<void> {
-    if (getTransactionInvalidator(options) || !queryCache) {
-        return;
-    }
-    const patterns = buildReadCacheInvalidationPatterns(dbName, collectionName, defaults, 'all');
-    await markCacheInvalidationBarrier(queryCache, patterns);
-    await invalidateReadCachesForNamespace(queryCache, dbName, collectionName, defaults, 'all');
+    void queryCache;
+    void dbName;
+    void collectionName;
+    void defaults;
+    void options;
 }
 
 export async function clearReadCacheBarrierAfterWrite(
@@ -186,22 +440,27 @@ export async function clearReadCacheBarrierAfterWrite(
     await clearCacheInvalidationBarrier(queryCache, buildAccessorCacheNamespaces(dbName, collectionName, defaults));
 }
 
-export async function invalidateReadCachesAfterWrite(
+export async function invalidateReadCachesAfterWrite<TSchema extends Document>(
     queryCache: QueryCacheLike | null | undefined,
+    collection: Collection<TSchema>,
     dbName: string,
     collectionName: string,
     defaults: RuntimeDefaults | undefined,
     options?: unknown,
 ): Promise<number> {
+    const intents = resolveWriteCacheInvalidationIntents(collection, dbName, collectionName, defaults, options);
     const transaction = getTransactionInvalidator(options);
     if (transaction) {
-        const patterns = buildReadCacheInvalidationPatterns(dbName, collectionName, defaults, 'all');
-        for (const pattern of patterns) {
-            await transaction.recordInvalidation(pattern);
+        for (const intent of intents) {
+            if (transaction.recordCacheInvalidation) {
+                await transaction.recordCacheInvalidation(intent);
+            } else if (intent.type === 'pattern') {
+                await transaction.recordInvalidation(intent.value);
+            }
         }
-        return patterns.length;
+        return intents.length;
     }
-    const deleted = await invalidateReadCachesForNamespace(queryCache, dbName, collectionName, defaults, 'all');
+    const deleted = await applyCacheInvalidationIntents(queryCache, intents);
     await clearReadCacheBarrierAfterWrite(queryCache, dbName, collectionName, defaults, options);
     return deleted;
 }

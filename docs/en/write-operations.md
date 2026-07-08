@@ -2,7 +2,7 @@
 
 ## Overview
 
-This page covers the collection-level insert APIs. Use these methods when you want MongoDB-native write behavior with monSQLize conveniences such as cache invalidation, unified errors, and slow operation monitoring.
+This page covers the collection-level insert APIs. Use these methods when you want MongoDB-native write behavior with monSQLize conveniences such as explicit cache invalidation, unified errors, and slow operation monitoring.
 
 | Method | Purpose | Performance | Applicable scenarios |
 |------|------|------|---------|
@@ -19,7 +19,7 @@ Use the Model layer instead when the write must go through schema defaults, hook
 - All parameters (writeConcern, ordered, comment, etc.) are natively supported by MongoDB
 
 **monSQLize extension**: 🔧
-- ✅ **Automatic Cache Invalidation** - Automatically clear related caches after insertion (monSQLize exclusive)
+- ✅ **Explicit cache invalidation** - Clear related caches with `cache.invalidate` or `autoInvalidate` after insertion
 - ✅ **Unified Error Code** - Unified error handling such as DUPLICATE_KEY/VALIDATION_ERROR
 - ✅ **Slow Query Monitoring** - Automatically record write operations that take longer than the threshold
 - ✅ **Detailed Log** - DEBUG/WARN level operation log
@@ -342,9 +342,9 @@ try {
 
 
 
-## 7. Automatic cache invalidation
+## 7. Explicit cache invalidation
 
-After a successful insert, monSQLize triggers cache invalidation for related collection query caches. Cache invalidation is best-effort and post-write; see [Cache API](./cache.md) for consistency boundaries.
+After a successful insert, monSQLize does not clear query caches by default. Use `cache.invalidate` for precise entries or `autoInvalidate: true` for collection-wide broad invalidation. Cache invalidation is best-effort and post-write; see [Cache Invalidation](./cache-invalidation.md) for consistency boundaries.
 
 ```javascript
 //Step 1: Query products (cached results)
@@ -354,13 +354,24 @@ const products1 = await collection('products').find(
 );
 console.log('First query:', products1.length);  //Output: 10
 
-//Step 2: Insert new product (automatic invalidation of cache)
-await collection('products').insertOne({
-  name: 'New Product',
-  category: 'electronics',
-  price: 599
-});
-console.log('Cache invalidation was triggered after inserting');
+//Step 2: Insert new product and precisely invalidate the affected query cache.
+await collection('products').insertOne(
+  {
+    name: 'New Product',
+    category: 'electronics',
+    price: 599
+  },
+  {
+    cache: {
+      invalidate: [{
+        operation: 'find',
+        query: { category: 'electronics' },
+        options: { cache: 60000 }
+      }]
+    }
+  }
+);
+console.log('Cache invalidation was triggered according to the explicit policy');
 
 //Step 3: Query again (the cache has expired, query the database again)
 const products2 = await collection('products').find(
@@ -370,7 +381,7 @@ const products2 = await collection('products').find(
 console.log('Query after insertion:', products2.length);  //Output: 11 (new data)
 ```
 
-**Auto-invalidating cache operations**:
+**Configurable invalidation operations**:
 - ✅ `find()`
 - ✅ `findOne()`
 - ✅ `count()`
@@ -568,7 +579,7 @@ Comment: 'OrderAPI:createOrder:user_123'
 
 ## Q: Do I need to manually clear the cache after inserting?
 
-**A**: No, `insertOne` and `insertMany` will **automatically invalidate the relevant cache**.
+**A**: Configure it explicitly. Use `cache.invalidate` for precise entries, or `autoInvalidate: true` for broad invalidation.
 
 
 ## Q: How to deal with duplicate key errors?

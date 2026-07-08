@@ -20,7 +20,6 @@ import type {
 } from '../../../../types/collection';
 import {
     buildAggregateDriverOptions,
-    buildCollectionCacheNamespace,
     buildCursorFilter,
     buildEffectiveProjection,
     decodeCursor,
@@ -35,11 +34,11 @@ import {
 } from './query-helpers';
 import {
     DEFAULT_FIND_PAGE_LIMIT,
-    hashPayload,
     readNearestBookmark,
     type BookmarkResumePoint,
 } from './find-page-cache-helpers';
 import { computeTotals } from './find-page-totals';
+import { buildFindPageCacheKey } from './query-cache-keys';
 
 // ── Internal utilities ────────────────────────────────────────────────────────
 
@@ -79,46 +78,6 @@ function mergeFilters(base: Document, extra?: Document): Document {
         return extra;
     }
     return { $and: [base, extra] };
-}
-
-function buildFindPageCacheKey<TSchema extends Document>(
-    collection: Collection<TSchema>,
-    defaults: RuntimeDefaults,
-    options: FindPageOptions<TSchema>,
-    normalized: {
-        query: Document;
-        sort: SortShape;
-        limit: number;
-        page: number;
-        maxTimeMS?: number;
-        cursorTypes?: Record<string, CursorValueType>;
-        hasCursorValueNormalizer?: boolean;
-    },
-): { key: string; keyHash: string } {
-    const projection = normalizeFindProjectionOptions(options as Record<string, unknown>).projection;
-    const payload = {
-        query: normalized.query,
-        sort: normalized.sort,
-        limit: normalized.limit,
-        page: normalized.page,
-        after: options.after,
-        before: options.before,
-        projection,
-        pipeline: options.pipeline ?? [],
-        totals: options.totals,
-        jump: options.jump,
-        offsetJump: options.offsetJump,
-        maxTimeMS: normalized.maxTimeMS,
-        cursorTypes: normalized.cursorTypes,
-        hasCursorValueNormalizer: normalized.hasCursorValueNormalizer,
-        hint: (options as Record<string, unknown>).hint,
-        collation: (options as Record<string, unknown>).collation,
-        batchSize: (options as Record<string, unknown>).batchSize,
-        options: options.options,
-    };
-    const keyHash = hashPayload(payload);
-    const namespace = buildCollectionCacheNamespace(collection, defaults);
-    return { key: `findPage:${namespace}:${keyHash}`, keyHash };
 }
 
 function cloneFindPageResult<TSchema extends Document>(result: FindPageResult<TSchema>): FindPageResult<TSchema> {
@@ -252,15 +211,7 @@ export async function executeFindPage<TSchema extends Document = Document>(
         && (options.explain === undefined || options.explain === false)
         && !hasSessionOption(driverOpts)
         && !pageCacheBarrierActive
-        ? buildFindPageCacheKey(collection, defaults, options, {
-            query: baseQuery,
-            sort,
-            limit,
-            page,
-            maxTimeMS: effectiveMaxTimeMS,
-            cursorTypes: cursorValueOptions.cursorTypes,
-            hasCursorValueNormalizer: typeof cursorValueOptions.cursorValueNormalizer === 'function',
-        })
+        ? buildFindPageCacheKey(collection, defaults, options)
         : null;
     const shouldRefreshAsyncTotals = (options.totals as TotalsOptions | undefined)?.mode === 'async';
     let findPageCacheHit = false;

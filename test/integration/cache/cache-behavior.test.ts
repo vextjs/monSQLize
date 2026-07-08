@@ -66,16 +66,26 @@ describe('cache hit / miss / invalidation behavior', () => {
             assert.equal(second.length, 2);
         });
 
-        it('insertOne invalidates the cache', async () => {
+        it('insertOne does not invalidate the cache by default', async () => {
             const db = runtime._adapter.db;
             await db.collection('items').insertMany([{ tag: 'c', name: 'A' }]);
 
             await col.find({ tag: 'c' }, { cache: 10000 });
 
-            // insertOne goes through accessor → triggers invalidateAll()
             await col.insertOne({ tag: 'c', name: 'B' });
 
             const result = await col.find({ tag: 'c' }, { cache: 10000 });
+            assert.equal(result.length, 1);
+        });
+
+        it('insertOne broadly invalidates the cache when autoInvalidate is enabled', async () => {
+            const db = runtime._adapter.db;
+            await db.collection('items').insertMany([{ tag: 'c-auto', name: 'A' }]);
+
+            await col.find({ tag: 'c-auto' }, { cache: 10000 });
+            await col.insertOne({ tag: 'c-auto', name: 'B' }, { autoInvalidate: true });
+
+            const result = await col.find({ tag: 'c-auto' }, { cache: 10000 });
             assert.equal(result.length, 2);
         });
 
@@ -87,7 +97,7 @@ describe('cache hit / miss / invalidation behavior', () => {
             ]);
 
             await col.find({ tag: 'd' }, { cache: 10000 });
-            await col.deleteOne({ tag: 'd', name: 'M' });
+            await col.deleteOne({ tag: 'd', name: 'M' }, { autoInvalidate: true });
 
             const result = await col.find({ tag: 'd' }, { cache: 10000 });
             assert.equal(result.length, 1);
@@ -98,7 +108,19 @@ describe('cache hit / miss / invalidation behavior', () => {
             await db.collection('items').insertMany([{ tag: 'e', value: 1 }]);
 
             await col.find({ tag: 'e' }, { cache: 10000 });
-            await col.updateOne({ tag: 'e' }, { $set: { value: 99 } });
+            await col.updateOne(
+                { tag: 'e' },
+                { $set: { value: 99 } },
+                {
+                    cache: {
+                        invalidate: [{
+                            operation: 'find',
+                            query: { tag: 'e' },
+                            options: { cache: 10000 },
+                        }],
+                    },
+                },
+            );
 
             const result = await col.find({ tag: 'e' }, { cache: 10000 });
             assert.equal(result[0].value, 99);
@@ -127,7 +149,7 @@ describe('cache hit / miss / invalidation behavior', () => {
             await db.collection('items').insertOne({ tag: 'g', value: 1 });
 
             await col.findOne({ tag: 'g' }, { cache: 10000 });
-            await col.updateOne({ tag: 'g' }, { $set: { value: 50 } });
+            await col.updateOne({ tag: 'g' }, { $set: { value: 50 } }, { autoInvalidate: true });
 
             const result = await col.findOne({ tag: 'g' }, { cache: 10000 });
             assert.equal(result.value, 50);
@@ -158,7 +180,7 @@ describe('cache hit / miss / invalidation behavior', () => {
             await db.collection('items').insertMany([{ tag: 'i' }, { tag: 'i' }]);
 
             await col.count({ tag: 'i' }, { cache: 10000 });
-            await col.deleteOne({ tag: 'i' });
+            await col.deleteOne({ tag: 'i' }, { autoInvalidate: true });
 
             const result = await col.count({ tag: 'i' }, { cache: 10000 });
             assert.equal(result, 1);

@@ -112,20 +112,31 @@ try {
 }
 ```
 
-## ✅ Automatic cache invalidation
+## ✅ Explicit cache invalidation
 
-After the insertion is successful, monSQLize will automatically clear the cache related to the collection.
+After the insertion succeeds, monSQLize does not clear query caches by default. Use `cache.invalidate` or `autoInvalidate: true` when the write should clear cache.
 
 ```javascript
 //Query and cache
 const users = await collection("users").find({}, { cache: 5000 });
 console.log(users.length); // 10
 
-//Batch insert (automatically clean cache)
-await collection("users").insertMany([
-  { name: "Alice" },
-  { name: "Bob" }
-]);
+//Batch insert and precisely clear the cached query when needed
+await collection("users").insertMany(
+  [
+    { name: "Alice" },
+    { name: "Bob" }
+  ],
+  {
+    cache: {
+      invalidate: [{
+        operation: "find",
+        query: {},
+        options: { cache: 5000 }
+      }]
+    }
+  }
+);
 
 //Query again (will not return from cache)
 const updatedUsers = await collection("users").find({}, { cache: 5000 });

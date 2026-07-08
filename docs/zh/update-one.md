@@ -276,13 +276,13 @@ await collection("users").updateMany(
 
 ## 缓存行为
 
-`updateOne` 在成功修改文档后会**自动失效相关缓存**：
+`updateOne` 成功修改文档后默认不清理查询缓存；需要清理时，使用 `cache.invalidate` 或 `autoInvalidate: true`：
 
 ```javascript
 // 查询并缓存
 await collection("users").find({ userId: "user123" }, { cache: 5000 });
 
-// 更新文档 - 自动清理缓存
+// 更新文档，并按需清理缓存
 await collection("users").updateOne(
   { userId: "user123" },
   { $set: { status: "active" } }
@@ -293,7 +293,7 @@ await collection("users").updateOne(
 
 **注意**:
 - 仅当 `modifiedCount > 0` 时才会失效缓存
-- 缓存失效是自动的，无需手动调用
+- 缓存失效需要显式配置；默认写入不清理读缓存
 
 ## 慢查询日志
 

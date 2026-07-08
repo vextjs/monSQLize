@@ -91,6 +91,10 @@ export interface MultiLevelCacheOptions {
 }
 
 export type MultiLevelInvalidationMessage = {
+    type: 'del' | 'delete' | 'invalidateKey';
+    key: string;
+    ts: number;
+} | {
     type: 'delPattern';
     pattern: string;
     ts: number;
@@ -189,6 +193,7 @@ export type DistributedCacheInvalidatorStats = HubInvalidatorStats;
 export declare class DistributedCacheInvalidator {
     constructor(options: DistributedCacheInvalidatorOptions);
     invalidate(pattern: string): Promise<void>;
+    invalidateKey(key: string): Promise<void>;
     getStats(): HubInvalidatorStats;
     close(): Promise<void>;
 }

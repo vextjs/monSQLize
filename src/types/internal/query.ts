@@ -30,6 +30,52 @@ export type NormalizedWritePathPolicyLike = import('../../capabilities/write-pat
 
 export type CursorValueType = 'date' | 'objectId' | 'string' | 'number' | 'boolean' | 'raw';
 
+export type CacheInvalidationOperation =
+    | 'find'
+    | 'findOne'
+    | 'count'
+    | 'findPage'
+    | 'aggregate'
+    | 'distinct'
+    | 'findOneById'
+    | 'findByIds'
+    | 'all';
+
+export type CacheInvalidationEntry =
+    | string
+    | {
+        cacheKey?: string;
+        cacheKeys?: string[];
+        pattern?: string;
+        patterns?: string[];
+        operation?: CacheInvalidationOperation | string;
+        op?: CacheInvalidationOperation | string;
+        query?: unknown;
+        options?: unknown;
+        pipeline?: unknown[];
+        field?: string;
+        id?: unknown;
+        ids?: unknown[];
+    };
+
+export type CacheInvalidationRequest = CacheInvalidationEntry | CacheInvalidationEntry[];
+
+export type CacheInvalidationIntent =
+    | { type: 'pattern'; value: string }
+    | { type: 'key'; value: string };
+
+export interface WriteCacheControlOptions {
+    cache?: {
+        autoInvalidate?: boolean;
+        invalidate?: false | true | CacheInvalidationRequest;
+    };
+    /**
+     * Per-write broad invalidation shortcut. Kept for compatibility; exact invalidation
+     * should use `cache.invalidate`.
+     */
+    autoInvalidate?: boolean;
+}
+
 export interface CursorValueNormalizationOptions {
     cursorTypes?: Record<string, CursorValueType>;
     cursorValueNormalizer?: (field: string, value: unknown) => unknown;
@@ -58,6 +104,7 @@ export interface RuntimeDefaults {
     namespace?: { scope?: 'database' | 'connection'; instanceId?: string };
     countQueue?: CountQueueLike;
     writePathPolicy?: NormalizedWritePathPolicyLike;
+    cacheAutoInvalidate?: boolean;
 }
 
 export interface CursorPayload {

@@ -8,6 +8,59 @@ export interface MetaOptions {
     includeCache?: boolean;
 }
 
+export type CacheInvalidationOperation =
+    | 'find'
+    | 'findOne'
+    | 'count'
+    | 'findPage'
+    | 'aggregate'
+    | 'distinct'
+    | 'findOneById'
+    | 'findByIds'
+    | 'all';
+
+export type CacheInvalidationEntry =
+    | string
+    | {
+        /** Exact cache key to delete. */
+        cacheKey?: string;
+        /** Exact cache keys to delete. */
+        cacheKeys?: string[];
+        /** Cache pattern to delete with delPattern(). */
+        pattern?: string;
+        /** Cache patterns to delete with delPattern(). */
+        patterns?: string[];
+        /** Read operation to invalidate. Add query/options for exact key invalidation. */
+        operation?: CacheInvalidationOperation | string;
+        /** Alias for operation. */
+        op?: CacheInvalidationOperation | string;
+        query?: unknown;
+        options?: unknown;
+        pipeline?: unknown[];
+        /** Field name for distinct invalidation descriptors. */
+        field?: string;
+        /** ID for findOneById invalidation descriptors. */
+        id?: unknown;
+        /** IDs for findByIds invalidation descriptors. */
+        ids?: unknown[];
+    };
+
+export type CacheInvalidationRequest = CacheInvalidationEntry | CacheInvalidationEntry[];
+
+export interface WriteCacheControlOptions {
+    cache?: {
+        /**
+         * Explicit invalidation for this write. `false` or `[]` means no invalidation for
+         * this write, even when instance-level cache.autoInvalidate is enabled.
+         */
+        invalidate?: false | true | CacheInvalidationRequest;
+        /** Per-write broad invalidation shortcut. Prefer invalidate for precise entries. */
+        autoInvalidate?: boolean;
+    };
+    /** Per-write broad invalidation shortcut kept for compatibility. */
+    autoInvalidate?: boolean;
+}
+
 /** v1-compatible find options exported from the root package. */
 export interface FindOptions {
     projection?: Record<string, any> | string[];
@@ -472,7 +525,7 @@ export interface DeleteBatchResult {
     retries: BatchRetryRecord[];
 }
 
-export interface BatchWriteOptions {
+export interface BatchWriteOptions extends WriteCacheControlOptions {
     batchSize?: number;
     ordered?: boolean;
     concurrency?: number;
@@ -484,7 +537,7 @@ export interface BatchWriteOptions {
 }
 
 /** Options for updateBatch operations. */
-export interface UpdateBatchOptions {
+export interface UpdateBatchOptions extends WriteCacheControlOptions {
     /** Number of documents per batch (default: 1000). */
     batchSize?: number;
     /** Estimate total for progress reporting. */
@@ -515,7 +568,7 @@ export interface UpdateBatchOptions {
     sort?: Record<string, 1 | -1>;
 }
 
-export interface IncrementOneOptions extends Record<string, unknown> {
+export interface IncrementOneOptions extends WriteCacheControlOptions, Record<string, unknown> {
     returnDocument?: 'before' | 'after';
     projection?: Record<string, unknown>;
     $set?: Record<string, unknown>;
@@ -1017,12 +1070,12 @@ export type ClearBookmarksResult = BookmarkClearResult;
 // ---------------------------------------------------------------------------
 
 /** Simplified insertOne options (used for the shorthand call form). */
-export interface InsertOneSimplifiedOptions {
+export interface InsertOneSimplifiedOptions extends WriteCacheControlOptions {
     writeConcern?: WriteConcern;
     bypassDocumentValidation?: boolean;
     comment?: string;
     session?: unknown;
-    /** Invalidate query cache on success. @since v1.1.5 */
+    /** Broadly invalidate query cache on success. Prefer `cache.invalidate` for precise entries. */
     autoInvalidate?: boolean;
 }
 
@@ -1035,13 +1088,13 @@ export interface InsertOneOptions {
 }
 
 /** Simplified insertMany options (used for the shorthand call form). */
-export interface InsertManySimplifiedOptions {
+export interface InsertManySimplifiedOptions extends WriteCacheControlOptions {
     ordered?: boolean;
     writeConcern?: WriteConcern;
     bypassDocumentValidation?: boolean;
     comment?: string;
     session?: unknown;
-    /** Invalidate query cache on success. @since v1.1.5 */
+    /** Broadly invalidate query cache on success. Prefer `cache.invalidate` for precise entries. */
     autoInvalidate?: boolean;
 }
 

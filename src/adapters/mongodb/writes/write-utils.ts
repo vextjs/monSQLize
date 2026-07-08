@@ -57,3 +57,19 @@ export function createIncrementUpdate(
         ...(setPatch && Object.keys(setPatch).length > 0 ? { $set: setPatch } : {}),
     };
 }
+
+export function stripWriteCacheControlOptions<TOptions>(options: TOptions): TOptions {
+    if (!options || typeof options !== 'object' || Array.isArray(options)) {
+        return options;
+    }
+    const {
+        cache: _cache,
+        autoInvalidate: _autoInvalidate,
+        cacheInvalidate: _cacheInvalidate,
+        ...driverOptions
+    } = options as Record<string, unknown>;
+    void _cache;
+    void _autoInvalidate;
+    void _cacheInvalidate;
+    return driverOptions as TOptions;
+}

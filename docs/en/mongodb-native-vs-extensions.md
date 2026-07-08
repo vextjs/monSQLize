@@ -8,12 +8,12 @@ This document provides a detailed comparison of the functional differences betwe
 |---------|-------------|-----------|---------|
 | **Query operation** | | | Smart cache, cursor paging, slow query log |
 | **INSERT OPERATION** | | | High performance batch insert (10-50x), slow query monitoring |
-| **Update operation** | | | Automatic cache invalidation, complete error handling |
-| **Delete operation** | | | Automatic cache invalidation, slow query monitoring |
+| **Update operation** | | | Explicit cache invalidation, complete error handling |
+| **Delete operation** | | | Explicit cache invalidation, slow query monitoring |
 | **Aggregation operation** | | | Cache support, streaming processing |
 | **Execution Plan** | | | Integrated into query chain |
 | **Cross-database access** | Manual switching | | One line of code switching |
-| **Cache Management** | | | TTL/LRU/auto-invalidation/multi-layer caching |
+| **Cache Management** | | | TTL/LRU/explicit invalidation/multi-layer caching |
 | **Performance Monitoring** | Configuration required | | Out-of-the-box slow query log |
 
 ---
@@ -116,7 +116,7 @@ const products2 = await collection('products').find(
 | Features | MongoDB native | monSQLize |
 |------|-------------|-----------|
 | **Query Cache** | None | TTL + LRU |
-| **Automatic expiration** | None | Automatically clean up after writing operations |
+| **Explicit invalidation** | None | Per-write `cache.invalidate` / `autoInvalidate` when configured |
 | **Namespace Isolation** | None | Isolate by instance/database/collection |
 | **Concurrent deduplication** | None | Prevent cache breakdown |
 | **Cache Statistics** | None | Hit Rate/Number of Eliminations |
@@ -128,7 +128,7 @@ const products2 = await collection('products').find(
 
 ---
 
-## 2. Automatic cache invalidation
+## 2. Explicit cache invalidation
 
 
 ## MongoDB native: Manual cache management
@@ -159,45 +159,55 @@ cache.delete('products:electronics');  //Easy to forget or incomplete cleaning
 ```
 
 
-## monSQLize: automatic cache invalidation
+## monSQLize: explicit cache invalidation
 
 ```javascript
-//monSQLize: Automatically manage cache consistency
+// monSQLize: cache a read query
 const products = await collection('products').find(
   { category: 'electronics' },
   { cache: 5000 }
 );
-//Cache has been created automatically
+// The read cache has been created.
 
-//Insert new data
-await collection('products').insertOne({
-  name: 'New Product',
-  category: 'electronics'
-});
-//Automatically clear cache of all products collections
+// Insert new data and precisely clear the affected cached query.
+await collection('products').insertOne(
+  {
+    name: 'New Product',
+    category: 'electronics'
+  },
+  {
+    cache: {
+      invalidate: [{
+        operation: 'find',
+        query: { category: 'electronics' },
+        options: { cache: 5000 }
+      }]
+    }
+  }
+);
 
-//Query again: automatically obtain the latest data from the database
+// Query again: the declared cache entry has been invalidated.
 const freshProducts = await collection('products').find(
   { category: 'electronics' },
   { cache: 5000 }
 );
-//Data is up-to-date and requires no manual management
+// The invalidation scope is declared on the write operation.
 ```
 
 
-## Operations supported by automatic invalidation
+## Operations supported by explicit invalidation
 
 | Operations | MongoDB native | monSQLize |
 |------|-------------|-----------|
-| insertOne / insertMany | Manual invalidation | Automatic invalidation |
-| updateOne / updateMany | Manual invalidation | Automatic invalidation |
-| deleteOne / deleteMany | Manual invalidation | Automatic invalidation |
-| replaceOne | Manual invalidation | Automatic invalidation |
-| findOneAndUpdate | Manual invalidation | Automatic invalidation |
-| findOneAndReplace | Manual invalidation | Automatic invalidation |
-| findOneAndDelete | Manual invalidation | Automatic invalidation |
+| insertOne / insertMany | Manual invalidation | Explicit invalidation |
+| updateOne / updateMany | Manual invalidation | Explicit invalidation |
+| deleteOne / deleteMany | Manual invalidation | Explicit invalidation |
+| replaceOne | Manual invalidation | Explicit invalidation |
+| findOneAndUpdate | Manual invalidation | Explicit invalidation |
+| findOneAndReplace | Manual invalidation | Explicit invalidation |
+| findOneAndDelete | Manual invalidation | Explicit invalidation |
 
-**Benefits**: Prevents cache inconsistencies and ensures data is always up to date.
+**Benefits**: Keep the invalidation scope close to the write path and avoid unexpected broad cache deletes.
 
 ---
 
@@ -623,7 +633,7 @@ const products2 = await collection('products').find(
 | **Remote Cache** | None | Redis Support |
 | **Multi-tier caching** | None | Local + Redis |
 | **Auto Backfill** | None | Backfill local on Redis hit |
-| **Cache Consistency** | None | Write operations automatically invalidated |
+| **Cache Consistency** | None | Per-write explicit invalidation or configured broad invalidation |
 
 **Detailed documentation**: [Multi-layer caching](./cache.md#multi-layer-caching)
 
@@ -758,7 +768,7 @@ msq.on('error', (data) => {
 - **Deep Pagination** - list page, search results, etc.
 - **Multi-database application** - requires cross-database access
 - **Performance Monitoring** - Slow query alarm required
-- **Complex Business** - Requires automatic cache invalidation
+- **Complex Business** - Requires declared cache invalidation boundaries
 
 ---
 
@@ -771,7 +781,7 @@ msq.on('error', (data) => {
 | **Performance (With Cache)** | ☆☆☆☆ |  | Cache Hits 1000x |
 | **Deep Paging** | ☆☆☆ |  | Deep Paging 250x |
 | **Ease of Use** |  |  | Simpler API |
-| **Maintainability** |  |  | Automatic cache invalidation |
+| **Maintainability** |  |  | Explicit cache invalidation |
 | **Observability** | ☆☆☆ |  | Out-of-the-box monitoring |
 
 ---

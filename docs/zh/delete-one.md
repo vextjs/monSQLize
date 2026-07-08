@@ -65,9 +65,9 @@ const result = await collection("users").deleteOne({ status: "inactive" });
 console.log(result.deletedCount); // 1（或 0 如果没有匹配）
 ```
 
-### ✅ 自动缓存失效
+### ✅ 显式缓存失效
 
-删除成功后，monSQLize 会自动清理相关的缓存键。
+删除成功后，monSQLize 默认不清理查询缓存。需要清理时，使用 `cache.invalidate` 精准失效，或使用 `autoInvalidate: true` 做集合级 broad 失效。
 
 ```javascript
 // 第一次查询（从数据库）
@@ -76,7 +76,7 @@ const user = await collection("users").findOne(
   { cache: 5000 }
 );
 
-// 删除用户（自动清理缓存）
+// 删除用户，并按需清理缓存
 await collection("users").deleteOne({ userId: "user123" });
 
 // 再次查询（不会从缓存返回，因为已被清理）
@@ -348,7 +348,7 @@ await collection("users").findOneAndDelete(
 
 ### ⚠️ 缓存失效的范围
 
-自动缓存失效会清理整个集合的缓存，不仅仅是被删除的文档：
+`autoInvalidate: true` 会清理整个集合的相关缓存，不仅仅是被删除的文档：
 
 ```javascript
 // 删除一个用户

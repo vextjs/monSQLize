@@ -50,7 +50,7 @@ An aggregation pipeline is an array of stages, each stage performs specific proc
 - ✅ **MongoDB native**: This parameter is a standard function officially supported by MongoDB
 - 🔧 **monSQLize extension**: monSQLize’s unique extension function
 
-When the final pipeline stage is `$out` or `$merge`, monSQLize treats the aggregate as a write pipeline: aggregate result caching is skipped, and read caches for the target collection are invalidated after successful execution.
+When the final pipeline stage is `$out` or `$merge`, monSQLize treats the aggregate as a write pipeline: aggregate result caching is skipped. Target collection read caches are cleared only when `cache.invalidate`, `autoInvalidate: true`, or global `cache.autoInvalidate` is configured.
 
 **MongoDB reference documentation**:
 - [aggregate() method ](https://www.mongodb.com/docs/manual/reference/method/db.collection.aggregate/)

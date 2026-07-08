@@ -85,6 +85,22 @@ describe('P4-A transaction', () => {
         cacheLockManager.stop();
     });
 
+    it('replays exact cache key invalidation only after commit', async () => {
+        const cache = new MonSQLize.MemoryCache({ enableStats: true });
+        cache.set('users:1', { id: 1 }, 60000);
+        const transaction = new MonSQLize.Transaction(createFakeSession(), { cache });
+
+        await transaction.start();
+        await transaction.recordCacheInvalidation({ type: 'key', value: 'users:1' });
+
+        assert.deepEqual(cache.get('users:1'), { id: 1 });
+
+        await transaction.commit();
+
+        assert.equal(cache.get('users:1'), undefined);
+        await transaction.end();
+    });
+
     it('retries UnknownTransactionCommitResult during commit', async () => {
         let commits = 0;
         const session = {
@@ -109,7 +125,8 @@ describe('P4-A transaction', () => {
         await transaction.end();
     });
 
-    it('rejects commit before database commit when cache prepare invalidation fails', async () => {
+    it('commits database before logging post-commit cache invalidation failures', async () => {
+        const warnings: unknown[] = [];
         let commits = 0;
         const session = {
             ...createFakeSession(),
@@ -122,18 +139,20 @@ describe('P4-A transaction', () => {
             cache: {
                 set: async () => undefined,
                 delPattern: async () => {
-                    throw new Error('cache prepare down');
+                    throw new Error('cache down');
                 },
             },
+            logger: { warn: (...args: unknown[]) => warnings.push(args) },
         });
 
         await transaction.start();
         await transaction.recordInvalidation('users:*');
-        await assert.rejects(() => transaction.commit(), /cache prepare down/);
+        await transaction.recordInvalidation('posts:*');
+        await assert.doesNotReject(() => transaction.commit());
 
-        assert.equal(commits, 0);
-        assert.equal(transaction.getInfo().status, 'started');
-        await transaction.abort();
+        assert.equal(commits, 1);
+        assert.equal(transaction.getInfo().status, 'committed');
+        assert.ok(warnings.some((entry) => String((entry as unknown[])[0]).includes('post-commit cache invalidation failed')));
         await transaction.end();
     });
 
@@ -157,6 +176,7 @@ describe('P4-A transaction', () => {
 
         await transaction.start();
         await transaction.recordInvalidation('users:*');
+        await transaction.recordInvalidation('posts:*');
         await assert.doesNotReject(() => transaction.commit());
 
         assert.equal(transaction.getInfo().status, 'committed');
@@ -173,6 +193,22 @@ describe('P4-A transaction', () => {
 
         await manager.withTransaction(async (tx: { recordInvalidation(pattern: string): Promise<void> }) => {
             await tx.recordInvalidation('users:*');
+        });
+
+        const stats = manager.getStats();
+        assert.equal(stats.writeTransactions, 1);
+        assert.equal(stats.readOnlyTransactions, 0);
+    });
+
+    it('records write transaction stats independently of cache invalidation intents', async () => {
+        const manager = new MonSQLize.TransactionManager({
+            client: createFakeClient(),
+            maxRetries: 0,
+            retryDelay: 1,
+        });
+
+        await manager.withTransaction(async (tx: { recordWriteOperation(): void }) => {
+            tx.recordWriteOperation();
         });
 
         const stats = manager.getStats();

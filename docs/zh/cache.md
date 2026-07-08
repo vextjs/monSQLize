@@ -330,7 +330,7 @@ const products = await collection('products').find(
 **性能特点**：
 - 读取延迟：1-2ms（网络 + Redis 查询）
 - 缓存容量：取决于 Redis 内存（可达 GB 级）
-- 缓存一致性：跨实例共享；短期 dirty barrier 会让失效中的命名空间绕过并避免回填查询缓存，但失效后仍是最终收敛，不与数据库提交原子绑定
+- 缓存一致性：跨实例共享；写后失效是显式 best-effort 流程，分布式广播最终收敛，不与数据库提交原子绑定
 
 ---
 
@@ -730,13 +730,14 @@ const page100 = await collection('products').findPage({
 
 ## 缓存失效行为
 
-写入通过 monSQLize 执行时，runtime 会在写入前标记集合读缓存命名空间为 dirty、清理匹配的读缓存 pattern，并在写入路径结束后清理 dirty marker。dirty marker 存在期间，读操作会绕过缓存并避免把旧数据重新写回缓存。
+写操作默认不失效读缓存。需要写入后清理缓存时，可以在单次写入上使用 `cache.invalidate` 精准指定缓存，也可以使用 `autoInvalidate: true` 触发集合级 broad 失效。完整说明见 [缓存失效](./cache-invalidation.md)。
 
 这是 best-effort 的缓存一致性模型：
 
-- 如果数据库写入已经完成，后续缓存失效或分布式广播失败不会回滚数据库写入。
-- 事务内写入会先记录待失效 pattern，只在事务成功 commit 后 flush。
+- 数据库写入成功后，如果后续缓存失效或分布式广播失败，不会回滚 MongoDB 写入。
+- 事务内写入会先记录待失效 intent，只在事务成功 commit 后 flush；事务 abort 不会 flush。
 - 跨实例缓存失效需要配置 `cache.distributed` 与 Redis Pub/Sub，并且仍是最终收敛，不是与数据库 commit 原子绑定。
+- `cache.invalidate: false` 或 `cache.invalidate: []` 会覆盖全局 `cache.autoInvalidate: true`，表示本次写入不清理缓存。
 - `invalidate()` 仍适用于外部工具改数据、应用侧额外缓存或需要手动刷新缓存的场景。
 
 ### 写入失效示例
@@ -755,12 +756,23 @@ await collection('products').find(
   { cache: 60000 }
 );
 
-// 2. 通过 monSQLize 写入会失效该集合的读缓存条目
-await collection('products').insertOne({
-  name: 'New Phone',
-  category: 'electronics',
-  price: 999
-});
+// 2. 精准失效受影响的 find 缓存
+await collection('products').insertOne(
+  {
+    name: 'New Phone',
+    category: 'electronics',
+    price: 999
+  },
+  {
+    cache: {
+      invalidate: [{
+        operation: 'find',
+        query: { category: 'electronics' },
+        options: { cache: 60000 }
+      }]
+    }
+  }
+);
 
 // 3. 下一次缓存读会从 MongoDB 重新填充
 await collection('products').find(
@@ -1157,7 +1169,7 @@ for (const name of collections) {
 
 **注意**：
 - 当使用外部工具修改数据后，仍需手动调用 `invalidate()` 清理缓存
-- 通过 monSQLize 发起的写操作已经会执行读缓存失效路径
+- 通过 monSQLize 发起的写操作只有在 `cache.invalidate`、`autoInvalidate` 或全局 `cache.autoInvalidate` 配置后才会清理读缓存
 - 若你的缓存策略跨进程/跨节点，建议同时结合分布式失效广播
 
 ### Q: 如何禁用缓存？
@@ -1295,7 +1307,7 @@ await clearAllCache();
 
 ### 使用说明
 
-**重要提示**：monSQLize 当前版本已经支持 `insertOne` / `updateOne` / `deleteOne` 等写操作；通过 monSQLize 写入时，相关缓存会按当前失效策略处理。`invalidate()` 仍然用于以下场景：
+**重要提示**：monSQLize 当前版本已经支持 `insertOne` / `updateOne` / `deleteOne` 等写操作；通过 monSQLize 写入时，只有显式配置了失效策略才会清理相关缓存。`invalidate()` 仍然用于以下场景：
 
 1. **外部写入后的显式清理**：
    - 使用 MongoDB Shell、Compass 或其他应用直接修改数据后

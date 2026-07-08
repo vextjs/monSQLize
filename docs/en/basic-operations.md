@@ -138,7 +138,7 @@ const afterWrite = await users.find(
 ).limit(5);
 ```
 
-Collection writes invalidate related query caches after the write succeeds. Cache invalidation is best-effort around database writes, not an atomic database transaction step. See [Cache API](./cache.md) and [Runtime consistency and boundaries](./runtime-architecture.md).
+Writes do not invalidate query caches by default. Use per-write `cache.invalidate` for precise cache entries, or `autoInvalidate: true` for collection-wide broad invalidation. See [Cache Invalidation](./cache-invalidation.md) and [Runtime consistency and boundaries](./runtime-architecture.md).
 
 ## Collection or Model
 

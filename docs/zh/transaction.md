@@ -299,11 +299,20 @@ await msq.withTransaction(async (tx) => {
         // 不需要指定 cache: 0，默认不缓存
     );
     
-    // ✅ 事务内写入：记录缓存失效意图 + 添加进程内缓存屏障
+    // ✅ 事务内写入：只有显式配置缓存失效时才记录失效意图
     await collection('users').updateOne(
         { _id: 1 },
         { $set: { balance: 100 } },
-        { session: tx.session }
+        {
+            session: tx.session,
+            cache: {
+                invalidate: [{
+                    operation: 'findOne',
+                    query: { _id: 1 },
+                    options: { cache: 5000 }
+                }]
+            }
+        }
     );
 });
 
@@ -322,9 +331,9 @@ const user = await collection('users').findOne(
 
 当操作带有 `session: tx.session` 时，monSQLize 会把 session 透传给 MongoDB driver，并跳过共享查询结果缓存。当前公开 API 中没有单独的事务缓存隔离开关。事务内重复读取应依赖 driver snapshot；如果某些读可以安全缓存，应放到事务外执行。
 
-### 缓存锁机制（自动）
+### 缓存锁机制（配置失效时）
 
-**作用**: 在事务期间记录缓存失效意图，并在准备失效和 commit 后 flush 时提供短窗口的进程内屏障。
+**作用**: 在事务期间记录显式缓存失效意图，并在 commit 后 flush 或 abort 丢弃之前提供短窗口的进程内屏障。
 
 ```javascript
 await msq.withTransaction(async (tx) => {
@@ -332,9 +341,18 @@ await msq.withTransaction(async (tx) => {
     await collection('users').updateOne(
         { _id: 1 },
         { $set: { balance: 100 } },
-        { session: tx.session }
+        {
+            session: tx.session,
+            cache: {
+                invalidate: [{
+                    operation: 'findOne',
+                    query: { _id: 1 },
+                    options: { cache: 5000 }
+                }]
+            }
+        }
     );
-    // 🔒 自动添加缓存锁：users:1
+    // 🔒 在当前进程内记录已配置的缓存失效意图
     
     // 2. 同进程内相关读会绕过或避免回填受影响缓存键
     

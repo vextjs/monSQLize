@@ -309,11 +309,20 @@ await msq.withTransaction(async (tx) => {
         //No need to specify cache: 0, no caching by default
     );
 
-    //✅ Intra-transaction writing: record cache invalidation intent + add cache lock
+    //✅ Intra-transaction writing: record a cache invalidation intent only when configured
     await collection('users').updateOne(
         { _id: 1 },
         { $set: { balance: 100 } },
-        { session: tx.session }
+        {
+            session: tx.session,
+            cache: {
+                invalidate: [{
+                    operation: 'findOne',
+                    query: { _id: 1 },
+                    options: { cache: 5000 }
+                }]
+            }
+        }
     );
 });
 
@@ -334,9 +343,9 @@ const user = await collection('users').findOne(
 When an operation receives `session: tx.session`, monSQLize forwards the session to the MongoDB driver and skips the shared query-result cache. There is no separate transaction-cache isolation flag in the public API. Keep repeated transaction reads inside the driver snapshot, or move cacheable reads outside the transaction when that is safe for your workflow.
 
 
-## Cache lock mechanism (automatic)
+## Cache lock mechanism (when invalidation is configured)
 
-**Function**: Record cache invalidation intent during the transaction and keep a short-lived, process-local barrier while invalidation is prepared and flushed.
+**Function**: Record explicit cache invalidation intents during the transaction and keep a short-lived, process-local barrier until those intents are flushed after commit or discarded on abort.
 
 ```javascript
 await msq.withTransaction(async (tx) => {
@@ -344,9 +353,18 @@ await msq.withTransaction(async (tx) => {
     await collection('users').updateOne(
         { _id: 1 },
         { $set: { balance: 100 } },
-        { session: tx.session }
+        {
+            session: tx.session,
+            cache: {
+                invalidate: [{
+                    operation: 'findOne',
+                    query: { _id: 1 },
+                    options: { cache: 5000 }
+                }]
+            }
+        }
     );
-    //🔒 Automatically add cache lock: users:1
+    //🔒 Records the configured cache invalidation intent in this process
 
     //2. Other reads in this process bypass or avoid refilling affected cache keys
 

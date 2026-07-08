@@ -1,6 +1,10 @@
 import type { CacheLike } from './runtime';
 import type { LoggerLike } from './base';
 
+export type CacheInvalidationIntent =
+    | { type: 'pattern'; value: string }
+    | { type: 'key'; value: string };
+
 /** Minimal MongoDB session contract used by the transaction layer. */
 export interface MongoSession {
     id: unknown;
@@ -99,6 +103,10 @@ export declare class Transaction {
     end(): Promise<void>;
     /** Record a cache-invalidation pattern to be replayed on commit. */
     recordInvalidation(pattern: string): Promise<void>;
+    /** Record an exact cache key or pattern invalidation intent to be replayed on commit. */
+    recordCacheInvalidation(intent: CacheInvalidationIntent): Promise<void>;
+    /** @internal Record that a MongoDB write helper ran in this transaction. */
+    recordWriteOperation(): void;
     /** Return the elapsed duration in milliseconds since the transaction started. */
     getDuration(): number;
     /** Return a snapshot of the transaction's current state and metadata. */

@@ -358,13 +358,13 @@ try {
 
 ## Caching behavior
 
-`updateMany` will **automatically invalidate the relevant cache** after successfully modifying the document:
+`updateMany` does not clear query caches by default after a successful modification. Use `cache.invalidate` or `autoInvalidate: true` when the write should clear cache:
 
 ```javascript
 //Caching query results
 await collection("users").find({ status: "inactive" }, { cache: 5000 });
 
-//Batch updates - automatically clear cache
+//Batch update and clear cache when needed
 await collection("users").updateMany(
   { status: "inactive" },
   { $set: { status: "active" } }
@@ -374,7 +374,7 @@ await collection("users").updateMany(
 //The next query will get it from the database
 ```
 
-**Note**: The cache will only be invalidated if `matchedCount > 0`.
+**Note**: Explicit invalidation runs only when the write path decides the operation changed data.
 
 ## Slow query log
 

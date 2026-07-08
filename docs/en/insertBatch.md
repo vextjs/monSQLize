@@ -344,7 +344,7 @@ await collection('data').insertBatch(data, {
 - Each batch is inserted independently
 - `insertedIds` is mapped in original order
 - Error handling is associated with batches
-- Cache automatically expires
+- Explicit cache invalidation is supported
 
 ## Q: How to deal with partial failure?
 

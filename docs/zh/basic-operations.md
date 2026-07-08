@@ -138,7 +138,7 @@ const afterWrite = await users.find(
 ).limit(5);
 ```
 
-集合写入成功后会失效相关查询缓存。缓存失效是写入后的 best-effort 步骤，不是数据库事务里的原子步骤。边界见 [缓存 API](./cache.md) 与 [运行时一致性与边界](./runtime-architecture.md)。
+写操作默认不失效查询缓存。需要写后清缓存时，在单次写入上使用 `cache.invalidate` 精准指定缓存，或使用 `autoInvalidate: true` 做集合级 broad 失效。边界见 [缓存失效](./cache-invalidation.md) 与 [运行时一致性与边界](./runtime-architecture.md)。
 
 ## 什么时候用 Model
 

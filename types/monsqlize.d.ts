@@ -138,7 +138,7 @@ export interface MonSQLizeOptions {
      * - A plain config object. Recognised fields:
      *     `maxEntries` / `maxSize` (v1 alias), `maxMemory`, `defaultTtl` / `ttl` (v1 alias),
      *     `enableStats`, `enableTags`, `cleanupInterval`, `enabled`,
-     *     `autoInvalidate` (v1 alias for `cacheAutoInvalidate`)
+     *     `autoInvalidate` (broad write invalidation, disabled by default)
      */
     cache?: CacheLike | MemoryCache | MultiLevelCacheOptions | {
         /** Maximum number of entries; v2 name. Alias: maxSize (v1). */
@@ -159,7 +159,7 @@ export interface MonSQLizeOptions {
         cleanupInterval?: number;
         /** Disable cache entirely when false. Default: true. */
         enabled?: boolean;
-        /** @deprecated Use top-level `cacheAutoInvalidate`. v1 alias: auto-invalidate on writes. */
+        /** Broadly invalidate collection query caches after successful writes. Default: false. */
         autoInvalidate?: boolean;
         /**
          * Distributed cache invalidation via Redis Pub/Sub.
@@ -263,7 +263,7 @@ export interface MonSQLizeOptions {
     models?: string | { path: string; pattern?: string; recursive?: boolean; };
     /** Global automatic model index creation control. Defaults to true for backward compatibility. */
     autoIndex?: ModelAutoIndexOptions;
-    /** Auto-invalidate cache on write operations. @since v1.3.0 */
+    /** Compatibility alias for `cache.autoInvalidate`. Prefer the nested cache option. */
     cacheAutoInvalidate?: boolean;
     /**
      * Optional write path governance. By default both collection and model write APIs remain available.

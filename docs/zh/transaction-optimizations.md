@@ -4,8 +4,8 @@
 
 本文档说明调优事务吞吐与缓存一致性时真正需要关注的行为：
 
-1. **只读事务统计** - 未记录写入失效的事务会在 `getTransactionStats()` 中单独计数。
-2. **进程内缓存失效屏障** - 事务内写入记录失效 pattern，只在事务成功 commit 后 flush。
+1. **只读事务统计** - 未执行 monSQLize 写 helper 的事务会在 `getTransactionStats()` 中单独计数。
+2. **进程内缓存失效屏障** - 显式配置缓存失效的事务写入会记录 intent，只在事务成功 commit 后 flush。
 
 ### 适用场景
 
@@ -28,13 +28,13 @@ await msq.withTransaction(async (tx) => {
         { session: tx.session }
     );
     
-    // 未记录写入失效，因此事务统计会把它计为只读事务。
+    // 没有执行写 helper，因此事务统计会把它计为只读事务。
 });
 ```
 
 ### 使用方式
 
-无需额外代码。事务没有记录写入失效 pattern 时，会被统计为只读事务。
+只读事务无需额外代码。事务没有执行 monSQLize 写 helper 时，会被统计为只读事务。
 
 ```javascript
 // 自动识别为只读事务
@@ -57,22 +57,31 @@ await msq.withTransaction(async (tx) => {
 
 ### 工作原理
 
-事务通过 monSQLize helper 写入时，runtime 会记录读缓存失效 pattern。commit 前会标记 dirty barrier 并清理受影响缓存；MongoDB commit 成功后再 flush 已记录的失效并释放进程内缓存锁。
+事务通过 monSQLize helper 写入且显式配置了缓存失效时，runtime 会记录读缓存失效 intent。MongoDB commit 成功后再 flush 已记录的失效并释放进程内缓存锁；abort 不会 flush。
 
 ```javascript
 await msq.withTransaction(async (tx) => {
     await collection('users').updateOne(
         { _id: 1 },
         { $set: { balance: 100 } },
-        { session: tx.session }
+        {
+            session: tx.session,
+            cache: {
+                invalidate: [{
+                    operation: 'findOne',
+                    query: { _id: 1 },
+                    options: { cache: 5000 }
+                }]
+            }
+        }
     );
-    // 受影响的读缓存 namespace 会围绕 commit 被标记 dirty 并失效。
+    // 已配置的缓存失效意图会在 commit 后 flush。
 });
 ```
 
 ### 使用方式
 
-已有事务写入只要继续传入 `session: tx.session` 即可，无需额外配置。
+需要事务写入清理读缓存时，同时传入 `session: tx.session` 与 `cache.invalidate` 或 `autoInvalidate: true`。
 
 ```javascript
 await Promise.all([
@@ -80,14 +89,20 @@ await Promise.all([
         await collection('users').updateOne(
             { _id: 1 },
             { $inc: { balance: 100 } },
-            { session: tx.session }
+            {
+                session: tx.session,
+                cache: { invalidate: true }
+            }
         );
     }),
     msq.withTransaction(async (tx) => {
         await collection('users').updateOne(
             { _id: 2 },
             { $inc: { balance: 200 } },
-            { session: tx.session }
+            {
+                session: tx.session,
+                cache: { invalidate: true }
+            }
         );
     })
 ]);
