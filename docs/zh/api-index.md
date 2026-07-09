@@ -27,6 +27,7 @@
 | [Change Stream 同步](sync-backup.md) | ** Change Stream 数据同步 - 实时备份到多个数据库** |
 | [事务优化策略](transaction-optimizations.md) | 事务优化策略 |
 | [分布式部署](distributed-deployment.md) | 分布式部署指南（多实例缓存一致性） |
+| [生产发布与迁移](production-rollout.md) | 生产数据回填、CDC 同步、索引预检与切流检查 |
 | [事件系统](events.md) | 事件系统 |
 
 ---
@@ -59,11 +60,11 @@
 
 | 文档 | 方法 | 说明 |
 |------|------|------|
-| [更新操作指南](update-operations.md) | 所有更新方法 | 更新操作完整指南 |
+| [更新方法总览](update-operations.md) | 所有更新方法 | 方法选择、传统操作符和聚合管道导读 |
 | [Upsert 操作指南](upsert-guide.md) | Upsert 操作指南 | 不存在就插入，存在则更新 |
 | [更新单个文档](update-one.md) | `updateOne()` | 更新单个文档 |
 | [批量更新文档](update-many.md) | `updateMany()` | 批量更新文档 |
-| [Update 聚合管道](update-aggregation.md) | ** Update 聚合管道 - 字段间计算、条件赋值** |
+| [聚合管道更新指南](update-aggregation.md) | 聚合管道更新 | 字段间计算、条件赋值和管道细节 |
 | [大批量更新](updateBatch.md) | `updateBatch()` | 大批量更新（分批+重试） |
 | [完整替换文档](replace-one.md) | `replaceOne()` | 完整替换文档 |
 | [查询并更新](find-one-and-update.md) | `findOneAndUpdate()` | 原子更新并返回 |
@@ -150,7 +151,7 @@
 - [去重查询](distinct.md) - distinct
 
 **Update (更新)**:
-- [更新操作指南](update-operations.md) - 更新操作完整指南
+- [更新方法总览](update-operations.md) - 方法选择、传统操作符和聚合管道导读
 - [更新单个文档](update-one.md) - updateOne
 - [批量更新文档](update-many.md) - updateMany
 - [完整替换文档](replace-one.md) - replaceOne
@@ -211,6 +212,7 @@
 | 文档 | 说明 |
 |------|------|
 | [运行时一致性与边界](runtime-architecture.md) | 运行时能力边界与一致性契约 |
+| [生产发布与迁移](production-rollout.md) | 数据迁移同步、索引同步与生产切流检查 |
 | [支持矩阵](support-matrix.md) | 支持矩阵 |
 | [路线图边界](roadmap-boundaries.md) | 路线图边界 |
 | [验证说明](validation.md) | 验证说明 |
@@ -249,3 +251,4 @@
 9. [缓存系统](cache.md) - 了解缓存机制
 10. [事务管理](transaction.md) - 学习事务管理
 11. [分布式部署](distributed-deployment.md) - 多实例部署说明
+12. [生产发布与迁移](production-rollout.md) - 数据迁移、索引同步与切流检查

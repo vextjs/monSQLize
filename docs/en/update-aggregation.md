@@ -1,8 +1,8 @@
-# Update method supports aggregation pipeline
+# Aggregation Pipeline Update Guide
 
 ## Introduction
 
-monSQLize's `updateOne` and `updateMany` methods support **aggregation pipeline syntax**, allowing you to use aggregation operators for updates.
+This page is the deep guide for aggregation pipeline updates in monSQLize update methods. If you only need to choose between traditional update operators and pipeline payloads, start with [Update Methods Overview](./update-operations.md).
 
 
 ## Why do we need an aggregation pipeline?
@@ -754,8 +754,8 @@ Aggregation pipeline updates require **MongoDB 4.2+**:
 
 ```javascript
 //Check MongoDB version
-const admin = msq.db.admin();
-const serverInfo = await admin.serverInfo();
+const admin = msq.db().admin();
+const serverInfo = await admin.buildInfo();
 console.log(`MongoDB version: ${serverInfo.version}`);
 
 //Aggregation pipeline updates are only supported in v4.2+
@@ -875,5 +875,5 @@ Similar to `updateOne`, but can update multiple documents.
 
 - [updateOne guide](./update-one.md) - updateOne full document
 - [updateMany guide](./update-many.md) - updateMany full document
-- [Update operations overview](./update-operations.md) - Overview of update operations
+- [Update Methods Overview](./update-operations.md) - Method selection and traditional operator overview
 - [Aggregation pipeline guide](./aggregate.md) - Detailed explanation of aggregation pipeline

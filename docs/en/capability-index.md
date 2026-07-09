@@ -89,7 +89,7 @@ These capabilities include topic pages and runnable examples:
 - sync: [Change Stream Sync](./sync-backup.md), examples [sync.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync.ts) and [sync-target-failure.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync-target-failure.ts)
 - slow-query-log: [Slow Query Logging](./slow-query-log.md), example [slow-query-log.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/slow-query-log.ts)
 
-For deployment and failure behavior, continue with [Distributed Deployment](./distributed-deployment.md) and [Failure Recovery Examples](./failure-recovery-examples.md).
+For deployment and failure behavior, continue with [Distributed Deployment](./distributed-deployment.md), [Production Rollout](./production-rollout.md), and [Failure Recovery Examples](./failure-recovery-examples.md).
 
 ## 6. Recommended Entries in This Repository
 
@@ -102,6 +102,6 @@ For deployment and failure behavior, continue with [Distributed Deployment](./di
 
 1. Model path: [Model Overview](./model.md), [Relations](./relations.md), [Populate](./populate.md)
 2. Transaction path: [Transactions](./transaction.md), [Transaction Optimizations](./transaction-optimizations.md)
-3. Pool path: [Pool Configuration](./multi-pool.md), [Pool Chain API](./pool-chain-api.md)
+3. Pool and deployment path: [Pool Configuration](./multi-pool.md), [Pool Chain API](./pool-chain-api.md), [Production Rollout](./production-rollout.md)
 4. Cache path: [Cache Configuration](./cache-configuration.md), [Cache Creation](./cache-creation.md), [Cache Invalidation](./cache-invalidation.md)
-5. Sync and observability path: [Change Stream Sync](./sync-backup.md), [Slow Query Logging](./slow-query-log.md)
+5. Sync and observability path: [Change Stream Sync](./sync-backup.md), [Production Rollout](./production-rollout.md), [Slow Query Logging](./slow-query-log.md)

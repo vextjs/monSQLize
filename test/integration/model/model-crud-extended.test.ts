@@ -390,3 +390,52 @@ describe('ModelInstance — index safety controls', () => {
         assert.equal(summary.totals.missing, 0);
     });
 });
+
+describe('ModelInstance — automatic index preflight', () => {
+    const bootstrap = createMemoryServerBootstrap();
+    let uri = '';
+
+    before(async () => {
+        const ctx = await bootstrap.setup();
+        uri = ctx.uri;
+    });
+
+    after(async () => {
+        MonSQLize.Model._clear();
+        await bootstrap.teardown();
+    });
+
+    it('autoIndex true creates missing declared indexes asynchronously', async () => {
+        const suffix = Date.now();
+        const modelName = `autoPreflightUsers${suffix}`;
+        const collectionName = `auto_preflight_users_${suffix}`;
+        const indexName = `auto_preflight_email_${suffix}`;
+        MonSQLize.Model.define(modelName, {
+            collection: collectionName,
+            schema: {},
+            indexes: [{ key: { email: 1 }, unique: true, name: indexName }],
+        });
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: `test_auto_index_preflight_${suffix}`,
+            config: { uri },
+            autoIndex: true,
+        });
+        try {
+            await runtime.connect();
+            const model = runtime.model(modelName);
+            let indexes: any[] = [];
+            for (let attempt = 0; attempt < 20; attempt += 1) {
+                indexes = await model.listIndexes();
+                if (indexes.some((index) => index.name === indexName)) {
+                    break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 25));
+            }
+            assert.ok(indexes.some((index) => index.name === indexName));
+        } finally {
+            await runtime.close();
+            MonSQLize.Model.undefine(modelName);
+        }
+    });
+});

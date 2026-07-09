@@ -310,11 +310,11 @@ Model.define('users', newDefinition);
 Get the Model instance.
 
 > **Cache Behavior**: Under the same runtime/pool/database/registration name/actual collection name/defined version, calling `msq.model()` multiple times returns the same `ModelInstance` instance.
-> - Model automatic indexing is enabled by default and will be scheduled when an instance is created for the first time; `createIndex()` is actually called once for each index, and pending / fulfilled indexing tasks in the same process will be deduplicated.
+> - Model automatic indexing is enabled by default and will be scheduled when an instance is created for the first time. The task calls `listIndexes()` first, skips matching existing indexes, creates only missing indexes, and deduplicates pending / fulfilled tasks in the same process.
 > - Disable automatic model indexing globally with `new MonSQLize({ autoIndex: false })`, or per Model with `options: { autoIndex: false }`.
 > - `connect()` only loads and registers the Model definition. `ModelInstance` will not be created separately, nor will it trigger index creation separately.
-> - After the process is restarted, the memory task table is cleared, and the `createIndex()` ensure command will be sent again when the corresponding Model is used for the first time; the same index definition is processed by the MongoDB driver/server according to idempotent semantics
-> - Automatic indexing will not call `listIndexes()` preflight first. Failures are logged, failed tasks may be retried later, and runtimes with events emit `model-index-error`.
+> - After the process is restarted, the memory task table is cleared, and the next first use of the corresponding Model runs the index preflight again and creates any still-missing indexes.
+> - Automatic indexing does not drop, rename, or rebuild conflicting indexes. Conflicts and creation failures are logged; failed creation tasks may be retried later, and runtimes with events emit `model-index-error`.
 > - For production rollout, prefer `autoIndex: false` plus explicit `ensureIndexes({ dryRun: true })` or `msq.ensureModelIndexes({ dryRun: true })` before creating missing indexes.
 > - After `Model.redefine()` or `Model.undefine()`, the next time you call `msq.model()`, you will automatically obtain the newly defined instance.
 > - After `Model.redefine()` or `Model.undefine()`, cached instances are invalidated and the next `msq.model()` call rebuilds them.
@@ -947,7 +947,7 @@ indexes: [
 ]
 ```
 
-Automatic indexes are only scheduled when `ModelInstance` is created and will not be re-created for every query or every request. Within the same process, monSQLize will record index tasks according to the runtime / pool / database / collection / index fingerprint: repeated scheduling will be skipped when the task is in the pending or fulfilled state; failed tasks are allowed to be rescheduled next time.
+Automatic indexes are only scheduled when `ModelInstance` is created and will not be re-created for every query or every request. Within the same process, monSQLize records an index ensure task according to the runtime / pool / database / collection / declared-index-set fingerprint: repeated scheduling is skipped while the task is pending or fulfilled; creation failures are allowed to be rescheduled next time.
 
 Automatic indexing is enabled by default for backward compatibility. Production services can disable it globally or per Model:
 
@@ -988,7 +988,7 @@ console.log(summary.totals);
 
 `ensureIndexes()` and `ensureModelIndexes()` call `listIndexes()` first and classify declared indexes as `existing`, `missing`, or `conflicts`. Dry-run mode never calls `createIndex()`. Execution creates only `missing` indexes; it does not drop, rename, or rebuild conflicting indexes. Set `throwOnError: true` to fail the explicit ensure call with a MonSQLize `MONGODB_ERROR` when conflicts or creation failures are found.
 
-Automatic indexing still calls MongoDB `createIndex()` directly. Identical index definitions are usually handled idempotently by MongoDB, while option conflicts or same-name conflicts are reported by the driver/server.
+Automatic indexing uses the same preflight classification before it creates indexes. It skips `existing`, creates `missing`, and reports `conflicts` through warning logs and `model-index-error` events without changing those indexes.
 
 ---
 

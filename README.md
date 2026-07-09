@@ -502,6 +502,7 @@ Current TypeScript documentation and examples are the source of truth for the v2
 
 - Complete docs: [English](https://vextjs.github.io/monSQLize/) · [简体中文](https://vextjs.github.io/monSQLize/zh/)
 - Constructor configuration: [English](https://vextjs.github.io/monSQLize/configuration) · [简体中文](https://vextjs.github.io/monSQLize/zh/configuration)
+- Production rollout: [English](https://vextjs.github.io/monSQLize/production-rollout) · [简体中文](https://vextjs.github.io/monSQLize/zh/production-rollout)
 - Common scenarios: [English](https://vextjs.github.io/monSQLize/recipes) · [简体中文](https://vextjs.github.io/monSQLize/zh/recipes)
 - Example source: [examples index](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)
 - Documentation source: [docs/en](https://github.com/vextjs/monSQLize/tree/main/docs/en) · [docs/zh](https://github.com/vextjs/monSQLize/tree/main/docs/zh)
@@ -548,7 +549,7 @@ npm run test:real-env:private
 
 `test:examples`, `test:server-matrix`, and `config.useMemoryServer` use a fixed `mongodb-memory-server` policy: MongoDB `7.0.14` by default, binaries cached under `.cache/mongodb-memory-server/binaries`, and temporary data paths created under `.cache/mongodb-memory-server/db` with forced cleanup for project-managed paths. Stale managed data paths whose owner PID is no longer alive are pruned before new memory-server launches. Override with `MONSQLIZE_MEMORY_MONGO_BINARY_VERSION`, `MONSQLIZE_REPLSET_BINARY_VERSION`, `MONGOMS_DOWNLOAD_DIR`, or `MONSQLIZE_MEMORY_SERVER_DB_DIR` when needed.
 
-`test:coverage` is the independent 90% coverage governance gate for the published CJS runtime artifact. `test:audit` checks production dependencies against the npm registry. `test:real-env:private` is intentionally opt-in and expects private environment variables. Coverage and private real-environment checks are not part of the default CI or release gate.
+`test:coverage` is the independent 90% coverage governance gate for the published CJS runtime plus source-level gap coverage resolved through sourcemaps. `test:audit` checks production dependencies against the npm registry. `test:real-env:private` is intentionally opt-in and expects private environment variables. Coverage and private real-environment checks are not part of the default CI or release gate.
 
 ## Roadmap
 

@@ -1,8 +1,8 @@
-# Update 方法支持聚合管道
+# 聚合管道更新指南
 
 ## 简介
 
-monSQLize 的 `updateOne` 和 `updateMany` 方法支持 **聚合管道语法**，可以在更新中使用聚合操作符。
+本页是 monSQLize update 方法中聚合管道更新的深度指南。如果只需要选择传统更新操作符还是管道载荷，请先看 [更新方法总览](./update-operations.md)。
 
 ### 为什么需要聚合管道?
 
@@ -717,8 +717,8 @@ while (true) {
 
 ```javascript
 // 检查 MongoDB 版本
-const admin = msq.db.admin();
-const serverInfo = await admin.serverInfo();
+const admin = msq.db().admin();
+const serverInfo = await admin.buildInfo();
 console.log(`MongoDB version: ${serverInfo.version}`);
 
 // v4.2+ 才支持聚合管道更新
@@ -832,5 +832,5 @@ collection.updateMany(
 
 - [updateOne 指南](./update-one.md) - updateOne 完整文档
 - [updateMany 指南](./update-many.md) - updateMany 完整文档
-- [更新操作概览](./update-operations.md) - 更新操作概览
+- [更新方法总览](./update-operations.md) - 方法选择与传统操作符概览
 - [聚合管道指南](./aggregate.md) - 聚合管道详解

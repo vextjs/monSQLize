@@ -292,6 +292,16 @@ monSQLize 提供两种多层缓存机制：
 
 #### 配置示例
 
+建议在应用启动时创建一次 Redis 适配器，并在下面的示例中复用同一个适配器。如果项目已经通过 `cache.redis.url`、`cache.redis.client` 或其他共享配置集中管理 Redis，请让这份共享配置指向 Redis，不要在每个示例里重复写 URL。
+
+```javascript
+import MonSQLize from 'monsqlize';
+
+const redisCache = MonSQLize.createRedisCacheAdapter(
+  process.env.REDIS_URL ?? 'redis://localhost:6379/0'
+);
+```
+
 ##### 方式 1：只使用远程 Redis 缓存（无本地缓存）
 
 如果不需要本地内存缓存，可以直接传入 Redis 适配器作为缓存实例：
@@ -305,8 +315,8 @@ const msq = new MonSQLize({
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
   
-  // 直接传入 Redis 适配器（不需要 multiLevel: true）
-  cache: MonSQLize.createRedisCacheAdapter('redis://localhost:6379/0')
+  // 复用共享 Redis 适配器（不需要 multiLevel: true）
+  cache: redisCache
 });
 
 const { collection } = await msq.connect();
@@ -356,8 +366,8 @@ const msq = new MonSQLize({
       enableStats: true
     },
     
-    // 远端 Redis 缓存（直接传 URL）
-    remote: MonSQLize.createRedisCacheAdapter('redis://localhost:6379/0'),
+    // 远端 Redis 缓存（复用共享适配器）
+    remote: redisCache,
     
     // 缓存策略
     policy: {
@@ -385,8 +395,8 @@ const products = await collection('products').find(
 **适用场景**：
 - 高并发读取场景
 - 热点数据频繁访问
-- 需要极致性能（本地缓存 0.001ms）
-- 多实例部署 + 需要缓存一致性
+- 希望热点读优先走本地内存的低延迟路径
+- 多实例部署并共享缓存；写后失效仍是 best-effort、最终收敛
 
 **性能特点**：
 - 本地缓存命中：0.001ms（内存读取）
@@ -604,8 +614,8 @@ const msq = new MonSQLize({
 | 维度 | 无缓存 | 本地缓存（MemoryCache） | 远程缓存（Redis） | 双层缓存（MultiLevel） |
 |------|-------|----------------------|------------------|---------------------|
 | **响应时间** | 10-50ms | 0.001-0.1ms | 1-2ms | 0.001-2ms |
-| **缓存容量** | - | 1-10万条 | GB级别（百万条+） | 10万+百万条 |
-| **集群一致性** | ❌ 每次查库 | ❌ 各节点独立 | ✅ 共享Redis | ✅ 共享Redis |
+| **缓存容量** | - | 1-10万条 | GB级别（百万条+） | 本地条目 + Redis 容量 |
+| **集群一致性** | ❌ 每次查库 | ❌ 各节点独立 | 共享 Redis 状态；失效最终收敛 | 共享 Redis 状态；失效最终收敛 |
 | **内存占用** | - | 高（本地） | 低（远程） | 中（本地）+ 低（远程） |
 | **可靠性** | ✅ 直接查库 | ⚠️ 重启丢失 | ✅ 持久化 | ✅ 持久化 |
 | **单点故障影响** | 仅DB | 单机重启丢失 | Redis故障降级查库 | Redis故障降级本地 |
@@ -615,19 +625,19 @@ const msq = new MonSQLize({
 
 | 场景 | 推荐策略 | 原因 |
 |------|---------|------|
-| 单机应用，低QPS | 本地缓存（MemoryCache） | 简单高效，无需Redis依赖 |
+| 单机应用，低QPS | 本地缓存（MemoryCache） | 简单高效，无需 Redis 服务 |
 | 多实例部署，需共享缓存 | 远程缓存（Redis） | 跨节点共享，写入后 best-effort 失效 |
-| 高QPS，热点数据集中 | 双层缓存（MultiLevel） | 热点0.001ms，冷数据1-2ms |
+| 高QPS，热点数据集中 | 双层缓存（MultiLevel） | 热点优先走本地命中路径，远端命中用于共享缓存回退 |
 | 内存受限服务器 | 远程缓存（Redis） | 节省本地内存，大容量 |
 | 数据持久化需求 | 远程或双层 | Redis支持RDB/AOF持久化 |
 
-**性能提升示例**：
+**性能影响示例**：
 
 | 场景 | 仅本地缓存 | 本地 + 远端缓存 | 提升 |
 |------|-----------|----------------|------|
 | 热点数据 | 0.1ms | 0.1ms | 无差异 |
-| 冷数据（本地未命中）| 查询 MongoDB（10ms+）| 查询 Redis（1-2ms）| **5-10倍** |
-| 缓存容量 | 受内存限制（1-10万）| Redis 可达百万级 | **10-100倍** |
+| 冷数据（本地未命中）| 查询 MongoDB | 远端缓存命中时查询 Redis | 命中 Redis 时延迟更低，取决于实际负载 |
+| 缓存容量 | 受单进程内存限制 | Redis-backed 远端缓存 | 扩展到单进程以外的容量 |
 | 集群一致性 | 每个节点独立 | 共享 Redis，失效后最终收敛 | ✅ |
 
 #### 最佳实践
@@ -941,7 +951,7 @@ setInterval(() => {
 加速比: 278.0x
 ```
 
-**结论**：缓存命中可以提供 **200-300x** 的性能提升。
+**结论**：上面的内置基准说明缓存命中路径会避开数据库访问，明显快于缓存未命中路径。该比例只代表当前基准负载，不是生产环境保证倍率。
 
 ---
 

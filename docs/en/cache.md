@@ -302,6 +302,16 @@ To be used as `remote`, a cache instance must implement the following 10 methods
 
 ### Configuration example
 
+Create the Redis adapter once in application bootstrap, and reuse the same adapter in the examples below. If the project already centralizes Redis through `cache.redis.url`, `cache.redis.client`, or another shared configuration object, point that single configuration at Redis instead of repeating a URL in every sample.
+
+```javascript
+import MonSQLize from 'monsqlize';
+
+const redisCache = MonSQLize.createRedisCacheAdapter(
+  process.env.REDIS_URL ?? 'redis://localhost:6379/0'
+);
+```
+
 
 #### Method 1: Only use remote Redis cache (no local cache)
 
@@ -316,8 +326,8 @@ const msq = new MonSQLize({
   databaseName: 'shop',
   config: { uri: 'mongodb://localhost:27017' },
 
-  //Pass in the Redis adapter directly (multiLevel: true is not required)
-  cache: MonSQLize.createRedisCacheAdapter('redis://localhost:6379/0')
+  //Reuse the shared Redis adapter (multiLevel: true is not required)
+  cache: redisCache
 });
 
 const { collection } = await msq.connect();
@@ -368,8 +378,8 @@ const msq = new MonSQLize({
       enableStats: true
     },
 
-    //Remote Redis cache (pass URL directly)
-    remote: MonSQLize.createRedisCacheAdapter('redis://localhost:6379/0'),
+    //Remote Redis cache (reuse the shared adapter)
+    remote: redisCache,
 
     //caching strategy
     policy: {
@@ -397,8 +407,8 @@ const products = await collection('products').find(
 **Applicable scenarios**:
 - High concurrent reading scenarios
 - Hotspot data is frequently accessed
-- Requires extreme performance (local cache 0.001ms)
-- Multi-instance deployment + requires cache consistency
+- Prefers low-latency hot reads through local memory
+- Multi-instance deployment with shared cache; write invalidation remains best-effort and eventually coherent
 
 **Performance Features**:
 - Local cache hit: 0.001ms (memory read)
@@ -620,8 +630,8 @@ const msq = new MonSQLize({
 | Dimensions | No cache | Local cache (MemoryCache) | Remote cache (Redis) | Double-layer cache (MultiLevel) |
 |------|-------|----------------------|------------------|---------------------|
 | **Response Time** | 10-50ms | 0.001-0.1ms | 1-2ms | 0.001-2ms |
-| **Cache Capacity** | - | 10,000-100,000 items | GB level (millions of items+) | 100,000+ million items |
-| **Cluster Consistency** | ❌ Database check every time | ❌ Each node is independent | ✅ Shared Redis | ✅ Shared Redis |
+| **Cache Capacity** | - | 10,000-100,000 items | GB level (millions of items+) | Local entries + Redis capacity |
+| **Cluster Consistency** | ❌ Database check every time | ❌ Each node is independent | Shared Redis state; invalidation is eventual | Shared Redis state; invalidation is eventual |
 | **Memory usage** | - | High (local) | Low (remote) | Medium (local) + Low (remote) |
 | **Reliability** | ✅ Direct database check | ⚠️ Restart loss | ✅ Persistence | ✅ Persistence |
 | **Single point failure impact** | DB only | Single machine restart lost | Redis failure degradation database check | Redis failure degradation local |
@@ -631,19 +641,19 @@ const msq = new MonSQLize({
 
 | Scenario | Recommended strategy | Reason |
 |------|---------|------|
-| Stand-alone application, low QPS | Local cache (MemoryCache) | Simple and efficient, no Redis dependency required |
+| Stand-alone application, low QPS | Local cache (MemoryCache) | Simple and efficient, no Redis service required |
 | Multi-instance deployment, shared cache required | Remote cache (Redis) | Cross-node sharing with best-effort write invalidation |
-| High QPS, concentrated hot data | Double-layer cache (MultiLevel) | Hot spot 0.001ms, cold data 1-2ms |
+| High QPS, concentrated hot data | Double-layer cache (MultiLevel) | Local hit path for hot data, remote fallback for shared cache hits |
 | Memory constrained server | Remote cache (Redis) | Save local memory, large capacity |
 | Data persistence requirements | Remote or dual-tier | Redis supports RDB/AOF persistence |
 
-**Performance Improvement Example**:
+**Performance impact example**:
 
 | Scenarios | Local Cache Only | Local + Remote Cache | Boost |
 |------|-----------|----------------|------|
 | Hotspot data | 0.1ms | 0.1ms | No difference |
-| Cold data (local miss) | Query MongoDB (10ms+) | Query Redis (1-2ms) | **5-10 times** |
-| Cache capacity | Limited by memory (10,000-100,000) | Redis can reach millions | **10-100 times** |
+| Cold data (local miss) | Query MongoDB | Query Redis when the remote cache hits | Lower latency when Redis hits, workload dependent |
+| Cache capacity | Limited by one process memory | Redis-backed remote cache | Extends capacity beyond one process |
 | Cluster consistency | Each node is independent | Shared Redis, eventual coherence after invalidation | ✅ |
 
 
@@ -967,7 +977,7 @@ Average time: 0.3892ms/time
 Speedup: 278.0x
 ```
 
-**Conclusion**: Cache hits can provide **200-300x** performance improvements.
+**Conclusion**: In the built-in benchmark above, cache-hit paths avoid database work and are much faster than cache-miss paths. Treat the ratio as benchmark evidence for that workload, not a guaranteed production multiplier.
 
 ---
 

@@ -204,13 +204,11 @@ const sidebarSource: SidebarGroupSource[] = [
           { en: 'find()', zh: 'find()', link: '/find' },
           { en: 'findOne()', zh: 'findOne()', link: '/findOne' },
           { en: 'findPage()', zh: 'findPage()', link: '/findPage' },
-          { en: 'Bookmark Pagination', zh: '游标分页书签', link: '/bookmarks' },
           { en: 'findAndCount()', zh: 'findAndCount()', link: '/find-and-count' },
           { en: 'count()', zh: 'count()', link: '/count' },
           { en: 'distinct()', zh: 'distinct()', link: '/distinct' },
           { en: 'aggregate()', zh: 'aggregate()', link: '/aggregate' },
-          { en: 'explain()', zh: 'explain()', link: '/explain' },
-          { en: 'watch()', zh: 'watch()', link: '/watch' }
+          { en: 'explain()', zh: 'explain()', link: '/explain' }
         ]
       },
       {
@@ -224,17 +222,23 @@ const sidebarSource: SidebarGroupSource[] = [
           { en: 'updateOne()', zh: 'updateOne()', link: '/update-one' },
           { en: 'updateMany()', zh: 'updateMany()', link: '/update-many' },
           { en: 'updateBatch()', zh: 'updateBatch()', link: '/updateBatch' },
-          { en: 'Update Operations Reference', zh: '更新操作参考', link: '/update-operations' },
-          { en: 'Aggregation Pipeline Updates', zh: '聚合管道更新', link: '/update-aggregation' },
-          { en: 'deleteOne()', zh: 'deleteOne()', link: '/delete-one' },
-          { en: 'deleteMany()', zh: 'deleteMany()', link: '/delete-many' },
-          { en: 'deleteBatch()', zh: 'deleteBatch()', link: '/deleteBatch' },
+          { en: 'Update Methods Overview', zh: '更新方法总览', link: '/update-operations' },
+          { en: 'Aggregation Pipeline Update Guide', zh: '聚合管道更新指南', link: '/update-aggregation' },
           { en: 'replaceOne()', zh: 'replaceOne()', link: '/replace-one' },
           { en: 'findOneAndUpdate()', zh: 'findOneAndUpdate()', link: '/find-one-and-update' },
           { en: 'findOneAndReplace()', zh: 'findOneAndReplace()', link: '/find-one-and-replace' },
-          { en: 'findOneAndDelete()', zh: 'findOneAndDelete()', link: '/find-one-and-delete' },
           { en: 'upsertOne()', zh: 'upsertOne()', link: '/upsert-one' },
           { en: 'incrementOne()', zh: 'incrementOne()', link: '/increment-one' }
+        ]
+      },
+      {
+        en: 'Delete Methods',
+        zh: '删除方法',
+        items: [
+          { en: 'deleteOne()', zh: 'deleteOne()', link: '/delete-one' },
+          { en: 'deleteMany()', zh: 'deleteMany()', link: '/delete-many' },
+          { en: 'deleteBatch()', zh: 'deleteBatch()', link: '/deleteBatch' },
+          { en: 'findOneAndDelete()', zh: 'findOneAndDelete()', link: '/find-one-and-delete' }
         ]
       },
       {
@@ -296,6 +300,7 @@ const sidebarSource: SidebarGroupSource[] = [
       { en: 'Pool Chain API', zh: '链式池访问 API', link: '/pool-chain-api' },
       { en: 'SSH Tunnel', zh: 'SSH 隧道', link: '/ssh-tunnel' },
       { en: 'Distributed Deployment Guide', zh: '分布式部署指南', link: '/distributed-deployment' },
+      { en: 'Production Rollout', zh: '生产发布与迁移', link: '/production-rollout' },
       { en: 'Distributed Deployment Quick Reference', zh: '分布式部署快速参考', link: '/distributed-deployment-quickref' }
     ]
   },
@@ -304,6 +309,7 @@ const sidebarSource: SidebarGroupSource[] = [
     zh: '同步与可观测',
     items: [
       { en: 'Change Stream Sync', zh: 'Change Stream 同步', link: '/sync-backup' },
+      { en: 'watch()', zh: 'watch()', link: '/watch' },
       { en: 'Slow Query Logging', zh: '慢查询日志', link: '/slow-query-log' },
       { en: 'Event System', zh: '事件系统', link: '/events' },
       { en: 'Count Queue', zh: '数量队列', link: '/count-queue' }

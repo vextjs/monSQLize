@@ -1,8 +1,8 @@
-﻿# In-depth Populate (nested fill) function documentation
+﻿# Nested Populate
 
 ## 🎯 Function Overview
 
-Deep populate allows you to further populate related data of related data when filling related data, forming a multi-layer nested data structure.
+Nested populate lets you populate relations on documents that were already populated, so you can load a multi-level document graph with one chain.
 
 Model schema examples on this page use the runtime-scoped `s` namespace passed by monSQLize. Application code does not need to import the root `schema-dsl` entry for these examples.
 
@@ -22,7 +22,7 @@ const User = msq.model('users');
 const result = await User.findOne({ _id: userId })
   .populate({
     path: 'posts',
-    populate: 'comments'  //Nested populate
+    populate: 'comments'  // nested populate
   });
 
 //Result structure:
@@ -33,7 +33,7 @@ const result = await User.findOne({ _id: userId })
 //     {
 //       _id: postId,
 //       title: 'My Post',
-//comments: [ // ← Nested populated data
+//       comments: [ // nested populated data
 //         { _id: commentId, content: 'Great!' }
 //       ]
 //     }
@@ -52,9 +52,9 @@ const result = await User.findOne({ _id: userId })
     path: 'posts',
     populate: {
       path: 'comments',
-      select: 'content',  //Select only specific fields
-      sort: { createdAt: -1 },  //sort
-      limit: 10  //limited quantity
+      select: 'content',  // select only specific fields
+      sort: { createdAt: -1 },
+      limit: 10
     }
   });
 ```
@@ -71,7 +71,7 @@ const result = await User.findOne({ _id: userId })
     path: 'posts',
     populate: {
       path: 'comments',
-      populate: 'author'  //Level 3 nesting
+      populate: 'author'  // third level
     }
   });
 
@@ -84,7 +84,7 @@ const result = await User.findOne({ _id: userId })
 //       comments: [
 //         {
 //           content: 'Great!',
-//author: { // ← 3rd level nested padding
+//           author: { // third-level populated data
 //             username: 'jane'
 //           }
 //         }
@@ -103,7 +103,7 @@ Multiple associations can be populated simultaneously at a nested level:
 const result = await User.findOne({ _id: userId })
   .populate({
     path: 'posts',
-    populate: ['comments', 'likes']  //Fill multiple at the same time
+    populate: ['comments', 'likes']  // populate multiple relations
   });
 
 //Result structure:
@@ -111,8 +111,8 @@ const result = await User.findOne({ _id: userId })
 //   posts: [
 //     {
 //       title: 'My Post',
-//comments: [...], // ← filled comments
-//likes: [...] // ← filled likes
+//       comments: [...],
+//       likes: [...]
 //     }
 //   ]
 // }
@@ -125,18 +125,18 @@ You can use both chained and nested populates:
 
 ```javascript
 const result = await User.findOne({ _id: userId })
-  .populate('profile')  //chain populate
+  .populate('profile')  // chained populate
   .populate({
     path: 'posts',
-    populate: 'comments'  //Nested populate
+    populate: 'comments'  // nested populate
   });
 
 //Result structure:
 // {
-//profile: { bio: '...' }, // ← chain filling
+//   profile: { bio: '...' },
 //   posts: [
 //     {
-//comments: [...] // ← Nested padding
+//       comments: [...]
 //     }
 //   ]
 // }
@@ -231,7 +231,7 @@ const user2 = await User.findOne({ username: 'john' })
     path: 'posts',
     populate: {
       path: 'comments',
-      populate: 'author'  //author of comment
+      populate: 'author'  // comment author
     }
   });
 
@@ -258,81 +258,42 @@ const user4 = await User.findOne({ username: 'john' })
 
 ---
 
-## 🔧 Technical implementation
+## Runtime behavior
 
-
-## Core logic
-
-1. **Nested detection**: Detect `config.populate` parameters in `_populatePath()`
-2. **Recursive filling**: Call `_executeNestedPopulate()` to process nested logic
-3. **Model search**: dynamically obtain the Model definition based on the collection name
-4. **Temporary instance**: Create a temporary ModelInstance for the nested layer
-5. **Recursive execution**: PopulateBuilder calls itself recursively to implement multi-layer nesting
-
-
-## Key code
-
-```javascript
-//In PopulateBuilder._populatePath()
-const { populate: nestedPopulate } = config;
-
-if (nestedPopulate && relatedDocs.length > 0) {
-  relatedDocs = await this._executeNestedPopulate(
-    relatedDocs,
-    nestedPopulate,
-    relation.from
-  );
-}
-
-//_executeNestedPopulate() method
-async _executeNestedPopulate(docs, nestedPopulate, collectionName) {
-  //1. Get Model definition
-  const Model = require('../../model');
-  if (!Model.has(collectionName)) {
-    return docs;  //Skip nesting
-  }
-
-  //2. Create a temporary ModelInstance
-  const modelDef = Model.get(collectionName);
-  const collection = this.model.msq.collection(collectionName);
-  const { ModelInstance } = require('../index');
-  const tempModel = new ModelInstance(collection, modelDef.definition, this.model.msq);
-
-  //3. Create a new PopulateBuilder and execute
-  const nestedBuilder = new PopulateBuilder(tempModel, collection);
-  nestedBuilder.populate(nestedPopulate);
-  return await nestedBuilder.execute(docs);
-}
-```
+- First-level populate can read from the collection named in `from`.
+- If `from` matches a registered Model, monSQLize hydrates the related documents through that Model.
+- Nested populate continues only when the related collection has a registered Model, because the next relation set must come from that Model definition.
+- The runtime applies `select`, `sort`, `skip`, and `limit` after the related documents are loaded.
+- Nested populate has depth and cycle guards. If a nested path is invalid, the query fails with a user-facing argument error.
 
 ---
 
 ## ⚠️ Notes
 
 
-## 1. Model must be defined
+## 1. Define Models for nested branches
 
-Nested populate requires that the collection being populated must have a corresponding Model definition. If not defined, nested populate will be skipped:
+First-level populate can load plain related documents from a collection. Nested populate needs a Model definition for the related collection, otherwise monSQLize has no relation metadata for the next hop:
 
 ```javascript
-//❌ comments collection has no defined Model
+// comments collection has no defined Model
 Model.define('posts', {
   relations: {
     comments: { from: 'comments', ... }
   }
 });
 
-//populate will skip nesting but will not report an error
+// comments are loaded at the first level only; the nested branch has no relation metadata
 await User.findOne().populate({
   path: 'posts',
-  populate: 'comments'  //skipped
+  populate: 'comments'
 });
 ```
 
 
 ## 2. Performance considerations
 
-Deep populate will execute multiple database queries, please pay attention to the performance impact:
+Nested populate executes multiple database queries. Keep the relation graph shallow and index foreign keys:
 
 ```javascript
 //Performance analysis:
@@ -346,7 +307,7 @@ Deep populate will execute multiple database queries, please pay attention to th
 **Optimization suggestions**:
 - Use `select` to select only necessary fields
 - Use `limit` to limit the amount of associated data
-- Avoid too deep nesting (no more than 3 levels recommended)
+- Avoid deep relation graphs unless the user path really needs them
 
 
 ## 3. Circular reference
@@ -354,7 +315,7 @@ Deep populate will execute multiple database queries, please pay attention to th
 Avoid circular references leading to infinite recursion:
 
 ```javascript
-//❌ Danger: User -> Post -> Author(User) -> Post -> ...
+// Risk: User -> Post -> Author(User) -> Post -> ...
 Model.define('users', {
   relations: {
     posts: { from: 'posts', ... }
@@ -367,7 +328,7 @@ Model.define('posts', {
   }
 });
 
-//This results in a loop:
+// This creates a loop:
 await User.find().populate({
   path: 'posts',
   populate: {
@@ -377,7 +338,7 @@ await User.find().populate({
 });
 ```
 
-**Solution**: Design the data model carefully to avoid bidirectional nesting.
+**Solution**: design nested paths deliberately, set explicit limits, and avoid bidirectional nested chains.
 
 ---
 
@@ -398,18 +359,18 @@ await User.find().populate({
 
 ---
 
-## 🧪 Test case
+## 🧪 Test cases
 
 For complete test cases, please refer to:
 - `test/integration/model/model-features.test.ts`
 - `test/integration/model/model-schema-and-hooks.test.ts`
 
-Test coverage:
-- ✅ Basic nested populate
-- ✅ Nested populate object configuration
-- ✅ 3 levels of nesting
-- ✅ Nest multiple populates
-- ✅ Mix chaining and nesting
+Coverage includes:
+- Basic nested populate
+- Nested populate object configuration
+- Three-level nesting
+- Multiple nested populate paths
+- Mixed chained and nested populate
 
 ---
 

@@ -38,7 +38,7 @@ monSQLize 保留业务锁 API 以兼容历史调用方。这些 API 是兼容辅
 
 ### 1. 安装依赖
 
-`ioredis` 已默认随 `monsqlize` 安装，无需单独安装 `ioredis`，示例可直接在应用侧创建 Redis 客户端并通过 `cache.distributed` 进行配置。
+monSQLize 的包依赖已包含 Redis 适配器依赖；应用仍需提供 Redis 服务，并在应用侧创建 Redis 客户端，通过 `cache.distributed` 配置。
 
 ### 2. 配置
 
@@ -601,7 +601,7 @@ try {
 
 | 特性 | monSQLize 兼容锁 | Redlock | node-redis-warlock |
 |------|----------------|---------|-------------------|
-| **安装** | Redis 依赖随包安装；需提供 Redis 服务 | 额外安装 | 额外安装 |
+| **安装** | 包依赖已包含 Redis 适配器依赖；应用提供 Redis 服务/客户端 | 额外安装 | 额外安装 |
 | **Redis 节点** | 单节点 | 多节点 | 单节点 |
 | **一致性** | 最终一致 | 强一致 | 最终一致 |
 | **复杂度** | 简单 | 复杂 | 简单 |

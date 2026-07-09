@@ -15,8 +15,8 @@
 | 命令 | 说明 |
 |------|------|
 | `npm test` | 默认统一门禁：smoke + compatibility + unit + integration；不再隐式跑 legacy compat runner 或迁移专用 runner |
-| `npm run check:docs-examples` | 文档 / 示例一致性门禁：校验 98/98 双语文档矩阵、runner 覆盖、共享示例目标、doc-check 目标和用户可见路径文本 |
-| `npm run test:coverage` | 独立覆盖率治理门禁：通过 `c8` 运行默认测试，published CJS runtime 的 lines / statements / functions / branches 均要求 90% 以上 |
+| `npm run check:docs-examples` | 文档 / 示例一致性门禁：校验 104/104 双语文档矩阵、runner 覆盖、共享示例目标、doc-check 目标和用户可见路径文本 |
+| `npm run test:coverage` | 独立覆盖率治理门禁：通过 `c8` 运行默认测试，published CJS runtime 加上 sourcemap 还原的 source-level gap coverage 的 lines / statements / functions / branches 均要求不低于 90% |
 | `npm run test:refactor-guard` | 热点重构三联回归：exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server 默认矩阵（Node / Driver / MongoDB server） |
 | `npm run test:real-env:private` | 私有真实环境检查；默认不进入常规 verify / CI |
@@ -54,7 +54,7 @@ npm run verify:full
 - 行为变更或跨模块重构
 - 发版前的完整仓库回归
 
-`verify:full` 同时包含 `npm run test:examples`，会在矩阵门禁确认 98/98 文档覆盖后编译并执行全部 runnable examples。
+`verify:full` 同时包含 `npm run test:examples`，会在矩阵门禁确认 104/104 文档覆盖后编译并执行全部 runnable examples。
 
 ### 3. 私有真实环境验证
 

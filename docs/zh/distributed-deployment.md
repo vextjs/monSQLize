@@ -485,189 +485,23 @@ await msq.close();
 
 ---
 
-## 技术实现细节
+## 面向使用者的运行行为
 
-### 分布式缓存失效的完整流程
+### 分布式缓存失效流程
 
-#### 1. 初始化阶段（connect() 时）
+当启用 `cache.distributed` 且 Redis Pub/Sub 配置可用时，monSQLize 会在 `connect()` 阶段准备广播通道。对应用侧而言，契约是：
 
-```javascript
-// dist/cjs/index.cjs
-async connect() {
-  // 步骤1: 创建 DistributedCacheInvalidator
-  this.cacheInvalidator = new DistributedCacheInvalidator({
-    redisUrl: this.cache.distributed.redisUrl,
-    redis: this.cache.distributed.redis,
-    channel: this.cache.distributed.channel,
-    cache: this.cache,
-    logger: this.logger
-  });
-  
-  // 步骤2: 将 invalidate 方法注入到 MultiLevelCache
-  if (this.cache && typeof this.cache.setPublish === 'function') {
-    this.cache.setPublish((msg) => {
-      if (msg && msg.type === 'invalidate' && msg.pattern) {
-        // 当缓存失效时，调用 invalidate 广播消息
-        this.cacheInvalidator.invalidate(msg.pattern);
-      }
-    });
-  }
-}
-```
+1. 写操作是否成功由 MongoDB 结果决定。
+2. 如果本次写操作启用了缓存失效，monSQLize 会尝试失效本地缓存，并向其他实例发布失效消息。
+3. 其他实例收到消息后，会按匹配的 namespace 或 pattern 失效本地缓存。
+4. Redis publish/subscribe 失败会通过日志或统计暴露，但不会回滚已经完成的 MongoDB 写入。
 
-#### 2. 写操作阶段（updateOne/deleteOne 等）
+### 运行注意事项
 
-```javascript
-// src/adapters/mongodb/writes/update-one.ts
-async function updateOne(filter, update, options) {
-  // 步骤1: 执行 MongoDB 更新
-  const result = await collection.updateOne(filter, update, options);
-  
-  // 步骤2: 失效缓存
-  const pattern = buildNamespacePattern({
-    iid: instanceId,
-    type: 'mongodb',
-    db: databaseName,
-    collection: collectionName
-  });
-  
-  // 步骤3: 调用 cache.delPattern()
-  await cache.delPattern(pattern);  // ← 这里会触发广播！
-  
-  return result;
-}
-```
-
-#### 3. MultiLevelCache.delPattern() 触发广播
-
-```javascript
-// lib/multi-level-cache.js
-class MultiLevelCache {
-  async delPattern(pattern) {
-    // 步骤1: 删除本地缓存
-    const deleted = await this.local.delPattern(pattern);
-    
-    // 步骤2: 调用 publish 回调（如果设置了）
-    if (this.publish) {
-      this.publish({
-        type: 'invalidate',
-        pattern: pattern,
-        ts: Date.now()
-      });
-    }
-    
-    return deleted;
-  }
-  
-  setPublish(publishFn) {
-    this.publish = publishFn;  // 由 index.js 注入
-  }
-}
-```
-
-#### 4. DistributedCacheInvalidator 广播消息
-
-```javascript
-// lib/distributed-cache-invalidator.js
-class DistributedCacheInvalidator {
-  async invalidate(pattern) {
-    // 步骤1: 构造消息
-    const message = JSON.stringify({
-      type: 'invalidate',
-      pattern: pattern,
-      instanceId: this.instanceId,  // 自己的实例 ID
-      timestamp: Date.now()
-    });
-    
-    // 步骤2: 广播到 Redis Pub/Sub
-    await this.pub.publish(this.channel, message);
-    
-    this.stats.messagesSent++;
-  }
-}
-```
-
-#### 5. 其他实例接收消息并失效缓存
-
-```javascript
-// lib/distributed-cache-invalidator.js
-class DistributedCacheInvalidator {
-  _setupSubscription() {
-    // 步骤1: 订阅 Redis 频道
-    this.sub.subscribe(this.channel);
-    
-    // 步骤2: 处理接收到的消息
-    this.sub.on('message', (channel, message) => {
-      const data = JSON.parse(message);
-      
-      // 步骤3: 忽略自己发送的消息
-      if (data.instanceId === this.instanceId) {
-        return;
-      }
-      
-      // 步骤4: 失效本地缓存
-      if (data.type === 'invalidate' && data.pattern) {
-        this._handleInvalidation(data.pattern);
-      }
-    });
-  }
-  
-  _handleInvalidation(pattern) {
-    // 失效本地缓存（不影响 Redis）
-    if (this.cache.local && this.cache.local.delPattern) {
-      this.cache.local.delPattern(pattern);
-      this.stats.invalidationsTriggered++;
-    }
-  }
-}
-```
-
-### 完整调用链
-
-```text
-写操作 (updateOne/deleteOne/...)
-  ↓
-cache.delPattern(pattern)
-  ↓
-MultiLevelCache.delPattern()
-  ↓
-  ├─→ local.delPattern()          (删除本地缓存)
-  └─→ this.publish({ pattern })   (触发广播)
-       ↓
-     DistributedCacheInvalidator.invalidate()
-       ↓
-     redis.pub.publish(channel, message)  (Redis Pub/Sub 广播)
-       ↓
-     ┌─────────────────────────────────┐
-     │ 其他实例的 Redis Subscriber      │
-     └─────────────────────────────────┘
-       ↓
-     DistributedCacheInvalidator._handleInvalidation()
-       ↓
-     cache.local.delPattern(pattern)  (删除本地缓存)
-```
-
-### 关键点说明
-
-1. **延迟注入 publish 回调**：
-   - 缓存在 `constructor` 中创建
-   - `DistributedCacheInvalidator` 在 `connect()` 中创建
-   - 使用 `setPublish()` 方法动态注入回调
-
-2. **实例 ID 隔离**：
-   - 每个实例有唯一的 `instanceId`
-   - 接收消息时检查 `instanceId`，忽略自己发送的消息
-   - 避免重复失效本地缓存
-
-3. **只失效本地缓存**：
-   - 接收到广播消息后，只失效本地缓存
-   - 不影响 Redis 缓存（已经失效）
-   - 减少不必要的 Redis 操作
-
-4. **错误处理**：
-   - 广播失败不影响写操作成功
-   - 使用 `catch()` 捕获所有异常
-   - 记录错误日志但不抛出
+- 为每个运行实例设置唯一 `instanceId`，这样实例可以忽略自己发出的广播，并接收其他实例的广播。
+- 对严格新鲜度读路径保持显式策略：需要时绕过或禁用缓存。
+- 监控缓存失效 warning、Redis publish 错误和缓存统计。数据库写入可能已经提交，即使后续缓存失效步骤失败。
+- 把分布式失效视为最终一致辅助能力。它能缩短 stale-cache 窗口，但不是两阶段提交协议，也不提供全局强一致。
 
 ---
 

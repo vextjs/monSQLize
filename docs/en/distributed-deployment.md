@@ -499,197 +499,24 @@ await msq.close();
 
 ---
 
-## Technical implementation details
+## Runtime behavior for users
+
+### Distributed cache invalidation flow
+
+When `cache.distributed` is enabled and Redis Pub/Sub is configured, monSQLize prepares a broadcast channel during `connect()`. The application-facing contract is:
+
+1. A write succeeds or fails according to MongoDB.
+2. If cache invalidation is enabled for that write, monSQLize attempts local cache invalidation and publishes an invalidation message for other instances.
+3. Other instances receive the message and invalidate their local cache entries for the matching namespace or pattern.
+4. Redis publish/subscribe failures are observable through logging/stats, but they do not roll back the already completed MongoDB write.
 
 
-## Complete process of distributed cache invalidation
+### Operational notes
 
-
-### 1. Initialization phase (when connect())
-
-```javascript
-// dist/cjs/index.cjs
-async connect() {
-  //Step 1: Create DistributedCacheInvalidator
-  this.cacheInvalidator = new DistributedCacheInvalidator({
-    redisUrl: this.cache.distributed.redisUrl,
-    redis: this.cache.distributed.redis,
-    channel: this.cache.distributed.channel,
-    cache: this.cache,
-    logger: this.logger
-  });
-
-  //Step 2: Inject invalidate method into MultiLevelCache
-  if (this.cache && typeof this.cache.setPublish === 'function') {
-    this.cache.setPublish((msg) => {
-      if (msg && msg.type === 'invalidate' && msg.pattern) {
-        //When the cache is invalidated, call invalidate to broadcast the message
-        this.cacheInvalidator.invalidate(msg.pattern);
-      }
-    });
-  }
-}
-```
-
-
-### 2. Write operation phase (updateOne/deleteOne, etc.)
-
-```javascript
-// src/adapters/mongodb/writes/update-one.ts
-async function updateOne(filter, update, options) {
-  //Step 1: Perform MongoDB update
-  const result = await collection.updateOne(filter, update, options);
-
-  //Step 2: Invalidate cache
-  const pattern = buildNamespacePattern({
-    iid: instanceId,
-    type: 'mongodb',
-    db: databaseName,
-    collection: collectionName
-  });
-
-  //Step 3: Call cache.delPattern()
-  await cache.delPattern(pattern);  //← A broadcast will be triggered here!
-
-  return result;
-}
-```
-
-
-### 3. MultiLevelCache.delPattern() triggers broadcast
-
-```javascript
-// lib/multi-level-cache.js
-class MultiLevelCache {
-  async delPattern(pattern) {
-    //Step 1: Delete local cache
-    const deleted = await this.local.delPattern(pattern);
-
-    //Step 2: Call the publish callback (if set)
-    if (this.publish) {
-      this.publish({
-        type: 'invalidate',
-        pattern: pattern,
-        ts: Date.now()
-      });
-    }
-
-    return deleted;
-  }
-
-  setPublish(publishFn) {
-    this.publish = publishFn;  //Injected by index.js
-  }
-}
-```
-
-
-### 4. DistributedCacheInvalidator broadcast message
-
-```javascript
-// lib/distributed-cache-invalidator.js
-class DistributedCacheInvalidator {
-  async invalidate(pattern) {
-    //Step 1: Construct the message
-    const message = JSON.stringify({
-      type: 'invalidate',
-      pattern: pattern,
-      instanceId: this.instanceId,  //own instance ID
-      timestamp: Date.now()
-    });
-
-    //Step 2: Broadcast to Redis Pub/Sub
-    await this.pub.publish(this.channel, message);
-
-    this.stats.messagesSent++;
-  }
-}
-```
-
-
-### 5. Other instances receive the message and invalidate the cache
-
-```javascript
-// lib/distributed-cache-invalidator.js
-class DistributedCacheInvalidator {
-  _setupSubscription() {
-    //Step 1: Subscribe to the Redis channel
-    this.sub.subscribe(this.channel);
-
-    //Step 2: Process the received message
-    this.sub.on('message', (channel, message) => {
-      const data = JSON.parse(message);
-
-      //Step 3: Ignore your own messages
-      if (data.instanceId === this.instanceId) {
-        return;
-      }
-
-      //Step 4: Invalidate local cache
-      if (data.type === 'invalidate' && data.pattern) {
-        this._handleInvalidation(data.pattern);
-      }
-    });
-  }
-
-  _handleInvalidation(pattern) {
-    //Invalidate local cache (does not affect Redis)
-    if (this.cache.local && this.cache.local.delPattern) {
-      this.cache.local.delPattern(pattern);
-      this.stats.invalidationsTriggered++;
-    }
-  }
-}
-```
-
-
-## Complete call chain
-
-```text
-Write operations (updateOne/deleteOne/...)
-  ↓
-cache.delPattern(pattern)
-  ↓
-MultiLevelCache.delPattern()
-  ↓
-├─→ local.delPattern() (delete local cache)
-└─→ this.publish({ pattern }) (trigger broadcast)
-       ↓
-     DistributedCacheInvalidator.invalidate()
-       ↓
-redis.pub.publish(channel, message) (Redis Pub/Sub broadcast)
-       ↓
-     ┌─────────────────────────────────┐
-│ Redis Subscriber for other instances │
-     └─────────────────────────────────┘
-       ↓
-     DistributedCacheInvalidator._handleInvalidation()
-       ↓
-cache.local.delPattern(pattern) (delete local cache)
-```
-
-
-## Explanation of key points
-
-1. **Lazy injection of publish callback**:
-   - Cache created in `constructor`
-   - `DistributedCacheInvalidator` created in `connect()`
-   - Use the `setPublish()` method to dynamically inject callbacks
-
-2. **Instance ID Isolation**:
-   - Each instance has a unique `instanceId`
-   - Check `instanceId` when receiving messages, ignore messages sent by yourself
-   - Avoid repeated invalidation of local cache
-
-3. **Only invalidate local cache**:
-   - After receiving the broadcast message, only the local cache is invalidated
-   - Does not affect Redis cache (has expired)
-   - Reduce unnecessary Redis operations
-
-4. **Error handling**:
-   - Broadcast failure does not affect the success of the write operation
-   - Use `catch()` to catch all exceptions
-   - Log errors but don't throw them
+- Give every running instance a unique `instanceId` so it can ignore its own broadcasts and accept broadcasts from peers.
+- Keep strict-read paths explicit: bypass or disable cache where stale reads are not acceptable.
+- Monitor cache invalidation warnings, Redis publish errors, and cache stats. A database write can be committed even if a later cache invalidation step fails.
+- Treat distributed invalidation as an eventual-consistency helper. It narrows stale-cache windows; it is not a two-phase commit protocol and does not provide global strong consistency.
 
 ---
 

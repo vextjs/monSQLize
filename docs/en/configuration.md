@@ -336,12 +336,12 @@ const msq = new MonSQLize({
 
 | `autoIndex` form | Effect |
 |---|---|
-| `true` | Schedule declared Model indexes when the Model instance is created. |
+| `true` | Schedule declared Model indexes when the Model instance is created. The task preflights with `listIndexes()` before creating missing indexes. |
 | `false` | Do not schedule automatic Model index creation. You can still call `ensureIndexes()` explicitly. |
 | `{ enabled: boolean }` | Object form for toggling automatic index creation. |
-| `{ emitEvents: boolean }` | Emits Model index lifecycle events when automatic index tasks run. |
+| `{ emitEvents: boolean }` | Emits `model-index-error` when automatic index creation fails or conflicts are detected. |
 
-Automatic index creation only creates missing indexes. It does not drop, rename, or rebuild conflicting indexes; use `ensureIndexes({ dryRun: true })` to inspect planned work before changing production indexes.
+Automatic index creation preflights declared indexes, skips existing indexes, and creates only missing indexes. It does not drop, rename, or rebuild conflicting indexes; use `ensureIndexes({ dryRun: true })` or `ensureModelIndexes({ dryRun: true })` as an explicit production release gate before changing production indexes.
 
 ## Namespace config
 

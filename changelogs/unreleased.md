@@ -14,6 +14,8 @@
 
 ## Fixed / changed
 
+- Fixed Model `autoIndex=true` scheduling to preflight declared indexes with `listIndexes()`, skip matching existing indexes, create only missing indexes, and report conflicts through warning logs / `model-index-error` without destructive index changes.
+- Fixed Batch 1 validation findings: `getDefaults()` now returns isolated deep-frozen snapshots, aggregate `$merge` / `$out` cache tests assert explicit target invalidation instead of implicit broad invalidation, cache invalidation docs list descriptor shapes, and legacy Redis lock wording no longer implies a running Redis service is bundled.
 - Fixed aggregate direct `.toArray()` to honor cache/meta execution paths, extended `find()` ObjectId auto-conversion to comparison operators, forwarded CountQueue abort signals into MongoDB count options, and added a warning when sync idempotency falls back to in-memory storage.
 - Upgraded `schema-dsl` to `2.1.3` and moved Model schema compilation/validation onto a MonSQLize runtime-scoped `schema-dsl/runtime` engine. `schemaDsl` now supports runtime options, extension registration, external runtime injection, explicit validation disablement, and fail-closed dependency resolution diagnostics.
 - Fixed `schemaDsl: { runtime, extensions }` lifecycle handling so injected runtimes register extensions once during `connect()` instead of registering the same factory during construction and reconnect setup.
@@ -52,4 +54,5 @@
 - Fixed documentation-site footer localization so the English and Chinese home pages no longer show both language footer navigation blocks at the same time.
 - Hid hand-written Markdown table-of-contents blocks in the Rspress documentation site so they no longer duplicate the generated right-side page outline.
 - Corrected the multi-pool documentation path: the page now presents `new MonSQLize({ pools: [...] })` as the recommended setup, removes stale pinned install versions, and aligns adjacent connection, pool-chain, API index, capability index, function-cache, and Saga installation docs with the current package.
-- Repositioned `withCache()` / `FunctionCache` as hidden legacy compatibility surfaces, removed them from current cache/navigation/API recommendation paths, aligned cache examples with database query caching, and corrected stable docs drift for pool health status, Node.js runtime version, and the 98/98 docs-example matrix.
+- Repositioned `withCache()` / `FunctionCache` as hidden legacy compatibility surfaces, removed them from current cache/navigation/API recommendation paths, aligned cache examples with database query caching, and corrected stable docs drift for pool health status, Node.js runtime version, and the 104/104 docs-example matrix.
+- Fixed the independent coverage runner to preserve the 90% gate while counting source-level gap coverage through sourcemaps, and refreshed the verification docs/profile facts to the current 104/104 docs matrix and 57 runnable examples.

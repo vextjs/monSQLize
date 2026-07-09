@@ -387,8 +387,8 @@ example();
 ### Q: 可以关联未定义 Model 的集合吗？
 
 **A**: 
-- ✅ 可以！`from` 直接指定集合名，不依赖 Model 定义
-- 这比 Mongoose 更灵活（Mongoose 必须先定义 Model）
+- 一级 populate 可以。`from` 可以直接指定 MongoDB 集合名，不强制依赖同名 Model。
+- 如果还要对关联结果继续 nested populate，或需要关联集合自己的 schema、hooks、virtuals，请为该集合定义 Model。
 
 ### Q: 如何处理循环引用？
 
@@ -405,21 +405,15 @@ example();
 
 ---
 
-##  恭喜！你已掌握 relations 基础
+## 下一步
 
-**5 分钟学会的内容**:
-- ✅ 理解 relations 核心概念（3 个字段）
-- ✅ 完成第一个示例（one-to-one）
-- ✅ 掌握常见场景（one-to-many）
-- ✅ 避免 3 个常见错误
+你已经掌握了 relations 的核心路径：
+- `from`、`localField`、`foreignField`、`single` 四个关键字段
+- one-to-one 与 one-to-many 两类常见关系
+- 集合名、索引和 `single` 配置的常见错误
 
-**现在你可以**:
-- 在项目中使用 relations
-- 简化关联查询代码
-- 提升开发效率 5-10 倍
+接下来可以参考完整示例文件，把 relations 接入到自己的业务 Model。
 
 **需要帮助？**
-- 📖 查看 API 完整参考
-- 💬 提交 Issue: https://github.com/vextjs/monSQLize/issues
-- ⭐ 如果有帮助，请给项目一个 Star
-
+- 查看 API 完整参考
+- 提交 Issue: https://github.com/vextjs/monSQLize/issues

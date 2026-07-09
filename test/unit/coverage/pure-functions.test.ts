@@ -1353,13 +1353,21 @@ describe('source error factories and model config helpers — function coverage'
         assert.equal(warnings.length, 1);
 
         const createdIndexes: unknown[] = [];
-        scheduleModelIndexes({ createIndex: async (...args: unknown[]) => { createdIndexes.push(args); } } as any, {
+        let preflightCalls = 0;
+        scheduleModelIndexes({
+            listIndexes: async () => {
+                preflightCalls += 1;
+                return [];
+            },
+            createIndex: async (...args: unknown[]) => { createdIndexes.push(args); },
+        } as any, {
             indexes: [{ key: { email: 1 }, unique: true }, { bad: true }],
         } as any, { enabled: true, field: 'deletedAt', type: 'timestamp', ttl: 60 });
         await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(preflightCalls, 1);
         assert.equal(createdIndexes.length, 2);
 
-        scheduleModelIndexes({ createIndex: async () => undefined } as any, {} as any, null);
+        scheduleModelIndexes({ listIndexes: async () => [], createIndex: async () => undefined } as any, {} as any, null);
 
         assert.deepEqual(resolveModelAutoIndexOptions({} as any, false), { enabled: false, emitEvents: true });
         assert.deepEqual(resolveModelAutoIndexOptions({ options: { autoIndex: { enabled: true, emitEvents: false } } } as any, false), { enabled: true, emitEvents: false });
@@ -1372,7 +1380,7 @@ describe('source error factories and model config helpers — function coverage'
         assert.equal(declared[1].name, 'email_unique');
 
         const disabledIndexes: unknown[] = [];
-        scheduleModelIndexes({ createIndex: async (...args: unknown[]) => { disabledIndexes.push(args); } } as any, {
+        scheduleModelIndexes({ listIndexes: async () => [], createIndex: async (...args: unknown[]) => { disabledIndexes.push(args); } } as any, {
             indexes: [{ key: { disabled: 1 } }],
             options: { autoIndex: false },
         } as any, { enabled: true, field: 'deletedAt', type: 'timestamp', ttl: 60 });
@@ -1383,8 +1391,13 @@ describe('source error factories and model config helpers — function coverage'
     it('scheduleModelIndexes deduplicates pending and fulfilled tasks per runtime but retries failures', async () => {
         const runtime = {};
         const dedupedIndexes: unknown[] = [];
+        let listCalls = 0;
         const collection = {
             getNamespace: () => ({ iid: 'db:users', type: 'mongodb', db: 'db', collection: 'users' }),
+            listIndexes: async () => {
+                listCalls += 1;
+                return [];
+            },
             createIndex: async (...args: unknown[]) => { dedupedIndexes.push(args); },
         };
         const definition = { indexes: [{ key: { email: 1 }, unique: true }] };
@@ -1392,10 +1405,12 @@ describe('source error factories and model config helpers — function coverage'
         scheduleModelIndexes(collection as any, definition as any, null, { runtime, dbName: 'db', collectionName: 'users' });
         scheduleModelIndexes(collection as any, definition as any, null, { runtime, dbName: 'db', collectionName: 'users' });
         await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(listCalls, 1);
         assert.equal(dedupedIndexes.length, 1);
 
         scheduleModelIndexes(collection as any, definition as any, null, { runtime, dbName: 'db', collectionName: 'users' });
         await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(listCalls, 1);
         assert.equal(dedupedIndexes.length, 1);
 
         let attempts = 0;
@@ -1407,6 +1422,7 @@ describe('source error factories and model config helpers — function coverage'
         };
         const retryCollection = {
             getNamespace: () => ({ iid: 'db:retry_users', type: 'mongodb', db: 'db', collection: 'retry_users' }),
+            listIndexes: async () => [],
             createIndex: async () => {
                 attempts += 1;
                 if (attempts === 1) throw new Error('index failed once');
@@ -1427,6 +1443,7 @@ describe('source error factories and model config helpers — function coverage'
         const syncRuntime = { logger: { warn: (...args: unknown[]) => warnings.push(args) } };
         const syncFailCollection = {
             getNamespace: () => ({ iid: 'db:sync_fail_users', type: 'mongodb', db: 'db', collection: 'sync_fail_users' }),
+            listIndexes: async () => [],
             createIndex: () => {
                 syncAttempts += 1;
                 if (syncAttempts === 1) throw new Error('sync index failure');
@@ -1440,6 +1457,57 @@ describe('source error factories and model config helpers — function coverage'
         scheduleModelIndexes(syncFailCollection as any, definition as any, null, { runtime: syncRuntime, dbName: 'db', collectionName: 'sync_fail_users' });
         await new Promise((resolve) => setImmediate(resolve));
         assert.equal(syncAttempts, 2);
+    });
+
+    it('scheduleModelIndexes skips existing indexes and reports conflicts from preflight', async () => {
+        const existingRuntime = {};
+        const existingCreateCalls: unknown[] = [];
+        let existingListCalls = 0;
+        const existingCollection = {
+            getNamespace: () => ({ iid: 'db:existing_users', type: 'mongodb', db: 'db', collection: 'existing_users' }),
+            listIndexes: async () => {
+                existingListCalls += 1;
+                return [{ name: 'email_unique', key: { email: 1 }, unique: true }];
+            },
+            createIndex: async (...args: unknown[]) => { existingCreateCalls.push(args); },
+        };
+        const definition = { indexes: [{ key: { email: 1 }, unique: true, name: 'email_unique' }] };
+
+        scheduleModelIndexes(existingCollection as any, definition as any, null, {
+            runtime: existingRuntime,
+            dbName: 'db',
+            collectionName: 'existing_users',
+        });
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(existingListCalls, 1);
+        assert.equal(existingCreateCalls.length, 0);
+
+        const warnings: unknown[][] = [];
+        const emitted: unknown[] = [];
+        const conflictRuntime = {
+            logger: { warn: (...args: unknown[]) => warnings.push(args) },
+            emit: (event: string, payload: unknown) => emitted.push({ event, payload }),
+        };
+        const conflictCollection = {
+            getNamespace: () => ({ iid: 'db:conflict_users', type: 'mongodb', db: 'db', collection: 'conflict_users' }),
+            listIndexes: async () => [{ name: 'email_unique', key: { email: 1 } }],
+            createIndex: async () => {
+                throw new Error('conflict should not create');
+            },
+        };
+
+        scheduleModelIndexes(conflictCollection as any, definition as any, null, {
+            runtime: conflictRuntime,
+            dbName: 'db',
+            collectionName: 'conflict_users',
+        });
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(warnings.length, 1);
+        assert.equal(warnings[0][0], '[MonSQLize] model index ensure conflicts detected');
+        assert.equal((emitted[0] as { event: string }).event, 'model-index-error');
+        const payload = (emitted[0] as { payload: { conflicts: unknown[]; failed: unknown[] } }).payload;
+        assert.equal(payload.conflicts.length, 1);
+        assert.equal(payload.failed.length, 0);
     });
 
     it('model index ensure helpers support dry-run, creation, conflicts, failures, and totals', async () => {
@@ -1518,6 +1586,7 @@ describe('source error factories and model config helpers — function coverage'
         const createdIndexes: unknown[] = [];
         const collection = {
             getNamespace: () => ({ iid: 'reporting:actual_items', type: 'mongodb', db: 'reporting', collection: 'actual_items' }),
+            listIndexes: async () => [],
             createIndex: async (...args: unknown[]) => { createdIndexes.push(args); },
         };
         const host = createRuntimeModelHost({
@@ -1571,6 +1640,7 @@ describe('source error factories and model config helpers — function coverage'
                 runtime: { options: { autoIndex: runtimeAutoIndex }, scopedCollection: () => null, scopedModel: () => null } as any,
                 scopedCollection: (collectionName) => ({
                     getNamespace: () => ({ iid: `default_db:${collectionName}`, type: 'mongodb', db: 'default_db', collection: collectionName }),
+                    listIndexes: async () => [],
                     createIndex: async (...args: unknown[]) => { calls.push({ collectionName, args }); },
                 }),
             });

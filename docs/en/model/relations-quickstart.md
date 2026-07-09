@@ -6,13 +6,13 @@
 
 ## ⚡ 1 minute to understand relations
 
-**What are relations? **
+**What are relations?**
 - Define relationships between collections
 - Use `populate()` to automatically fill in associated data
-- Avoid manually writing multiple queries and splicing codes
+- Avoid writing multiple manual queries and merging results by hand
 
 **Core Concepts** (only 3):
-1. **from**: associated collection name (such as `'profiles'`)
+1. **from**: related collection name (such as `'profiles'`)
 2. **localField**: local foreign key field (such as `'profileId'`)
 3. **foreignField**: foreign primary key field (usually `'_id'`)
 
@@ -30,25 +30,27 @@
 ```javascript
 import { Model } from 'monsqlize';
 
-//Define User Model
+// Define User Model
 Model.define('User', {
   schema: (s) => s({
     username: 'string!',
     email: 'email!',
-    profileId: 'objectId'    //foreign key
+    profileId: 'objectId'    // foreign key
   }),
 
   relations: {
     profile: {
-      from: 'profiles',      //Association profiles collection
+      from: 'profiles',      // related profiles collection
       localField: 'profileId', // User.profileId
       foreignField: '_id',   // Profile._id
-      single: true           //Returns a single document (not an array)
+      single: true           // returns a single document, not an array
     }
   }
 });
 
-//Define Profile Model (optional, you can populate even if you don’t define it)
+// Define Profile Model.
+// First-level populate can read the collection without this Model.
+// Define it when profile has its own schema, hooks, or nested relations.
 Model.define('Profile', {
   schema: (s) => s({
     bio: 'string',
@@ -63,7 +65,7 @@ Model.define('Profile', {
 ```javascript
 const User = msq.model('User');
 
-//Query users and automatically populate profiles
+// Query users and automatically populate profiles
 const user = await User.findOne({ username: 'john' })
   .populate('profile');
 
@@ -73,7 +75,7 @@ console.log(user);
 //   username: 'john',
 //   email: 'john@example.com',
 //   profileId: ObjectId('...'),
-//profile: { // ← autocomplete
+//   profile: { // populated data
 //     _id: ObjectId('...'),
 //     bio: 'Software Engineer',
 //     avatar: 'https://...'
@@ -108,11 +110,11 @@ relations: {
     from: 'profiles',
     localField: 'profileId',
     foreignField: '_id',
-    single: true           //← Return to a single document
+    single: true           // Return a single document
   }
 }
 
-//use
+// use
 const user = await User.findOne({ _id }).populate('profile');
 console.log(user.profile); // { bio: '...', avatar: '...' }
 ```
@@ -128,12 +130,12 @@ relations: {
   posts: {
     from: 'posts',
     localField: '_id',         // User._id
-    foreignField: 'authorId',  //Post.authorId points to User._id
-    single: false              //← Return array (default)
+    foreignField: 'authorId',  // Post.authorId points to User._id
+    single: false              // Return an array (default)
   }
 }
 
-//use
+// use
 const user = await User.findOne({ _id }).populate('posts');
 console.log(user.posts); // [{ title: 'Post 1' }, { title: 'Post 2' }]
 ```
@@ -142,7 +144,7 @@ console.log(user.posts); // [{ title: 'Post 1' }, { title: 'Post 2' }]
 ## Scenario 3: Multiple relationships
 
 ```javascript
-//Configure multiple relationships
+// Configure multiple relationships
 relations: {
   profile: {
     from: 'profiles',
@@ -158,13 +160,13 @@ relations: {
   }
 }
 
-//Chain call populate
+// Chain populate calls
 const user = await User.findOne({ _id })
   .populate('profile')
   .populate('posts');
 
-console.log(user.profile); //single document
-console.log(user.posts);   //array
+console.log(user.profile); // single document
+console.log(user.posts);   // array
 ```
 
 ---
@@ -188,7 +190,7 @@ console.log(user.posts);   //array
 **Decision Tree**:
 
 ```text
-What is your relationship?
+What shape does the relation return?
 ├─ One-to-one (one user, one profile)
 │  → single: true
 │
@@ -264,7 +266,7 @@ Model.define('User', {
 ```
 
 
-## Error 3: `single` is used backwards
+## Mistake 3: `single` is used backwards
 
 ```javascript
 //❌ Expected to return a single document, but used single: false
@@ -288,18 +290,18 @@ single: true  //Return single document { bio: '...' }
 
 ## Have you mastered the basic functions? View advanced topics
 
-- **Select Field**: `.populate('profile', { select: 'bio avatar' })`
-- **Sort and Limitations**: `.populate('posts', { sort: { createdAt: -1 }, limit: 10 })`
-- **Nested populate**: populate related data with related data
-- **Performance Optimization**: Enable $lookup aggregation optimization
-- **Cache Integration**: Related data can also be cached
+- **Select fields**: `.populate('profile', { select: 'bio avatar' })`
+- **Sort and limits**: `.populate('posts', { sort: { createdAt: -1 }, limit: 10 })`
+- **Nested populate**: populate relations of already populated documents
+- **Performance**: add indexes for foreign keys and use `$lookup` directly for fully custom aggregation
+- **Caching**: cache read queries explicitly when the relation result is safe to reuse
 
 
-## View full document
+## Continue with the full documentation
 
-- Complete API reference - all configuration items and options
-- Implementation plan - technical details (developer)
-- Best Practices - Performance Optimization Suggestions
+- [Model API reference](../model.md)
+- [Populate guide](../populate.md)
+- [Relations guide](./relations.md)
 
 ---
 
@@ -331,11 +333,11 @@ Model.define('Post', {
     createdAt: 'date'
   }),
   indexes: [
-    { key: { authorId: 1 } }  //foreign key index
+    { key: { authorId: 1 } }  // foreign key index
   ]
 });
 
-//3. User Model (including relations)
+// 3. User Model (including relations)
 Model.define('User', {
   schema: (s) => s({
     username: 'string:3-32!',
@@ -343,7 +345,7 @@ Model.define('User', {
     profileId: 'objectId'
   }),
   indexes: [
-    { key: { profileId: 1 } }  //foreign key index
+    { key: { profileId: 1 } }  // foreign key index
   ],
   relations: {
     // one-to-one
@@ -353,7 +355,7 @@ Model.define('User', {
       foreignField: '_id',
       single: true
     },
-    //one-to-many (reverse)
+    // one-to-many (reverse)
     posts: {
       from: 'posts',
       localField: '_id',
@@ -363,11 +365,11 @@ Model.define('User', {
   }
 });
 
-//4. Usage examples
+// 4. Usage examples
 async function example() {
   const User = msq.model('User');
 
-  //Query user + profile + posts
+  // Query user + profile + posts
   const user = await User.findOne({ username: 'john' })
     .populate('profile')
     .populate('posts');
@@ -376,10 +378,10 @@ async function example() {
   console.log(`Profile: ${user.profile?.bio || 'No profile'}`);
   console.log(`Number of posts: ${user.posts.length}`);
 
-  //Output:
-  //User: john
-  //Introduction: Full-stack Developer
-  //Number of articles: 5
+  // Output:
+  // User: john
+  // Profile: Full-stack Developer
+  // Number of posts: 5
 }
 
 example();
@@ -400,11 +402,11 @@ example();
 - Recommendation: Create indexes for foreign keys + enable caching
 
 
-## Q: Can I associate a collection with undefined Model?
+## Q: Can I associate a collection without defining a Model?
 
 **A**:
-- ✅ Yes! `from` directly specifies the collection name and does not rely on the Model definition.
-- This is more flexible than Mongoose (Mongoose has to define the Model first)
+- Yes for first-level populate. `from` can point directly to a MongoDB collection name.
+- Define a Model for the related collection when you need schema validation, hooks, virtuals, or nested populate on that related data.
 
 
 ## Q: How to deal with circular references?
@@ -417,28 +419,23 @@ example();
 ## Q: What is the difference with MongoDB $lookup?
 
 **A**:
-- relations is a simplified version of $lookup
-- populate can batch related IDs and avoid the common N+1 query pattern
+- relations are a simplified `$lookup`-style configuration for common document references
+- populate batches related IDs and avoids the common N+1 query pattern
 - use MongoDB `$lookup` directly when you need a fully custom aggregation pipeline
 
 ---
 
-##  Congratulations! You have mastered the basics of relations
+## Next steps
 
-**5 minutes to learn**:
-- ✅ Understand the core concepts of relations (3 fields)
-- ✅ Complete the first example (one-to-one)
-- ✅ Master common scenarios (one-to-many)
-- ✅ Avoid 3 common mistakes
+You now have the core relation setup:
+- relation fields: `from`, `localField`, `foreignField`, `single`
+- one-to-one and one-to-many examples
+- common mistakes around collection names, indexes, and `single`
 
-**Now you can**:
-- Use relations in your projects
-- Simplify related query code
-- Improve development efficiency by 5-10 times
+Use the linked runnable example as the next reference when wiring relations into an application.
 
-**Need help? **
-- 📖 View API full reference
-- 💬 Submit Issue: https://github.com/vextjs/monSQLize/issues
-- ⭐ If it was helpful, please give the project a star
+**Need help?**
+- View the API reference
+- Open an issue: https://github.com/vextjs/monSQLize/issues
 
 ---

@@ -27,6 +27,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [Change Stream sync](sync-backup.md) | **Change Stream data sync: real-time backup to multiple databases** |
 | [Transaction optimizations](transaction-optimizations.md) | Transaction optimization strategies |
 | [Distributed deployment](distributed-deployment.md) | **Distributed deployment guide for multi-instance cache consistency** |
+| [Production rollout](production-rollout.md) | Production data backfill, CDC sync, index preflight, and traffic-switch checks |
 | [Event system](events.md) | Event system |
 
 ---
@@ -59,11 +60,11 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 
 | Document | Method | Description |
 |----------|--------|-------------|
-| [Update operations guide](update-operations.md) | All update methods | Complete update operations guide |
+| [Update methods overview](update-operations.md) | All update methods | Method choice, traditional operators, and pipeline handoff |
 | [Upsert guide](upsert-guide.md) | **Upsert guide** | Insert when missing, update when present |
 | [Update one document](update-one.md) | `updateOne()` | Update one document |
 | [Update many documents](update-many.md) | `updateMany()` | Update many documents |
-| [Aggregation pipeline updates](update-aggregation.md) | Aggregation pipeline update | Field-to-field calculation and conditional assignment |
+| [Aggregation pipeline update guide](update-aggregation.md) | Aggregation pipeline update | Field-to-field calculation, conditional assignment, and pipeline details |
 | [Batch update](updateBatch.md) | `updateBatch()` | Large batch update with batching and retry |
 | [Replace one document](replace-one.md) | `replaceOne()` | Replace a whole document |
 | [Find one and update](find-one-and-update.md) | `findOneAndUpdate()` | Atomically update and return |
@@ -151,7 +152,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 
 **Update**
 
-- [Update operations guide](update-operations.md) - Complete update operations guide
+- [Update methods overview](update-operations.md) - Method choice, traditional operators, and pipeline handoff
 - [Update one document](update-one.md) - `updateOne`
 - [Update many documents](update-many.md) - `updateMany`
 - [Replace one document](replace-one.md) - `replaceOne`
@@ -213,6 +214,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | Document | Description |
 |----------|-------------|
 | [Runtime consistency and boundaries](runtime-architecture.md) | Runtime capability boundaries and consistency contracts |
+| [Production rollout](production-rollout.md) | Data migration sync, index sync, and production traffic-switch checklist |
 | [Support matrix](support-matrix.md) | Support matrix |
 | [Roadmap boundaries](roadmap-boundaries.md) | Roadmap boundaries |
 | [Validation notes](validation.md) | Validation notes |
@@ -251,3 +253,4 @@ Recommended reading order for new users:
 9. [Cache system](cache.md) - Understand the cache mechanism.
 10. [Transaction management](transaction.md) - Learn transaction management.
 11. [Distributed deployment](distributed-deployment.md) - Multi-instance deployment for production.
+12. [Production rollout](production-rollout.md) - Data migration, index sync, and traffic-switch checks.

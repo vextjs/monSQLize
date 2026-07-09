@@ -265,6 +265,20 @@ const page3 = await collection('products').findPage({
 
 Bookmarks created by `prewarmBookmarks()` are read by `findPage()` during page navigation. When a matching bookmark exists, `maxHops` is evaluated from that bookmark page to the requested page, not from page 1.
 
+### Bookmark maintenance APIs
+
+Bookmark maintenance belongs to the `findPage()` pagination workflow. Use these APIs when page jumps need predictable latency, or when operations staff need to inspect or reset stored page bookmarks.
+
+| API | When to use |
+|------|-------------|
+| `prewarmBookmarks(keyDims, pages)` | Warm known hot pages before users jump to them. |
+| `listBookmarks(keyDims?)` | Inspect the bookmark pages currently stored for a query or collection. |
+| `clearBookmarks(keyDims?)` | Clear stale bookmark entries after large data changes or during manual cleanup. |
+
+`keyDims` should describe the same `query`, `sort`, and `limit` shape used by `findPage()`. The runtime normalizes stable sort fields so the maintenance APIs address the same bookmark group as page navigation.
+
+For full return shapes and operational examples, see the [bookmark maintenance API reference](./bookmarks.md).
+
 **Applicable scenarios**:
 - Need to display page number navigation
 - Users may jump to any page

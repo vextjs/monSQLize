@@ -303,11 +303,11 @@ Model.define('users', newDefinition);
 获取 Model 实例。
 
 > **缓存行为**：同一 runtime / pool / database / 注册名 / 实际集合名 / 定义版本下，多次调用 `msq.model()` 返回同一 `ModelInstance` 实例。
-> - Model 自动索引默认启用，首次创建实例时会调度；每个索引实际调用一次 `createIndex()`，同一进程内 pending / fulfilled 的索引任务会去重
+> - Model 自动索引默认启用，首次创建实例时会调度；任务会先调用 `listIndexes()`，跳过已匹配的 existing 索引，只创建 missing 索引，同一进程内 pending / fulfilled 的任务会去重
 > - 可通过 `new MonSQLize({ autoIndex: false })` 全局关闭，也可通过 `options: { autoIndex: false }` 在单个 Model 上关闭
 > - `connect()` 只加载与注册 Model 定义，不会单独创建 `ModelInstance`，也不会单独触发索引创建
-> - 进程重启后内存任务表清空，首次使用对应 Model 时会再次发送 `createIndex()` ensure 命令；相同索引定义由 MongoDB 驱动/服务端按幂等语义处理
-> - 自动索引不会先调用 `listIndexes()` 预检；失败会记录日志，failed 任务允许后续重试，支持事件的 runtime 会额外触发 `model-index-error`
+> - 进程重启后内存任务表清空，首次使用对应 Model 时会再次执行索引预检，并创建仍然缺失的索引
+> - 自动索引不会 drop、rename 或 rebuild 冲突索引；冲突和创建失败会记录日志，创建失败任务允许后续重试，支持事件的 runtime 会额外触发 `model-index-error`
 > - 生产发布建议使用 `autoIndex: false`，再通过 `ensureIndexes({ dryRun: true })` 或 `msq.ensureModelIndexes({ dryRun: true })` 做显式预检
 > - `Model.redefine()` 或 `Model.undefine()` 后，下次调用 `msq.model()` 自动获取新定义的实例
 > - `Model.redefine()` 或 `Model.undefine()` 后，已缓存实例会自动失效，下次调用 `msq.model()` 时重建
@@ -905,7 +905,7 @@ indexes: [
 ]
 ```
 
-自动索引只在 `ModelInstance` 创建时调度，不会在每次查询或每次请求时重复创建。同一进程内，monSQLize 会按 runtime / pool / database / collection / index 指纹记录索引任务：任务处于 pending 或 fulfilled 状态时会跳过重复调度；失败任务允许下次重新调度。
+自动索引只在 `ModelInstance` 创建时调度，不会在每次查询或每次请求时重复创建。同一进程内，monSQLize 会按 runtime / pool / database / collection / 声明索引集合指纹记录索引 ensure 任务：任务处于 pending 或 fulfilled 状态时会跳过重复调度；创建失败任务允许下次重新调度。
 
 为了保持向后兼容，自动索引默认启用。生产服务可以在运行时或单个 Model 上关闭：
 
@@ -946,7 +946,7 @@ console.log(summary.totals);
 
 `ensureIndexes()` 与 `ensureModelIndexes()` 会先调用 `listIndexes()`，并把声明索引分类为 `existing`、`missing`、`conflicts`。dry-run 模式不会调用 `createIndex()`。执行模式只创建 `missing` 索引，不会 drop、rename 或 rebuild 冲突索引。设置 `throwOnError: true` 后，显式 ensure 遇到冲突或创建失败会抛出 MonSQLize `MONGODB_ERROR`。
 
-自动索引仍会直接调用 MongoDB `createIndex()`。相同索引定义通常由 MongoDB 幂等处理；索引选项冲突、同名冲突等问题由 driver/server 返回。
+自动索引也会先使用相同的预检分类：跳过 `existing`，创建 `missing`，并通过 warning 日志和 `model-index-error` 事件报告 `conflicts`，不会自动修改冲突索引。
 
 ---
 

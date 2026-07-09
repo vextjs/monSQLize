@@ -42,7 +42,7 @@ monSQLize keeps business lock APIs for historical callers. These APIs are compat
 
 ## 1. Install dependencies
 
-`ioredis` has been installed with `monsqlize` by default. There is no need to install `ioredis` separately. The example can directly create a Redis client on the application side and configure it through `cache.distributed`.
+monSQLize includes the Redis adapter dependency in its package dependency set. You still need to provide a Redis service and configure an application-side Redis client through `cache.distributed`.
 
 
 ## 2. Configuration
@@ -631,7 +631,7 @@ try {
 
 | Features | monSQLize legacy lock | Redlock | node-redis-warlock |
 |------|----------------|---------|-------------------|
-| **Installation** | Redis dependencies are installed with the package; Redis service is required | Additional installation | Additional installation |
+| **Installation** | Package includes Redis adapter dependency; application provides Redis service/client | Additional installation | Additional installation |
 | **Redis Node** | Single node | Multi-node | Single node |
 | **Consistency** | Eventually consistent | Strong consistency | Eventually consistent |
 | **Complexity** | Simple | Complex | Simple |

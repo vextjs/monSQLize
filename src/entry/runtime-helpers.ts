@@ -5,7 +5,7 @@
  * (runtime-defaults / runtime-db-facade / runtime-model), this file
  * maintains a unified export so consumers are unaffected.
  */
-export { buildPublicDefaults, shouldWarnTransactionDistributedLock, shouldWarnUnsignedCursorSecret } from './runtime-defaults';
+export { buildPublicDefaults, buildPublicSnapshot, shouldWarnTransactionDistributedLock, shouldWarnUnsignedCursorSecret } from './runtime-defaults';
 export { validateRuntimeNumericOptions } from './runtime-options-validation';
 export {
     createRuntimeDbFacade,

@@ -266,6 +266,20 @@ const page3 = await collection('products').findPage({
 
 `prewarmBookmarks()` 创建的 bookmark 会被 `findPage()` 在页码导航时读取。存在匹配 bookmark 时，`maxHops` 按“bookmark 页到目标页”的剩余跳数计算，而不是始终从第 1 页计算。
 
+### 分页书签维护 API
+
+分页书签维护属于 `findPage()` 的分页工作流。需要让跳页延迟更可控，或需要排查、查看、重置已保存的分页书签时，使用这些 API。
+
+| API | 使用场景 |
+|------|----------|
+| `prewarmBookmarks(keyDims, pages)` | 在用户跳转前预热已知热点页。 |
+| `listBookmarks(keyDims?)` | 查看某个查询或集合当前保存的书签页。 |
+| `clearBookmarks(keyDims?)` | 大批量数据变化后或手动维护时清理旧书签。 |
+
+`keyDims` 应描述与 `findPage()` 相同的 `query`、`sort` 和 `limit` 形态。运行时会规范化稳定排序字段，因此维护 API 会命中与页码导航一致的书签组。
+
+完整返回结构和运维示例见 [Bookmark 维护 API 参考](./bookmarks.md)。
+
 **适用场景**：
 - 需要显示页码导航
 - 用户可能跳转到任意页

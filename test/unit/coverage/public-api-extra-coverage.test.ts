@@ -1,5 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import Module from 'node:module';
+import net from 'node:net';
+import { PassThrough } from 'node:stream';
 
 const MonSQLize = require('../../../dist/cjs/index.cjs');
 
@@ -629,6 +633,107 @@ describe('public API — Redis adapter and SSH branch coverage', () => {
     it('keeps redis adapter error semantics for invalid inputs', () => {
         assert.throws(() => MonSQLize.createRedisCacheAdapter(undefined), /redisUrlOrInstance/);
         assert.throws(() => MonSQLize.createRedisCacheAdapter('   '), /redisUrlOrInstance/);
+    });
+
+    it('drives SSH tunnel connect, forwarding, disconnect, and cleanup through the package runtime', async () => {
+        const originalLoad = (Module as unknown as { _load: (...args: unknown[]) => unknown })._load;
+        const fakeClients: Array<EventEmitter & {
+            connectConfig?: unknown;
+            forwardOutCalls: unknown[][];
+            ended: boolean;
+            connect(config: unknown): void;
+            forwardOut(srcHost: string, srcPort: number, dstHost: string, dstPort: number, cb: (err: Error | undefined, stream: PassThrough & { close(): void }) => void): void;
+            end(): void;
+        }> = [];
+
+        class FakeSshClient extends EventEmitter {
+            connectConfig?: unknown;
+            forwardOutCalls: unknown[][] = [];
+            ended = false;
+
+            constructor() {
+                super();
+                fakeClients.push(this);
+            }
+
+            connect(config: unknown): void {
+                this.connectConfig = config;
+                setImmediate(() => this.emit('ready'));
+            }
+
+            forwardOut(srcHost: string, srcPort: number, dstHost: string, dstPort: number, cb: (err: Error | undefined, stream: PassThrough & { close(): void }) => void): void {
+                this.forwardOutCalls.push([srcHost, srcPort, dstHost, dstPort]);
+                const stream = new PassThrough() as PassThrough & { close(): void };
+                stream.close = () => stream.destroy();
+                cb(undefined, stream);
+            }
+
+            end(): void {
+                this.ended = true;
+            }
+        }
+
+        (Module as unknown as { _load: (...args: unknown[]) => unknown })._load = (request: unknown, ...args: unknown[]) => {
+            if (request === 'ssh2') {
+                return { Client: FakeSshClient };
+            }
+            return originalLoad(request, ...args);
+        };
+
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'ssh_public_api_connect',
+            config: {
+                uri: 'mongodb://user:pass@mongo.internal:27018/app',
+                options: { serverSelectionTimeoutMS: 25 },
+                ssh: {
+                    host: 'bastion.local',
+                    port: 2222,
+                    username: 'deploy',
+                    password: 'secret',
+                    readyTimeout: 1234,
+                    keepaliveInterval: 5678,
+                },
+            },
+        });
+
+        try {
+            const connectPromise = runtime.connect();
+            let localPort: number | null = null;
+            for (let attempt = 0; attempt < 20; attempt += 1) {
+                localPort = runtime._sshTunnel?.localPort ?? null;
+                if (localPort !== null) break;
+                await new Promise((resolve) => setTimeout(resolve, 10));
+            }
+            assert.equal(typeof localPort, 'number');
+            await new Promise<void>((resolve, reject) => {
+                const socket = net.connect(localPort as number, '127.0.0.1', () => {
+                    socket.end();
+                    resolve();
+                });
+                socket.on('error', reject);
+            });
+
+            await assert.rejects(() => connectPromise, /Failed to connect to MongoDB database/);
+            assert.equal(fakeClients.length, 1);
+            assert.deepEqual(fakeClients[0].connectConfig, {
+                host: 'bastion.local',
+                port: 2222,
+                username: 'deploy',
+                readyTimeout: 1234,
+                keepaliveInterval: 5678,
+                password: 'secret',
+            });
+            assert.deepEqual(fakeClients[0].forwardOutCalls[0], ['127.0.0.1', 0, 'mongo.internal', 27018]);
+            for (let attempt = 0; attempt < 20 && !fakeClients[0].ended; attempt += 1) {
+                await new Promise((resolve) => setTimeout(resolve, 10));
+            }
+            assert.equal(fakeClients[0].ended, true);
+            assert.equal((await runtime.health()).connected, false);
+        } finally {
+            await runtime.close();
+            (Module as unknown as { _load: (...args: unknown[]) => unknown })._load = originalLoad;
+        }
     });
 
     it('covers SSH tunnel auth and URI helper branches through a runtime connect attempt', async () => {

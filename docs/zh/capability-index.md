@@ -88,7 +88,7 @@ Model 相关文档与示例：
 - sync：[Change Stream 同步](./sync-backup.md)，示例 [sync.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync.ts)、[sync-target-failure.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/sync-target-failure.ts)
 - slow-query-log：[慢查询日志](./slow-query-log.md)，示例 [slow-query-log.ts](https://github.com/vextjs/monSQLize/blob/main/examples/docs/slow-query-log.ts)
 
-部署与故障恢复继续阅读 [分布式部署](./distributed-deployment.md) 与 [故障恢复示例](./failure-recovery-examples.md)。
+部署与故障恢复继续阅读 [分布式部署](./distributed-deployment.md)、[生产发布与迁移](./production-rollout.md) 与 [故障恢复示例](./failure-recovery-examples.md)。
 
 ## 6. 当前仓库内的推荐入口
 
@@ -101,7 +101,7 @@ Model 相关文档与示例：
 
 1. Model 路径：[Model 概览](./model.md)、[Relations](./relations.md)、[Populate](./populate.md)
 2. 事务路径：[事务](./transaction.md)、[事务优化](./transaction-optimizations.md)
-3. 连接池路径：[连接池配置](./multi-pool.md)、[连接池链式 API](./pool-chain-api.md)
+3. 连接池与部署路径：[连接池配置](./multi-pool.md)、[连接池链式 API](./pool-chain-api.md)、[生产发布与迁移](./production-rollout.md)
 4. 缓存路径：[缓存配置](./cache-configuration.md)、[缓存创建](./cache-creation.md)、[缓存失效](./cache-invalidation.md)
-5. 同步与观测路径：[Change Stream 同步](./sync-backup.md)、[慢查询日志](./slow-query-log.md)
+5. 同步与观测路径：[Change Stream 同步](./sync-backup.md)、[生产发布与迁移](./production-rollout.md)、[慢查询日志](./slow-query-log.md)
 

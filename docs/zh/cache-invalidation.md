@@ -42,6 +42,20 @@ await products.updateOne(
 
 支持的 descriptor 操作：`find`、`findOne`、`count`、`findPage`、`aggregate`、`distinct`、`findOneById`、`findByIds`。
 
+对于聚合写入管道（`$merge` / `$out`），descriptor 失效会按写入目标集合解析。
+
+| Descriptor 形态 | 作用 |
+| --- | --- |
+| `{ operation, query, options }` 或 `{ op, query, options }` | 重建 `find`、`findOne` 或 `count` 的精确读缓存 key。 |
+| `{ operation: 'findPage', query, options }` | 重建分页缓存 key；当 `options.query` 不存在时会把 `query` 合并进去。 |
+| `{ operation: 'aggregate', pipeline, options }` | 重建 aggregate 读缓存 key。 |
+| `{ operation: 'distinct', field, query, options }` | 按指定 field 重建 distinct 读缓存 key。 |
+| `{ operation: 'findOneById', id, options }` / `{ operation: 'findByIds', ids, options }` | 重建 ID 读取缓存 key。 |
+| `{ cacheKey }` / `{ cacheKeys }` | 删除应用传入的一个或多个精确缓存 key。 |
+| `{ pattern }` / `{ patterns }` | 按一个或多个 `delPattern` pattern 删除缓存。 |
+| `true` | broad 失效当前命名空间下所有读缓存 pattern。 |
+| `false` / `[]` | 本次写入显式不做缓存失效。 |
+
 ## 单次写入不失效覆盖
 
 `cache.invalidate: false` 与 `cache.invalidate: []` 表示本次写入不失效任何缓存。即使实例配置了 `cache.autoInvalidate: true`，也会被本次空清单覆盖：
@@ -90,4 +104,3 @@ await products.invalidate();
 ```
 
 `invalidate()` 清理集合读缓存 pattern。它不会让 MongoDB 写入与缓存失效变成原子提交。
-

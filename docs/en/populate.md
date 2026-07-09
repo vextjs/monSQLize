@@ -463,11 +463,11 @@ const users2 = await User.find({}, { cache: 60000 }).populate('posts');
 
 **A**: monSQLize automatically solves the N+1 problem.
 
-Populate uses batch queries internally:
+Populate batches relation lookups:
 ```javascript
-//Automatically converted to WHERE userId IN [id1, id2, id3, ...]
+// Automatically converted to WHERE userId IN [id1, id2, id3, ...]
 const users = await User.find().populate('posts');
-//Only 2 queries are required (user + batch query articles)
+// Only 2 queries are required (user + batch query articles)
 ```
 
 

@@ -266,16 +266,77 @@ function warnIndexFailure(runtime: object | undefined, taskKey: string, error: u
     });
 }
 
-function scheduleIndexTask<TDocument>(
+function getIndexEnsureTaskKey(scope: ModelIndexTaskScope, declaredIndexes: ModelDeclaredIndex[]): string {
+    // The declared-set fingerprint lets a redefined model schedule a fresh preflight.
+    const declaredSetFingerprint = stableIndexStringify(declaredIndexes.map((declaredIndex) => declaredIndex.fingerprint));
+    return `${scope.poolName}:${scope.dbName}:${scope.collectionName}:ensure:${declaredSetFingerprint}`;
+}
+
+function hasIndexEnsureIssues(result: ModelIndexEnsureResult): boolean {
+    return result.conflicts.length > 0 || result.failed.length > 0;
+}
+
+function warnIndexEnsureIssues(
+    runtime: object | undefined,
+    taskKey: string,
+    result: ModelIndexEnsureResult,
+): void {
+    const logger = runtime as { logger?: { warn?: (...args: unknown[]) => void } } | undefined;
+    const message = result.failed.length > 0
+        ? '[MonSQLize] model index creation failed'
+        : '[MonSQLize] model index ensure conflicts detected';
+    logger?.logger?.warn?.(message, {
+        taskKey,
+        namespace: result.namespace,
+        conflicts: result.conflicts,
+        failed: result.failed,
+        counts: {
+            declared: result.declared.length,
+            existing: result.existing.length,
+            missing: result.missing.length,
+            created: result.created.length,
+            conflicts: result.conflicts.length,
+            failed: result.failed.length,
+            skipped: result.skipped.length,
+        },
+    });
+}
+
+function emitIndexEnsureIssues(
+    runtime: object | undefined,
+    taskKey: string,
+    result: ModelIndexEnsureResult,
+    emitEvents: boolean,
+): void {
+    if (!hasIndexEnsureIssues(result)) {
+        return;
+    }
+    const firstFailure = result.failed[0];
+    const firstConflict = result.conflicts[0];
+    const firstDeclared = firstFailure?.declared ?? firstConflict?.declared;
+    emitIndexFailure(runtime, {
+        namespace: result.namespace,
+        taskKey,
+        source: firstDeclared?.source,
+        key: firstDeclared?.key,
+        options: firstDeclared?.options,
+        conflicts: result.conflicts,
+        failed: result.failed,
+        result,
+        error: firstFailure?.error ?? { message: 'Model index conflicts detected.' },
+    }, emitEvents);
+}
+
+function scheduleModelIndexEnsureTask<TDocument>(
     collection: ModelCollectionLike<TDocument>,
-    declaredIndex: ModelDeclaredIndex,
+    definition: ModelDefinition<TDocument>,
+    softDeleteConfig: ModelSoftDeleteConfig | null,
+    declaredIndexes: ModelDeclaredIndex[],
     emitEvents: boolean,
     options?: ModelIndexScheduleOptions,
 ): void {
     const scope = resolveIndexTaskScope(collection, options);
-    const { key, options: indexOptions } = declaredIndex;
-    const indexFingerprint = declaredIndex.fingerprint;
-    const taskKey = `${scope.poolName}:${scope.dbName}:${scope.collectionName}:${indexFingerprint}`;
+    const taskKey = getIndexEnsureTaskKey(scope, declaredIndexes);
     const registry = getIndexTaskRegistry(options?.runtime);
     const existing = registry.get(taskKey);
     if (existing && existing.status !== 'failed') {
@@ -287,9 +348,23 @@ function scheduleIndexTask<TDocument>(
         promise: new Promise((resolve) => {
             setImmediate(() => {
                 Promise.resolve()
-                    .then(() => runWithModelWriteSource(() => collection.createIndex(key, indexOptions)))
-                    .then(() => {
-                        task.status = 'fulfilled';
+                    .then(() => ensureModelIndexesForCollection(collection, definition, softDeleteConfig, {
+                        ...options,
+                        dryRun: false,
+                        throwOnError: false,
+                    }))
+                    .then((result) => {
+                        if (hasIndexEnsureIssues(result)) {
+                            warnIndexEnsureIssues(options?.runtime, taskKey, result);
+                            emitIndexEnsureIssues(options?.runtime, taskKey, result, emitEvents);
+                        }
+                        if (result.failed.length > 0) {
+                            task.status = 'failed';
+                            task.error = result.failed;
+                        } else {
+                            task.status = 'fulfilled';
+                            task.error = undefined;
+                        }
                         resolve();
                     })
                     .catch((error: unknown) => {
@@ -297,11 +372,8 @@ function scheduleIndexTask<TDocument>(
                         task.error = error;
                         warnIndexFailure(options?.runtime, taskKey, error);
                         emitIndexFailure(options?.runtime, {
-                            namespace: scope,
+                            namespace: toIndexNamespace(scope),
                             taskKey,
-                            source: declaredIndex.source,
-                            key,
-                            options: indexOptions,
                             error: summarizeIndexError(error),
                         }, emitEvents);
                         resolve();
@@ -653,7 +725,9 @@ export function scheduleModelIndexes<TDocument>(
     if (!autoIndex.enabled) {
         return;
     }
-    for (const declaredIndex of collectModelIndexDefinitions(definition, softDeleteConfig)) {
-        scheduleIndexTask(collection, declaredIndex, autoIndex.emitEvents, options);
+    const declaredIndexes = collectModelIndexDefinitions(definition, softDeleteConfig);
+    if (declaredIndexes.length === 0) {
+        return;
     }
+    scheduleModelIndexEnsureTask(collection, definition, softDeleteConfig, declaredIndexes, autoIndex.emitEvents, options);
 }

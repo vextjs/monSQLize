@@ -42,6 +42,7 @@ describe('aggregate() / distinct() / count() / explain()', () => {
         const db = runtime._adapter.db;
         await db.collection('products').deleteMany({});
         await db.collection('product_summary').deleteMany({});
+        await db.collection('product_summary_no_invalidate').deleteMany({});
 
         const categories = ['electronics', 'clothing', 'food'];
         const docs: Omit<Product, '_id'>[] = [];
@@ -250,7 +251,25 @@ describe('aggregate() / distinct() / count() / explain()', () => {
             assert.equal(result.meta.ns.coll, 'products');
         });
 
-        it('invalidates target collection cache after $merge', async () => {
+        it('keeps target collection cache after $merge without explicit invalidation', async () => {
+            const db = runtime._adapter.db;
+            const summary = runtime.collection('product_summary_no_invalidate');
+            await db.collection('product_summary_no_invalidate').insertOne({ _id: 'electronics', total: 1 });
+
+            const first = await summary.find({ _id: 'electronics' }, { cache: 60_000 });
+            assert.equal(first[0].total, 1);
+
+            await col.aggregate([
+                { $match: { category: 'electronics' } },
+                { $group: { _id: '$category', total: { $sum: 1 } } },
+                { $merge: { into: 'product_summary_no_invalidate', on: '_id', whenMatched: 'replace', whenNotMatched: 'insert' } },
+            ], { cache: 60_000 });
+
+            const second = await summary.find({ _id: 'electronics' }, { cache: 60_000 });
+            assert.equal(second[0].total, 1);
+        });
+
+        it('invalidates target collection cache after $merge with explicit cache.invalidate', async () => {
             const db = runtime._adapter.db;
             const summary = runtime.collection('product_summary');
             await db.collection('product_summary').insertOne({ _id: 'electronics', total: 1 });
@@ -262,7 +281,15 @@ describe('aggregate() / distinct() / count() / explain()', () => {
                 { $match: { category: 'electronics' } },
                 { $group: { _id: '$category', total: { $sum: 1 } } },
                 { $merge: { into: 'product_summary', on: '_id', whenMatched: 'replace', whenNotMatched: 'insert' } },
-            ], { cache: 60_000 });
+            ], {
+                cache: {
+                    invalidate: [{
+                        operation: 'find',
+                        query: { _id: 'electronics' },
+                        options: { cache: 60_000 },
+                    }],
+                },
+            });
 
             const second = await summary.find({ _id: 'electronics' }, { cache: 60_000 });
             assert.equal(second[0].total, 20);

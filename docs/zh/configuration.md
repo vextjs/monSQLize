@@ -336,12 +336,12 @@ const msq = new MonSQLize({
 
 | `autoIndex` 写法 | 效果 |
 |---|---|
-| `true` | 创建 Model instance 时调度声明的 Model 索引。 |
+| `true` | 创建 Model instance 时调度声明的 Model 索引；任务会先用 `listIndexes()` 预检，再创建缺失索引。 |
 | `false` | 不自动调度索引创建；仍可显式调用 `ensureIndexes()`。 |
 | `{ enabled: boolean }` | 对象形式的启停开关。 |
-| `{ emitEvents: boolean }` | 自动索引任务运行时触发 Model 索引生命周期事件。 |
+| `{ emitEvents: boolean }` | 自动索引创建失败或检测到冲突时触发 `model-index-error`。 |
 
-自动索引只创建缺失索引，不会 drop、rename 或 rebuild 冲突索引。生产环境可先用 `ensureIndexes({ dryRun: true })` 检查计划。
+自动索引会先预检声明索引，跳过 existing，只创建 missing，不会 drop、rename 或 rebuild 冲突索引。生产环境建议使用 `ensureIndexes({ dryRun: true })` 或 `ensureModelIndexes({ dryRun: true })` 作为显式发布门禁。
 
 ## 命名空间配置
 

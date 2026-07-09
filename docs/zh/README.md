@@ -12,6 +12,7 @@
 | 对照文档与可运行源码 | [`examples.md`](./examples.md) | 每个主题都链接到 GitHub 示例源码 |
 | 添加数据库缓存 | [`cache.md`](./cache.md) | 集合查询缓存、Redis 二级缓存、分布式失效 |
 | 控制 collection 与 Model 写入路径 | [`write-path-policy.md`](./write-path-policy.md) | 需要某些命名空间必须经过 Model 写入时使用 |
+| 准备生产发布 | [`production-rollout.md`](./production-rollout.md) | 数据回填、Change Stream CDC、索引预检与切流检查 |
 | 查看场景指南 | [`recipes.md`](./recipes.md) | 连接、缓存、Redis、SSH、连接池、Model 的场景指南 |
 | 浏览完整 API | [`api-index.md`](./api-index.md) | 低层 API 与兼容 API 的参考入口 |
 | 查看运行时边界 | [`capability-index.md`](./capability-index.md) | 能力总览与深入页面入口 |
@@ -30,8 +31,9 @@
    - [`examples.md`](./examples.md)
 6. 缓存专题：[`cache.md`](./cache.md)
 7. 写路径策略：[`write-path-policy.md`](./write-path-policy.md)
-8. 场景指南：[`recipes.md`](./recipes.md)
-9. API 与运行时参考：
+8. 生产发布：[`production-rollout.md`](./production-rollout.md)
+9. 场景指南：[`recipes.md`](./recipes.md)
+10. API 与运行时参考：
    - [`api-index.md`](./api-index.md)
    - [`capability-index.md`](./capability-index.md)
    - [`support-matrix.md`](./support-matrix.md)

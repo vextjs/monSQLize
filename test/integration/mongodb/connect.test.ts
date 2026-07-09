@@ -116,6 +116,45 @@ describe('P2-A MongoDB connect/common/accessor', () => {
         }
     });
 
+    it('useMemoryServer=true starts and reuses the managed package replica set', async () => {
+        const prevUseSystem = process.env.MONSQLIZE_USE_SYSTEM_MONGO;
+        const prevLaunchTimeout = process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS;
+        delete process.env.MONSQLIZE_USE_SYSTEM_MONGO;
+        process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS = '30000';
+
+        const first = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'p2a_managed_memory_first',
+            config: {
+                useMemoryServer: true,
+                memoryServerOptions: {
+                    instance: { dbName: 'p2a managed memory first' },
+                },
+            },
+        });
+        const second = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'p2a_managed_memory_second',
+            config: { useMemoryServer: true },
+        });
+
+        try {
+            await first.connect();
+            await second.connect();
+            assert.equal((await first.health()).connected, true);
+            assert.equal((await second.health()).connected, true);
+            await first.collection('managed_memory_users').insertOne({ name: 'Ada' });
+            assert.equal(await second.collection('managed_memory_users').count(), 0);
+        } finally {
+            await first.close();
+            await second.close();
+            if (prevUseSystem === undefined) delete process.env.MONSQLIZE_USE_SYSTEM_MONGO;
+            else process.env.MONSQLIZE_USE_SYSTEM_MONGO = prevUseSystem;
+            if (prevLaunchTimeout === undefined) delete process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS;
+            else process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS = prevLaunchTimeout;
+        }
+    });
+
     it('runtime.close() swallows Mongo close errors and still resets health', async () => {
         const runtime = new MonSQLize({
             type: 'mongodb',

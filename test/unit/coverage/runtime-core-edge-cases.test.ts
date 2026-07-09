@@ -108,6 +108,44 @@ describe('MonSQLize pre-connect method calls', () => {
         assert.equal(defaults.cursorSecret, undefined);
     });
 
+    it('getDefaults() returns a deep frozen snapshot without nested reference leakage', () => {
+        const r = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'test',
+            config: { uri: 'mongodb://localhost:27999' },
+            namespace: { scope: 'database', instanceId: 'tenant-a' },
+            cursorTypes: { token: 'string' },
+            log: { slowQueryTag: { event: 'custom_slow', code: 'CUSTOM_SLOW' } },
+        });
+        const defaults = r.getDefaults() as Record<string, unknown>;
+        const namespace = defaults.namespace as Record<string, unknown>;
+        const cursorTypes = defaults.cursorTypes as Record<string, unknown>;
+        const log = defaults.log as Record<string, unknown>;
+        const slowQueryTag = log.slowQueryTag as Record<string, unknown>;
+
+        assert.equal(Object.isFrozen(defaults), true);
+        assert.equal(Object.isFrozen(namespace), true);
+        assert.equal(Object.isFrozen(cursorTypes), true);
+        assert.equal(Object.isFrozen(log), true);
+        assert.equal(Object.isFrozen(slowQueryTag), true);
+        assert.equal(Reflect.set(namespace, 'instanceId', 'mutated'), false);
+        assert.equal(Reflect.set(cursorTypes, 'token', 'number'), false);
+        assert.equal(Reflect.set(slowQueryTag, 'event', 'mutated_event'), false);
+
+        const nextDefaults = r.getDefaults() as Record<string, unknown>;
+        const nextNamespace = nextDefaults.namespace as Record<string, unknown>;
+        const nextCursorTypes = nextDefaults.cursorTypes as Record<string, unknown>;
+        const nextLog = nextDefaults.log as Record<string, unknown>;
+        const nextSlowQueryTag = nextLog.slowQueryTag as Record<string, unknown>;
+
+        assert.equal(nextNamespace.instanceId, 'tenant-a');
+        assert.equal(nextCursorTypes.token, 'string');
+        assert.equal(nextSlowQueryTag.event, 'custom_slow');
+        assert.notEqual(namespace, nextNamespace);
+        assert.notEqual(cursorTypes, nextCursorTypes);
+        assert.notEqual(log, nextLog);
+    });
+
     it('getSyncStats() returns null when sync manager not initialized', () => {
         const r = makeRuntime();
         const stats = r.getSyncStats();

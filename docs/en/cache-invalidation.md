@@ -42,6 +42,20 @@ await products.updateOne(
 
 Supported descriptor operations: `find`, `findOne`, `count`, `findPage`, `aggregate`, `distinct`, `findOneById`, and `findByIds`.
 
+For aggregate write pipelines (`$merge` / `$out`), descriptor invalidation is resolved against the write target collection.
+
+| Descriptor shape | Effect |
+| --- | --- |
+| `{ operation, query, options }` or `{ op, query, options }` | Rebuilds the exact read cache key for `find`, `findOne`, or `count`. |
+| `{ operation: 'findPage', query, options }` | Rebuilds the page cache key; `query` is folded into `options.query` when it is not already present. |
+| `{ operation: 'aggregate', pipeline, options }` | Rebuilds the aggregate read cache key. |
+| `{ operation: 'distinct', field, query, options }` | Rebuilds the distinct read cache key for the specified field. |
+| `{ operation: 'findOneById', id, options }` / `{ operation: 'findByIds', ids, options }` | Rebuilds ID-read cache keys. |
+| `{ cacheKey }` / `{ cacheKeys }` | Deletes one or more exact cache keys supplied by the application. |
+| `{ pattern }` / `{ patterns }` | Deletes cache entries matching one or more `delPattern` patterns. |
+| `true` | Broadly invalidates all read cache patterns for the affected namespace. |
+| `false` / `[]` | Explicit no-op for this write. |
+
 ## Per-Write No-Op Override
 
 `cache.invalidate: false` and `cache.invalidate: []` mean "do not invalidate anything for this write". They override instance-level `cache.autoInvalidate: true`:
@@ -90,4 +104,3 @@ await products.invalidate();
 ```
 
 `invalidate()` clears collection read-cache patterns. It does not make MongoDB writes and cache invalidation atomic.
-

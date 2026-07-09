@@ -114,7 +114,7 @@ import {
     initializeDistributedCacheInvalidator,
     loadModelFiles,
 } from './capability-wiring';
-import { buildPublicDefaults, createRuntimeDbFacade, createRuntimeModelInstance, ensureRuntimeModelIndexes, resolveDatabaseName, shouldWarnTransactionDistributedLock, shouldWarnUnsignedCursorSecret, validateRuntimeNumericOptions } from './runtime-helpers';
+import { buildPublicDefaults, buildPublicSnapshot, createRuntimeDbFacade, createRuntimeModelInstance, ensureRuntimeModelIndexes, resolveDatabaseName, shouldWarnTransactionDistributedLock, shouldWarnUnsignedCursorSecret, validateRuntimeNumericOptions } from './runtime-helpers';
 import {
     createRuntimeCoreAccessors,
     createRuntimeCoreAdapterBridgeHost,
@@ -323,7 +323,7 @@ export class MonSQLizeRuntime {
     getCache(): CacheLike { return this._cache; }
     getDefaults(): Record<string, unknown> {
         const d = this.defaults as Record<string, unknown>;
-        return {
+        return buildPublicSnapshot({
             type: this.options.type,
             databaseName: this.options.databaseName,
             sync: this.options.sync,
@@ -342,7 +342,7 @@ export class MonSQLizeRuntime {
             countQueue: this.options.countQueue,
             models: this.options.models,
             autoIndex: this.options.autoIndex,
-        };
+        });
     }
 
     async close(): Promise<void> {

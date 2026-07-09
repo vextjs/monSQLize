@@ -251,77 +251,40 @@ const user4 = await User.findOne({ username: 'john' })
 
 ---
 
-## 🔧 技术实现
+## 运行时行为
 
-### 核心逻辑
-
-1. **嵌套检测**: 在 `_populatePath()` 中检测 `config.populate` 参数
-2. **递归填充**: 调用 `_executeNestedPopulate()` 处理嵌套逻辑
-3. **Model 查找**: 根据集合名动态获取 Model 定义
-4. **临时实例**: 为嵌套层创建临时 ModelInstance
-5. **递归执行**: PopulateBuilder 递归调用自身实现多层嵌套
-
-### 关键代码
-
-```javascript
-// 在 PopulateBuilder._populatePath() 中
-const { populate: nestedPopulate } = config;
-
-if (nestedPopulate && relatedDocs.length > 0) {
-  relatedDocs = await this._executeNestedPopulate(
-    relatedDocs, 
-    nestedPopulate, 
-    relation.from
-  );
-}
-
-// _executeNestedPopulate() 方法
-async _executeNestedPopulate(docs, nestedPopulate, collectionName) {
-  // 1. 获取 Model 定义
-  const Model = require('../../model');
-  if (!Model.has(collectionName)) {
-    return docs;  // 跳过嵌套
-  }
-
-  // 2. 创建临时 ModelInstance
-  const modelDef = Model.get(collectionName);
-  const collection = this.model.msq.collection(collectionName);
-  const { ModelInstance } = require('../index');
-  const tempModel = new ModelInstance(collection, modelDef.definition, this.model.msq);
-
-  // 3. 创建新的 PopulateBuilder 并执行
-  const nestedBuilder = new PopulateBuilder(tempModel, collection);
-  nestedBuilder.populate(nestedPopulate);
-  return await nestedBuilder.execute(docs);
-}
-```
+- 一级 populate 可以直接读取 `from` 指向的集合。
+- 如果 `from` 命中已注册 Model，monSQLize 会通过该 Model hydrate 关联文档。
+- nested populate 只有在关联集合存在已注册 Model 时才会继续，因为下一跳关系需要从该 Model 定义中读取。
+- `select`、`sort`、`skip`、`limit` 会在关联文档加载后应用。
+- nested populate 带有深度和循环保护；嵌套配置无效时会抛出面向用户的参数错误。
 
 ---
 
 ## ⚠️ 注意事项
 
-### 1. Model 必须定义
+### 1. 为嵌套分支定义 Model
 
-嵌套 populate 要求被填充的集合必须有对应的 Model 定义。如果没有定义，嵌套 populate 将被跳过：
+一级 populate 可以从集合读取普通关联文档。nested populate 需要关联集合有 Model 定义，否则下一跳没有 relations 元数据：
 
 ```javascript
-// ❌ comments 集合没有定义 Model
+// comments 集合没有定义 Model
 Model.define('posts', {
   relations: {
     comments: { from: 'comments', ... }
   }
 });
 
-// populate 会跳过嵌套，但不会报错
+// 一级 posts 可以被填充，但 comments 嵌套分支没有 relations 元数据
 await User.findOne().populate({
   path: 'posts',
-  populate: 'comments'  // 被跳过
+  populate: 'comments'
 });
 ```
 
 ### 2. 性能考虑
 
-深度 populate 会执行多次数据库查询，注意性能影响：
+nested populate 会执行多次数据库查询。建议保持关系图浅层，并为外键创建索引：
 
 ```javascript
 // 性能分析：
@@ -335,14 +298,14 @@ await User.findOne().populate({
 **优化建议**：
 - 使用 `select` 只选择必要字段
 - 使用 `limit` 限制关联数据数量
-- 避免过深的嵌套（建议不超过 3 层）
+- 除非用户路径确实需要，否则避免过深的嵌套关系图
 
 ### 3. 循环引用
 
 避免循环引用导致无限递归：
 
 ```javascript
-// ❌ 危险：User -> Post -> Author(User) -> Post -> ...
+// 风险：User -> Post -> Author(User) -> Post -> ...
 Model.define('users', {
   relations: {
     posts: { from: 'posts', ... }
@@ -355,7 +318,7 @@ Model.define('posts', {
   }
 });
 
-// 这样会导致循环：
+// 这样会形成循环：
 await User.find().populate({
   path: 'posts',
   populate: {
@@ -365,7 +328,7 @@ await User.find().populate({
 });
 ```
 
-**解决方案**：谨慎设计数据模型，避免双向嵌套。
+**解决方案**：谨慎设计嵌套路径，设置明确限制，并避免双向嵌套链。
 
 ---
 

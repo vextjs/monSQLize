@@ -514,6 +514,13 @@
       "status": "covered"
     },
     {
+      "doc": "production-rollout",
+      "kind": "doc-check",
+      "target": "docs/en/production-rollout.md",
+      "runner": "check:docs-examples",
+      "status": "covered"
+    },
+    {
       "doc": "populate",
       "kind": "example",
       "target": "examples/docs/populate-relations.ts",

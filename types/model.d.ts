@@ -72,7 +72,7 @@ export interface VirtualConfig {
 export type ModelAutoIndexOptions = boolean | {
     /** Enable automatic model index creation. Defaults to true for backward compatibility. */
     enabled?: boolean;
-    /** Emit `model-index-error` when automatic index creation fails. Defaults to true. */
+    /** Emit `model-index-error` when automatic index creation fails or conflicts are detected. Defaults to true. */
     emitEvents?: boolean;
 };
 

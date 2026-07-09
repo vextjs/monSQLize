@@ -9,6 +9,46 @@
 
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    if (value === null || typeof value !== 'object') return false;
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
+}
+
+function cloneSnapshotValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(cloneSnapshotValue);
+    }
+    if (isPlainObject(value)) {
+        const output: Record<string, unknown> = {};
+        for (const [key, nested] of Object.entries(value)) {
+            output[key] = cloneSnapshotValue(nested);
+        }
+        return output;
+    }
+    return value;
+}
+
+function deepFreezeSnapshotValue<T>(value: T): T {
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            deepFreezeSnapshotValue(item);
+        }
+        return Object.freeze(value) as T;
+    }
+    if (isPlainObject(value)) {
+        for (const nested of Object.values(value)) {
+            deepFreezeSnapshotValue(nested);
+        }
+        return Object.freeze(value) as T;
+    }
+    return value;
+}
+
+export function buildPublicSnapshot<T extends Record<string, unknown>>(value: T): T {
+    return deepFreezeSnapshotValue(cloneSnapshotValue(value) as T);
+}
+
 /**
  * Deep-merge two objects: non-undefined values from `patch` override the corresponding fields in `base`.
  * Nested objects are merged recursively without mutating the original `base` reference.
@@ -39,7 +79,7 @@ export function buildPublicDefaults(options: MonSQLizeOptions): Readonly<Record<
     const cacheAutoInvalidate = typeof cacheOptions?.autoInvalidate === 'boolean'
         ? cacheOptions.autoInvalidate
         : options.cacheAutoInvalidate;
-    return Object.freeze(deepMerge({
+    return buildPublicSnapshot(deepMerge({
         maxTimeMS: 2000,
         findLimit: 500,
         findMaxLimit: 10000,
