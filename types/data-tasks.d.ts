@@ -1,6 +1,6 @@
 import type { MonSQLizeOptions } from './monsqlize';
 
-export type DataTaskEnvironment = 'development' | 'test' | 'staging' | 'production' | string;
+export type DataTaskEnvironment = 'development' | 'test' | 'staging' | 'production' | 'prod' | 'live';
 export type DataTaskMode = 'plan' | 'dry-run' | 'run' | 'verify';
 export type DataTaskStepType = 'ensureIndexes' | 'syncData' | 'transformFields' | 'exportAffected' | 'verify';
 export type DataTaskWriteStrategy = 'insert' | 'upsert' | 'merge' | 'replace';
@@ -18,6 +18,8 @@ export interface DataTaskEndpoint {
 export interface DataTaskLockOptions {
     key?: string;
     ttlMs?: number;
+    renewIntervalMs?: number;
+    scope?: 'process';
 }
 
 export type DataTaskLock = boolean | string | DataTaskLockOptions;
@@ -100,12 +102,13 @@ export interface DataTaskDefinition {
 
 export interface DataTaskCliConfig {
     runtime?: MonSQLizeOptions;
-    task?: DataTaskDefinition;
+    task: DataTaskDefinition;
 }
 
 export interface DataTaskExecutionOptions {
     confirmProduction?: boolean;
-    dryRun?: boolean;
+    approvedSnapshotChecksum?: string;
+    continueOnError?: boolean;
     snapshotDir?: string;
     allowRunWithoutSnapshot?: boolean;
     onProgress?: (progress: DataTaskProgress) => void;
@@ -116,6 +119,7 @@ export interface DataTaskProgress {
     mode: DataTaskMode;
     step: DataTaskStepType;
     processed: number;
+    batch?: number;
     total?: number;
     message?: string;
 }
@@ -133,19 +137,33 @@ export interface DataTaskStepPlan {
 export interface DataTaskPlanResult {
     mode: 'plan';
     taskName: string;
+    passed: boolean;
+    environment?: DataTaskEnvironment;
+    isProduction: boolean;
     risk: DataTaskRiskLevel;
     willWrite: boolean;
     requiresProductionConfirmation: boolean;
     requiresSnapshot: boolean;
+    requiresSnapshotApproval: boolean;
     steps: DataTaskStepPlan[];
     warnings: string[];
     errors: string[];
 }
 
 export interface DataTaskSnapshotResult {
+    step: 'exportAffected';
+    passed: boolean;
     enabled: boolean;
     path?: string;
+    manifestPath?: string;
+    createdAt?: string;
+    taskName?: string;
+    target?: DataTaskEndpoint;
+    filter?: Record<string, unknown>;
+    format?: DataTaskSnapshotFormat;
     count?: number;
+    existingCount?: number;
+    insertCandidates?: number;
     bytes?: number;
     checksum?: string;
     skippedReason?: string;
@@ -160,15 +178,18 @@ export interface DataTaskIndexOperation {
 
 export interface DataTaskIndexResult {
     step: 'ensureIndexes';
+    passed: boolean;
     created: number;
     missing: number;
     existing: number;
     conflicts: number;
     operations: DataTaskIndexOperation[];
+    errors: string[];
 }
 
 export interface DataTaskDataSyncResult {
     step: 'syncData';
+    passed: boolean;
     strategy: DataTaskWriteStrategy;
     matched: number;
     inserted: number;
@@ -176,21 +197,38 @@ export interface DataTaskDataSyncResult {
     replaced: number;
     skipped: number;
     duplicateMatches: number;
+    processed: number;
+    batchCount: number;
+    failed: number;
     errors: string[];
 }
 
 export interface DataTaskTransformResult {
     step: 'transformFields';
+    passed: boolean;
     matched: number;
     modified: number;
-    sampled: Array<{ before: Record<string, unknown>; after?: Record<string, unknown> }>;
+    processed: number;
+    batchCount: number;
+    failed: number;
+    sampled: Array<{ before: Record<string, unknown>; after: Record<string, unknown> }>;
     errors: string[];
+}
+
+export interface DataTaskVerifyMismatch {
+    match: Record<string, unknown>;
+    reason: string;
+    expected?: unknown;
+    actual?: unknown;
 }
 
 export interface DataTaskVerifyResult {
     mode: 'verify';
     taskName: string;
     passed: boolean;
+    checked: number;
+    mismatched: number;
+    mismatches: DataTaskVerifyMismatch[];
     checks: Array<{ name: string; passed: boolean; message?: string; expected?: unknown; actual?: unknown }>;
     warnings: string[];
     errors: string[];
@@ -206,6 +244,7 @@ export type DataTaskStepResult =
 export interface DataTaskDryRunResult {
     mode: 'dry-run';
     taskName: string;
+    passed: boolean;
     plan: DataTaskPlanResult;
     snapshot?: DataTaskSnapshotResult;
     results: DataTaskStepResult[];
@@ -216,6 +255,8 @@ export interface DataTaskDryRunResult {
 export interface DataTaskRunResult {
     mode: 'run';
     taskName: string;
+    passed: boolean;
+    status: 'passed' | 'failed';
     plan: DataTaskPlanResult;
     snapshot?: DataTaskSnapshotResult;
     results: DataTaskStepResult[];

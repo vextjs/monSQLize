@@ -28,10 +28,11 @@ Use this page when you need any of these release steps:
 2. Deploy code with `autoIndex: false` for production services.
 3. Run the index dry-run against the target environment.
 4. Resolve index conflicts before creating missing indexes.
-5. Run `msq.dataTasks.dryRun()` / `monsqlize data-task dry-run`, then execute `run` with production confirmation if the release needs historical data changes.
-6. Enable Change Stream sync only for ongoing CDC after prerequisites are ready.
-7. Check counts, sample records, sync stats, slow queries, and error logs.
-8. Switch traffic only after the release gates are green.
+5. If the release changes historical data, run plan and dry-run, export the affected snapshot, and review its manifest and checksum.
+6. Execute `run` with both production confirmation and the reviewed snapshot checksum.
+7. Enable Change Stream sync only for ongoing CDC after prerequisites are ready.
+8. Check counts, sample records, sync stats, slow queries, and error logs.
+9. Switch traffic only after the release gates are green.
 
 ## Index Sync
 
@@ -96,10 +97,12 @@ Use dataTasks for release-scoped historical data changes. A task should be bound
 ```javascript
 const task = {
   name: 'sync-active-users',
+  environment: 'production',
   source: { collection: 'sourceUsers' },
   target: { collection: 'targetUsers' },
   filter: { status: 'active' },
   matchBy: ['email'],
+  batchSize: 500,
   snapshot: { dir: '.monsqlize/snapshots' },
   steps: [
     {
@@ -117,8 +120,17 @@ const task = {
 const plan = await msq.dataTasks.plan(task);
 const dryRun = await msq.dataTasks.dryRun(task);
 
-if (plan.errors.length === 0 && dryRun.errors.length === 0) {
-  await msq.dataTasks.run(task, { confirmProduction: true });
+if (plan.passed && dryRun.passed) {
+  const reviewedSnapshot = await msq.dataTasks.exportAffected(task);
+  if (!reviewedSnapshot.checksum) throw new Error('snapshot checksum is missing');
+  // Inspect reviewedSnapshot.path and reviewedSnapshot.manifestPath here.
+
+  const run = await msq.dataTasks.run(task, {
+    confirmProduction: true,
+    approvedSnapshotChecksum: reviewedSnapshot.checksum
+  });
+  if (!run.passed) throw new Error(run.errors.join('; '));
+
   const verify = await msq.dataTasks.verify(task);
   if (!verify.passed) {
     throw new Error('data task verification failed');
@@ -131,7 +143,8 @@ CLI form:
 ```bash
 monsqlize data-task plan --task ./tasks/sync-active-users.cjs --json
 monsqlize data-task dry-run --task ./tasks/sync-active-users.cjs
-monsqlize data-task run --task ./tasks/sync-active-users.cjs --confirm-production
+monsqlize data-task snapshot --task ./tasks/sync-active-users.cjs --json
+monsqlize data-task run --task ./tasks/sync-active-users.cjs --confirm-production --snapshot-checksum <reviewed-sha256>
 monsqlize data-task verify --task ./tasks/sync-active-users.cjs
 ```
 
@@ -141,6 +154,8 @@ Task recommendations:
 - Use business `matchBy` fields for cross-endpoint sync. Source `_id` matching is blocked by default.
 - Keep target writes idempotent; reruns should update or skip already synced documents.
 - Review the snapshot path and checksum before continuing a production run.
+- Treat the built-in task lock as process-local. Use a single job executor or an external distributed lock when multiple processes or nodes can start the task.
+- A snapshot supports reviewed local recovery but is not automatic rollback; keep the database backup or managed restore point until the release window closes.
 - Use MongoDB native tooling or an application-owned job for full database copy, backup, restore, or very large batch pipelines.
 
 ## Change Stream Sync After Backfill

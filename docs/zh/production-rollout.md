@@ -28,10 +28,11 @@ monSQLize 为这条路径提供的是数据库运行时能力：
 2. 生产服务使用 `autoIndex: false` 部署代码。
 3. 在目标环境运行索引 dry-run。
 4. 先解决索引 conflicts，再创建 missing 索引。
-5. 如果发布需要历史数据变化，先执行 `msq.dataTasks.dryRun()` / `monsqlize data-task dry-run`，再带生产确认执行 `run`。
-6. 只有在前置条件满足后，再启用 Change Stream sync 承接后续 CDC。
-7. 检查数量、抽样记录、同步统计、慢查询和错误日志。
-8. 所有发布门禁通过后再切换流量。
+5. 如果发布需要历史数据变化，先执行 plan 和 dry-run，再导出受影响快照并人工审核 manifest 与 checksum。
+6. 同时提供生产确认和已审核快照 checksum 后执行 `run`。
+7. 只有在前置条件满足后，再启用 Change Stream sync 承接后续 CDC。
+8. 检查数量、抽样记录、同步统计、慢查询和错误日志。
+9. 所有发布门禁通过后再切换流量。
 
 ## 索引同步
 
@@ -96,10 +97,12 @@ await users.createIndexes([
 ```javascript
 const task = {
   name: 'sync-active-users',
+  environment: 'production',
   source: { collection: 'sourceUsers' },
   target: { collection: 'targetUsers' },
   filter: { status: 'active' },
   matchBy: ['email'],
+  batchSize: 500,
   snapshot: { dir: '.monsqlize/snapshots' },
   steps: [
     {
@@ -117,8 +120,17 @@ const task = {
 const plan = await msq.dataTasks.plan(task);
 const dryRun = await msq.dataTasks.dryRun(task);
 
-if (plan.errors.length === 0 && dryRun.errors.length === 0) {
-  await msq.dataTasks.run(task, { confirmProduction: true });
+if (plan.passed && dryRun.passed) {
+  const reviewedSnapshot = await msq.dataTasks.exportAffected(task);
+  if (!reviewedSnapshot.checksum) throw new Error('snapshot checksum is missing');
+  // 在这里审核 reviewedSnapshot.path 和 reviewedSnapshot.manifestPath。
+
+  const run = await msq.dataTasks.run(task, {
+    confirmProduction: true,
+    approvedSnapshotChecksum: reviewedSnapshot.checksum
+  });
+  if (!run.passed) throw new Error(run.errors.join('; '));
+
   const verify = await msq.dataTasks.verify(task);
   if (!verify.passed) {
     throw new Error('data task verification failed');
@@ -131,7 +143,8 @@ CLI 形式：
 ```bash
 monsqlize data-task plan --task ./tasks/sync-active-users.cjs --json
 monsqlize data-task dry-run --task ./tasks/sync-active-users.cjs
-monsqlize data-task run --task ./tasks/sync-active-users.cjs --confirm-production
+monsqlize data-task snapshot --task ./tasks/sync-active-users.cjs --json
+monsqlize data-task run --task ./tasks/sync-active-users.cjs --confirm-production --snapshot-checksum <reviewed-sha256>
 monsqlize data-task verify --task ./tasks/sync-active-users.cjs
 ```
 
@@ -141,6 +154,8 @@ monsqlize data-task verify --task ./tasks/sync-active-users.cjs
 - 跨端点同步使用业务 `matchBy` 字段。默认禁止用源端 `_id` 匹配。
 - 目标写入应保持幂等，重跑时应更新或跳过已同步文档。
 - 生产执行前复核快照路径和 checksum。
+- 内置任务锁只覆盖当前进程。多个进程或节点可能启动任务时，使用单实例作业执行器或外部分布式锁。
+- 快照支持经过审核的局部恢复，但不是自动回滚；发布窗口结束前保留数据库备份或托管恢复点。
 - 全库复制、备份、恢复或超大批量管道仍应使用 MongoDB 原生工具或应用自有任务。
 
 ## 回填后的 Change Stream 同步

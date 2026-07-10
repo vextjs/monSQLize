@@ -1,5 +1,7 @@
 # Unreleased
 
+> Current release candidate: [v3.0.0](./v3.0.0.md). This ledger remains the detailed development inventory until v3.0.0 is published; v2.0.7 was never published and is retained only as an archive.
+
 ## Compatibility-impacting changes
 
 - Versioned Model single-document writes now enforce true optimistic concurrency control: stale writes throw `WRITE_CONFLICT`, and writes without `expectedVersion`, `version`, or a direct `_id` automatic lookup path may throw `INVALID_ARGUMENT`.

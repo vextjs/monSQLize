@@ -2,6 +2,8 @@
 'use strict';
 
 const { spawnSync } = require('node:child_process');
+const { writeFileSync } = require('node:fs');
+const path = require('node:path');
 
 function run(command, args, env = {}) {
   const result = spawnSync(command, args, {
@@ -33,14 +35,30 @@ function npmRun(script, env = {}) {
   run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', script], env);
 }
 
+function prepareCoverageRuntime() {
+  const generatedRoot = path.join(process.cwd(), '.generated', 'test-dist');
+  writeFileSync(
+    path.join(generatedRoot, 'dist', 'cjs', 'index.cjs'),
+    "'use strict';\nmodule.exports = require('../../src/entry/index.js');\n",
+    'utf8',
+  );
+  writeFileSync(
+    path.join(generatedRoot, 'dist', 'cjs', 'cli', 'data-task.cjs'),
+    "'use strict';\nrequire('../../../src/cli/data-task.js');\n",
+    'utf8',
+  );
+}
+
 const withSourceMaps = { MONSQLIZE_BUILD_SOURCEMAPS: '1' };
 const withoutSourceMaps = { MONSQLIZE_BUILD_SOURCEMAPS: '0' };
+const coverageEnv = { ...withoutSourceMaps, MONSQLIZE_TEST_SUMMARY_ONLY: '1' };
 
 npmRun('build', withSourceMaps);
 npmRun('build:tests', withSourceMaps);
 
 // Keep the package root dist in its publish shape; c8 uses the mapped generated test dist.
 npmRun('build', withoutSourceMaps);
+prepareCoverageRuntime();
 
 run(
   process.execPath,
@@ -50,9 +68,9 @@ run(
     '--reporter=lcov',
     '--reporter=json-summary',
     '--include',
-    '.generated/test-dist/dist/cjs/**/*.cjs',
-    '--include',
     '.generated/test-dist/src/**/*.js',
+    '--exclude',
+    '.generated/test-dist/dist/**',
     '--check-coverage',
     '--lines',
     '90',
@@ -65,5 +83,5 @@ run(
     process.execPath,
     'test/run-tests.cjs',
   ],
-  withoutSourceMaps,
+  coverageEnv,
 );

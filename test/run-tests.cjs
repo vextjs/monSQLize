@@ -31,6 +31,7 @@ const SMOKE = [
     'test/smoke/root-esm.test.js',
     'test/smoke/pack-artifacts.test.js',
     'test/smoke/data-task-cli.test.js',
+    'test/smoke/release-contract.test.js',
 ];
 
 const COMPAT = [
@@ -55,6 +56,8 @@ const UNIT = [
     'test/unit/runtime/runtime-compat.test.js',
     'test/unit/runtime/write-path-policy.test.js',
     'test/unit/data-tasks/data-tasks.test.js',
+    'test/unit/data-tasks/data-task-branches.test.js',
+    'test/unit/data-tasks/data-task-runner-branches.test.js',
     'test/unit/sync/sync.test.js',
     'test/unit/slow-query-log/slow-query-log.test.js',
     'test/unit/saga/saga.test.js',
@@ -139,6 +142,7 @@ const INTEGRATION = [
     'test/integration/pool/pool-behavior.test.js',
     'test/integration/watch/watch-native.test.js',
     'test/integration/runtime/runtime-core-regression.test.js',
+    'test/integration/data-tasks/data-tasks.test.js',
     'test/integration/sync/sync.test.js',
     'test/integration/slow-query-log/slow-query-log.test.js',
     // Coverage gap fill — Phase C
@@ -230,7 +234,11 @@ const SUITE_MAP = {
     'pool': ['test/unit/pool/pool.test.js'],
     'runtime-compat': ['test/unit/runtime/runtime-compat.test.js'],
     'write-path-policy': ['test/unit/runtime/write-path-policy.test.js'],
-    'data-tasks': ['test/unit/data-tasks/data-tasks.test.js'],
+    'data-tasks': [
+        'test/unit/data-tasks/data-tasks.test.js',
+        'test/unit/data-tasks/data-task-branches.test.js',
+        'test/unit/data-tasks/data-task-runner-branches.test.js',
+    ],
     'sync': ['test/unit/sync/sync.test.js'],
     'slow-query-log': ['test/unit/slow-query-log/slow-query-log.test.js'],
     'saga': ['test/unit/saga/saga.test.js'],
@@ -270,6 +278,7 @@ const SUITE_MAP = {
     'pool-behavior': ['test/integration/pool/pool-behavior.test.js'],
     'watch-native': ['test/integration/watch/watch-native.test.js'],
     'runtime-regression': ['test/integration/runtime/runtime-core-regression.test.js'],
+    'data-tasks-integration': ['test/integration/data-tasks/data-tasks.test.js'],
     'sync-int': ['test/integration/sync/sync.test.js'],
     'slow-query-log-int': ['test/integration/slow-query-log/slow-query-log.test.js'],
     // Coverage gap fill — Phase C

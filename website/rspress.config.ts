@@ -1,7 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { defineConfig } from '@rspress/core';
-import type { RspressPlugin } from '@rspress/core';
+import type {
+  RspressPlugin,
+  SidebarGroup,
+  SidebarItem,
+  UserConfig,
+} from '@rspress/core';
 import { pluginSitemap } from '@rspress/plugin-sitemap';
 
 type MarkdownAstNode = {
@@ -42,6 +47,11 @@ type NavMenuSource = {
 
 type NavSource = NavLinkSource | NavMenuSource;
 
+const docsReleaseVersion = process.env.DOCS_RELEASE_VERSION ?? '3.0.0';
+const docsReleaseChannel = process.env.DOCS_RELEASE_CHANNEL === 'stable' ? 'stable' : 'next';
+const docsReleaseLabel = docsReleaseChannel === 'stable' ? 'Current' : 'Next';
+const docsReleaseLabelZh = docsReleaseChannel === 'stable' ? '当前稳定版' : '下一版本';
+
 const navSource: NavSource[] = [
   {
     en: 'Examples',
@@ -63,9 +73,14 @@ const navSource: NavSource[] = [
     zh: '版本',
     items: [
       {
-        en: 'v2.0.7 (Current TS)',
-        zh: 'v2.0.7（当前 TS）',
+        en: `v${docsReleaseVersion} (${docsReleaseLabel})`,
+        zh: `v${docsReleaseVersion}（${docsReleaseLabelZh}）`,
         link: '/getting-started'
+      },
+      {
+        en: 'Stable package on npm',
+        zh: 'npm 稳定版本',
+        link: 'https://www.npmjs.com/package/monsqlize'
       },
       {
         en: 'Changelog',
@@ -433,12 +448,27 @@ const localizeLink = (link: string, language: 'en' | 'zh') => {
   return link === '/' ? '/zh/' : `/zh${link}`;
 };
 
-const createSidebarItems = (items: SidebarEntrySource[], language: 'en' | 'zh') =>
-  items.map(item => ({
+const createSidebarItems = (
+  items: SidebarEntrySource[],
+  language: 'en' | 'zh',
+): Array<SidebarGroup | SidebarItem> => items.map(item => {
+  if (item.items) {
+    return {
+      text: item[language],
+      ...(item.link ? { link: localizeLink(item.link, language) } : {}),
+      items: createSidebarItems(item.items, language),
+    };
+  }
+
+  if (!item.link) {
+    throw new Error(`Sidebar item "${item[language]}" requires link or items.`);
+  }
+
+  return {
     text: item[language],
-    ...(item.link ? { link: localizeLink(item.link, language) } : {}),
-    ...(item.items ? { items: createSidebarItems(item.items, language) } : {})
-  }));
+    link: localizeLink(item.link, language),
+  };
+});
 
 const createSidebar = (language: 'en' | 'zh') =>
   sidebarSource.map(group => ({
@@ -512,8 +542,9 @@ const rewriteGeneratedLanguageSwitchLinks: RspressPlugin = {
   }
 };
 
-export default defineConfig({
+const config: UserConfig = {
   root: path.join(import.meta.dirname, '..', 'docs'),
+  themeDir: path.join(import.meta.dirname, 'theme'),
   base: siteBase,
   lang: 'en',
   title: 'monSQLize',
@@ -521,6 +552,11 @@ export default defineConfig({
   globalStyles: path.join(import.meta.dirname, 'styles', 'home.css'),
   description: 'A database-native TypeScript production data runtime layer with MongoDB stable today, plus cache, pools, transactions, models, sync, and observability.',
   outDir: 'dist',
+  builderConfig: {
+    performance: {
+      buildCache: false,
+    },
+  },
   route: {
     exclude: [
       '**/function-cache.md',
@@ -605,4 +641,6 @@ export default defineConfig({
       message: `${englishFooterMessage}\n${chineseFooterMessage}`
     }
   }
-});
+};
+
+export default defineConfig(config);

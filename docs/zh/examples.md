@@ -2,7 +2,7 @@
 
 文档站中的每个核心 API，都应尽量对应到**当前仓库内可直接运行的示例**。
 
-> 当前完整示例源列表见 [官方示例总览](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)，其中 `npm run test:examples` 会统一编译并执行当前 **57 个** TypeScript 示例；[`examples/helpers/bootstrap.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/helpers/bootstrap.ts) 是辅助模块，不单独执行。
+> 当前完整示例源列表见 [官方示例总览](https://github.com/vextjs/monSQLize/blob/main/examples/README.md)，其中 `npm run test:examples` 会统一编译并执行当前 **58 个** TypeScript 示例；[`examples/helpers/bootstrap.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/helpers/bootstrap.ts) 是辅助模块，不单独执行。
 
 ## 运行方式
 

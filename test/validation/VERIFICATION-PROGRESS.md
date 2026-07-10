@@ -1,8 +1,8 @@
 ﻿# monSQLize TypeScript 重写验证进度
 
 > **项目**: monSQLize
-> **阶段**: TypeScript 全量重写完成后的持续治理阶段（历史 compat 主链已收口，当前进入 `withCache()` 性能基线与 v1 对比口径收口）
-> **更新日期**: 2026-07-09
+> **阶段**: v3.0.0 Major 候选发布治理阶段（历史 compat 主链已收口，当前执行 dataTasks 全维度收敛与发布门禁复核）
+> **更新日期**: 2026-07-10
 > **当前原则**: 只把“本仓库当前已恢复且可执行”的资产标为 ✅；跨版本 / 实机矩阵未补齐前保持 ⚠️ 待验证。
 
 ---
@@ -39,9 +39,9 @@
 | V-13 | 内存服务端矩阵探测与执行入口 | `npm run probe:server-matrix` + `npm run test:server-matrix`（Node 20/22 × Driver 6/7 × MongoDB 6/7） | ✅ | 2026-05-17 |
 | V-14 | v1 ↔ TS 完整功能兼容性对照表（历史批次基线）| `.devcodex/requirements/TypeScript全量重写兼容现有/FEATURE-PARITY.md`（历史批次记录 237 项 API 覆盖）| ✅ | 2026-05-17 |
 | V-15 | v1 compat 全量断言套件（历史批次基线） | `npm run test` → 历史批次记录 2543/2543 v1 compat assertions pass（含 objectid-conversion 61 项） | ✅ | 2026-05-17 |
-| V-16 | TS 文档示例套件（57 个）| `npm run test:examples` → 当前 57 个可执行 TypeScript 示例全部编译并执行；runner 复用 shared standalone + replica set，并复用项目内 memory-server 缓存 / dbPath 策略；`examples/helpers/bootstrap.ts` 是辅助模块，不单独执行 | ✅ | 2026-07-09 |
+| V-16 | TS 文档示例套件（58 个）| `npm run test:examples` → 当前 58 个可执行 TypeScript 示例全部编译并执行；runner 复用 shared standalone + replica set，并复用项目内 memory-server 缓存 / dbPath 策略；`examples/helpers/bootstrap.ts` 是辅助模块，不单独执行 | ✅ | 2026-07-10 |
 | V-17 | 当前 v1 parity 差异台账 | `test/regression/v1-parity-issues.md`（当前保留 9 条历史修复记录 + 2 条撤销误记，用于追溯，不再表示存在主链待修复差异） | ✅ | 2026-05-28 |
-| V-18 | 当前 coverage 补测主链 | `npm run test:coverage` → 2586 passed / 0 failed；published CJS runtime + sourcemap 还原的 source-level gap coverage 覆盖率为 statements 95.11%、branches 92.02%、functions 94.73%、lines 95.11%，已达 90% 门禁 | ✅ | 2026-07-09 |
+| V-18 | 当前 coverage 补测主链 | R14 完整 `release:preflight` 内执行 `npm run test:coverage` → 2630 passed / 0 failed；source-level coverage 为 statements 95.02%、branches 90.08%、functions 96.13%、lines 95.02%，已达 90% 门禁 | ✅ | 2026-07-10 |
 
 ---
 
@@ -64,5 +64,5 @@
 - 当前 Node 20.x、Node 22.x、MongoDB Driver 6.x / 7.x 与 MongoDB Server 6.x / 7.x 的默认内存矩阵都已入账；`npm run test:server-matrix` 已可作为日常可复用验证入口。
 - 历史 `FEATURE-PARITY.md` 与 2543/2543 compat 断言仍可作为“上一轮迁移批次已收口”的基线证据，但它们不再等同于“当前仓库所有验证资产都无需持续治理”。
 - 截至 `2026-05-28`，当前 v1 parity 台账主要承担历史修复追溯用途：此前记录的主链差异已完成修复或撤销误记，当前未发现新的 v1 运行时/类型兼容阻断；本轮继续收口的是 `withCache()` 性能验证口径，而不是重新打开新的 API parity 修复批次。
-- 当前 coverage 补测已把 `npm run test:coverage` 收敛到 2586 passed / 0 failed，并对 published CJS runtime + sourcemap 还原的 source-level gap coverage 达成 statements 95.11%、branches 92.02%、functions 94.73%、lines 95.11%；`verify:full` 聚焦完整功能回归，coverage 继续由 `npm run test:coverage` 独立治理。
+- R14 完整发布门禁中的 coverage 为 2630 passed / 0 failed，source-level coverage 达成 statements 95.02%、branches 90.08%、functions 96.13%、lines 95.02%；`verify:full` 聚焦完整功能回归，coverage 继续由 `npm run test:coverage` 独立治理，并由 `release:preflight` 强制执行。
 

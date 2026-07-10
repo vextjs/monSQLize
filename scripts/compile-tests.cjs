@@ -1,12 +1,37 @@
 #!/usr/bin/env node
 'use strict';
 
-const { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
+const { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
 const outDir = path.join(root, '.generated', 'test-dist');
+
+function listSourceMaps(directory) {
+    if (!existsSync(directory)) return [];
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+        const target = path.join(directory, entry.name);
+        if (entry.isDirectory()) return listSourceMaps(target);
+        return entry.isFile() && entry.name.endsWith('.map') ? [target] : [];
+    });
+}
+
+function remapGeneratedSources() {
+    for (const mapFile of listSourceMaps(outDir)) {
+        const sourceMap = JSON.parse(readFileSync(mapFile, 'utf8'));
+        if (!Array.isArray(sourceMap.sources)) continue;
+        let changed = false;
+        sourceMap.sources = sourceMap.sources.map((source) => {
+            const normalized = String(source).replace(/\\/g, '/');
+            const match = normalized.match(/(?:^|\/)src\/(.+)$/);
+            if (!match) return source;
+            changed = true;
+            return path.relative(path.dirname(mapFile), path.join(root, 'src', match[1])).replace(/\\/g, '/');
+        });
+        if (changed) writeFileSync(mapFile, `${JSON.stringify(sourceMap)}\n`);
+    }
+}
 
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
@@ -31,20 +56,9 @@ if (result.status !== 0) {
 if (existsSync(path.join(root, 'dist'))) {
     const generatedDistDir = path.join(outDir, 'dist');
     cpSync(path.join(root, 'dist'), generatedDistDir, { recursive: true });
-
-    for (const mapFile of [
-        path.join(generatedDistDir, 'cjs', 'index.cjs.map'),
-        path.join(generatedDistDir, 'esm', 'index.mjs.map'),
-    ]) {
-        if (!existsSync(mapFile)) {
-            continue;
-        }
-
-        const sourceMap = JSON.parse(readFileSync(mapFile, 'utf8'));
-        sourceMap.sources = sourceMap.sources.map((source) => source.replace(/^\.\.\/\.\.\/src\//, '../../../../src/'));
-        writeFileSync(mapFile, `${JSON.stringify(sourceMap)}\n`);
-    }
 }
+
+remapGeneratedSources();
 
 cpSync(path.join(root, 'package.json'), path.join(outDir, 'package.json'));
 

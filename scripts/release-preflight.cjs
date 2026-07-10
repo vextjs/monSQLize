@@ -19,6 +19,8 @@ const requiredFiles = [
     'docs/zh/support-matrix.md',
     'docs/zh/file-dependency-governance.md',
     'docs/zh/verification-entrypoints.md',
+    'docs/en/release-preflight.md',
+    'docs/zh/release-preflight.md',
 ];
 
 function ensureExists(relativePath) {
@@ -80,6 +82,47 @@ function ensureLockfileIsReleaseReady() {
     }
 }
 
+function ensurePackageContractIsReleaseReady() {
+    const requiredMetadata = ['name', 'version', 'description', 'license', 'repository', 'homepage', 'bugs', 'engines', 'publishConfig'];
+    for (const field of requiredMetadata) {
+        if (!packageJson[field]) {
+            console.error(`[release-preflight] package.json is missing release metadata: ${field}`);
+            process.exit(1);
+        }
+    }
+
+    const requiredArtifacts = [
+        packageJson.main,
+        packageJson.module,
+        packageJson.types,
+        packageJson.bin?.monsqlize,
+        `changelogs/v${version}.md`,
+    ];
+    for (const artifact of requiredArtifacts) {
+        const normalizedArtifact = artifact?.replace(/^\.\//, '');
+        const isCovered = normalizedArtifact && packageJson.files.some((pattern) => {
+            const normalizedPattern = pattern.replace(/^\.\//, '');
+            const wildcardIndex = normalizedPattern.indexOf('*');
+            return wildcardIndex === -1
+                ? normalizedArtifact === normalizedPattern
+                : normalizedArtifact.startsWith(normalizedPattern.slice(0, wildcardIndex));
+        });
+        if (!isCovered) {
+            console.error(`[release-preflight] package files do not cover required artifact: ${artifact ?? '<missing>'}`);
+            process.exit(1);
+        }
+    }
+
+    if (packageJson.scripts?.prepublishOnly !== 'npm run release:preflight') {
+        console.error('[release-preflight] prepublishOnly must consume release:preflight');
+        process.exit(1);
+    }
+    if (!packageJson.scripts?.['release:publish']?.startsWith('npm run release:preflight && ')) {
+        console.error('[release-preflight] release:publish must consume release:preflight before npm publish');
+        process.exit(1);
+    }
+}
+
 function run(command, args) {
     const result = spawnSync(command, args, {
         cwd: root,
@@ -99,11 +142,18 @@ ensureNoLocalDependencySpecs(packageJson.dependencies, 'dependencies');
 ensureNoLocalDependencySpecs(packageJson.optionalDependencies, 'optionalDependencies');
 ensureNoLocalDependencySpecs(packageJson.devDependencies, 'devDependencies');
 ensureLockfileIsReleaseReady();
+ensurePackageContractIsReleaseReady();
 
 console.log(`[release-preflight] validating release assets for v${version}`);
 run('npm', ['run', 'verify:fast']);
-run('npm', ['run', 'test:audit']);
 run('npm', ['test']);
+run('npm', ['run', 'test:coverage']);
+run('npm', ['run', 'test:examples']);
+run('npm', ['run', 'test:server-matrix']);
+run('npm', ['run', 'test:data-tasks:integration']);
+run('npm', ['run', 'test:data-task-cli']);
+run('npm', ['run', 'test:audit']);
+run('npm', ['run', 'test:pack-install']);
 run('npm', ['pack', '--dry-run']);
 
 console.log('[release-preflight] ✅ preflight passed');

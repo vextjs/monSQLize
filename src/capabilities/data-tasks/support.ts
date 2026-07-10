@@ -4,6 +4,7 @@ import type { ModelEnsureAllIndexesOptions, ModelIndexEnsureSummary } from '../.
 import type {
     DataTaskDefinition,
     DataTaskEndpoint,
+    DataTaskEnvironment,
     DataTaskEnsureIndexesStep,
     DataTaskExecutionOptions,
     DataTaskIndexDefinition,
@@ -20,15 +21,28 @@ import type {
 
 export type GenericRecord = Record<string, unknown>;
 
+const DATA_TASK_ENVIRONMENTS = new Set(['development', 'test', 'staging', 'production', 'prod', 'live']);
+
+interface InternalExecutionOptions extends DataTaskExecutionOptions {
+    dryRun?: boolean;
+}
+
 interface FindChainLike {
     sort?(sort: GenericRecord): FindChainLike;
     limit?(limit: number): FindChainLike;
+    batchSize?(batchSize: number): FindChainLike;
     toArray(): Promise<GenericRecord[]>;
+}
+
+interface AsyncDocumentStream extends AsyncIterable<GenericRecord> {
+    destroy?(error?: Error): void;
 }
 
 export interface DataTaskCollectionLike {
     getNamespace?(): { db?: string; collection?: string; pool?: string };
     find(query?: GenericRecord, options?: GenericRecord): FindChainLike;
+    stream?(query?: GenericRecord, options?: GenericRecord): AsyncDocumentStream;
+    aggregate?(pipeline?: GenericRecord[], options?: GenericRecord): PromiseLike<GenericRecord[]>;
     count(query?: GenericRecord, options?: GenericRecord): Promise<number>;
     findOne(query: GenericRecord, options?: GenericRecord): Promise<GenericRecord | null>;
     insertOne(document: GenericRecord, options?: GenericRecord): Promise<unknown>;
@@ -84,6 +98,17 @@ const INDEX_OPTION_KEYS = [
     'partialFilterExpression',
     'collation',
     'hidden',
+    'storageEngine',
+    'weights',
+    'default_language',
+    'language_override',
+    'textIndexVersion',
+    '2dsphereIndexVersion',
+    'bits',
+    'min',
+    'max',
+    'bucketSize',
+    'wildcardProjection',
 ] as const;
 
 export function isRecord(value: unknown): value is GenericRecord {
@@ -221,8 +246,28 @@ export function resolveMatchBy(task: DataTaskDefinition, step?: DataTaskSyncData
     return [];
 }
 
-function isProductionTask(task: DataTaskDefinition): boolean {
-    return task.production === true || task.environment === 'production';
+export function classifyTaskEnvironment(task: DataTaskDefinition): {
+    environment?: DataTaskEnvironment;
+    explicit: boolean;
+    isProduction: boolean;
+} {
+    const configured = typeof task.environment === 'string' && task.environment.trim() !== ''
+        ? task.environment.trim()
+        : undefined;
+    const configuredKey = configured?.toLowerCase();
+    const normalizedConfigured = configuredKey && DATA_TASK_ENVIRONMENTS.has(configuredKey)
+        ? configuredKey as DataTaskEnvironment
+        : undefined;
+    const runtimeKey = process.env.NODE_ENV?.trim().toLowerCase();
+    const productionNames = new Set(['production', 'prod', 'live']);
+    const isProduction = task.production === true
+        || (configuredKey !== undefined && productionNames.has(configuredKey))
+        || (runtimeKey !== undefined && productionNames.has(runtimeKey));
+    return {
+        environment: normalizedConfigured ?? (task.production === true || (runtimeKey && productionNames.has(runtimeKey)) ? 'production' : undefined),
+        explicit: configured !== undefined || task.production === true,
+        isProduction,
+    };
 }
 
 export function getByPath(document: GenericRecord, field: string): unknown {
@@ -286,9 +331,15 @@ export function indexOptions(definition: DataTaskIndexDefinition): GenericRecord
 }
 
 export function comparableIndexOptions(options: GenericRecord): GenericRecord {
-    return Object.fromEntries(INDEX_OPTION_KEYS
+    return {
+        unique: options.unique === true,
+        sparse: options.sparse === true,
+        hidden: options.hidden === true,
+        ...Object.fromEntries(INDEX_OPTION_KEYS
+        .filter((key) => key !== 'unique' && key !== 'sparse' && key !== 'hidden')
         .filter((key) => options[key] !== undefined)
-        .map((key) => [key, options[key]]));
+        .map((key) => [key, options[key]])),
+    };
 }
 
 export function indexNameFromOperation(operation: unknown): string | undefined {
@@ -309,6 +360,13 @@ export function normalizeIndexKey(key: unknown): GenericRecord {
     return isRecord(key) ? key : { value: key };
 }
 
+export function orderedIndexKeyString(key: unknown): string {
+    if (!isRecord(key)) {
+        return stableStringify(key);
+    }
+    return `[${Object.entries(key).map(([field, direction]) => `${JSON.stringify(field)}:${stableStringify(direction)}`).join(',')}]`;
+}
+
 export function resolveTaskCollection(host: DataTaskRuntimeHost, endpoint: DataTaskEndpoint): DataTaskCollectionLike {
     const database = endpointDatabase(endpoint);
     if (host.scopedCollection) {
@@ -327,20 +385,101 @@ export function resolveTaskCollection(host: DataTaskRuntimeHost, endpoint: DataT
     return host.collection(endpoint.collection);
 }
 
-export async function findDocuments(collection: DataTaskCollectionLike, context: StepContext, limit?: number): Promise<GenericRecord[]> {
+function queryOptions(context: StepContext): GenericRecord {
+    return {
+        ...(context.projection ? { projection: context.projection } : {}),
+        sort: Object.keys(context.sort ?? {}).length > 0 ? context.sort : { _id: 1 },
+        batchSize: context.batchSize,
+    };
+}
+
+export async function* iterateDocuments(
+    collection: DataTaskCollectionLike,
+    context: StepContext,
+    limit?: number,
+): AsyncGenerator<GenericRecord> {
+    if (limit !== undefined && limit <= 0) {
+        return;
+    }
+    if (collection.stream) {
+        const stream = collection.stream(context.filter, queryOptions(context));
+        let processed = 0;
+        try {
+            for await (const document of stream) {
+                yield document;
+                processed += 1;
+                if (limit !== undefined && processed >= limit) {
+                    stream.destroy?.();
+                    break;
+                }
+            }
+        } finally {
+            if (limit !== undefined && processed >= limit) {
+                stream.destroy?.();
+            }
+        }
+        return;
+    }
+
     const findOptions = context.projection ? { projection: context.projection } : undefined;
     let chain = collection.find(context.filter, findOptions);
-    if (Object.keys(context.sort ?? {}).length > 0 && typeof chain.sort === 'function') {
-        chain = chain.sort(context.sort ?? {});
+    if (typeof chain.sort === 'function') {
+        chain = chain.sort(Object.keys(context.sort ?? {}).length > 0 ? context.sort ?? {} : { _id: 1 });
     }
     if (limit !== undefined && typeof chain.limit === 'function') {
         chain = chain.limit(limit);
     }
-    return chain.toArray();
+    if (typeof chain.batchSize === 'function') {
+        chain = chain.batchSize(context.batchSize);
+    }
+    const documents = await chain.toArray();
+    for (const document of limit === undefined ? documents : documents.slice(0, limit)) {
+        yield document;
+    }
+}
+
+export async function* iterateDocumentBatches(
+    collection: DataTaskCollectionLike,
+    context: StepContext,
+): AsyncGenerator<GenericRecord[]> {
+    let batch: GenericRecord[] = [];
+    for await (const document of iterateDocuments(collection, context)) {
+        batch.push(document);
+        if (batch.length >= context.batchSize) {
+            yield batch;
+            batch = [];
+        }
+    }
+    if (batch.length > 0) {
+        yield batch;
+    }
+}
+
+export async function findDocuments(collection: DataTaskCollectionLike, context: StepContext, limit?: number): Promise<GenericRecord[]> {
+    const documents: GenericRecord[] = [];
+    for await (const document of iterateDocuments(collection, context, limit)) {
+        documents.push(document);
+    }
+    return documents;
+}
+
+export async function findMatchingDocuments(
+    collection: DataTaskCollectionLike,
+    filter: GenericRecord,
+    limit = 2,
+): Promise<GenericRecord[]> {
+    let chain = collection.find(filter);
+    if (typeof chain.sort === 'function') chain = chain.sort({ _id: 1 });
+    if (typeof chain.limit === 'function') chain = chain.limit(limit);
+    return (await chain.toArray()).slice(0, limit);
 }
 
 export function reportProgress(options: DataTaskExecutionOptions | undefined, progress: DataTaskProgress): void {
     options?.onProgress?.(progress);
+}
+
+function isDryRun(options: DataTaskExecutionOptions): boolean {
+    return (options as InternalExecutionOptions).dryRun === true;
 }
 
 export function buildPlan(task: DataTaskDefinition, options: DataTaskExecutionOptions = {}): DataTaskPlanResult {
@@ -351,7 +490,20 @@ export function buildPlan(task: DataTaskDefinition, options: DataTaskExecutionOp
 
     if (!isRecord(task)) {
         errors.push('[DataTask] task must be an object.');
-        return { mode: 'plan' as const, taskName, risk: 'high' as const, willWrite: false, requiresProductionConfirmation: false, requiresSnapshot: false, steps, warnings, errors };
+        return {
+            mode: 'plan' as const,
+            taskName,
+            passed: false,
+            isProduction: false,
+            risk: 'high' as const,
+            willWrite: false,
+            requiresProductionConfirmation: false,
+            requiresSnapshot: false,
+            requiresSnapshotApproval: false,
+            steps,
+            warnings,
+            errors,
+        };
     }
     if (!taskName || taskName === 'data-task') {
         warnings.push('[DataTask] task.name is recommended for audit output and snapshot filenames.');
@@ -359,8 +511,15 @@ export function buildPlan(task: DataTaskDefinition, options: DataTaskExecutionOp
     if (!isRecord(task.target) || typeof task.target.collection !== 'string' || task.target.collection.trim() === '') {
         errors.push('[DataTask] target.collection is required.');
     }
+    if (task.environment !== undefined
+        && (typeof task.environment !== 'string' || !DATA_TASK_ENVIRONMENTS.has(task.environment.trim().toLowerCase()))) {
+        errors.push('[DataTask] environment must be one of development, test, staging, production, prod, or live.');
+    }
     if (!Array.isArray(task.steps) || task.steps.length === 0) {
         errors.push('[DataTask] steps must be a non-empty array.');
+    }
+    if (task.batchSize !== undefined && (!Number.isInteger(task.batchSize) || task.batchSize <= 0)) {
+        errors.push('[DataTask] batchSize must be a positive integer.');
     }
 
     const filterOk = hasUsefulFilter(task.filter);
@@ -390,6 +549,9 @@ export function buildPlan(task: DataTaskDefinition, options: DataTaskExecutionOp
             stepPlan.requiresFilter = true;
             stepPlan.requiresSnapshot = true;
             const syncStep = step as DataTaskSyncDataStep;
+            if (syncStep.batchSize !== undefined && (!Number.isInteger(syncStep.batchSize) || syncStep.batchSize <= 0)) {
+                stepPlan.errors.push('[DataTask] syncData.batchSize must be a positive integer.');
+            }
             if (!task.source) {
                 stepPlan.errors.push('[DataTask] syncData requires source.');
             }
@@ -402,6 +564,9 @@ export function buildPlan(task: DataTaskDefinition, options: DataTaskExecutionOp
             }
             if (task.source && !sameEndpoint(task.source, task.target) && matchBy.includes('_id') && syncStep.allowSourceIdMatch !== true) {
                 stepPlan.errors.push('[DataTask] cross-endpoint syncData cannot use source _id unless allowSourceIdMatch is true.');
+            }
+            if (syncStep.strategy !== undefined && !['insert', 'upsert', 'merge', 'replace'].includes(syncStep.strategy)) {
+                stepPlan.errors.push(`[DataTask] unsupported syncData strategy: ${String(syncStep.strategy)}.`);
             }
         } else if (type === 'transformFields') {
             stepPlan.willWrite = true;
@@ -418,6 +583,10 @@ export function buildPlan(task: DataTaskDefinition, options: DataTaskExecutionOp
             if (updateCount > 1) {
                 stepPlan.errors.push('[DataTask] transformFields accepts only one of update, pipeline, or transform.');
             }
+            if ('sampleSize' in step && step.sampleSize !== undefined
+                && (typeof step.sampleSize !== 'number' || !Number.isInteger(step.sampleSize) || step.sampleSize < 0)) {
+                stepPlan.errors.push('[DataTask] transformFields.sampleSize must be a non-negative integer.');
+            }
         } else if (type === 'exportAffected') {
             stepPlan.requiresFilter = true;
             if (!filterOk && !allowFullCollection) {
@@ -425,10 +594,16 @@ export function buildPlan(task: DataTaskDefinition, options: DataTaskExecutionOp
             }
         } else if (type === 'verify') {
             const verifyStep = step as DataTaskVerifyStep;
-            if (verifyStep.count === true) {
+            if (verifyStep.sample !== undefined && (!Number.isInteger(verifyStep.sample) || verifyStep.sample < 0)) {
+                stepPlan.errors.push('[DataTask] verify.sample must be a non-negative integer.');
+            }
+            if (verifyStep.count === true || (typeof verifyStep.sample === 'number' && verifyStep.sample > 0)) {
                 stepPlan.requiresSource = true;
                 if (!task.source) {
-                    stepPlan.errors.push('[DataTask] verify count requires source.');
+                    stepPlan.errors.push('[DataTask] verify count/sample requires source.');
+                } else if (verifyStep.sample && !sameEndpoint(task.source, task.target)
+                    && resolveMatchBy(task, task.steps.find((candidate): candidate is DataTaskSyncDataStep => candidate.type === 'syncData')).length === 0) {
+                    stepPlan.errors.push('[DataTask] verify sample across different endpoints requires business matchBy fields.');
                 }
             }
         } else {
@@ -441,16 +616,59 @@ export function buildPlan(task: DataTaskDefinition, options: DataTaskExecutionOp
 
     const willWrite = steps.some((step) => step.willWrite);
     const requiresSnapshot = steps.some((step) => step.requiresSnapshot);
-    const requiresProductionConfirmation = isProductionTask(task) && willWrite;
+    const environment = classifyTaskEnvironment(task);
+    if (willWrite && !environment.explicit) {
+        errors.push('[DataTask] write tasks require an explicit environment (development, test, staging, production, prod, or live).');
+    }
+    if (isRecord(task.lock)) {
+        if (task.lock.scope !== undefined && task.lock.scope !== 'process') {
+            errors.push('[DataTask] built-in data task locks only support scope: "process".');
+        }
+        if (task.lock.ttlMs !== undefined
+            && (typeof task.lock.ttlMs !== 'number' || !Number.isInteger(task.lock.ttlMs) || task.lock.ttlMs < 2)) {
+            errors.push('[DataTask] lock.ttlMs must be an integer greater than or equal to 2.');
+        }
+        if (task.lock.renewIntervalMs !== undefined
+            && (typeof task.lock.renewIntervalMs !== 'number'
+                || !Number.isInteger(task.lock.renewIntervalMs)
+                || task.lock.renewIntervalMs <= 0)) {
+            errors.push('[DataTask] lock.renewIntervalMs must be a positive integer.');
+        }
+        if (typeof task.lock.ttlMs === 'number' && typeof task.lock.renewIntervalMs === 'number'
+            && task.lock.renewIntervalMs >= task.lock.ttlMs) {
+            errors.push('[DataTask] lock.renewIntervalMs must be less than lock.ttlMs.');
+        }
+    }
+    const requiresProductionConfirmation = environment.isProduction && willWrite;
+    const requiresSnapshotApproval = environment.isProduction && requiresSnapshot;
     const snapshot = resolveSnapshotConfig(task.snapshot, options);
-    if (requiresSnapshot && !snapshot.enabled && !snapshot.allowRunWithoutSnapshot && options.dryRun !== true) {
-        errors.push('[DataTask] data write steps require snapshot unless allowRunWithoutSnapshot is true.');
+    if (requiresSnapshot && !snapshot.enabled && (!snapshot.allowRunWithoutSnapshot || environment.isProduction) && !isDryRun(options)) {
+        errors.push(environment.isProduction
+            ? '[DataTask] production data writes cannot disable affected snapshots.'
+            : '[DataTask] data write steps require snapshot unless allowRunWithoutSnapshot is true.');
     }
     if (requiresProductionConfirmation) {
         warnings.push('[DataTask] production writes require confirmProduction: true.');
     }
+    if (requiresSnapshotApproval) {
+        warnings.push('[DataTask] production data writes require an approved snapshot checksum.');
+    }
     const risk = requiresProductionConfirmation || allowFullCollection ? 'high' : willWrite ? 'medium' : 'low';
-    return { mode: 'plan' as const, taskName, risk, willWrite, requiresProductionConfirmation, requiresSnapshot, steps, warnings, errors };
+    return {
+        mode: 'plan' as const,
+        taskName,
+        passed: errors.length === 0,
+        environment: environment.environment as DataTaskPlanResult['environment'],
+        isProduction: environment.isProduction,
+        risk,
+        willWrite,
+        requiresProductionConfirmation,
+        requiresSnapshot,
+        requiresSnapshotApproval,
+        steps,
+        warnings,
+        errors,
+    };
 }
 
 export function assertExecutableStep(task: DataTaskDefinition, step: DataTaskStep, options: DataTaskExecutionOptions): void {
@@ -458,7 +676,7 @@ export function assertExecutableStep(task: DataTaskDefinition, step: DataTaskSte
     if (plan.errors.length > 0) {
         throw createError(ErrorCodes.INVALID_CONFIG, plan.errors.join(' '));
     }
-    if (options.dryRun !== true && plan.requiresProductionConfirmation && options.confirmProduction !== true) {
+    if (!isDryRun(options) && plan.requiresProductionConfirmation && options.confirmProduction !== true) {
         throw createError(ErrorCodes.INVALID_OPERATION, '[DataTask] production run requires confirmProduction: true.');
     }
 }

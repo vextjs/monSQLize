@@ -12,6 +12,8 @@
     "moduleResolution": "NodeNext"
   },
   "include": [
+    "src/**/*.ts",
+    "src/**/*.mts",
     "test/**/*.test.ts",
     "test/**/*.benchmark.ts",
     "test/bootstrap/**/*.ts",

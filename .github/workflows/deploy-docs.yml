@@ -1,16 +1,12 @@
 name: Deploy Docs to GitHub Pages
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'docs/**'
-      - 'examples/**'
-      - 'scripts/validation/check-doc-example-matrix.cjs'
-      - 'scripts/validation/doc-example-matrix.json'
-      - 'website/**'
-      - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Published release tag to deploy, for example v3.0.0'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -27,6 +23,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Verify tag, package and npm registry agree
+        shell: bash
+        run: |
+          RELEASE_TAG='${{ inputs.release_tag }}'
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::release_tag must be an exact stable SemVer tag such as v3.0.0"
+            exit 1
+          fi
+
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION=${RELEASE_TAG#v}
+          REGISTRY_VERSION=$(npm view "monsqlize@${PACKAGE_VERSION}" version --registry=https://registry.npmjs.org/)
+          if [ "${TAG_VERSION}" != "${PACKAGE_VERSION}" ] || [ "${REGISTRY_VERSION}" != "${PACKAGE_VERSION}" ]; then
+            echo "::error::tag=${TAG_VERSION}, package=${PACKAGE_VERSION}, registry=${REGISTRY_VERSION} must match"
+            exit 1
+          fi
+
+          echo "DOCS_RELEASE_VERSION=${PACKAGE_VERSION}" >> "${GITHUB_ENV}"
+          echo "DOCS_RELEASE_CHANNEL=stable" >> "${GITHUB_ENV}"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

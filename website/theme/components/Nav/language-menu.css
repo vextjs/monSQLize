@@ -1,0 +1,105 @@
+.msq-language-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.msq-language-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--rp-c-text-1);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.msq-language-menu__trigger:hover,
+.msq-language-menu__trigger[aria-expanded='true'] {
+  color: var(--rp-c-brand);
+}
+
+.msq-language-menu__trigger:focus-visible,
+.msq-language-menu__item:focus-visible {
+  outline: 2px solid var(--rp-c-brand);
+  outline-offset: 2px;
+}
+
+.msq-language-menu__icon {
+  width: 15px;
+  height: 15px;
+  transition: transform 0.2s ease;
+}
+
+.msq-language-menu__trigger[aria-expanded='true'] .msq-language-menu__icon {
+  transform: rotate(180deg);
+}
+
+.msq-language-menu__compact {
+  display: none;
+}
+
+.msq-language-menu__list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% - 4px);
+  right: 0;
+  min-width: 150px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--rp-c-divider);
+  border-radius: 6px;
+  background: var(--rp-c-bg);
+  box-shadow: var(--rp-shadow-2);
+  list-style: none;
+}
+
+.msq-language-menu__list[hidden] {
+  display: none;
+}
+
+.msq-language-menu__item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 4px;
+  color: var(--rp-c-text-1);
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.msq-language-menu__item:hover,
+.msq-language-menu__item:focus-visible,
+.msq-language-menu__item[aria-current='page'] {
+  background: var(--rp-c-bg-soft);
+  color: var(--rp-c-brand);
+}
+
+/* The custom menu replaces the default mouse-only desktop and mobile controls. */
+.rp-nav__others > .rp-nav-menu__item:first-of-type,
+.rp-nav-screen-langs,
+.rp-nav-screen-langs-group {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .msq-language-menu__label {
+    display: none;
+  }
+
+  .msq-language-menu__compact {
+    display: inline;
+  }
+
+  .msq-language-menu__list {
+    right: -8px;
+    width: min(160px, calc(100vw - 24px));
+  }
+}

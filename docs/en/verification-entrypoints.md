@@ -15,12 +15,13 @@
 | Command | Description |
 |------|------|
 | `npm test` | Default unified access control: smoke + compatibility + unit + integration; no longer implicitly run legacy compat runner or migration-specific runner |
-| `npm run check:docs-examples` | Documentation/example parity gate: verifies the 104/104 bilingual docs matrix, runner coverage, shared-example targets, doc-check targets, and visible path text |
+| `npm run check:docs-examples` | Documentation/example parity gate: verifies the 105/105 bilingual docs matrix, runner coverage, shared-example targets, doc-check targets, and visible path text |
 | `npm run test:coverage` | Independent coverage governance gate: runs the default test through `c8`; the published CJS runtime plus source-level gap coverage resolved through sourcemaps must keep lines / statements / functions / branches at or above 90% |
 | `npm run test:refactor-guard` | Hot spot reconstruction triple regression: exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server default matrix (Node/Driver/MongoDB server) |
 | `npm run test:real-env:private` | Private real environment check; do not enter regular verify / CI by default |
-| `npm run release:preflight` | Access control before public release: check lockfile release status, changelog / support matrix / dependency governance document, and concatenate `verify:fast` + `npm test` + `npm pack --dry-run` |
+| `npm run release:preflight` | Single-source public release gate: release metadata + `verify:fast` + default tests + coverage + examples + server matrix + dataTasks/CLI integration + audit + temporary package install + final pack boundary |
+| `npm run test:pack-install` | Build and pack the candidate, install the tarball in a temporary consumer, and verify CJS, ESM, TypeScript, bin, help, and version |
 
 The memory-server related entries uniformly use `.cache/mongodb-memory-server/binaries` as the binary cache and `.cache/mongodb-memory-server/db` as the temporary data directory within the project; the dbPath automatically created by the project will be cleared when the script exits or runtime close to avoid the accumulation of default system temporary directories.
 
@@ -56,7 +57,7 @@ Suitable for:
 - Behavior changes or cross-module refactoring
 - Return of the complete repository before release
 
-`verify:full` also includes `npm run test:examples`, so runnable examples are compiled and executed after the matrix gate has checked 104/104 document coverage.
+`verify:full` also includes `npm run test:examples`, so all 58 runnable examples are compiled and executed after the matrix gate has checked 105/105 document coverage.
 
 
 ## 3. Private real environment verification
@@ -82,7 +83,7 @@ Required environment variables:
 ## Default boundary
 
 - **Default verification chain**: `npm test` / `check:docs-examples` / `verify:fast` / `verify:full` / `test:server-matrix`
-- **Coverage gate**: `npm run test:coverage` is executed independently; P-04 has been completed and retained as an independent coverage gate, and `verify:full` is not blocked
+- **Coverage gate**: `npm run test:coverage` remains independently runnable; `verify:full` does not include it, while public CI's release-gate and `release:preflight` require it
 - **Explicit opt-in**: `test:real-env:private`
 - **Public release pre-access control**: `release:preflight`
 - **Local private pre-release supplement**: `verify:release`

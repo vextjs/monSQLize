@@ -6,13 +6,13 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version to publish. Must match package.json."
+      release_tag:
+        description: "Existing release tag to republish after a recoverable workflow failure, for example v3.0.0."
         required: true
-        default: "2.0.7"
+        default: "v3.0.0"
 
 concurrency:
-  group: publish-${{ github.ref }}
+  group: publish-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -36,13 +38,24 @@ jobs:
       - name: Verify tag matches package.json version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG_VERSION="${{ inputs.version }}"
+            RELEASE_TAG="${{ inputs.release_tag }}"
           else
-            TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+            RELEASE_TAG="${GITHUB_REF#refs/tags/}"
           fi
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag ${RELEASE_TAG} must be an exact stable SemVer tag such as v3.0.0"
+            exit 1
+          fi
+          TAG_VERSION="${RELEASE_TAG#v}"
           PKG_VERSION=$(node -p "require('./package.json').version")
           if [ "${TAG_VERSION}" != "${PKG_VERSION}" ]; then
             echo "Requested version ${TAG_VERSION} does not match package.json version ${PKG_VERSION}"
+            exit 1
+          fi
+          TAG_COMMIT=$(git rev-parse "${RELEASE_TAG}^{commit}")
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          if [ "${TAG_COMMIT}" != "${HEAD_COMMIT}" ]; then
+            echo "Release tag ${RELEASE_TAG} does not resolve to checked-out commit ${HEAD_COMMIT}"
             exit 1
           fi
 
@@ -51,9 +64,6 @@ jobs:
 
       - name: Run release preflight
         run: npm run release:preflight
-
-      - name: Preview package contents
-        run: npm pack --dry-run
 
       - name: Verify npm publish authentication
         env:
@@ -69,3 +79,34 @@ jobs:
         run: npm publish --provenance --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify registry and installed package
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          for attempt in 1 2 3 4 5 6; do
+            REGISTRY_VERSION=$(npm view "monsqlize@${VERSION}" version --registry=https://registry.npmjs.org/ 2>/dev/null || true)
+            if [ "${REGISTRY_VERSION}" = "${VERSION}" ]; then
+              break
+            fi
+            if [ "${attempt}" = "6" ]; then
+              echo "::error::monsqlize@${VERSION} did not become readable from npm"
+              exit 1
+            fi
+            sleep 10
+          done
+
+          CONSUMER_DIR="${RUNNER_TEMP}/monsqlize-registry-smoke"
+          INTEGRITY=$(npm view "monsqlize@${VERSION}" dist.integrity --registry=https://registry.npmjs.org/)
+          LATEST=$(npm view monsqlize dist-tags.latest --registry=https://registry.npmjs.org/)
+          if [ -z "${INTEGRITY}" ] || [ "${LATEST}" != "${VERSION}" ]; then
+            echo "::error::registry acceptance failed: integrity=${INTEGRITY:-missing}, latest=${LATEST:-missing}, expected=${VERSION}"
+            exit 1
+          fi
+
+          mkdir -p "${CONSUMER_DIR}"
+          npm --prefix "${CONSUMER_DIR}" init -y
+          npm --prefix "${CONSUMER_DIR}" install "monsqlize@${VERSION}" --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
+          node -e "const p=require('${CONSUMER_DIR}/node_modules/monsqlize/package.json'); const M=require('${CONSUMER_DIR}/node_modules/monsqlize'); if(!M || p.version!==process.argv[1]) process.exit(1)" "${VERSION}"
+          node --input-type=module -e "import M from '${CONSUMER_DIR}/node_modules/monsqlize/dist/esm/index.mjs'; if(!M) process.exit(1)"
+          node "${CONSUMER_DIR}/node_modules/monsqlize/dist/cjs/cli/data-task.cjs" --version | grep -Fx "${VERSION}"

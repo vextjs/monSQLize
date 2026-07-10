@@ -2,7 +2,7 @@
 pageType: home
 
 hero:
-  badge: v2.0.7 TypeScript release
+  badge: v3.0.0 TypeScript
   name: monSQLize
   text: TypeScript Data Runtime Layer
   tagline: Database-native production runtime for MongoDB today, with MySQL and PostgreSQL adapters next.

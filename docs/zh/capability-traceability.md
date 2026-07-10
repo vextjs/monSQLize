@@ -12,11 +12,12 @@
 | 聚合 / 表达式 | `aggregate.md` / `expression-functions.md` | `examples/docs/aggregate.ts` / `aggregate-advanced.ts` / `expression-functions.ts` | `test/unit/expression/*.test.ts` |
 | 写入扩展 / Batch | `write-operations.md` / `updateBatch.md` / `deleteBatch.md` | `examples/docs/update.ts` / `batch-operations.ts` | `test/unit/writes/batch.test.ts` + `test/integration/mongodb/writes-batch.test.ts` |
 | Collection 管理能力 | `collection-management.md` / `create-index.md` / `database-ops.md` | `examples/docs/collection-management.ts` | `test/integration/mongodb/management.test.ts` |
+| 生产数据任务 / 索引发布 | `data-tasks.md` / `production-rollout.md` | `examples/docs/data-tasks.ts` | `test/unit/data-tasks/*.test.ts` / `test/integration/data-tasks/data-tasks.test.ts` / `test/smoke/data-task-cli.test.ts` |
 | Cache / legacy 函数缓存兼容 | `cache.md` / `cache-and-function-cache.md` / 隐藏兼容页 `function-cache.md` | `examples/cache/with-cache.ts` / `examples/docs/cache-multilevel.ts` / legacy `examples/docs/function-cache.ts` | `test/unit/cache/cache.test.ts` / 兼容 `test/unit/function-cache/function-cache.test.ts` |
 | Model / Populate / Hooks | `model.md` / `populate.md` / `hooks.md` / `relations.md` | `examples/docs/model.ts` / `populate-relations.ts` | `test/integration/model/model-features.test.ts` |
 | Transaction | `transaction.md` / `transaction-optimizations.md` | `examples/docs/transaction.ts` / `transaction-rollback.ts` | `test/integration/transaction/transaction.test.ts` |
 | Pool / 多连接池 | `multi-pool.md` / `multi-pool-health-check.md` / `pool-chain-api.md` | `examples/docs/pool.ts` / `pool-fallback.ts` | `test/unit/pool/pool.test.ts` / `test/integration/pool/pool.test.ts` |
-| Sync / Resume Token | `sync-backup.md` / `watch.md` | `examples/docs/sync.ts` / `sync-target-failure.ts` | `test/unit/sync/sync.test.ts` / `test/integration/sync/sync.test.ts` |
+| Sync / Resume Token / target 恢复 | `sync-backup.md` / `watch.md` / `production-rollout.md` | `examples/docs/sync.ts` / `sync-target-failure.ts` | `test/unit/sync/sync.test.ts` / `test/integration/sync/sync.test.ts` |
 | Slow Query Log | `slow-query-log.md` | `examples/docs/slow-query-log.ts` | `test/unit/slow-query-log/slow-query-log.test.ts` / `test/integration/slow-query-log/slow-query-log.test.ts` |
 | ObjectId 自动转换 | `objectid-auto-convert.md` / `objectid-cross-version.md` | `examples/docs/objectid.ts` | `npm run test:examples` |
 

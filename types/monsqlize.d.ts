@@ -228,9 +228,9 @@ export interface MonSQLizeOptions {
     maxTimeMS?: number;
     /** Default limit for find() when caller does not specify one. Default: 500. @since v1.3.0 */
     findLimit?: number;
-    /** Maximum allowed explicit limit for find(). limit(0) keeps MongoDB's unlimited semantics. Default: 10000. @since v2.0.7 */
+    /** Maximum allowed explicit limit for find(). limit(0) keeps MongoDB's unlimited semantics. Default: 10000. @since v3.0.0 */
     findMaxLimit?: number;
-    /** Maximum allowed explicit skip for find() and offsetJump. Default: 50000. @since v2.0.7 */
+    /** Maximum allowed explicit skip for find() and offsetJump. Default: 50000. @since v3.0.0 */
     findMaxSkip?: number;
     /** Slow query threshold in milliseconds; populates slowQueryLog.filter.minExecutionTimeMs when slowQueryLog is enabled. Default: 500. @since v1.3.0 */
     slowQueryMs?: number;
@@ -240,13 +240,13 @@ export interface MonSQLizeOptions {
     namespace?: { scope?: 'database' | 'connection'; instanceId?: string; };
     /** HMAC-SHA256 secret used to sign and verify cursor tokens returned by findPage(). @since v1.3.0 */
     cursorSecret?: string;
-    /** Require cursorSecret before findPage can emit or consume cursor tokens. Default: false. @since v2.0.7 */
+    /** Require cursorSecret before findPage can emit or consume cursor tokens. Default: false. @since v3.0.0 */
     requireCursorSecret?: boolean;
-    /** Controls startup warning when cursorSecret is missing. Default: 'production'. @since v2.0.7 */
+    /** Controls startup warning when cursorSecret is missing. Default: 'production'. @since v3.0.0 */
     cursorSecretWarning?: 'off' | 'production' | 'always';
-    /** Global cursor value type hints used when findPage decodes after/before tokens. @since v2.0.7 */
+    /** Global cursor value type hints used when findPage decodes after/before tokens. @since v3.0.0 */
     cursorTypes?: Record<string, CursorValueType>;
-    /** Global cursor value normalizer used when findPage decodes after/before tokens. @since v2.0.7 */
+    /** Global cursor value normalizer used when findPage decodes after/before tokens. @since v3.0.0 */
     cursorValueNormalizer?: CursorValueNormalizer;
     /** Logging tag configuration applied to slow-query event payloads. @since v1.3.0 */
     log?: { slowQueryTag?: { event?: string; code?: string;[key: string]: unknown }; formatSlowQuery?: (meta: unknown) => unknown; };

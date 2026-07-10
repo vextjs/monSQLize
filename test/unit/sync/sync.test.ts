@@ -388,6 +388,78 @@ describe('P4-C sync', () => {
         assert.equal(stats.errorCount, 1);
     });
 
+    it('waits for a fatal stream close before starting the replacement stream', async () => {
+        const streams: Array<EventEmitter & { close(): Promise<boolean> }> = [];
+        let releaseFirstClose: (() => void) | undefined;
+        let failOnce = true;
+        const db = {
+            databaseName: 'source_db',
+            watch(_pipeline: unknown[], options: Record<string, unknown>) {
+                if (options?.maxAwaitTimeMS === 1) return { close: () => Promise.resolve(true) };
+                const stream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };
+                stream.close = streams.length === 0
+                    ? () => new Promise<boolean>((resolve) => {
+                        releaseFirstClose = () => resolve(true);
+                    })
+                    : () => Promise.resolve(true);
+                streams.push(stream);
+                return stream;
+            },
+        };
+        const manager = new MonSQLize.ChangeStreamSyncManager({
+            db,
+            config: {
+                enabled: true,
+                collections: ['users'],
+                targets: [{
+                    name: 'flaky',
+                    async apply() {
+                        if (failOnce) {
+                            failOnce = false;
+                            throw new Error('target failed once');
+                        }
+                    },
+                }],
+            },
+            tokenStore: {
+                load: () => Promise.resolve(null),
+                save: () => Promise.resolve(),
+                clear: () => Promise.resolve(),
+            },
+            logger: { error: () => undefined, warn: () => undefined, info: () => undefined, debug: () => undefined },
+        });
+
+        await manager.start();
+        streams[0].emit('change', {
+            _id: { token: 1 },
+            operationType: 'insert',
+            ns: { db: 'source_db', coll: 'users' },
+            documentKey: { _id: 1 },
+            fullDocument: { _id: 1, name: 'Ada' },
+        });
+        await wait(20);
+        assert.equal(manager.getStats().isRunning, false);
+
+        const restart = manager.start();
+        await wait(5);
+        assert.equal(streams.length, 1);
+        releaseFirstClose?.();
+        await restart;
+        assert.equal(streams.length, 2);
+        assert.equal(manager.getStats().isRunning, true);
+
+        streams[1].emit('change', {
+            _id: { token: 2 },
+            operationType: 'insert',
+            ns: { db: 'source_db', coll: 'users' },
+            documentKey: { _id: 2 },
+            fullDocument: { _id: 2, name: 'Grace' },
+        });
+        await wait(20);
+        assert.equal(manager.getStats().syncedCount, 1);
+        await manager.stop();
+    });
+
     it('skips already applied targets with sync idempotency on replay', async () => {
         const createLiveStream = () => {
             const liveStream = new EventEmitter() as EventEmitter & { close(): Promise<boolean> };

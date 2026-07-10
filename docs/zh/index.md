@@ -2,7 +2,7 @@
 pageType: home
 
 hero:
-  badge: v2.0.7 TypeScript 正式版
+  badge: v3.0.0 TypeScript
   name: monSQLize
   text: TypeScript 数据运行时增强层
   tagline: 当前以 MongoDB 为稳定适配器，后续以数据库原生语义接入 MySQL 与 PostgreSQL。

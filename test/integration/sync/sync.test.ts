@@ -99,6 +99,52 @@ describe('P4-C sync integration', () => {
         }
     });
 
+    it('restarts after a fatal target failure without racing the previous stream close', async () => {
+        const resumeTokenPath = createResumeTokenPath('fatal-restart');
+        let failOnce = true;
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'sync_restart_app',
+            config: { uri },
+            sync: {
+                enabled: true,
+                collections: ['restart_events'],
+                resumeToken: { storage: 'file', path: resumeTokenPath },
+                targets: [{
+                    name: 'flaky-target',
+                    apply() {
+                        if (failOnce) {
+                            failOnce = false;
+                            return Promise.reject(new Error('target failed once'));
+                        }
+                        return Promise.resolve();
+                    },
+                }],
+            },
+        });
+
+        try {
+            await runtime.connect();
+            await insertOneWithRetry(uri, 'sync_restart_app', 'restart_events', { name: 'first' });
+            await waitFor(() => {
+                const stats = runtime.getSyncStats();
+                return stats && stats.errorCount >= 1 && stats.isRunning === false ? stats : null;
+            }, 'sync manager did not enter the failed state in time', 10000);
+
+            await runtime.startSync();
+            assert.equal(runtime.getSyncStats()?.isRunning, true);
+            await insertOneWithRetry(uri, 'sync_restart_app', 'restart_events', { name: 'second' });
+            const recovered = await waitFor(() => {
+                const stats = runtime.getSyncStats();
+                return stats && stats.syncedCount >= 1 && stats.targets[0]?.syncCount >= 1 ? stats : null;
+            }, 'sync manager did not recover in time', 10000);
+            assert.equal(recovered.isRunning, true);
+        } finally {
+            await runtime.close();
+            await fs.rm(resumeTokenPath, { force: true });
+        }
+    });
+
     syncStatsIt('syncs change events to target and updates stats on a real replica set', async () => {
         const resumeTokenPath = createResumeTokenPath('target-stats');
         let resolveInsert: (value: any) => void = () => {};

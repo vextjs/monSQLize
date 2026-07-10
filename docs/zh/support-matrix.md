@@ -23,7 +23,7 @@
 - **Default gate**：`npm test`
 - **Fast**：`npm run verify:fast`
 - **Full functional gate**：`npm run verify:full`
-- **Coverage governance**：`npm run test:coverage`
+- **Coverage governance**：`npm run test:coverage`（独立命令，也是 release-preflight 强制阶段）
 - **Matrix**：`npm run test:server-matrix`
 - **打包自检**：`npm run release:preflight`
 - **Private real env**：`npm run test:real-env:private`

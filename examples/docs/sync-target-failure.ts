@@ -21,7 +21,7 @@ function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitFor<T>(check: () => T | null, message: string, timeoutMs = 8000, intervalMs = 50) {
+async function waitFor<T>(check: () => T | null, message: string, timeoutMs = 20000, intervalMs = 50) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
         const result = check();
@@ -76,7 +76,15 @@ async function main() {
             'sync manager did not record target failure in time',
         );
 
+        await waitFor(
+            () => runtime.getSyncStats()?.isRunning === false ? true : null,
+            'sync manager did not finish closing the failed stream in time',
+        );
         await runtime.startSync();
+        await waitFor(
+            () => runtime.getSyncStats()?.isRunning === true ? true : null,
+            'sync manager did not restart in time',
+        );
         await events.insertOne({ type: 'sync.recovered', payload: { step: 2 } });
 
         const recoveredStats = await waitFor(
@@ -101,8 +109,7 @@ async function main() {
 }
 
 main()
-    .then(() => process.exit(0))
     .catch((error) => {
         console.error('❌ Example failed:', error);
-        process.exit(1);
+        process.exitCode = 1;
     });

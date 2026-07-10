@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import packageJson from '../../package.json';
 import { DataTaskRunner } from '../capabilities/data-tasks';
 import { MonSQLizeRuntime } from '../entry/runtime-core';
 import type { MonSQLizeOptions } from '../../types/monsqlize';
@@ -11,12 +12,14 @@ import type {
 } from '../../types/data-tasks';
 
 interface ParsedArgs {
-    action?: 'plan' | 'dry-run' | 'run' | 'verify';
+    action?: 'plan' | 'dry-run' | 'snapshot' | 'run' | 'verify';
     taskFile?: string;
     confirmProduction: boolean;
     json: boolean;
     snapshotDir?: string;
+    snapshotChecksum?: string;
     help: boolean;
+    version: boolean;
 }
 
 function usage(): string {
@@ -24,8 +27,10 @@ function usage(): string {
         'Usage:',
         '  monsqlize data-task plan --task <file> [--json]',
         '  monsqlize data-task dry-run --task <file> [--snapshot-dir <dir>] [--json]',
-        '  monsqlize data-task run --task <file> --confirm-production [--snapshot-dir <dir>] [--json]',
+        '  monsqlize data-task snapshot --task <file> [--snapshot-dir <dir>] [--json]',
+        '  monsqlize data-task run --task <file> --confirm-production --snapshot-checksum <sha256> [--snapshot-dir <dir>] [--json]',
         '  monsqlize data-task verify --task <file> [--json]',
+        '  monsqlize --help | --version',
     ].join('\n');
 }
 
@@ -35,11 +40,20 @@ function parseArgs(argv: string[]): ParsedArgs {
         args.shift();
     }
     const parsed: ParsedArgs = {
-        action: args.shift() as ParsedArgs['action'],
         confirmProduction: false,
         json: false,
         help: false,
+        version: false,
     };
+    if (args[0] === '--help' || args[0] === '-h') {
+        parsed.help = true;
+        args.shift();
+    } else if (args[0] === '--version' || args[0] === '-v') {
+        parsed.version = true;
+        args.shift();
+    } else {
+        parsed.action = args.shift() as ParsedArgs['action'];
+    }
     while (args.length > 0) {
         const arg = args.shift();
         if (arg === '--task') {
@@ -50,13 +64,33 @@ function parseArgs(argv: string[]): ParsedArgs {
             parsed.json = true;
         } else if (arg === '--snapshot-dir') {
             parsed.snapshotDir = args.shift();
+        } else if (arg === '--snapshot-checksum') {
+            parsed.snapshotChecksum = args.shift();
         } else if (arg === '--help' || arg === '-h') {
             parsed.help = true;
+        } else if (arg === '--version' || arg === '-v') {
+            parsed.version = true;
         } else if (arg) {
             throw new Error(`Unknown argument: ${arg}`);
         }
     }
     return parsed;
+}
+
+function collectFailures(value: unknown, location = 'result'): string[] {
+    if (!value || typeof value !== 'object') return [];
+    const record = value as Record<string, unknown>;
+    const failures: string[] = [];
+    if (record.passed === false || record.status === 'failed') {
+        failures.push(`${location} reported failure.`);
+    }
+    if (Array.isArray(record.errors)) {
+        for (const error of record.errors) failures.push(`${location}: ${String(error)}`);
+    }
+    if (Array.isArray(record.results)) {
+        record.results.forEach((result, index) => failures.push(...collectFailures(result, `${location}.results[${index}]`)));
+    }
+    return [...new Set(failures)];
 }
 
 function isDataTaskDefinition(value: unknown): value is DataTaskDefinition {
@@ -122,15 +156,30 @@ function printHumanResult(action: string, result: unknown): void {
     if (Array.isArray(record.results)) {
         console.log(`results: ${record.results.length}`);
     }
+    const failures = collectFailures(result).filter((failure) => !failure.startsWith('result:'));
+    if (failures.length > 0) {
+        console.log(`nested failures: ${failures.length}`);
+        for (const failure of failures) console.log(`- ${failure}`);
+    }
+    if (record.snapshot && typeof record.snapshot === 'object') {
+        const snapshot = record.snapshot as Record<string, unknown>;
+        if (snapshot.path) console.log(`snapshot: ${String(snapshot.path)}`);
+        if (snapshot.manifestPath) console.log(`manifest: ${String(snapshot.manifestPath)}`);
+        if (snapshot.checksum) console.log(`checksum: ${String(snapshot.checksum)}`);
+    }
 }
 
 async function runCli(argv: string[]): Promise<void> {
     const args = parseArgs(argv);
+    if (args.version) {
+        console.log(packageJson.version);
+        return;
+    }
     if (args.help || !args.action) {
         console.log(usage());
         return;
     }
-    if (!['plan', 'dry-run', 'run', 'verify'].includes(args.action)) {
+    if (!['plan', 'dry-run', 'snapshot', 'run', 'verify'].includes(args.action)) {
         throw new Error(`Unknown data-task action: ${String(args.action)}`);
     }
     if (!args.taskFile) {
@@ -141,11 +190,15 @@ async function runCli(argv: string[]): Promise<void> {
     const task = config.task as DataTaskDefinition;
     const executionOptions: DataTaskExecutionOptions = {
         confirmProduction: args.confirmProduction,
+        ...(args.snapshotChecksum ? { approvedSnapshotChecksum: args.snapshotChecksum } : {}),
         ...(args.snapshotDir ? { snapshotDir: args.snapshotDir } : {}),
     };
 
     const runtimeOptions = config.runtime as MonSQLizeOptions | undefined;
-    const runtime = runtimeOptions ? new MonSQLizeRuntime(runtimeOptions) : null;
+    if (args.action !== 'plan' && !runtimeOptions) {
+        throw new Error(`${args.action} requires the task file to export { runtime, task } so the CLI can connect to MongoDB.`);
+    }
+    const runtime = args.action === 'plan' ? null : new MonSQLizeRuntime(runtimeOptions!);
     const runner = runtime?.dataTasks ?? new DataTaskRunner({});
     try {
         if (runtime && args.action !== 'plan') {
@@ -155,6 +208,8 @@ async function runCli(argv: string[]): Promise<void> {
             ? await runner.plan(task, executionOptions)
             : args.action === 'dry-run'
                 ? await runner.dryRun(task, executionOptions)
+                : args.action === 'snapshot'
+                    ? await runner.exportAffected(task, undefined, executionOptions)
                 : args.action === 'run'
                     ? await runner.run(task, executionOptions)
                     : await runner.verify(task, executionOptions);
@@ -162,6 +217,9 @@ async function runCli(argv: string[]): Promise<void> {
             console.log(JSON.stringify(result, null, 2));
         } else {
             printHumanResult(args.action, result);
+        }
+        if (collectFailures(result).length > 0) {
+            process.exitCode = 1;
         }
     } finally {
         await runtime?.close?.().catch(() => { });

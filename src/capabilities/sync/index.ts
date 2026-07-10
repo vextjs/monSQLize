@@ -381,6 +381,8 @@ export class ChangeStreamSyncManager {
     private readonly idempotency: SyncIdempotencyRuntime;
     private readonly targets: ResolvedTarget[] = [];
     private changeStream: ChangeStream | null = null;
+    private startPromise: Promise<void> | null = null;
+    private closingStreamPromise: Promise<void> | null = null;
     private changeQueue: Promise<void> = Promise.resolve();
     private running = false;
     private fatalSyncError: Error | null = null;
@@ -419,48 +421,52 @@ export class ChangeStreamSyncManager {
      * @since v1.0.9
      */
     async start(): Promise<void> {
-        if (this.running || !this.config.enabled) {
-            return;
+        if (this.running || !this.config.enabled) return;
+        if (this.startPromise) return this.startPromise;
+
+        const startup = (async () => {
+            await this.closingStreamPromise;
+            if (this.running) return;
+            this.fatalSyncError = null;
+
+            await this.validateEnvironment();
+            await this.initializeTargets();
+
+            const resumeAfter = await this.tokenStore.load();
+            const options: Record<string, unknown> = { fullDocument: 'updateLookup' };
+            if (resumeAfter) options.resumeAfter = resumeAfter;
+
+            const stream = this.db.watch(this.buildPipeline(), options as Parameters<Db['watch']>[1]);
+            stream.on('change', (event) => this.enqueueChange(event as SyncChangeEvent<Document>));
+            stream.on('error', (error) => {
+                const normalized = normalizeError(error);
+                this.stats.errorCount += 1;
+                this.stats.lastError = normalized;
+                this.logger?.error?.('[Sync] change stream error', normalized);
+            });
+            stream.on('close', () => {
+                if (!this.running || this.changeStream !== stream) {
+                    this.logger?.debug?.('[Sync] change stream closed');
+                    return;
+                }
+                const error = createError(ErrorCodes.CONNECTION_CLOSED, '[Sync] change stream closed unexpectedly');
+                this.running = false;
+                this.changeStream = null;
+                this.stats.errorCount += 1;
+                this.stats.lastError = error;
+                this.logger?.warn?.('[Sync] change stream closed unexpectedly', error);
+            });
+
+            this.changeStream = stream;
+            this.running = true;
+            this.stats.startTime = new Date();
+        })();
+        this.startPromise = startup;
+        try {
+            await startup;
+        } finally {
+            if (this.startPromise === startup) this.startPromise = null;
         }
-        this.fatalSyncError = null;
-
-        await this.validateEnvironment();
-        await this.initializeTargets();
-
-        const resumeAfter = await this.tokenStore.load();
-        const options: Record<string, unknown> = {
-            fullDocument: 'updateLookup',
-        };
-        if (resumeAfter) {
-            options.resumeAfter = resumeAfter;
-        }
-
-        const stream = this.db.watch(this.buildPipeline(), options as Parameters<Db['watch']>[1]);
-        stream.on('change', (event) => {
-            this.enqueueChange(event as SyncChangeEvent<Document>);
-        });
-        stream.on('error', (error) => {
-            const normalized = normalizeError(error);
-            this.stats.errorCount += 1;
-            this.stats.lastError = normalized;
-            this.logger?.error?.('[Sync] change stream error', normalized);
-        });
-        stream.on('close', () => {
-            if (!this.running || this.changeStream !== stream) {
-                this.logger?.debug?.('[Sync] change stream closed');
-                return;
-            }
-            const error = createError(ErrorCodes.CONNECTION_CLOSED, '[Sync] change stream closed unexpectedly');
-            this.running = false;
-            this.changeStream = null;
-            this.stats.errorCount += 1;
-            this.stats.lastError = error;
-            this.logger?.warn?.('[Sync] change stream closed unexpectedly', error);
-        });
-
-        this.changeStream = stream;
-        this.running = true;
-        this.stats.startTime = new Date();
     }
 
     /**
@@ -469,10 +475,11 @@ export class ChangeStreamSyncManager {
      */
     async stop(): Promise<void> {
         this.running = false;
-        if (this.changeStream) {
-            await this.changeStream.close();
-            this.changeStream = null;
-        }
+        await this.startPromise;
+        const stream = this.changeStream;
+        this.changeStream = null;
+        if (stream) await this.closeChangeStream(stream);
+        else await this.closingStreamPromise;
         await this.changeQueue.catch(() => undefined);
         while (this.targets.length > 0) {
             const target = this.targets.pop();
@@ -718,10 +725,18 @@ export class ChangeStreamSyncManager {
         const stream = this.changeStream;
         this.changeStream = null;
         if (stream) {
-            void stream.close().catch((closeError) => {
+            void this.closeChangeStream(stream).catch((closeError) => {
                 this.logger?.warn?.('[Sync] failed to close change stream after fatal error', closeError);
             });
         }
+    }
+
+    private closeChangeStream(stream: ChangeStream): Promise<void> {
+        const closing = Promise.resolve(stream.close()).then(() => undefined);
+        this.closingStreamPromise = closing;
+        return closing.finally(() => {
+            if (this.closingStreamPromise === closing) this.closingStreamPromise = null;
+        });
     }
 
     private enqueueChange(event: SyncChangeEvent<Document>): void {

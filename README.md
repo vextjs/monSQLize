@@ -11,6 +11,8 @@ Documentation: [English](https://vextjs.github.io/monSQLize/) · [简体中文](
 Quick path: [Installation](https://vextjs.github.io/monSQLize/getting-started) · [Basic Usage](https://vextjs.github.io/monSQLize/basic-operations)
 Configuration reference: [English](https://vextjs.github.io/monSQLize/configuration) · [简体中文](https://vextjs.github.io/monSQLize/zh/configuration)
 
+The npm `latest` dist-tag and GitHub Pages are the stable channel; `main` may contain the next release. Pages deployment accepts only a versioned Git tag whose package version is already present on npm, so unpublished APIs are not promoted as stable documentation.
+
 ```bash
 npm install monsqlize
 ```
@@ -531,7 +533,7 @@ npm run verify:full
 npm run release:preflight
 ```
 
-The package self-check command runs linting, type checks, size guards, runtime checks, compatibility checks, refactor guards, production dependency audit, the default test suite, and `npm pack --dry-run`.
+The package self-check command runs linting, documentation/type/size/runtime/compatibility/refactor guards, the default test suite, 90% source coverage, all runnable examples, the MongoDB server matrix, real dataTasks and CLI integration, production dependency audit, a temporary package-install smoke, and a final `npm pack --dry-run`.
 
 `npm run release:publish` runs the package self-check once and then calls `npm publish --ignore-scripts` so the final publish step does not repeat the full lifecycle check. Raw `npm publish` is still guarded by `prepublishOnly`.
 
@@ -543,6 +545,9 @@ npm run test:examples
 npm run test:coverage
 npm run test:audit
 npm run test:server-matrix
+npm run test:data-tasks:integration
+npm run test:data-task-cli
+npm run test:pack-install
 npm run test:real-env:private
 ```
 
@@ -550,7 +555,7 @@ npm run test:real-env:private
 
 `test:examples`, `test:server-matrix`, and `config.useMemoryServer` use a fixed `mongodb-memory-server` policy: MongoDB `7.0.14` by default, binaries cached under `.cache/mongodb-memory-server/binaries`, and temporary data paths created under `.cache/mongodb-memory-server/db` with forced cleanup for project-managed paths. Stale managed data paths whose owner PID is no longer alive are pruned before new memory-server launches. Override with `MONSQLIZE_MEMORY_MONGO_BINARY_VERSION`, `MONSQLIZE_REPLSET_BINARY_VERSION`, `MONGOMS_DOWNLOAD_DIR`, or `MONSQLIZE_MEMORY_SERVER_DB_DIR` when needed.
 
-`test:coverage` is the independent 90% coverage governance gate for the published CJS runtime plus source-level gap coverage resolved through sourcemaps. `test:audit` checks production dependencies against the npm registry. `test:real-env:private` is intentionally opt-in and expects private environment variables. Coverage and private real-environment checks are not part of the default CI or release gate.
+`test:coverage` remains an independently runnable 90% governance command for the published CJS runtime plus source-level gap coverage resolved through sourcemaps, and the single-source release preflight requires it. Public CI runs that same preflight in its release-gate job. `test:audit` checks production dependencies against the npm registry. Only `test:real-env:private` remains opt-in because it expects private environment variables.
 
 ## Roadmap
 

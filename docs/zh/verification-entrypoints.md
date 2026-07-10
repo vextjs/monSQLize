@@ -15,12 +15,13 @@
 | 命令 | 说明 |
 |------|------|
 | `npm test` | 默认统一门禁：smoke + compatibility + unit + integration；不再隐式跑 legacy compat runner 或迁移专用 runner |
-| `npm run check:docs-examples` | 文档 / 示例一致性门禁：校验 104/104 双语文档矩阵、runner 覆盖、共享示例目标、doc-check 目标和用户可见路径文本 |
+| `npm run check:docs-examples` | 文档 / 示例一致性门禁：校验 105/105 双语文档矩阵、runner 覆盖、共享示例目标、doc-check 目标和用户可见路径文本 |
 | `npm run test:coverage` | 独立覆盖率治理门禁：通过 `c8` 运行默认测试，published CJS runtime 加上 sourcemap 还原的 source-level gap coverage 的 lines / statements / functions / branches 均要求不低于 90% |
 | `npm run test:refactor-guard` | 热点重构三联回归：exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server 默认矩阵（Node / Driver / MongoDB server） |
 | `npm run test:real-env:private` | 私有真实环境检查；默认不进入常规 verify / CI |
-| `npm run release:preflight` | 公开发布前门禁：检查 lockfile 发布态、changelog / 支持矩阵 / 依赖治理文档，并串联 `verify:fast` + `npm test` + `npm pack --dry-run` |
+| `npm run release:preflight` | 单一真相源公开发布门禁：发布元数据 + `verify:fast` + 默认测试 + coverage + examples + server matrix + dataTasks/CLI integration + audit + 临时安装 + 最终 pack 边界 |
+| `npm run test:pack-install` | 构建并打包候选版本，在临时消费者中安装 tarball，验证 CJS、ESM、TypeScript、bin、help 与 version |
 
 memory-server 相关入口统一使用 `.cache/mongodb-memory-server/binaries` 作为二进制缓存，`.cache/mongodb-memory-server/db` 作为项目内临时数据目录；项目自动创建的 dbPath 会在脚本退出或 runtime close 时清理，避免默认系统临时目录堆积。
 
@@ -54,7 +55,7 @@ npm run verify:full
 - 行为变更或跨模块重构
 - 发版前的完整仓库回归
 
-`verify:full` 同时包含 `npm run test:examples`，会在矩阵门禁确认 104/104 文档覆盖后编译并执行全部 runnable examples。
+`verify:full` 同时包含 `npm run test:examples`，会在矩阵门禁确认 105/105 文档覆盖后编译并执行全部 58 个 runnable examples。
 
 ### 3. 私有真实环境验证
 
@@ -79,7 +80,7 @@ npm run test:real-env:private
 ## 默认边界
 
 - **默认验证链**：`npm test` / `check:docs-examples` / `verify:fast` / `verify:full` / `test:server-matrix`
-- **覆盖率门禁**：`npm run test:coverage` 独立执行；P-04 已完成并保留为独立 coverage gate，不阻断 `verify:full`
+- **覆盖率门禁**：`npm run test:coverage` 仍可独立执行；`verify:full` 不串联它，但公开 CI 的 release-gate 与 `release:preflight` 强制执行
 - **显式 opt-in**：`test:real-env:private`
 - **公开发布前门禁**：`release:preflight`
 - **本地私有发布前补充**：`verify:release`
