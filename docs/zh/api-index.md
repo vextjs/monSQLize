@@ -27,7 +27,8 @@
 | [Change Stream 同步](sync-backup.md) | ** Change Stream 数据同步 - 实时备份到多个数据库** |
 | [事务优化策略](transaction-optimizations.md) | 事务优化策略 |
 | [分布式部署](distributed-deployment.md) | 分布式部署指南（多实例缓存一致性） |
-| [生产发布与迁移](production-rollout.md) | 生产数据回填、CDC 同步、索引预检与切流检查 |
+| [生产发布与迁移](production-rollout.md) | 生产数据任务、CDC 同步、索引预检与切流检查 |
+| [数据任务 dataTasks](data-tasks.md) | `msq.dataTasks` 与 `monsqlize data-task` 的 plan、dry-run、run、verify |
 | [事件系统](events.md) | 事件系统 |
 
 ---

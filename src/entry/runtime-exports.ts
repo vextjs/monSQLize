@@ -106,6 +106,34 @@ export { Transaction, TransactionManager, CacheLockManager } from '../capabiliti
 export type { MongoSession, TransactionOptions, TransactionStats } from '../capabilities/transaction';
 export { CountQueue } from '../capabilities/count-queue';
 export type { CountQueueOptions, CountQueueStats } from '../capabilities/count-queue';
+export { DataTaskRunner } from '../capabilities/data-tasks';
+export type {
+    DataTaskDataSyncResult,
+    DataTaskDefinition,
+    DataTaskDryRunResult,
+    DataTaskEndpoint,
+    DataTaskEnsureIndexesStep,
+    DataTaskExecutionOptions,
+    DataTaskExportAffectedStep,
+    DataTaskIndexDefinition,
+    DataTaskIndexOperation,
+    DataTaskIndexResult,
+    DataTaskPlanResult,
+    DataTaskProgress,
+    DataTaskRunResult,
+    DataTaskRuntime,
+    DataTaskSnapshot,
+    DataTaskSnapshotResult,
+    DataTaskStep,
+    DataTaskStepPlan,
+    DataTaskStepResult,
+    DataTaskSyncDataStep,
+    DataTaskTransformFieldsStep,
+    DataTaskTransformResult,
+    DataTaskVerifyResult,
+    DataTaskVerifyStep,
+    DataTaskWriteStrategy,
+} from '../capabilities/data-tasks';
 export type {
     NormalizedWritePathPolicy,
     NormalizedWritePathRule,

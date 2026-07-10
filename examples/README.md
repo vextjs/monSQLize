@@ -3,7 +3,7 @@
 Runnable TypeScript examples for every major monSQLize API.
 Each file uses an in-memory MongoDB server (`mongodb-memory-server`) — no real database needed.
 
-> This repository currently includes **57** runnable TypeScript examples. `examples/helpers/bootstrap.ts` is a shared helper module, and `npm run test:examples` compiles and runs the executable examples.
+> This repository currently includes **58** runnable TypeScript examples. `examples/helpers/bootstrap.ts` is a shared helper module, and `npm run test:examples` compiles and runs the executable examples.
 
 ## Prerequisites
 
@@ -88,6 +88,7 @@ npm run test:examples
 | [`docs/hooks.ts`](docs/hooks.ts) | Focused model lifecycle hooks for insert / update / delete |
 | [`docs/collection-management.ts`](docs/collection-management.ts) | `createCollection`, `createView`, index management, `db().admin()` |
 | [`docs/index-management.ts`](docs/index-management.ts) | Focused `createIndex`, `createIndexes`, `listIndexes`, and `dropIndex` flow |
+| [`docs/data-tasks.ts`](docs/data-tasks.ts) | Production-style data task: index preflight, filtered sync, snapshot, transform, verify |
 | [`docs/bookmarks.ts`](docs/bookmarks.ts) | `prewarmBookmarks`, `listBookmarks`, `clearBookmarks` |
 | [`docs/transaction.ts`](docs/transaction.ts) | `withTransaction()` with an in-memory replica-set |
 | [`docs/transaction-rollback.ts`](docs/transaction-rollback.ts) | Focused rollback / recovery path for failed transactions |
@@ -164,6 +165,7 @@ node .generated/examples-dist/examples/docs/model.js
 node .generated/examples-dist/examples/docs/hooks.js
 node .generated/examples-dist/examples/docs/collection-management.js
 node .generated/examples-dist/examples/docs/index-management.js
+node .generated/examples-dist/examples/docs/data-tasks.js
 node .generated/examples-dist/examples/docs/bookmarks.js
 node .generated/examples-dist/examples/docs/transaction.js
 node .generated/examples-dist/examples/docs/transaction-rollback.js

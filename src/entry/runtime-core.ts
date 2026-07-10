@@ -68,6 +68,7 @@ import {
     type SlowQueryLogRecord,
 } from '../capabilities/slow-query-log';
 import { CountQueue, type CountQueueOptions, type CountQueueStats } from '../capabilities/count-queue';
+import { DataTaskRunner } from '../capabilities/data-tasks';
 import {
     ChangeStreamSyncManager,
     ResumeTokenStore,
@@ -184,8 +185,7 @@ export class MonSQLizeRuntime {
     private _distributedInvalidator: DistributedCacheInvalidator | null = null;
     private _schemaDslEngine: SchemaDslEngine;
 
-    readonly defaults: Readonly<Record<string, unknown>>;
-    readonly autoConvertConfig: AutoConvertConfigPublic;
+    readonly defaults: Readonly<Record<string, unknown>>; readonly autoConvertConfig: AutoConvertConfigPublic; readonly dataTasks: DataTaskRunner;
     get logger(): Logger {
         return this._logger;
     }
@@ -240,7 +240,7 @@ export class MonSQLizeRuntime {
         this._adapterBridge = createRuntimeAdapterBridge(createRuntimeCoreAdapterBridgeHost(this));
         this.defaults = buildPublicDefaults(options);
         // v1 compat: initialise autoConvertConfig (delegates to the capability-wiring pure function).
-        this.autoConvertConfig = initAutoConvertConfig(options.autoConvertObjectId, options.type);
+        this.autoConvertConfig = initAutoConvertConfig(options.autoConvertObjectId, options.type); this.dataTasks = new DataTaskRunner(this);
     }
     async connect(): Promise<ConnectResult<MonSQLizeRuntime>> {
         if (this._connected) {

@@ -2,6 +2,7 @@ import {
     adaptLegacyCacheLike,
     BatchQueue,
     ChangeStreamSyncManager,
+    DataTaskRunner,
     CacheLockManager,
     compilePipelineExpressions,
     ConnectionPoolManager,
@@ -102,6 +103,7 @@ MonSQLize.SlowQueryLogConfigManager = SlowQueryLogConfigManager;
 MonSQLize.SlowQueryLogMemoryStorage = SlowQueryLogMemoryStorage;
 MonSQLize.MongoDBSlowQueryLogStorage = MongoDBSlowQueryLogStorage;
 MonSQLize.BatchQueue = BatchQueue;
+MonSQLize.DataTaskRunner = DataTaskRunner;
 MonSQLize.generateQueryHash = generateQueryHash;
 MonSQLize.SagaOrchestrator = SagaOrchestrator;
 MonSQLize.encodeCursor = encodeCursor;
@@ -169,6 +171,7 @@ export {
     SlowQueryLogMemoryStorage,
     MongoDBSlowQueryLogStorage,
     BatchQueue,
+    DataTaskRunner,
     generateQueryHash,
     SagaOrchestrator,
     encodeCursor,

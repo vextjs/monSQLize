@@ -30,6 +30,7 @@ const SMOKE = [
     'test/smoke/root-cjs.test.js',
     'test/smoke/root-esm.test.js',
     'test/smoke/pack-artifacts.test.js',
+    'test/smoke/data-task-cli.test.js',
 ];
 
 const COMPAT = [
@@ -53,6 +54,7 @@ const UNIT = [
     'test/unit/pool/pool.test.js',
     'test/unit/runtime/runtime-compat.test.js',
     'test/unit/runtime/write-path-policy.test.js',
+    'test/unit/data-tasks/data-tasks.test.js',
     'test/unit/sync/sync.test.js',
     'test/unit/slow-query-log/slow-query-log.test.js',
     'test/unit/saga/saga.test.js',
@@ -211,6 +213,7 @@ const SUITE_MAP = {
     'root-cjs': ['test/smoke/root-cjs.test.js'],
     'root-esm': ['test/smoke/root-esm.test.js'],
     'pack-artifacts': ['test/smoke/pack-artifacts.test.js'],
+    'data-task-cli': ['test/smoke/data-task-cli.test.js'],
     // Individual COMPAT
     'exports': ['test/compatibility/exports/exports.test.js'],
     'matrix': ['test/compatibility/matrix.test.js'],
@@ -227,6 +230,7 @@ const SUITE_MAP = {
     'pool': ['test/unit/pool/pool.test.js'],
     'runtime-compat': ['test/unit/runtime/runtime-compat.test.js'],
     'write-path-policy': ['test/unit/runtime/write-path-policy.test.js'],
+    'data-tasks': ['test/unit/data-tasks/data-tasks.test.js'],
     'sync': ['test/unit/sync/sync.test.js'],
     'slow-query-log': ['test/unit/slow-query-log/slow-query-log.test.js'],
     'saga': ['test/unit/saga/saga.test.js'],

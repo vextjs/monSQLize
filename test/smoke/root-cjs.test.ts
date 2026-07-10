@@ -11,6 +11,7 @@ test('CJS root entry returns default class and static exports', () => {
     assert.equal(typeof MonSQLize.FunctionCache, 'function');
     assert.equal(typeof MonSQLize.ConnectionPoolManager, 'function');
     assert.equal(typeof MonSQLize.Model, 'function');
+    assert.equal(typeof MonSQLize.DataTaskRunner, 'function');
 });
 
 test('CJS root entry creates a minimal instance and keeps connect / health contracts', async () => {
@@ -21,6 +22,7 @@ test('CJS root entry creates a minimal instance and keeps connect / health contr
 
     assert.equal(typeof msq.connect, 'function');
     assert.equal(typeof msq.health, 'function');
+    assert.equal(typeof msq.dataTasks.plan, 'function');
     assert.equal((await msq.health()).connected, false);
     await assert.rejects(
         Promise.resolve().then(() => msq.collection('users')),

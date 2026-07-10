@@ -8,6 +8,7 @@ import {
     adaptLegacyCacheLike,
     BatchQueue,
     CountQueue,
+    DataTaskRunner,
     DEFAULT_SLOW_QUERY_LOG_CONFIG,
     MongoDBSlowQueryLogStorage,
     ChangeStreamSyncManager,
@@ -101,6 +102,7 @@ MonSQLize.SlowQueryLogConfigManager = SlowQueryLogConfigManager;
 MonSQLize.SlowQueryLogMemoryStorage = SlowQueryLogMemoryStorage;
 MonSQLize.MongoDBSlowQueryLogStorage = MongoDBSlowQueryLogStorage;
 MonSQLize.BatchQueue = BatchQueue;
+MonSQLize.DataTaskRunner = DataTaskRunner;
 MonSQLize.generateQueryHash = generateQueryHash;
 MonSQLize.SagaOrchestrator = SagaOrchestrator;
 MonSQLize.encodeCursor = encodeCursor;

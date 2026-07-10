@@ -33,6 +33,7 @@ export interface SSHConfig {
 }
 
 import type { Collection, CursorValueNormalizer, CursorValueType, DbAccessor, HealthView } from './collection';
+import type { DataTaskRunner, DataTaskRuntime } from './data-tasks';
 import type { Lock, LockOptions, LockStats } from './lock';
 import type { ModelAutoIndexOptions, ModelEnsureAllIndexesOptions, ModelIndexEnsureSummary, ModelInstance } from './model';
 import type { MongoConnectConfig } from './mongodb';
@@ -273,6 +274,8 @@ export interface MonSQLizeOptions {
 }
 
 export interface MonSQLizeInstance {
+    /** Run planned data tasks for index sync, filtered data sync, field transforms, snapshots, and verification. */
+    readonly dataTasks: DataTaskRuntime;
     /**
      * Establish the database connection and return the top-level accessor bundle.
      * @returns Object containing `collection`, `db`, `use` shortcuts and the current instance reference.
@@ -509,6 +512,7 @@ export interface MonSQLizeInstance {
 }
 
 export default class MonSQLize implements MonSQLizeInstance {
+    readonly dataTasks: DataTaskRuntime;
     constructor(options?: MonSQLizeOptions);
     connect(): Promise<{
         collection: <TSchema = any>(name: string) => Collection<TSchema>;
@@ -629,6 +633,7 @@ export default class MonSQLize implements MonSQLizeInstance {
     static SlowQueryLogMemoryStorage: typeof SlowQueryLogMemoryStorage;
     static MongoDBSlowQueryLogStorage: typeof MongoDBSlowQueryLogStorage;
     static BatchQueue: typeof BatchQueue;
+    static DataTaskRunner: typeof DataTaskRunner;
     static generateQueryHash: typeof generateQueryHash;
     static SagaOrchestrator: typeof SagaOrchestrator;
 }

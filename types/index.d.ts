@@ -1,5 +1,6 @@
 export * from './base';
 export * from './collection';
+export * from './data-tasks';
 export * from './expression';
 export * from './lock';
 export * from './model';

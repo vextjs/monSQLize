@@ -7,9 +7,9 @@ monSQLize 为这条路径提供的是数据库运行时能力：
 - Change Stream 同步，用于写入到达 MongoDB 之后的异步 CDC。
 - `ensureIndexes()` 与 `ensureModelIndexes()`，用于 Model 索引预检。
 - `listIndexes()`、`createIndex()`、`createIndexes()`、`dropIndex()` 等集合索引 API。
-- `insertBatch()`、`updateBatch()`、`deleteBatch()` 等批处理辅助能力，供你的迁移任务控制写入批次。
+- `msq.dataTasks` 与 `monsqlize data-task`，用于经过复核的索引同步、筛选数据同步、字段调整、快照与验证。
 
-它不会替代应用自己的 migration runner、备份策略或 exactly-once 数据管道。历史数据迁移脚本仍应由业务应用维护，并设计为可重复执行、可恢复、幂等。
+它不会替代 MongoDB 原生导入导出、完整备份恢复策略或 exactly-once 数据管道。dataTasks 的定位是有边界的发布任务：显式 filter、dry-run、快照、受控执行和结果验证。
 
 ## 什么时候看这一页
 
@@ -18,7 +18,7 @@ monSQLize 为这条路径提供的是数据库运行时能力：
 | 发布需求 | 推荐路径 |
 |----------|----------|
 | 发布包含 Model 索引变更的新版本 | 先做索引 dry-run，解决 conflicts，再在受控窗口创建缺失索引 |
-| 回填已有生产数据 | 执行业务侧迁移或 backfill job，按幂等批次写入 |
+| 回填已有生产数据 | 使用 dataTask，提供明确 filter、业务 `matchBy`、快照与 verify 步骤 |
 | 发布后让备份库或投影库持续同步 | 使用 Change Stream sync，并配置持久化 resume token 与 target 幂等 |
 | 在数据库、连接池或读路径之间切流 | 切流前核对数据量、同步健康、索引、读路径与回滚点 |
 
@@ -28,7 +28,7 @@ monSQLize 为这条路径提供的是数据库运行时能力：
 2. 生产服务使用 `autoIndex: false` 部署代码。
 3. 在目标环境运行索引 dry-run。
 4. 先解决索引 conflicts，再创建 missing 索引。
-5. 如果发布需要历史数据变化，先执行数据回填或迁移任务。
+5. 如果发布需要历史数据变化，先执行 `msq.dataTasks.dryRun()` / `monsqlize data-task dry-run`，再带生产确认执行 `run`。
 6. 只有在前置条件满足后，再启用 Change Stream sync 承接后续 CDC。
 7. 检查数量、抽样记录、同步统计、慢查询和错误日志。
 8. 所有发布门禁通过后再切换流量。
@@ -91,52 +91,57 @@ await users.createIndexes([
 
 ## 数据迁移同步
 
-历史数据变化应由应用 migration job 完成。这个 job 应该幂等、可恢复，并且可以安全重跑。
+发布范围内的历史数据变化优先使用 dataTasks。任务应该用 `filter` 限定范围，用稳定业务字段匹配记录，在写入前导出受影响目标文档快照，并在切流前验证结果。
 
 ```javascript
-const users = msq.collection('users');
-
-let processed = 0;
-const batchSize = 1000;
-
-while (true) {
-  const rows = await users.find(
-    { migratedAt: { $exists: false } },
+const task = {
+  name: 'sync-active-users',
+  source: { collection: 'sourceUsers' },
+  target: { collection: 'targetUsers' },
+  filter: { status: 'active' },
+  matchBy: ['email'],
+  snapshot: { dir: '.monsqlize/snapshots' },
+  steps: [
     {
-      limit: batchSize,
-      sort: { _id: 1 },
-      projection: { _id: 1 }
-    }
-  );
+      type: 'ensureIndexes',
+      indexes: [
+        { key: { email: 1 }, options: { unique: true }, name: 'target_users_email_unique' }
+      ]
+    },
+    { type: 'syncData', strategy: 'upsert' },
+    { type: 'transformFields', update: { $set: { schemaVersion: 2 } } },
+    { type: 'verify', count: true, fields: ['schemaVersion'], indexes: true }
+  ]
+};
 
-  if (rows.length === 0) {
-    break;
+const plan = await msq.dataTasks.plan(task);
+const dryRun = await msq.dataTasks.dryRun(task);
+
+if (plan.errors.length === 0 && dryRun.errors.length === 0) {
+  await msq.dataTasks.run(task, { confirmProduction: true });
+  const verify = await msq.dataTasks.verify(task);
+  if (!verify.passed) {
+    throw new Error('data task verification failed');
   }
-
-  for (const row of rows) {
-    await users.updateOne(
-      { _id: row._id, migratedAt: { $exists: false } },
-      {
-        $set: {
-          migratedAt: new Date(),
-          schemaVersion: 2
-        }
-      }
-    );
-  }
-
-  processed += rows.length;
-  console.log({ processed });
 }
 ```
 
-回填建议：
+CLI 形式：
 
-- 使用稳定筛选条件和幂等标记，例如 `schemaVersion` 或 `migratedAt`。
-- 批次大小要与写入延迟和复制延迟匹配。
-- 大集合优先使用有序 checkpoint，避免无边界扫描。
-- 写入必须兼容重试，重跑时应跳过已迁移文档。
-- 切换读路径前核对数量和关键记录抽样。
+```bash
+monsqlize data-task plan --task ./tasks/sync-active-users.cjs --json
+monsqlize data-task dry-run --task ./tasks/sync-active-users.cjs
+monsqlize data-task run --task ./tasks/sync-active-users.cjs --confirm-production
+monsqlize data-task verify --task ./tasks/sync-active-users.cjs
+```
+
+任务建议：
+
+- 使用稳定 `filter`；只有经过明确复核后才设置 `allowFullCollection: true`。
+- 跨端点同步使用业务 `matchBy` 字段。默认禁止用源端 `_id` 匹配。
+- 目标写入应保持幂等，重跑时应更新或跳过已同步文档。
+- 生产执行前复核快照路径和 checksum。
+- 全库复制、备份、恢复或超大批量管道仍应使用 MongoDB 原生工具或应用自有任务。
 
 ## 回填后的 Change Stream 同步
 
@@ -206,6 +211,7 @@ const msq = new MonSQLize({
 
 ## 相关文档
 
+- [数据任务 dataTasks](./data-tasks.md)
 - [Change Stream 同步](./sync-backup.md)
 - [分布式部署](./distributed-deployment.md)
 - [批量创建索引](./create-indexes.md)

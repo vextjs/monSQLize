@@ -47,6 +47,7 @@ const exampleScripts = [
     '.generated/examples-dist/examples/docs/hooks.js',
     '.generated/examples-dist/examples/docs/collection-management.js',
     '.generated/examples-dist/examples/docs/index-management.js',
+    '.generated/examples-dist/examples/docs/data-tasks.js',
     '.generated/examples-dist/examples/docs/bookmarks.js',
     '.generated/examples-dist/examples/docs/transaction.js',
     '.generated/examples-dist/examples/docs/transaction-rollback.js',

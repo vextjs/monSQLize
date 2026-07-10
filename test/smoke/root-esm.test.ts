@@ -17,10 +17,12 @@ test('ESM root entry returns default export and named export matrix', async () =
     assert.equal(typeof mod.DistributedCacheInvalidator, 'function');
     assert.equal(typeof mod.ConnectionPoolManager, 'function');
     assert.equal(typeof mod.Model, 'function');
+    assert.equal(typeof mod.DataTaskRunner, 'function');
     assert.equal(typeof mod.expr, 'function');
     assert.equal(typeof mod.createExpression, 'function');
     assert.equal(typeof mod.withCache, 'function');
     assert.equal(typeof mod.FunctionCache, 'function');
+    assert.equal(typeof new mod.default({ type: 'mongodb', databaseName: 'esm_data_task_smoke' }).dataTasks.plan, 'function');
 });
 
 test('ESM root entry can initialize the default schema-dsl runtime path', async () => {

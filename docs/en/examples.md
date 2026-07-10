@@ -77,6 +77,7 @@ node .generated/examples-dist/examples/docs/find.js
 | [`create-indexes.md`](./create-indexes.md) | [`examples/docs/index-management.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/index-management.ts) |
 | [`list-indexes.md`](./list-indexes.md) | [`examples/docs/index-management.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/index-management.ts) |
 | [`drop-index.md`](./drop-index.md) | [`examples/docs/index-management.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/index-management.ts) |
+| [`data-tasks.md`](./data-tasks.md) | [`examples/docs/data-tasks.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/data-tasks.ts) |
 | [`bookmarks.md`](./bookmarks.md) | [`examples/docs/bookmarks.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/bookmarks.ts) |
 | [`slow-query-log.md`](./slow-query-log.md) | [`examples/docs/slow-query-log.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/slow-query-log.ts) |
 | [`transaction.md`](./transaction.md) | [`examples/docs/transaction.ts`](https://github.com/vextjs/monSQLize/blob/main/examples/docs/transaction.ts) |

@@ -27,7 +27,8 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [Change Stream sync](sync-backup.md) | **Change Stream data sync: real-time backup to multiple databases** |
 | [Transaction optimizations](transaction-optimizations.md) | Transaction optimization strategies |
 | [Distributed deployment](distributed-deployment.md) | **Distributed deployment guide for multi-instance cache consistency** |
-| [Production rollout](production-rollout.md) | Production data backfill, CDC sync, index preflight, and traffic-switch checks |
+| [Production rollout](production-rollout.md) | Production data task rollout, CDC sync, index preflight, and traffic-switch checks |
+| [Data tasks](data-tasks.md) | `msq.dataTasks` and `monsqlize data-task` for plan, dry-run, run, and verify |
 | [Event system](events.md) | Event system |
 
 ---

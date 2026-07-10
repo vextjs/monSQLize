@@ -7,9 +7,9 @@ monSQLize provides the database runtime building blocks for this path:
 - Change Stream sync for asynchronous CDC after writes reach MongoDB.
 - Model index preflight through `ensureIndexes()` and `ensureModelIndexes()`.
 - Collection index APIs such as `listIndexes()`, `createIndex()`, `createIndexes()`, and `dropIndex()`.
-- Batching helpers such as `insertBatch()`, `updateBatch()`, and `deleteBatch()` when your own migration job needs controlled write batches.
+- Data tasks through `msq.dataTasks` and `monsqlize data-task` for reviewed index sync, filtered data sync, field transforms, snapshots, and verification.
 
-It does not replace your application migration runner, backup policy, or exactly-once data pipeline. Treat data migration scripts as application-owned jobs and keep them idempotent.
+It does not replace MongoDB native import/export, a full backup/restore policy, or an exactly-once data pipeline. Treat dataTasks as bounded release tasks: explicit filter, dry-run, snapshot, controlled run, and verification.
 
 ## When to Use This Page
 
@@ -18,7 +18,7 @@ Use this page when you need any of these release steps:
 | Release need | Use this path |
 |--------------|---------------|
 | Deploy a new service version with Model index changes | Run index dry-run, resolve conflicts, then create missing indexes in a controlled window |
-| Backfill existing production data | Run an application migration/backfill job with idempotent batches |
+| Backfill existing production data | Run a dataTask with an explicit filter, business `matchBy`, snapshot, and verify step |
 | Keep a backup database or projection in sync after rollout | Enable Change Stream sync with durable resume tokens and target idempotency |
 | Move traffic between databases or pools | Verify data counts, sync health, indexes, read paths, and rollback points before switching |
 
@@ -28,7 +28,7 @@ Use this page when you need any of these release steps:
 2. Deploy code with `autoIndex: false` for production services.
 3. Run the index dry-run against the target environment.
 4. Resolve index conflicts before creating missing indexes.
-5. Run data backfill or migration jobs if the release needs historical data changes.
+5. Run `msq.dataTasks.dryRun()` / `monsqlize data-task dry-run`, then execute `run` with production confirmation if the release needs historical data changes.
 6. Enable Change Stream sync only for ongoing CDC after prerequisites are ready.
 7. Check counts, sample records, sync stats, slow queries, and error logs.
 8. Switch traffic only after the release gates are green.
@@ -91,52 +91,57 @@ Production index checklist:
 
 ## Data Migration Sync
 
-Use an application migration job for historical data changes. The job should be idempotent, resumable, and safe to rerun.
+Use dataTasks for release-scoped historical data changes. A task should be bounded by `filter`, match records by stable business keys, snapshot affected target documents before writes, and verify the result before traffic moves.
 
 ```javascript
-const users = msq.collection('users');
-
-let processed = 0;
-const batchSize = 1000;
-
-while (true) {
-  const rows = await users.find(
-    { migratedAt: { $exists: false } },
+const task = {
+  name: 'sync-active-users',
+  source: { collection: 'sourceUsers' },
+  target: { collection: 'targetUsers' },
+  filter: { status: 'active' },
+  matchBy: ['email'],
+  snapshot: { dir: '.monsqlize/snapshots' },
+  steps: [
     {
-      limit: batchSize,
-      sort: { _id: 1 },
-      projection: { _id: 1 }
-    }
-  );
+      type: 'ensureIndexes',
+      indexes: [
+        { key: { email: 1 }, options: { unique: true }, name: 'target_users_email_unique' }
+      ]
+    },
+    { type: 'syncData', strategy: 'upsert' },
+    { type: 'transformFields', update: { $set: { schemaVersion: 2 } } },
+    { type: 'verify', count: true, fields: ['schemaVersion'], indexes: true }
+  ]
+};
 
-  if (rows.length === 0) {
-    break;
+const plan = await msq.dataTasks.plan(task);
+const dryRun = await msq.dataTasks.dryRun(task);
+
+if (plan.errors.length === 0 && dryRun.errors.length === 0) {
+  await msq.dataTasks.run(task, { confirmProduction: true });
+  const verify = await msq.dataTasks.verify(task);
+  if (!verify.passed) {
+    throw new Error('data task verification failed');
   }
-
-  for (const row of rows) {
-    await users.updateOne(
-      { _id: row._id, migratedAt: { $exists: false } },
-      {
-        $set: {
-          migratedAt: new Date(),
-          schemaVersion: 2
-        }
-      }
-    );
-  }
-
-  processed += rows.length;
-  console.log({ processed });
 }
 ```
 
-Backfill recommendations:
+CLI form:
 
-- Use a stable filter and idempotent marker such as `schemaVersion` or `migratedAt`.
-- Keep batch size small enough for your write latency and replication lag.
-- Prefer ordered checkpoints over unbounded scans for large collections.
-- Keep writes compatible with retry; a rerun should skip already migrated documents.
-- Verify counts and representative records before switching read paths.
+```bash
+monsqlize data-task plan --task ./tasks/sync-active-users.cjs --json
+monsqlize data-task dry-run --task ./tasks/sync-active-users.cjs
+monsqlize data-task run --task ./tasks/sync-active-users.cjs --confirm-production
+monsqlize data-task verify --task ./tasks/sync-active-users.cjs
+```
+
+Task recommendations:
+
+- Use a stable `filter` and set `allowFullCollection: true` only after an explicit review.
+- Use business `matchBy` fields for cross-endpoint sync. Source `_id` matching is blocked by default.
+- Keep target writes idempotent; reruns should update or skip already synced documents.
+- Review the snapshot path and checksum before continuing a production run.
+- Use MongoDB native tooling or an application-owned job for full database copy, backup, restore, or very large batch pipelines.
 
 ## Change Stream Sync After Backfill
 
@@ -206,6 +211,7 @@ After switching traffic:
 
 ## Related Documents
 
+- [Data Tasks](./data-tasks.md)
 - [Change Stream Sync](./sync-backup.md)
 - [Distributed Deployment](./distributed-deployment.md)
 - [Create indexes in bulk](./create-indexes.md)

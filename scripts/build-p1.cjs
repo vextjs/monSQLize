@@ -68,6 +68,21 @@ async function main() {
         logLevel: 'info',
     });
 
+    await build({
+        entryPoints: ['src/cli/data-task.ts'],
+        outfile: 'dist/cjs/cli/data-task.cjs',
+        bundle: true,
+        packages: 'external',
+        platform: 'node',
+        format: 'cjs',
+        target: 'node18',
+        sourcemap: emitSourceMaps,
+        banner: {
+            js: '#!/usr/bin/env node',
+        },
+        logLevel: 'info',
+    });
+
     const cjsCompatEntries = [
         ['src/entry/compat/transaction/Transaction.ts', 'dist/cjs/transaction/Transaction.cjs'],
         ['src/entry/compat/transaction/TransactionManager.ts', 'dist/cjs/transaction/TransactionManager.cjs'],
