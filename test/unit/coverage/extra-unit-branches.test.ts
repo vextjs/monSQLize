@@ -105,15 +105,20 @@ describe('LockManager — clear() and expired lock cleanup branches', () => {
     });
 
     it('cleanupExpiredLocks deletes expired lock (expiresAt <= now true branch)', async () => {
-        const mgr = new MonSQLize.LockManager({ lockKeyPrefix: 'test-expire:', maxDuration: 1 });
-        await mgr.tryAcquireLock('expire-key', { ttl: 1 });
-        assert.ok(mgr.isLocked('expire-key'));
-        // Wait for lock to expire
-        await new Promise((r) => setTimeout(r, 5));
-        // Any call that triggers cleanupExpiredLocks should clean up the expired lock
-        mgr.close();
-        assert.equal(mgr.isLocked('expire-key'), false);
-        mgr.clear();
+        const mgr = new MonSQLize.LockManager({ lockKeyPrefix: 'test-expire:', maxDuration: 1000 });
+        const originalNow = Date.now;
+        let now = originalNow();
+        Date.now = () => now;
+        try {
+            await mgr.tryAcquireLock('expire-key', { ttl: 1000 });
+            assert.ok(mgr.isLocked('expire-key'));
+            now += 1001;
+            mgr.close();
+            assert.equal(mgr.isLocked('expire-key'), false);
+        } finally {
+            Date.now = originalNow;
+            mgr.clear();
+        }
     });
 
     it('renewLock false branch: wrong lockId returns false', async () => {
