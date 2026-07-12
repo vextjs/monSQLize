@@ -27,7 +27,7 @@ interface InternalExecutionOptions extends DataTaskExecutionOptions {
     dryRun?: boolean;
 }
 
-interface FindChainLike {
+export interface FindChainLike {
     sort?(sort: GenericRecord): FindChainLike;
     limit?(limit: number): FindChainLike;
     batchSize?(batchSize: number): FindChainLike;
@@ -49,9 +49,12 @@ export interface DataTaskCollectionLike {
     updateOne(filter: GenericRecord, update: unknown, options?: GenericRecord): Promise<GenericRecord>;
     updateMany(filter: GenericRecord, update: unknown, options?: GenericRecord): Promise<GenericRecord>;
     replaceOne(filter: GenericRecord, replacement: GenericRecord, options?: GenericRecord): Promise<GenericRecord>;
+    findOneAndUpdate?(filter: GenericRecord, update: unknown, options?: GenericRecord): Promise<GenericRecord | null>;
     upsertOne?(filter: GenericRecord, update: unknown, options?: GenericRecord): Promise<GenericRecord>;
     createIndex(keys: GenericRecord, options?: GenericRecord): Promise<unknown>;
     listIndexes(): Promise<GenericRecord[]>;
+    dropIndex?(name: string): Promise<unknown>;
+    deleteOne?(filter: GenericRecord, options?: GenericRecord): Promise<GenericRecord>;
 }
 
 interface DataTaskDbLike {

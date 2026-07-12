@@ -110,3 +110,17 @@ jobs:
           node -e "const p=require('${CONSUMER_DIR}/node_modules/monsqlize/package.json'); const M=require('${CONSUMER_DIR}/node_modules/monsqlize'); if(!M || p.version!==process.argv[1]) process.exit(1)" "${VERSION}"
           node --input-type=module -e "import M from '${CONSUMER_DIR}/node_modules/monsqlize/dist/esm/index.mjs'; if(!M) process.exit(1)"
           node "${CONSUMER_DIR}/node_modules/monsqlize/dist/cjs/cli/data-task.cjs" --version | grep -Fx "${VERSION}"
+
+      - name: Summarize release follow-up
+        shell: bash
+        run: |
+          RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}"
+          VERSION=$(node -p "require('./package.json').version")
+          {
+            echo "## monSQLize ${VERSION} published"
+            echo
+            echo "Registry acceptance and installed-package smoke tests passed for \`${RELEASE_TAG}\`."
+            echo
+            echo "1. [Create or confirm the GitHub Release](https://github.com/${GITHUB_REPOSITORY}/releases/new?tag=${RELEASE_TAG})."
+            echo "2. Run **Deploy Docs to GitHub Pages** with \`release_tag=${RELEASE_TAG}\`."
+          } >> "${GITHUB_STEP_SUMMARY}"

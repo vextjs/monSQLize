@@ -17,6 +17,12 @@ Saga is a distributed transaction model that decomposes long transactions into m
 - **Redis definition sharing**: Redis mode shares Saga definitions, not execution state.
 - **Execution logs**: Existing logging hooks remain available for diagnosis.
 
+## Timeout and retry contract
+
+- `SagaDefinition.timeout` is the default timeout for each step; `step.timeout` overrides it for that step. It is not one deadline for the whole Saga.
+- A timed-out step fails with `OPERATION_TIMEOUT`, aborts `ctx.signal`, and is never retried. `retries` applies only to ordinary failures.
+- JavaScript cannot force-stop a promise. Every step that performs cancellable work must observe `ctx.signal`, and every external side effect must remain idempotent because old steps that ignore the signal may finish after the timeout result.
+
 ---
 
 ## Usage scenarios
@@ -136,13 +142,16 @@ Define a Saga.
 **Parameters**:
 - `config.name` (string): Saga name, globally unique
 - `config.steps` (Array): List of steps
+- `config.timeout` (number, optional): Default timeout for each step in milliseconds
 
 **Step Configuration**:
 ```javascript
 {
     name: 'step-name',              //step name
-    execute: async (ctx) => { },    //Execute function
-    compensate: async (ctx, result) => { }  //Compensation function (optional)
+    execute: async (ctx) => { },    //Execute function; observe ctx.signal for cancellation
+    compensate: async (ctx, result) => { }, //Compensation function (optional)
+    timeout: 5000,                  //Optional per-step override
+    retries: 2                      //Ordinary failures only; timeouts are not retried
 }
 ```
 

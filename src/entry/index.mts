@@ -2,6 +2,7 @@ import {
     adaptLegacyCacheLike,
     BatchQueue,
     ChangeStreamSyncManager,
+    DataTaskJobError,
     DataTaskRunner,
     CacheLockManager,
     compilePipelineExpressions,
@@ -56,6 +57,7 @@ import {
     withCache,
     withSlowQueryLog,
 } from './runtime-core.js';
+import { createDataTaskService } from '../capabilities/data-tasks/job-service.js';
 import {
     HealthChecker,
     PoolSelector,
@@ -65,6 +67,7 @@ import {
 } from '../capabilities/pool/index.js';
 
 const MonSQLize = MonSQLizeRuntime as typeof MonSQLizeRuntime & Record<string, unknown>;
+const dataTasks = createDataTaskService((options) => new MonSQLizeRuntime(options) as unknown as import('../capabilities/data-tasks/job-service.js').DataTaskManagedRuntime);
 
 MonSQLize.Logger = Logger;
 MonSQLize.MemoryCache = MemoryCache;
@@ -104,6 +107,8 @@ MonSQLize.SlowQueryLogMemoryStorage = SlowQueryLogMemoryStorage;
 MonSQLize.MongoDBSlowQueryLogStorage = MongoDBSlowQueryLogStorage;
 MonSQLize.BatchQueue = BatchQueue;
 MonSQLize.DataTaskRunner = DataTaskRunner;
+MonSQLize.DataTaskJobError = DataTaskJobError;
+MonSQLize.dataTasks = dataTasks;
 MonSQLize.generateQueryHash = generateQueryHash;
 MonSQLize.SagaOrchestrator = SagaOrchestrator;
 MonSQLize.encodeCursor = encodeCursor;
@@ -171,7 +176,9 @@ export {
     SlowQueryLogMemoryStorage,
     MongoDBSlowQueryLogStorage,
     BatchQueue,
+    DataTaskJobError,
     DataTaskRunner,
+    dataTasks,
     generateQueryHash,
     SagaOrchestrator,
     encodeCursor,

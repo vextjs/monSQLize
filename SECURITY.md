@@ -1,13 +1,21 @@
 # Security Policy
 
-## 支持版本
-我们仅对最新次要版本（minor）的最新补丁（patch）提供安全更新。
+## Supported Versions / 支持版本
 
-## 报告安全问题
-请通过私信或邮件联系维护者：security@your-domain.example。
-- 请提供可复现的最小示例与影响范围说明。
-- 我们将在 72 小时内初步响应，并在修复后公布披露窗口与版本。
+Security fixes target the current published major line and its latest patch.
+For the v3 release line, upgrade to the newest `3.x` patch before reporting.
+Older majors may receive fixes only when the maintainers announce an extended
+support window.
 
-## 敏感信息与日志
-- 项目默认不记录敏感值；慢日志仅输出查询形状与元信息。
-- 请勿在 issue/PR/示例中提交凭据与个人数据。
+## Reporting a Vulnerability / 报告安全问题
+
+Use [GitHub private vulnerability reporting](https://github.com/vextjs/monSQLize/security/advisories/new).
+Do not open a public issue for an undisclosed vulnerability.
+
+- Include the affected version, minimal reproduction, impact, and any known workaround.
+- Maintainers aim to acknowledge a complete report within 72 hours, then coordinate validation, a fix, and a disclosure window through the private advisory.
+
+## Sensitive Data / 敏感信息与日志
+
+- Do not include credentials, private connection strings, or personal data in public issues, pull requests, examples, or logs.
+- Redact production documents while keeping enough query shape and metadata to reproduce the issue.

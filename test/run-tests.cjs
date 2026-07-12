@@ -58,6 +58,8 @@ const UNIT = [
     'test/unit/data-tasks/data-tasks.test.js',
     'test/unit/data-tasks/data-task-branches.test.js',
     'test/unit/data-tasks/data-task-runner-branches.test.js',
+    'test/unit/data-tasks/data-task-job-facade.test.js',
+    'test/unit/data-tasks/data-task-job-branches.test.js',
     'test/unit/sync/sync.test.js',
     'test/unit/slow-query-log/slow-query-log.test.js',
     'test/unit/saga/saga.test.js',
@@ -143,6 +145,7 @@ const INTEGRATION = [
     'test/integration/watch/watch-native.test.js',
     'test/integration/runtime/runtime-core-regression.test.js',
     'test/integration/data-tasks/data-tasks.test.js',
+    'test/integration/data-tasks/data-task-job-facade.test.js',
     'test/integration/sync/sync.test.js',
     'test/integration/slow-query-log/slow-query-log.test.js',
     // Coverage gap fill — Phase C
@@ -238,6 +241,8 @@ const SUITE_MAP = {
         'test/unit/data-tasks/data-tasks.test.js',
         'test/unit/data-tasks/data-task-branches.test.js',
         'test/unit/data-tasks/data-task-runner-branches.test.js',
+        'test/unit/data-tasks/data-task-job-facade.test.js',
+        'test/unit/data-tasks/data-task-job-branches.test.js',
     ],
     'sync': ['test/unit/sync/sync.test.js'],
     'slow-query-log': ['test/unit/slow-query-log/slow-query-log.test.js'],
@@ -278,7 +283,10 @@ const SUITE_MAP = {
     'pool-behavior': ['test/integration/pool/pool-behavior.test.js'],
     'watch-native': ['test/integration/watch/watch-native.test.js'],
     'runtime-regression': ['test/integration/runtime/runtime-core-regression.test.js'],
-    'data-tasks-integration': ['test/integration/data-tasks/data-tasks.test.js'],
+    'data-tasks-integration': [
+        'test/integration/data-tasks/data-tasks.test.js',
+        'test/integration/data-tasks/data-task-job-facade.test.js',
+    ],
     'sync-int': ['test/integration/sync/sync.test.js'],
     'slow-query-log-int': ['test/integration/slow-query-log/slow-query-log.test.js'],
     // Coverage gap fill — Phase C

@@ -1,6 +1,47 @@
-# Migration Guide: monSQLize v1 → v2
+# Migration Guide: monSQLize v1/v2 → v3
 
-This guide documents intentional behavioural and contract changes between
+This guide starts with the v2.0.6 to v3.0.0 upgrade path, then retains the
+v1-to-v2 compatibility notes for older applications. Review every tightened
+contract that intersects your application before changing the installed major.
+
+## Upgrade from v2.0.6 to v3.0.0
+
+### 1. Run the release checks before changing production
+
+Use Node.js 18 or newer, install v3 in a staging branch, and run your own
+Model, cache, sync, transaction, and data rollout tests. monSQLize v3 pins
+`schema-dsl@2.1.5` and keeps the isolated `schema-dsl/runtime` integration.
+
+### 2. Review bounded query and optimistic-locking behavior
+
+- `find()` defaults to 500 documents. Configure an explicit safe limit when a
+  service previously depended on an unbounded result.
+- Versioned single-document Model writes use optimistic concurrency control and
+  may throw `WRITE_CONFLICT` for stale state.
+- Versioned `updateMany()` defaults to `counter`; select `strict` or `off` when
+  that better matches the existing write contract.
+- `updateBatch({ upsert: true })` is rejected. Use `upsertOne()` or MongoDB's
+  native `updateMany(..., { upsert: true })` according to the required semantics.
+
+### 3. Review sync, index, and production guards
+
+- Resume-token persistence failures stop Change Stream sync unless a legacy
+  best-effort option is selected explicitly.
+- `autoIndex: true` now preflights with `listIndexes()`, creates only missing
+  indexes, and reports conflicts. Keep production index rollout reviewed.
+- `production`, `prod`, and `live` all activate production-like safety guards.
+
+### 4. Use the new bounded data-task path for release data
+
+For selected release data and declared indexes, use
+`dataTasks.preview(job)` followed by `dataTasks.apply(job, { approval })`.
+Production jobs require a durable affected-scope backup directory. This feature
+does not replace schema migrations, full database export/import, or disaster
+recovery. See the data-tasks and production-rollout guides before first use.
+
+## Historical v1 to v2 notes
+
+The sections below document intentional behavioural and contract changes between
 monSQLize v1.x and v2.x. Most v2 type-level differences from v1 have been
 softened (optional fields, alias keys, permissive callbacks) so that v1
 fixtures and call sites continue to type-check unchanged. The items below

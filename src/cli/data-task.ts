@@ -1,23 +1,30 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import packageJson from '../../package.json';
-import { DataTaskRunner } from '../capabilities/data-tasks';
+import { createDataTaskService, DataTaskRunner } from '../capabilities/data-tasks';
 import { MonSQLizeRuntime } from '../entry/runtime-core';
 import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type {
     DataTaskCliConfig,
     DataTaskDefinition,
     DataTaskExecutionOptions,
+    DataTaskApproval,
+    DataTaskBackupRef,
+    DataTaskJob,
+    DataTaskJobCliConfig,
 } from '../../types/data-tasks';
 
 interface ParsedArgs {
-    action?: 'plan' | 'dry-run' | 'snapshot' | 'run' | 'verify';
+    action?: 'preview' | 'apply' | 'preview-restore' | 'restore' | 'plan' | 'dry-run' | 'snapshot' | 'run' | 'verify';
     taskFile?: string;
     confirmProduction: boolean;
     json: boolean;
     snapshotDir?: string;
     snapshotChecksum?: string;
+    approvalFile?: string;
+    backupFile?: string;
+    outFile?: string;
     help: boolean;
     version: boolean;
 }
@@ -25,6 +32,12 @@ interface ParsedArgs {
 function usage(): string {
     return [
         'Usage:',
+        '  monsqlize data-task preview --task <job.mjs> [--out <preview.json>] [--json]',
+        '  monsqlize data-task apply --task <job.mjs> --approval <preview.json> [--out <result.json>] [--json]',
+        '  monsqlize data-task preview-restore --task <job.mjs> --backup <manifest.json> [--out <preview.json>] [--json]',
+        '  monsqlize data-task restore --task <job.mjs> --backup <manifest.json> --approval <preview.json> [--out <result.json>] [--json]',
+        '',
+        'Advanced legacy runner:',
         '  monsqlize data-task plan --task <file> [--json]',
         '  monsqlize data-task dry-run --task <file> [--snapshot-dir <dir>] [--json]',
         '  monsqlize data-task snapshot --task <file> [--snapshot-dir <dir>] [--json]',
@@ -66,6 +79,12 @@ function parseArgs(argv: string[]): ParsedArgs {
             parsed.snapshotDir = args.shift();
         } else if (arg === '--snapshot-checksum') {
             parsed.snapshotChecksum = args.shift();
+        } else if (arg === '--approval') {
+            parsed.approvalFile = args.shift();
+        } else if (arg === '--backup') {
+            parsed.backupFile = args.shift();
+        } else if (arg === '--out') {
+            parsed.outFile = args.shift();
         } else if (arg === '--help' || arg === '-h') {
             parsed.help = true;
         } else if (arg === '--version' || arg === '-v') {
@@ -81,7 +100,7 @@ function collectFailures(value: unknown, location = 'result'): string[] {
     if (!value || typeof value !== 'object') return [];
     const record = value as Record<string, unknown>;
     const failures: string[] = [];
-    if (record.passed === false || record.status === 'failed') {
+    if (record.passed === false || record.status === 'failed' || record.status === 'partial') {
         failures.push(`${location} reported failure.`);
     }
     if (Array.isArray(record.errors)) {
@@ -104,9 +123,7 @@ function isDataTaskDefinition(value: unknown): value is DataTaskDefinition {
 }
 
 function normalizeTaskConfig(value: unknown): DataTaskCliConfig {
-    const exportedValue = value && typeof value === 'object' && 'default' in value
-        ? (value as { default: unknown }).default
-        : value;
+    const exportedValue = unwrapDefault(value);
     if (isDataTaskDefinition(exportedValue)) {
         return { task: exportedValue };
     }
@@ -120,15 +137,54 @@ function normalizeTaskConfig(value: unknown): DataTaskCliConfig {
     return config;
 }
 
-async function loadTaskFile(file: string): Promise<DataTaskCliConfig> {
+function unwrapDefault(value: unknown): unknown {
+    return value && typeof value === 'object' && 'default' in value
+        ? (value as { default: unknown }).default
+        : value;
+}
+
+function isDataTaskJob(value: unknown): value is DataTaskJob {
+    return Boolean(value && typeof value === 'object'
+        && typeof (value as { name?: unknown }).name === 'string'
+        && typeof (value as { targetEnvironment?: unknown }).targetEnvironment === 'string'
+        && Array.isArray((value as { collections?: unknown }).collections));
+}
+
+function normalizeJobConfig(value: unknown): DataTaskJobCliConfig {
+    const exportedValue = unwrapDefault(value);
+    if (isDataTaskJob(exportedValue)) return { job: exportedValue };
+    if (!exportedValue || typeof exportedValue !== 'object' || !isDataTaskJob((exportedValue as { job?: unknown }).job)) {
+        throw new Error('Task file must export a DataTaskJob or { job }.');
+    }
+    return exportedValue as DataTaskJobCliConfig;
+}
+
+async function loadTaskFile(file: string): Promise<unknown> {
     const resolved = path.resolve(process.cwd(), file);
     if (resolved.endsWith('.json')) {
-        return normalizeTaskConfig(JSON.parse(await readFile(resolved, 'utf8')));
+        return JSON.parse(await readFile(resolved, 'utf8'));
     }
     if (resolved.endsWith('.mjs')) {
-        return normalizeTaskConfig(await import(pathToFileURL(resolved).href));
+        return import(pathToFileURL(resolved).href);
     }
-    return normalizeTaskConfig(require(resolved));
+    return require(resolved);
+}
+
+async function loadApproval(file: string): Promise<DataTaskApproval> {
+    const parsed = JSON.parse(await readFile(path.resolve(process.cwd(), file), 'utf8')) as unknown;
+    const approval = parsed && typeof parsed === 'object' && 'approval' in parsed
+        ? (parsed as { approval?: DataTaskApproval }).approval
+        : parsed as DataTaskApproval;
+    if (!approval || (approval.kind !== 'apply' && approval.kind !== 'restore')) throw new Error('--approval must reference a preview result or approval object.');
+    return approval;
+}
+
+async function loadBackupRef(file: string): Promise<DataTaskBackupRef> {
+    const resolved = path.resolve(process.cwd(), file);
+    const parsed = JSON.parse(await readFile(resolved, 'utf8')) as Partial<DataTaskBackupRef> & { runId?: string; checksum?: string };
+    if (parsed.manifestPath && parsed.runId && parsed.checksum) return { runId: parsed.runId, checksum: parsed.checksum, manifestPath: path.resolve(path.dirname(resolved), parsed.manifestPath) };
+    if (typeof parsed.runId !== 'string' || typeof parsed.checksum !== 'string') throw new Error('--backup must reference a dataTasks manifest or backup ref.');
+    return { runId: parsed.runId, checksum: parsed.checksum, manifestPath: resolved };
 }
 
 function printHumanResult(action: string, result: unknown): void {
@@ -137,7 +193,7 @@ function printHumanResult(action: string, result: unknown): void {
         return;
     }
     const record = result as Record<string, unknown>;
-    console.log(`monSQLize data-task ${action}: ${record.taskName ?? 'task'}`);
+    console.log(`monSQLize data-task ${action}: ${record.jobName ?? record.taskName ?? 'task'}`);
     if (record.passed !== undefined) {
         console.log(`passed: ${String(record.passed)}`);
     }
@@ -156,6 +212,7 @@ function printHumanResult(action: string, result: unknown): void {
     if (Array.isArray(record.results)) {
         console.log(`results: ${record.results.length}`);
     }
+    if (Array.isArray(record.collections)) console.log(`collections: ${record.collections.length}`);
     const failures = collectFailures(result).filter((failure) => !failure.startsWith('result:'));
     if (failures.length > 0) {
         console.log(`nested failures: ${failures.length}`);
@@ -167,6 +224,17 @@ function printHumanResult(action: string, result: unknown): void {
         if (snapshot.manifestPath) console.log(`manifest: ${String(snapshot.manifestPath)}`);
         if (snapshot.checksum) console.log(`checksum: ${String(snapshot.checksum)}`);
     }
+    if (record.backup && typeof record.backup === 'object') {
+        const backup = record.backup as Record<string, unknown>;
+        if (backup.manifestPath) console.log(`backup: ${String(backup.manifestPath)}`);
+    }
+}
+
+async function outputResult(args: ParsedArgs, action: string, result: unknown): Promise<void> {
+    const serialized = `${JSON.stringify(result, null, 2)}\n`;
+    if (args.outFile) await writeFile(path.resolve(process.cwd(), args.outFile), serialized, 'utf8');
+    if (args.json) console.log(serialized.trimEnd()); else printHumanResult(action, result);
+    if (collectFailures(result).length > 0) process.exitCode = 1;
 }
 
 async function runCli(argv: string[]): Promise<void> {
@@ -179,14 +247,43 @@ async function runCli(argv: string[]): Promise<void> {
         console.log(usage());
         return;
     }
-    if (!['plan', 'dry-run', 'snapshot', 'run', 'verify'].includes(args.action)) {
+    if (!['preview', 'apply', 'preview-restore', 'restore', 'plan', 'dry-run', 'snapshot', 'run', 'verify'].includes(args.action)) {
         throw new Error(`Unknown data-task action: ${String(args.action)}`);
     }
     if (!args.taskFile) {
         throw new Error('--task <file> is required.');
     }
 
-    const config = await loadTaskFile(args.taskFile);
+    const loaded = await loadTaskFile(args.taskFile);
+    const facadeActions = new Set(['preview', 'apply', 'preview-restore', 'restore']);
+    if (facadeActions.has(args.action)) {
+        const { job } = normalizeJobConfig(loaded);
+        if (typeof (job.source as { collection?: unknown }).collection === 'function'
+            || typeof (job.target as { collection?: unknown }).collection === 'function') {
+            throw new Error('CLI DataTaskJob source and target must be MonSQLizeOptions, not runtime instances.');
+        }
+        const service = createDataTaskService((options) => new MonSQLizeRuntime(options) as unknown as import('../capabilities/data-tasks/job-service').DataTaskManagedRuntime);
+        let result: unknown;
+        if (args.action === 'preview') {
+            result = await service.preview(job);
+        } else if (args.action === 'apply') {
+            if (!args.approvalFile) throw new Error('apply requires --approval <preview.json>.');
+            result = await service.apply(job, { approval: await loadApproval(args.approvalFile) });
+        } else {
+            if (!args.backupFile) throw new Error(`${args.action} requires --backup <manifest.json>.`);
+            const backup = await loadBackupRef(args.backupFile);
+            if (args.action === 'preview-restore') {
+                result = await service.previewRestore(backup, { target: job.target });
+            } else {
+                if (!args.approvalFile) throw new Error('restore requires --approval <preview.json>.');
+                result = await service.restore(backup, { target: job.target, approval: await loadApproval(args.approvalFile) });
+            }
+        }
+        await outputResult(args, args.action, result);
+        return;
+    }
+
+    const config = normalizeTaskConfig(loaded);
     const task = config.task as DataTaskDefinition;
     const executionOptions: DataTaskExecutionOptions = {
         confirmProduction: args.confirmProduction,
@@ -213,14 +310,7 @@ async function runCli(argv: string[]): Promise<void> {
                 : args.action === 'run'
                     ? await runner.run(task, executionOptions)
                     : await runner.verify(task, executionOptions);
-        if (args.json) {
-            console.log(JSON.stringify(result, null, 2));
-        } else {
-            printHumanResult(args.action, result);
-        }
-        if (collectFailures(result).length > 0) {
-            process.exitCode = 1;
-        }
+        await outputResult(args, args.action, result);
     } finally {
         await runtime?.close?.().catch(() => { });
     }

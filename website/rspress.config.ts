@@ -315,8 +315,8 @@ const sidebarSource: SidebarGroupSource[] = [
       { en: 'Pool Chain API', zh: '链式池访问 API', link: '/pool-chain-api' },
       { en: 'SSH Tunnel', zh: 'SSH 隧道', link: '/ssh-tunnel' },
       { en: 'Distributed Deployment Guide', zh: '分布式部署指南', link: '/distributed-deployment' },
-      { en: 'Production Rollout', zh: '生产发布与迁移', link: '/production-rollout' },
       { en: 'Data Tasks', zh: '数据任务 dataTasks', link: '/data-tasks' },
+      { en: 'Production Rollout', zh: '生产发布与迁移', link: '/production-rollout' },
       { en: 'Distributed Deployment Quick Reference', zh: '分布式部署快速参考', link: '/distributed-deployment-quickref' }
     ]
   },

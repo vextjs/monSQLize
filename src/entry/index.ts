@@ -8,6 +8,7 @@ import {
     adaptLegacyCacheLike,
     BatchQueue,
     CountQueue,
+    DataTaskJobError,
     DataTaskRunner,
     DEFAULT_SLOW_QUERY_LOG_CONFIG,
     MongoDBSlowQueryLogStorage,
@@ -54,6 +55,7 @@ import {
     withCache,
     withSlowQueryLog,
 } from './runtime-core';
+import { createDataTaskService } from '../capabilities/data-tasks/job-service';
 import { Lock, LockAcquireError, LockManager, LockTimeoutError } from '../capabilities/lock';
 import { CacheLockManager, Transaction, TransactionManager } from '../capabilities/transaction';
 import {
@@ -65,6 +67,7 @@ import {
 } from '../capabilities/pool';
 
 const MonSQLize = MonSQLizeRuntime as typeof MonSQLizeRuntime & Record<string, unknown>;
+const dataTasks = createDataTaskService((options) => new MonSQLizeRuntime(options) as unknown as import('../capabilities/data-tasks/job-service').DataTaskManagedRuntime);
 
 MonSQLize.Logger = Logger;
 MonSQLize.MemoryCache = MemoryCache;
@@ -103,6 +106,8 @@ MonSQLize.SlowQueryLogMemoryStorage = SlowQueryLogMemoryStorage;
 MonSQLize.MongoDBSlowQueryLogStorage = MongoDBSlowQueryLogStorage;
 MonSQLize.BatchQueue = BatchQueue;
 MonSQLize.DataTaskRunner = DataTaskRunner;
+MonSQLize.DataTaskJobError = DataTaskJobError;
+MonSQLize.dataTasks = dataTasks;
 MonSQLize.generateQueryHash = generateQueryHash;
 MonSQLize.SagaOrchestrator = SagaOrchestrator;
 MonSQLize.encodeCursor = encodeCursor;

@@ -5,17 +5,20 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { DataTaskDefinition } from 'monsqlize';
+import MonSQLize, { dataTasks, type DataTaskJob } from 'monsqlize';
 import { setupExample, teardownExample } from '../helpers/bootstrap.js';
 
 async function main() {
     const snapshotDir = await fs.mkdtemp(path.join(os.tmpdir(), 'monsqlize-data-task-example-'));
     let resources: Awaited<ReturnType<typeof setupExample>> | undefined;
+    let target: MonSQLize | undefined;
     try {
         resources = await setupExample('example-data-tasks');
-        const { msq } = resources;
+        const { msq, uri } = resources;
+        target = new MonSQLize({ type: 'mongodb', databaseName: 'example-data-tasks-target', config: { uri } });
+        await target.connect();
         const sourceUsers = msq.collection('sourceUsers');
-        const targetUsers = msq.collection('targetUsers');
+        const targetUsers = target.collection('targetUsers');
 
         await sourceUsers.insertMany([
             { email: 'a@example.com', status: 'active', name: 'Alice' },
@@ -23,51 +26,41 @@ async function main() {
             { email: 'c@example.com', status: 'archived', name: 'Cara' },
         ]);
 
-        const task: DataTaskDefinition = {
+        const task: DataTaskJob = {
             name: 'sync-active-users',
-            environment: 'production',
-            source: { collection: 'sourceUsers' },
-            target: { collection: 'targetUsers' },
-            filter: { status: 'active' },
-            matchBy: ['email'],
-            snapshot: { dir: snapshotDir },
-            steps: [
-                {
-                    type: 'ensureIndexes',
-                    indexes: [
-                        { key: { email: 1 }, options: { unique: true }, name: 'target_users_email_unique' },
-                    ],
+            source: msq,
+            target,
+            targetEnvironment: 'production',
+            collections: [{
+                name: 'sourceUsers',
+                targetName: 'targetUsers',
+                indexes: [{ key: { email: 1 }, options: { unique: true }, name: 'target_users_email_unique' }],
+                data: {
+                    filter: { status: 'active' },
+                    identity: { mode: 'fields', fields: ['email'] },
+                    transform: { pipeline: [{ $set: { schemaVersion: 2 } }] },
+                    maxDocuments: 10_000,
                 },
-                { type: 'syncData', strategy: 'upsert' },
-                { type: 'transformFields', update: { $set: { schemaVersion: 2 } } },
-                { type: 'verify', count: true, fields: ['schemaVersion'], indexes: true, sample: 2 },
-            ],
+                verify: { mode: 'full', fields: ['email', 'name', 'schemaVersion'] },
+            }],
+            backup: { dir: snapshotDir, maxBytes: 256 * 1024 * 1024 },
         };
 
-        const plan = await msq.dataTasks.plan(task);
-        if (!plan.passed) throw new Error(`Plan failed: ${plan.errors.join('; ')}`);
-        const dryRun = await msq.dataTasks.dryRun(task);
-        if (!dryRun.passed) throw new Error(`Dry-run failed: ${dryRun.errors.join('; ')}`);
-        const reviewedSnapshot = await msq.dataTasks.exportAffected(task);
-        if (!reviewedSnapshot.checksum) throw new Error('Snapshot checksum is missing.');
-        const run = await msq.dataTasks.run(task, {
-            confirmProduction: true,
-            approvedSnapshotChecksum: reviewedSnapshot.checksum,
-        });
+        const plan = await dataTasks.preview(task);
+        if (!plan.passed || !plan.approval) throw new Error(`Preview failed: ${plan.errors.join('; ')}`);
+        const run = await dataTasks.apply(task, { approval: plan.approval });
         if (!run.passed) throw new Error(`Run failed: ${run.errors.join('; ')}`);
-        const verify = await msq.dataTasks.verify(task);
-        if (!verify.passed) throw new Error(`Verify failed: ${verify.errors.join('; ')}`);
+        const restorePreview = await dataTasks.previewRestore(run.backup);
         const targetRows = await targetUsers.find({ status: 'active' });
 
-        console.log('plan risk:', plan.risk);
-        console.log('dry-run results:', dryRun.results.length);
-        console.log('reviewed snapshot:', reviewedSnapshot.path);
-        console.log('run snapshot:', run.snapshot?.path);
-        console.log('verify passed:', verify.passed);
+        console.log('planned collections:', plan.collections.length);
+        console.log('backup manifest:', run.backup.manifestPath);
+        console.log('restore preview passed:', restorePreview.passed);
         console.log('target users:', targetRows.map((row) => row.email).join(', '));
 
         console.log('Data tasks example complete');
     } finally {
+        await target?.close();
         if (resources) await teardownExample(resources.msq, resources.server);
         await fs.rm(snapshotDir, { recursive: true, force: true });
     }

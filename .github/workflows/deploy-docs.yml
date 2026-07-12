@@ -60,9 +60,9 @@ jobs:
         working-directory: ./website
         run: npm ci
 
-      - name: Build docs
+      - name: Verify docs site
         working-directory: ./website
-        run: npm run build
+        run: npm run verify
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -79,3 +79,14 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Summarize stable docs deployment
+        shell: bash
+        run: |
+          {
+            echo "## Stable documentation deployed"
+            echo
+            echo "Release tag: \`${{ inputs.release_tag }}\`"
+            echo
+            echo "Pages URL: ${{ steps.deployment.outputs.page_url }}"
+          } >> "${GITHUB_STEP_SUMMARY}"

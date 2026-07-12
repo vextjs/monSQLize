@@ -7,9 +7,9 @@ monSQLize 为这条路径提供的是数据库运行时能力：
 - Change Stream 同步，用于写入到达 MongoDB 之后的异步 CDC。
 - `ensureIndexes()` 与 `ensureModelIndexes()`，用于 Model 索引预检。
 - `listIndexes()`、`createIndex()`、`createIndexes()`、`dropIndex()` 等集合索引 API。
-- `msq.dataTasks` 与 `monsqlize data-task`，用于经过复核的索引同步、筛选数据同步、字段调整、快照与验证。
+- `dataTasks` facade 与 `monsqlize data-task`，用于经过复核的索引同步、筛选数据同步、字段调整、受影响范围备份与恢复。
 
-它不会替代 MongoDB 原生导入导出、完整备份恢复策略或 exactly-once 数据管道。dataTasks 的定位是有边界的发布任务：显式 filter、dry-run、快照、受控执行和结果验证。
+它不会替代 MongoDB 原生导入导出、完整备份恢复策略或 exactly-once 数据管道。dataTasks 的定位是有边界的发布任务：明确 source/target、collection 级意图、preview 审批、受控 apply 和可选的复核恢复。
 
 ## 什么时候看这一页
 
@@ -18,7 +18,7 @@ monSQLize 为这条路径提供的是数据库运行时能力：
 | 发布需求 | 推荐路径 |
 |----------|----------|
 | 发布包含 Model 索引变更的新版本 | 先做索引 dry-run，解决 conflicts，再在受控窗口创建缺失索引 |
-| 回填已有生产数据 | 使用 dataTask，提供明确 filter、业务 `matchBy`、快照与 verify 步骤 |
+| 回填已有生产数据 | 使用 DataTaskJob，提供明确 filter、identity、声明索引、持久备份与 verify |
 | 发布后让备份库或投影库持续同步 | 使用 Change Stream sync，并配置持久化 resume token 与 target 幂等 |
 | 在数据库、连接池或读路径之间切流 | 切流前核对数据量、同步健康、索引、读路径与回滚点 |
 
@@ -28,8 +28,8 @@ monSQLize 为这条路径提供的是数据库运行时能力：
 2. 生产服务使用 `autoIndex: false` 部署代码。
 3. 在目标环境运行索引 dry-run。
 4. 先解决索引 conflicts，再创建 missing 索引。
-5. 如果发布需要历史数据变化，先执行 plan 和 dry-run，再导出受影响快照并人工审核 manifest 与 checksum。
-6. 同时提供生产确认和已审核快照 checksum 后执行 `run`。
+5. 如果发布需要历史数据变化，执行 `dataTasks.preview(job)`，审核数据/索引数量、冲突、样本、备份范围和 approval 有效期。
+6. 执行 `dataTasks.apply(job, { approval })`；source、target、index 或 job 发生漂移后必须重新 preview。
 7. 只有在前置条件满足后，再启用 Change Stream sync 承接后续 CDC。
 8. 检查数量、抽样记录、同步统计、慢查询和错误日志。
 9. 所有发布门禁通过后再切换流量。
@@ -91,6 +91,56 @@ await users.createIndexes([
 - 切流后重新检查慢查询日志和 `explain()` 输出。
 
 ## 数据迁移同步
+
+一次发布需求直接写一份 `DataTaskJob`：来源实例 A、目标实例 B，以及同时声明索引和筛选数据的 collection 对象。任何索引判断前，都会先对目标集合执行 `listIndexes()`。
+
+```ts
+import { dataTasks, type DataTaskJob } from 'monsqlize';
+
+const job = {
+  name: 'release-2026-07-settings',
+  source: development,
+  target: production,
+  targetEnvironment: 'production',
+  collections: [{
+    name: 'settings',
+    indexes: [{ key: { code: 1 }, name: 'settings_code_unique', options: { unique: true } }],
+    data: {
+      filter: { release: '2026-07' },
+      identity: { mode: 'fields', fields: ['code'] },
+      transform: { pipeline: [{ $set: { schemaVersion: 2 } }] },
+      maxDocuments: 10_000
+    },
+    verify: { mode: 'full', fields: ['code', 'value', 'schemaVersion'] }
+  }],
+  backup: { dir: '/srv/monsqlize-data-tasks', compression: 'gzip', retentionDays: 14, maxBytes: 268435456 },
+  lock: true
+} satisfies DataTaskJob;
+
+const preview = await dataTasks.preview(job);
+if (!preview.passed || !preview.approval) throw new Error(preview.errors.join('; '));
+const run = await dataTasks.apply(job, { approval: preview.approval });
+```
+
+apply 会先获取可选的目标数据库租约，再重新计算并校验已审核计划；随后写入并回读校验受影响范围回滚包，创建声明的 missing 索引，并按有序 checkpoint batch 写入。文档 CAS 会拒绝并发目标变化，不会覆盖其他写入者的数据。失败即停止，不会自动恢复。需要回滚时，先执行 `previewRestore(run.backup)`，再使用独立 restore approval 执行 `restore()`；restore 写目标前会再创建安全备份，并遵守同样的不覆盖规则。
+
+CLI 形式：
+
+```bash
+monsqlize data-task preview --task ./tasks/release-settings.cjs --out preview.json --json
+monsqlize data-task apply --task ./tasks/release-settings.cjs --approval preview.json --out run.json --json
+monsqlize data-task preview-restore --task ./tasks/release-settings.cjs --backup <manifest.json> --out restore-preview.json --json
+monsqlize data-task restore --task ./tasks/release-settings.cjs --backup <manifest.json> --approval restore-preview.json --json
+```
+
+只有两端必须保持完全相同 `_id` 时才使用 `identity.mode: 'source-id'`，并可用 `conflictBy` 发现业务键相同但 ID 不同的冲突。普通独立环境使用 `fields` 和完全覆盖的 unique index，已有目标文档保留自己的 ID。
+
+dataTasks backup 是本次发布范围的回滚包。完整恢复仍应保留数据库备份或托管恢复点；全库复制和超大规模迁移使用 MongoDB 原生工具。
+
+运行账号需要对 source 的目标集合有读取权限；对 target 需要 `listIndexes`、声明索引创建、受影响文档写入，以及启用锁时 `_monsqlize_data_task_locks` 的读写删除权限。执行进程还必须能在 `backup.dir` 创建、读取、原子重命名回滚包文件。approval 只绑定审核状态，不替代这些权限控制。
+
+<details>
+<summary>高级兼容 DataTaskRunner 发布流程</summary>
 
 发布范围内的历史数据变化优先使用 dataTasks。任务应该用 `filter` 限定范围，用稳定业务字段匹配记录，在写入前导出受影响目标文档快照，并在切流前验证结果。
 
@@ -157,6 +207,8 @@ monsqlize data-task verify --task ./tasks/sync-active-users.cjs
 - 内置任务锁只覆盖当前进程。多个进程或节点可能启动任务时，使用单实例作业执行器或外部分布式锁。
 - 快照支持经过审核的局部恢复，但不是自动回滚；发布窗口结束前保留数据库备份或托管恢复点。
 - 全库复制、备份、恢复或超大批量管道仍应使用 MongoDB 原生工具或应用自有任务。
+
+</details>
 
 ## 回填后的 Change Stream 同步
 

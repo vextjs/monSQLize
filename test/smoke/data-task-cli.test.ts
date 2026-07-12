@@ -19,6 +19,8 @@ test('data-task CLI exposes successful help and version paths', () => {
     assert.match(help.stdout, /monsqlize data-task run/);
     assert.match(help.stdout, /monsqlize data-task snapshot/);
     assert.match(help.stdout, /--snapshot-checksum/);
+    assert.match(help.stdout, /data-task preview --task/);
+    assert.match(help.stdout, /data-task preview-restore --task/);
 
     const nestedHelp = runCli(['data-task', '--help']);
     assert.equal(nestedHelp.status, 0, nestedHelp.stderr);
@@ -48,6 +50,33 @@ test('data-task CLI rejects unknown actions', () => {
     const missingTask = runCli(['plan']);
     assert.equal(missingTask.status, 1);
     assert.match(missingTask.stderr, /--task <file> is required/);
+});
+
+test('data-task CLI validates facade command files and required approvals', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'monsqlize-data-task-cli-job-'));
+    const jobPath = path.join(dir, 'job.json');
+    fs.writeFileSync(jobPath, JSON.stringify({
+        name: 'cli-job',
+        source: { type: 'mongodb', databaseName: 'source', config: { uri: 'mongodb://localhost:27017' } },
+        target: { type: 'mongodb', databaseName: 'target', config: { uri: 'mongodb://localhost:27017' } },
+        targetEnvironment: 'test',
+        collections: [{ name: 'items', data: { all: true, identity: { mode: 'source-id' } } }],
+    }), 'utf8');
+    try {
+        const apply = runCli(['apply', '--task', jobPath]);
+        assert.equal(apply.status, 1);
+        assert.match(apply.stderr, /requires --approval/);
+
+        const previewRestore = runCli(['preview-restore', '--task', jobPath]);
+        assert.equal(previewRestore.status, 1);
+        assert.match(previewRestore.stderr, /requires --backup/);
+
+        const restore = runCli(['restore', '--task', jobPath, '--backup', jobPath]);
+        assert.equal(restore.status, 1);
+        assert.match(restore.stderr, /must reference a dataTasks manifest/);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
 });
 
 test('data-task CLI can plan a JSON task without a database connection', () => {

@@ -35,6 +35,8 @@
     "changelogs/v2.0.1.md",
     "changelogs/v2.0.0.md",
     "README.md",
+    "MIGRATION.md",
+    "SECURITY.md",
     "LICENSE",
     "CHANGELOG.md"
   ],
@@ -106,14 +108,14 @@
     "type-check": "npm run build && tsc -p tsconfig.json --noEmit && tsd --files test/types/root-import.test-d.ts --files test/types/cache-usage.test-d.ts --files test/types/model-usage.test-d.ts --files test/types/pool-usage.test-d.ts --files test/types/sync-usage.test-d.ts --files test/types/slow-query-log-usage.test-d.ts --files test/types/saga-usage.test-d.ts --files test/types/data-tasks-usage.test-d.ts",
     "check:test-language": "node scripts/check-test-language.cjs",
     "check:docs-examples": "node scripts/validation/check-doc-example-matrix.cjs",
+    "check:release-candidate": "node scripts/check-release-candidate.cjs",
     "verify:fast": "npm run lint && npm run check:docs-examples && npm run type-check && npm run check:sizes:strict && npm run test:runtime && npm run test:compatibility && npm run test:refactor-guard && npm run test:refactor-guard:cache",
     "verify:full": "npm run lint && npm run check:docs-examples && npm run type-check && npm run check:sizes:strict && npm run test:examples && npm run test:server-matrix",
     "verify:release": "npm run verify:full && npm run test:real-env:private",
     "verify": "npm run verify:full",
     "release:preflight": "node scripts/release-preflight.cjs",
     "prepublishOnly": "npm run release:preflight",
-    "release:publish": "npm run release:preflight && npm publish --ignore-scripts",
-    "postpublish": "echo 'Publish succeeded. Create GitHub Release: https://github.com/vextjs/monSQLize/releases/new?tag=v'$npm_package_version"
+    "release:publish": "npm run release:preflight && npm publish --ignore-scripts"
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",
@@ -123,7 +125,7 @@
     "chai": "6.2.2",
     "esbuild": "0.28.1",
     "eslint": "9.39.4",
-    "mongodb-memory-server": "11.1.0",
+    "mongodb-memory-server": "10.4.3",
     "sinon": "22.0.0",
     "tsd": "0.33.0",
     "typescript": "5.9.3"
@@ -131,9 +133,9 @@
   "dependencies": {
     "async-lock": "1.4.1",
     "cache-hub": "2.2.4",
-    "ioredis": "5.8.2",
+    "ioredis": "5.11.1",
     "mongodb": "6.21.0",
-    "schema-dsl": "2.1.3",
+    "schema-dsl": "2.1.5",
     "ssh2": "1.17.0"
   }
 }

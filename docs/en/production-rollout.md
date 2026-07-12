@@ -7,9 +7,9 @@ monSQLize provides the database runtime building blocks for this path:
 - Change Stream sync for asynchronous CDC after writes reach MongoDB.
 - Model index preflight through `ensureIndexes()` and `ensureModelIndexes()`.
 - Collection index APIs such as `listIndexes()`, `createIndex()`, `createIndexes()`, and `dropIndex()`.
-- Data tasks through `msq.dataTasks` and `monsqlize data-task` for reviewed index sync, filtered data sync, field transforms, snapshots, and verification.
+- Release data tasks through the `dataTasks` facade and `monsqlize data-task` for reviewed index sync, filtered data sync, transforms, affected-scope backup, and restore.
 
-It does not replace MongoDB native import/export, a full backup/restore policy, or an exactly-once data pipeline. Treat dataTasks as bounded release tasks: explicit filter, dry-run, snapshot, controlled run, and verification.
+It does not replace MongoDB native import/export, a full backup/restore policy, or an exactly-once data pipeline. Treat dataTasks as bounded release tasks: explicit source and target, collection-level intent, preview approval, controlled apply, and optional reviewed restore.
 
 ## When to Use This Page
 
@@ -18,7 +18,7 @@ Use this page when you need any of these release steps:
 | Release need | Use this path |
 |--------------|---------------|
 | Deploy a new service version with Model index changes | Run index dry-run, resolve conflicts, then create missing indexes in a controlled window |
-| Backfill existing production data | Run a dataTask with an explicit filter, business `matchBy`, snapshot, and verify step |
+| Backfill existing production data | Run a DataTaskJob with an explicit filter, identity policy, declared indexes, durable backup, and verification |
 | Keep a backup database or projection in sync after rollout | Enable Change Stream sync with durable resume tokens and target idempotency |
 | Move traffic between databases or pools | Verify data counts, sync health, indexes, read paths, and rollback points before switching |
 
@@ -28,8 +28,8 @@ Use this page when you need any of these release steps:
 2. Deploy code with `autoIndex: false` for production services.
 3. Run the index dry-run against the target environment.
 4. Resolve index conflicts before creating missing indexes.
-5. If the release changes historical data, run plan and dry-run, export the affected snapshot, and review its manifest and checksum.
-6. Execute `run` with both production confirmation and the reviewed snapshot checksum.
+5. If the release changes historical data, run `dataTasks.preview(job)` and review data/index counts, conflicts, samples, backup scope, and approval expiry.
+6. Execute `dataTasks.apply(job, { approval })`; stale source, target, index, or job state requires a new preview.
 7. Enable Change Stream sync only for ongoing CDC after prerequisites are ready.
 8. Check counts, sample records, sync stats, slow queries, and error logs.
 9. Switch traffic only after the release gates are green.
@@ -91,6 +91,56 @@ Production index checklist:
 - Recheck slow-query logs and `explain()` output after traffic moves.
 
 ## Data Migration Sync
+
+Use a `DataTaskJob` for a specific release request: source instance A, target instance B, and collection objects that directly declare indexes and selected data. The target is always inspected with `listIndexes()` before any index decision.
+
+```ts
+import { dataTasks, type DataTaskJob } from 'monsqlize';
+
+const job = {
+  name: 'release-2026-07-settings',
+  source: development,
+  target: production,
+  targetEnvironment: 'production',
+  collections: [{
+    name: 'settings',
+    indexes: [{ key: { code: 1 }, name: 'settings_code_unique', options: { unique: true } }],
+    data: {
+      filter: { release: '2026-07' },
+      identity: { mode: 'fields', fields: ['code'] },
+      transform: { pipeline: [{ $set: { schemaVersion: 2 } }] },
+      maxDocuments: 10_000
+    },
+    verify: { mode: 'full', fields: ['code', 'value', 'schemaVersion'] }
+  }],
+  backup: { dir: '/srv/monsqlize-data-tasks', compression: 'gzip', retentionDays: 14, maxBytes: 268435456 },
+  lock: true
+} satisfies DataTaskJob;
+
+const preview = await dataTasks.preview(job);
+if (!preview.passed || !preview.approval) throw new Error(preview.errors.join('; '));
+const run = await dataTasks.apply(job, { approval: preview.approval });
+```
+
+Apply acquires the optional target-database lease before recalculating the approved plan, writes and reads back the affected-scope rollback package, creates declared missing indexes, and writes ordered checkpoint batches. Document CAS filters reject concurrent target changes instead of overwriting them. It stops on failure and does not automatically restore. If rollback is required, use `previewRestore(run.backup)` and then `restore()` with the independent restore approval. Restore first creates another safety package and applies the same no-overwrite rule.
+
+CLI form:
+
+```bash
+monsqlize data-task preview --task ./tasks/release-settings.cjs --out preview.json --json
+monsqlize data-task apply --task ./tasks/release-settings.cjs --approval preview.json --out run.json --json
+monsqlize data-task preview-restore --task ./tasks/release-settings.cjs --backup <manifest.json> --out restore-preview.json --json
+monsqlize data-task restore --task ./tasks/release-settings.cjs --backup <manifest.json> --approval restore-preview.json --json
+```
+
+Use `identity.mode: 'source-id'` only when both environments must retain exactly the same `_id`; add `conflictBy` to detect a matching business key with a different ID. For ordinary independent environments, use `fields` plus an exact unique index and let existing target documents keep their IDs.
+
+The dataTasks backup is a release-scoped rollback package. Keep the database backup or managed restore point for full recovery, and use MongoDB native tools for full database copy or very large migrations.
+
+The runtime identity needs read access to the selected source collections. On the target it needs `listIndexes`, declared-index creation, affected-document writes, and read/write/delete access to `_monsqlize_data_task_locks` when locking is enabled. The process must also be able to create, read, and atomically rename rollback-package files under `backup.dir`. Approval binds reviewed state; it does not replace these permission controls.
+
+<details>
+<summary>Advanced legacy DataTaskRunner rollout</summary>
 
 Use dataTasks for release-scoped historical data changes. A task should be bounded by `filter`, match records by stable business keys, snapshot affected target documents before writes, and verify the result before traffic moves.
 
@@ -157,6 +207,8 @@ Task recommendations:
 - Treat the built-in task lock as process-local. Use a single job executor or an external distributed lock when multiple processes or nodes can start the task.
 - A snapshot supports reviewed local recovery but is not automatic rollback; keep the database backup or managed restore point until the release window closes.
 - Use MongoDB native tooling or an application-owned job for full database copy, backup, restore, or very large batch pipelines.
+
+</details>
 
 ## Change Stream Sync After Backfill
 

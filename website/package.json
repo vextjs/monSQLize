@@ -6,11 +6,15 @@
   "scripts": {
     "dev": "rspress dev",
     "build": "rspress build",
-    "preview": "rspress preview"
+    "preview": "rspress preview",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "check:links": "node ../scripts/validation/check-site-links.cjs",
+    "check:audit": "npm audit",
+    "verify": "npm run type-check && npm run build && npm run check:links && npm run check:audit"
   },
   "dependencies": {
-    "@rspress/core": "^2.0.2",
-    "@rspress/plugin-sitemap": "^2.0.7"
+    "@rspress/core": "2.0.17",
+    "@rspress/plugin-sitemap": "2.0.17"
   },
   "devDependencies": {
     "@types/node": "^22.15.17",

@@ -20,8 +20,9 @@
 | `npm run test:refactor-guard` | Hot spot reconstruction triple regression: exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server default matrix (Node/Driver/MongoDB server) |
 | `npm run test:real-env:private` | Private real environment check; do not enter regular verify / CI by default |
-| `npm run release:preflight` | Single-source public release gate: release metadata + `verify:fast` + default tests + coverage + examples + server matrix + dataTasks/CLI integration + audit + temporary package install + final pack boundary |
-| `npm run test:pack-install` | Build and pack the candidate, install the tarball in a temporary consumer, and verify CJS, ESM, TypeScript, bin, help, and version |
+| `npm run release:preflight` | Strict single-source release gate: clean pushed candidate + release metadata + `verify:fast` + default tests + coverage + examples + server matrix + dataTasks/CLI integration + audit + temporary package install + website verify + final pack boundary |
+| `npm run test:pack-install` | Build and pack the candidate, install the tarball in a temporary consumer, and verify CJS, ESM, dataTasks, schema-dsl, TypeScript, MIGRATION/SECURITY, bin, help, and version |
+| `npm --prefix website run verify` | Verify types, the Rspress build, internal links, and dependency audit using the website lockfile |
 
 The memory-server related entries uniformly use `.cache/mongodb-memory-server/binaries` as the binary cache and `.cache/mongodb-memory-server/db` as the temporary data directory within the project; the dbPath automatically created by the project will be cleared when the script exits or runtime close to avoid the accumulation of default system temporary directories.
 
@@ -85,7 +86,7 @@ Required environment variables:
 - **Default verification chain**: `npm test` / `check:docs-examples` / `verify:fast` / `verify:full` / `test:server-matrix`
 - **Coverage gate**: `npm run test:coverage` remains independently runnable; `verify:full` does not include it, while public CI's release-gate and `release:preflight` require it
 - **Explicit opt-in**: `test:real-env:private`
-- **Public release pre-access control**: `release:preflight`
+- **Public pre-release gate**: `release:preflight`, which only accepts a clean candidate with a valid dependency tree and a `HEAD` present on `origin`
 - **Local private pre-release supplement**: `verify:release`
 
 ## Why doesn’t CI run `verify:release` directly?

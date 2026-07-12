@@ -20,8 +20,9 @@
 | `npm run test:refactor-guard` | 热点重构三联回归：exports + runtime/model + sync |
 | `npm run test:server-matrix` | memory-server 默认矩阵（Node / Driver / MongoDB server） |
 | `npm run test:real-env:private` | 私有真实环境检查；默认不进入常规 verify / CI |
-| `npm run release:preflight` | 单一真相源公开发布门禁：发布元数据 + `verify:fast` + 默认测试 + coverage + examples + server matrix + dataTasks/CLI integration + audit + 临时安装 + 最终 pack 边界 |
-| `npm run test:pack-install` | 构建并打包候选版本，在临时消费者中安装 tarball，验证 CJS、ESM、TypeScript、bin、help 与 version |
+| `npm run release:preflight` | 严格单一真相源发布门禁：干净且已推送候选 + 发布元数据 + `verify:fast` + 默认测试 + coverage + examples + server matrix + dataTasks/CLI integration + audit + 临时安装 + 网站 verify + 最终 pack 边界 |
+| `npm run test:pack-install` | 构建并打包候选版本，在临时消费者中安装 tarball，验证 CJS、ESM、dataTasks、schema-dsl、TypeScript、MIGRATION/SECURITY、bin、help 与 version |
+| `npm --prefix website run verify` | 使用网站锁文件验证类型、Rspress 构建、站内链接和依赖 audit |
 
 memory-server 相关入口统一使用 `.cache/mongodb-memory-server/binaries` 作为二进制缓存，`.cache/mongodb-memory-server/db` 作为项目内临时数据目录；项目自动创建的 dbPath 会在脚本退出或 runtime close 时清理，避免默认系统临时目录堆积。
 
@@ -82,7 +83,7 @@ npm run test:real-env:private
 - **默认验证链**：`npm test` / `check:docs-examples` / `verify:fast` / `verify:full` / `test:server-matrix`
 - **覆盖率门禁**：`npm run test:coverage` 仍可独立执行；`verify:full` 不串联它，但公开 CI 的 release-gate 与 `release:preflight` 强制执行
 - **显式 opt-in**：`test:real-env:private`
-- **公开发布前门禁**：`release:preflight`
+- **公开发布前门禁**：`release:preflight`，仅接受工作树干净、依赖树有效且 `HEAD` 已存在于 `origin` 的候选
 - **本地私有发布前补充**：`verify:release`
 
 ## 为什么 CI 不直接跑 `verify:release`

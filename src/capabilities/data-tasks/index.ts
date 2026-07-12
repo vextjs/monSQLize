@@ -1,4 +1,6 @@
 export { DataTaskRunner } from './runner';
+export { DataTaskJobService, createDataTaskService } from './job-service';
+export { DataTaskJobError } from './job-normalizer';
 export type { DataTaskRuntimeHost } from './support';
 export type {
     DataTaskDataSyncResult,
@@ -26,4 +28,30 @@ export type {
     DataTaskVerifyResult,
     DataTaskVerifyStep,
     DataTaskWriteStrategy,
+    DataTaskApplyOptions,
+    DataTaskApplyResult,
+    DataTaskApproval,
+    DataTaskBackupOptions,
+    DataTaskBackupRef,
+    DataTaskChangeSample,
+    DataTaskCollectionJob,
+    DataTaskCollectionPreview,
+    DataTaskConnection,
+    DataTaskConnectionRuntime,
+    DataTaskDataRule,
+    DataTaskIdentity,
+    DataTaskIndexPlan,
+    DataTaskJob,
+    DataTaskJobCliConfig,
+    DataTaskJobErrorCode,
+    DataTaskLeaseLockOptions,
+    DataTaskPreviewOptions,
+    DataTaskPreviewResult,
+    DataTaskRestoreOptions,
+    DataTaskRestorePreviewResult,
+    DataTaskRestoreResult,
+    DataTaskRestoreTargetOptions,
+    DataTaskService,
+    DataTaskTransform,
+    DataTaskVerifyRule,
 } from '../../../types/data-tasks';

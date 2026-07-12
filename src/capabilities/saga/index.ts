@@ -366,10 +366,13 @@ async function executeStepWithRetry(
             const promise = step.execute(context);
             return timeout && timeout > 0
                 ? await withTimeout(step.name, promise, timeout, () => {
-                    controller?.abort(createError(ErrorCodes.INVALID_ARGUMENT, `Saga step '${step.name}' timed out after ${timeout}ms.`));
+                    controller?.abort(createError(ErrorCodes.OPERATION_TIMEOUT, `Saga step '${step.name}' timed out after ${timeout}ms.`));
                 })
                 : await promise;
         } catch (cause) {
+            if (isOperationTimeout(cause)) {
+                throw cause;
+            }
             if (attempt >= retries) {
                 throw cause;
             }
@@ -384,6 +387,12 @@ async function executeStepWithRetry(
     }
 }
 
+function isOperationTimeout(error: unknown): boolean {
+    return error instanceof Error
+        && 'code' in error
+        && (error as Error & { code?: string }).code === ErrorCodes.OPERATION_TIMEOUT;
+}
+
 async function withTimeout<T>(stepName: string, promise: Promise<T>, timeoutMs: number, onTimeout?: () => void): Promise<T> {
     let timer: NodeJS.Timeout | null = null;
     try {
@@ -391,7 +400,7 @@ async function withTimeout<T>(stepName: string, promise: Promise<T>, timeoutMs: 
             promise,
             new Promise<T>((_resolve, reject) => {
                 timer = setTimeout(() => {
-                    reject(createError(ErrorCodes.INVALID_ARGUMENT, `Saga step '${stepName}' timed out after ${timeoutMs}ms.`));
+                    reject(createError(ErrorCodes.OPERATION_TIMEOUT, `Saga step '${stepName}' timed out after ${timeoutMs}ms.`));
                     onTimeout?.();
                 }, timeoutMs);
                 timer.unref?.();

@@ -10,20 +10,22 @@ npm run release:preflight
 
 ## 它会做什么
 
-1. 检查 `package-lock.json` 是否与当前 `package.json` 版本一致，且不包含 `file:` / `workspace:` / sibling 本地路径残留。
-2. 检查当前 `package.json` 版本对应的 changelog 文件是否存在。
-3. 检查工程治理必需文档是否存在：
+1. 拒绝存在未提交文件、无效安装依赖树或当前提交尚未推送到 `origin` 的候选版本。
+2. 检查 `package-lock.json` 是否与当前 `package.json` 版本一致，且不包含 `file:` / `workspace:` / sibling 本地路径残留。
+3. 检查当前 `package.json` 版本对应的 changelog 文件，以及包内 `MIGRATION.md` / `SECURITY.md` 是否存在。
+4. 检查工程治理必需文档是否存在：
    - `docs/en/support-matrix.md`
    - `docs/en/file-dependency-governance.md`
    - `docs/en/verification-entrypoints.md`
    - `docs/zh/support-matrix.md`
    - `docs/zh/file-dependency-governance.md`
    - `docs/zh/verification-entrypoints.md`
-4. 执行快速静态/运行时门禁和完整公开验证链。
-5. 强制执行源码 coverage、可运行示例、MongoDB server matrix、真实 dataTasks integration、CLI matrix 与 package-install smoke。
-6. 执行 `npm pack --dry-run` 并核对打包边界。
-7. `prepublishOnly` 与仓库发布路径共用同一个 `release:preflight` 真相源，直接 publish 也不能绕过门禁。
-8. `verify:release` 仍是显式执行的私有真实环境补充检查，不能代替公开门禁。
+5. 执行快速静态/运行时门禁和完整公开验证链。
+6. 强制执行源码 coverage、可运行示例、MongoDB server matrix、真实 dataTasks integration、CLI matrix 与 package-install smoke。
+7. 使用干净安装验证文档站类型、构建、站内链接和依赖审计。
+8. 执行 `npm pack --dry-run` 并核对打包边界。
+9. `prepublishOnly` 与仓库发布路径共用同一个 `release:preflight` 真相源，直接 publish 也不能绕过门禁。
+10. `verify:release` 仍是显式执行的私有真实环境补充检查，不能代替公开门禁；未配置私有环境时必须记录 `skipReason`，不能伪报通过。
 
 ## 为什么不是直接 publish
 
@@ -32,14 +34,18 @@ npm run release:preflight
 ## 推荐顺序
 
 ```bash
-npm run release:preflight
-# 可选的私有真实环境复核：
-# npm run verify:release
 git status
+git commit
+git push origin HEAD
+# 等待当前提交的远端 CI 通过，然后在同一干净提交上执行：
+npm run release:preflight
+# 可选的私有真实环境复核：npm run verify:release
 VERSION=$(node -p "require('./package.json').version")
 git tag "v${VERSION}"
 git push origin "v${VERSION}"
 ```
+
+`release:preflight` 会校验当前 `HEAD` 已存在于 `origin`，因此不能在未提交或仅本地存在的候选上运行。创建 tag 前仍需人工确认当前提交的远端 CI 与 preflight 证据；preflight 本身不会创建或推送 tag。
 
 tag 会启动仓库 preflight 与 publish workflow，此时不要部署 Pages。registry 验收通过后，手动运行 **Deploy Docs to GitHub Pages**，传入 `release_tag=vX.Y.Z`；该 workflow 会检出指定 tag，并在 tag、`package.json` 与 npm registry 版本不一致时拒绝部署。
 

@@ -10,20 +10,22 @@ You can also trigger the **Release Preflight** workflow through GitHub Actions. 
 
 ## What will it do
 
-1. Check whether `package-lock.json` is consistent with the current `package.json` version and does not contain `file:` / `workspace:` / sibling local path residue.
-2. Check whether the changelog file corresponding to the current `package.json` version exists.
-3. Check whether the necessary documents for project management exist:
+1. Reject a candidate with uncommitted files, an invalid installed dependency tree, or a current commit that has not been pushed to `origin`.
+2. Check whether `package-lock.json` is consistent with the current `package.json` version and does not contain `file:` / `workspace:` / sibling local path residue.
+3. Check whether the changelog for the current version and packaged `MIGRATION.md` / `SECURITY.md` files exist.
+4. Check whether the necessary documents for project management exist:
    - `docs/en/support-matrix.md`
    - `docs/en/file-dependency-governance.md`
    - `docs/en/verification-entrypoints.md`
    - `docs/zh/support-matrix.md`
    - `docs/zh/file-dependency-governance.md`
    - `docs/zh/verification-entrypoints.md`
-4. Run the fast static/runtime gate and the complete public verification chain.
-5. Require source coverage, runnable examples, the MongoDB server matrix, real dataTasks integration, the CLI matrix, and package-install smoke tests.
-6. Run `npm pack --dry-run` and verify the packaged file boundary.
-7. Keep `prepublishOnly` and repository publishing on the same `release:preflight` source so a direct publish cannot bypass the gate.
-8. Keep `verify:release` as an explicit supplementary private-environment check; it is not a substitute for the public gate.
+5. Run the fast static/runtime gate and the complete public verification chain.
+6. Require source coverage, runnable examples, the MongoDB server matrix, real dataTasks integration, the CLI matrix, and package-install smoke tests.
+7. Use a clean install to verify docs-site types, build output, internal links, and dependency audit.
+8. Run `npm pack --dry-run` and verify the packaged file boundary.
+9. Keep `prepublishOnly` and repository publishing on the same `release:preflight` source so a direct publish cannot bypass the gate.
+10. Keep `verify:release` as an explicit supplementary private-environment check; it is not a substitute for the public gate. Record a `skipReason` when that private environment is not configured instead of reporting a pass.
 
 ## Why not publish directly?
 
@@ -32,14 +34,18 @@ The goal of this script is to close the version information, public verification
 ## Recommended order
 
 ```bash
-npm run release:preflight
-# Optional private real-environment review:
-# npm run verify:release
 git status
+git commit
+git push origin HEAD
+# Wait for remote CI on this commit, then run on the same clean commit:
+npm run release:preflight
+# Optional private real-environment review: npm run verify:release
 VERSION=$(node -p "require('./package.json').version")
 git tag "v${VERSION}"
 git push origin "v${VERSION}"
 ```
+
+`release:preflight` verifies that the current `HEAD` exists on `origin`, so it cannot run against an uncommitted or local-only candidate. Before creating the tag, manually confirm both remote CI and the preflight evidence for that exact commit. Preflight itself never creates or pushes a tag.
 
 The tag starts the repository preflight and publish workflows. Do not deploy Pages yet. After registry acceptance succeeds, manually run **Deploy Docs to GitHub Pages** with `release_tag=vX.Y.Z`; that workflow checks out the tag and refuses deployment unless tag, `package.json`, and npm registry versions match.
 

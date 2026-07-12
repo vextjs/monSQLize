@@ -63,7 +63,7 @@ function replaceLanguage(
   );
 }
 
-export function AccessibleLanguageMenu() {
+export function AccessibleLanguageMenu({ placement = 'desktop' }: { placement?: 'desktop' | 'mobile' }) {
   const { page } = usePage();
   const { site } = useSite();
   const currentVersion = useVersion();
@@ -165,7 +165,7 @@ export function AccessibleLanguageMenu() {
   };
 
   return (
-    <div className="msq-language-menu" ref={rootRef}>
+    <div className={`msq-language-menu msq-language-menu--${placement}`} ref={rootRef}>
       <button
         ref={triggerRef}
         type="button"
@@ -177,6 +177,7 @@ export function AccessibleLanguageMenu() {
         onClick={() => setIsOpen(open => !open)}
         onKeyDown={handleTriggerKeyDown}
       >
+        {placement === 'mobile' && <span className="msq-language-menu__title">{menuLabel}</span>}
         <span className="msq-language-menu__label">{activeItem.text}</span>
         <span className="msq-language-menu__compact" aria-hidden="true">
           {currentLanguage === 'zh' ? '中' : 'EN'}

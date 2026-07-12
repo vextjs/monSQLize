@@ -106,9 +106,20 @@ export { Transaction, TransactionManager, CacheLockManager } from '../capabiliti
 export type { MongoSession, TransactionOptions, TransactionStats } from '../capabilities/transaction';
 export { CountQueue } from '../capabilities/count-queue';
 export type { CountQueueOptions, CountQueueStats } from '../capabilities/count-queue';
-export { DataTaskRunner } from '../capabilities/data-tasks';
+export { DataTaskJobError, DataTaskRunner } from '../capabilities/data-tasks';
 export type {
+    DataTaskApplyOptions,
+    DataTaskApplyResult,
+    DataTaskApproval,
+    DataTaskBackupOptions,
+    DataTaskBackupRef,
+    DataTaskChangeSample,
+    DataTaskCollectionJob,
+    DataTaskCollectionPreview,
+    DataTaskConnection,
+    DataTaskConnectionRuntime,
     DataTaskDataSyncResult,
+    DataTaskDataRule,
     DataTaskDefinition,
     DataTaskDryRunResult,
     DataTaskEndpoint,
@@ -118,10 +129,23 @@ export type {
     DataTaskIndexDefinition,
     DataTaskIndexOperation,
     DataTaskIndexResult,
+    DataTaskIndexPlan,
+    DataTaskIdentity,
+    DataTaskJob,
+    DataTaskJobCliConfig,
+    DataTaskJobErrorCode,
+    DataTaskLeaseLockOptions,
     DataTaskPlanResult,
     DataTaskProgress,
+    DataTaskPreviewOptions,
+    DataTaskPreviewResult,
     DataTaskRunResult,
     DataTaskRuntime,
+    DataTaskRestoreOptions,
+    DataTaskRestorePreviewResult,
+    DataTaskRestoreResult,
+    DataTaskRestoreTargetOptions,
+    DataTaskService,
     DataTaskSnapshot,
     DataTaskSnapshotResult,
     DataTaskStep,
@@ -130,8 +154,10 @@ export type {
     DataTaskSyncDataStep,
     DataTaskTransformFieldsStep,
     DataTaskTransformResult,
+    DataTaskTransform,
     DataTaskVerifyResult,
     DataTaskVerifyStep,
+    DataTaskVerifyRule,
     DataTaskWriteStrategy,
 } from '../capabilities/data-tasks';
 export type {

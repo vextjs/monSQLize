@@ -13,7 +13,7 @@
 | 添加数据库缓存 | [`cache.md`](./cache.md) | 集合查询缓存、Redis 二级缓存、分布式失效 |
 | 控制 collection 与 Model 写入路径 | [`write-path-policy.md`](./write-path-policy.md) | 需要某些命名空间必须经过 Model 写入时使用 |
 | 准备生产发布 | [`production-rollout.md`](./production-rollout.md) | 数据任务发布、Change Stream CDC、索引预检与切流检查 |
-| 执行有边界的数据与索引任务 | [`data-tasks.md`](./data-tasks.md) | `msq.dataTasks` 与 `monsqlize data-task` 的 plan、dry-run、run、verify |
+| 执行有边界的数据与索引任务 | [`data-tasks.md`](./data-tasks.md) | `dataTasks.preview/apply/previewRestore/restore` 与对应 CLI 命令 |
 | 查看场景指南 | [`recipes.md`](./recipes.md) | 连接、缓存、Redis、SSH、连接池、Model 的场景指南 |
 | 浏览完整 API | [`api-index.md`](./api-index.md) | 低层 API 与兼容 API 的参考入口 |
 | 查看运行时边界 | [`capability-index.md`](./capability-index.md) | 能力总览与深入页面入口 |

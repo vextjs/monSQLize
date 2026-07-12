@@ -215,6 +215,32 @@ describe('SagaOrchestrator behavior', () => {
             const result = await saga.execute('timeout-test', {});
             assert.equal(result.success, false);
             assert.match(result.error?.message ?? '', /timed out/);
+            assert.equal((result.error as any)?.code, 'OPERATION_TIMEOUT');
+        });
+
+        it('does not retry a timed-out attempt that may still finish asynchronously', async () => {
+            const saga = new MonSQLize.SagaOrchestrator();
+            let attempts = 0;
+            let effects = 0;
+            saga.define({
+                name: 'timeout-no-retry',
+                steps: [{
+                    name: 'slow-side-effect',
+                    timeout: 20,
+                    retries: 2,
+                    execute: () => new Promise<void>((resolve) => {
+                        attempts += 1;
+                        setTimeout(() => { effects += 1; resolve(); }, 60);
+                    }),
+                }],
+            });
+
+            const result = await saga.execute('timeout-no-retry', {});
+            assert.equal(result.success, false);
+            assert.equal((result.error as any)?.code, 'OPERATION_TIMEOUT');
+            assert.equal(attempts, 1);
+            await new Promise((resolve) => setTimeout(resolve, 70));
+            assert.equal(effects, 1);
         });
 
         it('aborts the step context signal when a step times out', async () => {

@@ -2,6 +2,8 @@
 
 > **Deprecated compatibility page**: monSQLize keeps Saga APIs for existing callers, but Saga orchestration is no longer a recommended monSQLize capability. Prefer application/framework-level workflow orchestration, such as the VextJS runtime layer, for new business flows.
 
+> **Timeout boundary**: `timeout` is a per-step default, timed-out attempts are not retried, and cancellation is cooperative through `ctx.signal`. A step that ignores the signal may still finish later, so side effects must be idempotent.
+
 ## Overview
 
 Saga is a distributed transaction solution proposed by Hector Garcia-Molina and Kenneth Salem in 1987. monSQLize keeps a legacy in-process Saga orchestration API for existing callers. Treat it as a compatibility helper, not a crash-recoverable enterprise Saga coordinator.

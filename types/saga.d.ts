@@ -14,7 +14,7 @@ export interface SagaContext {
     readonly sagaId?: string;
     /** Initial data passed to `executeSaga`. */
     readonly data: any;
-    /** Abort signal for the currently executing step. It is aborted when the step timeout fires. */
+    /** Abort signal for the current step. Timeout cancellation is cooperative; the step must observe this signal. */
     readonly signal?: AbortSignal;
     /** Store a value in the shared step context. */
     set(key: string, value: any): void;
@@ -54,7 +54,7 @@ export interface SagaStep {
     compensate: (context: SagaContext, result?: any) => Promise<void>;
     /** Per-step timeout in milliseconds (overrides Saga-level timeout). */
     timeout?: number;
-    /** Number of retry attempts on step failure. */
+    /** Number of retry attempts on ordinary step failure. Timed-out attempts are never retried. */
     retries?: number;
 }
 
@@ -62,7 +62,7 @@ export interface SagaStep {
 export interface SagaDefinition {
     name: string;
     steps: SagaStep[];
-    /** Overall Saga timeout in milliseconds. */
+    /** Default timeout for each step in milliseconds; a step-level timeout overrides it. */
     timeout?: number;
     /** Whether to emit detailed execution logs. */
     logging?: boolean;

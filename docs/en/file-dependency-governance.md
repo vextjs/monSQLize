@@ -4,10 +4,12 @@ The current root package adopts the **precise version dependency strategy**:
 
 | Dependencies | Strategy | Reasons |
 |------|------|------|
-| `cache-hub` | Exact version `2.2.4` | The npm latest release has passed compatibility verification; the root direct dependency is fixed to 2.2.4, and `schema-dsl@2.1.3` declares the same transitive dependency version |
-| `schema-dsl` | Exact version `2.1.3` | The release chain targets the current non-deprecated TypeScript line; monSQLize relies on schema-dsl runtime isolation for Model schema parsing, validation, custom types, and messages, and uses 2.1.3 for type-check and Model schema verification |
+| `cache-hub` | Exact version `2.2.4` | The root direct dependency and schema-dsl integration share the verified cache runtime baseline |
+| `schema-dsl` | Exact version `2.1.5` | Current non-deprecated TypeScript line with Node 18 support and the guaranteed `schema-dsl/runtime` entry |
+| `ioredis` | Exact version `5.11.1` | Runtime Redis dependency; enabled only when Redis-backed features are configured |
+| `mongodb-memory-server` | Dev exact version `10.4.3` | Test tooling remains compatible with Node `>=16.20.1`, preserving the package's Node 18 CI contract |
 
-> `schema-dsl@2.1.3` is the intended target for this release chain; the historical `2.3.x` line exists on npm but has been marked as misreleased/deprecated and must not be followed by upgrades.
+> `schema-dsl@2.1.5` is the intended target for this release chain; the historical `2.3.x` line exists on npm but has been marked as misreleased/deprecated and must not be followed by upgrades.
 
 ## Current Risk
 
@@ -20,8 +22,8 @@ The current root package adopts the **precise version dependency strategy**:
 
 ## Development status
 
-- The root direct `cache-hub` dependency is fixed to `2.2.4`; `schema-dsl@2.1.3` also declares `cache-hub@2.2.4`, so no additional override is needed.
-- `schema-dsl` is fixed to `2.1.3`.
+- The root direct `cache-hub` dependency is fixed to `2.2.4`; no workspace override is required.
+- `schema-dsl` is fixed to `2.1.5`, `ioredis` to `5.11.1`, and test tooling `mongodb-memory-server` to `10.4.3`.
 - Local sibling `../schema-dsl` is only used for debugging the upstream library itself and is no longer a prerequisite for monSQLize root package installation.
 
 
@@ -36,21 +38,21 @@ npm run release:preflight
 
 ## schema-dsl 2.x upgrade verification
 
-The dependency governance baseline has upgraded and fixed `schema-dsl` from the historical `^1.2.5` to `2.1.3`. The verification standard is as follows:
+The dependency governance baseline has upgraded and fixed `schema-dsl` from the historical `^1.2.5` to `2.1.5`. The verification standard is as follows:
 
-1. The upstream released the **non-deprecated** 2.x target version on npm: `2.1.3`.
-2. `npm install schema-dsl@2.1.3 --save-exact` followed by `npm run type-check`.
+1. The upstream released the **non-deprecated** 2.x target version on npm: `2.1.5` with Node `>=18`.
+2. `npm install schema-dsl@2.1.5 --save-exact` followed by `npm run type-check`.
 3. All model-related unit tests/integration tests passed (covered with `npm run test:unit` and `npm run test:integration`).
 4. `npm run test:examples` all passed.
 5. `npm run release:preflight` still needs to be used as the final access control before release.
-6. This file, Profile, CHANGELOG, and lockfile must be synchronized to `2.1.3`.
+6. This file, Profile, CHANGELOG, and lockfile must be synchronized to `2.1.5`.
 
 ## cache-hub 2.2.4 upgrade verification
 
 The dependency governance baseline has upgraded and fixed `cache-hub` from `1.0.0` to `2.2.4`. The verification standard is as follows:
 
 1. The upstream npm `latest` is `2.2.4`, and the Node.js engine requirement remains `>=18`, matching the current monSQLize baseline.
-2. The root direct dependency resolves to `2.2.4`; `schema-dsl@2.1.3` also declares `cache-hub@2.2.4`.
+2. The root direct dependency resolves to `2.2.4`; no local workspace override is present.
 3. `npm run type-check`, targeted cache / function-cache tests, website build, and memory probe must pass.
 4. This file, Profile, CHANGELOG, package manifest, and lockfile must be synchronized with the root direct dependency `2.2.4` baseline.
 

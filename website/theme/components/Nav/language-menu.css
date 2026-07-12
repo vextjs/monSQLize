@@ -5,6 +5,16 @@
   height: 100%;
 }
 
+.msq-language-slot--desktop {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.msq-language-slot--mobile {
+  display: none;
+}
+
 .msq-language-menu__trigger {
   display: inline-flex;
   align-items: center;
@@ -82,7 +92,7 @@
   color: var(--rp-c-brand);
 }
 
-/* The custom menu replaces the default mouse-only desktop and mobile controls. */
+/* The accessible portals replace the default mouse-only controls in their original slots. */
 .rp-nav__others > .rp-nav-menu__item:first-of-type,
 .rp-nav-screen-langs,
 .rp-nav-screen-langs-group {
@@ -90,6 +100,47 @@
 }
 
 @media (max-width: 768px) {
+  .msq-language-slot--mobile {
+    display: block;
+    width: 100%;
+  }
+
+  .msq-language-menu--mobile {
+    display: block;
+    height: auto;
+    border-bottom: 1px solid var(--rp-c-divider);
+  }
+
+  .msq-language-menu--mobile .msq-language-menu__trigger {
+    width: 100%;
+    min-height: 48px;
+    padding: 0;
+    justify-content: flex-end;
+  }
+
+  .msq-language-menu--mobile .msq-language-menu__title {
+    margin-right: auto;
+    color: var(--rp-c-text-1);
+    font-weight: 400;
+  }
+
+  .msq-language-menu--mobile .msq-language-menu__label {
+    display: inline;
+  }
+
+  .msq-language-menu--mobile .msq-language-menu__compact {
+    display: none;
+  }
+
+  .msq-language-menu--mobile .msq-language-menu__list {
+    position: static;
+    width: 100%;
+    min-width: 0;
+    padding: 0 0 8px;
+    border: 0;
+    box-shadow: none;
+  }
+
   .msq-language-menu__label {
     display: none;
   }

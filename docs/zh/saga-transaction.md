@@ -16,6 +16,12 @@ Saga 是一种分布式事务模式，通过将长事务分解为多个本地事
 - **Redis 定义共享**：Redis 模式共享 Saga 定义，不共享执行状态。
 - **执行日志**：既有日志钩子仍可用于诊断。
 
+## 超时与重试契约
+
+- `SagaDefinition.timeout` 是每个 step 的默认超时；`step.timeout` 可覆盖当前 step。它不是整个 Saga 共用的一条总截止时间。
+- step 超时后以 `OPERATION_TIMEOUT` 失败、触发 `ctx.signal` abort，并且不会重试；`retries` 只处理普通失败。
+- JavaScript 无法强制终止 Promise。可取消工作必须消费 `ctx.signal`，外部副作用必须保持幂等，因为忽略 signal 的旧 step 仍可能在超时结果返回后完成。
+
 ---
 
 ## 使用场景
@@ -130,13 +136,16 @@ try {
 **参数**：
 - `config.name` (string): Saga 名称，全局唯一
 - `config.steps` (Array): 步骤列表
+- `config.timeout` (number，可选): 每个 step 的默认超时毫秒数
 
 **步骤配置**：
 ```javascript
 {
     name: 'step-name',              // 步骤名称
-    execute: async (ctx) => { },    // 执行函数
-    compensate: async (ctx, result) => { }  // 补偿函数（可选）
+    execute: async (ctx) => { },    // 执行函数；可取消工作需消费 ctx.signal
+    compensate: async (ctx, result) => { }, // 补偿函数（可选）
+    timeout: 5000,                  // 可选的当前 step 超时覆盖
+    retries: 2                      // 只重试普通失败，超时不重试
 }
 ```
 

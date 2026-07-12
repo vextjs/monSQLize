@@ -1,7 +1,7 @@
 # CHANGELOG
 
 > Summary index — current v3.0.0 release-candidate details are in [changelogs/v3.0.0.md](./changelogs/v3.0.0.md); v2.0.7 was never published and remains an audit archive.
-> **Last updated**: 2026-07-10
+> **Last updated**: 2026-07-13
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Version | Date | Summary | Details |
 |---------|------|---------|---------|
-| [v3.0.0](./changelogs/v3.0.0.md) | 2026-07-10 | Major candidate: bounded production data tasks, write-path policy, runtime-scoped schema DSL, stricter OCC/sync/query contracts, and release recovery controls | [View](./changelogs/v3.0.0.md) |
+| [v3.0.0](./changelogs/v3.0.0.md) | 2026-07-10 | Major candidate: two-instance preview/apply/restore data tasks, write-path policy, runtime-scoped schema DSL, stricter OCC/sync/query contracts, and release recovery controls | [View](./changelogs/v3.0.0.md) |
 | [v2.0.7](./changelogs/v2.0.7.md) | Unpublished | Withdrawn patch candidate; never published and superseded by v3.0.0 | [Archive](./changelogs/v2.0.7.md) |
 | [v2.0.6](./changelogs/v2.0.6.md) | 2026-06-15 | Patch: dependency alignment to `schema-dsl@2.0.11` so downstream frameworks inherit the ESM/CJS shared custom type registry fix | [View](./changelogs/v2.0.6.md) |
 | [v2.0.5](./changelogs/v2.0.5.md) | 2026-06-13 | Patch: Model schema adapter delegates DSL type authority to `schema-dsl@2.0.10`, removing the duplicated monSQLize allowlist while preserving legacy aliases and business literals | [View](./changelogs/v2.0.5.md) |

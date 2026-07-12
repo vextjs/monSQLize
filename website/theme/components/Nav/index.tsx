@@ -2,7 +2,7 @@ import {
   Nav as OriginalNav,
   type NavProps,
 } from '@rspress/core/theme-original';
-import { AccessibleLanguageMenu } from './AccessibleLanguageMenu';
+import { LanguageMenuPortals } from './LanguageMenuPortals';
 import './language-menu.css';
 
 export function Nav(props: NavProps) {
@@ -12,7 +12,7 @@ export function Nav(props: NavProps) {
       beforeNavMenu={
         <>
           {props.beforeNavMenu}
-          <AccessibleLanguageMenu />
+          <LanguageMenuPortals />
         </>
       }
     />

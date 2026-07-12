@@ -13,7 +13,7 @@ This documentation starts with the common application path: connect to MongoDB, 
 | Add database caching | [`cache.md`](./cache.md) | Collection query cache, Redis L2 cache, and distributed invalidation |
 | Control collection-vs-Model writes | [`write-path-policy.md`](./write-path-policy.md) | Optional guard when selected namespaces must go through Model writes |
 | Prepare production rollout | [`production-rollout.md`](./production-rollout.md) | Data task rollout, Change Stream CDC, index preflight, and traffic-switch checks |
-| Run bounded data and index tasks | [`data-tasks.md`](./data-tasks.md) | `msq.dataTasks` and `monsqlize data-task` for plan, dry-run, run, and verify |
+| Run bounded data and index tasks | [`data-tasks.md`](./data-tasks.md) | `dataTasks.preview/apply/previewRestore/restore` and matching CLI commands |
 | Follow scenario guides | [`recipes.md`](./recipes.md) | Guides for connection, cache, Redis, SSH, pools, and Model usage |
 | Browse the full API surface | [`api-index.md`](./api-index.md) | Reference entry for lower-level and compatibility APIs |
 | Check runtime boundaries | [`capability-index.md`](./capability-index.md) | Capability map with links to deeper reference pages |

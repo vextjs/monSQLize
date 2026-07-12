@@ -14,15 +14,7 @@ import type {
 } from '../types/internal/runtime';
 import { EventEmitter } from 'node:events';
 import { MemoryCache, DistributedCacheInvalidator, type CacheLike } from '../capabilities/cache';
-import {
-    Lock,
-    LockManager,
-    LockAcquireError,
-    LockOptions,
-    LockStats,
-    LockTimeoutError,
-    DistributedCacheLockManager,
-} from '../capabilities/lock';
+import { Lock, LockManager, LockAcquireError, LockOptions, LockStats, LockTimeoutError, DistributedCacheLockManager } from '../capabilities/lock';
 import {
     Model,
     ModelInstance,
@@ -150,6 +142,7 @@ import { resolveScopedCollection } from './runtime-scoped-collection';
 import { normalizeRuntimeCacheWithLifecycle } from './runtime-cache-normalizer';
 import { prepareSshTunnelConnectConfig } from './runtime-ssh';
 import { createInitialRuntimeSchemaDslEngine, disposeRuntimeSchemaDslEngine, replaceRuntimeSchemaDslEngine, type SchemaDslEngine } from './runtime-schema-dsl';
+import { cleanupFailedRuntimeConnection } from './runtime-connect-cleanup';
 
 // All public symbols are re-exported from the barrel file to keep the public API unchanged
 export * from './runtime-exports';
@@ -280,8 +273,8 @@ export class MonSQLizeRuntime {
                     );
                 }
             }
-            this._connected = true;
             await this._loadModels();
+            this._connected = true;
             this.emit('connected', {
                 type: this.options.type,
                 db: databaseName,
@@ -296,19 +289,27 @@ export class MonSQLizeRuntime {
             // point-of-no-return assignment), which means client/pool may have
             // been created but never handed off to callers.
             if (!this._connected) {
-                const clientToClose = this._client;
-                const poolToClose = this._poolManager;
-                const tunnelToClose = this._sshTunnel;
-                const invalidatorToClose = this._distributedInvalidator;
+                const resources = {
+                    client: this._client,
+                    pool: this._poolManager,
+                    tunnel: this._sshTunnel,
+                    invalidator: this._distributedInvalidator,
+                    sync: this._syncManager,
+                    slowQuery: this._slowQueryLogManager,
+                    transaction: this._transactionManager,
+                    lock: this._lockManager,
+                };
                 this._client = null;
                 this._defaultDb = null;
                 this._poolManager = null;
                 this._sshTunnel = null;
                 this._distributedInvalidator = null;
-                clientToClose?.close().catch(() => { });
-                poolToClose?.close().catch(() => { });
-                tunnelToClose?.close().catch(() => { });
-                invalidatorToClose?.close().catch(() => { });
+                this._syncManager = null;
+                this._slowQueryLogManager = null;
+                this._transactionManager = null;
+                this._lockManager = null;
+                this._sagaOrchestrator = null;
+                await cleanupFailedRuntimeConnection(resources, this._logger);
             }
             this.emit('error', {
                 type: this.options.type,
@@ -343,8 +344,7 @@ export class MonSQLizeRuntime {
             models: this.options.models,
             autoIndex: this.options.autoIndex,
         });
-    }
-
+}
     async close(): Promise<void> {
         // Run async cleanup concurrently; a single failure must not skip remaining steps.
         const results = await Promise.allSettled([
@@ -798,6 +798,3 @@ export class MonSQLizeRuntime {
         return createRuntimeModelInstance(createRuntimeCoreModelHost(this), name, scope);
     }
 }
-
-
-

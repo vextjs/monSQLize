@@ -12,6 +12,8 @@ const packageLockPath = path.join(root, 'package-lock.json');
 
 const requiredFiles = [
     'CHANGELOG.md',
+    'MIGRATION.md',
+    'SECURITY.md',
     `changelogs/v${version}.md`,
     'docs/en/support-matrix.md',
     'docs/en/file-dependency-governance.md',
@@ -97,6 +99,8 @@ function ensurePackageContractIsReleaseReady() {
         packageJson.types,
         packageJson.bin?.monsqlize,
         `changelogs/v${version}.md`,
+        'MIGRATION.md',
+        'SECURITY.md',
     ];
     for (const artifact of requiredArtifacts) {
         const normalizedArtifact = artifact?.replace(/^\.\//, '');
@@ -145,6 +149,7 @@ ensureLockfileIsReleaseReady();
 ensurePackageContractIsReleaseReady();
 
 console.log(`[release-preflight] validating release assets for v${version}`);
+run('npm', ['run', 'check:release-candidate']);
 run('npm', ['run', 'verify:fast']);
 run('npm', ['test']);
 run('npm', ['run', 'test:coverage']);
@@ -154,7 +159,9 @@ run('npm', ['run', 'test:data-tasks:integration']);
 run('npm', ['run', 'test:data-task-cli']);
 run('npm', ['run', 'test:audit']);
 run('npm', ['run', 'test:pack-install']);
+run('npm', ['--prefix', 'website', 'ci']);
+run('npm', ['--prefix', 'website', 'run', 'verify']);
 run('npm', ['pack', '--dry-run']);
 
 console.log('[release-preflight] ✅ preflight passed');
-console.log('[release-preflight] next steps: review git status, create tag, then publish');
+console.log('[release-preflight] next steps: confirm remote CI for this commit, then create the immutable release tag');

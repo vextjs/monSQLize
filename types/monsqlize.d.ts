@@ -33,7 +33,7 @@ export interface SSHConfig {
 }
 
 import type { Collection, CursorValueNormalizer, CursorValueType, DbAccessor, HealthView } from './collection';
-import type { DataTaskRunner, DataTaskRuntime } from './data-tasks';
+import type { DataTaskJobError, DataTaskRunner, DataTaskRuntime, DataTaskService } from './data-tasks';
 import type { Lock, LockOptions, LockStats } from './lock';
 import type { ModelAutoIndexOptions, ModelEnsureAllIndexesOptions, ModelIndexEnsureSummary, ModelInstance } from './model';
 import type { MongoConnectConfig } from './mongodb';
@@ -634,6 +634,8 @@ export default class MonSQLize implements MonSQLizeInstance {
     static MongoDBSlowQueryLogStorage: typeof MongoDBSlowQueryLogStorage;
     static BatchQueue: typeof BatchQueue;
     static DataTaskRunner: typeof DataTaskRunner;
+    static DataTaskJobError: typeof DataTaskJobError;
+    static dataTasks: DataTaskService;
     static generateQueryHash: typeof generateQueryHash;
     static SagaOrchestrator: typeof SagaOrchestrator;
 }

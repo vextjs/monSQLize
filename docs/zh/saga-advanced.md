@@ -2,6 +2,8 @@
 
 > **弃用兼容页**：monSQLize 仍保留 Saga API 以兼容老调用方，但 Saga 编排不再作为 monSQLize 推荐能力。新的业务流程请优先放到应用/框架层（例如 VextJS runtime）处理。
 
+> **超时边界**：`timeout` 是每个 step 的默认值，超时 attempt 不重试，取消通过 `ctx.signal` 协作完成。忽略 signal 的 step 仍可能稍后完成，因此副作用必须幂等。
+
 ## 概述
 
 Saga 是由 Hector Garcia-Molina 和 Kenneth Salem 在 1987 年提出的分布式事务解决方案。monSQLize 保留了面向既有调用方的进程内 Saga 编排 API。请把它视为兼容辅助能力，而不是可崩溃恢复的企业级 Saga 协调器。

@@ -28,7 +28,7 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [Transaction optimizations](transaction-optimizations.md) | Transaction optimization strategies |
 | [Distributed deployment](distributed-deployment.md) | **Distributed deployment guide for multi-instance cache consistency** |
 | [Production rollout](production-rollout.md) | Production data task rollout, CDC sync, index preflight, and traffic-switch checks |
-| [Data tasks](data-tasks.md) | `msq.dataTasks` and `monsqlize data-task` for plan, dry-run, run, and verify |
+| [Data tasks](data-tasks.md) | `dataTasks` job facade and CLI for preview, apply, reviewed backup, and restore |
 | [Event system](events.md) | Event system |
 
 ---

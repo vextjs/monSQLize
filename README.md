@@ -10,6 +10,7 @@ Database-native production data runtime layer for TypeScript services. monSQLize
 Documentation: [English](https://vextjs.github.io/monSQLize/) · [简体中文](https://vextjs.github.io/monSQLize/zh/)
 Quick path: [Installation](https://vextjs.github.io/monSQLize/getting-started) · [Basic Usage](https://vextjs.github.io/monSQLize/basic-operations)
 Configuration reference: [English](https://vextjs.github.io/monSQLize/configuration) · [简体中文](https://vextjs.github.io/monSQLize/zh/configuration)
+Upgrade and security: [Migration Guide](./MIGRATION.md) · [Private Vulnerability Reporting](./SECURITY.md)
 
 The npm `latest` dist-tag and GitHub Pages are the stable channel; `main` may contain the next release. Pages deployment accepts only a versioned Git tag whose package version is already present on npm, so unpublished APIs are not promoted as stable documentation.
 
@@ -565,7 +566,7 @@ npm run test:real-env:private
 - The project does not currently promise production-ready "one query syntax automatically adapts to every database" behavior.
 - Query analyzer improvements.
 - Automatic index suggestions.
-- Migration tooling.
+- Additional data-task observability and large-scope operational probes.
 - GraphQL integration experiments.
 - More real-environment validation coverage.
 

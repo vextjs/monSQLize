@@ -46,6 +46,34 @@ describe('runtime-core — connect() idempotency', () => {
         assert.ok(result !== null);
     });
 
+    it('awaits cleanup of partially initialized resources before a failed connect rejects', async () => {
+        const failedRuntime: any = new MonSQLize({ type: 'mongodb', databaseName: 'test_failed_connect_cleanup', config: { uri } });
+        let syncStopped = false;
+        let slowQueryClosed = false;
+        failedRuntime.initializeSyncManager = async () => {
+            failedRuntime._syncManager = {
+                stop: async () => {
+                    await new Promise((resolve) => setTimeout(resolve, 30));
+                    syncStopped = true;
+                },
+            };
+            failedRuntime._slowQueryLogManager = {
+                close: async () => {
+                    await new Promise((resolve) => setTimeout(resolve, 20));
+                    slowQueryClosed = true;
+                },
+            };
+            throw new Error('injected connect failure');
+        };
+
+        await assert.rejects(() => failedRuntime.connect(), /injected connect failure/);
+        assert.equal(syncStopped, true);
+        assert.equal(slowQueryClosed, true);
+        assert.equal(failedRuntime._client, null);
+        assert.equal(failedRuntime._syncManager, null);
+        assert.equal(failedRuntime._slowQueryLogManager, null);
+    });
+
     it('health() returns up status after connect', async () => {
         const h = await runtime.health();
         assert.equal(h.status, 'up');
