@@ -5,7 +5,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..', '..');
-const dist = path.join(root, 'website', 'dist');
+const distOptionIndex = process.argv.indexOf('--dist');
+if (distOptionIndex >= 0 && !process.argv[distOptionIndex + 1]) {
+    console.error('[site-links] --dist requires a directory path.');
+    process.exit(1);
+}
+const dist = distOptionIndex >= 0
+    ? path.resolve(process.argv[distOptionIndex + 1])
+    : path.join(root, 'website', 'dist');
 const basePath = (process.env.MONSQLIZE_SITE_BASE_PATH || '/monSQLize/').replace(/\/+$/, '/');
 
 if (!fs.existsSync(dist)) {
