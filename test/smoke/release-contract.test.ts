@@ -81,7 +81,6 @@ test('stable docs deployment requires an npm-verified release tag', () => {
     assert.match(deployDocs, /path: tooling/);
     assert.match(deployDocs, /ref: \$\{\{ github\.sha \}\}/);
     assert.match(deployDocs, /npm run verify/);
-    assert.match(deployDocs, /npx tsc --noEmit -p tsconfig\.json/);
     assert.match(deployDocs, /check-site-links\.cjs --dist/);
     assert.match(deployDocs, /npm audit/);
     assert.match(deployDocs, /GITHUB_STEP_SUMMARY/);

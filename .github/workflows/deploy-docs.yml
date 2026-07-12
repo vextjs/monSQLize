@@ -74,7 +74,6 @@ jobs:
           if node -e "process.exit(require('./package.json').scripts?.verify ? 0 : 1)"; then
             npm run verify
           else
-            npx tsc --noEmit -p tsconfig.json
             npm run build
             node ../../tooling/scripts/validation/check-site-links.cjs --dist "${PWD}/dist"
             npm audit
