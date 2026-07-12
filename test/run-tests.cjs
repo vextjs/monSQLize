@@ -82,6 +82,8 @@ const UNIT = [
     'test/unit/coverage/logger-branches.test.js',
     // Coverage gap fill — Phase G
     'test/unit/coverage/runtime-core-edge-cases.test.js',
+    'test/unit/coverage/runtime-connect-cleanup.test.js',
+    'test/unit/coverage/runtime-safety-helpers.test.js',
     // Coverage gap fill — Phase H
     'test/unit/coverage/errors-factory.test.js',
     'test/unit/coverage/slow-query-records-branches.test.js',
@@ -307,6 +309,8 @@ const SUITE_MAP = {
     'model-write-extended': ['test/integration/model/model-write-extended.test.js'],
     // Phase G
     'runtime-core-edge-cases': ['test/unit/coverage/runtime-core-edge-cases.test.js'],
+    'runtime-connect-cleanup': ['test/unit/coverage/runtime-connect-cleanup.test.js'],
+    'runtime-safety-helpers': ['test/unit/coverage/runtime-safety-helpers.test.js'],
     'lock-advanced': ['test/integration/mongodb/lock-advanced.test.js'],
     'model-advanced': ['test/integration/model/model-advanced.test.js'],
     // Phase H
