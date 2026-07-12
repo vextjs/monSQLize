@@ -80,6 +80,9 @@ test('stable docs deployment requires an npm-verified release tag', () => {
     assert.match(deployDocs, /path: release/);
     assert.match(deployDocs, /path: tooling/);
     assert.match(deployDocs, /ref: \$\{\{ github\.sha \}\}/);
+    assert.match(deployDocs, /Select verified website toolchain/);
+    assert.match(deployDocs, /cp tooling\/website\/package-lock\.json release\/website\/package-lock\.json/);
+    assert.match(deployDocs, /DOCS_LEGACY_TAG/);
     assert.match(deployDocs, /npm run verify/);
     assert.match(deployDocs, /check-site-links\.cjs --dist/);
     assert.match(deployDocs, /npm audit/);

@@ -53,6 +53,17 @@ jobs:
           echo "DOCS_RELEASE_VERSION=${PACKAGE_VERSION}" >> "${GITHUB_ENV}"
           echo "DOCS_RELEASE_CHANNEL=stable" >> "${GITHUB_ENV}"
 
+      - name: Select verified website toolchain
+        shell: bash
+        run: |
+          if node -e "process.exit(require('./release/website/package.json').scripts?.verify ? 0 : 1)"; then
+            echo "DOCS_LEGACY_TAG=false" >> "${GITHUB_ENV}"
+          else
+            cp tooling/website/package.json release/website/package.json
+            cp tooling/website/package-lock.json release/website/package-lock.json
+            echo "DOCS_LEGACY_TAG=true" >> "${GITHUB_ENV}"
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -71,7 +82,7 @@ jobs:
         working-directory: ./release/website
         shell: bash
         run: |
-          if node -e "process.exit(require('./package.json').scripts?.verify ? 0 : 1)"; then
+          if [[ "${DOCS_LEGACY_TAG}" != "true" ]]; then
             npm run verify
           else
             npm run build
