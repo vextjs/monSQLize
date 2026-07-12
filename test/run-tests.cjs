@@ -440,7 +440,7 @@ function resolveTestFile(file) {
 async function runSuite(label, files) {
     const result = await runCommand(label, ['--test', '--test-concurrency=1', ...files.map(resolveTestFile)]);
     const stats = parseStats(result.stdout || '');
-    return { ...stats, exitCode: result.exitCode };
+    return { ...stats, ...result };
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -496,7 +496,14 @@ async function main() {
         totalPass += stats.pass;
         totalFail += stats.fail;
         totalSkip += stats.skip;
-        if (stats.exitCode !== 0 || stats.fail > 0) anyFailed = true;
+        if (stats.exitCode !== 0 || stats.fail > 0) {
+            anyFailed = true;
+            if (QUIET) {
+                console.error(`\n[tests] ${label} failed; replaying captured output:\n`);
+                if (stats.stdout) process.stdout.write(stats.stdout);
+                if (stats.stderr) process.stderr.write(stats.stderr);
+            }
+        }
     }
 
     const total = totalPass + totalFail + totalSkip;
