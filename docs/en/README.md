@@ -13,7 +13,8 @@ This documentation starts with the common application path: connect to MongoDB, 
 | Add database caching | [`cache.md`](./cache.md) | Collection query cache, Redis L2 cache, and distributed invalidation |
 | Control collection-vs-Model writes | [`write-path-policy.md`](./write-path-policy.md) | Optional guard when selected namespaces must go through Model writes |
 | Prepare production rollout | [`production-rollout.md`](./production-rollout.md) | Data task rollout, Change Stream CDC, index preflight, and traffic-switch checks |
-| Run bounded data and index tasks | [`data-tasks.md`](./data-tasks.md) | `dataTasks.preview/apply/previewRestore/restore` and matching CLI commands |
+| Migrate production data by scenario | [`production-data-migration.md`](./production-data-migration.md) | Filtered data, indexes, field edits, and restore from instance A to production |
+| Look up data task parameters | [`data-tasks.md`](./data-tasks.md) | One Job configuration, four methods, every parameter, and CLI commands |
 | Follow scenario guides | [`recipes.md`](./recipes.md) | Guides for connection, cache, Redis, SSH, pools, and Model usage |
 | Browse the full API surface | [`api-index.md`](./api-index.md) | Reference entry for lower-level and compatibility APIs |
 | Check runtime boundaries | [`capability-index.md`](./capability-index.md) | Capability map with links to deeper reference pages |
@@ -33,9 +34,10 @@ This documentation starts with the common application path: connect to MongoDB, 
 6. Cache guide: [`cache.md`](./cache.md)
 7. Write path policy: [`write-path-policy.md`](./write-path-policy.md)
 8. Production rollout: [`production-rollout.md`](./production-rollout.md)
-9. Data tasks: [`data-tasks.md`](./data-tasks.md)
-10. Scenario guides: [`recipes.md`](./recipes.md)
-11. API and runtime reference:
+9. Production data migration: [`production-data-migration.md`](./production-data-migration.md)
+10. Data tasks API: [`data-tasks.md`](./data-tasks.md)
+11. Scenario guides: [`recipes.md`](./recipes.md)
+12. API and runtime reference:
    - [`api-index.md`](./api-index.md)
    - [`capability-index.md`](./capability-index.md)
    - [`support-matrix.md`](./support-matrix.md)

@@ -28,7 +28,8 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | [Transaction optimizations](transaction-optimizations.md) | Transaction optimization strategies |
 | [Distributed deployment](distributed-deployment.md) | **Distributed deployment guide for multi-instance cache consistency** |
 | [Production rollout](production-rollout.md) | Production data task rollout, CDC sync, index preflight, and traffic-switch checks |
-| [Data tasks](data-tasks.md) | `dataTasks` job facade and CLI for preview, apply, reviewed backup, and restore |
+| [Production data migration](production-data-migration.md) | Scenario guide for data, indexes, and field edits from development or staging to production |
+| [Data tasks API](data-tasks.md) | One `DataTaskJob`, four methods, parameters, backup, and restore contracts |
 | [Event system](events.md) | Event system |
 
 ---
@@ -215,7 +216,8 @@ This index documents the current stable MongoDB adapter APIs and shared runtime 
 | Document | Description |
 |----------|-------------|
 | [Runtime consistency and boundaries](runtime-architecture.md) | Runtime capability boundaries and consistency contracts |
-| [Production rollout](production-rollout.md) | Data migration sync, index sync, and production traffic-switch checklist |
+| [Production rollout](production-rollout.md) | Index, one-time data, CDC, and production traffic-switch runbook |
+| [Production data migration](production-data-migration.md) | One-time filtered data and index release scenarios |
 | [Support matrix](support-matrix.md) | Support matrix |
 | [Roadmap boundaries](roadmap-boundaries.md) | Roadmap boundaries |
 | [Validation notes](validation.md) | Validation notes |
@@ -254,4 +256,5 @@ Recommended reading order for new users:
 9. [Cache system](cache.md) - Understand the cache mechanism.
 10. [Transaction management](transaction.md) - Learn transaction management.
 11. [Distributed deployment](distributed-deployment.md) - Multi-instance deployment for production.
-12. [Production rollout](production-rollout.md) - Data migration, index sync, and traffic-switch checks.
+12. [Production rollout](production-rollout.md) - Index, one-time data, CDC, and traffic-switch checks.
+13. [Production data migration](production-data-migration.md) - Configuration-driven release from instance A to production.

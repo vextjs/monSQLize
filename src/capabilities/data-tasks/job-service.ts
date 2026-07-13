@@ -12,24 +12,24 @@ import type {
     DataTaskRestoreTargetOptions,
     DataTaskService,
 } from '../../../types/data-tasks';
-import type { DataTaskRuntimeHost } from './support';
-import { DataTaskJobError, isDataTaskRuntime, normalizeDataTaskJob } from './job-normalizer';
+import type { DataTaskJobRuntimeHost } from './support';
+import { DataTaskJobError, isDataTaskJobRuntime, normalizeDataTaskJob } from './job-normalizer';
 import { planDataTaskJob } from './job-planner';
 import { applyDataTaskPlan, validateDataTaskApproval } from './job-apply';
 import { probeDataTaskBackupDirectory } from './job-backup';
 import { acquireDataTaskLease } from './job-lock';
 import { backupTargetHint, planDataTaskRestore, restoreDataTaskPlan, validateRestoreApproval } from './job-restore';
 
-export interface DataTaskManagedRuntime extends DataTaskRuntimeHost {
+export interface DataTaskManagedRuntime extends DataTaskJobRuntimeHost {
     readonly options?: MonSQLizeOptions;
     connect(): Promise<unknown>;
     close(): Promise<void>;
 }
 
-export type DataTaskRuntimeFactory = (options: MonSQLizeOptions) => DataTaskManagedRuntime;
+export type DataTaskJobRuntimeFactory = (options: MonSQLizeOptions) => DataTaskManagedRuntime;
 
 export class DataTaskJobService implements DataTaskService {
-    constructor(private readonly runtimeFactory: DataTaskRuntimeFactory) {}
+    constructor(private readonly runtimeFactory: DataTaskJobRuntimeFactory) {}
 
     async preview(job: DataTaskJob, options?: DataTaskPreviewOptions): Promise<DataTaskPreviewResult> {
         try {
@@ -88,11 +88,11 @@ export class DataTaskJobService implements DataTaskService {
     private async withRuntimes<TResult>(
         sourceInput: DataTaskJob['source'],
         targetInput: DataTaskJob['target'],
-        callback: (source: DataTaskRuntimeHost, target: DataTaskRuntimeHost) => Promise<TResult>,
+        callback: (source: DataTaskJobRuntimeHost, target: DataTaskJobRuntimeHost) => Promise<TResult>,
     ): Promise<TResult> {
         const managed: DataTaskManagedRuntime[] = [];
-        const resolve = async (input: DataTaskJob['source']): Promise<DataTaskRuntimeHost> => {
-            if (isDataTaskRuntime(input)) return input as unknown as DataTaskRuntimeHost;
+        const resolve = async (input: DataTaskJob['source']): Promise<DataTaskJobRuntimeHost> => {
+            if (isDataTaskJobRuntime(input)) return input as unknown as DataTaskJobRuntimeHost;
             const runtime = this.runtimeFactory(input as MonSQLizeOptions);
             managed.push(runtime);
             await runtime.connect();
@@ -109,9 +109,9 @@ export class DataTaskJobService implements DataTaskService {
 
     private async withTarget<TResult>(
         input: DataTaskJob['target'],
-        callback: (target: DataTaskRuntimeHost) => Promise<TResult>,
+        callback: (target: DataTaskJobRuntimeHost) => Promise<TResult>,
     ): Promise<TResult> {
-        if (isDataTaskRuntime(input)) return callback(input as unknown as DataTaskRuntimeHost);
+        if (isDataTaskJobRuntime(input)) return callback(input as unknown as DataTaskJobRuntimeHost);
         const runtime = this.runtimeFactory(input as MonSQLizeOptions);
         await runtime.connect();
         try {
@@ -134,6 +134,6 @@ export class DataTaskJobService implements DataTaskService {
     }
 }
 
-export function createDataTaskService(runtimeFactory: DataTaskRuntimeFactory): DataTaskService {
+export function createDataTaskService(runtimeFactory: DataTaskJobRuntimeFactory): DataTaskService {
     return new DataTaskJobService(runtimeFactory);
 }

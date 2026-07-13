@@ -31,10 +31,13 @@ export class DataTaskJobError extends Error {
 export const DEFAULT_DATA_TASK_MAX_DOCUMENTS = 10_000;
 export const DEFAULT_DATA_TASK_BACKUP_MAX_BYTES = 256 * 1024 * 1024;
 
-export interface NormalizedDataTaskDataRule extends Omit<DataTaskDataRule, 'strategy' | 'batchSize' | 'maxDocuments'> {
+export interface NormalizedDataTaskDataRule extends Omit<DataTaskDataRule, 'strategy' | 'batchSize' | 'maxDocuments' | 'rename' | 'set' | 'unset'> {
     strategy: 'upsert' | 'insert';
     batchSize: number;
     maxDocuments: number;
+    rename: Record<string, string>;
+    set: GenericRecord;
+    unset: string[];
 }
 
 export interface NormalizedDataTaskCollection extends Omit<DataTaskCollectionJob, 'targetName' | 'indexes' | 'data' | 'verify'> {
@@ -75,12 +78,12 @@ export function hashDataTaskValue(value: unknown): string {
     return createHash('sha256').update(canonicalStringify(value)).digest('hex');
 }
 
-export function isDataTaskRuntime(value: DataTaskConnection): value is DataTaskConnection & { collection(name: string): unknown } {
+export function isDataTaskJobRuntime(value: DataTaskConnection): value is DataTaskConnection & { collection(name: string): unknown } {
     return isRecord(value) && typeof value.collection === 'function';
 }
 
 export function connectionOptions(value: DataTaskConnection): MonSQLizeOptions | undefined {
-    if (isDataTaskRuntime(value)) {
+    if (isDataTaskJobRuntime(value)) {
         const options = (value as { options?: unknown }).options;
         return isRecord(options) ? options as MonSQLizeOptions : undefined;
     }
@@ -91,7 +94,7 @@ function connectionDescriptor(value: DataTaskConnection): GenericRecord {
     const options = connectionOptions(value);
     if (!options) return { kind: 'runtime' };
     return {
-        kind: isDataTaskRuntime(value) ? 'runtime' : 'options',
+        kind: isDataTaskJobRuntime(value) ? 'runtime' : 'options',
         type: options.type,
         databaseName: options.databaseName,
         configHash: hashDataTaskValue(options.config ?? {}),
@@ -99,7 +102,7 @@ function connectionDescriptor(value: DataTaskConnection): GenericRecord {
 }
 
 function validateConnection(value: DataTaskConnection, field: 'source' | 'target'): void {
-    if (isDataTaskRuntime(value)) return;
+    if (isDataTaskJobRuntime(value)) return;
     if (!isRecord(value) || value.type !== 'mongodb') invalid(`${field} must be a monSQLize runtime or MongoDB MonSQLizeOptions.`);
     if (typeof value.databaseName !== 'string' || value.databaseName.trim() === '') invalid(`${field}.databaseName is required.`);
     if (!isRecord(value.config) || typeof value.config.uri !== 'string' || value.config.uri.trim() === '') invalid(`${field}.config.uri is required.`);
@@ -111,6 +114,124 @@ function uniqueFields(value: unknown, pathName: string, collection: string): str
     if (fields.some((item) => item === '')) invalid(`${pathName} must contain non-empty strings.`, collection);
     if (new Set(fields).size !== fields.length) invalid(`${pathName} must not contain duplicates.`, collection);
     return fields;
+}
+
+const FORBIDDEN_FIELD_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
+const BSON_PRIMITIVE_TYPES = new Set(['string', 'number', 'boolean']);
+const BSON_UNSUPPORTED_TYPES = new Set(['undefined', 'function', 'symbol', 'bigint']);
+const PLAIN_OBJECT_PROTOTYPES = new Set<unknown>([Object.prototype, null]);
+
+function assertBsonLiteral(value: unknown, pathName: string, collection: string, stack = new WeakSet<object>()): void {
+    const valueType = typeof value;
+    if (value === null || BSON_PRIMITIVE_TYPES.has(valueType)) return;
+    if (BSON_UNSUPPORTED_TYPES.has(valueType)) {
+        invalid(`${pathName} must contain only BSON-compatible literals.`, collection);
+    }
+    if (value instanceof Date || value instanceof RegExp || Buffer.isBuffer(value)) return;
+    if (Array.isArray(value)) {
+        if (stack.has(value)) invalid(`${pathName} must not contain circular values.`, collection);
+        stack.add(value);
+        value.forEach((item, position) => assertBsonLiteral(item, `${pathName}[${position}]`, collection, stack));
+        stack.delete(value);
+        return;
+    }
+    if (!isRecord(value)) invalid(`${pathName} must contain only BSON-compatible literals.`, collection);
+    if (typeof (value as { _bsontype?: unknown })._bsontype === 'string') return;
+    const prototype = Object.getPrototypeOf(value);
+    if (!PLAIN_OBJECT_PROTOTYPES.has(prototype)) invalid(`${pathName} must contain only BSON-compatible literals.`, collection);
+    if (stack.has(value)) invalid(`${pathName} must not contain circular values.`, collection);
+    stack.add(value);
+    for (const [key, item] of Object.entries(value)) assertBsonLiteral(item, `${pathName}.${key}`, collection, stack);
+    stack.delete(value);
+}
+
+function normalizeFieldPath(value: unknown, pathName: string, collection: string): string {
+    if (typeof value !== 'string' || value.trim() === '') invalid(`${pathName} must be a non-empty field path.`, collection);
+    const field = value.trim();
+    const segments = field.split('.');
+    if (segments.some((segment) => segment === '' || segment.startsWith('$') || FORBIDDEN_FIELD_PATH_SEGMENTS.has(segment))) {
+        invalid(`${pathName} contains an unsafe field path.`, collection);
+    }
+    return field;
+}
+
+function pathsOverlap(left: string, right: string): boolean {
+    return left === right || left.startsWith(`${right}.`) || right.startsWith(`${left}.`);
+}
+
+function projectionIncludes(projection: GenericRecord, field: string): boolean {
+    if (field === '_id') return projection._id !== 0 && projection._id !== false;
+    const included = Object.entries(projection)
+        .filter(([key, value]) => key !== '_id' && value !== 0 && value !== false)
+        .map(([key]) => key);
+    if (included.length === 0) {
+        return !Object.entries(projection).some(([key, value]) => (
+            (value === 0 || value === false) && (key === field || field.startsWith(`${key}.`))
+        ));
+    }
+    return included.some((key) => key === field || field.startsWith(`${key}.`));
+}
+
+function normalizeFieldPatch(
+    data: DataTaskDataRule,
+    identityFields: string[],
+    collection: string,
+): Pick<NormalizedDataTaskDataRule, 'rename' | 'set' | 'unset'> {
+    if (data.rename !== undefined && !isRecord(data.rename)) invalid('data.rename must be an object.', collection);
+    if (data.set !== undefined && !isRecord(data.set)) invalid('data.set must be an object.', collection);
+    if (data.unset !== undefined && !Array.isArray(data.unset)) invalid('data.unset must be an array.', collection);
+
+    const renameEntries = Object.entries(data.rename ?? {}).map(([source, destination], position) => {
+        const normalizedSource = normalizeFieldPath(source, `data.rename source ${position}`, collection);
+        const normalizedDestination = normalizeFieldPath(destination, `data.rename.${source}`, collection);
+        if (pathsOverlap(normalizedSource, normalizedDestination)) invalid('data.rename source and destination must not overlap.', collection);
+        return [normalizedSource, normalizedDestination] as const;
+    });
+    const setEntries = Object.entries(data.set ?? {}).map(([field, value], position) => {
+        const normalizedField = normalizeFieldPath(field, `data.set field ${position}`, collection);
+        assertBsonLiteral(value, `data.set.${field}`, collection);
+        try {
+            canonicalStringify(value);
+        } catch {
+            invalid(`data.set.${field} must be a BSON-compatible literal.`, collection);
+        }
+        return [normalizedField, value] as const;
+    });
+    const unset = (data.unset ?? []).map((field, position) => normalizeFieldPath(field, `data.unset[${position}]`, collection));
+    if (new Set(unset).size !== unset.length) invalid('data.unset must not contain duplicates.', collection);
+    const destinations = renameEntries.map(([, destination]) => destination);
+    if (new Set(destinations).size !== destinations.length) invalid('data.rename destinations must be unique.', collection);
+
+    const configuredPaths = [
+        ...renameEntries.flatMap(([source, destination]) => [
+            { path: source, label: `rename source "${source}"` },
+            { path: destination, label: `rename destination "${destination}"` },
+        ]),
+        ...setEntries.map(([field]) => ({ path: field, label: `set "${field}"` })),
+        ...unset.map((field) => ({ path: field, label: `unset "${field}"` })),
+    ];
+    for (let left = 0; left < configuredPaths.length; left += 1) {
+        for (let right = left + 1; right < configuredPaths.length; right += 1) {
+            if (pathsOverlap(configuredPaths[left].path, configuredPaths[right].path)) {
+                invalid(`${configuredPaths[left].label} conflicts with ${configuredPaths[right].label}.`, collection);
+            }
+        }
+    }
+    for (const configured of configuredPaths) {
+        if (configured.path === '_id' || configured.path.startsWith('_id.') || identityFields.some((identity) => pathsOverlap(configured.path, identity))) {
+            invalid(`${configured.label} must not overlap _id or an identity field.`, collection);
+        }
+    }
+    if (data.projection) {
+        for (const required of [...identityFields, ...renameEntries.map(([source]) => source)]) {
+            if (!projectionIncludes(data.projection, required)) invalid(`data.projection must include required field "${required}".`, collection);
+        }
+    }
+    return {
+        rename: Object.fromEntries([...renameEntries].sort(([left], [right]) => left.localeCompare(right))),
+        set: Object.fromEntries([...setEntries].sort(([left], [right]) => left.localeCompare(right))),
+        unset: [...unset].sort(),
+    };
 }
 
 function normalizeData(data: DataTaskDataRule | undefined, collection: string): NormalizedDataTaskDataRule | undefined {
@@ -129,25 +250,10 @@ function normalizeData(data: DataTaskDataRule | undefined, collection: string): 
             ...(data.identity.conflictBy === undefined ? {} : { conflictBy: uniqueFields(data.identity.conflictBy, 'identity.conflictBy', collection) }),
         };
     if (data.projection !== undefined && !isRecord(data.projection)) invalid('data.projection must be an object.', collection);
+    if (data.projection) assertBsonLiteral(data.projection, 'data.projection', collection);
+    if (hasFilter) assertBsonLiteral(data.filter, 'data.filter', collection);
     const identityFields = identity.mode === 'fields' ? identity.fields : ['_id', ...(identity.conflictBy ?? [])];
-    for (const field of identityFields) {
-        if (data.projection?.[field] === 0 || data.projection?.[field] === false) {
-            invalid(`data.projection cannot exclude identity field "${field}".`, collection);
-        }
-    }
-    if (data.transform !== undefined) {
-        if (!isRecord(data.transform)) invalid('data.transform must be an object.', collection);
-        const hasPipeline = Array.isArray(data.transform.pipeline);
-        const hasHandler = typeof data.transform.handler === 'function';
-        if (hasPipeline === hasHandler) invalid('data.transform requires exactly one of pipeline or handler.', collection);
-        if (hasPipeline) {
-            if (data.transform.pipeline!.length === 0) invalid('transform.pipeline must not be empty.', collection);
-            for (const stage of data.transform.pipeline!) {
-                if (!isRecord(stage) || Object.keys(stage).length !== 1) invalid('each transform.pipeline stage must contain one operator.', collection);
-                if ('$out' in stage || '$merge' in stage) invalid('transform.pipeline cannot contain $out or $merge.', collection);
-            }
-        }
-    }
+    const patch = normalizeFieldPatch(data, identityFields, collection);
     const batchSize = data.batchSize ?? 500;
     if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 10_000) invalid('data.batchSize must be an integer from 1 to 10000.', collection);
     const maxDocuments = data.maxDocuments ?? DEFAULT_DATA_TASK_MAX_DOCUMENTS;
@@ -156,7 +262,7 @@ function normalizeData(data: DataTaskDataRule | undefined, collection: string): 
     }
     const strategy = data.strategy ?? 'upsert';
     if (strategy !== 'upsert' && strategy !== 'insert') invalid('data.strategy must be upsert or insert.', collection);
-    return { ...data, filter: hasFilter ? data.filter : {}, all: data.all === true, identity, strategy, batchSize, maxDocuments };
+    return { ...data, ...patch, filter: hasFilter ? data.filter : {}, all: data.all === true, identity, strategy, batchSize, maxDocuments };
 }
 
 function normalizeIndexes(indexes: DataTaskIndexDefinition[] | undefined, collection: string): DataTaskIndexDefinition[] {
@@ -165,10 +271,14 @@ function normalizeIndexes(indexes: DataTaskIndexDefinition[] | undefined, collec
     const names = new Set<string>();
     return indexes.map((index, position) => {
         if (!isRecord(index) || !isRecord(index.key) || Object.keys(index.key).length === 0) invalid(`indexes[${position}].key must be non-empty.`, collection);
+        assertBsonLiteral(index.key, `indexes[${position}].key`, collection);
         if (index.name !== undefined && (typeof index.name !== 'string' || index.name.trim() === '')) invalid(`indexes[${position}].name must be non-empty.`, collection);
         if (index.name && names.has(index.name)) invalid(`duplicate index name "${index.name}".`, collection);
         if (index.name) names.add(index.name);
         if (index.options !== undefined && !isRecord(index.options)) invalid(`indexes[${position}].options must be an object.`, collection);
+        if (index.options) assertBsonLiteral(index.options, `indexes[${position}].options`, collection);
+        if (index.options && 'name' in index.options) invalid(`indexes[${position}].options.name is not allowed; use indexes[${position}].name.`, collection);
+        if ((Object.keys(index.key).length === 1 && index.key._id === 1) || index.name === '_id_') invalid('indexes must not declare the built-in _id index.', collection);
         return { key: { ...index.key }, ...(index.name ? { name: index.name } : {}), options: { ...(index.options ?? {}) } };
     });
 }
@@ -250,17 +360,6 @@ export function normalizeDataTaskJob(job: DataTaskJob): NormalizedDataTaskJob {
         ...normalizedBase,
         source: connectionDescriptor(job.source),
         target: connectionDescriptor(job.target),
-        collections: collections.map((collection) => ({
-            ...collection,
-            data: collection.data ? {
-                ...collection.data,
-                transform: collection.data.transform
-                    && 'handler' in collection.data.transform
-                    && typeof collection.data.transform.handler === 'function'
-                    ? { handlerHash: hashDataTaskValue(collection.data.transform.handler.toString()) }
-                    : collection.data.transform,
-            } : undefined,
-        })),
     };
     return { ...normalizedBase, jobHash: hashDataTaskValue(hashable) };
 }

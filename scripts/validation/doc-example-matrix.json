@@ -185,6 +185,13 @@
       "status": "covered"
     },
     {
+      "doc": "production-data-migration",
+      "kind": "shared-example",
+      "target": "examples/docs/data-tasks.ts",
+      "runner": "test:examples",
+      "status": "covered"
+    },
+    {
       "doc": "delete-many",
       "kind": "example",
       "target": "examples/docs/delete-many.ts",

@@ -88,7 +88,7 @@ npm run test:examples
 | [`docs/hooks.ts`](docs/hooks.ts) | Focused model lifecycle hooks for insert / update / delete |
 | [`docs/collection-management.ts`](docs/collection-management.ts) | `createCollection`, `createView`, index management, `db().admin()` |
 | [`docs/index-management.ts`](docs/index-management.ts) | Focused `createIndex`, `createIndexes`, `listIndexes`, and `dropIndex` flow |
-| [`docs/data-tasks.ts`](docs/data-tasks.ts) | Production-style data task: index preflight, filtered sync, snapshot, transform, verify |
+| [`docs/data-tasks.ts`](docs/data-tasks.ts) | Production-style Job: index preflight, filtered sync, local field edits, backup, verify, and restore preview |
 | [`docs/bookmarks.ts`](docs/bookmarks.ts) | `prewarmBookmarks`, `listBookmarks`, `clearBookmarks` |
 | [`docs/transaction.ts`](docs/transaction.ts) | `withTransaction()` with an in-memory replica-set |
 | [`docs/transaction-rollback.ts`](docs/transaction-rollback.ts) | Focused rollback / recovery path for failed transactions |

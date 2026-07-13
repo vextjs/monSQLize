@@ -9,7 +9,6 @@ import {
     BatchQueue,
     CountQueue,
     DataTaskJobError,
-    DataTaskRunner,
     DEFAULT_SLOW_QUERY_LOG_CONFIG,
     MongoDBSlowQueryLogStorage,
     ChangeStreamSyncManager,
@@ -105,7 +104,6 @@ MonSQLize.SlowQueryLogConfigManager = SlowQueryLogConfigManager;
 MonSQLize.SlowQueryLogMemoryStorage = SlowQueryLogMemoryStorage;
 MonSQLize.MongoDBSlowQueryLogStorage = MongoDBSlowQueryLogStorage;
 MonSQLize.BatchQueue = BatchQueue;
-MonSQLize.DataTaskRunner = DataTaskRunner;
 MonSQLize.DataTaskJobError = DataTaskJobError;
 MonSQLize.dataTasks = dataTasks;
 MonSQLize.generateQueryHash = generateQueryHash;

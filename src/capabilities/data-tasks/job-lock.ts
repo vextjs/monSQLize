@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DataTaskJobError } from './job-normalizer';
-import { isRecord, type DataTaskRuntimeHost } from './support';
+import { isRecord, type DataTaskJobRuntimeHost } from './support';
 
 const LOCK_COLLECTION = '_monsqlize_data_task_locks';
 const LOCK_KEY = 'data-task:global';
@@ -19,7 +19,7 @@ function wait(milliseconds: number): Promise<void> {
 }
 
 export async function acquireDataTaskLease(
-    host: DataTaskRuntimeHost,
+    host: DataTaskJobRuntimeHost,
     options: { ttlMs: number; waitTimeoutMs: number },
 ): Promise<DataTaskLease> {
     const collection = host.collection(LOCK_COLLECTION);

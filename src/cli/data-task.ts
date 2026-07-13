@@ -2,26 +2,18 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import packageJson from '../../package.json';
-import { createDataTaskService, DataTaskRunner } from '../capabilities/data-tasks';
+import { createDataTaskService } from '../capabilities/data-tasks/job-service';
 import { MonSQLizeRuntime } from '../entry/runtime-core';
-import type { MonSQLizeOptions } from '../../types/monsqlize';
 import type {
-    DataTaskCliConfig,
-    DataTaskDefinition,
-    DataTaskExecutionOptions,
     DataTaskApproval,
     DataTaskBackupRef,
     DataTaskJob,
-    DataTaskJobCliConfig,
 } from '../../types/data-tasks';
 
 interface ParsedArgs {
-    action?: 'preview' | 'apply' | 'preview-restore' | 'restore' | 'plan' | 'dry-run' | 'snapshot' | 'run' | 'verify';
+    action?: 'preview' | 'apply' | 'preview-restore' | 'restore';
     taskFile?: string;
-    confirmProduction: boolean;
     json: boolean;
-    snapshotDir?: string;
-    snapshotChecksum?: string;
     approvalFile?: string;
     backupFile?: string;
     outFile?: string;
@@ -36,13 +28,6 @@ function usage(): string {
         '  monsqlize data-task apply --task <job.mjs> --approval <preview.json> [--out <result.json>] [--json]',
         '  monsqlize data-task preview-restore --task <job.mjs> --backup <manifest.json> [--out <preview.json>] [--json]',
         '  monsqlize data-task restore --task <job.mjs> --backup <manifest.json> --approval <preview.json> [--out <result.json>] [--json]',
-        '',
-        'Advanced legacy runner:',
-        '  monsqlize data-task plan --task <file> [--json]',
-        '  monsqlize data-task dry-run --task <file> [--snapshot-dir <dir>] [--json]',
-        '  monsqlize data-task snapshot --task <file> [--snapshot-dir <dir>] [--json]',
-        '  monsqlize data-task run --task <file> --confirm-production --snapshot-checksum <sha256> [--snapshot-dir <dir>] [--json]',
-        '  monsqlize data-task verify --task <file> [--json]',
         '  monsqlize --help | --version',
     ].join('\n');
 }
@@ -53,7 +38,6 @@ function parseArgs(argv: string[]): ParsedArgs {
         args.shift();
     }
     const parsed: ParsedArgs = {
-        confirmProduction: false,
         json: false,
         help: false,
         version: false,
@@ -71,14 +55,8 @@ function parseArgs(argv: string[]): ParsedArgs {
         const arg = args.shift();
         if (arg === '--task') {
             parsed.taskFile = args.shift();
-        } else if (arg === '--confirm-production') {
-            parsed.confirmProduction = true;
         } else if (arg === '--json') {
             parsed.json = true;
-        } else if (arg === '--snapshot-dir') {
-            parsed.snapshotDir = args.shift();
-        } else if (arg === '--snapshot-checksum') {
-            parsed.snapshotChecksum = args.shift();
         } else if (arg === '--approval') {
             parsed.approvalFile = args.shift();
         } else if (arg === '--backup') {
@@ -112,31 +90,6 @@ function collectFailures(value: unknown, location = 'result'): string[] {
     return [...new Set(failures)];
 }
 
-function isDataTaskDefinition(value: unknown): value is DataTaskDefinition {
-    return Boolean(
-        value
-        && typeof value === 'object'
-        && typeof (value as { name?: unknown }).name === 'string'
-        && (value as { target?: { collection?: unknown } }).target
-        && Array.isArray((value as { steps?: unknown }).steps),
-    );
-}
-
-function normalizeTaskConfig(value: unknown): DataTaskCliConfig {
-    const exportedValue = unwrapDefault(value);
-    if (isDataTaskDefinition(exportedValue)) {
-        return { task: exportedValue };
-    }
-    if (!exportedValue || typeof exportedValue !== 'object') {
-        throw new Error('Task file must export a data task definition or { runtime, task }.');
-    }
-    const config = exportedValue as DataTaskCliConfig;
-    if (!isDataTaskDefinition(config.task)) {
-        throw new Error('Task file must include a valid task definition.');
-    }
-    return config;
-}
-
 function unwrapDefault(value: unknown): unknown {
     return value && typeof value === 'object' && 'default' in value
         ? (value as { default: unknown }).default
@@ -150,13 +103,10 @@ function isDataTaskJob(value: unknown): value is DataTaskJob {
         && Array.isArray((value as { collections?: unknown }).collections));
 }
 
-function normalizeJobConfig(value: unknown): DataTaskJobCliConfig {
+function normalizeJobConfig(value: unknown): DataTaskJob {
     const exportedValue = unwrapDefault(value);
-    if (isDataTaskJob(exportedValue)) return { job: exportedValue };
-    if (!exportedValue || typeof exportedValue !== 'object' || !isDataTaskJob((exportedValue as { job?: unknown }).job)) {
-        throw new Error('Task file must export a DataTaskJob or { job }.');
-    }
-    return exportedValue as DataTaskJobCliConfig;
+    if (!isDataTaskJob(exportedValue)) throw new Error('Task file must directly export a DataTaskJob.');
+    return exportedValue;
 }
 
 async function loadTaskFile(file: string): Promise<unknown> {
@@ -218,12 +168,6 @@ function printHumanResult(action: string, result: unknown): void {
         console.log(`nested failures: ${failures.length}`);
         for (const failure of failures) console.log(`- ${failure}`);
     }
-    if (record.snapshot && typeof record.snapshot === 'object') {
-        const snapshot = record.snapshot as Record<string, unknown>;
-        if (snapshot.path) console.log(`snapshot: ${String(snapshot.path)}`);
-        if (snapshot.manifestPath) console.log(`manifest: ${String(snapshot.manifestPath)}`);
-        if (snapshot.checksum) console.log(`checksum: ${String(snapshot.checksum)}`);
-    }
     if (record.backup && typeof record.backup === 'object') {
         const backup = record.backup as Record<string, unknown>;
         if (backup.manifestPath) console.log(`backup: ${String(backup.manifestPath)}`);
@@ -247,7 +191,7 @@ async function runCli(argv: string[]): Promise<void> {
         console.log(usage());
         return;
     }
-    if (!['preview', 'apply', 'preview-restore', 'restore', 'plan', 'dry-run', 'snapshot', 'run', 'verify'].includes(args.action)) {
+    if (!['preview', 'apply', 'preview-restore', 'restore'].includes(args.action)) {
         throw new Error(`Unknown data-task action: ${String(args.action)}`);
     }
     if (!args.taskFile) {
@@ -255,65 +199,29 @@ async function runCli(argv: string[]): Promise<void> {
     }
 
     const loaded = await loadTaskFile(args.taskFile);
-    const facadeActions = new Set(['preview', 'apply', 'preview-restore', 'restore']);
-    if (facadeActions.has(args.action)) {
-        const { job } = normalizeJobConfig(loaded);
-        if (typeof (job.source as { collection?: unknown }).collection === 'function'
-            || typeof (job.target as { collection?: unknown }).collection === 'function') {
-            throw new Error('CLI DataTaskJob source and target must be MonSQLizeOptions, not runtime instances.');
-        }
-        const service = createDataTaskService((options) => new MonSQLizeRuntime(options) as unknown as import('../capabilities/data-tasks/job-service').DataTaskManagedRuntime);
-        let result: unknown;
-        if (args.action === 'preview') {
-            result = await service.preview(job);
-        } else if (args.action === 'apply') {
-            if (!args.approvalFile) throw new Error('apply requires --approval <preview.json>.');
-            result = await service.apply(job, { approval: await loadApproval(args.approvalFile) });
+    const job = normalizeJobConfig(loaded);
+    if (typeof (job.source as { collection?: unknown }).collection === 'function'
+        || typeof (job.target as { collection?: unknown }).collection === 'function') {
+        throw new Error('CLI DataTaskJob source and target must be MonSQLizeOptions, not runtime instances.');
+    }
+    const service = createDataTaskService((options) => new MonSQLizeRuntime(options) as unknown as import('../capabilities/data-tasks/job-service').DataTaskManagedRuntime);
+    let result: unknown;
+    if (args.action === 'preview') {
+        result = await service.preview(job);
+    } else if (args.action === 'apply') {
+        if (!args.approvalFile) throw new Error('apply requires --approval <preview.json>.');
+        result = await service.apply(job, { approval: await loadApproval(args.approvalFile) });
+    } else {
+        if (!args.backupFile) throw new Error(`${args.action} requires --backup <manifest.json>.`);
+        const backup = await loadBackupRef(args.backupFile);
+        if (args.action === 'preview-restore') {
+            result = await service.previewRestore(backup, { target: job.target });
         } else {
-            if (!args.backupFile) throw new Error(`${args.action} requires --backup <manifest.json>.`);
-            const backup = await loadBackupRef(args.backupFile);
-            if (args.action === 'preview-restore') {
-                result = await service.previewRestore(backup, { target: job.target });
-            } else {
-                if (!args.approvalFile) throw new Error('restore requires --approval <preview.json>.');
-                result = await service.restore(backup, { target: job.target, approval: await loadApproval(args.approvalFile) });
-            }
+            if (!args.approvalFile) throw new Error('restore requires --approval <preview.json>.');
+            result = await service.restore(backup, { target: job.target, approval: await loadApproval(args.approvalFile) });
         }
-        await outputResult(args, args.action, result);
-        return;
     }
-
-    const config = normalizeTaskConfig(loaded);
-    const task = config.task as DataTaskDefinition;
-    const executionOptions: DataTaskExecutionOptions = {
-        confirmProduction: args.confirmProduction,
-        ...(args.snapshotChecksum ? { approvedSnapshotChecksum: args.snapshotChecksum } : {}),
-        ...(args.snapshotDir ? { snapshotDir: args.snapshotDir } : {}),
-    };
-
-    const runtimeOptions = config.runtime as MonSQLizeOptions | undefined;
-    if (args.action !== 'plan' && !runtimeOptions) {
-        throw new Error(`${args.action} requires the task file to export { runtime, task } so the CLI can connect to MongoDB.`);
-    }
-    const runtime = args.action === 'plan' ? null : new MonSQLizeRuntime(runtimeOptions!);
-    const runner = runtime?.dataTasks ?? new DataTaskRunner({});
-    try {
-        if (runtime && args.action !== 'plan') {
-            await runtime.connect();
-        }
-        const result = args.action === 'plan'
-            ? await runner.plan(task, executionOptions)
-            : args.action === 'dry-run'
-                ? await runner.dryRun(task, executionOptions)
-                : args.action === 'snapshot'
-                    ? await runner.exportAffected(task, undefined, executionOptions)
-                : args.action === 'run'
-                    ? await runner.run(task, executionOptions)
-                    : await runner.verify(task, executionOptions);
-        await outputResult(args, args.action, result);
-    } finally {
-        await runtime?.close?.().catch(() => { });
-    }
+    await outputResult(args, args.action, result);
 }
 
 runCli(process.argv.slice(2)).catch((error) => {

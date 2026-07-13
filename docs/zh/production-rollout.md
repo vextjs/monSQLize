@@ -1,46 +1,37 @@
-# 生产发布：数据迁移与索引同步
+# 生产发布与迁移
 
-在把 monSQLize 服务发布到生产环境，或发布会改变数据结构、同步目标、Model 索引声明、集合索引的版本前，先按这页检查。
+这是一份发布 runbook，用于把代码、索引、一次性历史数据和后续增量同步按正确顺序送入生产。具体 Job 配置见[生产数据迁移同步](./production-data-migration.md)，全部参数见[数据任务 API 参考](./data-tasks.md)。
 
-monSQLize 为这条路径提供的是数据库运行时能力：
+## 能力边界
 
-- Change Stream 同步，用于写入到达 MongoDB 之后的异步 CDC。
-- `ensureIndexes()` 与 `ensureModelIndexes()`，用于 Model 索引预检。
-- `listIndexes()`、`createIndex()`、`createIndexes()`、`dropIndex()` 等集合索引 API。
-- `dataTasks` facade 与 `monsqlize data-task`，用于经过复核的索引同步、筛选数据同步、字段调整、受影响范围备份与恢复。
+monSQLize 提供：
 
-它不会替代 MongoDB 原生导入导出、完整备份恢复策略或 exactly-once 数据管道。dataTasks 的定位是有边界的发布任务：明确 source/target、collection 级意图、preview 审批、受控 apply 和可选的复核恢复。
+- `ensureIndexes()`、`ensureModelIndexes()` 和 collection 索引 API。
+- `dataTasks`，用于有边界的一次性数据和索引发布。
+- Change Stream sync，用于首次回填后的异步 CDC。
 
-## 什么时候看这一页
+它不替代整库导入导出、数据库级备份恢复或 exactly-once 数据管道。生产发布仍应先建立数据库恢复点。
 
-如果生产发布涉及下面任一动作，就应该先看这一页：
+## 发布顺序
 
-| 发布需求 | 推荐路径 |
-|----------|----------|
-| 发布包含 Model 索引变更的新版本 | 先做索引 dry-run，解决 conflicts，再在受控窗口创建缺失索引 |
-| 回填已有生产数据 | 使用 DataTaskJob，提供明确 filter、identity、声明索引、持久备份与 verify |
-| 发布后让备份库或投影库持续同步 | 使用 Change Stream sync，并配置持久化 resume token 与 target 幂等 |
-| 在数据库、连接池或读路径之间切流 | 切流前核对数据量、同步健康、索引、读路径与回滚点 |
-
-## 生产发布顺序
-
-1. 创建数据库备份或可恢复快照。
+1. 创建数据库备份或托管恢复点。
 2. 生产服务使用 `autoIndex: false` 部署代码。
-3. 在目标环境运行索引 dry-run。
-4. 先解决索引 conflicts，再创建 missing 索引。
-5. 如果发布需要历史数据变化，执行 `dataTasks.preview(job)`，审核数据/索引数量、冲突、样本、备份范围和 approval 有效期。
-6. 执行 `dataTasks.apply(job, { approval })`；source、target、index 或 job 发生漂移后必须重新 preview。
-7. 只有在前置条件满足后，再启用 Change Stream sync 承接后续 CDC。
-8. 检查数量、抽样记录、同步统计、慢查询和错误日志。
-9. 所有发布门禁通过后再切换流量。
+3. 对 Model 索引执行 dry-run，解决 conflicts 后创建 missing。
+4. 如果本次发布需要业务数据或非 Model 索引，执行 `dataTasks.preview(job)`。
+5. 审核数量、样本、索引状态、备份估算和 approval 有效期。
+6. 使用同一次 preview 的 approval 执行 `dataTasks.apply()`。
+7. 校验生产读路径；只有 passed 结果才能继续。
+8. 需要持续增量同步时，再启动 Change Stream sync。
+9. 检查同步状态、慢查询、错误日志和代表性数据。
+10. 所有门禁通过后切换流量。
 
-## 索引同步
+## 索引发布与 autoIndex
 
-对于 Model 声明的索引，生产环境建议关闭自动建索引，改用显式预检。
+`autoIndex: true` 会在运行时连接后读取现有索引，跳过 existing，并创建 missing。它不是生产发布门禁：启动路径无法替代显式 dry-run、冲突审核、唯一索引重复检查、重索引维护窗口和回滚决策。
 
-自动索引同样会先用 `listIndexes()` 预检，跳过 existing，只创建 missing。生产服务仍建议使用 `autoIndex: false`，因为启动时异步建索引不是发布门禁：你仍需要显式 dry-run、冲突复核、唯一索引重复数据检查、重索引维护窗口，以及运维可见的回滚方案。
+因此生产常驻服务建议关闭自动建索引：
 
-```javascript
+```js
 const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'app',
@@ -55,8 +46,6 @@ const plan = await msq.ensureModelIndexes({
   dryRun: true
 });
 
-console.log(plan.totals);
-
 if (plan.totals.conflicts === 0) {
   await msq.ensureModelIndexes({
     models: ['users', 'orders'],
@@ -65,15 +54,13 @@ if (plan.totals.conflicts === 0) {
 }
 ```
 
-`ensureModelIndexes()` 和 `ModelInstance.ensureIndexes()` 会把 Model 声明索引与数据库现有索引对比。dry-run 只报告 `existing`、`missing`、`conflicts`。执行模式只创建 `missing` 索引，不会 drop、rename 或 rebuild 冲突索引。
+`ensureModelIndexes()` 和 `ModelInstance.ensureIndexes()` 都先与 `listIndexes()` 结果比较。执行模式只创建 missing，不会自动 drop、rename 或 rebuild conflicts。
 
-非 Model 集合可以直接使用集合索引 API：
+非 Model 集合可以使用 dataTasks 声明本次需要的索引，或直接使用 collection API：
 
-```javascript
+```js
 const users = msq.collection('users');
-
 const existing = await users.listIndexes();
-console.log(existing.map(index => index.name));
 
 await users.createIndexes([
   { key: { email: 1 }, unique: true, name: 'users_email_unique' },
@@ -81,140 +68,44 @@ await users.createIndexes([
 ]);
 ```
 
-生产索引检查清单：
+生产索引门禁：
 
-- 使用 Model 索引时先运行 dry-run。
-- 唯一索引变更要先检查线上是否已有重复数据。
-- 避免在流量高峰创建重索引。
-- 破坏性索引变更前先记录当前索引列表。
-- 只有在理解回滚和查询影响后，才使用 `dropIndex()`。
-- 切流后重新检查慢查询日志和 `explain()` 输出。
+- unique index 创建前检查线上重复数据。
+- 大集合索引安排受控维护窗口。
+- 破坏性索引操作前记录当前索引列表和查询影响。
+- 切流后重新检查慢查询和代表性 `explain()`。
 
-## 数据迁移同步
+## 一次性数据迁移同步
 
-一次发布需求直接写一份 `DataTaskJob`：来源实例 A、目标实例 B，以及同时声明索引和筛选数据的 collection 对象。任何索引判断前，都会先对目标集合执行 `listIndexes()`。
+一次性发布只使用同一份 `DataTaskJob`：
 
 ```ts
-import { dataTasks, type DataTaskJob } from 'monsqlize';
-
-const job = {
-  name: 'release-2026-07-settings',
-  source: development,
-  target: production,
-  targetEnvironment: 'production',
-  collections: [{
-    name: 'settings',
-    indexes: [{ key: { code: 1 }, name: 'settings_code_unique', options: { unique: true } }],
-    data: {
-      filter: { release: '2026-07' },
-      identity: { mode: 'fields', fields: ['code'] },
-      transform: { pipeline: [{ $set: { schemaVersion: 2 } }] },
-      maxDocuments: 10_000
-    },
-    verify: { mode: 'full', fields: ['code', 'value', 'schemaVersion'] }
-  }],
-  backup: { dir: '/srv/monsqlize-data-tasks', compression: 'gzip', retentionDays: 14, maxBytes: 268435456 },
-  lock: true
-} satisfies DataTaskJob;
-
 const preview = await dataTasks.preview(job);
-if (!preview.passed || !preview.approval) throw new Error(preview.errors.join('; '));
-const run = await dataTasks.apply(job, { approval: preview.approval });
-```
-
-apply 会先获取可选的目标数据库租约，再重新计算并校验已审核计划；随后写入并回读校验受影响范围回滚包，创建声明的 missing 索引，并按有序 checkpoint batch 写入。文档 CAS 会拒绝并发目标变化，不会覆盖其他写入者的数据。失败即停止，不会自动恢复。需要回滚时，先执行 `previewRestore(run.backup)`，再使用独立 restore approval 执行 `restore()`；restore 写目标前会再创建安全备份，并遵守同样的不覆盖规则。
-
-CLI 形式：
-
-```bash
-monsqlize data-task preview --task ./tasks/release-settings.cjs --out preview.json --json
-monsqlize data-task apply --task ./tasks/release-settings.cjs --approval preview.json --out run.json --json
-monsqlize data-task preview-restore --task ./tasks/release-settings.cjs --backup <manifest.json> --out restore-preview.json --json
-monsqlize data-task restore --task ./tasks/release-settings.cjs --backup <manifest.json> --approval restore-preview.json --json
-```
-
-只有两端必须保持完全相同 `_id` 时才使用 `identity.mode: 'source-id'`，并可用 `conflictBy` 发现业务键相同但 ID 不同的冲突。普通独立环境使用 `fields` 和完全覆盖的 unique index，已有目标文档保留自己的 ID。
-
-dataTasks backup 是本次发布范围的回滚包。完整恢复仍应保留数据库备份或托管恢复点；全库复制和超大规模迁移使用 MongoDB 原生工具。
-
-运行账号需要对 source 的目标集合有读取权限；对 target 需要 `listIndexes`、声明索引创建、受影响文档写入，以及启用锁时 `_monsqlize_data_task_locks` 的读写删除权限。执行进程还必须能在 `backup.dir` 创建、读取、原子重命名回滚包文件。approval 只绑定审核状态，不替代这些权限控制。
-
-<details>
-<summary>高级兼容 DataTaskRunner 发布流程</summary>
-
-发布范围内的历史数据变化优先使用 dataTasks。任务应该用 `filter` 限定范围，用稳定业务字段匹配记录，在写入前导出受影响目标文档快照，并在切流前验证结果。
-
-```javascript
-const task = {
-  name: 'sync-active-users',
-  environment: 'production',
-  source: { collection: 'sourceUsers' },
-  target: { collection: 'targetUsers' },
-  filter: { status: 'active' },
-  matchBy: ['email'],
-  batchSize: 500,
-  snapshot: { dir: '.monsqlize/snapshots' },
-  steps: [
-    {
-      type: 'ensureIndexes',
-      indexes: [
-        { key: { email: 1 }, options: { unique: true }, name: 'target_users_email_unique' }
-      ]
-    },
-    { type: 'syncData', strategy: 'upsert' },
-    { type: 'transformFields', update: { $set: { schemaVersion: 2 } } },
-    { type: 'verify', count: true, fields: ['schemaVersion'], indexes: true }
-  ]
-};
-
-const plan = await msq.dataTasks.plan(task);
-const dryRun = await msq.dataTasks.dryRun(task);
-
-if (plan.passed && dryRun.passed) {
-  const reviewedSnapshot = await msq.dataTasks.exportAffected(task);
-  if (!reviewedSnapshot.checksum) throw new Error('snapshot checksum is missing');
-  // 在这里审核 reviewedSnapshot.path 和 reviewedSnapshot.manifestPath。
-
-  const run = await msq.dataTasks.run(task, {
-    confirmProduction: true,
-    approvedSnapshotChecksum: reviewedSnapshot.checksum
-  });
-  if (!run.passed) throw new Error(run.errors.join('; '));
-
-  const verify = await msq.dataTasks.verify(task);
-  if (!verify.passed) {
-    throw new Error('data task verification failed');
-  }
+if (!preview.passed || !preview.approval) {
+  throw new Error(preview.errors.join('; '));
 }
+
+const result = await dataTasks.apply(job, {
+  approval: preview.approval
+});
 ```
 
-CLI 形式：
+生产值守人员应保存 preview 输出、apply 结果和 `backup.manifestPath`。source、target、index 或 Job 变化后必须重新 preview，不能复用 approval。
 
-```bash
-monsqlize data-task plan --task ./tasks/sync-active-users.cjs --json
-monsqlize data-task dry-run --task ./tasks/sync-active-users.cjs
-monsqlize data-task snapshot --task ./tasks/sync-active-users.cjs --json
-monsqlize data-task run --task ./tasks/sync-active-users.cjs --confirm-production --snapshot-checksum <reviewed-sha256>
-monsqlize data-task verify --task ./tasks/sync-active-users.cjs
-```
+apply 返回 partial/failed 时：
 
-任务建议：
+1. 停止后续切流，不要假设零副作用。
+2. 保存错误、manifest 和当前目标状态。
+3. 执行 `previewRestore()` 判断是否可安全恢复。
+4. 审核恢复动作后再调用 `restore()`；禁止跳过恢复预览。
 
-- 使用稳定 `filter`；只有经过明确复核后才设置 `allowFullCollection: true`。
-- 跨端点同步使用业务 `matchBy` 字段。默认禁止用源端 `_id` 匹配。
-- 目标写入应保持幂等，重跑时应更新或跳过已同步文档。
-- 生产执行前复核快照路径和 checksum。
-- 内置任务锁只覆盖当前进程。多个进程或节点可能启动任务时，使用单实例作业执行器或外部分布式锁。
-- 快照支持经过审核的局部恢复，但不是自动回滚；发布窗口结束前保留数据库备份或托管恢复点。
-- 全库复制、备份、恢复或超大批量管道仍应使用 MongoDB 原生工具或应用自有任务。
+完整场景和配置见[生产数据迁移同步](./production-data-migration.md)。
 
-</details>
+## 回填后的 Change Stream
 
-## 回填后的 Change Stream 同步
+Change Stream sync 用于后续 CDC、备份库、投影库、缓存失效回调等异步更新，不替代第一次历史回填。
 
-Change Stream sync 适合后续 CDC、备份库、投影库、缓存失效回调和其他异步 target 更新。它不能替代第一次历史全量回填。
-
-```javascript
+```js
 const msq = new MonSQLize({
   type: 'mongodb',
   databaseName: 'app',
@@ -224,13 +115,11 @@ const msq = new MonSQLize({
   },
   sync: {
     enabled: true,
-    targets: [
-      {
-        name: 'backup-main',
-        uri: process.env.BACKUP_MONGODB_URI,
-        collections: ['users', 'orders']
-      }
-    ],
+    targets: [{
+      name: 'backup-main',
+      uri: process.env.BACKUP_MONGODB_URI,
+      collections: ['users', 'orders']
+    }],
     resumeToken: {
       storage: 'redis',
       redis,
@@ -248,41 +137,39 @@ const msq = new MonSQLize({
 
 运行边界：
 
-- MongoDB 必须是 replica set 才能使用 Change Streams。
+- MongoDB 必须是 replica set。
 - 同步语义是 at-least-once，不是 exactly-once。
-- 内置 MongoDB target 对 replace/upsert 类写入是幂等的。
-- 自定义 `apply` target 应按 change event `_id` 去重。
-- 生产监控要覆盖 `getSyncStats().isRunning`、`errorCount`、`lastError`、target error 与 token save error。
-- 如果 resume token 丢失，不要假设中间历史缺口已经覆盖；需要执行修复任务或全量比对。
+- 自定义 target 应按 change event `_id` 去重。
+- 监控 `getSyncStats().isRunning`、`errorCount`、`lastError`、target error 和 token save error。
+- resume token 丢失时应执行缺口修复或全量比对。
 
 ## 切流检查清单
 
 切流前：
 
-- `npm run release:preflight` 已通过包发布准备检查。
-- 目标数据库已具备预期集合和索引。
-- Model 索引 dry-run 不再报告 conflicts。
-- 缺失索引已创建，或有明确的延期理由。
-- migration/backfill 数量与预期范围一致。
-- sync stats 健康，没有 target 停止。
-- 慢查询日志没有新增明显索引缺失。
-- 回滚路径和备份恢复点已经明确。
+- `npm run release:preflight` 已通过。
+- 数据库恢复点和 dataTasks 受影响范围备份都可访问。
+- Model 索引 dry-run 无 conflicts，missing 已处理或有明确延期依据。
+- dataTasks 结果为 passed，数量和样本符合需求。
+- 目标生产查询使用的索引已就绪。
+- 需要 CDC 时 sync stats 健康且 resume token 可持久化。
+- 慢查询和应用错误没有新增阻断项。
+- 回滚负责人、命令、manifest 和停止条件已明确。
 
 切流后：
 
-- 观察同步统计和应用错误日志。
-- 对迁移集合执行源端与目标端数量比对。
-- 抽样检查旧读路径和新读路径的关键记录。
-- 如果延迟变化，使用 `explain()` 检查代表性查询。
-- 发布窗口关闭前保留旧回滚点。
+- 对关键集合做源端/目标端数量和样本比对。
+- 检查旧、新读路径的关键记录。
+- 观察同步延迟、错误日志和慢查询。
+- 延迟变化时用 `explain()` 检查代表性查询。
+- 发布窗口关闭前保留旧恢复点和 dataTasks manifest。
 
 ## 相关文档
 
-- [数据任务 dataTasks](./data-tasks.md)
+- [生产数据迁移同步](./production-data-migration.md)
+- [数据任务 API 参考](./data-tasks.md)
 - [Change Stream 同步](./sync-backup.md)
-- [分布式部署](./distributed-deployment.md)
 - [批量创建索引](./create-indexes.md)
 - [列出索引](./list-indexes.md)
 - [删除索引](./drop-index.md)
-- [Model 概览](./model.md)
 - [慢查询日志](./slow-query-log.md)

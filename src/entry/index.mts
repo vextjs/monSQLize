@@ -3,7 +3,6 @@ import {
     BatchQueue,
     ChangeStreamSyncManager,
     DataTaskJobError,
-    DataTaskRunner,
     CacheLockManager,
     compilePipelineExpressions,
     ConnectionPoolManager,
@@ -106,9 +105,7 @@ MonSQLize.SlowQueryLogConfigManager = SlowQueryLogConfigManager;
 MonSQLize.SlowQueryLogMemoryStorage = SlowQueryLogMemoryStorage;
 MonSQLize.MongoDBSlowQueryLogStorage = MongoDBSlowQueryLogStorage;
 MonSQLize.BatchQueue = BatchQueue;
-MonSQLize.DataTaskRunner = DataTaskRunner;
 MonSQLize.DataTaskJobError = DataTaskJobError;
-MonSQLize.dataTasks = dataTasks;
 MonSQLize.generateQueryHash = generateQueryHash;
 MonSQLize.SagaOrchestrator = SagaOrchestrator;
 MonSQLize.encodeCursor = encodeCursor;
@@ -177,7 +174,6 @@ export {
     MongoDBSlowQueryLogStorage,
     BatchQueue,
     DataTaskJobError,
-    DataTaskRunner,
     dataTasks,
     generateQueryHash,
     SagaOrchestrator,

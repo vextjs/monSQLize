@@ -28,7 +28,8 @@
 | [事务优化策略](transaction-optimizations.md) | 事务优化策略 |
 | [分布式部署](distributed-deployment.md) | 分布式部署指南（多实例缓存一致性） |
 | [生产发布与迁移](production-rollout.md) | 生产数据任务、CDC 同步、索引预检与切流检查 |
-| [数据任务 dataTasks](data-tasks.md) | `dataTasks` job facade 与 CLI 的 preview、apply、备份和复核恢复 |
+| [生产数据迁移同步](production-data-migration.md) | 开发或预发布实例到生产的数据、索引和字段调整场景指南 |
+| [数据任务 API 参考](data-tasks.md) | 单一 `DataTaskJob`、四个方法、参数、备份和恢复契约 |
 | [事件系统](events.md) | 事件系统 |
 
 ---
@@ -213,7 +214,8 @@
 | 文档 | 说明 |
 |------|------|
 | [运行时一致性与边界](runtime-architecture.md) | 运行时能力边界与一致性契约 |
-| [生产发布与迁移](production-rollout.md) | 数据迁移同步、索引同步与生产切流检查 |
+| [生产发布与迁移](production-rollout.md) | 索引、一次性数据、CDC 与生产切流 runbook |
+| [生产数据迁移同步](production-data-migration.md) | 一次性筛选数据和索引发布场景 |
 | [支持矩阵](support-matrix.md) | 支持矩阵 |
 | [路线图边界](roadmap-boundaries.md) | 路线图边界 |
 | [验证说明](validation.md) | 验证说明 |
@@ -252,4 +254,5 @@
 9. [缓存系统](cache.md) - 了解缓存机制
 10. [事务管理](transaction.md) - 学习事务管理
 11. [分布式部署](distributed-deployment.md) - 多实例部署说明
-12. [生产发布与迁移](production-rollout.md) - 数据迁移、索引同步与切流检查
+12. [生产发布与迁移](production-rollout.md) - 索引、一次性数据、CDC 与切流检查
+13. [生产数据迁移同步](production-data-migration.md) - A 实例到生产的配置化发布

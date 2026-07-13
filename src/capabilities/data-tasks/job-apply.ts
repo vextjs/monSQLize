@@ -19,13 +19,14 @@ import {
 } from './job-planner';
 import {
     createDataTaskBackup,
+    dataTaskPendingIndexFingerprint,
     updateDataTaskBackup,
     type AppliedDataTaskOperation,
     type LoadedDataTaskBackup,
     type PendingDataTaskIndex,
     type PendingDataTaskOperation,
 } from './job-backup';
-import { getByPath, isRecord, type DataTaskCollectionLike, type DataTaskRuntimeHost, type GenericRecord } from './support';
+import { getByPath, isRecord, type DataTaskCollectionLike, type DataTaskJobRuntimeHost, type GenericRecord } from './support';
 import type { DataTaskLease } from './job-lock';
 
 export function validateDataTaskApproval(approval: DataTaskApproval, plan: DataTaskJobPlan): void {
@@ -45,6 +46,16 @@ function writePayload(change: PlannedDataChange, config: NormalizedDataTaskColle
     if (change.before) delete payload._id;
     if (config.data?.identity.mode === 'fields') delete payload._id;
     return payload;
+}
+
+function writeUpdate(change: PlannedDataChange, config: NormalizedDataTaskCollection): GenericRecord {
+    const payload = writePayload(change, config);
+    const setRoots = Object.keys(payload);
+    const unsetPaths = change.unsetPaths.filter((field) => !setRoots.some((root) => field === root || field.startsWith(`${root}.`)));
+    return {
+        ...(Object.keys(payload).length > 0 ? { $set: payload } : {}),
+        ...(unsetPaths.length > 0 ? { $unset: Object.fromEntries(unsetPaths.map((field) => [field, 1])) } : {}),
+    };
 }
 
 function resultCount(result: unknown, key: string): number {
@@ -67,6 +78,15 @@ async function findTarget(collection: DataTaskCollectionLike, identity: GenericR
     return cloneDocument(matches[0]);
 }
 
+function currentMatchesPlan(current: GenericRecord, change: PlannedDataChange, config: NormalizedDataTaskCollection): boolean {
+    if (change.operation !== 'insert' || config.data!.identity.mode !== 'fields') {
+        return hashDataTaskValue(current) === hashDataTaskValue(change.after);
+    }
+    const actual = { ...current };
+    delete actual._id;
+    return hashDataTaskValue(actual) === hashDataTaskValue(change.after);
+}
+
 async function applyChange(
     target: DataTaskCollectionLike,
     change: PlannedDataChange,
@@ -76,7 +96,7 @@ async function applyChange(
     lease?.assertHeld();
     const payload = writePayload(change, config);
     if (change.operation === 'update') {
-        const result = await target.updateOne(expectedBeforeFilter(change), { $set: payload });
+        const result = await target.updateOne(expectedBeforeFilter(change), writeUpdate(change, config));
         if (resultCount(result, 'matchedCount') !== 1) throw new DataTaskJobError('APPLY_PARTIAL', 'target document drifted before update.', 'apply', config.name);
     } else if (config.data!.strategy === 'insert') {
         await target.insertOne(payload);
@@ -94,11 +114,8 @@ async function applyChange(
         }
     }
     const current = await findTarget(target, change.identity);
-    const expected = writePayload(change, config);
-    for (const [field, value] of Object.entries(expected)) {
-        if (canonicalStringify(getByPath(current, field)) !== canonicalStringify(value)) {
-            throw new DataTaskJobError('APPLY_PARTIAL', `post-write field "${field}" does not match the plan.`, 'verify', config.name);
-        }
+    if (!currentMatchesPlan(current, change, config)) {
+        throw new DataTaskJobError('APPLY_PARTIAL', 'post-write document does not match the planned after-image.', 'verify', config.name);
     }
     if (config.data!.identity.mode === 'source-id' && canonicalStringify(current._id) !== canonicalStringify(change.identity._id)) {
         throw new DataTaskJobError('APPLY_PARTIAL', 'source-id was not preserved.', 'verify', config.name);
@@ -114,7 +131,7 @@ async function applyChange(
 }
 
 async function createMissingIndexes(
-    targetHost: DataTaskRuntimeHost,
+    targetHost: DataTaskJobRuntimeHost,
     plan: DataTaskJobPlan,
     backup: LoadedDataTaskBackup,
     lease?: DataTaskLease,
@@ -126,7 +143,7 @@ async function createMissingIndexes(
             const pending: PendingDataTaskIndex = {
                 operation: 'create',
                 collection: collectionPlan.target,
-                name: index.name ?? Object.entries(index.key).map(([field, direction]) => `${field}_${String(direction)}`).join('_'),
+                ...(index.name ? { name: index.name } : {}),
                 key: index.key,
                 options: index.options,
             };
@@ -138,17 +155,14 @@ async function createMissingIndexes(
             const name = typeof result === 'string' ? result : isRecord(result) && typeof result.name === 'string' ? result.name : index.name;
             if (!name) throw new DataTaskJobError('APPLY_PARTIAL', 'created index did not return a stable name.', 'indexes', collectionPlan.source);
             const current = await target.listIndexes();
-            const declared = plan.normalized.collections.find((item) => item.targetName === collectionPlan.target)!.indexes
-                .filter((item) => (item.name ?? name) === name);
-            if (classifyDataTaskIndexes(declared, current).some((item) => item.status !== 'existing')) {
+            const declared = [{ name, key: index.key, options: index.options }];
+            if (classifyDataTaskIndexes(declared, current)[0]?.status !== 'existing') {
                 throw new DataTaskJobError('APPLY_PARTIAL', `created index "${name}" failed readback verification.`, 'indexes', collectionPlan.source);
             }
             await updateDataTaskBackup(backup, (manifest) => {
                 manifest.status = 'running';
                 manifest.pendingIndexes = (manifest.pendingIndexes ?? []).filter((candidate) => (
-                    candidate.operation !== pending.operation
-                    || candidate.collection !== pending.collection
-                    || candidate.name !== pending.name
+                    dataTaskPendingIndexFingerprint(candidate) !== dataTaskPendingIndexFingerprint(pending)
                 ));
                 manifest.createdIndexes.push({ collection: collectionPlan.target, name, key: index.key, options: index.options });
             });
@@ -172,7 +186,7 @@ function samePendingOperation(left: PendingDataTaskOperation, right: PendingData
         && canonicalStringify(left.identity) === canonicalStringify(right.identity);
 }
 
-async function verifyAppliedPlan(targetHost: DataTaskRuntimeHost, plan: DataTaskJobPlan, lease?: DataTaskLease): Promise<void> {
+async function verifyAppliedPlan(targetHost: DataTaskJobRuntimeHost, plan: DataTaskJobPlan, lease?: DataTaskLease): Promise<void> {
     for (const collectionPlan of plan.plannedCollections) {
         lease?.assertHeld();
         const config = plan.normalized.collections.find((item) => item.targetName === collectionPlan.target)!;
@@ -190,6 +204,11 @@ async function verifyAppliedPlan(targetHost: DataTaskRuntimeHost, plan: DataTask
                     throw new DataTaskJobError('APPLY_PARTIAL', `verification failed for field "${field}".`, 'verify', config.name);
                 }
             }
+            for (const field of change.unsetPaths) {
+                if (getByPath(current, field) !== undefined) {
+                    throw new DataTaskJobError('APPLY_PARTIAL', `verification failed because field "${field}" still exists.`, 'verify', config.name);
+                }
+            }
         }
     }
 }
@@ -197,8 +216,8 @@ async function verifyAppliedPlan(targetHost: DataTaskRuntimeHost, plan: DataTask
 export async function applyDataTaskPlan(
     job: NormalizedDataTaskJob,
     plan: DataTaskJobPlan,
-    targetHost: DataTaskRuntimeHost,
-    targetHint: DataTaskConnection | DataTaskRuntimeHost,
+    targetHost: DataTaskJobRuntimeHost,
+    targetHint: DataTaskConnection | DataTaskJobRuntimeHost,
     lease?: DataTaskLease,
 ): Promise<DataTaskApplyResult> {
     const backup = await createDataTaskBackup(job, plan, targetHint);

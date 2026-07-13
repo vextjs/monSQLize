@@ -3,38 +3,62 @@ import assert from 'node:assert/strict';
 import { DataTaskJobService } from '../../../src/capabilities/data-tasks/job-service';
 import { normalizeDataTaskJob } from '../../../src/capabilities/data-tasks/job-normalizer';
 import { classifyDataTaskIndexes, planDataTaskJob } from '../../../src/capabilities/data-tasks/job-planner';
-import type { DataTaskCollectionLike, DataTaskRuntimeHost, GenericRecord } from '../../../src/capabilities/data-tasks/support';
+import {
+    comparableIndexOptions,
+    getByPath,
+    indexOptions,
+    orderedIndexKeyString,
+    stableStringify,
+    stringifyExtendedJson,
+    type DataTaskCollectionLike,
+    type DataTaskJobRuntimeHost,
+    type GenericRecord,
+} from '../../../src/capabilities/data-tasks/support';
+import {
+    cloneDocumentValue,
+    deepMergeDocuments,
+    deleteDocumentPath,
+    setDocumentPath,
+} from '../../../src/capabilities/data-tasks/document-utils';
 
 function matches(document: GenericRecord, filter: GenericRecord): boolean {
-    return Object.entries(filter).every(([key, value]) => JSON.stringify(document[key]) === JSON.stringify(value));
+    return Object.entries(filter).every(([key, value]) => {
+        if (key === '$or') return Array.isArray(value) && value.some((item) => matches(document, item as GenericRecord));
+        if (key === '$and') return Array.isArray(value) && value.every((item) => matches(document, item as GenericRecord));
+        const actual = key.split('.').reduce<unknown>((current, part) => (
+            current && typeof current === 'object' ? (current as GenericRecord)[part] : undefined
+        ), document);
+        if (value && typeof value === 'object' && !Array.isArray(value) && '$in' in value) {
+            return Array.isArray((value as GenericRecord).$in)
+                && ((value as GenericRecord).$in as unknown[]).some((item) => JSON.stringify(item) === JSON.stringify(actual));
+        }
+        return JSON.stringify(actual) === JSON.stringify(value);
+    });
 }
 
-function collection(documents: GenericRecord[], indexes: GenericRecord[] = [{ name: '_id_', key: { _id: 1 }, unique: true }]): DataTaskCollectionLike & { writes: number } {
+function collection(documents: GenericRecord[], indexes: GenericRecord[] = [{ name: '_id_', key: { _id: 1 }, unique: true }]): DataTaskCollectionLike & { writes: number; findCalls: number } {
     return {
         writes: 0,
-        find(filter: GenericRecord = {}) {
+        findCalls: 0,
+        find(filter: GenericRecord = {}, options?: GenericRecord) {
+            this.findCalls += 1;
             let rows = documents.filter((document) => matches(document, filter));
+            const projection = options?.projection as GenericRecord | undefined;
+            if (projection) {
+                const included = Object.entries(projection).filter(([, value]) => value !== 0 && value !== false).map(([key]) => key);
+                if (included.length > 0) {
+                    rows = rows.map((document) => Object.fromEntries(
+                        included
+                            .filter((key) => Object.prototype.hasOwnProperty.call(document, key))
+                            .map((key) => [key, document[key]]),
+                    ));
+                }
+            }
             return {
                 sort() { return this; },
                 limit(limit: number) { rows = rows.slice(0, limit); return this; },
                 toArray: async () => structuredClone(rows),
             };
-        },
-        aggregate: async (pipeline: GenericRecord[]) => {
-            let rows = structuredClone(documents);
-            for (const stage of pipeline) {
-                if (stage.$match) rows = rows.filter((document) => matches(document, stage.$match as GenericRecord));
-                if (stage.$set) rows = rows.map((document) => ({ ...document, ...(stage.$set as GenericRecord) }));
-                if (stage.$unset) {
-                    const fields = Array.isArray(stage.$unset) ? stage.$unset : [stage.$unset];
-                    rows = rows.map((document) => {
-                        const next = { ...document };
-                        for (const field of fields) delete next[String(field)];
-                        return next;
-                    });
-                }
-            }
-            return rows;
         },
         count: async (filter: GenericRecord = {}) => documents.filter((document) => matches(document, filter)).length,
         findOne: async (filter: GenericRecord) => documents.find((document) => matches(document, filter)) ?? null,
@@ -47,13 +71,8 @@ function collection(documents: GenericRecord[], indexes: GenericRecord[] = [{ na
     };
 }
 
-function runtime(collections: Record<string, DataTaskCollectionLike>): DataTaskRuntimeHost {
-    return {
-        collection: (name: string) => collections[name],
-        db: () => ({ collection: (name: string) => collections[name] }),
-        ensureModelIndexes: async () => { throw new Error('not used'); },
-        tryAcquireLock: async () => null,
-    };
+function runtime(collections: Record<string, DataTaskCollectionLike>): DataTaskJobRuntimeHost {
+    return { collection: (name: string) => collections[name] };
 }
 
 describe('dataTasks job facade preview', () => {
@@ -70,6 +89,46 @@ describe('dataTasks job facade preview', () => {
             }],
         };
     }
+
+    it('keeps document and index helper edge behavior deterministic', () => {
+        const date = new Date('2026-07-13T00:00:00.000Z');
+        const buffer = Buffer.from('ok');
+        assert.notEqual(cloneDocumentValue(date), date);
+        assert.notEqual(cloneDocumentValue(buffer), buffer);
+        assert.deepEqual(cloneDocumentValue([date, buffer, { nested: true }]), [date, buffer, { nested: true }]);
+        const custom = new (class CustomValue {})();
+        assert.equal(cloneDocumentValue(custom), custom);
+
+        const document: GenericRecord = {};
+        setDocumentPath(document, '', 1);
+        setDocumentPath(document, 'meta.version', 2);
+        assert.deepEqual(document, { meta: { version: 2 } });
+        deleteDocumentPath(document, '');
+        deleteDocumentPath(document, 'missing.value');
+        deleteDocumentPath(document, 'meta.version');
+        assert.deepEqual(document, { meta: {} });
+        assert.deepEqual(deepMergeDocuments({ nested: { left: 1 }, retained: true }, { nested: { right: 2 }, replaced: 'yes' }), {
+            nested: { left: 1, right: 2 },
+            retained: true,
+            replaced: 'yes',
+        });
+
+        assert.equal(stableStringify(['b', { a: 1 }]), '["b",{"a":1}]');
+        assert.equal(stringifyExtendedJson(date), '{"$date":"2026-07-13T00:00:00.000Z"}');
+        assert.equal(stringifyExtendedJson(buffer), '{"$binary":"b2s="}');
+        assert.equal(stringifyExtendedJson([{ _bsontype: 'ObjectId', toHexString: () => 'abc' }]), '[{"$oid":"abc"}]');
+        assert.equal(stringifyExtendedJson({ _bsontype: 'Decimal128', toString: () => '1.5' }), '{"$Decimal128":"1.5"}');
+        assert.equal(getByPath({ nested: 1 }, 'nested.value'), undefined);
+        assert.deepEqual(indexOptions({ key: { code: 1 } }), {});
+        assert.deepEqual(indexOptions({ key: { code: 1 }, name: 'code_1', options: { unique: true } }), { unique: true, name: 'code_1' });
+        assert.deepEqual(comparableIndexOptions({ unique: true, expireAfterSeconds: 60 }), {
+            unique: true,
+            sparse: false,
+            hidden: false,
+            expireAfterSeconds: 60,
+        });
+        assert.equal(orderedIndexKeyString('invalid'), '"invalid"');
+    });
 
     it('normalizes the canonical collection job and production backup defaults', () => {
         const source = runtime({ source: collection([]) });
@@ -101,7 +160,7 @@ describe('dataTasks job facade preview', () => {
             collections: [{
                 name: 'items',
                 indexes: [{ key: { code: 1 }, name: 'code_unique', options: { unique: true } }],
-                data: { all: true, identity: { mode: 'fields', fields: ['code'] }, transform: { handler: (document) => ({ ...document, version: 2 }) } },
+                data: { all: true, identity: { mode: 'fields', fields: ['code'] }, set: { version: 2 } },
             }],
         });
         assert.equal(preview.passed, true, preview.errors.join('\n'));
@@ -125,7 +184,7 @@ describe('dataTasks job facade preview', () => {
         assert.match(preview.errors.join(' '), /different _id/);
     });
 
-    it('rejects unsafe filters, missing unique identity indexes, and identity-changing transforms', async () => {
+    it('rejects unsafe filters, missing unique identity indexes, and identity-changing patches', async () => {
         const source = runtime({ items: collection([{ _id: 1, code: 'A' }]) });
         const target = runtime({ items: collection([]) });
         const service = new DataTaskJobService(() => { throw new Error('not used'); });
@@ -148,11 +207,11 @@ describe('dataTasks job facade preview', () => {
             collections: [{
                 name: 'items',
                 indexes: [{ key: { code: 1 }, options: { unique: true } }],
-                data: { all: true, identity: { mode: 'fields', fields: ['code'] }, transform: { handler: (document) => ({ ...document, code: 'B' }) } },
+                data: { all: true, identity: { mode: 'fields', fields: ['code'] }, set: { code: 'B' } },
             }],
         });
         assert.equal(changed.passed, false);
-        assert.match(changed.errors[0], /changed an identity/);
+        assert.match(changed.errors[0], /must not overlap.*identity/);
     });
 
     it('rejects unique indexes that would contain duplicate keys after apply', async () => {
@@ -212,13 +271,24 @@ describe('dataTasks job facade preview', () => {
             ['identity.fields must contain', (job) => { job.collections[0].data.identity.fields = [123]; return job; }],
             ['must not contain duplicates', (job) => { job.collections[0].data.identity.fields = ['code', 'code']; return job; }],
             ['projection must be', (job) => { job.collections[0].data.projection = []; return job; }],
-            ['cannot exclude identity', (job) => { job.collections[0].data.projection = { code: 0 }; return job; }],
-            ['transform must be', (job) => { job.collections[0].data.transform = []; return job; }],
-            ['exactly one of pipeline or handler', (job) => { job.collections[0].data.transform = {}; return job; }],
-            ['exactly one of pipeline or handler', (job) => { job.collections[0].data.transform = { pipeline: [{}], handler: () => ({}) }; return job; }],
-            ['must not be empty', (job) => { job.collections[0].data.transform = { pipeline: [] }; return job; }],
-            ['one operator', (job) => { job.collections[0].data.transform = { pipeline: [{ $set: {}, $unset: 'x' }] }; return job; }],
-            ['cannot contain', (job) => { job.collections[0].data.transform = { pipeline: [{ $merge: 'items' }] }; return job; }],
+            ['must include required field', (job) => { job.collections[0].data.projection = { code: 0 }; return job; }],
+            ['data.rename must be', (job) => { job.collections[0].data.rename = []; return job; }],
+            ['data.set must be', (job) => { job.collections[0].data.set = []; return job; }],
+            ['data.unset must be', (job) => { job.collections[0].data.unset = {}; return job; }],
+            ['unsafe field path', (job) => { job.collections[0].data.set = { '__proto__.polluted': true }; return job; }],
+            ['source and destination must not overlap', (job) => { job.collections[0].data.rename = { old: 'old.child' }; return job; }],
+            ['destinations must be unique', (job) => { job.collections[0].data.rename = { old: 'name', legacy: 'name' }; return job; }],
+            ['conflicts with', (job) => { job.collections[0].data.rename = { old: 'name' }; job.collections[0].data.set = { name: 'fixed' }; return job; }],
+            ['BSON-compatible literal', (job) => { job.collections[0].data.set = { version: undefined }; return job; }],
+            ['BSON-compatible literals', (job) => { job.collections[0].data.set = { metadata: { resolve: () => 'value' } }; return job; }],
+            ['BSON-compatible literals', (job) => { job.collections[0].data.filter = { code: { $where: Symbol('unsafe') } }; delete job.collections[0].data.all; return job; }],
+            ['BSON-compatible literals', (job) => { job.collections[0].indexes[0].options.partialFilterExpression = { resolve: () => true }; return job; }],
+            ['circular values', (job) => { const values: unknown[] = []; values.push(values); job.collections[0].data.set = { values }; return job; }],
+            ['circular values', (job) => { const value: any = {}; value.self = value; job.collections[0].data.set = { value }; return job; }],
+            ['BSON-compatible literals', (job) => { job.collections[0].data.set = { value: new (class CustomValue {})() }; return job; }],
+            ['BSON-compatible literal', (job) => { job.collections[0].data.set = { value: { _bsontype: 'Unsupported' } }; return job; }],
+            ['options.name is not allowed', (job) => { job.collections[0].indexes[0].options.name = 'nested'; return job; }],
+            ['built-in _id index', (job) => { job.collections[0].indexes[0] = { key: { _id: 1 } }; return job; }],
             ['batchSize', (job) => { job.collections[0].data.batchSize = 0; return job; }],
             ['batchSize', (job) => { job.collections[0].data.batchSize = 10_001; return job; }],
             ['maxDocuments', (job) => { job.collections[0].data.maxDocuments = 0; return job; }],
@@ -257,6 +327,12 @@ describe('dataTasks job facade preview', () => {
             identity: { mode: 'source-id', conflictBy: ['code'] },
             strategy: 'insert',
             projection: { _id: 1, code: 1 },
+            set: {
+                values: [1, 'two', true, null],
+                createdAt: new Date('2026-07-13T00:00:00.000Z'),
+                pattern: /^release-/,
+                bytes: Buffer.from('ok'),
+            },
             maxDocuments: 25,
         };
         job.collections[0].verify = { mode: 'full', sampleSize: 50, fields: ['code'] };
@@ -388,7 +464,7 @@ describe('dataTasks job facade preview', () => {
         assert.equal(missingAsNull.passed, true, missingAsNull.errors.join('\n'));
     });
 
-    it('rejects non-deterministic transforms and ambiguous target identities', async () => {
+    it('validates field patches and rejects ambiguous target identities', async () => {
         const service = new DataTaskJobService(() => { throw new Error('not used'); });
         const preview = (sourceCollection: DataTaskCollectionLike, targetCollection: DataTaskCollectionLike, data: any) => service.preview({
             name: 'planner-branches',
@@ -402,35 +478,24 @@ describe('dataTasks job facade preview', () => {
             }],
         });
 
-        const noAggregate = collection([{ _id: 1, code: 'A' }]);
-        delete (noAggregate as any).aggregate;
-        assert.match((await preview(noAggregate, collection([]), {
-            all: true, identity: { mode: 'fields', fields: ['code'] }, transform: { pipeline: [{ $set: { value: 1 } }] },
-        })).errors[0], /aggregate support/);
-
-        const nonDeterministic = collection([{ _id: 1, code: 'A' }]);
-        let aggregateCalls = 0;
-        nonDeterministic.aggregate = async () => [{ _id: 1, code: 'A', value: aggregateCalls += 1 }];
-        assert.match((await preview(nonDeterministic, collection([]), {
-            all: true, identity: { mode: 'fields', fields: ['code'] }, transform: { pipeline: [{ $set: { value: 1 } }] },
-        })).errors[0], /non-deterministic/);
-
-        const cardinality = collection([{ _id: 1, code: 'A' }]);
-        cardinality.aggregate = async () => [];
-        assert.match((await preview(cardinality, collection([]), {
-            all: true, identity: { mode: 'fields', fields: ['code'] }, transform: { pipeline: [{ $set: { value: 1 } }] },
-        })).errors[0], /cardinality/);
-
-        assert.match((await preview(collection([{ _id: 1, code: 'A' }]), collection([]), {
-            all: true, identity: { mode: 'fields', fields: ['code'] }, transform: { handler: () => null },
-        })).errors[0], /must return a document/);
-
-        let handlerCalls = 0;
-        assert.match((await preview(collection([{ _id: 1, code: 'A' }]), collection([]), {
+        const missingRenameSource = await preview(collection([{ _id: 1, code: 'A' }]), collection([]), {
             all: true,
             identity: { mode: 'fields', fields: ['code'] },
-            transform: { handler: (document: GenericRecord) => ({ ...document, value: handlerCalls += 1 }) },
-        })).errors[0], /non-deterministic/);
+            rename: { legacyName: 'name' },
+        });
+        assert.equal(missingRenameSource.passed, true, missingRenameSource.errors.join('\n'));
+
+        assert.match((await preview(collection([{ _id: 1, code: 'A', legacyName: 'Alice', name: 'Bob' }]), collection([]), {
+            all: true,
+            identity: { mode: 'fields', fields: ['code'] },
+            rename: { legacyName: 'name' },
+        })).errors[0], /already contains a different value/);
+
+        assert.match((await preview(collection([{ _id: 1, code: 'A', meta: 'scalar' }]), collection([]), {
+            all: true,
+            identity: { mode: 'fields', fields: ['code'] },
+            set: { 'meta.version': 2 },
+        })).errors[0], /crosses a non-object/);
 
         assert.match((await preview(
             collection([{ _id: 1, code: 'A' }, { _id: 2, code: 'A' }]),
@@ -443,16 +508,6 @@ describe('dataTasks job facade preview', () => {
             collection([]),
             { all: true, identity: { mode: 'fields', fields: ['code'] } },
         )).errors[0], /identity field "code" is missing/);
-
-        assert.match((await preview(
-            collection([{ _id: 1, code: 'A' }, { _id: 2, code: 'B' }]),
-            collection([]),
-            {
-                all: true,
-                identity: { mode: 'fields', fields: ['code'] },
-                transform: { handler: (document: GenericRecord) => document.code === 'B' ? { ...document, code: 'A' } : document },
-            },
-        )).errors[0], /duplicate identities/);
 
         assert.match((await preview(
             collection([{ _id: 1, code: 'A' }]),
@@ -480,16 +535,47 @@ describe('dataTasks job facade preview', () => {
         assert.equal(unchanged.passed, true, unchanged.errors.join('\n'));
         assert.equal(unchanged.collections[0].data.unchanged, 1);
 
-        const projectedPipeline = await preview(
-            collection([{ _id: 1, code: 'A', ignored: true }]),
+        const projectedPatch = await preview(
+            collection([{ _id: 1, code: 'A', legacyName: 'Alice', developmentOnly: true, ignored: true }]),
             collection([]),
             {
                 all: true,
-                projection: { _id: 1, code: 1 },
+                projection: { _id: 1, code: 1, legacyName: 1, developmentOnly: 1 },
                 identity: { mode: 'fields', fields: ['code'] },
-                transform: { pipeline: [{ $set: { migrated: true } }] },
+                rename: { legacyName: 'name' },
+                set: { schemaVersion: 2 },
+                unset: ['developmentOnly'],
             },
         );
-        assert.equal(projectedPipeline.passed, true, projectedPipeline.errors.join('\n'));
+        assert.equal(projectedPatch.passed, true, projectedPatch.errors.join('\n'));
+        assert.deepEqual(projectedPatch.collections[0].samples[0].after, {
+            code: 'A',
+            name: 'Alice',
+            schemaVersion: 2,
+        });
+    });
+
+    it('batches target identity lookups instead of issuing one query per source document', async () => {
+        const documents = Array.from({ length: 1_001 }, (_, index) => ({ _id: index + 1, code: `C${index + 1}` }));
+        const sourceCollection = collection(documents);
+        const targetCollection = collection([]);
+        const result = await new DataTaskJobService(() => { throw new Error('not used'); }).preview({
+            name: 'batched-target-lookups',
+            source: runtime({ items: sourceCollection }),
+            target: runtime({ items: targetCollection }),
+            targetEnvironment: 'test',
+            collections: [{
+                name: 'items',
+                indexes: [{ key: { code: 1 }, options: { unique: true } }],
+                data: {
+                    all: true,
+                    batchSize: 500,
+                    maxDocuments: 1_100,
+                    identity: { mode: 'fields', fields: ['code'] },
+                },
+            }],
+        });
+        assert.equal(result.passed, true, result.errors.join('\n'));
+        assert.ok(targetCollection.findCalls <= 5, `expected batched lookups, received ${targetCollection.findCalls} find calls`);
     });
 });

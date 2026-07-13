@@ -23,8 +23,8 @@ describe('dataTasks job facade integration', () => {
         try {
             await Promise.all([source.connect(), target.connect()]);
             await source.collection('feature_modules').insertMany([
-                { code: 'A', release: '2026-07', name: 'Alpha' },
-                { code: 'B', release: '2026-07', name: 'Beta' },
+                { code: 'A', release: '2026-07', legacyName: 'Alpha', developmentOnly: true },
+                { code: 'B', release: '2026-07', legacyName: 'Beta', developmentOnly: true },
             ]);
             await target.collection('feature_modules').insertOne({ code: 'A', name: 'Old', localOnly: true });
             const originalId = (await target.collection('feature_modules').findOne({ code: 'A' }))._id;
@@ -36,7 +36,9 @@ describe('dataTasks job facade integration', () => {
                     data: {
                         filter: { release: '2026-07' },
                         identity: { mode: 'fields' as const, fields: ['code'] },
-                        transform: { pipeline: [{ $set: { schemaVersion: 2 } }] },
+                        rename: { legacyName: 'name' },
+                        set: { schemaVersion: 2 },
+                        unset: ['developmentOnly', 'release'],
                         batchSize: 1,
                     },
                     verify: { mode: 'full' as const, fields: ['code', 'name', 'schemaVersion'] },
@@ -61,8 +63,15 @@ describe('dataTasks job facade integration', () => {
             assert.equal(updated.name, 'Alpha');
             assert.equal(updated.localOnly, true);
             assert.equal(updated.schemaVersion, 2);
+            assert.equal(updated.legacyName, undefined);
+            assert.equal(updated.developmentOnly, undefined);
+            assert.equal(updated.release, undefined);
             const inserted = await target.collection('feature_modules').findOne({ code: 'B' });
+            assert.equal(inserted.name, 'Beta');
             assert.equal(inserted.schemaVersion, 2);
+            assert.equal(inserted.legacyName, undefined);
+            assert.equal(inserted.developmentOnly, undefined);
+            assert.equal(inserted.release, undefined);
             assert.ok((await target.collection('feature_modules').listIndexes()).some((index: { name?: string }) => index.name === 'feature_modules_code_unique'));
             assert.ok((await fs.stat(applied.backup.manifestPath)).isFile());
 
@@ -427,6 +436,141 @@ describe('dataTasks job facade integration', () => {
         }
     });
 
+    it('records a partial restore and keeps its safety backup recoverable after a mid-run failure', async () => {
+        const backupDir = await fs.mkdtemp(path.join(os.tmpdir(), 'monsqlize-job-restore-partial-'));
+        const source = new MonSQLize({ type: 'mongodb', databaseName: 'job_restore_partial_source', config: { uri } });
+        const target = new MonSQLize({ type: 'mongodb', databaseName: 'job_restore_partial_target', config: { uri } });
+        try {
+            await Promise.all([source.connect(), target.connect()]);
+            await source.collection('items').insertMany([
+                { code: 'A', value: 'planned-a' },
+                { code: 'B', value: 'planned-b' },
+            ]);
+            await target.collection('items').insertMany([
+                { code: 'A', value: 'before-a' },
+                { code: 'B', value: 'before-b' },
+            ]);
+            await target.collection('items').createIndex({ code: 1 }, { name: 'items_code_unique', unique: true });
+            const job = {
+                name: 'restore-partial', source, target, targetEnvironment: 'production',
+                collections: [{
+                    name: 'items',
+                    indexes: [{ key: { code: 1 }, name: 'items_code_unique', options: { unique: true } }],
+                    data: { all: true, identity: { mode: 'fields' as const, fields: ['code'] } },
+                }],
+                backup: { dir: backupDir },
+            };
+            const preview = await MonSQLize.dataTasks.preview(job);
+            const applied = await MonSQLize.dataTasks.apply(job, { approval: preview.approval });
+            assert.equal(applied.passed, true, applied.errors.join('\n'));
+            const restorePreview = await MonSQLize.dataTasks.previewRestore(applied.backup);
+            let replaceCount = 0;
+            const restoreTarget = {
+                options: target.options,
+                collection(name: string) {
+                    const base = target.collection(name);
+                    if (name !== 'items') return base;
+                    return new Proxy(base, {
+                        get(object, property) {
+                            if (property === 'replaceOne') {
+                                return async (...args: unknown[]) => {
+                                    replaceCount += 1;
+                                    if (replaceCount === 2) return { matchedCount: 0 };
+                                    return object.replaceOne(...args);
+                                };
+                            }
+                            const value = Reflect.get(object, property);
+                            return typeof value === 'function' ? value.bind(object) : value;
+                        },
+                    });
+                },
+            };
+
+            const restored = await MonSQLize.dataTasks.restore(applied.backup, {
+                target: restoreTarget,
+                approval: restorePreview.approval,
+            });
+            assert.equal(restored.passed, false);
+            assert.equal(restored.status, 'partial');
+            assert.equal(restored.restoredDocuments, 1);
+            assert.equal(restored.deletedDocuments, 0);
+            assert.match(restored.errors.join('\n'), /restore replace did not affect one document/);
+            const currentValues = await Promise.all(['A', 'B'].map(async (code) => (
+                await target.collection('items').findOne({ code })
+            ).value));
+            assert.equal(currentValues.filter((value) => String(value).startsWith('before-')).length, 1);
+            assert.equal(currentValues.filter((value) => String(value).startsWith('planned-')).length, 1);
+            assert.ok((await fs.stat(restored.safetyBackup.manifestPath)).isFile());
+
+            const safetyManifest = BSON.EJSON.parse(
+                await fs.readFile(restored.safetyBackup.manifestPath, 'utf8'),
+                { relaxed: true },
+            );
+            assert.equal(safetyManifest.status, 'partial');
+            assert.equal(safetyManifest.appliedOperations.length, 1);
+            assert.equal(safetyManifest.pendingOperations.length, 1);
+            assert.match(safetyManifest.errors.join('\n'), /restore replace did not affect one document/);
+        } finally {
+            await Promise.allSettled([source.close(), target.close()]);
+            await fs.rm(backupDir, { recursive: true, force: true });
+        }
+    });
+
+    it('rejects unsupported and ineffective restore deletes without changing the target', async () => {
+        const backupDir = await fs.mkdtemp(path.join(os.tmpdir(), 'monsqlize-job-restore-delete-'));
+        const source = new MonSQLize({ type: 'mongodb', databaseName: 'job_restore_delete_source', config: { uri } });
+        const target = new MonSQLize({ type: 'mongodb', databaseName: 'job_restore_delete_target', config: { uri } });
+        try {
+            await Promise.all([source.connect(), target.connect()]);
+            await source.collection('items').insertOne({ _id: 'restore-delete-id', value: 'planned' });
+            const job = {
+                name: 'restore-delete-contract', source, target, targetEnvironment: 'production',
+                collections: [{
+                    name: 'items',
+                    data: { all: true, identity: { mode: 'source-id' as const } },
+                }],
+                backup: { dir: backupDir },
+            };
+            const preview = await MonSQLize.dataTasks.preview(job);
+            const applied = await MonSQLize.dataTasks.apply(job, { approval: preview.approval });
+            assert.equal(applied.passed, true, applied.errors.join('\n'));
+            const restorePreview = await MonSQLize.dataTasks.previewRestore(applied.backup);
+            const targetWithDelete = (deleteOne: unknown) => ({
+                options: target.options,
+                collection(name: string) {
+                    const base = target.collection(name);
+                    if (name !== 'items') return base;
+                    return new Proxy(base, {
+                        get(object, property) {
+                            if (property === 'deleteOne') return deleteOne;
+                            const value = Reflect.get(object, property);
+                            return typeof value === 'function' ? value.bind(object) : value;
+                        },
+                    });
+                },
+            });
+
+            const unsupported = await MonSQLize.dataTasks.restore(applied.backup, {
+                target: targetWithDelete(undefined),
+                approval: restorePreview.approval,
+            });
+            assert.equal(unsupported.status, 'failed');
+            assert.match(unsupported.errors.join('\n'), /does not support deleteOne/);
+            assert.equal(await target.collection('items').count({}), 1);
+
+            const ineffective = await MonSQLize.dataTasks.restore(applied.backup, {
+                target: targetWithDelete(async () => ({ deletedCount: 0 })),
+                approval: restorePreview.approval,
+            });
+            assert.equal(ineffective.status, 'failed');
+            assert.match(ineffective.errors.join('\n'), /restore delete did not affect one document/);
+            assert.equal(await target.collection('items').count({}), 1);
+        } finally {
+            await Promise.allSettled([source.close(), target.close()]);
+            await fs.rm(backupDir, { recursive: true, force: true });
+        }
+    });
+
     it('supports insert strategy, generated index names, and empty follow-up backups', async () => {
         const backupDir = await fs.mkdtemp(path.join(os.tmpdir(), 'monsqlize-job-insert-'));
         const source = new MonSQLize({ type: 'mongodb', databaseName: 'job_insert_source', config: { uri } });
@@ -438,7 +582,10 @@ describe('dataTasks job facade integration', () => {
                 name: 'insert-items', source, target, targetEnvironment: 'production',
                 collections: [{
                     name: 'items',
-                    indexes: [{ key: { code: 1 }, options: { unique: true } }],
+                    indexes: [
+                        { key: { code: 1 }, options: { unique: true } },
+                        { key: { value: 1 } },
+                    ],
                     data: { all: true, identity: { mode: 'fields' as const, fields: ['code'] }, strategy: 'insert' as const },
                 }],
                 backup: { dir: backupDir, compression: 'none' as const },
@@ -450,6 +597,7 @@ describe('dataTasks job facade integration', () => {
             const inserted = await target.collection('items').findOne({ code: 'A' });
             assert.notEqual(String(inserted._id), 'source-id');
             assert.ok((await target.collection('items').listIndexes()).some((index: { name?: string }) => index.name === 'code_1'));
+            assert.ok((await target.collection('items').listIndexes()).some((index: { name?: string }) => index.name === 'value_1'));
 
             const followUpJob = {
                 ...job,
@@ -470,6 +618,8 @@ describe('dataTasks job facade integration', () => {
             const restored = await MonSQLize.dataTasks.restore(applied.backup, { approval: restorePreview.approval });
             assert.equal(restored.passed, true, restored.errors.join('\n'));
             assert.equal(await target.collection('items').count({}), 0);
+            assert.ok(!(await target.collection('items').listIndexes()).some((index: { name?: string }) => index.name === 'code_1'));
+            assert.ok(!(await target.collection('items').listIndexes()).some((index: { name?: string }) => index.name === 'value_1'));
         } finally {
             await Promise.allSettled([source.close(), target.close()]);
             await fs.rm(backupDir, { recursive: true, force: true });
@@ -586,7 +736,7 @@ describe('dataTasks job facade integration', () => {
                 collections: [{ name: 'settings', data: { all: true, identity: { mode: 'source-id' } } }],
                 backup: { dir: tempDir },
             };
-            await fs.writeFile(taskFile, `module.exports = { job: ${JSON.stringify(job)} };\n`, 'utf8');
+            await fs.writeFile(taskFile, `module.exports = ${JSON.stringify(job)};\n`, 'utf8');
             const cli = (...args: string[]) => spawnSync(process.execPath, ['dist/cjs/cli/data-task.cjs', 'data-task', ...args], {
                 cwd: path.resolve(__dirname, '../../..'), encoding: 'utf8',
             });

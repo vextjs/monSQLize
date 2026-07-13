@@ -12,7 +12,7 @@ import {
     type NormalizedDataTaskJob,
 } from './job-normalizer';
 import type { DataTaskJobPlan, PlannedDataChange } from './job-planner';
-import type { DataTaskRuntimeHost, GenericRecord } from './support';
+import type { DataTaskJobRuntimeHost, GenericRecord } from './support';
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -50,8 +50,19 @@ export interface CreatedDataTaskIndex {
     options: GenericRecord;
 }
 
-export interface PendingDataTaskIndex extends CreatedDataTaskIndex {
+export interface PendingDataTaskIndex extends Omit<CreatedDataTaskIndex, 'name'> {
     operation: 'create' | 'drop';
+    name?: string;
+}
+
+export function dataTaskPendingIndexFingerprint(index: PendingDataTaskIndex): string {
+    return hashDataTaskValue({
+        operation: index.operation,
+        collection: index.collection,
+        name: index.name ?? null,
+        key: index.key,
+        options: index.options,
+    });
 }
 
 export interface DataTaskBackupManifest {
@@ -102,13 +113,13 @@ function sanitizeName(value: string): string {
     return value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'data-task';
 }
 
-function attachTarget(ref: DataTaskBackupRef, target: DataTaskConnection | DataTaskRuntimeHost): DataTaskBackupRef {
+function attachTarget(ref: DataTaskBackupRef, target: DataTaskConnection | DataTaskJobRuntimeHost): DataTaskBackupRef {
     Object.defineProperty(ref, BACKUP_TARGET, { value: target, enumerable: false, configurable: false });
     return ref;
 }
 
-export function backupTargetHint(ref: DataTaskBackupRef): DataTaskConnection | DataTaskRuntimeHost | undefined {
-    return (ref as DataTaskBackupRef & { [BACKUP_TARGET]?: DataTaskConnection | DataTaskRuntimeHost })[BACKUP_TARGET];
+export function backupTargetHint(ref: DataTaskBackupRef): DataTaskConnection | DataTaskJobRuntimeHost | undefined {
+    return (ref as DataTaskBackupRef & { [BACKUP_TARGET]?: DataTaskConnection | DataTaskJobRuntimeHost })[BACKUP_TARGET];
 }
 
 export async function probeDataTaskBackupDirectory(directory: string): Promise<void> {
@@ -186,7 +197,7 @@ async function atomicWriteManifest(manifestPath: string, manifest: DataTaskBacku
 export async function createDataTaskBackup(
     job: NormalizedDataTaskJob,
     plan: DataTaskJobPlan,
-    targetHint: DataTaskConnection | DataTaskRuntimeHost,
+    targetHint: DataTaskConnection | DataTaskJobRuntimeHost,
 ): Promise<LoadedDataTaskBackup> {
     await probeDataTaskBackupDirectory(job.backup.dir);
     const runId = `${Date.now()}-${randomUUID()}`;
@@ -240,7 +251,7 @@ export async function createRestoreSafetyBackup(
     source: LoadedDataTaskBackup,
     entries: DataTaskBackupEntry[],
     beforeIndexes: Array<{ collection: string; indexes: GenericRecord[] }>,
-    targetHint: DataTaskConnection | DataTaskRuntimeHost,
+    targetHint: DataTaskConnection | DataTaskJobRuntimeHost,
 ): Promise<LoadedDataTaskBackup> {
     const runId = `${Date.now()}-${randomUUID()}`;
     const directory = path.resolve(path.dirname(source.ref.manifestPath), 'restore-safety', runId);
@@ -303,7 +314,7 @@ export async function readDataTaskBackup(ref: DataTaskBackupRef): Promise<Loaded
         const lines = plain.toString('utf8').split(/\r?\n/).filter(Boolean);
         const entries = lines.map((line) => BSON.EJSON.parse(line, { relaxed: false }) as DataTaskBackupEntry);
         if (entries.length !== manifest.entryCount) throw new Error('backup entry count mismatch');
-        return { ref: attachTarget({ ...ref }, backupTargetHint(ref) as DataTaskConnection | DataTaskRuntimeHost), manifest, entries };
+        return { ref: attachTarget({ ...ref }, backupTargetHint(ref) as DataTaskConnection | DataTaskJobRuntimeHost), manifest, entries };
     } catch (error) {
         if (error instanceof DataTaskJobError) throw error;
         throw new DataTaskJobError('BACKUP_FAILED', `backup validation failed: ${error instanceof Error ? error.message : String(error)}`, 'backup');

@@ -21,9 +21,9 @@ async function main() {
         const targetUsers = target.collection('targetUsers');
 
         await sourceUsers.insertMany([
-            { email: 'a@example.com', status: 'active', name: 'Alice' },
-            { email: 'b@example.com', status: 'active', name: 'Bob' },
-            { email: 'c@example.com', status: 'archived', name: 'Cara' },
+            { email: 'a@example.com', status: 'active', legacyName: 'Alice', developmentOnly: true },
+            { email: 'b@example.com', status: 'active', legacyName: 'Bob', developmentOnly: true },
+            { email: 'c@example.com', status: 'archived', legacyName: 'Cara', developmentOnly: true },
         ]);
 
         const task: DataTaskJob = {
@@ -34,11 +34,13 @@ async function main() {
             collections: [{
                 name: 'sourceUsers',
                 targetName: 'targetUsers',
-                indexes: [{ key: { email: 1 }, options: { unique: true }, name: 'target_users_email_unique' }],
+                indexes: [{ key: { email: 1 }, options: { unique: true } }],
                 data: {
                     filter: { status: 'active' },
                     identity: { mode: 'fields', fields: ['email'] },
-                    transform: { pipeline: [{ $set: { schemaVersion: 2 } }] },
+                    rename: { legacyName: 'name' },
+                    set: { schemaVersion: 2 },
+                    unset: ['developmentOnly'],
                     maxDocuments: 10_000,
                 },
                 verify: { mode: 'full', fields: ['email', 'name', 'schemaVersion'] },
@@ -46,15 +48,15 @@ async function main() {
             backup: { dir: snapshotDir, maxBytes: 256 * 1024 * 1024 },
         };
 
-        const plan = await dataTasks.preview(task);
-        if (!plan.passed || !plan.approval) throw new Error(`Preview failed: ${plan.errors.join('; ')}`);
-        const run = await dataTasks.apply(task, { approval: plan.approval });
-        if (!run.passed) throw new Error(`Run failed: ${run.errors.join('; ')}`);
-        const restorePreview = await dataTasks.previewRestore(run.backup);
+        const preview = await dataTasks.preview(task);
+        if (!preview.passed || !preview.approval) throw new Error(`Preview failed: ${preview.errors.join('; ')}`);
+        const result = await dataTasks.apply(task, { approval: preview.approval });
+        if (!result.passed) throw new Error(`Apply failed: ${result.errors.join('; ')}`);
+        const restorePreview = await dataTasks.previewRestore(result.backup);
         const targetRows = await targetUsers.find({ status: 'active' });
 
-        console.log('planned collections:', plan.collections.length);
-        console.log('backup manifest:', run.backup.manifestPath);
+        console.log('planned collections:', preview.collections.length);
+        console.log('backup manifest:', result.backup.manifestPath);
         console.log('restore preview passed:', restorePreview.passed);
         console.log('target users:', targetRows.map((row) => row.email).join(', '));
 

@@ -15,7 +15,7 @@ import {
     isRecord,
     orderedIndexKeyString,
     type DataTaskCollectionLike,
-    type DataTaskRuntimeHost,
+    type DataTaskJobRuntimeHost,
     type GenericRecord,
 } from './support';
 import {
@@ -25,7 +25,12 @@ import {
     type NormalizedDataTaskCollection,
     type NormalizedDataTaskJob,
 } from './job-normalizer';
-import { cloneDocument } from './document-utils';
+import {
+    DataTaskFieldPatchError,
+    applyDataTaskFieldPatch,
+    cloneDocument,
+    deleteDocumentPath,
+} from './document-utils';
 
 export interface PlannedDataChange {
     collection: string;
@@ -35,6 +40,7 @@ export interface PlannedDataChange {
     operation: 'insert' | 'update';
     before: GenericRecord | null;
     after: GenericRecord;
+    unsetPaths: string[];
 }
 
 export interface PlannedCollection extends DataTaskCollectionPreview {
@@ -78,26 +84,13 @@ async function findAll(
     return (await chain.toArray()).map(cloneDocument);
 }
 
-async function aggregateTransform(collection: DataTaskCollectionLike, config: NormalizedDataTaskCollection): Promise<GenericRecord[]> {
-    if (!collection.aggregate) throw new DataTaskJobError('INVALID_JOB', 'transform.pipeline requires aggregate support.', 'preview', config.name);
-    const data = config.data!;
-    const transform = data.transform;
-    const stages = transform && 'pipeline' in transform && Array.isArray(transform.pipeline) ? transform.pipeline : [];
-    const pipeline: GenericRecord[] = [
-        { $match: data.filter ?? {} },
-        ...(data.projection ? [{ $project: data.projection }] : []),
-        ...stages,
-        { $limit: data.maxDocuments + 1 },
-    ];
-    const first = (await collection.aggregate(pipeline)).map(cloneDocument);
-    const second = (await collection.aggregate(pipeline)).map(cloneDocument);
-    if (hashDataTaskValue(first) !== hashDataTaskValue(second)) {
-        throw new DataTaskJobError('IDENTITY_CONFLICT', 'transform.pipeline produced non-deterministic output.', 'preview', config.name);
-    }
-    return first;
+interface PatchedSourceDocument {
+    document: GenericRecord;
+    identity: GenericRecord;
+    unsetPaths: string[];
 }
 
-async function transformSource(collection: DataTaskCollectionLike, config: NormalizedDataTaskCollection): Promise<GenericRecord[]> {
+async function patchSource(collection: DataTaskCollectionLike, config: NormalizedDataTaskCollection): Promise<PatchedSourceDocument[]> {
     const data = config.data!;
     const sourceCount = await collection.count(data.filter ?? {});
     if (sourceCount > data.maxDocuments) {
@@ -112,44 +105,24 @@ async function transformSource(collection: DataTaskCollectionLike, config: Norma
     if (originals.length > data.maxDocuments) {
         throw new DataTaskJobError('INVALID_JOB', `source exceeded data.maxDocuments=${data.maxDocuments} while previewing.`, 'preview', config.name);
     }
-    let transformed: GenericRecord[];
-    if (!data.transform) {
-        transformed = originals;
-    } else if ('pipeline' in data.transform) {
-        transformed = await aggregateTransform(collection, config);
-        if (transformed.length !== originals.length) {
-            throw new DataTaskJobError('IDENTITY_CONFLICT', 'transform.pipeline cannot change document cardinality.', 'preview', config.name);
-        }
-    } else {
-        transformed = [];
-        for (const original of originals) {
-            const first = await data.transform.handler(cloneDocument(original));
-            const second = await data.transform.handler(cloneDocument(original));
-            if (!isRecord(first) || !isRecord(second)) {
-                throw new DataTaskJobError('INVALID_JOB', 'transform.handler must return a document.', 'preview', config.name);
-            }
-            if (hashDataTaskValue(first) !== hashDataTaskValue(second)) {
-                throw new DataTaskJobError('IDENTITY_CONFLICT', 'transform.handler produced non-deterministic output.', 'preview', config.name);
-            }
-            transformed.push(cloneDocument(first));
-        }
-    }
-
     const originalsByIdentity = new Map(originals.map((document) => [canonicalStringify(identityFor(document, config)), document]));
     if (originalsByIdentity.size !== originals.length) {
         throw new DataTaskJobError('IDENTITY_CONFLICT', 'source contains duplicate identities.', 'preview', config.name);
     }
-    const transformedByIdentity = new Map<string, GenericRecord>();
-    for (const document of transformed) {
-        const key = canonicalStringify(identityFor(document, config));
-        if (!originalsByIdentity.has(key)) throw new DataTaskJobError('IDENTITY_CONFLICT', 'transform changed an identity field.', 'preview', config.name);
-        if (transformedByIdentity.has(key)) throw new DataTaskJobError('IDENTITY_CONFLICT', 'transform produced duplicate identities.', 'preview', config.name);
-        transformedByIdentity.set(key, document);
-    }
-    if (transformedByIdentity.size !== originalsByIdentity.size) {
-        throw new DataTaskJobError('IDENTITY_CONFLICT', 'transform removed an identity.', 'preview', config.name);
-    }
-    return [...originalsByIdentity.keys()].map((key) => transformedByIdentity.get(key)!);
+    return originals.map((original) => {
+        const identity = identityFor(original, config);
+        try {
+            const patched = applyDataTaskFieldPatch(original, data.rename, data.set, data.unset);
+            if (canonicalStringify(identityFor(patched.document, config)) !== canonicalStringify(identity)) {
+                throw new DataTaskJobError('IDENTITY_CONFLICT', 'field patch changed an identity field.', 'preview', config.name);
+            }
+            return { ...patched, identity };
+        } catch (error) {
+            if (error instanceof DataTaskJobError) throw error;
+            const message = error instanceof DataTaskFieldPatchError ? error.message : String(error);
+            throw new DataTaskJobError('IDENTITY_CONFLICT', message, 'preview', config.name);
+        }
+    });
 }
 
 function declaredIndexOptions(index: DataTaskIndexDefinition): GenericRecord {
@@ -205,8 +178,60 @@ function payloadForWrite(document: GenericRecord, config: NormalizedDataTaskColl
     return payload;
 }
 
-function payloadChanged(before: GenericRecord, payload: GenericRecord): boolean {
-    return Object.keys(payload).some((key) => canonicalStringify(before[key]) !== canonicalStringify(payload[key]));
+function afterForWrite(before: GenericRecord | null, payload: GenericRecord, unsetPaths: string[]): GenericRecord {
+    const after = before ? { ...cloneDocument(before), ...cloneDocument(payload) } : cloneDocument(payload);
+    for (const field of unsetPaths) deleteDocumentPath(after, field);
+    return after;
+}
+
+function chunks<T>(values: T[], size: number): T[][] {
+    const result: T[][] = [];
+    for (let position = 0; position < values.length; position += size) result.push(values.slice(position, position + size));
+    return result;
+}
+
+async function loadTargetMatches(
+    target: DataTaskCollectionLike,
+    sourceDocuments: PatchedSourceDocument[],
+    config: NormalizedDataTaskCollection,
+): Promise<Map<string, GenericRecord[]>> {
+    const matches = new Map<string, GenericRecord[]>();
+    const batchSize = Math.min(config.data!.batchSize, 500);
+    for (const batch of chunks(sourceDocuments, batchSize)) {
+        const filter = config.data!.identity.mode === 'source-id'
+            ? { _id: { $in: batch.map((item) => item.identity._id) } }
+            : { $or: batch.map((item) => item.identity) };
+        for (const document of await findAll(target, filter)) {
+            const key = canonicalStringify(identityFor(document, config));
+            matches.set(key, [...(matches.get(key) ?? []), document]);
+        }
+    }
+    return matches;
+}
+
+async function loadConflictMatches(
+    target: DataTaskCollectionLike,
+    sourceDocuments: PatchedSourceDocument[],
+    config: NormalizedDataTaskCollection,
+): Promise<Map<string, GenericRecord[]>> {
+    const conflictBy = config.data!.identity.mode === 'source-id' ? config.data!.identity.conflictBy : undefined;
+    const matches = new Map<string, GenericRecord[]>();
+    if (!conflictBy?.length) return matches;
+    const batchSize = Math.min(config.data!.batchSize, 500);
+    const filters = sourceDocuments.map(({ document }) => {
+        const filter = Object.fromEntries(conflictBy.map((field) => [field, getByPath(document, field)]));
+        if (Object.values(filter).some((value) => value === undefined)) {
+            throw new DataTaskJobError('IDENTITY_CONFLICT', 'a conflictBy field is missing.', 'preview', config.name);
+        }
+        return filter;
+    });
+    for (const batch of chunks(filters, batchSize)) {
+        for (const document of await findAll(target, { $or: batch })) {
+            const key = canonicalStringify(Object.fromEntries(conflictBy.map((field) => [field, getByPath(document, field)])));
+            matches.set(key, [...(matches.get(key) ?? []), document]);
+        }
+    }
+    return matches;
 }
 
 interface UniqueIndexCandidate {
@@ -325,6 +350,7 @@ async function validateExistingUniqueIndex(
         }
     }
     const plannedKeys = new Set<string>();
+    const queries: GenericRecord[] = [];
     for (let position = 0; position < changes.length; position += 1) {
         const change = changes[position];
         const finalKey = uniqueKey(candidate, change.after, position);
@@ -333,14 +359,16 @@ async function validateExistingUniqueIndex(
             throw new DataTaskJobError('INDEX_CONFLICT', `unique index "${label}" would contain duplicate planned keys after apply.`, 'preview', config.name);
         }
         plannedKeys.add(finalKey.key);
-        if (!finalKey.query) continue;
-        const matches = await findAll(target, finalKey.query, undefined, 2);
-        for (const match of matches) {
+        if (finalKey.query) queries.push(finalKey.query);
+    }
+    for (const batch of chunks(queries, Math.min(config.data!.batchSize, 500))) {
+        for (const match of await findAll(target, { $or: batch })) {
+            const currentKey = uniqueKey(candidate, match).key;
+            if (!plannedKeys.has(currentKey)) continue;
             const matchId = match._id === undefined ? undefined : canonicalStringify(match._id);
-            const currentId = change.before?._id === undefined ? undefined : canonicalStringify(change.before._id);
-            if (matchId !== undefined && matchId === currentId) continue;
             const plannedMatchKey = matchId === undefined ? undefined : finalKeysByTargetId.get(matchId);
-            if (plannedMatchKey !== undefined && plannedMatchKey !== finalKey.key) continue;
+            if (plannedMatchKey !== undefined && plannedMatchKey === currentKey) continue;
+            if (plannedMatchKey !== undefined && plannedMatchKey !== currentKey) continue;
             throw new DataTaskJobError('INDEX_CONFLICT', `unique index "${label}" would conflict with an existing target document.`, 'preview', config.name);
         }
     }
@@ -406,8 +434,8 @@ async function validateUniqueIndexes(
 }
 
 async function planCollection(
-    sourceHost: DataTaskRuntimeHost,
-    targetHost: DataTaskRuntimeHost,
+    sourceHost: DataTaskJobRuntimeHost,
+    targetHost: DataTaskJobRuntimeHost,
     config: NormalizedDataTaskCollection,
     sampleSize: number,
 ): Promise<PlannedCollection> {
@@ -424,17 +452,16 @@ async function planCollection(
     const changes: PlannedDataChange[] = [];
     let unchanged = 0;
     if (config.data) {
-        const sourceDocuments = await transformSource(source, config);
-        for (const document of sourceDocuments) {
-            const identity = identityFor(document, config);
-            const matches = await findAll(target, identity, undefined, 2);
+        const sourceDocuments = await patchSource(source, config);
+        const targetMatches = await loadTargetMatches(target, sourceDocuments, config);
+        const conflictMatches = await loadConflictMatches(target, sourceDocuments, config);
+        for (const sourceDocument of sourceDocuments) {
+            const { document, identity, unsetPaths } = sourceDocument;
+            const matches = targetMatches.get(canonicalStringify(identity)) ?? [];
             if (matches.length > 1) throw new DataTaskJobError('IDENTITY_CONFLICT', 'identity matches multiple target documents.', 'preview', config.name);
             if (config.data.identity.mode === 'source-id' && config.data.identity.conflictBy?.length) {
                 const conflictFilter = Object.fromEntries(config.data.identity.conflictBy.map((field) => [field, getByPath(document, field)]));
-                if (Object.values(conflictFilter).some((value) => value === undefined)) {
-                    throw new DataTaskJobError('IDENTITY_CONFLICT', 'a conflictBy field is missing.', 'preview', config.name);
-                }
-                const logicalMatches = await findAll(target, conflictFilter, undefined, 2);
+                const logicalMatches = conflictMatches.get(canonicalStringify(conflictFilter)) ?? [];
                 if (logicalMatches.some((candidate) => canonicalStringify(candidate._id) !== canonicalStringify(document._id))) {
                     throw new DataTaskJobError('IDENTITY_CONFLICT', 'business identity exists with a different _id.', 'preview', config.name);
                 }
@@ -444,7 +471,8 @@ async function planCollection(
                 throw new DataTaskJobError('IDENTITY_CONFLICT', 'insert strategy found an existing identity.', 'preview', config.name);
             }
             const payload = payloadForWrite(document, config);
-            if (before && !payloadChanged(before, payload)) {
+            const after = afterForWrite(before, payload, unsetPaths);
+            if (before && canonicalStringify(before) === canonicalStringify(after)) {
                 unchanged += 1;
                 continue;
             }
@@ -455,7 +483,8 @@ async function planCollection(
                 filter: identity,
                 operation: before ? 'update' : 'insert',
                 before,
-                after: before ? { ...cloneDocument(before), ...payload } : payload,
+                after,
+                unsetPaths,
             });
         }
     }
@@ -506,8 +535,8 @@ function createApproval(job: NormalizedDataTaskJob, hashes: DataTaskJobPlan['has
 
 export async function planDataTaskJob(
     normalized: NormalizedDataTaskJob,
-    source: DataTaskRuntimeHost,
-    target: DataTaskRuntimeHost,
+    source: DataTaskJobRuntimeHost,
+    target: DataTaskJobRuntimeHost,
     options: DataTaskPreviewOptions = {},
 ): Promise<DataTaskJobPlan> {
     const sampleSize = options.sampleSize ?? 5;

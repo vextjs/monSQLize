@@ -8,6 +8,7 @@ import type {
 import {
     backupTargetHint,
     createRestoreSafetyBackup,
+    dataTaskPendingIndexFingerprint,
     readDataTaskBackup,
     updateDataTaskBackup,
     type AppliedDataTaskOperation,
@@ -20,7 +21,7 @@ import {
 import { classifyDataTaskIndexes } from './job-planner';
 import { DataTaskJobError, canonicalStringify, hashDataTaskValue } from './job-normalizer';
 import type { DataTaskLease } from './job-lock';
-import { isRecord, type DataTaskCollectionLike, type DataTaskRuntimeHost, type GenericRecord } from './support';
+import { isRecord, type DataTaskCollectionLike, type DataTaskJobRuntimeHost, type GenericRecord } from './support';
 
 interface RestoreDocumentAction {
     entry: DataTaskBackupEntry;
@@ -65,6 +66,13 @@ function exactIndex(index: CreatedDataTaskIndex, current: GenericRecord[]): bool
     return classifyDataTaskIndexes([{ key: index.key, name: index.name, options: index.options }], current)[0]?.status === 'existing';
 }
 
+function pendingIndexMatches(index: PendingDataTaskIndex, current: GenericRecord[]): GenericRecord[] {
+    return current.filter((candidate) => {
+        if (index.name && candidate.name !== index.name) return false;
+        return classifyDataTaskIndexes([{ key: index.key, options: index.options }], [candidate])[0]?.status === 'existing';
+    });
+}
+
 function plannedDocumentMatches(current: GenericRecord | null, entry: DataTaskBackupEntry): boolean {
     if (hashDataTaskValue(current) === entry.plannedAfterHash) return true;
     if (!current || !entry.after) return false;
@@ -78,7 +86,7 @@ function plannedDocumentMatches(current: GenericRecord | null, entry: DataTaskBa
 
 async function effectiveAppliedOperations(
     backup: LoadedDataTaskBackup,
-    target: DataTaskRuntimeHost,
+    target: DataTaskJobRuntimeHost,
     entries: Map<string, DataTaskBackupEntry>,
     warnings: string[],
     errors: string[],
@@ -122,12 +130,12 @@ function samePendingOperation(left: PendingDataTaskOperation, right: PendingData
 }
 
 function samePendingIndex(left: PendingDataTaskIndex, right: PendingDataTaskIndex): boolean {
-    return left.operation === right.operation && left.collection === right.collection && left.name === right.name;
+    return dataTaskPendingIndexFingerprint(left) === dataTaskPendingIndexFingerprint(right);
 }
 
 export async function planDataTaskRestore(
     ref: DataTaskBackupRef,
-    target: DataTaskRuntimeHost,
+    target: DataTaskJobRuntimeHost,
 ): Promise<DataTaskRestorePlan> {
     const backup = await readDataTaskBackup(ref);
     const entries = new Map(backup.entries.map((entry) => [entryKey(entry.targetCollection, entry.identity), entry]));
@@ -167,20 +175,26 @@ export async function planDataTaskRestore(
     const droppedIndexes = [...(backup.manifest.droppedIndexes ?? [])];
     for (const pending of backup.manifest.pendingIndexes ?? []) {
         const current = beforeIndexes.find((item) => item.collection === pending.collection)!.indexes;
-        const named = current.find((candidate) => candidate.name === pending.name);
+        const label = pending.name ?? canonicalStringify(pending.key);
+        const matches = pendingIndexMatches(pending, current);
+        const named = pending.name ? current.find((candidate) => candidate.name === pending.name) : undefined;
         if (pending.operation === 'create') {
-            if (!named) {
-                warnings.push(`pending index create had no target effect and was skipped for ${pending.collection}.${pending.name}`);
-            } else if (exactIndex(pending, current)) {
-                createdIndexes.push(pending);
-                warnings.push(`recovered a created index from the write-ahead manifest for ${pending.collection}.${pending.name}`);
+            if (matches.length === 0 && named) {
+                errors.push(`pending index create drift detected for ${pending.collection}.${label}`);
+            } else if (matches.length === 0) {
+                warnings.push(`pending index create had no target effect and was skipped for ${pending.collection}.${label}`);
+            } else if (matches.length === 1 && typeof matches[0].name === 'string') {
+                createdIndexes.push({ collection: pending.collection, name: matches[0].name, key: pending.key, options: pending.options });
+                warnings.push(`recovered a created index from the write-ahead manifest for ${pending.collection}.${matches[0].name}`);
             } else {
-                errors.push(`pending index create drift detected for ${pending.collection}.${pending.name}`);
+                errors.push(`pending index create could not be matched uniquely for ${pending.collection}.${label}`);
             }
+        } else if (!pending.name) {
+            errors.push(`pending index drop is missing a stable name for ${pending.collection}.${label}`);
         } else if (!named) {
-            droppedIndexes.push(pending);
+            droppedIndexes.push({ collection: pending.collection, name: pending.name, key: pending.key, options: pending.options });
             warnings.push(`recovered a dropped index from the write-ahead manifest for ${pending.collection}.${pending.name}`);
-        } else if (exactIndex(pending, current)) {
+        } else if (matches.length === 1) {
             warnings.push(`pending index drop had no target effect and was skipped for ${pending.collection}.${pending.name}`);
         } else {
             errors.push(`pending index drop drift detected for ${pending.collection}.${pending.name}`);
@@ -255,6 +269,7 @@ function safetyEntries(plan: DataTaskRestorePlan): DataTaskBackupEntry[] {
         operation: action.action === 'delete' ? 'delete' : 'update',
         before: action.current,
         after: action.action === 'delete' ? null : action.entry.before,
+        unsetPaths: [],
         beforeHash: hashDataTaskValue(action.current),
         plannedAfterHash: hashDataTaskValue(action.action === 'delete' ? null : action.entry.before),
     }));
@@ -282,7 +297,7 @@ async function restoreDocument(target: DataTaskCollectionLike, action: RestoreDo
     return { ...action.applied, operation: 'update', targetId: before._id, afterHash: hashDataTaskValue(before) };
 }
 
-async function verifyRestore(target: DataTaskRuntimeHost, plan: DataTaskRestorePlan): Promise<void> {
+async function verifyRestore(target: DataTaskJobRuntimeHost, plan: DataTaskRestorePlan): Promise<void> {
     for (const action of plan.actions) {
         const current = await findCurrent(target.collection(action.entry.targetCollection), action.entry.identity);
         const expected = action.action === 'delete' ? null : action.entry.before;
@@ -302,8 +317,8 @@ async function verifyRestore(target: DataTaskRuntimeHost, plan: DataTaskRestoreP
 
 export async function restoreDataTaskPlan(
     plan: DataTaskRestorePlan,
-    target: DataTaskRuntimeHost,
-    targetHint: DataTaskConnection | DataTaskRuntimeHost,
+    target: DataTaskJobRuntimeHost,
+    targetHint: DataTaskConnection | DataTaskJobRuntimeHost,
     lease: DataTaskLease,
 ): Promise<DataTaskRestoreResult> {
     const safety = await createRestoreSafetyBackup(plan.backup, safetyEntries(plan), plan.beforeIndexes, targetHint);

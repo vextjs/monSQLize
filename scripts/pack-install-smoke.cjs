@@ -70,7 +70,7 @@ try {
     run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarballPath], { cwd: consumerRoot });
 
     run(process.execPath, ['-e', "const M=require('monsqlize'); const p=require('monsqlize/package.json'); if(!M || p.version!==process.argv[1] || typeof M.dataTasks?.preview!=='function' || typeof M.dataTasks?.restore!=='function') process.exit(1)", packageJson.version], { cwd: consumerRoot });
-    run(process.execPath, ['--input-type=module', '-e', "import M,{dataTasks} from 'monsqlize'; import {createRequire} from 'node:module'; const p=createRequire(import.meta.url)('monsqlize/package.json'); if(!M || p.version!==process.argv[1] || typeof dataTasks?.apply!=='function' || typeof dataTasks?.previewRestore!=='function') process.exit(1)", packageJson.version], { cwd: consumerRoot });
+    run(process.execPath, ['--input-type=module', '-e', "import M,{dataTasks} from 'monsqlize'; import {createRequire} from 'node:module'; const p=createRequire(import.meta.url)('monsqlize/package.json'); if(!M || p.version!==process.argv[1] || M.dataTasks!==undefined || typeof dataTasks?.apply!=='function' || typeof dataTasks?.previewRestore!=='function') process.exit(1)", packageJson.version], { cwd: consumerRoot });
     const dependencyTree = JSON.parse(run('npm', ['ls', '--all', '--json'], { cwd: consumerRoot, quiet: true }));
     const installedSchemaDslVersion = findDependencyVersion(dependencyTree, 'schema-dsl');
     assert(
