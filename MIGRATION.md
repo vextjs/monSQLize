@@ -10,7 +10,7 @@ contract that intersects your application before changing the installed major.
 
 Use Node.js 18 or newer, install v3 in a staging branch, and run your own
 Model, cache, sync, transaction, and data rollout tests. monSQLize v3 pins
-`schema-dsl@2.1.5` and keeps the isolated `schema-dsl/runtime` integration.
+`schema-dsl@2.1.6` and keeps the isolated `schema-dsl/runtime` integration.
 
 ### 2. Review bounded query and optimistic-locking behavior
 

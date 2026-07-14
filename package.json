@@ -135,7 +135,7 @@
     "cache-hub": "2.2.4",
     "ioredis": "5.11.1",
     "mongodb": "6.21.0",
-    "schema-dsl": "2.1.5",
+    "schema-dsl": "2.1.6",
     "ssh2": "1.17.0"
   }
 }

@@ -6,6 +6,8 @@ const MonSQLize = require('../../../dist/cjs/index.cjs');
 const { Model } = MonSQLize;
 const { createRuntime } = require('schema-dsl/runtime');
 
+const extensionConflictErrorPattern = /Extension (?:literal|factory) .+ already exists|factory already exists|Cannot register namespace factory/;
+
 function tenantIdExtension(): Record<string, unknown> {
     return {
         type: 'customType',
@@ -1455,7 +1457,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -1494,7 +1496,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -1533,7 +1535,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -1572,7 +1574,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -1611,7 +1613,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -1650,7 +1652,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -1689,7 +1691,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -1728,7 +1730,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -1767,7 +1769,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -1936,7 +1938,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2046,7 +2048,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2085,7 +2087,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2124,7 +2126,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2163,7 +2165,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2202,7 +2204,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2241,7 +2243,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2280,7 +2282,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2399,7 +2401,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2438,7 +2440,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2553,7 +2555,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2620,7 +2622,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2779,7 +2781,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2818,7 +2820,7 @@ describe('model — schema-dsl runtime configuration', () => {
 
         try {
             await assert.rejects(() => first.connect(), /Failed to connect to MongoDB database/);
-            await assert.rejects(() => second.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => second.connect(), extensionConflictErrorPattern);
         } finally {
             await first.close().catch(() => { });
             await second.close().catch(() => { });
@@ -2856,7 +2858,7 @@ describe('model — schema-dsl runtime configuration', () => {
         retry.on?.('error', () => { });
 
         try {
-            await assert.rejects(() => failing.connect(), /factory already exists|Cannot register namespace factory/);
+            await assert.rejects(() => failing.connect(), extensionConflictErrorPattern);
             await assert.rejects(() => retry.connect(), /Failed to connect to MongoDB database/);
             assert.doesNotThrow(() => schemaRuntime.s({ tenantId: 'tenant-id!', regionId: 'region-id!' }));
         } finally {
