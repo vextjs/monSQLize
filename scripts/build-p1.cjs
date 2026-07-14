@@ -3,6 +3,7 @@ const { join } = require('node:path');
 const { build } = require('esbuild');
 
 const emitSourceMaps = process.env.MONSQLIZE_BUILD_SOURCEMAPS === '1';
+const removeOptions = { recursive: true, force: true, maxRetries: 10, retryDelay: 100 };
 
 function toEsmDeclaration(content) {
     return content
@@ -31,8 +32,8 @@ function writeEsmDeclarations(dir) {
 }
 
 async function main() {
-    rmSync('lib', { recursive: true, force: true });
-    rmSync('dist', { recursive: true, force: true });
+    rmSync('lib', removeOptions);
+    rmSync('dist', removeOptions);
 
     mkdirSync('dist/cjs', { recursive: true });
     mkdirSync('dist/esm', { recursive: true });

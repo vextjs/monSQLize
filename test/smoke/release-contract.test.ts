@@ -22,6 +22,8 @@ test('release paths consume the complete single-source preflight gate', () => {
     const publishWorkflow = read('.github/workflows/publish.yml');
     const candidateCheck = read('scripts/check-release-candidate.cjs');
     const packInstallSmoke = read('scripts/pack-install-smoke.cjs');
+    const buildScript = read('scripts/build-p1.cjs');
+    const compileTestsScript = read('scripts/compile-tests.cjs');
     const websitePackageJson = JSON.parse(read('website/package.json')) as {
         scripts: Record<string, string>;
     };
@@ -55,6 +57,10 @@ test('release paths consume the complete single-source preflight gate', () => {
     assert.match(packInstallSmoke, /SECURITY\.md/);
     assert.match(packInstallSmoke, /dataTasks/);
     assert.match(packInstallSmoke, /schema-dsl/);
+    for (const generatedDirectoryWriter of [buildScript, compileTestsScript]) {
+        assert.match(generatedDirectoryWriter, /maxRetries:\s*10/);
+        assert.match(generatedDirectoryWriter, /retryDelay:\s*100/);
+    }
     assert.match(websitePackageJson.scripts.verify, /type-check.*build.*check:links.*check:audit/);
     assert.match(ci, /npm run release:preflight/);
     assert.match(releaseWorkflow, /npm run release:preflight/);

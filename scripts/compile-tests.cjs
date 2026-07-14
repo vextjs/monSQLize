@@ -7,6 +7,7 @@ const { spawnSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
 const outDir = path.join(root, '.generated', 'test-dist');
+const removeOptions = { recursive: true, force: true, maxRetries: 10, retryDelay: 100 };
 
 function listSourceMaps(directory) {
     if (!existsSync(directory)) return [];
@@ -33,7 +34,7 @@ function remapGeneratedSources() {
     }
 }
 
-rmSync(outDir, { recursive: true, force: true });
+rmSync(outDir, removeOptions);
 mkdirSync(outDir, { recursive: true });
 
 const tsc = path.join(root, 'node_modules', 'typescript', 'bin', 'tsc');
