@@ -20,6 +20,30 @@ export function cloneDocument(document: GenericRecord): GenericRecord {
     return cloneDocumentValue(document) as GenericRecord;
 }
 
+export function exactDataTaskDocumentFilter(document: GenericRecord): GenericRecord {
+    const entries = Object.entries(document);
+    const fields = entries.map(([field, value]) => ({ [field]: value }));
+    const originalFieldsExist = entries.map(([field]) => ({
+        $ne: [
+            { $type: { $getField: { field: { $literal: field }, input: '$$ROOT' } } },
+            'missing',
+        ],
+    }));
+    return {
+        $and: [
+            ...fields,
+            {
+                $expr: {
+                    $and: [
+                        { $eq: [{ $size: { $objectToArray: '$$ROOT' } }, fields.length] },
+                        ...originalFieldsExist,
+                    ],
+                },
+            },
+        ],
+    };
+}
+
 export class DataTaskFieldPatchError extends Error {}
 
 function documentPath(document: GenericRecord, field: string): { exists: boolean; value?: unknown } {

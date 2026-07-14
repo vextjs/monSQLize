@@ -1,6 +1,8 @@
 # Unreleased
 
-> Current release candidate: [v3.0.0](./v3.0.0.md). This ledger remains the detailed development inventory until v3.0.0 is published; v2.0.7 was never published and is retained only as an archive.
+> No changes are currently recorded after [v3.0.0](./v3.0.0.md). The sections below retain the v3 development inventory for audit history; new work must be added above the archive heading.
+
+## v3.0.0 development inventory (released 2026-07-14)
 
 ## Compatibility-impacting changes
 
@@ -19,7 +21,7 @@
 - Fixed Model `autoIndex=true` scheduling to preflight declared indexes with `listIndexes()`, skip matching existing indexes, create only missing indexes, and report conflicts through warning logs / `model-index-error` without destructive index changes.
 - Fixed Batch 1 validation findings: `getDefaults()` now returns isolated deep-frozen snapshots, aggregate `$merge` / `$out` cache tests assert explicit target invalidation instead of implicit broad invalidation, cache invalidation docs list descriptor shapes, and legacy Redis lock wording no longer implies a running Redis service is bundled.
 - Fixed aggregate direct `.toArray()` to honor cache/meta execution paths, extended `find()` ObjectId auto-conversion to comparison operators, forwarded CountQueue abort signals into MongoDB count options, and added a warning when sync idempotency falls back to in-memory storage.
-- Upgraded `schema-dsl` to `2.1.3` and moved Model schema compilation/validation onto a MonSQLize runtime-scoped `schema-dsl/runtime` engine. `schemaDsl` now supports runtime options, extension registration, external runtime injection, explicit validation disablement, and fail-closed dependency resolution diagnostics.
+- Upgraded `schema-dsl` to `2.1.6` and moved Model schema compilation/validation onto a MonSQLize runtime-scoped `schema-dsl/runtime` engine. `schemaDsl` now supports runtime options, extension registration, external runtime injection, explicit validation disablement, and fail-closed dependency resolution diagnostics.
 - Fixed `schemaDsl: { runtime, extensions }` lifecycle handling so injected runtimes register extensions once during `connect()` instead of registering the same factory during construction and reconnect setup.
 - Made injected `schema-dsl/runtime` extension registration idempotent across failed connect retries, close/reconnect cycles, shared external runtime instances, incremental/reordered extension sets, partial extension-registration failures, external runtime resets, and source-stable function-valued definitions. Function fingerprinting now distinguishes closure-sensitive definitions from stable local scopes, including destructuring, nested helpers, templates, class/object methods, private/member access, regex literals, reserved syntax tokens, semicolonless local declarations with and without initializers, and break/continue labels; conflicting closure definitions still surface through schema-dsl.
 - Hardened `schema-dsl/runtime` loading across CJS, ESM, and TypeScript-generated CJS test entry points; extended function fingerprinting for numeric literals and Unicode identifiers; and aligned full-document Model validation, docs, examples, and public type examples with the recommended `schema: (s) => s(...)` DSL callback style.

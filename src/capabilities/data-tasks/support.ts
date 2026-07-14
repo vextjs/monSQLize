@@ -9,7 +9,13 @@ export interface FindChainLike {
     toArray(): Promise<GenericRecord[]>;
 }
 
+export interface DataTaskReadableLike extends AsyncIterable<GenericRecord> {
+    destroy?(): void;
+}
+
 export interface DataTaskCollectionLike {
+    raw?(): { find(query?: GenericRecord, options?: GenericRecord): FindChainLike };
+    stream?(query?: GenericRecord, options?: GenericRecord): DataTaskReadableLike;
     find(query?: GenericRecord, options?: GenericRecord): FindChainLike;
     count(query?: GenericRecord, options?: GenericRecord): Promise<number>;
     findOne(query: GenericRecord, options?: GenericRecord): Promise<GenericRecord | null>;

@@ -3,7 +3,7 @@ import type {
     DataTaskApproval,
     DataTaskConnection,
 } from '../../../types/data-tasks';
-import { cloneDocument } from './document-utils';
+import { cloneDocument, exactDataTaskDocumentFilter } from './document-utils';
 import {
     DataTaskJobError,
     canonicalStringify,
@@ -67,7 +67,7 @@ function expectedBeforeFilter(change: PlannedDataChange): GenericRecord {
     return {
         $and: [
             change.filter,
-            ...Object.entries(change.before).map(([field, value]) => ({ [field]: value })),
+            exactDataTaskDocumentFilter(change.before),
         ],
     };
 }

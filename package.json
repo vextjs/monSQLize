@@ -7,7 +7,7 @@
   "module": "./dist/esm/index.mjs",
   "types": "./dist/types/index.d.ts",
   "bin": {
-    "monsqlize": "./dist/cjs/cli/data-task.cjs"
+    "monsqlize": "dist/cjs/cli/data-task.cjs"
   },
   "exports": {
     ".": {

@@ -1,10 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { validateDataTaskApproval } from '../../../src/capabilities/data-tasks/job-apply';
-import { probeDataTaskBackupDirectory } from '../../../src/capabilities/data-tasks/job-backup';
+import { probeDataTaskBackupDirectory, readDataTaskBackup } from '../../../src/capabilities/data-tasks/job-backup';
 import { acquireDataTaskLease } from '../../../src/capabilities/data-tasks/job-lock';
 import { hashDataTaskValue } from '../../../src/capabilities/data-tasks/job-normalizer';
 import { validateRestoreApproval } from '../../../src/capabilities/data-tasks/job-restore';
@@ -129,6 +130,23 @@ describe('dataTasks job defensive branches', () => {
         }
     });
 
+    it('fails closed when a renewal remains pending beyond the local lease expiry', async () => {
+        let finishRenewal: ((value: { matchedCount: number }) => void) | undefined;
+        const lease = await acquireDataTaskLease(hostWithCollection({
+            findOneAndUpdate: async (_filter: unknown, update: any) => ({
+                owner: update.$set.owner,
+                expiresAt: update.$set.expiresAt,
+            }),
+            updateOne: async () => new Promise<{ matchedCount: number }>((resolve) => { finishRenewal = resolve; }),
+            deleteOne: async () => ({ deletedCount: 1 }),
+        }), { ttlMs: 1_000, waitTimeoutMs: 0 });
+
+        await new Promise((resolve) => setTimeout(resolve, 1_050));
+        assert.throws(() => lease.assertHeld(), (error: any) => error.code === 'LOCK_LOST' && /expired/.test(error.message));
+        finishRenewal?.({ matchedCount: 1 });
+        await lease.release();
+    });
+
     it('reports backup probe failures and facade fallback errors', async () => {
         const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'monsqlize-job-branch-'));
         const filePath = path.join(temporary, 'not-a-directory');
@@ -168,5 +186,31 @@ describe('dataTasks job defensive branches', () => {
         const backup = { runId: 'run', manifestPath: 'manifest.json', checksum: 'checksum' };
         await assert.rejects(() => service.previewRestore(backup), /restore target is required/);
         await assert.rejects(() => service.restore(backup, { approval: approval('restore') }), /restore target is required/);
+    });
+
+    it('rejects backup manifests whose payload path escapes the manifest directory', async () => {
+        const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'monsqlize-job-manifest-'));
+        const manifestDirectory = path.join(temporary, 'run');
+        const manifestPath = path.join(manifestDirectory, 'manifest.json');
+        const checksum = createHash('sha256').update('').digest('hex');
+        await fs.mkdir(manifestDirectory);
+        await fs.writeFile(path.join(temporary, 'outside.ejsonl'), '', 'utf8');
+        await fs.writeFile(manifestPath, JSON.stringify({
+            version: 1,
+            kind: 'monsqlize-data-task-backup',
+            runId: 'run',
+            compression: 'none',
+            dataFile: '../outside.ejsonl',
+            checksum,
+            entryCount: 0,
+        }), 'utf8');
+        try {
+            await assert.rejects(
+                () => readDataTaskBackup({ runId: 'run', manifestPath, checksum }),
+                /data file must stay beside its manifest/,
+            );
+        } finally {
+            await fs.rm(temporary, { recursive: true, force: true });
+        }
     });
 });

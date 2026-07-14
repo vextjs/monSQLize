@@ -39,13 +39,14 @@ git commit
 git push origin HEAD
 # 等待当前提交的远端 CI 通过，然后在同一干净提交上执行：
 npm run release:preflight
+# 手动运行 Release Authentication Check workflow，并要求 npm whoami 通过。
 # 可选的私有真实环境复核：npm run verify:release
 VERSION=$(node -p "require('./package.json').version")
 git tag "v${VERSION}"
 git push origin "v${VERSION}"
 ```
 
-`release:preflight` 会校验当前 `HEAD` 已存在于 `origin`，因此不能在未提交或仅本地存在的候选上运行。创建 tag 前仍需人工确认当前提交的远端 CI 与 preflight 证据；preflight 本身不会创建或推送 tag。
+`release:preflight` 会校验当前 `HEAD` 已存在于 `origin`，因此不能在未提交或仅本地存在的候选上运行。创建 tag 前必须确认当前提交的远端 CI、preflight 证据，以及当前仓库的 **Release Authentication Check** 已成功。凭据探针只执行 `npm whoami`，不会创建 tag 或 publish；preflight 本身也不会创建或推送 tag。
 
 tag 会启动仓库 preflight 与 publish workflow，此时不要部署 Pages。registry 验收通过后，手动运行 **Deploy Docs to GitHub Pages**，传入 `release_tag=vX.Y.Z`；该 workflow 会检出指定 tag，并在 tag、`package.json` 与 npm registry 版本不一致时拒绝部署。
 

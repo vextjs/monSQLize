@@ -373,6 +373,27 @@ describe('dataTasks job facade preview', () => {
         assert.equal(sourceLimit.passed, false);
         assert.match(sourceLimit.errors[0], /data\.maxDocuments=1/);
 
+        const racedSource = collection([{ _id: 1, code: 'A' }, { _id: 2, code: 'B' }, { _id: 3, code: 'C' }]);
+        racedSource.count = async () => 1;
+        const originalFind = racedSource.find.bind(racedSource);
+        let requestedLimit = 0;
+        racedSource.find = ((...args: Parameters<typeof racedSource.find>) => {
+            const chain = originalFind(...args);
+            const originalLimit = chain.limit!.bind(chain);
+            chain.limit = (limit: number) => {
+                requestedLimit = limit;
+                return originalLimit(limit);
+            };
+            return chain;
+        }) as typeof racedSource.find;
+        const racedSourceJob = validJob();
+        racedSourceJob.source = runtime({ items: racedSource });
+        racedSourceJob.collections[0].data.maxDocuments = 1;
+        const racedSourceResult = await service.preview(racedSourceJob);
+        assert.equal(racedSourceResult.passed, false);
+        assert.equal(requestedLimit, 2);
+        assert.match(racedSourceResult.errors[0], /data\.maxDocuments=1/);
+
         const backupLimitJob = validJob();
         backupLimitJob.backup = { maxBytes: 1 };
         const backupLimit = await service.preview(backupLimitJob);

@@ -18,6 +18,7 @@ test('release paths consume the complete single-source preflight gate', () => {
     const preflight = read('scripts/release-preflight.cjs');
     const ci = read('.github/workflows/test.yml');
     const releaseWorkflow = read('.github/workflows/release-preflight.yml');
+    const releaseAuthWorkflow = read('.github/workflows/release-auth-check.yml');
     const publishWorkflow = read('.github/workflows/publish.yml');
     const candidateCheck = read('scripts/check-release-candidate.cjs');
     const packInstallSmoke = read('scripts/pack-install-smoke.cjs');
@@ -57,11 +58,15 @@ test('release paths consume the complete single-source preflight gate', () => {
     assert.match(websitePackageJson.scripts.verify, /type-check.*build.*check:links.*check:audit/);
     assert.match(ci, /npm run release:preflight/);
     assert.match(releaseWorkflow, /npm run release:preflight/);
+    assert.match(releaseAuthWorkflow, /workflow_dispatch/);
+    assert.match(releaseAuthWorkflow, /secrets\.NPM_TOKEN/);
+    assert.match(releaseAuthWorkflow, /npm whoami/);
     assert.match(publishWorkflow, /npm run release:preflight/);
     assert.match(publishWorkflow, /dist\.integrity/);
     assert.match(publishWorkflow, /dist-tags\.latest/);
     assert.match(publishWorkflow, /mkdir -p "\$\{CONSUMER_DIR\}"/);
     assert.match(publishWorkflow, /dist\/esm\/index\.mjs/);
+    assert.match(publishWorkflow, /dataTasks/);
     assert.match(publishWorkflow, /release_tag:/);
     assert.match(publishWorkflow, /ref: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.release_tag \|\| github\.ref \}\}/);
     assert.match(publishWorkflow, /git rev-parse "\$\{RELEASE_TAG\}\^\{commit\}"/);

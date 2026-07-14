@@ -78,7 +78,29 @@ async function findAll(
     projection?: GenericRecord,
     limit?: number,
 ): Promise<GenericRecord[]> {
-    let chain = collection.find(filter, projection ? { projection } : undefined);
+    if (collection.stream) {
+        const documents: GenericRecord[] = [];
+        const stream = collection.stream(filter, {
+            ...(projection ? { projection } : {}),
+            sort: { _id: 1 },
+        });
+        let stoppedEarly = false;
+        try {
+            for await (const document of stream) {
+                documents.push(cloneDocument(document));
+                if (limit !== undefined && documents.length >= limit) {
+                    stoppedEarly = true;
+                    stream.destroy?.();
+                    break;
+                }
+            }
+        } finally {
+            if (stoppedEarly) stream.destroy?.();
+        }
+        return documents;
+    }
+    const raw = collection.raw?.();
+    let chain = (raw ?? collection).find(filter, projection ? { projection } : undefined);
     if (typeof chain.sort === 'function') chain = chain.sort({ _id: 1 });
     if (limit !== undefined && typeof chain.limit === 'function') chain = chain.limit(limit);
     return (await chain.toArray()).map(cloneDocument);
@@ -101,7 +123,7 @@ async function patchSource(collection: DataTaskCollectionLike, config: Normalize
             config.name,
         );
     }
-    const originals = await findAll(collection, data.filter ?? {}, data.projection);
+    const originals = await findAll(collection, data.filter ?? {}, data.projection, data.maxDocuments + 1);
     if (originals.length > data.maxDocuments) {
         throw new DataTaskJobError('INVALID_JOB', `source exceeded data.maxDocuments=${data.maxDocuments} while previewing.`, 'preview', config.name);
     }
@@ -201,7 +223,7 @@ async function loadTargetMatches(
         const filter = config.data!.identity.mode === 'source-id'
             ? { _id: { $in: batch.map((item) => item.identity._id) } }
             : { $or: batch.map((item) => item.identity) };
-        for (const document of await findAll(target, filter)) {
+        for (const document of await findAll(target, filter, undefined, batch.length + 1)) {
             const key = canonicalStringify(identityFor(document, config));
             matches.set(key, [...(matches.get(key) ?? []), document]);
         }
@@ -226,7 +248,7 @@ async function loadConflictMatches(
         return filter;
     });
     for (const batch of chunks(filters, batchSize)) {
-        for (const document of await findAll(target, { $or: batch })) {
+        for (const document of await findAll(target, { $or: batch }, undefined, batch.length * 2 + 1)) {
             const key = canonicalStringify(Object.fromEntries(conflictBy.map((field) => [field, getByPath(document, field)])));
             matches.set(key, [...(matches.get(key) ?? []), document]);
         }
@@ -362,7 +384,7 @@ async function validateExistingUniqueIndex(
         if (finalKey.query) queries.push(finalKey.query);
     }
     for (const batch of chunks(queries, Math.min(config.data!.batchSize, 500))) {
-        for (const match of await findAll(target, { $or: batch })) {
+        for (const match of await findAll(target, { $or: batch }, undefined, batch.length + 1)) {
             const currentKey = uniqueKey(candidate, match).key;
             if (!plannedKeys.has(currentKey)) continue;
             const matchId = match._id === undefined ? undefined : canonicalStringify(match._id);

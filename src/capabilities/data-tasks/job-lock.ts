@@ -29,6 +29,7 @@ export async function acquireDataTaskLease(
     const owner = randomUUID();
     const deadline = Date.now() + options.waitTimeoutMs;
     let acquired = false;
+    let leaseExpiresAt = 0;
     do {
         const now = new Date();
         try {
@@ -38,6 +39,11 @@ export async function acquireDataTaskLease(
                 { upsert: true, returnDocument: 'after' },
             );
             acquired = value?.owner === owner;
+            if (acquired) {
+                leaseExpiresAt = value?.expiresAt instanceof Date
+                    ? value.expiresAt.getTime()
+                    : now.getTime() + options.ttlMs;
+            }
         } catch (error) {
             const code = isRecord(error) ? error.code : undefined;
             if (code !== 11000) throw new DataTaskJobError('LOCK_NOT_ACQUIRED', `lease acquisition failed: ${error instanceof Error ? error.message : String(error)}`, 'lock');
@@ -54,7 +60,11 @@ export async function acquireDataTaskLease(
         const expiresAt = new Date(Date.now() + options.ttlMs);
         renewing = collection.updateOne({ _id: LOCK_KEY, owner }, { $set: { expiresAt, updatedAt: new Date() } })
             .then((result) => {
-                if (resultCount(result, 'matchedCount') !== 1) lost = new DataTaskJobError('LOCK_LOST', 'target database lease ownership was lost.', 'lock');
+                if (resultCount(result, 'matchedCount') !== 1 || Date.now() >= expiresAt.getTime()) {
+                    lost = new DataTaskJobError('LOCK_LOST', 'target database lease ownership was lost or expired.', 'lock');
+                } else {
+                    leaseExpiresAt = expiresAt.getTime();
+                }
             })
             .catch((error) => { lost = new DataTaskJobError('LOCK_LOST', `lease renewal failed: ${error instanceof Error ? error.message : String(error)}`, 'lock'); })
             .finally(() => { renewing = null; });
@@ -63,6 +73,9 @@ export async function acquireDataTaskLease(
 
     return {
         assertHeld() {
+            if (!lost && Date.now() >= leaseExpiresAt) {
+                lost = new DataTaskJobError('LOCK_LOST', 'target database lease expired before renewal completed.', 'lock');
+            }
             if (lost) throw lost;
             if (released) throw new DataTaskJobError('LOCK_LOST', 'target database lease was already released.', 'lock');
         },

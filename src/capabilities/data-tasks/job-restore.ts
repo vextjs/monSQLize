@@ -18,6 +18,7 @@ import {
     type PendingDataTaskIndex,
     type PendingDataTaskOperation,
 } from './job-backup';
+import { exactDataTaskDocumentFilter } from './document-utils';
 import { classifyDataTaskIndexes } from './job-planner';
 import { DataTaskJobError, canonicalStringify, hashDataTaskValue } from './job-normalizer';
 import type { DataTaskLease } from './job-lock';
@@ -250,16 +251,6 @@ function resultCount(result: unknown, key: string): number {
     return isRecord(result) && typeof result[key] === 'number' ? result[key] as number : 0;
 }
 
-function exactCurrentFilter(document: GenericRecord): GenericRecord {
-    const fields = Object.entries(document).map(([field, value]) => ({ [field]: value }));
-    return {
-        $and: [
-            ...fields,
-            { $expr: { $eq: [{ $size: { $objectToArray: '$$ROOT' } }, fields.length] } },
-        ],
-    };
-}
-
 function safetyEntries(plan: DataTaskRestorePlan): DataTaskBackupEntry[] {
     return plan.actions.map((action) => ({
         collection: action.entry.collection,
@@ -278,7 +269,7 @@ function safetyEntries(plan: DataTaskRestorePlan): DataTaskBackupEntry[] {
 async function restoreDocument(target: DataTaskCollectionLike, action: RestoreDocumentAction): Promise<AppliedDataTaskOperation> {
     if (action.action === 'delete') {
         if (!target.deleteOne) throw new DataTaskJobError('RESTORE_FAILED', 'target does not support deleteOne.', 'restore');
-        const result = await target.deleteOne(exactCurrentFilter(action.current!));
+        const result = await target.deleteOne(exactDataTaskDocumentFilter(action.current!));
         if (resultCount(result, 'deletedCount') !== 1) throw new DataTaskJobError('RESTORE_FAILED', 'restore delete did not affect one document.', 'restore');
         return { ...action.applied, operation: 'delete', afterHash: hashDataTaskValue(null) };
     }
@@ -290,7 +281,7 @@ async function restoreDocument(target: DataTaskCollectionLike, action: RestoreDo
         }
         return { ...action.applied, operation: 'update', targetId: before._id, afterHash: hashDataTaskValue(before) };
     }
-    const result = await target.replaceOne(exactCurrentFilter(action.current!), before);
+    const result = await target.replaceOne(exactDataTaskDocumentFilter(action.current!), before);
     if (resultCount(result, 'matchedCount') !== 1) {
         throw new DataTaskJobError('RESTORE_FAILED', 'restore replace did not affect one document.', 'restore');
     }

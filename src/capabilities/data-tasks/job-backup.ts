@@ -306,7 +306,18 @@ export async function readDataTaskBackup(ref: DataTaskBackupRef): Promise<Loaded
     try {
         const manifest = BSON.EJSON.parse(await readFile(ref.manifestPath, 'utf8'), { relaxed: true }) as DataTaskBackupManifest;
         if (manifest.kind !== 'monsqlize-data-task-backup' || manifest.version !== 1 || manifest.runId !== ref.runId) throw new Error('invalid backup manifest');
-        const dataPath = path.resolve(path.dirname(ref.manifestPath), manifest.dataFile);
+        if (manifest.compression !== 'gzip' && manifest.compression !== 'none') throw new Error('invalid backup compression');
+        if (!Number.isSafeInteger(manifest.entryCount) || manifest.entryCount < 0) throw new Error('invalid backup entry count');
+        if (typeof manifest.checksum !== 'string' || !/^[a-f0-9]{64}$/i.test(manifest.checksum)) throw new Error('invalid backup checksum');
+        if (typeof manifest.dataFile !== 'string'
+            || manifest.dataFile.length === 0
+            || path.isAbsolute(manifest.dataFile)
+            || path.basename(manifest.dataFile) !== manifest.dataFile) {
+            throw new Error('backup data file must stay beside its manifest');
+        }
+        const manifestDirectory = path.resolve(path.dirname(ref.manifestPath));
+        const dataPath = path.resolve(manifestDirectory, manifest.dataFile);
+        if (path.dirname(dataPath) !== manifestDirectory) throw new Error('backup data file escaped its manifest directory');
         const contents = await readFile(dataPath);
         const digest = checksum(contents);
         if (digest !== manifest.checksum || digest !== ref.checksum) throw new Error('backup checksum mismatch');

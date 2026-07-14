@@ -16,6 +16,36 @@ describe('dataTasks job facade integration', () => {
     before(async () => { uri = (await bootstrap.setup()).uri; });
     after(async () => { await bootstrap.teardown(); });
 
+    it('plans more than the public find default without exceeding maxDocuments', async () => {
+        const source = new MonSQLize({ type: 'mongodb', databaseName: 'job_bounded_source', config: { uri } });
+        const target = new MonSQLize({ type: 'mongodb', databaseName: 'job_bounded_target', config: { uri } });
+        try {
+            await Promise.all([source.connect(), target.connect()]);
+            await source.collection('items').insertMany(Array.from({ length: 501 }, (_, index) => ({
+                code: `item-${index + 1}`,
+                value: index + 1,
+            })));
+
+            const preview = await MonSQLize.dataTasks.preview({
+                name: 'bounded-source-read',
+                source,
+                target,
+                targetEnvironment: 'test',
+                collections: [{
+                    name: 'items',
+                    indexes: [{ key: { code: 1 }, options: { unique: true } }],
+                    data: { all: true, identity: { mode: 'fields', fields: ['code'] }, maxDocuments: 501 },
+                }],
+            });
+
+            assert.equal(preview.passed, true, preview.errors.join('\n'));
+            assert.equal(preview.collections[0].data.source, 501);
+            assert.equal(preview.collections[0].data.insert, 501);
+        } finally {
+            await Promise.allSettled([source.close(), target.close()]);
+        }
+    });
+
     it('previews without database writes, then backs up, indexes, applies, and verifies', async () => {
         const backupDir = await fs.mkdtemp(path.join(os.tmpdir(), 'monsqlize-job-facade-'));
         const source = new MonSQLize({ type: 'mongodb', databaseName: 'job_source', config: { uri } });
@@ -287,7 +317,7 @@ describe('dataTasks job facade integration', () => {
         try {
             await Promise.all([source.connect(), target.connect()]);
             await source.collection('updates').insertOne({ code: 'A', value: 'planned' });
-            await target.collection('updates').insertOne({ code: 'A', value: 'before' });
+            await target.collection('updates').insertOne({ code: 'A', value: 'before', nullable: null });
             await target.collection('updates').createIndex({ code: 1 }, { name: 'updates_code_unique', unique: true });
             let updateInjected = false;
             const updateTarget = {
@@ -301,7 +331,10 @@ describe('dataTasks job facade integration', () => {
                                 return async (...args: unknown[]) => {
                                     if (!updateInjected) {
                                         updateInjected = true;
-                                        await object.updateOne({ code: 'A' }, { $set: { value: 'concurrent', concurrentMarker: true } });
+                                        await object.updateOne(
+                                            { code: 'A' },
+                                            { $unset: { nullable: 1 }, $set: { concurrentMarker: true } },
+                                        );
                                     }
                                     return object.updateOne(...args);
                                 };
@@ -326,7 +359,8 @@ describe('dataTasks job facade integration', () => {
             assert.equal(updateResult.passed, false);
             assert.match(updateResult.errors.join('\n'), /target document drifted before update/);
             const concurrentUpdate = await target.collection('updates').findOne({ code: 'A' });
-            assert.equal(concurrentUpdate.value, 'concurrent');
+            assert.equal(concurrentUpdate.value, 'before');
+            assert.equal('nullable' in concurrentUpdate, false);
             assert.equal(concurrentUpdate.concurrentMarker, true);
 
             await source.collection('inserts').insertOne({ code: 'B', value: 'planned' });
@@ -382,8 +416,8 @@ describe('dataTasks job facade integration', () => {
         const target = new MonSQLize({ type: 'mongodb', databaseName: 'job_restore_cas_target', config: { uri } });
         try {
             await Promise.all([source.connect(), target.connect()]);
-            await source.collection('items').insertOne({ code: 'A', value: 'planned' });
-            await target.collection('items').insertOne({ code: 'A', value: 'before' });
+            await source.collection('items').insertOne({ code: 'A', value: 'planned', nullable: null });
+            await target.collection('items').insertOne({ code: 'A', value: 'before', nullable: 'before' });
             await target.collection('items').createIndex({ code: 1 }, { name: 'items_code_unique', unique: true });
             const job = {
                 name: 'restore-cas', source, target, targetEnvironment: 'production',
@@ -410,7 +444,10 @@ describe('dataTasks job facade integration', () => {
                                 return async (...args: unknown[]) => {
                                     if (!restoreInjected) {
                                         restoreInjected = true;
-                                        await object.updateOne({ code: 'A' }, { $set: { value: 'concurrent', concurrentMarker: true } });
+                                        await object.updateOne(
+                                            { code: 'A' },
+                                            { $unset: { nullable: 1 }, $set: { concurrentMarker: true } },
+                                        );
                                     }
                                     return object.replaceOne(...args);
                                 };
@@ -428,7 +465,8 @@ describe('dataTasks job facade integration', () => {
             assert.equal(restored.passed, false);
             assert.match(restored.errors.join('\n'), /restore replace did not affect one document/);
             const concurrent = await target.collection('items').findOne({ code: 'A' });
-            assert.equal(concurrent.value, 'concurrent');
+            assert.equal(concurrent.value, 'planned');
+            assert.equal('nullable' in concurrent, false);
             assert.equal(concurrent.concurrentMarker, true);
         } finally {
             await Promise.allSettled([source.close(), target.close()]);

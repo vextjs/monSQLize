@@ -132,6 +132,8 @@ Preview calls `listIndexes()` first for every target collection and classifies e
 | `data.batchSize` | No | `500` | Write-ahead checkpoint batch size, from `1..10000` |
 | `data.maxDocuments` | No | `10000` | Maximum source documents that the collection may plan |
 
+Data task source reads use a bounded internal stream and do not inherit the ordinary `findLimit` default. Planning reads at most `maxDocuments + 1` source documents so concurrent growth fails closed instead of silently truncating or loading an unbounded result.
+
 Field edits run in this order: `filter -> projection -> rename -> set -> unset -> diff`. They are deliberately limited to deterministic edits of a few release fields:
 
 - Paths cannot touch `_id`, identity fields, or overlap one another.
