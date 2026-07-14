@@ -20,6 +20,7 @@ test('release paths consume the complete single-source preflight gate', () => {
     const releaseWorkflow = read('.github/workflows/release-preflight.yml');
     const releaseAuthWorkflow = read('.github/workflows/release-auth-check.yml');
     const publishWorkflow = read('.github/workflows/publish.yml');
+    const deployDocsWorkflow = read('.github/workflows/deploy-docs.yml');
     const candidateCheck = read('scripts/check-release-candidate.cjs');
     const packInstallSmoke = read('scripts/pack-install-smoke.cjs');
     const buildScript = read('scripts/build-p1.cjs');
@@ -79,6 +80,10 @@ test('release paths consume the complete single-source preflight gate', () => {
     assert.match(publishWorkflow, /GITHUB_STEP_SUMMARY/);
     assert.match(publishWorkflow, /releases\/new\?tag=/);
     assert.match(publishWorkflow, /Deploy Docs to GitHub Pages/);
+    for (const workflow of [ci, releaseWorkflow, releaseAuthWorkflow, publishWorkflow, deployDocsWorkflow]) {
+        assert.doesNotMatch(workflow, /actions\/setup-node@v4/);
+        assert.match(workflow, /actions\/setup-node@v6/);
+    }
 });
 
 test('stable docs deployment requires an npm-verified release tag', () => {
