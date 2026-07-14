@@ -26,6 +26,8 @@
 
 memory-server 相关入口统一使用 `.cache/mongodb-memory-server/binaries` 作为二进制缓存，`.cache/mongodb-memory-server/db` 作为项目内临时数据目录；项目自动创建的 dbPath 会在脚本退出或 runtime close 时清理，避免默认系统临时目录堆积。
 
+发布矩阵固定验证 MongoDB `7.0.37` / `8.0.26`。任一必需服务端、拓扑、Driver 或测试组合 unavailable/failed 时，`probe:server-matrix` / `test:server-matrix` 都会非零退出。
+
 ## 运行策略
 
 ### 1. 日常开发 / 小范围重构

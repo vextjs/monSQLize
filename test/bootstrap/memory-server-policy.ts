@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
-export const DEFAULT_MEMORY_SERVER_VERSION = '7.0.14';
+export const DEFAULT_MEMORY_SERVER_VERSION = '7.0.37';
 export const DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS = 30_000;
 const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'examples-replset-', 'probe-single-', 'probe-replset-'];
 

@@ -20,9 +20,9 @@ test/compatibility/
 - Node `20.x` 当前环境（`v20.20.2`）已完成 `npm run verify` 与 `npm run test:compatibility`
 - Node `22.x` 已通过 `volta run --node 22` 实跑
 - `mongodb@6.21.0` 作为当前依赖基线存在且与矩阵声明一致
-- MongoDB Driver `7.x` 已通过临时安装 `mongodb@7.2.0` 完成扩展验证，验证后已恢复 `6.21.0` 基线
-- MongoDB Server `6.0.14` / `7.0.14` 已通过 `mongodb-memory-server` 的单机 + replica set 双路径实跑
-- `npm run test:server-matrix` 已完成 **Node 20 / 22 × Driver 6 / 7 × MongoDB 6 / 7** 内存矩阵回归
+- MongoDB Driver `7.x` 已通过临时安装 `mongodb@7.5.0` 完成扩展验证，验证后已恢复 `6.21.0` 基线
+- MongoDB Server `7.0.37` / `8.0.26` 已通过单机 + replica set 严格验证
+- `npm run test:server-matrix` 已完成 **Node 20 / 22 × Driver 6 / 7 × MongoDB 7 / 8** 的 8 个必需组合，全部 verified
 - CommonJS / ESM 根入口均暴露 `P4-A ~ P4-C` 已恢复的高级能力导出面
 - `npm run test:compatibility` 可在当前工作区直接执行
 
@@ -31,8 +31,9 @@ test/compatibility/
 - 如需补充外部真实服务烟囱回归，可在当前内存矩阵基础上追加，不影响默认验证链
 
 ### 当前主机探测结论
-- `npm run probe:server-matrix` 会直接探测 `mongodb-memory-server` 是否能拉起 `MongoDB 6.0.14 / 7.0.14`
-- 本机当前已确认 `6.0.14` 与 `7.0.14` 的单机 / replica set 都可启动
+- `npm run probe:server-matrix` 会直接探测 `mongodb-memory-server` 是否能拉起 `MongoDB 7.0.37 / 8.0.26`
+- 任一必需版本不可用或启动失败都会非零退出，不存在 partial-ready 降级
+- 本机已确认 `7.0.37` 与 `8.0.26` 的单机 / replica set 均可启动，full matrix verdict 为 ready
 - 因此默认矩阵已不再依赖外部 `docker` / `mongod` / `mongosh` 或外部 URI
 - 矩阵与示例入口统一复用 `.cache/mongodb-memory-server/binaries`，并把临时 dbPath 收敛到 `.cache/mongodb-memory-server/db`
 

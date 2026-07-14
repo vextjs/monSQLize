@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-06-09",
-  "packageVersion": "2.0.2",
+  "generatedAt": "2026-07-13",
+  "packageVersion": "3.0.0",
   "support": {
     "node": {
       "declared": ">=18.0.0",
@@ -34,7 +34,7 @@
       "declaredDependency": "6.21.0",
       "additionalVerifiedDrivers": [
         {
-          "sampleVersion": "7.2.0",
+          "sampleVersion": "7.5.0",
           "status": "verified",
           "runner": "npm install mongodb@7 --no-save --package-lock=false",
           "runtime": "Node 20.x / 22.x",
@@ -47,11 +47,12 @@
       ],
       "verified": [
         "6.x baseline from the current dependency tree (Node 20.x / 22.x)",
-        "Driver 7.x (temporary 7.2.0 install + memory-matrix regression)"
+        "Driver 7.x (temporary 7.5.0 install + memory-matrix regression)"
       ],
       "statusVocabulary": [
         "verified",
-        "environment-unavailable",
+        "unavailable",
+        "failed",
         "contract-regression"
       ],
       "pending": [
@@ -62,15 +63,15 @@
       "currentHarness": "mongodb-memory-server（single + replica set）",
       "probe": {
         "command": "npm run probe:server-matrix",
-        "lastCheckedAt": "2026-05-17",
+        "lastCheckedAt": "2026-07-13T07:05:45.841Z",
         "binaryVersions": [
           {
-            "version": "6.0.14",
+            "version": "7.0.37",
             "single": true,
             "replicaSet": true
           },
           {
-            "version": "7.0.14",
+            "version": "8.0.26",
             "single": true,
             "replicaSet": true
           }
@@ -81,13 +82,13 @@
         "command": "npm run test:server-matrix",
         "matrix": [
           "Node 20.x / 22.x",
-          "Driver 6.21.0 / 7.2.0",
-          "MongoDB 6.0.14 / 7.0.14"
+          "Driver 6.21.0 / 7.5.0",
+          "MongoDB 7.0.37 / 8.0.26"
         ]
       },
       "verified": [
-        "MongoDB 6.0.14（single + replica set）",
-        "MongoDB 7.0.14（single + replica set）"
+        "MongoDB 7.0.37（single + replica set）",
+        "MongoDB 8.0.26（single + replica set）"
       ],
       "pending": []
     },

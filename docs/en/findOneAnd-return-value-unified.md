@@ -11,7 +11,7 @@ This document details how monSQLize uniformly handles the return value differenc
 
 ## MongoDB Driver version differences
 
-There are significant differences in the return value format of the `findOneAnd*` method across different versions of the MongoDB Node.js Driver. Currently, monSQLize is installed with `mongodb@6.21.0` by default; Driver 7.2.0 is the extended matrix verification version.
+There are significant differences in the return value format of the `findOneAnd*` method across different versions of the MongoDB Node.js Driver. Currently, monSQLize is installed with `mongodb@6.21.0` by default; Driver 7.5.0 is the extended matrix verification version.
 
 
 ### Driver 4.x return format
@@ -104,7 +104,7 @@ if (driverVersion === 4) {
 
 ## Current dependency baseline
 
-monSQLize declares `mongodb@6.21.0` as its current runtime dependency baseline and verifies the Driver 7.2.0 extension matrix. In normal monSQLize usage, `findOneAnd*` directly returns the document or `null`, **users do not need to install an additional driver or choose a driver version**.
+monSQLize declares `mongodb@6.21.0` as its current runtime dependency baseline and verifies the Driver 7.5.0 extension matrix. In normal monSQLize usage, `findOneAnd*` directly returns the document or `null`, **users do not need to install an additional driver or choose a driver version**.
 
 ```javascript
 // Use the current monSQLize package dependency baseline
@@ -150,7 +150,7 @@ async findOneAndUpdate(filter, update, options = {}) {
 ## Validation boundaries
 
 - `mongodb@6.21.0` is the default runtime baseline.
-- Driver 7.2.0 passed the compatibility matrix as an extended validation.
+- Driver 7.5.0 passed the compatibility matrix as an extended validation.
 - `{ value, ok, lastErrorObject }` of Driver 4.x / 5.x is a historical migration background, and it is not recommended to overwrite the current package dependency baseline in new projects.
 
 ---
@@ -265,7 +265,7 @@ monSQLize verifies the default driver baseline and extended drivers against the 
 | Driver version | Test status | findOneAndUpdate | findOneAndReplace | findOneAndDelete |
 |------------|---------|-----------------|------------------|-----------------|
 | 6.21.0 | Default baseline | document/null | document/null | document/null |
-| 7.2.0 | Extended validation | document/null | document/null | document/null |
+| 7.5.0 | Extended validation | document/null | document/null | document/null |
 | 4.x / 5.x | ℹ️ Historical background | ⚠️ Native metadata form | ⚠️ Native metadata form | ⚠️ Native metadata form |
 
 
@@ -333,7 +333,7 @@ console.log(user.name);
    - Code is more concise and clear
 
 2. **There is a verification entrance for version upgrade**
-   - Compatibility matrix covers `mongodb@6.21.0` with Driver 7.2.0
+   - Compatibility matrix covers `mongodb@6.21.0` with Driver 7.5.0
    - User code does not need driver-version branching in normal monSQLize usage
    - Run matrix verification before upgrading to new major version
 

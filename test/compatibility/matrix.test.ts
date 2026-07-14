@@ -7,8 +7,15 @@ const packageJson = require('../../package.json');
 const matrix = require('./matrix.json');
 
 test('compatibility(matrix): package declaration matches manifest', () => {
+    assert.equal(packageJson.version, matrix.packageVersion);
     assert.equal(packageJson.engines.node, matrix.support.node.declared);
     assert.equal(packageJson.dependencies.mongodb, matrix.support.mongodbDriver.declaredDependency);
+    const additionalDriver = matrix.support.mongodbDriver.additionalVerifiedDrivers[0].sampleVersion;
+    assert.ok(
+        matrix.support.mongodbServer.execution.matrix.includes(
+            `Driver ${packageJson.dependencies.mongodb} / ${additionalDriver}`,
+        ),
+    );
     assert.equal(packageJson.exports['.'].types.import, './dist/types/index.d.mts');
     assert.equal(packageJson.exports['.'].types.require, './dist/types/index.d.ts');
     assert.ok(Array.isArray(matrix.support.moduleSystems));

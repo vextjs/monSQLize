@@ -75,7 +75,7 @@
     "mongodbMemoryServer": {
       "downloadDir": ".cache/mongodb-memory-server/binaries",
       "preferGlobalPath": "false",
-      "version": "7.0.14"
+      "version": "7.0.37"
     }
   },
   "engines": {

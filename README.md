@@ -484,7 +484,7 @@ The v2 line has been validated against the workspace consumers `chat`, `payment`
 | Surface | Current Support |
 |---|---|
 | Node.js | `>=18.0.0`; CI covers Node 18 / 20 / 22. |
-| MongoDB driver | `mongodb@6.21.0` runtime baseline; driver 7.2.0 has additional compatibility coverage. |
+| MongoDB driver | `mongodb@6.21.0` runtime baseline; driver 7.5.0 has additional compatibility coverage. |
 | MongoDB server | Memory-server based 6.x / 7.x validation is covered by the project test matrix. |
 | Module systems | CommonJS and ESM are both validated. |
 | TypeScript | Public declarations are published from `dist/types/index.d.ts`. |
@@ -555,7 +555,7 @@ npm run test:real-env:private
 
 `check:docs-examples` verifies the bilingual documentation matrix, runnable-example runner parity, shared-example targets, doc-check targets, and user-facing path text.
 
-`test:examples`, `test:server-matrix`, and `config.useMemoryServer` use a fixed `mongodb-memory-server` policy: MongoDB `7.0.14` by default, binaries cached under `.cache/mongodb-memory-server/binaries`, and temporary data paths created under `.cache/mongodb-memory-server/db` with forced cleanup for project-managed paths. Stale managed data paths whose owner PID is no longer alive are pruned before new memory-server launches. Override with `MONSQLIZE_MEMORY_MONGO_BINARY_VERSION`, `MONSQLIZE_REPLSET_BINARY_VERSION`, `MONGOMS_DOWNLOAD_DIR`, or `MONSQLIZE_MEMORY_SERVER_DB_DIR` when needed.
+`test:examples`, `test:server-matrix`, and `config.useMemoryServer` use a fixed `mongodb-memory-server` policy: MongoDB `7.0.37` by default, binaries cached under `.cache/mongodb-memory-server/binaries`, and temporary data paths created under `.cache/mongodb-memory-server/db` with forced cleanup for project-managed paths. The release matrix strictly requires MongoDB `7.0.37` and `8.0.26`; a missing binary, failed probe, or failed combination exits nonzero. Stale managed data paths whose owner PID is no longer alive are pruned before new memory-server launches. Override with `MONSQLIZE_MEMORY_MONGO_BINARY_VERSION`, `MONSQLIZE_REPLSET_BINARY_VERSION`, `MONGOMS_DOWNLOAD_DIR`, or `MONSQLIZE_MEMORY_SERVER_DB_DIR` when needed.
 
 `test:coverage` remains an independently runnable 90% governance command for the published CJS runtime plus source-level gap coverage resolved through sourcemaps, and the single-source release preflight requires it. Public CI runs that same preflight in its release-gate job. `test:audit` checks production dependencies against the npm registry. Only `test:real-env:private` remains opt-in because it expects private environment variables.
 

@@ -16,7 +16,7 @@
 |------|----------|------|
 | Node.js | 20.x / 22.x | `test/compatibility/matrix.json` + `npm run test:server-matrix` |
 | MongoDB Driver | 6.x / 7.x | `npm run test:server-matrix` |
-| MongoDB Server | 6.x / 7.x | `mongodb-memory-server` single + replica set matrix with project-local binary cache and dbPath cleanup |
+| MongoDB Server | 7.x / 8.x | strict `mongodb-memory-server` 7.0.37 / 8.0.26 single + replica set matrix |
 
 ## Default verification method
 
@@ -34,6 +34,7 @@
 - `npm test` now covers smoke / compatibility / unit / integration by default; migrated TypeScript tests are first compiled to `.generated/test-dist/test/**` and then executed, and independent migration runners are no longer retained.
 - `test:real-env:private` and `verify:release` belong to **explicit opt-in** private real environment verification, which requires the operator to inject SSH/Mongo environment variables by themselves.
 - GitHub Actions only runs public access by default and does not assume any private SSH/Mongo resources exist.
+- `probe:server-matrix` and `test:server-matrix` do not downgrade required versions, topologies, drivers, or test combinations to a skip; unavailable and failed states exit nonzero and block release.
 
 ## Not included in official support yet
 
@@ -41,5 +42,6 @@
 |------|----------|
 | Node 18.x server matrix | Has entered the public CI baseline, but is not included in the current Driver / Server official matrix |
 | MongoDB Driver 4.x / 5.x | Only historical compatibility reference is retained and is not included in the current official matrix |
+| MongoDB Server 6.x | EOL; retained only in historical evidence and feature minimum-version notes, not in the v3 release matrix |
 | legacy `lib/**` compat sub-path | Only explicit regressions during the migration period are retained, and are not included in the default access control and formal support matrix |
 | Non-MongoDB databases | Roadmap stage, not currently supported |

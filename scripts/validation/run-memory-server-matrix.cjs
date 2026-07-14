@@ -2,6 +2,10 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { configureMemoryServerEnv } = require('./memory-server-policy.cjs');
+const {
+    REQUIRED_MONGODB_SERVER_VERSIONS,
+    summarizeMatrixExecution,
+} = require('./server-matrix-config.cjs');
 
 const projectRoot = path.resolve(__dirname, '..', '..');
 const packageJson = require(path.join(projectRoot, 'package.json'));
@@ -16,10 +20,7 @@ const memoryServerEnv = {
     MONSQLIZE_MEMORY_SERVER_CACHE_DIR: memoryServerPolicy.cacheRoot,
     MONSQLIZE_MEMORY_SERVER_DB_DIR: memoryServerPolicy.dbRoot,
 };
-const mongoVersions = [
-    { label: 'MongoDB 6.x', version: '6.0.14' },
-    { label: 'MongoDB 7.x', version: '7.0.14' },
-];
+const mongoVersions = REQUIRED_MONGODB_SERVER_VERSIONS;
 const integrationSourceSuites = [
     'test/integration/mongodb/connect.test.js',
     'test/integration/mongodb/queries.test.js',
@@ -29,6 +30,7 @@ const integrationSourceSuites = [
     'test/integration/pool/pool.test.js',
     'test/integration/slow-query-log/slow-query-log.test.js',
     'test/integration/transaction/transaction.test.js',
+    'test/integration/data-tasks/data-task-job-facade.test.js',
     'test/integration/sync/sync.test.js',
 ];
 const integrationSuites = integrationSourceSuites.map((suite) => path.join(testDistRoot, suite));
@@ -137,7 +139,7 @@ const driverScenarios = [
             if (installResult.status !== 0) {
                 return {
                     skipped: true,
-                    reason: 'temporary mongodb@7 install failed; marked environment-unavailable and must be rechecked before release',
+                    reason: 'temporary mongodb@7 install failed',
                 };
             }
             return { skipped: false, version: readInstalledDriverVersion() };
@@ -160,7 +162,7 @@ for (const driverScenario of driverScenarios) {
     if (driverSetup.skipped) {
         summary.push({
             driver: driverScenario.label,
-            status: 'environment-unavailable',
+            status: 'unavailable',
             reason: driverSetup.reason,
             results: [],
         });
@@ -170,7 +172,7 @@ for (const driverScenario of driverScenarios) {
     const driverVersion = driverSetup.version;
     const driverSummary = {
         driver: `${driverScenario.label} -> ${driverVersion}`,
-        status: 'verified',
+        status: 'pending',
         results: [],
     };
 
@@ -200,8 +202,8 @@ for (const driverScenario of driverScenarios) {
                 driverSummary.results.push({
                     node: nodeScenario.label,
                     mongo: mongoVersion.label,
-                    status: 'environment-unavailable',
-                    reason: probe.unsupported ? 'memory-server does not support this version/platform combination; recheck before release' : 'memory-server probe failed; recheck before release',
+                    status: 'unavailable',
+                    reason: probe.unsupported ? 'memory-server does not support this required version/platform combination' : 'required memory-server probe failed',
                     error: probe.error,
                 });
                 continue;
@@ -229,6 +231,11 @@ for (const driverScenario of driverScenarios) {
         }
     }
 
+    const expectedResults = nodeScenarios.length * mongoVersions.length;
+    driverSummary.status = driverSummary.results.length === expectedResults
+        && driverSummary.results.every((result) => result.status === 'verified')
+        ? 'verified'
+        : 'failed';
     driverScenario.cleanup();
     summary.push(driverSummary);
 }
@@ -240,10 +247,22 @@ if (readInstalledDriverVersion() !== currentDriverVersion) {
     }
 }
 
-console.log('\n[memory-server-matrix] summary:');
-console.log(JSON.stringify({
+const verdict = summarizeMatrixExecution(
+    summary,
+    driverScenarios.length,
+    nodeScenarios.length * mongoVersions.length,
+);
+const finalSummary = {
     checkedAt: new Date().toISOString(),
     node: process.version,
     baseDriver: currentDriverVersion,
     summary,
-}, null, 2));
+    verdict,
+};
+
+console.log('\n[memory-server-matrix] summary:');
+console.log(JSON.stringify(finalSummary, null, 2));
+
+if (!verdict.ready) {
+    process.exitCode = 1;
+}

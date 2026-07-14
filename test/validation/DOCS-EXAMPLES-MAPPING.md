@@ -20,7 +20,7 @@
 | 旧缓存 / function-cache 相关主题 | `docs/cache-and-function-cache.md` + `examples/cache/with-cache.ts` + `examples/docs/cache-multilevel.ts` | ✅ 已承接 | 同时覆盖最小缓存路径与多级缓存组合场景 |
 | 旧高级能力综述 / 目录页 | `docs/capability-index.md` + `docs/examples.md` | ✅ 已承接 | 当前既有能力索引，也有文档到示例的 Gallery 映射 |
 | `test/compatibility/README.md` | `test/compatibility/README.md` | ✅ 已承接 | 当前改为“声明式矩阵 + 内存服务端矩阵”模式 |
-| `test/compatibility/node-versions.test.js` / `driver-versions.test.js` / `server-versions.test.js` | `test/compatibility/matrix.json` + `test/compatibility/matrix.test.js` + `npm run test:server-matrix` | ✅ 已承接 | 当前默认矩阵已覆盖 Node 20/22、Driver 6/7、MongoDB 6/7 |
+| `test/compatibility/node-versions.test.js` / `driver-versions.test.js` / `server-versions.test.js` | `test/compatibility/matrix.json` + `test/compatibility/matrix.test.js` + `npm run test:server-matrix` | ✅ 已承接 | 必需矩阵覆盖 Node 20/22、Driver 6/7、MongoDB 7/8；缺失组合严格失败 |
 | `test/performance/function-cache-performance.test.js` | `test/performance/baselines/function-cache.benchmark.js` | ✅ 已承接 | 当前聚焦 `withCache()` 热路径与并发去重回归守卫；v1 的 `test:performance` 另指向 `transaction-benchmark.js`，两者职责不同，不做原始数值横比 |
 | `validation/VERIFICATION-PROGRESS.md` | `test/validation/VERIFICATION-PROGRESS.md` | ✅ 已承接 | 当前明确区分“已验证”与“待补项” |
 | `examples/basic-*` / 最小连接示例 | `examples/quick-start/basic-connect.ts` | ✅ 已承接 | 当前正式示例统一采用 TypeScript，并纳入编译后执行验证 |

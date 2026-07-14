@@ -41,8 +41,8 @@ function buildSummary() {
         env,
         ready,
         nextAction: ready
-            ? 'Run npm run test:server-matrix'
-            : 'This host is missing external Mongo service requirements or required URIs; prepare real MongoDB 6.x / 7.x services before running npm run test:server-matrix',
+            ? 'Run npm run test:real-env:private'
+            : 'This host is missing external Mongo service requirements or required URIs; provision the private environment before running npm run test:real-env:private',
     };
 }
 

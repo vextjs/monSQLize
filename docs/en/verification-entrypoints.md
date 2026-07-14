@@ -26,6 +26,8 @@
 
 The memory-server related entries uniformly use `.cache/mongodb-memory-server/binaries` as the binary cache and `.cache/mongodb-memory-server/db` as the temporary data directory within the project; the dbPath automatically created by the project will be cleared when the script exits or runtime close to avoid the accumulation of default system temporary directories.
 
+The release matrix pins MongoDB `7.0.37` and `8.0.26`. `probe:server-matrix` and `test:server-matrix` exit nonzero when any required server, topology, driver, or test combination is unavailable or failed.
+
 ## Run strategy
 
 

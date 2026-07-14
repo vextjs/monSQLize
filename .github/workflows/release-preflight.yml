@@ -23,5 +23,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Restore MongoDB memory-server binaries
+        uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-memory-server/binaries
+          key: mongodb-memory-server-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/validation/server-matrix-config.cjs') }}
+
       - name: Run release preflight
         run: npm run release:preflight

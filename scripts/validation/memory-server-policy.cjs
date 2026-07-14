@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DEFAULT_MEMORY_SERVER_VERSION = '7.0.14';
+const DEFAULT_MEMORY_SERVER_VERSION = '7.0.37';
 const DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS = 30_000;
 const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'examples-replset-', 'probe-single-', 'probe-replset-'];
 

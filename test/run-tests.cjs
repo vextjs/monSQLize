@@ -55,6 +55,7 @@ const UNIT = [
     'test/unit/pool/pool.test.js',
     'test/unit/runtime/runtime-compat.test.js',
     'test/unit/runtime/write-path-policy.test.js',
+    'test/unit/validation/server-matrix-contract.test.js',
     'test/unit/data-tasks/data-task-job-facade.test.js',
     'test/unit/data-tasks/data-task-job-branches.test.js',
     'test/unit/sync/sync.test.js',
@@ -235,6 +236,7 @@ const SUITE_MAP = {
     'pool': ['test/unit/pool/pool.test.js'],
     'runtime-compat': ['test/unit/runtime/runtime-compat.test.js'],
     'write-path-policy': ['test/unit/runtime/write-path-policy.test.js'],
+    'server-matrix-contract': ['test/unit/validation/server-matrix-contract.test.js'],
     'data-tasks': [
         'test/unit/data-tasks/data-task-job-facade.test.js',
         'test/unit/data-tasks/data-task-job-branches.test.js',

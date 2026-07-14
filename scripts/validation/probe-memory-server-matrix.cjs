@@ -1,6 +1,10 @@
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const { configureMemoryServerEnv } = require('./memory-server-policy.cjs');
+const {
+    REQUIRED_MONGODB_SERVER_VERSIONS,
+    summarizeVersionProbes,
+} = require('./server-matrix-config.cjs');
 
 const projectRoot = path.resolve(__dirname, '..', '..');
 const memoryServerPolicy = configureMemoryServerEnv();
@@ -11,10 +15,8 @@ const memoryServerEnv = {
     MONSQLIZE_MEMORY_SERVER_CACHE_DIR: memoryServerPolicy.cacheRoot,
     MONSQLIZE_MEMORY_SERVER_DB_DIR: memoryServerPolicy.dbRoot,
 };
-const matrixVersions = [
-    { label: 'MongoDB 6.x', version: '6.0.14' },
-    { label: 'MongoDB 7.x', version: '7.0.14' },
-];
+const versionProbeScript = process.env.MONSQLIZE_MEMORY_SERVER_VERSION_PROBE_SCRIPT
+    || 'scripts/validation/probe-memory-server-version.cjs';
 
 function commandExists(command) {
     const lookupCommand = process.platform === 'win32' ? 'where' : 'which';
@@ -28,7 +30,7 @@ function commandExists(command) {
 }
 
 function probeVersion(version) {
-    const result = spawnSync('node', ['scripts/validation/probe-memory-server-version.cjs', version], {
+    const result = spawnSync('node', [versionProbeScript, version], {
         cwd: projectRoot,
         stdio: 'pipe',
         encoding: 'utf8',
@@ -66,16 +68,21 @@ const summary = {
     tools: {
         volta: commandExists('volta'),
     },
-    matrix: matrixVersions.map((item) => ({
+    matrix: REQUIRED_MONGODB_SERVER_VERSIONS.map((item) => ({
         label: item.label,
         version: item.version,
         ...probeVersion(item.version),
     })),
 };
 
-summary.ready = summary.matrix.some((item) => item.ready);
+summary.verdict = summarizeVersionProbes(summary.matrix);
+summary.ready = summary.verdict.ready;
 summary.nextAction = summary.ready
     ? 'Run npm run test:server-matrix with the in-memory MongoDB version matrix'
-    : 'This host cannot start mongodb-memory-server for the target versions; inspect error to decide whether to skip or provision the environment';
+    : 'At least one required MongoDB version failed; fix the environment before running the release gate';
 
 console.log(JSON.stringify(summary, null, 2));
+
+if (!summary.ready) {
+    process.exitCode = 1;
+}
