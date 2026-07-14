@@ -188,26 +188,48 @@ describe('dataTasks job defensive branches', () => {
         await assert.rejects(() => service.restore(backup, { approval: approval('restore') }), /restore target is required/);
     });
 
-    it('rejects backup manifests whose payload path escapes the manifest directory', async () => {
+    it('rejects malformed backup manifests, escaped payload paths, and checksum drift', async () => {
         const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'monsqlize-job-manifest-'));
         const manifestDirectory = path.join(temporary, 'run');
         const manifestPath = path.join(manifestDirectory, 'manifest.json');
         const checksum = createHash('sha256').update('').digest('hex');
         await fs.mkdir(manifestDirectory);
-        await fs.writeFile(path.join(temporary, 'outside.ejsonl'), '', 'utf8');
-        await fs.writeFile(manifestPath, JSON.stringify({
+        await fs.writeFile(path.join(manifestDirectory, 'backup.ejsonl'), '', 'utf8');
+        const manifest = {
             version: 1,
             kind: 'monsqlize-data-task-backup',
             runId: 'run',
             compression: 'none',
-            dataFile: '../outside.ejsonl',
+            dataFile: 'backup.ejsonl',
             checksum,
             entryCount: 0,
-        }), 'utf8');
+        };
         try {
+            const invalidCases: Array<[Record<string, unknown>, RegExp]> = [
+                [{ kind: 'other' }, /invalid backup manifest/],
+                [{ version: 2 }, /invalid backup manifest/],
+                [{ runId: 'other' }, /invalid backup manifest/],
+                [{ compression: 'zip' }, /invalid backup compression/],
+                [{ entryCount: -1 }, /invalid backup entry count/],
+                [{ checksum: 'invalid' }, /invalid backup checksum/],
+                [{ dataFile: null }, /data file must stay beside its manifest/],
+                [{ dataFile: '' }, /data file must stay beside its manifest/],
+                [{ dataFile: path.resolve(temporary, 'outside.ejsonl') }, /data file must stay beside its manifest/],
+                [{ dataFile: 'nested/backup.ejsonl' }, /data file must stay beside its manifest/],
+                [{ dataFile: '..' }, /data file escaped its manifest directory/],
+            ];
+            for (const [overrides, expected] of invalidCases) {
+                await fs.writeFile(manifestPath, JSON.stringify({ ...manifest, ...overrides }), 'utf8');
+                await assert.rejects(
+                    () => readDataTaskBackup({ runId: 'run', manifestPath, checksum }),
+                    expected,
+                );
+            }
+
+            await fs.writeFile(manifestPath, JSON.stringify(manifest), 'utf8');
             await assert.rejects(
-                () => readDataTaskBackup({ runId: 'run', manifestPath, checksum }),
-                /data file must stay beside its manifest/,
+                () => readDataTaskBackup({ runId: 'run', manifestPath, checksum: '0'.repeat(64) }),
+                /backup checksum mismatch/,
             );
         } finally {
             await fs.rm(temporary, { recursive: true, force: true });
