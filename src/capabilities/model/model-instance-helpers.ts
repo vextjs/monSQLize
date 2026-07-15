@@ -22,7 +22,10 @@ import {
     applyModelReplaceVersion,
     assertModelOptimisticLockMatched,
     assertNumericExpectedVersion,
+    mapModelSchemaValidationErrors,
+    preserveModelReplaceCreatedAt,
     validateModelSchemaPayload,
+    type ModelSchemaValidateFn,
     type ModelSchemaValidationContext,
     type ModelTimestampConfig,
     type ModelVersionConfig,
@@ -297,7 +300,7 @@ export function hydrateModelDocument<TDocument>(
 type ModelValidationRuntime = {
     schemaError: Error | null;
     schemaCache: unknown;
-    schemaValidateFn: ((schema: unknown, document: unknown) => { valid: boolean; errors?: Array<{ field?: string; path?: string; message?: string }>; data?: unknown }) | null;
+    schemaValidateFn: ModelSchemaValidateFn;
 };
 
 export function validateModelDocument(
@@ -318,11 +321,8 @@ export function validateModelDocument(
         const result = runtime.schemaValidateFn(runtime.schemaCache, document ?? {});
         return {
             valid: result.valid,
-            errors: (result.errors ?? []).map((error) => ({
-                field: error.field ?? error.path ?? '',
-                message: error.message ?? '',
-            })),
-            data: result.data ?? document,
+            errors: mapModelSchemaValidationErrors(result.errors),
+            data: result.data === undefined ? document : result.data,
         };
     } catch (error) {
         return {
@@ -349,6 +349,45 @@ export function applyModelDefaults<TDocument>(
     return payload;
 }
 
+/**
+ * Build the complete-document write payload without materializing virtual accessors.
+ * Virtuals remain available on hydrated documents but are not schema input or stored fields.
+ */
+function serializeModelWriteDocument(document: Record<string, unknown>): Record<string, unknown> {
+    const payload = serializeDocument(document);
+    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(document))) {
+        if (descriptor.get || descriptor.set) {
+            delete payload[key];
+        }
+    }
+    return payload;
+}
+
+/**
+ * Replace mutable document data with the normalized payload while preserving accessors and methods.
+ */
+function replaceModelDocumentData(
+    document: Record<string, unknown>,
+    payload: Record<string, unknown>,
+): void {
+    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(document))) {
+        if (!descriptor.enumerable || descriptor.get || descriptor.set || typeof descriptor.value === 'function') {
+            continue;
+        }
+        if (!Object.prototype.hasOwnProperty.call(payload, key) && descriptor.configurable !== false) {
+            delete document[key];
+        }
+    }
+
+    for (const [key, value] of Object.entries(payload)) {
+        const descriptor = Object.getOwnPropertyDescriptor(document, key);
+        if (descriptor?.get || descriptor?.set || descriptor?.writable === false) {
+            continue;
+        }
+        document[key] = value;
+    }
+}
+
 export async function saveModelDocument<TDocument>(
     collection: ModelCollectionLike<TDocument>,
     document: TDocument & Record<string, unknown>,
@@ -360,42 +399,59 @@ export async function saveModelDocument<TDocument>(
     } = {},
 ): Promise<TDocument & Record<string, unknown>> {
     const nowFactory = options.nowFactory ?? (() => new Date());
-    let payload = serializeDocument(document);
+    let payload = serializeModelWriteDocument(document);
     if (payload._id !== undefined) {
+        const documentId = payload._id;
         if (options.versionConfig?.enabled) {
             const expectedVersion = assertNumericExpectedVersion(payload[options.versionConfig.field], 'save');
+            if (options.schemaValidationContext) {
+                payload = preserveModelReplaceCreatedAt(
+                    serializeModelWriteDocument(document),
+                    validateModelSchemaPayload(options.schemaValidationContext, payload),
+                    options.timestampsConfig ?? null,
+                );
+            }
             const replacement = applyModelReplaceVersion(
                 applyModelReplaceTimestamps(payload, options.timestampsConfig ?? null, nowFactory),
                 options.versionConfig,
                 expectedVersion,
             ) as Record<string, unknown>;
-            if (options.schemaValidationContext) {
-                validateModelSchemaPayload(options.schemaValidationContext, replacement);
-            }
             const result = await collection.replaceOne(
-                { _id: payload._id, [options.versionConfig.field]: expectedVersion },
+                { _id: documentId, [options.versionConfig.field]: expectedVersion },
                 replacement,
                 { upsert: false },
             );
             assertModelOptimisticLockMatched(result, options.versionConfig);
-            Object.assign(document, replacement);
+            replaceModelDocumentData(document, replacement);
+            (document as Record<string, unknown>)._id = documentId;
             return document;
         }
         if (options.schemaValidationContext) {
-            validateModelSchemaPayload(options.schemaValidationContext, payload);
+            payload = preserveModelReplaceCreatedAt(
+                serializeModelWriteDocument(document),
+                validateModelSchemaPayload(options.schemaValidationContext, payload),
+                options.timestampsConfig ?? null,
+            );
         }
-        await collection.replaceOne({ _id: payload._id }, payload, { upsert: true });
+        const replacement = applyModelReplaceTimestamps(
+            payload,
+            options.timestampsConfig ?? null,
+            nowFactory,
+        ) as Record<string, unknown>;
+        await collection.replaceOne({ _id: documentId }, replacement, { upsert: true });
+        replaceModelDocumentData(document, replacement);
+        (document as Record<string, unknown>)._id = documentId;
         return document;
+    }
+    if (options.schemaValidationContext) {
+        payload = validateModelSchemaPayload(options.schemaValidationContext, payload);
     }
     payload = applyModelInsertVersion(
         applyModelInsertTimestamps(payload, options.timestampsConfig ?? null, nowFactory),
         options.versionConfig ?? null,
     );
-    if (options.schemaValidationContext) {
-        validateModelSchemaPayload(options.schemaValidationContext, payload);
-    }
     const result = await collection.insertOne(payload);
-    Object.assign(document, payload);
+    replaceModelDocumentData(document, payload);
     (document as Record<string, unknown>)._id = result.insertedId;
     return document;
 }

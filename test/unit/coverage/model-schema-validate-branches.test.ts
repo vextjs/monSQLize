@@ -9,7 +9,7 @@ const { Model } = MonSQLize;
 //   - validateModelDocument: runtime.schemaError branch (line 196)
 //   - validateModelDocument: !schemaCache || !schemaValidateFn branch (line 202)
 //   - validateModelDocument: document ?? {} branch (line 205)
-//   - validateModelDocument: error.field/path/message branches (lines 208-211)
+//   - validateModelDocument: canonical path/message → public field/message mapping
 // Also covers model-instance-config.ts:
 //   - buildModelSchemaState catch block (schemaError set, non-TypeError)
 //   - isModelValidationEnabled
@@ -92,7 +92,7 @@ describe('validateModelDocument — schemaValidateFn result branches', () => {
         assert.ok(typeof result.valid === 'boolean');
     });
 
-    it('invalid document → valid=false with error field/path/message branches', () => {
+    it('invalid document → valid=false with public field/message errors', () => {
         const modelName = 'invalid_doc_' + Date.now();
         try {
             Model.define(modelName, {
@@ -108,7 +108,7 @@ describe('validateModelDocument — schemaValidateFn result branches', () => {
         assert.ok(result !== null);
         assert.ok(typeof result.valid === 'boolean');
         if (result.valid === false && result.errors.length > 0) {
-            // Covers error.field ?? error.path ?? '' and error.message ?? '' branches
+            // Covers the public field/message shape after canonical path mapping.
             const err = result.errors[0];
             assert.ok('field' in err);
             assert.ok('message' in err);

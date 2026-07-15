@@ -16,10 +16,31 @@ function git(args) {
 }
 
 try {
-    const tagDate = git(['for-each-ref', `refs/tags/${tag}`, '--format=%(creatordate:short)']);
-    if (!tagDate) throw new Error(`${tag} is missing`);
+    if (packageJson.version.includes('-')) {
+        const candidateNotes = path.join(root, 'changelogs', `v${packageJson.version}.md`);
+        if (!fs.existsSync(candidateNotes)) {
+            throw new Error(`prerelease notes are missing: changelogs/v${packageJson.version}.md`);
+        }
+        const content = fs.readFileSync(candidateNotes, 'utf8');
+        if (!/not published/i.test(content)) {
+            throw new Error(`prerelease notes for ${tag} must state that the candidate is not published`);
+        }
+        console.log(`[release-metadata] ${tag} is an untagged, not-published rehearsal candidate with local notes.`);
+        process.exit(0);
+    }
     const releaseNotes = fs.readFileSync(path.join(root, 'changelogs', `${tag}.md`), 'utf8');
     const unreleased = fs.readFileSync(path.join(root, 'changelogs', 'unreleased.md'), 'utf8');
+    const tagDate = git(['for-each-ref', `refs/tags/${tag}`, '--format=%(creatordate:short)']);
+    if (!tagDate) {
+        if (!/^> Release date: \d{4}-\d{2}-\d{2}$/m.test(releaseNotes)) {
+            throw new Error(`${tag} pre-tag release notes must contain a YYYY-MM-DD release date`);
+        }
+        if (!unreleased.includes(`Changes after ${tag}`)) {
+            throw new Error(`Unreleased must contain a "Changes after ${tag}" section`);
+        }
+        console.log(`[release-metadata] ${tag} is an untagged stable release candidate; release notes and Unreleased metadata are consistent.`);
+        process.exit(0);
+    }
     if (!releaseNotes.includes(`Release date: ${tagDate}`)) {
         throw new Error(`${tag} release date must match tag creator date ${tagDate}`);
     }

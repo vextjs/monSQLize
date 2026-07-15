@@ -633,6 +633,8 @@ monSQLize uses `schema-dsl` as the schema validation engine for Model documents.
 
 `Model.define()` stores the definition in the process-wide registry. The schema callback is compiled when `msq.model(name)` binds that definition to a runtime. Validation runs for full-document Model writes that define a schema: `insertOne()`, `insertMany()`, `insertBatch()`, `replaceOne()`, `findOneAndReplace()`, and hydrated document `save()`. It is disabled only when the Model sets `options.validate: false`, a supported write operation passes `skipValidation: true`, or the runtime explicitly disables the schema DSL with `schemaDsl: false` / `{ enabled: false }`.
 
+When validation succeeds, those six write paths continue with schema-dsl's normalized `data`, so coercion, schema defaults, and allowed property removal reach MongoDB. The fixed order is model defaults, before hook, schema normalization, timestamps, version, then driver write; stages that do not apply to replacement or hydrated `save()` remain absent. A failed result, or a successful result whose normalized data is not an object, stops before the driver write. `Model.validate()` exposes normalized `data` without writing it.
+
 Patch-style writes such as `updateOne()`, `updateMany()`, `findOneAndUpdate()`, `upsertOne()`, `incrementOne()`, and `updateBatch()` receive MongoDB update operators or aggregation pipelines rather than the final document. monSQLize does not run full-document schema validation for those patch writes; use hooks, `Model.validate()`, or application-side validation when a patch must be checked against a complete domain object.
 
 
@@ -709,21 +711,18 @@ try {
     [
         {
             field: 'username',
-            type: 'length',
-            expected: '3-32',
-            actual: 2,
             message: 'username must be 3-32 characters'
         },
         {
             field: 'email',
-            type: 'format',
-            expected: 'email',
             message: 'email must be a valid email address'
         }
     ]
     */
 }
 ```
+
+The public monSQLize error boundary is `{ field, message }`. `field` is mapped from schema-dsl's canonical `path`; deprecated upstream aliases such as `field`, `type`, and `expected` are not part of the monSQLize contract.
 
 
 ## Disable verification

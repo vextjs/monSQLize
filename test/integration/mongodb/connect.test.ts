@@ -1,6 +1,7 @@
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMemoryServerBootstrap } from '../../bootstrap/memory-server';
+import { closeMongo } from '../../../src/adapters/mongodb/common/connect';
 
 const MonSQLize = require('../../../dist/cjs/index.cjs');
 
@@ -119,7 +120,9 @@ describe('P2-A MongoDB connect/common/accessor', () => {
     it('useMemoryServer=true starts and reuses the managed package replica set', async () => {
         const prevUseSystem = process.env.MONSQLIZE_USE_SYSTEM_MONGO;
         const prevLaunchTimeout = process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS;
+        const prevPreferGlobalPath = process.env.MONGOMS_PREFER_GLOBAL_PATH;
         delete process.env.MONSQLIZE_USE_SYSTEM_MONGO;
+        delete process.env.MONGOMS_PREFER_GLOBAL_PATH;
         process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS = '30000';
 
         const first = new MonSQLize({
@@ -152,6 +155,8 @@ describe('P2-A MongoDB connect/common/accessor', () => {
             else process.env.MONSQLIZE_USE_SYSTEM_MONGO = prevUseSystem;
             if (prevLaunchTimeout === undefined) delete process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS;
             else process.env.MONSQLIZE_MEMORY_MONGO_LAUNCH_TIMEOUT_MS = prevLaunchTimeout;
+            if (prevPreferGlobalPath === undefined) delete process.env.MONGOMS_PREFER_GLOBAL_PATH;
+            else process.env.MONGOMS_PREFER_GLOBAL_PATH = prevPreferGlobalPath;
         }
     });
 
@@ -173,4 +178,18 @@ describe('P2-A MongoDB connect/common/accessor', () => {
 
         assert.equal((await runtime.health()).connected, false);
     });
+
+    it('connect() applies readPreference and closeMongo ignores an empty client', async () => {
+        const runtime = new MonSQLize({
+            type: 'mongodb',
+            databaseName: 'p2a_read_preference',
+            config: { uri, readPreference: 'secondaryPreferred' },
+        });
+
+        await runtime.connect();
+        assert.equal((await runtime.health()).connected, true);
+        await runtime.close();
+        await assert.doesNotReject(() => closeMongo(undefined));
+    });
+
 });

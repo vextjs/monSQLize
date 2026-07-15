@@ -2,6 +2,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { configureMemoryServerEnv } = require('./memory-server-policy.cjs');
+const { resolveLocalRehearsalDependencyTarballs } = require('./local-rehearsal-dependencies.cjs');
 const {
     INTEGRATION_TEST_CONCURRENCY,
     REQUIRED_MONGODB_SERVER_VERSIONS,
@@ -13,6 +14,7 @@ const projectRoot = path.resolve(__dirname, '..', '..');
 const packageJson = require(path.join(projectRoot, 'package.json'));
 const baseDriverRange = packageJson.dependencies.mongodb;
 const currentDriverVersion = readInstalledDriverVersion();
+const localRehearsalTarballs = resolveLocalRehearsalDependencyTarballs(projectRoot, ['schema-dsl']);
 const testDistRoot = path.join('.generated', 'test-dist');
 const memoryServerPolicy = configureMemoryServerEnv();
 const memoryServerEnv = {
@@ -82,7 +84,7 @@ function readInstalledDriverVersion() {
 }
 
 function installDriver(range) {
-    return run('npm', ['install', `mongodb@${range}`, '--no-save', '--package-lock=false']);
+    return run('npm', ['install', ...localRehearsalTarballs, `mongodb@${range}`, '--no-save', '--package-lock=false']);
 }
 
 function restoreBaseDriver() {

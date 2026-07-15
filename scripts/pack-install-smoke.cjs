@@ -5,12 +5,14 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { resolveLocalRehearsalDependencyTarballs } = require('./validation/local-rehearsal-dependencies.cjs');
 
 const root = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'monsqlize-pack-install-'));
 const consumerRoot = path.join(tempRoot, 'consumer');
 const registry = 'https://registry.npmjs.org/';
+const localRehearsalTarballs = resolveLocalRehearsalDependencyTarballs(root, ['schema-dsl']);
 
 function run(command, args, options = {}) {
     const useShell = options.shell ?? (process.platform === 'win32' && command === 'npm');
@@ -67,7 +69,7 @@ try {
     assert(!paths.some((entry) => entry.endsWith('.map')), 'packed artifact must not contain sourcemaps');
 
     const tarballPath = path.join(tempRoot, packResult.filename);
-    run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarballPath], { cwd: consumerRoot });
+    run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', ...localRehearsalTarballs, tarballPath], { cwd: consumerRoot });
 
     run(process.execPath, ['-e', "const M=require('monsqlize'); const p=require('monsqlize/package.json'); if(!M || p.version!==process.argv[1] || typeof M.dataTasks?.preview!=='function' || typeof M.dataTasks?.restore!=='function') process.exit(1)", packageJson.version], { cwd: consumerRoot });
     run(process.execPath, ['--input-type=module', '-e', "import M,{dataTasks} from 'monsqlize'; import {createRequire} from 'node:module'; const p=createRequire(import.meta.url)('monsqlize/package.json'); if(!M || p.version!==process.argv[1] || M.dataTasks!==undefined || typeof dataTasks?.apply!=='function' || typeof dataTasks?.previewRestore!=='function') process.exit(1)", packageJson.version], { cwd: consumerRoot });

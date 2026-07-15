@@ -35,9 +35,16 @@ export type ModelV1HooksFactory = ((
     model: unknown,
 ) => Record<ModelHookOperation, { before?: ModelV1HookHandler; after?: ModelV1HookHandler } | undefined>) | null;
 
+export type ModelSchemaValidationIssue = {
+    path?: string;
+    message?: string;
+    keyword?: string;
+};
+
 type ModelSchemaValidationResult = {
     valid: boolean;
-    errors?: Array<{ path?: string; field?: string; message?: string }>;
+    data?: unknown;
+    errors?: ModelSchemaValidationIssue[];
 };
 
 export type ModelSchemaValidateFn = ((schema: unknown, document: unknown) => ModelSchemaValidationResult) | null;
@@ -151,36 +158,60 @@ export async function runModelV1Hook(
     return hook(context, ...args);
 }
 
+export function mapModelSchemaValidationErrors(
+    errors: ModelSchemaValidationIssue[] = [],
+): Array<{ field: string; message: string }> {
+    return errors.map((error) => ({
+        field: error.path ?? '',
+        message: error.message ?? '',
+    }));
+}
+
 export function validateModelSchemaPayload(
     context: ModelSchemaValidationContext,
     document: Record<string, unknown>,
     options?: Record<string, unknown>,
     metadata: Record<string, unknown> = {},
-): void {
+): Record<string, unknown> {
     const shouldValidate = context.validateEnabled || options?.validate === true;
     if (!shouldValidate) {
-        return;
+        return document;
     }
     if (options?.skipValidation) {
-        return;
+        return document;
     }
     if (!context.schemaCache || !context.schemaValidateFn) {
-        return;
+        return document;
     }
     const result = context.schemaValidateFn(context.schemaCache, document);
-    if (result.valid) {
-        return;
+    if (!result.valid) {
+        const errors = mapModelSchemaValidationErrors(result.errors);
+        const fields = [...new Set(errors.map((item) => item.field).filter(Boolean))];
+        const summary = fields.length > 0 ? ` (${fields.join(', ')})` : '';
+        throw withModelErrorMetadata(
+            createError(ErrorCodes.VALIDATION_ERROR, `Schema validation failed${summary}`),
+            {
+                errors,
+                ...metadata,
+            },
+        );
     }
-    const errors = result.errors ?? [];
-    const fields = [...new Set(errors.map((item) => item.path ?? item.field).filter(Boolean))];
-    const summary = fields.length > 0 ? ` (${fields.join(', ')})` : '';
-    throw withModelErrorMetadata(
-        createError(ErrorCodes.VALIDATION_ERROR, `Schema validation failed${summary}`),
-        {
-            errors,
-            ...metadata,
-        },
-    );
+
+    const normalized = result.data === undefined ? document : result.data;
+    if (normalized === null || typeof normalized !== 'object' || Array.isArray(normalized)) {
+        const errors = [{
+            field: '_schema',
+            message: 'Schema validation returned non-object data for a complete-document write.',
+        }];
+        throw withModelErrorMetadata(
+            createError(ErrorCodes.VALIDATION_ERROR, errors[0].message),
+            {
+                errors,
+                ...metadata,
+            },
+        );
+    }
+    return normalized as Record<string, unknown>;
 }
 
 export function applyModelSoftDeleteFilter(
@@ -491,5 +522,27 @@ export function applyModelReplaceTimestamps(
     return {
         ...resolvedReplacement,
         [timestampsConfig.updatedAt]: nowFactory(),
+    };
+}
+
+/**
+ * Preserve an existing caller-provided creation timestamp across schema normalization.
+ * The updated timestamp is still generated afterward by applyModelReplaceTimestamps().
+ */
+export function preserveModelReplaceCreatedAt(
+    original: Record<string, unknown>,
+    normalized: Record<string, unknown>,
+    timestampsConfig: ModelTimestampConfig,
+): Record<string, unknown> {
+    if (!timestampsConfig || timestampsConfig.createdAt === false) {
+        return normalized;
+    }
+    const field = timestampsConfig.createdAt;
+    if (normalized[field] !== undefined || original[field] === undefined) {
+        return normalized;
+    }
+    return {
+        ...normalized,
+        [field]: original[field],
     };
 }

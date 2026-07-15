@@ -1,11 +1,8 @@
 # Unreleased
 
-## Changes after v3.0.0
+## Changes after v3.1.0
 
-- `2f26875`: moved GitHub workflows to the maintained Node 24 action runtime without changing the package Node 18/20/22 test matrix.
-- Corrected the v3 release date and DataTask field-adjustment wording; added explicit post-tag release metadata validation.
-- Added TypeScript ESLint coverage, memory-server policy single-sourcing, coverage/size/package/license budgets, derived-artifact cleanup dry-run, and a thin CLI bundle that reuses the CJS root runtime.
-- User documentation, Profile closed-loop governance, and website browser accessibility/performance gates are being prepared for the next patch and are not part of the immutable npm 3.0.0 tarball.
+No changes are currently recorded after v3.1.0.
 
 ## v3.0.0 development inventory (released 2026-07-15)
 

@@ -5,11 +5,11 @@
 | 依赖 | 策略 | 原因 |
 |------|------|------|
 | `cache-hub` | 精确版本 `2.2.4` | 根包 direct dependency 与 schema-dsl 接入共享已验证的缓存运行时基线 |
-| `schema-dsl` | 精确版本 `2.1.6` | 当前非 deprecated TypeScript 正式线，支持 Node 18 并保证 `schema-dsl/runtime` 入口 |
+| `schema-dsl` | 稳定精确版本 `3.0.0` | Node 18 兼容的 v3 runtime，root 无副作用并保留隔离的 `schema-dsl/runtime` 入口 |
 | `ioredis` | 精确版本 `5.11.1` | Redis 运行时依赖；仅在配置 Redis-backed 能力时启用 |
 | `mongodb-memory-server` | 开发精确版本 `10.4.3` | 测试工具支持 Node `>=16.20.1`，保持包的 Node 18 CI 契约 |
 
-> `schema-dsl@2.1.6` 是本次发布链路的目标版本；npm 上历史 `2.3.x` 已标记为误发布 / deprecated，不得跟随升级。
+> monSQLize `3.1.0` 已精确锁定经验证的 registry `schema-dsl@3.0.0`。发布 lockfile 禁止出现本地 `file:` 或 workspace 解析。历史 npm `schema-dsl@2.3.x` 不能作为替代物料。
 
 ## 当前风险
 
@@ -22,7 +22,7 @@
 ### 开发态
 
 - 根包 direct `cache-hub` 固定为 `2.2.4`，不需要 workspace override。
-- `schema-dsl` 固定为 `2.1.6`，`ioredis` 固定为 `5.11.1`，测试工具 `mongodb-memory-server` 固定为 `10.4.3`。
+- `schema-dsl` 固定为 registry `3.0.0`，`ioredis` 固定为 `5.11.1`，测试工具 `mongodb-memory-server` 固定为 `10.4.3`。
 - 本地 sibling `../schema-dsl` 仅用于上游库自身调试，不再作为 monSQLize 根包安装前提。
 
 ### 发布态
@@ -34,16 +34,16 @@
 npm run release:preflight
 ```
 
-## schema-dsl 2.x 升级验证
+## schema-dsl v3 升级验证
 
-依赖治理基线已将 `schema-dsl` 从历史 `^1.2.5` 升级并固定到 `2.1.6`，验证标准如下：
+v3 消费迁移在演练阶段使用 identity-bound 本地 tarball，发布阶段使用 registry GA，验证标准如下：
 
-1. 上游在 npm 发布了**非 deprecated** 的 2.x 目标版本：`2.1.6`，Node 要求为 `>=18`。
-2. `npm install schema-dsl@2.1.6 --save-exact` 后通过 `npm run type-check`。
+1. 演练证据必须记录 version、source manifest hash、tarball SHA256、lock hash 与验证 run identity；发布证据必须解析无本地路径的精确 registry GA。
+2. 精确安装 GA 后执行 `npm run type-check`、Model 单元/集成测试、root String prototype 探针、examples 与 packed consumer 验证。
 3. model 相关单测 / 集成测试全通过（随 `npm run test:unit` 与 `npm run test:integration` 覆盖）。
 4. `npm run test:examples` 全通过。
-5. 发布前仍需以 `npm run release:preflight` 作为最终门禁。
-6. 本文件、Profile、CHANGELOG 与 lockfile 必须同步到 `2.1.6`。
+5. 发布前仍需以 `npm run release:preflight` 作为最终门禁；正式发布必须拒绝本地 `file:` 解析并要求 registry `schema-dsl@3.0.0`。
+6. 本文件、Profile、CHANGELOG、package manifest 与 lockfile 必须保持同一候选或 GA identity。
 
 ## cache-hub 2.2.4 升级验证
 

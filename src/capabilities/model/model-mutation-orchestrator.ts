@@ -21,6 +21,7 @@ import {
     assertModelOptimisticLockMatched,
     assertNumericExpectedVersion,
     buildModelVersionLookupOptions,
+    preserveModelReplaceCreatedAt,
     resolveModelOptimisticLockAsync,
     resolveModelUpdateManyVersionMode,
     type ModelSchemaValidateFn,
@@ -293,7 +294,7 @@ export async function orchestrateModelInsertOne<TDocument = Record<string, unkno
         await invokeStandardOperationHook(context, 'insert', 'before', { operation: 'insertOne', collection: context.collectionName, data: payload });
     }
 
-    validateModelSchemaPayload({
+    payload = validateModelSchemaPayload({
         validateEnabled: context.validateEnabled,
         schemaCache: context.schemaCache,
         schemaValidateFn: context.schemaValidateFn,
@@ -326,23 +327,23 @@ export async function orchestrateModelInsertMany<TDocument = Record<string, unkn
     options?: unknown,
 ): Promise<InsertManyResult> {
     const hookContext: Record<string, unknown> = {};
+    const docs = (documents ?? []).map((document) => context.applyDefaults(document as Record<string, unknown>));
     if (context.hooksFactory) {
-        await invokeV1Hook(context, 'insert', 'before', hookContext, documents);
+        await invokeV1Hook(context, 'insert', 'before', hookContext, docs);
     } else {
-        await invokeStandardOperationHook(context, 'insert', 'before', { operation: 'insertMany', collection: context.collectionName, data: documents });
+        await invokeStandardOperationHook(context, 'insert', 'before', { operation: 'insertMany', collection: context.collectionName, data: docs });
     }
     const resolvedOptions = (options ?? {}) as Record<string, unknown>;
-    const docs: Record<string, unknown>[] = [];
-    for (let index = 0; index < (documents ?? []).length; index++) {
-        let doc = context.applyDefaults((documents ?? [])[index] as Record<string, unknown>);
-        validateModelSchemaPayload({
+    for (let index = 0; index < docs.length; index++) {
+        let doc = docs[index] as Record<string, unknown>;
+        doc = validateModelSchemaPayload({
             validateEnabled: context.validateEnabled,
             schemaCache: context.schemaCache,
             schemaValidateFn: context.schemaValidateFn,
         }, doc, resolvedOptions, { index });
         doc = applyModelInsertTimestamps(doc, context.timestampsConfig, () => context.nowDate());
         doc = applyModelInsertVersion(doc, context.versionConfig);
-        docs.push(doc);
+        docs[index] = doc;
     }
     const result = await context.collection.insertMany(docs, options);
     if (context.hooksFactory) {
@@ -439,17 +440,22 @@ export async function orchestrateModelReplaceOne<TDocument = Record<string, unkn
     } else {
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'replaceOne', collection: context.collectionName, filter, update: replacement });
     }
-    const lock = await resolveModelOptimisticLockAsync(context.collection, filter, options, context.versionConfig, 'replaceOne');
-    const nextReplacement = applyModelReplaceVersion(
-        applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate()),
-        context.versionConfig,
-        lock.expectedVersion,
-    );
-    validateModelSchemaPayload({
+    let nextReplacement = validateModelSchemaPayload({
         validateEnabled: context.validateEnabled,
         schemaCache: context.schemaCache,
         schemaValidateFn: context.schemaValidateFn,
-    }, nextReplacement as Record<string, unknown>, lock.driverOptions as Record<string, unknown> | undefined);
+    }, replacement as Record<string, unknown>, options as Record<string, unknown> | undefined);
+    nextReplacement = preserveModelReplaceCreatedAt(
+        replacement as Record<string, unknown>,
+        nextReplacement,
+        context.timestampsConfig,
+    );
+    const lock = await resolveModelOptimisticLockAsync(context.collection, filter, options, context.versionConfig, 'replaceOne');
+    nextReplacement = applyModelReplaceVersion(
+        applyModelReplaceTimestamps(nextReplacement, context.timestampsConfig, () => context.nowDate()),
+        context.versionConfig,
+        lock.expectedVersion,
+    ) as Record<string, unknown>;
     const result = await context.collection.replaceOne(lock.filter, nextReplacement, lock.driverOptions);
     assertModelOptimisticLockMatched(result, context.versionConfig);
     if (context.hooksFactory) {
@@ -499,17 +505,22 @@ export async function orchestrateModelFindOneAndReplace<TDocument = Record<strin
     } else {
         await invokeStandardOperationHook(context, 'update', 'before', { operation: 'findOneAndReplace', collection: context.collectionName, filter, update: replacement });
     }
-    const lock = await resolveModelOptimisticLockAsync(context.collection, filter, options, context.versionConfig, 'findOneAndReplace');
-    const nextReplacement = applyModelReplaceVersion(
-        applyModelReplaceTimestamps(replacement, context.timestampsConfig, () => context.nowDate()),
-        context.versionConfig,
-        lock.expectedVersion,
-    );
-    validateModelSchemaPayload({
+    let nextReplacement = validateModelSchemaPayload({
         validateEnabled: context.validateEnabled,
         schemaCache: context.schemaCache,
         schemaValidateFn: context.schemaValidateFn,
-    }, nextReplacement as Record<string, unknown>, lock.driverOptions as Record<string, unknown> | undefined);
+    }, replacement as Record<string, unknown>, options as Record<string, unknown> | undefined);
+    nextReplacement = preserveModelReplaceCreatedAt(
+        replacement as Record<string, unknown>,
+        nextReplacement,
+        context.timestampsConfig,
+    );
+    const lock = await resolveModelOptimisticLockAsync(context.collection, filter, options, context.versionConfig, 'findOneAndReplace');
+    nextReplacement = applyModelReplaceVersion(
+        applyModelReplaceTimestamps(nextReplacement, context.timestampsConfig, () => context.nowDate()),
+        context.versionConfig,
+        lock.expectedVersion,
+    ) as Record<string, unknown>;
     const result = await context.extendedCollection().findOneAndReplace(lock.filter, nextReplacement, lock.driverOptions);
     assertModelOptimisticLockDocument(result, context.versionConfig);
     if (context.hooksFactory) {
@@ -610,23 +621,24 @@ export async function orchestrateModelInsertBatch<TDocument = Record<string, unk
     options?: unknown,
 ): Promise<InsertBatchResult> {
     const hookContext: Record<string, unknown> = {};
+    const docsToInsert = docs.map((doc) => context.applyDefaults(doc as Record<string, unknown>));
     if (context.hooksFactory) {
-        await invokeV1Hook(context, 'insert', 'before', hookContext, docs);
+        await invokeV1Hook(context, 'insert', 'before', hookContext, docsToInsert);
     } else {
-        await invokeStandardOperationHook(context, 'insert', 'before', { operation: 'insertBatch', collection: context.collectionName, data: docs });
+        await invokeStandardOperationHook(context, 'insert', 'before', { operation: 'insertBatch', collection: context.collectionName, data: docsToInsert });
     }
     const resolvedOptions = (options ?? {}) as Record<string, unknown>;
-    const docsToInsert = docs.map((doc, index) => {
-        let record = context.applyDefaults(doc as Record<string, unknown>);
-        validateModelSchemaPayload({
+    for (let index = 0; index < docsToInsert.length; index++) {
+        let record = docsToInsert[index] as Record<string, unknown>;
+        record = validateModelSchemaPayload({
             validateEnabled: context.validateEnabled,
             schemaCache: context.schemaCache,
             schemaValidateFn: context.schemaValidateFn,
         }, record, resolvedOptions, { index });
         record = applyModelInsertTimestamps(record, context.timestampsConfig, () => context.nowDate());
         record = applyModelInsertVersion(record, context.versionConfig) as Record<string, unknown>;
-        return record;
-    });
+        docsToInsert[index] = record;
+    }
     const result = await context.extendedCollection().insertBatch(docsToInsert, options);
     if (context.hooksFactory) {
         try { await invokeV1Hook(context, 'insert', 'after', hookContext, result); } catch { /* after hooks don't affect operation */ }

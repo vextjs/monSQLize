@@ -110,6 +110,7 @@ const UNIT = [
     'test/unit/coverage/public-api-extra-coverage.test.js',
     // Coverage gap fill — Phase O
     'test/unit/coverage/model-schema-validate-branches.test.js',
+    'test/unit/model/model-schema-normalized-writes.test.js',
     // Coverage gap fill — Phase P
     'test/unit/coverage/lock-noop-and-extra.test.js',
     // Coverage gap fill — Phase Q
@@ -355,6 +356,7 @@ const SUITE_MAP = {
     'queries-n-branches': ['test/integration/mongodb/queries-n-branches.test.js'],
     // Phase O
     'model-schema-validate-branches': ['test/unit/coverage/model-schema-validate-branches.test.js'],
+    'model-schema-normalized-writes': ['test/unit/model/model-schema-normalized-writes.test.js'],
     'write-batch-extra': ['test/integration/mongodb/write-batch-extra.test.js'],
     // Phase P
     'lock-noop-and-extra': ['test/unit/coverage/lock-noop-and-extra.test.js'],

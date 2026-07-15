@@ -14,6 +14,8 @@ Upgrade and security: [Migration Guide](./MIGRATION.md) · [Private Vulnerabilit
 
 The npm `latest` dist-tag and GitHub Pages are the stable channel; `main` may contain the next release. Pages deployment accepts only a versioned Git tag whose package version is already present on npm, so unpublished APIs are not promoted as stable documentation.
 
+This source tree contains the stable `3.1.0` release candidate, pinned to verified registry `schema-dsl@3.0.0`. The v3 package remains subject to the full release gate before its immutable tag and npm publication.
+
 ```bash
 npm install monsqlize
 ```
@@ -260,6 +262,8 @@ const msq = new MonSQLize({
 
 For monSQLize-only Model validation, no direct application import from `schema-dsl` is required. Direct application imports should use `schema-dsl/runtime` when they need to share the same isolated runtime state with monSQLize.
 Use `schemaDsl: { extensions }` when monSQLize should own the runtime and register extension definitions. When the application owns the schema-dsl lifecycle, configure that runtime directly, including `runtime.registerExtensions([...])`, and inject it with `schemaDsl: { runtime }`. If the default `schema-dsl/runtime` entry cannot be resolved or does not expose the required runtime APIs, monSQLize throws `INVALID_CONFIG`; validation is disabled only when `schemaDsl: false` or `schemaDsl: { enabled: false }` is set explicitly.
+
+For `insertOne`, `insertMany`, `insertBatch`, `replaceOne`, `findOneAndReplace`, and hydrated document `save()`, successful schema validation now forwards schema-dsl's normalized `data` into the actual write. Public errors remain `{ field, message }`, mapped from canonical upstream `path/message`. Update operators and pipelines are intentionally outside this complete-document normalization contract.
 
 ### Automatic Model Loading
 

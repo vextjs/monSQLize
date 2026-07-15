@@ -17,7 +17,7 @@ type SchemaDslCallable = SchemaDslFn | ((definition: unknown, ...args: unknown[]
 export type SchemaValidateFn = (
     schema: unknown,
     data: unknown,
-) => { valid: boolean; data?: unknown; errors?: Array<{ field?: string; path?: string; message?: string; type?: string; expected?: string }> };
+) => { valid: boolean; data?: unknown; errors?: Array<{ path?: string; message?: string; keyword?: string }> };
 
 export type SchemaDslRuntimeLike = Partial<Omit<Pick<
     SchemaDslRuntime,

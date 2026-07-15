@@ -4,6 +4,28 @@ This guide starts with the v2.0.6 to v3.0.0 upgrade path, then retains the
 v1-to-v2 compatibility notes for older applications. Review every tightened
 contract that intersects your application before changing the installed major.
 
+## Upgrade from v3.0.0 to v3.1.0
+
+monSQLize v3.1 consumes schema-dsl v3 without installing schema-dsl's legacy
+String prototype extensions. Applications that need those extensions must opt
+in through `schema-dsl/compat` or `schema-dsl/register-string`; monSQLize itself
+continues to use the isolated `schema-dsl/runtime` entry and does not require
+them.
+
+Successful full-document Model validation now persists schema-dsl's normalized
+`data` for `insertOne`, `insertMany`, `insertBatch`, `replaceOne`,
+`findOneAndReplace`, and hydrated document `save()`. Coerced values and schema
+defaults therefore reach MongoDB. The order is model defaults, before hook,
+schema normalization, timestamps, version, then driver write. Replacement
+writes do not apply model defaults, and `save()` has no new before-hook stage.
+
+Validation failures still throw `VALIDATION_ERROR`, and public errors remain
+`{ field, message }`; `field` is mapped from schema-dsl's canonical `path`.
+Update operators and pipelines do not expose a complete final document and are
+not included in normalized-data persistence. If an application relied on
+schema-dsl coercion being discarded before v3.1, review stored value types in a
+staging environment before upgrading.
+
 ## Upgrade from v2.0.6 to v3.0.0
 
 ### 1. Run the release checks before changing production
