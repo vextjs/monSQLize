@@ -87,6 +87,18 @@ test('release paths consume the complete single-source preflight gate', () => {
         assert.doesNotMatch(workflow, /actions\/setup-node@v4/);
         assert.match(workflow, /actions\/setup-node@v6/);
     }
+    for (const workflow of [ci, releaseWorkflow, publishWorkflow, deployDocsWorkflow]) {
+        assert.doesNotMatch(workflow, /actions\/checkout@v4/);
+        assert.match(workflow, /actions\/checkout@v5/);
+    }
+    for (const workflow of [ci, releaseWorkflow, publishWorkflow]) {
+        assert.doesNotMatch(workflow, /actions\/cache@v4/);
+        assert.match(workflow, /actions\/cache@v5/);
+    }
+    assert.doesNotMatch(deployDocsWorkflow, /actions\/upload-pages-artifact@v3/);
+    assert.match(deployDocsWorkflow, /actions\/upload-pages-artifact@v5/);
+    assert.doesNotMatch(deployDocsWorkflow, /actions\/deploy-pages@v4/);
+    assert.match(deployDocsWorkflow, /actions\/deploy-pages@v5/);
 });
 
 test('stable docs deployment requires an npm-verified release tag', () => {

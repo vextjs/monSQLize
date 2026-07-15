@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v6
@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: Restore MongoDB memory-server binaries
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .cache/mongodb-memory-server/binaries
           key: mongodb-memory-server-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/validation/server-matrix-config.cjs') }}
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js 20.x
         uses: actions/setup-node@v6
@@ -64,7 +64,7 @@ jobs:
         run: npm ci
 
       - name: Restore MongoDB memory-server binaries
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .cache/mongodb-memory-server/binaries
           key: mongodb-memory-server-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/validation/server-matrix-config.cjs') }}
