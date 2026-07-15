@@ -2,7 +2,7 @@
 
 ## Changes after v3.1.0
 
-No changes are currently recorded after v3.1.0.
+- Made the npm publish workflow recoverable after a successful publish followed by a registry-smoke failure: an existing version is accepted only when its registry `gitHead` matches the immutable tag commit, publish is then skipped, and acceptance resumes. The TypeScript registry consumer now installs the Node type declarations required by MongoDB's public declarations.
 
 ## v3.0.0 development inventory (released 2026-07-15)
 

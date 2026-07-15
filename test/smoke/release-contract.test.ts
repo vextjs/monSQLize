@@ -77,11 +77,15 @@ test('release paths consume the complete single-source preflight gate', () => {
     assert.match(publishWorkflow, /npm run release:preflight/);
     assert.match(publishWorkflow, /dist\.integrity/);
     assert.match(publishWorkflow, /dist-tags\.latest/);
+    assert.match(publishWorkflow, /id: registry-state/);
+    assert.match(publishWorkflow, /REGISTRY_GIT_HEAD/);
+    assert.match(publishWorkflow, /if: steps\.registry-state\.outputs\.already_published != 'true'/);
     assert.match(publishWorkflow, /mkdir -p "\$\{CONSUMER_DIR\}"/);
     assert.match(publishWorkflow, /cd "\$\{CONSUMER_DIR\}"/);
     assert.match(publishWorkflow, /require\('monsqlize'\)/);
     assert.match(publishWorkflow, /from 'monsqlize'/);
     assert.match(publishWorkflow, /consumer\.ts/);
+    assert.match(publishWorkflow, /"@types\/node@25\.6\.2"/);
     assert.match(publishWorkflow, /\.\/node_modules\/\.bin\/monsqlize/);
     assert.doesNotMatch(publishWorkflow, /CONSUMER_DIR.*dist\/esm\/index\.mjs/);
     assert.match(publishWorkflow, /dataTasks/);

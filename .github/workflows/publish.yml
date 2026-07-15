@@ -81,7 +81,28 @@ jobs:
           fi
           npm whoami --registry=https://registry.npmjs.org/
 
+      - name: Inspect existing registry state
+        id: registry-state
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          EXPECTED_GIT_HEAD=$(git rev-parse HEAD)
+          PUBLISHED_VERSION=$(npm view "monsqlize@${VERSION}" version --registry=https://registry.npmjs.org/ 2>/dev/null || true)
+          if [ "${PUBLISHED_VERSION}" != "${VERSION}" ]; then
+            echo "already_published=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          REGISTRY_GIT_HEAD=$(npm view "monsqlize@${VERSION}" gitHead --registry=https://registry.npmjs.org/)
+          if [ "${REGISTRY_GIT_HEAD}" != "${EXPECTED_GIT_HEAD}" ]; then
+            echo "::error::monsqlize@${VERSION} already exists with gitHead=${REGISTRY_GIT_HEAD:-missing}; expected=${EXPECTED_GIT_HEAD}"
+            exit 1
+          fi
+          echo "monsqlize@${VERSION} already exists from this exact tag commit; publish will be skipped and registry acceptance will resume."
+          echo "already_published=true" >> "${GITHUB_OUTPUT}"
+
       - name: Publish to npm
+        if: steps.registry-state.outputs.already_published != 'true'
         run: npm publish --provenance --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -113,7 +134,7 @@ jobs:
           mkdir -p "${CONSUMER_DIR}"
           cd "${CONSUMER_DIR}"
           npm init -y
-          npm install "monsqlize@${VERSION}" "typescript@5.9.3" --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
+          npm install "monsqlize@${VERSION}" "typescript@5.9.3" "@types/node@25.6.2" --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
           node -e "const p=require('monsqlize/package.json'); const M=require('monsqlize'); if(!M || p.version!==process.argv[1] || typeof M.dataTasks?.preview!=='function') process.exit(1)" "${VERSION}"
           node --input-type=module -e "import M,{dataTasks} from 'monsqlize'; if(!M || typeof dataTasks?.apply!=='function') process.exit(1)"
           node -e "require('node:fs').writeFileSync('consumer.ts', \"import MonSQLize, { dataTasks } from 'monsqlize';\\nvoid MonSQLize; void dataTasks.preview;\\n\")"
