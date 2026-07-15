@@ -48,7 +48,10 @@ test('release paths consume the complete single-source preflight gate', () => {
     assert.ok(packageJson.files.includes(`changelogs/v${packageJson.version}.md`));
     assert.ok(packageJson.files.includes('MIGRATION.md'));
     assert.ok(packageJson.files.includes('SECURITY.md'));
-    assert.match(preflight, /check:release-candidate/);
+    assert.equal(
+        preflight.match(/run\('npm', \['run', 'check:release-candidate'\]\);/g)?.length,
+        2,
+    );
     assert.match(preflight, /\['--prefix', 'website', 'ci'\]/);
     assert.match(preflight, /\['--prefix', 'website', 'run', 'verify'\]/);
     assert.match(candidateCheck, /git[\s\S]*status[\s\S]*--porcelain=v1/);
@@ -103,4 +106,13 @@ test('stable docs deployment requires an npm-verified release tag', () => {
     assert.match(deployDocs, /check-site-links\.cjs --dist/);
     assert.match(deployDocs, /npm audit/);
     assert.match(deployDocs, /GITHUB_STEP_SUMMARY/);
+});
+
+test('sync example confines and cleans resume-token artifacts', () => {
+    const syncExample = read('examples/docs/sync.ts');
+
+    assert.match(syncExample, /syncManagerTokenPath\s*=\s*path\.join\(os\.tmpdir\(\)/);
+    assert.match(syncExample, /resumeToken:\s*\{\s*storage:\s*'file',\s*path:\s*syncManagerTokenPath\s*\}/);
+    assert.match(syncExample, /rm\(`\$\{tokenPath\}\.bak`,\s*\{\s*force:\s*true\s*\}\)/);
+    assert.match(syncExample, /clearResumeTokenArtifacts\(syncManagerTokenPath\)/);
 });

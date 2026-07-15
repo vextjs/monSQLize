@@ -162,6 +162,7 @@ run('npm', ['run', 'test:pack-install']);
 run('npm', ['--prefix', 'website', 'ci']);
 run('npm', ['--prefix', 'website', 'run', 'verify']);
 run('npm', ['pack', '--dry-run']);
+run('npm', ['run', 'check:release-candidate']);
 
 console.log('[release-preflight] ✅ preflight passed');
 console.log('[release-preflight] next steps: confirm remote CI for this commit, then create the immutable release tag');

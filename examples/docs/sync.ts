@@ -19,6 +19,7 @@
  */
 import os from 'node:os';
 import path from 'node:path';
+import { rm } from 'node:fs/promises';
 import { setupReplicaSetExample, teardownExample } from '../helpers/bootstrap.js';
 import MonSQLize from 'monsqlize';
 
@@ -39,11 +40,19 @@ async function waitFor(
     throw new Error('Timed out waiting for sync manager stats to settle');
 }
 
+async function clearResumeTokenArtifacts(tokenPath: string) {
+    await Promise.all([
+        rm(tokenPath, { force: true }),
+        rm(`${tokenPath}.bak`, { force: true }),
+    ]);
+}
+
 async function main() {
     const { msq, server } = await setupReplicaSetExample('example-sync');
     const events = msq.collection<EventDoc>('events');
     const tokenPath = path.join(os.tmpdir(), `example-sync-token-${process.pid}.json`);
     const watchTokenPath = path.join(os.tmpdir(), `example-sync-watch-token-${process.pid}.json`);
+    const syncManagerTokenPath = path.join(os.tmpdir(), `example-sync-manager-token-${process.pid}.json`);
 
     const tokenStore = new MonSQLize.ResumeTokenStore({
         storage: 'file',
@@ -77,6 +86,7 @@ async function main() {
                 config: {
                     enabled: true,
                     collections: ['events'],
+                    resumeToken: { storage: 'file', path: syncManagerTokenPath },
                     targets: [
                         {
                             name: 'in-memory-target',
@@ -206,6 +216,11 @@ async function main() {
     } finally {
         await tokenStore.clear();
         await watchTokenStore.clear();
+        await Promise.all([
+            clearResumeTokenArtifacts(tokenPath),
+            clearResumeTokenArtifacts(watchTokenPath),
+            clearResumeTokenArtifacts(syncManagerTokenPath),
+        ]);
         await teardownExample(msq, server);
     }
 }
