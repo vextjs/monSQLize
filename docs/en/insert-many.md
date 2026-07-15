@@ -53,28 +53,28 @@ Return an object containing the results of the insertion:
 
 ## Core Features
 
-## ✅ High-performance batch insertion (10-50x performance improvement)
+## High-throughput batch insertion
 
-Compared with the loop call `insertOne()`, `insertMany()` has significant performance advantages:
+Compared with awaiting `insertOne()` in a loop, `insertMany()` reduces application-to-database round trips:
 
 ```javascript
-//Bad: loop insertion (slow)
-//Inserting 1000 documents takes ~5000ms
+//One acknowledged database call per document
 for (const user of users) {
   await collection("users").insertOne(user);
 }
 
-//Good: bulk insert (fast)
-//Inserting 1000 documents only takes ~100ms (50x performance improvement)
+//One bulk request for the array, subject to server and payload limits
 await collection("users").insertMany(users);
 ```
 
-**Performance Benchmarks**:
-| Number of documents | insertOne (loop) | insertMany | Performance improvement |
-|---------|-----------------|------------|---------|
-| 100 | 500ms | 20ms | **25x** |
-| 1,000 | 5,000ms | 100ms | **50x** |
-| 10,000 | 50,000ms | 500ms | **100x** |
+**Performance characteristics**:
+
+| Path | Database round trips | Main trade-off |
+|---------|-----------------|------------|
+| Awaited `insertOne()` loop | One per document | Simple per-document control, but repeated network and acknowledgement overhead |
+| `insertMany()` | One bulk request when it fits deployment limits | Lower round-trip count; larger payload and partial-failure handling |
+
+Actual throughput depends on document size, indexes, write concern, ordered mode, server topology, and concurrency. Benchmark the deployed workload using the [performance evidence contract](./performance-evidence.md).
 
 ## ✅ Ordered vs Unordered Insertion
 
@@ -311,7 +311,7 @@ try {
 | Features | insertOne | insertMany |
 |------|-----------|------------|
 | **Insert quantity** | Insert 1 at a time | Insert multiple at a time |
-| **Performance** | Low (loop calls are slow) | High (batch calls are 10-50x faster) |
+| **Performance** | More network round trips | Usually fewer network round trips; measure with your workload |
 | **Return value** | `insertedId` (single) | `insertedIds` (object) |
 | **Error Handling** | Simple (success or failure) | Complex (may be partially successful) |
 | **Usage Scenarios** | Single document creation | Batch import of data |

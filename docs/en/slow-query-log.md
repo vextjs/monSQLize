@@ -994,7 +994,7 @@ console.log('TTL:', manager?.config.storage.ttl);
 | Memory usage | Y MB | Y + 0.3MB | +0.3MB (queue buffer) |
 | Number of connections | N | N (multiplexed) | 0 |
 
-**Conclusion**: The performance impact is minimal (<1%) and can be ignored
+**Conclusion**: Logging overhead depends on sampling, storage, serialization, and workload. Measure it in the target environment and set an explicit budget; do not assume it is negligible.
 
 
 ## Optimization suggestions (performance optimization)

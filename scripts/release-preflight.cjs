@@ -10,6 +10,14 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 
 const version = packageJson.version;
 const packageLockPath = path.join(root, 'package-lock.json');
 
+function ensureReleaseNodeVersion() {
+    const major = Number.parseInt(process.versions.node.split('.')[0], 10);
+    if (major < 22) {
+        console.error(`[release-preflight] Node.js 22+ is required for the release/docs toolchain; current=${process.version}. The published runtime contract remains Node.js >=18.`);
+        process.exit(1);
+    }
+}
+
 const requiredFiles = [
     'CHANGELOG.md',
     'MIGRATION.md',
@@ -138,6 +146,8 @@ function run(command, args) {
     }
 }
 
+ensureReleaseNodeVersion();
+
 for (const file of requiredFiles) {
     ensureExists(file);
 }
@@ -160,6 +170,16 @@ run('npm', ['run', 'test:data-task-cli']);
 run('npm', ['run', 'test:audit']);
 run('npm', ['run', 'test:pack-install']);
 run('npm', ['--prefix', 'website', 'ci']);
+run('npm', [
+    '--prefix',
+    'website',
+    'exec',
+    '--',
+    'playwright',
+    'install',
+    ...(process.platform === 'linux' ? ['--with-deps'] : []),
+    'chromium',
+]);
 run('npm', ['--prefix', 'website', 'run', 'verify']);
 run('npm', ['pack', '--dry-run']);
 run('npm', ['run', 'check:release-candidate']);

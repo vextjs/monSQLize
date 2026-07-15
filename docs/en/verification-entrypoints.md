@@ -15,18 +15,20 @@
 | Command | Description |
 |------|------|
 | `npm test` | Default unified access control: smoke + compatibility + unit + integration; no longer implicitly run legacy compat runner or migration-specific runner |
-| `npm run check:docs-examples` | Documentation/example parity gate: verifies the 105/105 bilingual docs matrix, runner coverage, shared-example targets, doc-check targets, and visible path text |
-| `npm run test:coverage` | Independent coverage governance gate: runs the default test through `c8`; the published CJS runtime plus source-level gap coverage resolved through sourcemaps must keep lines / statements / functions / branches at or above 90% |
+| `npm run check:docs-examples` | Documentation/example parity gate: verifies the current bilingual slug matrix, runner coverage, shared-example targets, doc-check targets, and visible path text |
+| `npm run check:lint-contract` | Proves that the flat ESLint configuration parses and checks representative JavaScript, TypeScript, declaration, test, example, and TSX files |
+| `npm run check:doc-claims` / `check:error-contract` / `check:current-version` | Guards numeric performance evidence, Data Task error-code documentation, and current v3 / MongoDB 7.x-8.x terminology |
+| `npm run test:coverage` | Independent `c8 --all` coverage governance gate: global lines/statements/functions/branches stay at or above 90%, six risk modules meet local floors, and the per-run temporary directory is cleaned |
 | `npm run test:refactor-guard` | Hot spot reconstruction triple regression: exports + runtime/model + sync |
-| `npm run test:server-matrix` | memory-server default matrix (Node/Driver/MongoDB server) |
+| `npm run test:server-matrix` | Strict Node 20/22 × Driver 6/7 × MongoDB 7/8 memory-server matrix; the current Node runtime is reused, Volta fills only a missing Node 20/22 runtime, and database integration files start serially to avoid automatic-port races |
 | `npm run test:real-env:private` | Private real environment check; do not enter regular verify / CI by default |
-| `npm run release:preflight` | Strict single-source release gate: clean pushed candidate + release metadata + `verify:fast` + default tests + coverage + examples + server matrix + dataTasks/CLI integration + audit + temporary package install + website verify + final pack boundary |
+| `npm run release:preflight` | Node 22 strict single-source release gate: clean pushed candidate + release metadata + `verify:fast` + default tests + coverage + examples + server matrix + dataTasks/CLI integration + license/audit + temporary package install + Chromium website verify + final pack boundary |
 | `npm run test:pack-install` | Build and pack the candidate, install the tarball in a temporary consumer, and verify CJS, ESM, dataTasks, schema-dsl, TypeScript, MIGRATION/SECURITY, bin, help, and version |
-| `npm --prefix website run verify` | Verify types, the Rspress build, internal links, and dependency audit using the website lockfile |
+| `npm --prefix website run verify` | Verify types, Rspress build, internal links, build/search budgets, Chromium keyboard/mobile/language behavior, axe WCAG A/AA, and dependency audit using the website lockfile |
 
 The memory-server related entries uniformly use `.cache/mongodb-memory-server/binaries` as the binary cache and `.cache/mongodb-memory-server/db` as the temporary data directory within the project; the dbPath automatically created by the project will be cleared when the script exits or runtime close to avoid the accumulation of default system temporary directories.
 
-The release matrix pins MongoDB `7.0.37` and `8.0.26`. `probe:server-matrix` and `test:server-matrix` exit nonzero when any required server, topology, driver, or test combination is unavailable or failed.
+The release matrix pins MongoDB `7.0.37` and `8.0.26`. `probe:server-matrix` and `test:server-matrix` exit nonzero when any required server, topology, driver, or test combination is unavailable or failed. When Volta is available, `test:server-matrix` adds whichever of Node 20/22 is missing from the current environment instead of repeating the current major.
 
 ## Run strategy
 
@@ -60,7 +62,7 @@ Suitable for:
 - Behavior changes or cross-module refactoring
 - Return of the complete repository before release
 
-`verify:full` also includes `npm run test:examples`, so all 58 runnable examples are compiled and executed after the matrix gate has checked 105/105 document coverage.
+`verify:full` also includes `npm run test:examples`, so all runnable examples are compiled and executed after the matrix gate has checked the current bilingual document coverage.
 
 
 ## 3. Private real environment verification

@@ -27,15 +27,18 @@ cd monSQLize
 npm ci  # 推荐使用 ci 保证依赖一致性
 ```
 
+- npm 包运行时合同：Node.js `>=18`；CI 持续验证 Node 18/20/22。
+- 发布与文档浏览器验证工具链：Node.js 22+。这不会抬高最终用户安装 `monsqlize` 的运行时门槛。
+
 ### 3. 运行当前校验
 
 ```bash
-# 推荐：运行完整验证链
-npm run verify
+# 日常快速回归
+npm run verify:fast
 
-# 若只想先做文档/类型/示例回归，可按需拆开执行
-npm run test:examples
-npm run test:compatibility
+# 完整默认测试与覆盖率
+npm test
+npm run test:coverage
 
 # 自动修复 Lint 问题
 npm run lint:fix
@@ -56,23 +59,25 @@ git checkout -b fix/your-bug-fix
 ### 2. 编写代码
 
 - 遵循现有代码风格
-- 添加必要的注释（中文）
+- `src/types/test/examples/scripts` 与工程配置中的注释、错误、日志和测试标题使用英文；`docs/en` 使用英文，`docs/zh` 使用简体中文
 - 确保当前有效校验通过
 
 ### 3. 运行当前校验
 
 ```bash
-# 推荐：运行完整验证链
-npm run verify
+# 快速 PR 基线
+npm run verify:fast
 
-# 如果只需检查示例入口
-npm run test:examples
+# 行为与覆盖率
+npm test
+npm run test:coverage
 
-# 如果只需检查兼容矩阵
-npm run test:compatibility
+# 发布包真实消费者与站点
+npm run test:pack-install
+npm --prefix website run verify
 ```
 
-> 当前仓库已经恢复 `npm test`、`npm run test:compatibility`、`npm run test:examples` 与 `npm run verify`；历史覆盖率链路若需补强，将另行在验证资产中推进。
+> `npm run verify` 是日常完整功能链的一部分，但不等于发布门禁。发布维护者必须在 Node.js 22+ 上执行 `npm run release:preflight`；该入口还包含 coverage、真实 examples/server matrix、DataTask/CLI、license/audit、pack consumer 与 website browser 验证。
 
 ### 4. 提交更改
 
@@ -121,21 +126,19 @@ npm run lint:fix
 
 ### 注释规范
 
-- 所有公开 API 必须有 JSDoc 注释（中文）
-- 复杂逻辑必须添加行内注释
+- 公共 API 在需要解释契约、边界或非显然行为时添加英文 JSDoc；不要为显然代码机械补注释
+- 复杂逻辑使用英文行内注释解释“为什么”和边界，不复述代码
 - 示例：
 
 ```javascript
 /**
- * 查找单个文档
- * @param {Object} filter - 查询条件
- * @param {Object} [options] - 可选参数
- * @param {Object} [options.projection] - 字段投影
- * @param {number} [options.maxTimeMS] - 查询超时时间（毫秒）
- * @returns {Promise<Object|null>} 文档对象或 null
+ * Finds one document with an optional projection and timeout.
+ * @param {Object} filter - MongoDB query filter.
+ * @param {Object} [options] - Query options.
+ * @returns {Promise<Object|null>} The matching document, or null.
  */
 async function findOne(filter, options = {}) {
-    // 实现代码...
+    // Keep driver return semantics unchanged.
 }
 ```
 
@@ -143,19 +146,19 @@ async function findOne(filter, options = {}) {
 
 ## 测试要求
 
-### 当前测试状态
+### 分层验证要求
 
-- 当前仓库已经恢复以下本地验证入口：
-  - `npm test`
-  - `npm run test:compatibility`
-  - `npm run test:examples`
-  - `npm run verify`
+- 快速贡献：`npm run verify:fast`，并补受影响模块的定向测试。
+- PR 默认：`npm test`、`npm run test:coverage`；公开包/CLI 改动追加 `npm run test:pack-install`。
+- 文档/站点：`npm run check:docs-examples` 与 `npm --prefix website run verify`。
+- 发布维护者：在 Node.js 22+ 上执行 `npm run release:preflight`；不得用 `npm run verify` 代替。
 - 若改动影响公开类型、README 入口、示例或能力映射，请同步检查：
   - `docs/**`
   - `examples/**`
   - `test/validation/DOCS-EXAMPLES-MAPPING.md`
   - `test/validation/VERIFICATION-PROGRESS.md`
-- 提交前至少应保证受影响范围对应的验证命令通过；若无法跑完整链路，需在说明中明确列出未验证项。
+- 覆盖率是发布强制门禁：全局 statements/branches/functions/lines 均不得低于 90%，高风险模块还受独立 floor 约束。
+- 提交前至少保证受影响路线通过；无法执行的命令必须在 PR 中列出原因和风险，不得写成“已验证”。
 
 ---
 
@@ -165,34 +168,33 @@ async function findOne(filter, options = {}) {
 
 项目使用 GitHub Actions 实现 CI/CD：
 
-#### 1. **Lint**（代码检查）
+#### 1. **静态、类型与文件规模**
 
 **触发条件**:
 - 所有 Push 和 Pull Request
 
 **执行内容**:
-- 运行 ESLint 检查
-- 确保代码符合规范
+- TypeScript/JavaScript ESLint、文档示例矩阵、TypeScript/tsd 与 source/types/test 分类规模门禁
 
-#### 2. **类型 / 运行时 / 示例验证**
+#### 2. **运行时、覆盖率与消费者验证**
 
 当前仓库已经恢复 TS 重写后的验证链，提交前建议至少关注：
 
-- `npm test`
-- `npm run test:compatibility`
-- `npm run test:examples`
-- `npm run verify`
-
-旧时代的覆盖率统计和更细粒度 CI 维度仍可继续增强，但不应再把已经移除的旧命令说明写回贡献流程。
+- Node 18/20/22 默认测试矩阵
+- 全局覆盖率与高风险模块 floor
+- MongoDB 7/8 server matrix、DataTask/CLI、生产依赖 license/audit
+- 临时目录中的 CJS/ESM/types/bin 裸包 consumer
+- 双语站点 build/link/budget/axe/keyboard/focus
 
 ### Pull Request 检查清单
 
 在合并前，请确保：
 
-- [x] Lint 检查通过 ✅
-- [x] 无未解决的 Code Review 意见
-- [x] 提交消息符合规范
-- [x] 文档已更新，并与当前仓库现状一致（如有 API 或入口面变更）
+- [ ] `npm run verify:fast` 与受影响测试通过
+- [ ] coverage / pack / website 等条件路线已执行或写明未执行原因
+- [ ] 无未解决的 Code Review 意见
+- [ ] 提交消息符合规范
+- [ ] 文档、changelog 与 Profile 已按影响同步
 
 ### 查看 CI 状态
 
@@ -207,7 +209,7 @@ async function findOne(filter, options = {}) {
 如果您的更改涉及 API 变更或新功能：
 
 1. **更新 README.md**: 添加功能描述和示例
-2. **同步 profile / 需求文档**: 若修改仓库入口、命令或发布契约，需同步更新 `.devcodex/profile/*` 与相关需求产物
+2. **同步 Profile / 任务产物**: 若修改仓库入口、命令或发布契约，维护者需同步 workspace namespace 中 monSQLize 的 Profile 与相关任务产物；普通外部贡献者在 PR 中说明影响即可
 3. **维护当前 TS 文档/示例入口**: 当前仓库的 `docs/**`、`examples/**` 已作为新的 TS 版正式入口建立；其中官方示例统一使用 TypeScript。更新相关能力时，需同步维护这些入口，而不是回滚复制 `monSQLize-v1` 的旧目录内容
 4. **更新 CHANGELOG.md**: 记录变更（由维护者负责）
 

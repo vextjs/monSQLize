@@ -1,0 +1,37 @@
+#!/usr/bin/env node
+'use strict';
+
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.resolve(__dirname, '../..');
+const packageJson = require('../../package.json');
+const tag = `v${packageJson.version}`;
+
+function git(args) {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', shell: false });
+    if (result.status !== 0) throw new Error(result.stderr.trim() || `git ${args.join(' ')} failed`);
+    return result.stdout.trim();
+}
+
+try {
+    const tagDate = git(['for-each-ref', `refs/tags/${tag}`, '--format=%(creatordate:short)']);
+    if (!tagDate) throw new Error(`${tag} is missing`);
+    const releaseNotes = fs.readFileSync(path.join(root, 'changelogs', `${tag}.md`), 'utf8');
+    const unreleased = fs.readFileSync(path.join(root, 'changelogs', 'unreleased.md'), 'utf8');
+    if (!releaseNotes.includes(`Release date: ${tagDate}`)) {
+        throw new Error(`${tag} release date must match tag creator date ${tagDate}`);
+    }
+    const commitsAfterTag = Number.parseInt(git(['rev-list', '--count', `${tag}..HEAD`]), 10);
+    if (commitsAfterTag > 0 && /No changes are currently recorded after/.test(unreleased)) {
+        throw new Error(`${commitsAfterTag} commit(s) exist after ${tag}, but Unreleased says there are no changes`);
+    }
+    if (commitsAfterTag > 0 && !unreleased.includes(`Changes after ${tag}`)) {
+        throw new Error(`Unreleased must contain a "Changes after ${tag}" section`);
+    }
+    console.log(`[release-metadata] ${tag} date=${tagDate}; commits-after-tag=${commitsAfterTag}; Unreleased is consistent.`);
+} catch (error) {
+    console.error(`[release-metadata] ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+}

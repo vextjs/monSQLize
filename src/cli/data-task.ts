@@ -2,12 +2,11 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import packageJson from '../../package.json';
-import { createDataTaskService } from '../capabilities/data-tasks/job-service';
-import { MonSQLizeRuntime } from '../entry/runtime-core';
 import type {
     DataTaskApproval,
     DataTaskBackupRef,
     DataTaskJob,
+    DataTaskService,
 } from '../../types/data-tasks';
 
 interface ParsedArgs {
@@ -181,7 +180,7 @@ async function outputResult(args: ParsedArgs, action: string, result: unknown): 
     if (collectFailures(result).length > 0) process.exitCode = 1;
 }
 
-async function runCli(argv: string[]): Promise<void> {
+export async function runCli(argv: string[], service: DataTaskService): Promise<void> {
     const args = parseArgs(argv);
     if (args.version) {
         console.log(packageJson.version);
@@ -204,7 +203,6 @@ async function runCli(argv: string[]): Promise<void> {
         || typeof (job.target as { collection?: unknown }).collection === 'function') {
         throw new Error('CLI DataTaskJob source and target must be MonSQLizeOptions, not runtime instances.');
     }
-    const service = createDataTaskService((options) => new MonSQLizeRuntime(options) as unknown as import('../capabilities/data-tasks/job-service').DataTaskManagedRuntime);
     let result: unknown;
     if (args.action === 'preview') {
         result = await service.preview(job);
@@ -223,8 +221,3 @@ async function runCli(argv: string[]): Promise<void> {
     }
     await outputResult(args, args.action, result);
 }
-
-runCli(process.argv.slice(2)).catch((error) => {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = 1;
-});

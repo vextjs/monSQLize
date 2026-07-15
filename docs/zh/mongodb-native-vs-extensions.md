@@ -7,7 +7,7 @@
 | 功能类别 | MongoDB 原生 | monSQLize | 主要增强 |
 |---------|-------------|-----------|---------|
 | **查询操作** | | | 智能缓存、游标分页、慢查询日志 |
-| **插入操作** | | | 高性能批量插入 (10-50x)、慢查询监控 |
+| **插入操作** | | | 可配置分批的批量插入、慢查询监控 |
 | **更新操作** | | | 显式缓存失效、完整错误处理 |
 | **删除操作** | | | 显式缓存失效、慢查询监控 |
 | **聚合操作** | | | 缓存支持、流式处理 |
@@ -77,13 +77,13 @@ const db = client.db('shop');
 const products = await db.collection('products').find({ 
   category: 'electronics' 
 }).toArray();
-// 耗时: ~10-50ms
+// 延迟取决于查询、索引、数据集、服务端和网络。
 
 // 再次查询：仍然查询数据库
 const products2 = await db.collection('products').find({ 
   category: 'electronics' 
 }).toArray();
-// 耗时: ~10-50ms（没有缓存）
+// 此调用仍会访问数据库。
 ```
 
 ### monSQLize：智能缓存
@@ -94,14 +94,14 @@ const products = await collection('products').find(
   { category: 'electronics' },
   { cache: 5000 }  // 缓存 5 秒
 );
-// 第 1 次：查询数据库，耗时 ~10-50ms
+// 第 1 次查询数据库并填充已配置的缓存。
 
 // 再次查询：从缓存返回
 const products2 = await collection('products').find(
   { category: 'electronics' },
   { cache: 5000 }
 );
-// 第 2 次：从缓存返回，耗时 ~0.001ms（1000x 更快）
+// 缓存仍有效时，第 2 次调用可以从缓存返回。
 ```
 
 ### 缓存特性对比
@@ -117,7 +117,7 @@ const products2 = await collection('products').find(
 
 **详细文档**: [缓存系统](./cache.md)
 
-**性能提升**: 缓存命中时速度提升 **1000x**（10-50ms → 0.001ms）
+**性能说明**：缓存命中会避开数据库查询，但实际延迟取决于序列化、缓存层级、负载大小、网络位置与并发。请对部署工作负载进行测量；参见[性能证据](./performance-evidence.md)。
 
 ---
 
@@ -260,18 +260,19 @@ const page1000 = await collection('products').findPage(
 
 // 性能：
 // - 通过书签跳跃，避免扫描大量数据
-// - 深度分页性能稳定（~10-20ms）
+// - 已有书签可用时，将跳转限制在配置的 hop 范围内
 // - 数据变化不影响已有页（游标锁定查询时刻的数据集）
 ```
 
 **性能对比**:
 
-| 页数 | skip + limit | monSQLize 游标分页 | 性能提升 |
-|------|-------------|-------------------|---------|
-| 第 1 页 | 10ms | 10ms | 1x |
-| 第 100 页 | 50ms | 12ms | **4x** |
-| 第 1000 页 | 500ms | 15ms | **33x** |
-| 第 10000 页 | 5000ms | 20ms | **250x** |
+| 场景 | `skip + limit` | monSQLize 游标分页 |
+|------|-------------|-------------------|
+| 浅页 | 简单且通常足够 | 增加游标/书签状态 |
+| 深度顺序翻页 | 服务端工作量可能随跳过偏移增长 | 从游标边界继续读取 |
+| 深度跳页 | 成本取决于偏移量和查询计划 | 已有书签可用时使用书签与受限 hop |
+
+以上特征不代表固定倍数提升。请使用真实索引、选择性、文档大小、页深、并发和 MongoDB 部署进行基准测试；参见[性能证据](./performance-evidence.md)。
 
 ### 分页特性对比
 
@@ -507,8 +508,7 @@ const documents = Array.from({ length: 10000 }, (_, i) => ({
 
 // 一次性插入（可能超时或内存不足）
 const result = await db.collection('products').insertMany(documents);
-// 性能：~2000ms
-// 风险：大批量可能超时或内存溢出
+// 延迟和内存使用取决于负载大小与部署限制。
 ```
 
 ### monSQLize：智能分批插入
@@ -523,23 +523,24 @@ const documents = Array.from({ length: 10000 }, (_, i) => ({
 
 // 标准 insertMany（性能已优化）
 const result = await collection('products').insertMany(documents);
-// 性能：~100ms（比原生快 10-50x）
+// 使用包级写入路径；请在相同驱动选项下进行基准测试。
 
 // 超大批量：使用 insertBatch（自动分批）
 const result2 = await collection('products').insertBatch(documents, {
   batchSize: 1000  // 每批 1000 条
 });
-// 性能：~200ms（更稳定，无超时风险）
+// 限制单批工作量；仍需处理失败与超时。
 ```
 
-### 批量插入性能对比
+### 批量插入取舍
 
-| 数量 | MongoDB 原生 | monSQLize insertMany | monSQLize insertBatch |
+| 场景 | MongoDB 驱动 `insertMany` | monSQLize `insertMany` | monSQLize `insertBatch` |
 |------|-------------|---------------------|----------------------|
-| 100 | 20ms | 2ms (**10x**) | 5ms |
-| 1,000 | 200ms | 10ms (**20x**) | 20ms |
-| 10,000 | 2000ms | 100ms (**20x**) | 200ms |
-| 100,000 | 超时 | 1000ms | 2000ms（分批安全） |
+| 可舒适放入单次请求 | 直接驱动路径 | 包级校验与 Hook 写入路径 | 通常不需要额外分批开销 |
+| 大型或需限制的请求 | 调用方自行选择分批策略 | 单次包级请求 | 可配置批次限制单次工作量 |
+| 失败处理 | 驱动结果与错误 | 包级结果与错误 | 按批策略与部分结果处理 |
+
+分批可以控制请求大小，但不保证通用吞吐提升。请在相同写关注、ordered 模式、索引、文档大小与并发下测量；参见[性能证据](./performance-evidence.md)。
 
 **详细文档**: [insertMany 指南](./insert-many.md), [insertBatch 指南](./insertBatch.md)
 
@@ -554,7 +555,7 @@ const result2 = await collection('products').insertBatch(documents, {
 const products = await db.collection('products').find({ 
   category: 'electronics' 
 }).toArray();
-// 耗时: ~10-50ms（每次都查数据库）
+// 每次调用都会访问数据库；延迟取决于工作负载。
 ```
 
 ### monSQLize：多层缓存
@@ -573,28 +574,30 @@ const msq = new MonSQLize({
   }
 });
 
-// 第 1 次：查询 MongoDB（10-50ms）→ 存入本地 + Redis
+// 第 1 次查询 MongoDB，并填充已配置的缓存层。
 const products1 = await collection('products').find(
   { category: 'electronics' },
   { cache: 10000 }
 );
 
-// 第 2 次：本地缓存命中（0.001ms）
+// 第 2 次调用可以命中进程内缓存。
 const products2 = await collection('products').find(
   { category: 'electronics' },
   { cache: 10000 }
 );
 
-// 如果本地缓存过期，但 Redis 还有 → 从 Redis 读取（1-2ms）
+// 如果本地缓存过期而 Redis 条目仍有效，则从 Redis 读取。
 ```
 
-### 多层缓存性能对比
+### 多层缓存性能特征
 
-| 缓存层 | 命中耗时 | 性能提升 |
+| 缓存层 | 主要成本因素 | 能力边界 |
 |--------|---------|---------|
-| **数据库查询** | 10-50ms | 基准 |
-| **Redis 缓存** | 1-2ms | **10-50x** |
-| **本地缓存** | 0.001ms | **10000-50000x** |
+| **数据库查询** | 查询计划、索引、存储、服务端负载与网络 | 权威数据路径 |
+| **Redis 缓存** | 网络、序列化、负载大小、Redis 负载与拓扑 | 避开 MongoDB 查询，但仍有远程调用 |
+| **本地缓存** | 序列化、负载大小、淘汰与进程负载 | 在当前进程内避开网络调用 |
+
+请在相同负载与并发下比较各条路径；参见[性能证据](./performance-evidence.md)。
 
 ### 多层缓存特性对比
 
@@ -740,9 +743,9 @@ msq.on('error', (data) => {
 | 维度 | MongoDB 原生 | monSQLize | 提升 |
 |------|-------------|-----------|------|
 | **功能完整性** |  |  | 100% 兼容 + 扩展 |
-| **性能（无缓存）** |  |  | 批量插入 10-50x |
-| **性能（有缓存）** | ☆☆☆☆ |  | 缓存命中 1000x |
-| **深度分页** | ☆☆☆ |  | 深度分页 250x |
+| **性能（无缓存）** |  |  | 可配置写入分批 |
+| **性能（有缓存）** | ☆☆☆☆ |  | 本地与远程缓存层 |
+| **深度分页** | ☆☆☆ |  | 游标与书签策略 |
 | **易用性** |  |  | 更简洁的 API |
 | **可维护性** |  |  | 显式缓存失效 |
 | **可观测性** | ☆☆☆ |  | 开箱即用监控 |

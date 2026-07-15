@@ -1,9 +1,10 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
+import memoryServerPolicy from '../../config/mongodb-memory-server.json';
 
-export const DEFAULT_MEMORY_SERVER_VERSION = '7.0.37';
+export const DEFAULT_MEMORY_SERVER_VERSION = memoryServerPolicy.defaultVersion;
 export const DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS = 30_000;
-const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'examples-replset-', 'probe-single-', 'probe-replset-'];
+const MANAGED_DB_PATH_PREFIXES = memoryServerPolicy.managedDbPathKinds.map((kind) => `${kind}-`);
 
 type MemoryServerPolicy = {
     projectRoot: string;

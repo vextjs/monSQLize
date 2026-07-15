@@ -6,7 +6,7 @@
 
 monSQLize keeps business lock APIs for historical callers. These APIs are compatibility helpers, not the recommended boundary for new cross-process critical sections.
 
-> **Current runtime boundary**: In the current v2 runtime, the convenience APIs `msq.withLock()`, `msq.acquireLock()`, and `msq.tryAcquireLock()` use the built-in process-local `LockManager`. They coordinate callers inside the same Node.js process, but they do not provide cross-worker or cross-instance mutual exclusion by themselves. The process-local lock also does not auto-renew while the callback is running; if the callback runs longer than `ttl`, the lock can expire before the callback returns. For Egg.js cluster workers, payment flows, order de-duplication, or other cross-process critical sections, wire and verify a Redis-backed `DistributedCacheLockManager` path explicitly and pair it with idempotency or fencing at the business layer.
+> **Current runtime boundary**: In the current v3 runtime, the convenience APIs `msq.withLock()`, `msq.acquireLock()`, and `msq.tryAcquireLock()` use the built-in process-local `LockManager`. They coordinate callers inside the same Node.js process, but they do not provide cross-worker or cross-instance mutual exclusion by themselves. The process-local lock also does not auto-renew while the callback is running; if the callback runs longer than `ttl`, the lock can expire before the callback returns. For Egg.js cluster workers, payment flows, order de-duplication, or other cross-process critical sections, wire and verify a Redis-backed `DistributedCacheLockManager` path explicitly and pair it with idempotency or fencing at the business layer.
 
 
 ## Compatibility Scope

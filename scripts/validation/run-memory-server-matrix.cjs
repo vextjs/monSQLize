@@ -3,7 +3,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { configureMemoryServerEnv } = require('./memory-server-policy.cjs');
 const {
+    INTEGRATION_TEST_CONCURRENCY,
     REQUIRED_MONGODB_SERVER_VERSIONS,
+    selectAdditionalVoltaNodeMajors,
     summarizeMatrixExecution,
 } = require('./server-matrix-config.cjs');
 
@@ -112,12 +114,13 @@ function fail(message) {
     process.exit(1);
 }
 
+const currentNodeMajor = Number(process.versions.node.split('.')[0]);
 const nodeScenarios = [
-    { label: `Node ${process.version} (current environment)`, type: 'current', major: Number(process.versions.node.split('.')[0]) },
+    { label: `Node ${process.version} (current environment)`, type: 'current', major: currentNodeMajor },
 ];
 
-if (commandExists('volta')) {
-    nodeScenarios.push({ label: 'Node 22.x (Volta)', type: 'volta', major: 22 });
+for (const major of selectAdditionalVoltaNodeMajors(currentNodeMajor, commandExists('volta'))) {
+    nodeScenarios.push({ label: `Node ${major}.x (Volta)`, type: 'volta', major });
 }
 
 const driverScenarios = [
@@ -210,7 +213,11 @@ for (const driverScenario of driverScenarios) {
             }
 
             console.log(`[memory-server-matrix]    verifying ${nodeScenario.label} / ${driverVersion} / ${mongoVersion.label}`);
-            const integrationResult = runNodeScenario(nodeScenario, ['--test', ...integrationSuites], {
+            const integrationResult = runNodeScenario(nodeScenario, [
+                '--test',
+                `--test-concurrency=${INTEGRATION_TEST_CONCURRENCY}`,
+                ...integrationSuites,
+            ], {
                 env: {
                     MONSQLIZE_MATRIX_MODE: '1',
                     MONSQLIZE_MEMORY_MONGO_BINARY_VERSION: mongoVersion.version,

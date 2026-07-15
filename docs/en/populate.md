@@ -15,7 +15,7 @@ Model schema examples on this page use the runtime-scoped `s` namespace passed b
 
 - ✅ **6 methods supported** - find/findOne/findByIds/findOneById/findAndCount/findPage ()
 - ✅ **Chain API** - Supports multiple populate chain calls
-- ✅ **Smart Cache** - Related query results can also be cached, improving performance by 10-100 times
+- ✅ **Smart Cache** - Related query results can use the configured cache; impact depends on hit rate, backend, and workload
 - ✅ **Field Selection** - Only the required fields are returned, reducing data transmission
 - ✅ **Sort Limit** - Support sort and limit to control related data
 - ✅ **Automatic Injection** - Results are automatically injected into the document object
@@ -352,13 +352,13 @@ const users = await User.find().populate('posts');
 
 //Time 1: Query users
 //The 2nd time: Batch query for all users’ articles (WHERE userId IN [...])
-//Total queries: 2 (regardless of how many users) ⚡ 50x faster
+//Total queries for this single-level relation: 2, rather than one related query per user.
 ```
 
 
 ## Smart caching
 
-**✅✅ Populate + Caching (Ultimate Performance)**:
+**Populate + caching**:
 
 ```javascript
 //First query
@@ -367,17 +367,18 @@ const users = await User.find({}, { cache: 60000 }).populate('posts');
 
 //Subsequent query (within 60 seconds)
 const users2 = await User.find({}, { cache: 60000 }).populate('posts');
-//0 database queries (all cache hits) ⚡ 100x faster
+//No database query when every required entry is a valid cache hit.
 ```
 
-**Performance comparison**:
+**Performance characteristics**:
 
-| Method | Number of users | Number of queries | Time consumption (100 users) | Performance |
-|------|-------|---------|---------------|------|
-| N+1 queries | 100 | 101 times | ~1000ms | Benchmark |
-| Populate | 100 | 2 times | ~20ms | **50x** ⚡ |
-| Populate+Cache (1st time) | 100 | 2 times | ~20ms | **50x** ⚡ |
-| Populate+caching (subsequent) | 100 | 0 times | ~0.2ms | **5000x** ⚡⚡⚡ |
+| Method | Query shape for one single-level relation | Main variables |
+|------|-------|---------|
+| N+1 queries | One main query plus one related query per parent | Parent count, network latency, connection-pool contention |
+| Populate | One main query plus a batched related query | Relation cardinality, `$in` size, indexes, selected fields |
+| Populate with valid cache hits | Cache reads can replace some or all database queries | Cache tier, serialization, payload size, hit rate, invalidation policy |
+
+Query-count reduction is structural; latency is workload-dependent. Measure it using the [performance evidence contract](./performance-evidence.md).
 
 
 ## Caching strategy
@@ -410,20 +411,22 @@ const users = await User.find()
 | findByIds populate | ✅ | ❌ | ✅ Batch query |
 | Chain API | ✅ | ✅ | Equivalent |
 | Field Selection | ✅ | ✅ | Equal |
-| **Smart Cache** | **✅ Built-in** | **❌ Need to be implemented by yourself** | ✅ **Performance 10-100x** |
+| **Smart Cache** | **✅ Built-in** | **❌ Need to be implemented by yourself** | Workload-dependent; measure cache hit rate and latency |
 
 
-## Performance comparison
+## Performance measurement example
 
 ```javascript
 // Mongoose
-const users = await User.find().populate('posts');  // 50ms
-const users2 = await User.find().populate('posts'); //50ms (query every time)
+const users = await User.find().populate('posts');
+const users2 = await User.find().populate('posts'); // Queries again unless the application adds caching.
 
 // monSQLize
-const users = await User.find({}, { cache: 60000 }).populate('posts');  // 50ms
-const users2 = await User.find({}, { cache: 60000 }).populate('posts'); // 0.5ms ⚡ 100x
+const users = await User.find({}, { cache: 60000 }).populate('posts');  // Cold path for this key.
+const users2 = await User.find({}, { cache: 60000 }).populate('posts'); // Potential warm-cache path.
 ```
+
+Record cold and warm distributions for the same dataset rather than inferring a multiplier from this control-flow example; see [Performance evidence](./performance-evidence.md).
 
 
 ## API comparison
@@ -493,7 +496,7 @@ const categories = await Category.find()
 **A**: No, on the contrary, the performance is better.
 
 - ✅ Batch query (avoid N+1)
-- ✅ Smart caching (10-100x performance improvement)
+- ✅ Smart caching (measure hit rate, backend latency, and invalidation cost for the target workload)
 - ✅ Field selection (reduce data transfer)
 
 

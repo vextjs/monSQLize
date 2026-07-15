@@ -10,15 +10,16 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync }
 import path from 'node:path';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
 
+import memoryServerPolicy from '../../../../config/mongodb-memory-server.json';
 import { createConnectionError, createError, ErrorCodes, type MonSQLizeError } from '../../../core/errors';
 import type { Logger } from '../../../core/logger';
 import type { MongoConnectConfig, MongoConnectionState } from '../../../../types/mongodb';
 
 export type { MongoConnectConfig, MongoConnectionState } from '../../../../types/mongodb';
 
-const DEFAULT_MEMORY_SERVER_VERSION = '7.0.14';
+const DEFAULT_MEMORY_SERVER_VERSION = memoryServerPolicy.defaultVersion;
 const DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS = 30_000;
-const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'examples-replset-', 'probe-single-', 'probe-replset-'];
+const MANAGED_DB_PATH_PREFIXES = memoryServerPolicy.managedDbPathKinds.map((kind) => `${kind}-`);
 
 // Singleton memory server (v1 compatible: reuses an already-started instance)
 let _memoryServerInstance: { getUri(): string; stop(cleanupOptions?: { doCleanup?: boolean; force?: boolean }): Promise<boolean | void> } | null = null;

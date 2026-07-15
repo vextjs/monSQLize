@@ -38,6 +38,7 @@
     "MIGRATION.md",
     "SECURITY.md",
     "LICENSE",
+    "licenses/production-dependencies.json",
     "CHANGELOG.md"
   ],
   "keywords": [
@@ -82,6 +83,18 @@
     "node": ">=18.0.0"
   },
   "scripts": {
+    "check:lint-contract": "node scripts/validation/check-lint-contract.cjs",
+    "check:coverage-policy": "node scripts/validation/check-coverage-policy.cjs",
+    "check:package-budgets": "node scripts/validation/check-package-budgets.cjs",
+    "check:production-licenses": "node scripts/validation/check-production-licenses.cjs",
+    "check:contributor-contract": "node scripts/validation/check-contributor-contract.cjs",
+    "check:dependency-policy": "node scripts/validation/check-dependency-policy.cjs",
+    "check:release-metadata": "node scripts/validation/check-release-metadata.cjs",
+    "check:doc-claims": "node scripts/validation/check-doc-claims.cjs",
+    "check:error-contract": "node scripts/validation/check-error-contract.cjs",
+    "check:current-version": "node scripts/validation/check-current-version-terminology.cjs",
+    "cleanup:derived": "node scripts/cleanup-derived-artifacts.cjs",
+    "cleanup:derived:apply": "node scripts/cleanup-derived-artifacts.cjs --apply --confirm=derived-artifacts",
     "check:sizes": "node scripts/check-file-sizes.cjs",
     "check:sizes:strict": "node scripts/check-file-sizes.cjs --strict",
     "build": "node scripts/build-p1.cjs",
@@ -109,8 +122,8 @@
     "check:test-language": "node scripts/check-test-language.cjs",
     "check:docs-examples": "node scripts/validation/check-doc-example-matrix.cjs",
     "check:release-candidate": "node scripts/check-release-candidate.cjs",
-    "verify:fast": "npm run lint && npm run check:docs-examples && npm run type-check && npm run check:sizes:strict && npm run test:runtime && npm run test:compatibility && npm run test:refactor-guard && npm run test:refactor-guard:cache",
-    "verify:full": "npm run lint && npm run check:docs-examples && npm run type-check && npm run check:sizes:strict && npm run test:examples && npm run test:server-matrix",
+    "verify:fast": "npm run check:lint-contract && npm run lint && npm run check:contributor-contract && npm run check:dependency-policy && npm run check:release-metadata && npm run check:doc-claims && npm run check:error-contract && npm run check:current-version && npm run check:docs-examples && npm run type-check && npm run check:sizes:strict && npm run test:runtime && npm run check:package-budgets && npm run check:production-licenses && npm run test:compatibility && npm run test:refactor-guard && npm run test:refactor-guard:cache",
+    "verify:full": "npm run check:lint-contract && npm run lint && npm run check:doc-claims && npm run check:error-contract && npm run check:current-version && npm run check:docs-examples && npm run type-check && npm run check:sizes:strict && npm run test:examples && npm run test:server-matrix",
     "verify:release": "npm run verify:full && npm run test:real-env:private",
     "verify": "npm run verify:full",
     "release:preflight": "node scripts/release-preflight.cjs",
@@ -128,7 +141,8 @@
     "mongodb-memory-server": "10.4.3",
     "sinon": "22.0.0",
     "tsd": "0.33.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.64.0"
   },
   "dependencies": {
     "async-lock": "1.4.1",

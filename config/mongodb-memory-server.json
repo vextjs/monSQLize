@@ -1,0 +1,15 @@
+{
+  "defaultVersion": "7.0.37",
+  "requiredVersions": [
+    { "label": "MongoDB 7.0", "version": "7.0.37" },
+    { "label": "MongoDB 8.0", "version": "8.0.26" }
+  ],
+  "managedDbPathKinds": [
+    "single",
+    "replset",
+    "examples-single",
+    "examples-replset",
+    "probe-single",
+    "probe-replset"
+  ]
+}

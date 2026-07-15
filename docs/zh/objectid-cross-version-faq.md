@@ -184,7 +184,7 @@ await msq.collection('users').insertOne(dataWithObjectIds);
 
 因此转换器默认关闭这些日志。
 
-### 当前 v2 运行时如何验证转换？
+### 当前 v3 运行时如何验证转换？
 
 当前转换器不提供 `silent` 或 `verbose` 日志控制项。如果需要调试转换，请通过集成测试、MongoDB command monitoring，或聚焦的转换器单元测试验证。
 

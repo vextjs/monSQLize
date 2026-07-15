@@ -70,12 +70,13 @@ async function main() {
     });
 
     await build({
-        entryPoints: ['src/cli/data-task.ts'],
+        entryPoints: ['src/cli/data-task-bin.ts'],
         outfile: 'dist/cjs/cli/data-task.cjs',
         bundle: true,
         packages: 'external',
         platform: 'node',
         format: 'cjs',
+        external: ['../index.cjs'],
         target: 'node18',
         sourcemap: emitSourceMaps,
         banner: {

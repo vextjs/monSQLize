@@ -1,0 +1,11 @@
+{
+  "allowedSpdx": ["Apache-2.0", "MIT"],
+  "metadataOverrides": {
+    "ssh2@1.17.0": {
+      "license": "MIT",
+      "licenseFile": "LICENSE",
+      "sha256": "d06b5d27bbbbe22c36b1fd88406b1208876e2d37d795f5b8eaed951a459a3111",
+      "reason": "ssh2@1.17.0 omits package.json license metadata but ships the MIT license text."
+    }
+  }
+}

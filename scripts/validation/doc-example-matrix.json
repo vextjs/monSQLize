@@ -528,6 +528,13 @@
       "status": "covered"
     },
     {
+      "doc": "performance-evidence",
+      "kind": "doc-check",
+      "target": "docs/en/performance-evidence.md",
+      "runner": "check:doc-claims",
+      "status": "covered"
+    },
+    {
       "doc": "production-rollout",
       "kind": "doc-check",
       "target": "docs/en/production-rollout.md",

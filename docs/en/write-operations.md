@@ -6,8 +6,8 @@ This page covers the collection-level insert APIs. Use these methods when you wa
 
 | Method | Purpose | Performance | Applicable scenarios |
 |------|------|------|---------|
-| **insertOne** | Insert a single document | ~10-20ms/item | Real-time single document writing, interactive operation |
-| **insertMany** | Batch insert documents | ~0.5-1ms/item **(10-50x faster)** | Data import, batch creation, initialization data |
+| **insertOne** | Insert a single document | One write command per call | Real-time single document writing, interactive operation |
+| **insertMany** | Batch insert documents | Fewer round trips for a batch; workload-dependent | Data import, batch creation, initialization data |
 
 Use the Model layer instead when the write must go through schema defaults, hooks, timestamps, versioning, soft delete, or optimistic locking. If you want to enforce that rule at runtime, configure [Write Path Policy](./write-path-policy.md).
 
@@ -80,7 +80,7 @@ collection(name: string).insertOne(document: object, options?: InsertOneOptions)
 
 ## insertMany()
 
-Batch insert multiple documents into a collection (**10-50x performance improvement**).
+Batch insert multiple documents into a collection to reduce per-document command overhead. Measure throughput with your document shape, indexes, write concern, and network.
 
 
 
@@ -411,7 +411,7 @@ for (const doc of testData) {
 console.timeEnd('Single insert');
 //Output: single insert: 1250ms
 
-//✅ Method 2: Batch insert (10-50 times faster)
+// Method 2: Batch insert (fewer network round trips)
 console.time('Batch insert');
 await collection('products').insertMany(testData);
 console.timeEnd('Batch insert');
@@ -421,7 +421,7 @@ console.timeEnd('Batch insert');
 ```
 
 **Performance Recommendations**:
-- 🚀 **Batch Insert** - Prioritize using `insertMany()`, performance improved by 10-50 times
+- **Batch Insert** - Prefer `insertMany()` when batching matches the business and failure semantics; benchmark the chosen batch size
 - 🚀 **Batch Size** - Recommend 100-1000 items per batch to balance performance and memory
 - 🚀 **unordered mode** - Use `ordered: false` when importing data to improve the success rate
 - 🚀 **Disable verification** - Non-production environments can use `bypassDocumentValidation: true` to accelerate
@@ -559,8 +559,8 @@ Comment: 'OrderAPI:createOrder:user_123'
 
 **A**: The performance difference is huge:
 - `insertMany`: Single network round trip, batch writing, ~0.5-1ms/item
-- `insertOne` (cyclic call): multiple network round-trips, ~10-20ms/item
-- **Performance improvement**: 10-50 times
+- `insertOne` (cyclic call): one command per document and more network round trips
+- **Performance**: workload-dependent; record the dataset, indexes, write concern, concurrency, and environment when benchmarking
 
 
 ## Q: Which should I choose between ordered and unordered?

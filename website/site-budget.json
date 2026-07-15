@@ -1,0 +1,10 @@
+{
+  "minimumHtmlFiles": 197,
+  "maximumFiles": 450,
+  "maximumTotalBytes": 68000000,
+  "maximumSingleJavaScriptBytes": 700000,
+  "maximumSingleHtmlBytes": 550000,
+  "maximumSearchIndexBytesPerLocale": 1800000,
+  "maximumCombinedSearchIndexBytes": 3500000,
+  "requiredSearchLocales": ["en", "zh"]
+}

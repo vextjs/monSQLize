@@ -507,7 +507,7 @@ const msq = new MonSQLize({
 | `lockMaxDuration` | `number` | cache-lock manager 中为 `30000` | 进程内事务缓存锁持续时间，单位毫秒。 |
 | `lockCleanupInterval` | `number` | cache-lock manager 中为 `60000` | 进程内缓存锁清理间隔，单位毫秒。 |
 | `maxStatsSamples` | `number` | manager 默认值 | 保留的事务统计样本上限。 |
-| `distributedLock` | `object` | 无 | 兼容占位；v2 runtime 不会因此启用分布式事务缓存锁。 |
+| `distributedLock` | `object` | 无 | 兼容占位；当前 v3 运行时不会因此启用分布式事务缓存锁。 |
 
 ## CountQueue 配置
 

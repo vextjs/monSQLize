@@ -48,11 +48,14 @@ test('release paths consume the complete single-source preflight gate', () => {
     assert.ok(packageJson.files.includes(`changelogs/v${packageJson.version}.md`));
     assert.ok(packageJson.files.includes('MIGRATION.md'));
     assert.ok(packageJson.files.includes('SECURITY.md'));
+    assert.ok(packageJson.files.includes('licenses/production-dependencies.json'));
+    assert.match(preflight, /Node\.js 22\+/);
     assert.equal(
         preflight.match(/run\('npm', \['run', 'check:release-candidate'\]\);/g)?.length,
         2,
     );
     assert.match(preflight, /\['--prefix', 'website', 'ci'\]/);
+    assert.match(preflight, /playwright[\s\S]*install[\s\S]*chromium/);
     assert.match(preflight, /\['--prefix', 'website', 'run', 'verify'\]/);
     assert.match(candidateCheck, /git[\s\S]*status[\s\S]*--porcelain=v1/);
     assert.match(candidateCheck, /npm[\s\S]*ls[\s\S]*--all/);
@@ -65,7 +68,7 @@ test('release paths consume the complete single-source preflight gate', () => {
         assert.match(generatedDirectoryWriter, /maxRetries:\s*10/);
         assert.match(generatedDirectoryWriter, /retryDelay:\s*100/);
     }
-    assert.match(websitePackageJson.scripts.verify, /type-check.*build.*check:links.*check:audit/);
+    assert.match(websitePackageJson.scripts.verify, /type-check.*build.*check:links.*check:budgets.*check:browser.*check:audit/);
     assert.match(ci, /npm run release:preflight/);
     assert.match(releaseWorkflow, /npm run release:preflight/);
     assert.match(releaseAuthWorkflow, /workflow_dispatch/);
@@ -75,7 +78,12 @@ test('release paths consume the complete single-source preflight gate', () => {
     assert.match(publishWorkflow, /dist\.integrity/);
     assert.match(publishWorkflow, /dist-tags\.latest/);
     assert.match(publishWorkflow, /mkdir -p "\$\{CONSUMER_DIR\}"/);
-    assert.match(publishWorkflow, /dist\/esm\/index\.mjs/);
+    assert.match(publishWorkflow, /cd "\$\{CONSUMER_DIR\}"/);
+    assert.match(publishWorkflow, /require\('monsqlize'\)/);
+    assert.match(publishWorkflow, /from 'monsqlize'/);
+    assert.match(publishWorkflow, /consumer\.ts/);
+    assert.match(publishWorkflow, /\.\/node_modules\/\.bin\/monsqlize/);
+    assert.doesNotMatch(publishWorkflow, /CONSUMER_DIR.*dist\/esm\/index\.mjs/);
     assert.match(publishWorkflow, /dataTasks/);
     assert.match(publishWorkflow, /release_tag:/);
     assert.match(publishWorkflow, /ref: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.release_tag \|\| github\.ref \}\}/);
@@ -83,6 +91,10 @@ test('release paths consume the complete single-source preflight gate', () => {
     assert.match(publishWorkflow, /GITHUB_STEP_SUMMARY/);
     assert.match(publishWorkflow, /releases\/new\?tag=/);
     assert.match(publishWorkflow, /Deploy Docs to GitHub Pages/);
+    assert.match(ci, /release-gate[\s\S]*node-version: '22\.x'/);
+    assert.match(releaseWorkflow, /node-version: '22\.x'/);
+    assert.match(deployDocsWorkflow, /node-version: '22'/);
+    assert.match(deployDocsWorkflow, /playwright install --with-deps chromium/);
     for (const workflow of [ci, releaseWorkflow, releaseAuthWorkflow, publishWorkflow, deployDocsWorkflow]) {
         assert.doesNotMatch(workflow, /actions\/setup-node@v4/);
         assert.match(workflow, /actions\/setup-node@v6/);

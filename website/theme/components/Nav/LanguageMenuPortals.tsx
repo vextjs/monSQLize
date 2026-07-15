@@ -17,6 +17,21 @@ export function LanguageMenuPortals() {
 
   useEffect(() => {
     const locateSlots = () => {
+      document.querySelectorAll<HTMLAnchorElement>('.rp-header-anchor[aria-hidden="true"]')
+        .forEach(anchor => anchor.setAttribute('tabindex', '-1'));
+      document.querySelectorAll<HTMLElement>('.rp-table-scroll-container')
+        .forEach(container => {
+          if (container.scrollWidth > container.clientWidth || container.scrollHeight > container.clientHeight) {
+            container.setAttribute('tabindex', '0');
+          }
+        });
+      document.querySelectorAll<HTMLAnchorElement>('.rp-social-links__item')
+        .forEach(link => {
+          if (!link.getAttribute('aria-label') && !link.textContent?.trim()) {
+            link.setAttribute('aria-label', link.href.includes('github.com') ? 'GitHub' : 'Social link');
+          }
+        });
+
       const others = document.querySelector('.rp-nav__others');
       if (others) {
         const firstMenuItem = others.querySelector('.rp-nav-menu__item');

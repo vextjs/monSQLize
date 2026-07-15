@@ -129,7 +129,7 @@ const result = await msq.collection('orders').find({
 
 ## 调试
 
-当前 v2 转换器不会输出逐值转换日志。如果需要检查转换行为，请通过集成测试、MongoDB command monitoring，或围绕转换器的聚焦单元测试验证。
+当前 v3 转换器不会输出逐值转换日志。如果需要检查转换行为，请通过集成测试、MongoDB command monitoring，或围绕转换器的聚焦单元测试验证。
 
 ## 注意事项
 

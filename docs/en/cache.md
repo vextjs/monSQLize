@@ -629,7 +629,7 @@ const msq = new MonSQLize({
 
 | Dimensions | No cache | Local cache (MemoryCache) | Remote cache (Redis) | Double-layer cache (MultiLevel) |
 |------|-------|----------------------|------------------|---------------------|
-| **Response Time** | 10-50ms | 0.001-0.1ms | 1-2ms | 0.001-2ms |
+| **Response Time** | Workload/network dependent | Process-local and workload dependent | Network/backend dependent | Depends on hit tier and backfill |
 | **Cache Capacity** | - | 10,000-100,000 items | GB level (millions of items+) | Local entries + Redis capacity |
 | **Cluster Consistency** | ❌ Database check every time | ❌ Each node is independent | Shared Redis state; invalidation is eventual | Shared Redis state; invalidation is eventual |
 | **Memory usage** | - | High (local) | Low (remote) | Medium (local) + Low (remote) |
@@ -916,68 +916,11 @@ setInterval(() => {
 
 ---
 
-## Performance Benchmark
+## Performance measurement
 
+A cache hit avoids some or all database work, but it does not imply a fixed latency or speedup. Compare cold and warm distributions for `find`, `findPage`, and `distinct` using the same query, payload, concurrency, serialization path, MongoDB topology, and cache backend. Store raw samples with the commit and environment, then define a workload-specific regression budget.
 
-## Cache acceleration effect
-
-The following are the results of monSQLize’s built-in performance benchmarks:
-
-
-### find query cache
-
-```bash
-Test: find query (100 records)
-Number of iterations: 10000
-
-Cache hit:
-Total time taken: 15ms
-Average time: 0.0015ms/time
-
-Cache miss (database query):
-Total time taken: 4523ms
-Average time: 0.4523ms/time
-
-Speedup ratio: 301.5x
-```
-
-
-### findPage query cache
-
-```bash
-Test: findPage query (cursor paging)
-Number of iterations: 10000
-
-Cache hit:
-Total time taken: 18ms
-Average time: 0.0018ms/time
-
-Cache miss (database query):
-Total time taken: 5234ms
-Average time: 0.5234ms/time
-
-Speedup ratio: 290.8x
-```
-
-
-### distinct query cache
-
-```bash
-Test: distinct query (statistical deduplication fields)
-Number of iterations: 10000
-
-Cache hit:
-Total time taken: 14ms
-Average time: 0.0014ms/time
-
-Cache miss (database query):
-Total time taken: 3892ms
-Average time: 0.3892ms/time
-
-Speedup: 278.0x
-```
-
-**Conclusion**: In the built-in benchmark above, cache-hit paths avoid database work and are much faster than cache-miss paths. Treat the ratio as benchmark evidence for that workload, not a guaranteed production multiplier.
+See [Performance evidence](./performance-evidence.md) for the required workload, environment, dataset, command, artifact, and budget fields.
 
 ---
 

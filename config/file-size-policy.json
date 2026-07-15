@@ -1,0 +1,13 @@
+{
+  "categories": [
+    { "name": "source", "root": "src", "suffix": ".ts", "excludeDeclarationFiles": true, "warn": 800, "error": 1200 },
+    { "name": "types", "root": "types", "suffix": ".d.ts", "excludeDeclarationFiles": false, "warn": 800, "error": 1200 },
+    { "name": "tests", "root": "test", "suffix": ".ts", "excludeDeclarationFiles": false, "warn": 1200, "error": 1800 }
+  ],
+  "baselines": {
+    "types/collection.d.ts": { "maxLines": 1155, "reason": "Public collection contract; split by capability in a dedicated compatibility-preserving refactor." },
+    "test/unit/coverage/core-helpers.test.ts": { "maxLines": 1457, "reason": "Historical helper coverage matrix; new growth is forbidden until capability split." },
+    "test/unit/coverage/pure-functions.test.ts": { "maxLines": 3380, "reason": "Historical coverage scenarios; new growth is forbidden until capability split." },
+    "test/integration/model/model-schema-validation-errors.test.ts": { "maxLines": 2997, "reason": "Schema error matrix; new growth is forbidden until scenario split." }
+  }
+}

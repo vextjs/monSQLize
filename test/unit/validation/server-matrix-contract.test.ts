@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const projectRoot = process.cwd();
 const contract = require(path.join(projectRoot, 'scripts/validation/server-matrix-config.cjs'));
 const packageJson = require(path.join(projectRoot, 'package.json'));
+const memoryServerPolicy = require(path.join(projectRoot, 'config/mongodb-memory-server.json'));
 const runtimePolicy = require(path.join(projectRoot, 'scripts/validation/memory-server-policy.cjs'));
 const testPolicy = require(path.join(
     projectRoot,
@@ -20,9 +23,38 @@ test('server matrix contract: required versions are the latest stable MongoDB 7/
 });
 
 test('server matrix contract: everyday memory-server defaults stay on MongoDB 7.0', () => {
-    assert.equal(packageJson.config.mongodbMemoryServer.version, '7.0.37');
-    assert.equal(runtimePolicy.DEFAULT_MEMORY_SERVER_VERSION, '7.0.37');
-    assert.equal(testPolicy.DEFAULT_MEMORY_SERVER_VERSION, '7.0.37');
+    assert.equal(memoryServerPolicy.defaultVersion, '7.0.37');
+    assert.equal(packageJson.config.mongodbMemoryServer.version, memoryServerPolicy.defaultVersion);
+    assert.equal(runtimePolicy.DEFAULT_MEMORY_SERVER_VERSION, memoryServerPolicy.defaultVersion);
+    assert.equal(testPolicy.DEFAULT_MEMORY_SERVER_VERSION, memoryServerPolicy.defaultVersion);
+});
+
+test('server matrix contract: Volta fills only missing Node 20/22 runtimes', () => {
+    assert.deepEqual(contract.REQUIRED_NODE_MAJORS, [20, 22]);
+    assert.deepEqual(contract.selectAdditionalVoltaNodeMajors(20, true), [22]);
+    assert.deepEqual(contract.selectAdditionalVoltaNodeMajors(22, true), [20]);
+    assert.deepEqual(contract.selectAdditionalVoltaNodeMajors(18, true), [20, 22]);
+    assert.deepEqual(contract.selectAdditionalVoltaNodeMajors(20, false), []);
+});
+
+test('server matrix contract: memory-server integration files start serially', () => {
+    assert.equal(contract.INTEGRATION_TEST_CONCURRENCY, 1);
+});
+
+test('memory-server cleanup: a dead managed examples path is pruned', () => {
+    const dbRoot = mkdtempSync(path.join(os.tmpdir(), 'monsqlize-memory-policy-'));
+    const managedPath = path.join(dbRoot, 'examples-replset-contract-2147483647-dead');
+    const unmanagedPath = path.join(dbRoot, 'example-replset-contract-2147483647-legacy');
+    mkdirSync(managedPath);
+    mkdirSync(unmanagedPath);
+
+    try {
+        runtimePolicy.pruneMemoryServerDbRoot(dbRoot);
+        assert.equal(existsSync(managedPath), false);
+        assert.equal(existsSync(unmanagedPath), true, 'legacy singular paths must not be auto-deleted');
+    } finally {
+        rmSync(dbRoot, { recursive: true, force: true });
+    }
 });
 
 test('server matrix contract: a complete execution matrix is accepted', () => {

@@ -4,7 +4,7 @@ Database-native production data runtime layer for TypeScript services. monSQLize
 
 [![npm version](https://img.shields.io/npm/v/monsqlize.svg)](https://www.npmjs.com/package/monsqlize)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![MongoDB](https://img.shields.io/badge/MongoDB-6.x%20%2F%207.x-green.svg)](https://www.mongodb.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7.x%20%2F%208.x-green.svg)](https://www.mongodb.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-brightgreen)](https://nodejs.org/)
 
 Documentation: [English](https://vextjs.github.io/monSQLize/) · [简体中文](https://vextjs.github.io/monSQLize/zh/)
@@ -44,7 +44,7 @@ The shared runtime direction is cache consistency, connection lifecycle, transac
 
 ## Runtime Consistency Contract
 
-monSQLize coordinates cache, transactions, sync, and queues inside the runtime, but it does not provide a global strict-consistency kernel. MongoDB transactions keep MongoDB session ACID semantics. Query caching is opt-in, and write-side cache invalidation is explicit: use `cache.invalidate` for precise entries or `autoInvalidate` / `cache.autoInvalidate` for broad invalidation. Cache invalidation runs after successful writes or transaction commit and is best-effort; Redis/L2 cache and Pub/Sub invalidation provide eventual cross-instance coherence rather than atomic cache/DB commits. Change Stream sync is at-least-once; custom targets should be idempotent by change event `_id`, and `sync.idempotency` can record per-target replay markers when a durable store is provided. Transaction cache locks are process-local in the v2 runtime; use explicit business coordination, idempotency/fencing, or cache bypassing for cross-instance strict flows.
+monSQLize coordinates cache, transactions, sync, and queues inside the runtime, but it does not provide a global strict-consistency kernel. MongoDB transactions keep MongoDB session ACID semantics. Query caching is opt-in, and write-side cache invalidation is explicit: use `cache.invalidate` for precise entries or `autoInvalidate` / `cache.autoInvalidate` for broad invalidation. Cache invalidation runs after successful writes or transaction commit and is best-effort; Redis/L2 cache and Pub/Sub invalidation provide eventual cross-instance coherence rather than atomic cache/DB commits. Change Stream sync is at-least-once; custom targets should be idempotent by change event `_id`, and `sync.idempotency` can record per-target replay markers when a durable store is provided. Transaction cache locks are process-local in the current v3 runtime; use explicit business coordination, idempotency/fencing, or cache bypassing for cross-instance strict flows.
 
 ## Write Path Policy
 
@@ -164,7 +164,7 @@ Published entry points:
 | ESM | `dist/esm/index.mjs` |
 | Types | `dist/types/index.d.ts` |
 
-The package root exports only the public package contract. Deep imports into historical `lib/**` files are not part of the v2 publishing surface.
+The package root exports only the public package contract. Deep imports into historical `lib/**` files are not part of the v3 publishing surface.
 
 ## Model Layer
 
@@ -477,7 +477,7 @@ const user = await users.findOne({ email });
 const list = await users.find({ status: 'active' }).toArray();
 ```
 
-The v2 line has been validated against the workspace consumers `chat`, `payment`, `user`, `admin`, `search`, `vext`, and `permission-core` without requiring business-source changes in those projects.
+The v3 line has been validated against the workspace consumers `chat`, `payment`, `user`, `admin`, `search`, `vext`, and `permission-core` without requiring business-source changes in those projects.
 
 ## Compatibility
 
@@ -485,7 +485,7 @@ The v2 line has been validated against the workspace consumers `chat`, `payment`
 |---|---|
 | Node.js | `>=18.0.0`; CI covers Node 18 / 20 / 22. |
 | MongoDB driver | `mongodb@6.21.0` runtime baseline; driver 7.5.0 has additional compatibility coverage. |
-| MongoDB server | Memory-server based 6.x / 7.x validation is covered by the project test matrix. |
+| MongoDB server | Memory-server based 7.x / 8.x validation is covered by the strict project test matrix. |
 | Module systems | CommonJS and ESM are both validated. |
 | TypeScript | Public declarations are published from `dist/types/index.d.ts`. |
 | Package license | Apache-2.0. |
@@ -501,7 +501,7 @@ See the current support and verification documents:
 
 ## Documentation
 
-Current TypeScript documentation and examples are the source of truth for the v2 package:
+Current TypeScript documentation and examples are the source of truth for the v3 package:
 
 - Complete docs: [English](https://vextjs.github.io/monSQLize/) · [简体中文](https://vextjs.github.io/monSQLize/zh/)
 - Constructor configuration: [English](https://vextjs.github.io/monSQLize/configuration) · [简体中文](https://vextjs.github.io/monSQLize/zh/configuration)
@@ -514,7 +514,7 @@ Current TypeScript documentation and examples are the source of truth for the v2
 - Compatibility checks: [test/compatibility](https://github.com/vextjs/monSQLize/tree/main/test/compatibility)
 - Verification mapping: [test/validation](https://github.com/vextjs/monSQLize/tree/main/test/validation)
 
-Historical v1 assets are useful for tracing old behavior, but they are not the current publishing surface for v2.
+Historical v1 and v2 assets are useful for tracing old behavior, but they are not the current publishing surface for v3.
 
 ## Development
 

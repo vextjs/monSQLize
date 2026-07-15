@@ -1,7 +1,11 @@
-const REQUIRED_MONGODB_SERVER_VERSIONS = Object.freeze([
-    Object.freeze({ label: 'MongoDB 7.0', version: '7.0.37' }),
-    Object.freeze({ label: 'MongoDB 8.0', version: '8.0.26' }),
-]);
+const memoryServerPolicy = require('../../config/mongodb-memory-server.json');
+
+const REQUIRED_NODE_MAJORS = Object.freeze([20, 22]);
+const INTEGRATION_TEST_CONCURRENCY = 1;
+
+const REQUIRED_MONGODB_SERVER_VERSIONS = Object.freeze(
+    memoryServerPolicy.requiredVersions.map((entry) => Object.freeze({ ...entry })),
+);
 
 function summarizeVersionProbes(results, requiredVersions = REQUIRED_MONGODB_SERVER_VERSIONS) {
     const missing = [];
@@ -54,8 +58,18 @@ function summarizeMatrixExecution(driverResults, expectedDriverCount, expectedRe
     };
 }
 
+function selectAdditionalVoltaNodeMajors(currentMajor, hasVolta) {
+    if (!hasVolta) {
+        return [];
+    }
+    return REQUIRED_NODE_MAJORS.filter((major) => major !== currentMajor);
+}
+
 module.exports = {
+    INTEGRATION_TEST_CONCURRENCY,
+    REQUIRED_NODE_MAJORS,
     REQUIRED_MONGODB_SERVER_VERSIONS,
+    selectAdditionalVoltaNodeMajors,
     summarizeMatrixExecution,
     summarizeVersionProbes,
 };

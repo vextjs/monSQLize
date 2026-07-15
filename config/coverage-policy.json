@@ -1,0 +1,21 @@
+{
+  "global": {
+    "statements": 90,
+    "branches": 90,
+    "functions": 90,
+    "lines": 90
+  },
+  "excludedGeneratedSources": [
+    ".generated/test-dist/src/entry/compat/**",
+    ".generated/test-dist/src/types/internal/**",
+    ".generated/test-dist/src/cli/data-task-bin.js"
+  ],
+  "riskFloors": [
+    { "path": "src/adapters/mongodb/common/connect.ts", "statements": 80, "branches": 58, "functions": 88, "lines": 80 },
+    { "path": "src/capabilities/sync/idempotency.ts", "statements": 63, "branches": 60, "functions": 66, "lines": 63 },
+    { "path": "src/capabilities/cache/redis-cache-adapter.ts", "statements": 67, "branches": 88, "functions": 66, "lines": 67 },
+    { "path": "src/capabilities/data-tasks/job-apply.ts", "statements": 95, "branches": 80, "functions": 100, "lines": 95 },
+    { "path": "src/capabilities/data-tasks/job-restore.ts", "statements": 91, "branches": 77, "functions": 100, "lines": 91 },
+    { "path": "src/cli/data-task.ts", "statements": 81, "branches": 85, "functions": 91, "lines": 81 }
+  ]
+}

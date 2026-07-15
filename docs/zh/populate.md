@@ -14,7 +14,7 @@ Populate 是 Model 层用于加载 `relations` 中声明的关联文档的能力
 
 - ✅ **6个方法支持** - find/findOne/findByIds/findOneById/findAndCount/findPage（）
 - ✅ **链式API** - 支持多个 populate 链式调用
-- ✅ **智能缓存** - 关联查询结果也能缓存，性能提升10-100倍
+- ✅ **智能缓存** - 关联查询结果可使用配置的缓存；效果取决于命中率、后端和负载
 - ✅ **字段选择** - 只返回需要的字段，减少数据传输
 - ✅ **排序限制** - 支持 sort 和 limit 控制关联数据
 - ✅ **自动注入** - 结果自动注入到文档对象
@@ -338,12 +338,12 @@ const users = await User.find().populate('posts');
 
 // 第1次：查询用户
 // 第2次：批量查询所有用户的文章（WHERE userId IN [...]）
-// 总查询次数：2次（无论多少用户）⚡ 50x faster
+// 对此单层关系总计 2 次查询，而不是每个用户再查询一次关联数据。
 ```
 
 ### 智能缓存
 
-**✅✅ Populate + 缓存（极致性能）**:
+**Populate + 缓存**：
 
 ```javascript
 // 第一次查询
@@ -352,17 +352,18 @@ const users = await User.find({}, { cache: 60000 }).populate('posts');
 
 // 后续查询（60秒内）
 const users2 = await User.find({}, { cache: 60000 }).populate('posts');
-// 0次数据库查询（全部命中缓存）⚡ 100x faster
+// 所需条目全部有效命中缓存时，不再查询数据库。
 ```
 
-**性能对比**:
+**性能特征**：
 
-| 方式 | 用户数 | 查询次数 | 耗时（100用户） | 性能 |
-|------|-------|---------|---------------|------|
-| N+1查询 | 100 | 101次 | ~1000ms | 基准 |
-| Populate | 100 | 2次 | ~20ms | **50x** ⚡ |
-| Populate+缓存(第1次) | 100 | 2次 | ~20ms | **50x** ⚡ |
-| Populate+缓存(后续) | 100 | 0次 | ~0.2ms | **5000x** ⚡⚡⚡ |
+| 方式 | 单个单层关系的查询形态 | 主要变量 |
+|------|-------|---------|
+| N+1 查询 | 一次主查询，加上每个父文档一次关联查询 | 父文档数量、网络延迟、连接池竞争 |
+| Populate | 一次主查询，加一次批量关联查询 | 关系基数、`$in` 大小、索引、选择字段 |
+| Populate 有效缓存命中 | 缓存读取可替代部分或全部数据库查询 | 缓存层级、序列化、负载大小、命中率、失效策略 |
+
+查询次数减少是结构特征，延迟仍取决于工作负载。请按[性能证据契约](./performance-evidence.md)测量。
 
 ### 缓存策略
 
@@ -393,19 +394,21 @@ const users = await User.find()
 | findByIds populate | ✅ | ❌ | ✅ 批量查询 |
 | 链式API | ✅ | ✅ | 同等 |
 | 字段选择 | ✅ | ✅ | 同等 |
-| **智能缓存** | **✅ 内置** | **❌ 需自己实现** | ✅ **性能10-100x** |
+| **智能缓存** | **✅ 内置** | **❌ 需自己实现** | 取决于负载；需测量命中率与时延 |
 
-### 性能对比
+### 性能测量示例
 
 ```javascript
 // Mongoose
-const users = await User.find().populate('posts');  // 50ms
-const users2 = await User.find().populate('posts'); // 50ms（每次都查询）
+const users = await User.find().populate('posts');
+const users2 = await User.find().populate('posts'); // 应用未添加缓存时再次查询。
 
 // monSQLize
-const users = await User.find({}, { cache: 60000 }).populate('posts');  // 50ms
-const users2 = await User.find({}, { cache: 60000 }).populate('posts'); // 0.5ms ⚡ 100x
+const users = await User.find({}, { cache: 60000 }).populate('posts');  // 此 key 的冷路径。
+const users2 = await User.find({}, { cache: 60000 }).populate('posts'); // 可能的热缓存路径。
 ```
+
+应对相同数据集记录冷、热路径分布，不能从此控制流示例推导固定倍率；参见[性能证据](./performance-evidence.md)。
 
 ### API 对比
 
@@ -463,7 +466,7 @@ const students = await Student.find()
 **A**: 不会，反而性能更好。
 
 - ✅ 批量查询（避免 N+1）
-- ✅ 智能缓存（10-100x 性能提升）
+- ✅ 智能缓存（对目标负载测量命中率、后端时延和失效成本）
 - ✅ 字段选择（减少数据传输）
 
 ### Q5: 关系定义后必须 populate 吗？

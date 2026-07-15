@@ -6,8 +6,8 @@
 
 | 方法 | 用途 | 性能 | 适用场景 |
 |------|------|------|---------|
-| **insertOne** | 插入单个文档 | ~10-20ms/条 | 实时单条写入、交互式操作 |
-| **insertMany** | 批量插入文档 | ~0.5-1ms/条 **(10-50x 更快)** | 数据导入、批量创建、初始化数据 |
+| **insertOne** | 插入单个文档 | 每次调用一条写命令 | 实时单条写入、交互式操作 |
+| **insertMany** | 批量插入文档 | 批次内网络往返更少；取决于负载 | 数据导入、批量创建、初始化数据 |
 
 如果写入必须经过 schema defaults、hooks、timestamps、version、soft delete 或乐观锁，请使用 Model 层。需要在运行时强制这一规则时，配置 [写路径策略](./write-path-policy.md)。
 
@@ -71,7 +71,7 @@ collection(name: string).insertOne(document: object, options?: InsertOneOptions)
 
 ### insertMany()
 
-批量插入多个文档到集合（**10-50x 性能提升**）。
+一次向集合提交多个文档，减少逐条命令开销。实际吞吐取决于文档结构、索引、写关注、网络和批量大小。
 
 #### 方法签名（insertMany()）
 
@@ -374,7 +374,7 @@ for (const doc of testData) {
 console.timeEnd('单条插入');
 // 输出: 单条插入: 1250ms
 
-// ✅ 方式 2: 批量插入（快 10-50 倍）
+// 方式 2: 批量插入（减少网络往返）
 console.time('批量插入');
 await collection('products').insertMany(testData);
 console.timeEnd('批量插入');
@@ -384,7 +384,7 @@ console.timeEnd('批量插入');
 ```
 
 **性能建议**:
-- 🚀 **批量插入** - 优先使用 `insertMany()`，性能提升 10-50 倍
+- **批量插入** - 业务和失败语义适合批处理时优先使用 `insertMany()`，并对选定批量大小做基准测试
 - 🚀 **批量大小** - 建议每批 100-1000 条，平衡性能和内存
 - 🚀 **unordered 模式** - 数据导入时使用 `ordered: false` 提高成功率
 - 🚀 **禁用验证** - 非生产环境可使用 `bypassDocumentValidation: true` 加速
@@ -516,8 +516,8 @@ await msq.connect();
 
 **A**: 性能差异巨大：
 - `insertMany`: 单次网络往返，批量写入，~0.5-1ms/条
-- `insertOne`（循环调用）: 多次网络往返，~10-20ms/条
-- **性能提升**: 10-50 倍
+- `insertOne`（循环调用）: 每条文档一条命令，网络往返更多
+- **性能**: 取决于负载；基准记录必须包含数据集、索引、写关注、并发和运行环境
 
 ### Q: ordered 和 unordered 应该选哪个？
 

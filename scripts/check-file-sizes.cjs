@@ -3,9 +3,8 @@
  * File size governance check script (scripts/check-file-sizes.cjs).
  *
  * Behavior:
- * - Scans all .ts files under src/ except .d.ts files.
- * - Prints a warning when a file exceeds WARN_THRESHOLD (800 lines).
- * - Fails when a file exceeds ERROR_THRESHOLD (1200 lines).
+ * - Scans source, public type declarations, and tests with category thresholds.
+ * - Keeps explicit no-growth baselines for known historical large files.
  * - Supports --strict to treat warnings as failures.
  *
  * Usage:
@@ -20,31 +19,33 @@
 const fs   = require('node:fs');
 const path = require('node:path');
 
-// ─── Threshold config ─────────────────────────────────────────────────────────
-
-const WARN_THRESHOLD  = 800;   // Warn above this line count.
-const ERROR_THRESHOLD = 1200;  // Fail above this line count.
+const projectRoot = path.resolve(__dirname, '..');
+const policy = require('../config/file-size-policy.json');
 
 // ─── Argument parsing ─────────────────────────────────────────────────────────
 
 const args    = process.argv.slice(2);
 const strict  = args.includes('--strict');
-const srcRoot = path.resolve(__dirname, '..', 'src');
 
 // ─── File scanning ────────────────────────────────────────────────────────────
 
 /**
- * Recursively collects all non-.d.ts TypeScript files under dir.
+ * Recursively collects matching files under dir.
  * @param {string} dir
+ * @param {{ suffix: string, excludeDeclarationFiles: boolean }} category
  * @returns {string[]}
  */
-function collectTsFiles(dir) {
+function collectFiles(dir, category) {
     const results = [];
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-            results.push(...collectTsFiles(fullPath));
-        } else if (entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) {
+            results.push(...collectFiles(fullPath, category));
+        } else if (
+            entry.isFile()
+            && entry.name.endsWith(category.suffix)
+            && !(category.excludeDeclarationFiles && entry.name.endsWith('.d.ts'))
+        ) {
             results.push(fullPath);
         }
     }
@@ -67,43 +68,69 @@ function countLines(filePath) {
 // ─── Main logic ───────────────────────────────────────────────────────────────
 
 function main() {
-    const files = collectTsFiles(srcRoot).sort();
-
     const warns  = [];
     const errors = [];
+    const baselines = [];
+    const seenBaselines = new Set();
 
-    for (const filePath of files) {
-        const lines   = countLines(filePath);
-        const relPath = path.relative(path.resolve(__dirname, '..'), filePath).replace(/\\/g, '/');
+    for (const category of policy.categories) {
+        const categoryRoot = path.join(projectRoot, category.root);
+        const files = collectFiles(categoryRoot, category).sort();
+        for (const filePath of files) {
+            const lines = countLines(filePath);
+            const relPath = path.relative(projectRoot, filePath).replace(/\\/g, '/');
+            const baseline = policy.baselines[relPath];
 
-        if (lines > ERROR_THRESHOLD) {
-            errors.push({ relPath, lines });
-        } else if (lines > WARN_THRESHOLD) {
-            warns.push({ relPath, lines });
+            if (baseline) {
+                seenBaselines.add(relPath);
+                if (lines > baseline.maxLines) {
+                    errors.push({ relPath, lines, limit: baseline.maxLines, category: `${category.name}-baseline` });
+                } else {
+                    baselines.push({ relPath, lines, limit: baseline.maxLines, category: category.name });
+                }
+            } else if (lines > category.error) {
+                errors.push({ relPath, lines, limit: category.error, category: category.name });
+            } else if (lines > category.warn) {
+                warns.push({ relPath, lines, limit: category.warn, category: category.name });
+            }
+        }
+    }
+
+    for (const relPath of Object.keys(policy.baselines)) {
+        if (!seenBaselines.has(relPath)) {
+            errors.push({ relPath, lines: 0, limit: policy.baselines[relPath].maxLines, category: 'missing-baseline' });
         }
     }
 
     // ── Output report ─────────────────────────────────────────────────────────
     let hasOutput = false;
 
+    if (baselines.length > 0) {
+        console.log('\nBASELINE: known large files are allowed only at or below their frozen line count:');
+        for (const { relPath, lines, limit, category } of baselines) {
+            console.log(`   BASELINE ${relPath} (${lines}/${limit} lines, ${category})`);
+        }
+        hasOutput = true;
+    }
+
     if (warns.length > 0) {
-        console.log('\nWARNING: file line count exceeds WARN threshold (' + WARN_THRESHOLD + '):');
-        for (const { relPath, lines } of warns) {
-            console.log(`   WARN  ${relPath}  (${lines} lines)`);
+        console.log('\nWARNING: file line count exceeds its category warning threshold:');
+        for (const { relPath, lines, limit, category } of warns) {
+            console.log(`   WARN  ${relPath} (${lines}/${limit} lines, ${category})`);
         }
         hasOutput = true;
     }
 
     if (errors.length > 0) {
-        console.log('\nERROR: file line count exceeds ERROR threshold (' + ERROR_THRESHOLD + '):');
-        for (const { relPath, lines } of errors) {
-            console.log(`   ERROR ${relPath}  (${lines} lines)`);
+        console.log('\nERROR: file line count exceeds its category or frozen baseline threshold:');
+        for (const { relPath, lines, limit, category } of errors) {
+            console.log(`   ERROR ${relPath} (${lines}/${limit} lines, ${category})`);
         }
         hasOutput = true;
     }
 
     if (!hasOutput) {
-        console.log('All file line counts are within thresholds (WARN=' + WARN_THRESHOLD + ', ERROR=' + ERROR_THRESHOLD + ').');
+        console.log('All source, type, and test file line counts are within category thresholds.');
     }
 
     const exitCode = errors.length > 0 || (strict && warns.length > 0) ? 1 : 0;

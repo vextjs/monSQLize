@@ -56,7 +56,7 @@ jobs:
       - name: Select verified website toolchain
         shell: bash
         run: |
-          if node -e "process.exit(require('./release/website/package.json').scripts?.verify ? 0 : 1)"; then
+          if node -e "process.exit(require('./release/website/package.json').scripts?.['check:browser'] ? 0 : 1)"; then
             echo "DOCS_LEGACY_TAG=false" >> "${GITHUB_ENV}"
           else
             cp tooling/website/package.json release/website/package.json
@@ -67,7 +67,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: release/website/package-lock.json
 
@@ -77,6 +77,11 @@ jobs:
       - name: Install website dependencies
         working-directory: ./release/website
         run: npm ci
+
+      - name: Install Chromium for current-site verification
+        if: env.DOCS_LEGACY_TAG != 'true'
+        working-directory: ./release/website
+        run: npx playwright install --with-deps chromium
 
       - name: Verify docs site
         working-directory: ./release/website

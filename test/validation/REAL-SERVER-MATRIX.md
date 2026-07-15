@@ -65,6 +65,9 @@ npm run test:server-matrix
 
 该脚本会执行以下验证：
 
+- 复用当前 Node，并在 Volta 可用时只补齐缺失的 Node 20/22；从 Node 20 或 Node 22 启动都会得到两个必需运行时，而不会重复当前 major。
+- 数据库 integration 文件使用 `--test-concurrency=1` 串行启动，避免多个 memory-server 进程竞争同一个自动端口。
+
 ### 4.1 普通服务端路径
 
 - `.generated/test-dist/test/integration/mongodb/connect.test.js`

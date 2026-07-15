@@ -6,8 +6,40 @@ monSQLize uses a unified error code system to identify different types of errors
 
 Common user paths such as configuration, cache, SSH, connection pools, query chains, collection management, transactions, and expression compilation throw error objects with `code`; error `message` remains human-readable.
 
+The core runtime uses `MonSQLizeError` together with the exported `ErrorCodes` constants. Data Tasks form a separate domain contract: they throw `DataTaskJobError`, whose discriminated `code`, `phase`, and optional `collection` describe validation, approval, locking, apply, backup, and restore failures. Do not compare Data Task codes with `ErrorCodes`; handle the two error families explicitly at the boundary.
 
-## Error object structure
+### Data Task error contract
+
+```javascript
+import { DataTaskJobError } from 'monsqlize';
+
+try {
+  await dataTasks.apply(job, approval);
+} catch (error) {
+  if (error instanceof DataTaskJobError) {
+    console.error(error.code, error.phase, error.collection);
+  }
+  throw error;
+}
+```
+
+| Code | Boundary |
+|---|---|
+| `INVALID_JOB` | Job shape or policy validation |
+| `IDENTITY_CONFLICT` | Source/target identity mapping |
+| `INDEX_CONFLICT` | Index plan conflict |
+| `APPROVAL_STALE` | Approval expired or no longer matches the preview |
+| `BACKUP_FAILED` | Backup creation or persistence |
+| `LOCK_NOT_ACQUIRED` | Lease lock could not be acquired |
+| `LOCK_LOST` | Lease ownership was lost during execution |
+| `APPLY_PARTIAL` | Apply changed only part of the planned scope |
+| `RESTORE_DRIFT` | Restore preview or approval no longer matches current state |
+| `RESTORE_FAILED` | Restore execution or read-back verification |
+
+See [Data Tasks](./data-tasks.md) for the preview, approval, apply, backup, and restore workflow.
+
+
+## Core runtime error object structure
 
 ```javascript
 {

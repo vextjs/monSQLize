@@ -33,7 +33,7 @@
 
 .msq-language-menu__trigger:hover,
 .msq-language-menu__trigger[aria-expanded='true'] {
-  color: var(--rp-c-brand);
+  color: var(--msq-language-active, var(--rp-c-brand-dark));
 }
 
 .msq-language-menu__trigger:focus-visible,
@@ -89,7 +89,7 @@
 .msq-language-menu__item:focus-visible,
 .msq-language-menu__item[aria-current='page'] {
   background: var(--rp-c-bg-soft);
-  color: var(--rp-c-brand);
+  color: var(--msq-language-active, var(--rp-c-brand-dark));
 }
 
 /* The accessible portals replace the default mouse-only controls in their original slots. */

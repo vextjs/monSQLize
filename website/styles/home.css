@@ -2,8 +2,9 @@
   --rp-c-brand: #10b981;
   --rp-c-brand-light: #34d399;
   --rp-c-brand-lighter: #a7f3d0;
-  --rp-c-brand-dark: #059669;
-  --rp-c-brand-darker: #047857;
+  --rp-c-brand-dark: #047857;
+  --rp-c-brand-darker: #065f46;
+  --rp-c-text-3: #4b635a;
   --rp-c-brand-tint: rgba(16, 185, 129, 0.16);
   --rp-home-hero-title-bg: linear-gradient(90deg, #19c7b6 0%, #32d583 48%, #f0b429 100%);
   --rp-home-hero-secondary-color: #32d583;
@@ -31,6 +32,8 @@
   --msq-brand-text: #123c30;
   --msq-nav-text: rgba(30, 67, 54, 0.82);
   --msq-search-bg: rgba(255, 255, 255, 0.72);
+  --msq-search-hotkey-text: #123c30;
+  --msq-language-active: #047857;
   --msq-hover-bg: rgba(255, 255, 255, 0.96);
   --msq-hero-subtitle: #173b31;
   --msq-badge-bg: rgba(255, 255, 255, 0.68);
@@ -75,6 +78,8 @@
   --msq-brand-text: #ecfdf5;
   --msq-nav-text: rgba(220, 252, 231, 0.8);
   --msq-search-bg: rgba(8, 19, 15, 0.62);
+  --msq-search-hotkey-text: #ecfdf5;
+  --msq-language-active: #6ee7b7;
   --msq-hover-bg: rgba(8, 19, 15, 0.96);
   --msq-hero-subtitle: #f8fafc;
   --msq-badge-bg: rgba(8, 19, 15, 0.72);
@@ -108,6 +113,19 @@ body {
 
 body {
   color: var(--rp-c-text-1);
+}
+
+:root:not(.rp-dark):not(.dark) .rp-sidebar-item--active > .rp-sidebar-item__left > .rp-doc {
+  color: #065f46;
+  font-weight: 600;
+}
+
+:root:not(.rp-dark):not(.dark) .rp-codeblock {
+  --shiki-token-string: #1f7a36 !important;
+}
+
+:root:not(.rp-dark):not(.dark) .rp-doc .rp-link code {
+  color: #065f46;
 }
 
 body::before {
@@ -224,6 +242,11 @@ body:not(.notTopArrived) .rp-nav.rp-nav {
 .rp-search-button {
   border-color: var(--msq-nav-border);
   background: var(--msq-search-bg);
+}
+
+.rp-search-button__hotkey,
+.rp-search-button__hotkey span {
+  color: var(--msq-search-hotkey-text);
 }
 
 .rp-hover-group {

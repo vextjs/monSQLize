@@ -537,8 +537,8 @@ const msq = new MonSQLize({
 
 **A**: There is a slight effect, but it is usually negligible.
 
-- SSH tunnel establishment time: 2-5 seconds
-- Data transfer performance loss: <5% (encryption overhead)
+- SSH tunnel establishment and transfer overhead depend on key exchange, network path, cipher, proxy hops, and workload
+- Measure connect and steady-state throughput in the deployment environment before setting timeouts or capacity budgets
 - Suitable for most application scenarios
 
 ## Q2: Are multiple SSH tunnels supported?

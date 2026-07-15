@@ -15,18 +15,20 @@
 | 命令 | 说明 |
 |------|------|
 | `npm test` | 默认统一门禁：smoke + compatibility + unit + integration；不再隐式跑 legacy compat runner 或迁移专用 runner |
-| `npm run check:docs-examples` | 文档 / 示例一致性门禁：校验 105/105 双语文档矩阵、runner 覆盖、共享示例目标、doc-check 目标和用户可见路径文本 |
-| `npm run test:coverage` | 独立覆盖率治理门禁：通过 `c8` 运行默认测试，published CJS runtime 加上 sourcemap 还原的 source-level gap coverage 的 lines / statements / functions / branches 均要求不低于 90% |
+| `npm run check:docs-examples` | 文档 / 示例一致性门禁：校验当前双语 slug 矩阵、runner 覆盖、共享示例目标、doc-check 目标和用户可见路径文本 |
+| `npm run check:lint-contract` | 证明 ESLint flat config 对代表性 JavaScript、TypeScript、声明、测试、示例与 TSX 文件真实解析和检查 |
+| `npm run check:doc-claims` / `check:error-contract` / `check:current-version` | 分别守卫数字性能证据、Data Task 错误码文档和当前 v3 / MongoDB 7.x-8.x 术语 |
+| `npm run test:coverage` | 独立 `c8 --all` 覆盖率门禁：全局四项不低于 90%，六个风险模块满足局部 floor，并清理每轮唯一临时目录 |
 | `npm run test:refactor-guard` | 热点重构三联回归：exports + runtime/model + sync |
-| `npm run test:server-matrix` | memory-server 默认矩阵（Node / Driver / MongoDB server） |
+| `npm run test:server-matrix` | Node 20/22 × Driver 6/7 × MongoDB 7/8 严格 memory-server 矩阵；复用当前 Node，Volta 只补齐缺失的 Node 20/22，数据库集成文件串行启动以避免自动端口竞争 |
 | `npm run test:real-env:private` | 私有真实环境检查；默认不进入常规 verify / CI |
-| `npm run release:preflight` | 严格单一真相源发布门禁：干净且已推送候选 + 发布元数据 + `verify:fast` + 默认测试 + coverage + examples + server matrix + dataTasks/CLI integration + audit + 临时安装 + 网站 verify + 最终 pack 边界 |
+| `npm run release:preflight` | Node 22 严格单一真相源发布门禁：干净且已推送候选 + 发布元数据 + `verify:fast` + 默认测试 + coverage + examples + server matrix + dataTasks/CLI integration + license/audit + 临时安装 + Chromium 网站 verify + 最终 pack 边界 |
 | `npm run test:pack-install` | 构建并打包候选版本，在临时消费者中安装 tarball，验证 CJS、ESM、dataTasks、schema-dsl、TypeScript、MIGRATION/SECURITY、bin、help 与 version |
-| `npm --prefix website run verify` | 使用网站锁文件验证类型、Rspress 构建、站内链接和依赖 audit |
+| `npm --prefix website run verify` | 使用网站锁文件验证类型、Rspress 构建、站内链接、构建/搜索预算、Chromium 键盘/移动/语言行为、axe WCAG A/AA 和依赖 audit |
 
 memory-server 相关入口统一使用 `.cache/mongodb-memory-server/binaries` 作为二进制缓存，`.cache/mongodb-memory-server/db` 作为项目内临时数据目录；项目自动创建的 dbPath 会在脚本退出或 runtime close 时清理，避免默认系统临时目录堆积。
 
-发布矩阵固定验证 MongoDB `7.0.37` / `8.0.26`。任一必需服务端、拓扑、Driver 或测试组合 unavailable/failed 时，`probe:server-matrix` / `test:server-matrix` 都会非零退出。
+发布矩阵固定验证 MongoDB `7.0.37` / `8.0.26`。任一必需服务端、拓扑、Driver 或测试组合 unavailable/failed 时，`probe:server-matrix` / `test:server-matrix` 都会非零退出。Volta 可用时，`test:server-matrix` 只补齐当前环境缺失的 Node 20/22，不重复当前 major。
 
 ## 运行策略
 
@@ -58,7 +60,7 @@ npm run verify:full
 - 行为变更或跨模块重构
 - 发版前的完整仓库回归
 
-`verify:full` 同时包含 `npm run test:examples`，会在矩阵门禁确认 105/105 文档覆盖后编译并执行全部 58 个 runnable examples。
+`verify:full` 同时包含 `npm run test:examples`，会在矩阵门禁确认当前双语文档覆盖后编译并执行全部 runnable examples。
 
 ### 3. 私有真实环境验证
 

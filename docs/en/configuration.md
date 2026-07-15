@@ -507,7 +507,7 @@ Transaction cache locks are process-local. For cross-instance critical sections,
 | `lockMaxDuration` | `number` | `30000` in the cache-lock manager | Process-local transaction cache-lock duration in milliseconds. |
 | `lockCleanupInterval` | `number` | `60000` in the cache-lock manager | Process-local cache-lock cleanup interval in milliseconds. |
 | `maxStatsSamples` | `number` | manager default | Maximum retained transaction statistics samples. |
-| `distributedLock` | `object` | none | Compatibility placeholder. It does not enable distributed transaction cache locks in the v2 runtime. |
+| `distributedLock` | `object` | none | Compatibility placeholder. It does not enable distributed transaction cache locks in the current v3 runtime. |
 
 ## Count queue config
 

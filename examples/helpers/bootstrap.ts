@@ -81,7 +81,7 @@ export async function setupExample(dbName = 'monsqlize-example', runtimeOptions:
         binary: { version: binaryVersion },
         instance: {
             dbName,
-            dbPath: createMemoryServerDbPath('example-single', dbName),
+            dbPath: createMemoryServerDbPath('examples-single', dbName),
             ...(launchTimeout ? { launchTimeout } : {}),
         },
     });
@@ -113,7 +113,7 @@ export async function setupReplicaSetExample(dbName = 'monsqlize-example-rs', ru
         binary: { version: binaryVersion },
         instanceOpts: [
             {
-                dbPath: createMemoryServerDbPath('example-replset', dbName),
+                dbPath: createMemoryServerDbPath('examples-replset', dbName),
                 ...(launchTimeout ? { launchTimeout } : {}),
             },
         ],

@@ -1,0 +1,11 @@
+{
+  "runtimeNode": ">=18.0.0",
+  "releaseNodeMajor": 22,
+  "majorLines": {
+    "eslint": 9,
+    "mongodb": 6,
+    "mongodb-memory-server": 10,
+    "typescript": 5
+  },
+  "majorUpgradeRule": "A major-line change that raises the Node baseline requires an independent compatibility matrix and a semver/engine decision before implementation."
+}

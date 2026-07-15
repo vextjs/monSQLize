@@ -135,7 +135,7 @@ If the business really needs to explicitly normalize the data before entering mo
 
 ## Debugging
 
-The current v2 converter does not emit per-value conversion logs. To inspect conversion behavior, use an integration test, MongoDB command monitoring, or a focused unit test around the converter.
+The current v3 converter does not emit per-value conversion logs. To inspect conversion behavior, use an integration test, MongoDB command monitoring, or a focused unit test around the converter.
 
 ## Notes
 

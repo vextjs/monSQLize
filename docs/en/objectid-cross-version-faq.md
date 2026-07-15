@@ -196,7 +196,7 @@ Based on user feedback, ObjectId conversion log:
 The converter keeps these logs off by default.
 
 
-## How to verify conversion in current v2 runtime
+## How to verify conversion in the current v3 runtime
 
 The current converter does not expose `silent` or `verbose` logging controls. If you need to debug conversion, use integration tests, MongoDB command monitoring, or focused converter unit tests.
 

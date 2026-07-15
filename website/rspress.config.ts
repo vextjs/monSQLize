@@ -338,6 +338,7 @@ const sidebarSource: SidebarGroupSource[] = [
     items: [
       { en: 'Examples', zh: '示例总览', link: '/examples' },
       { en: 'Guides', zh: '场景指南', link: '/recipes' },
+      { en: 'Performance Evidence', zh: '性能证据', link: '/performance-evidence' },
       { en: 'Upsert Guide', zh: 'Upsert 指南', link: '/upsert-guide' },
       { en: 'Quick Upsert API', zh: 'Quick Upsert API', link: '/quick-upsert' },
       { en: 'Failure Recovery Examples', zh: '失败恢复示例', link: '/failure-recovery-examples' }

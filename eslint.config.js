@@ -4,36 +4,50 @@
  */
 
 const js = require('@eslint/js');
+const tseslint = require('typescript-eslint');
+
+const javascriptFiles = ['**/*.js', '**/*.cjs', '**/*.mjs'];
+const typescriptFiles = ['src/**/*.ts', 'src/**/*.mts', 'types/**/*.d.ts', 'test/**/*.ts', 'examples/**/*.ts', 'website/**/*.ts', 'website/**/*.tsx'];
+const nodeGlobals = {
+    __dirname: 'readonly',
+    __filename: 'readonly',
+    Buffer: 'readonly',
+    console: 'readonly',
+    process: 'readonly',
+    require: 'readonly',
+    module: 'readonly',
+    exports: 'writable',
+    global: 'readonly',
+    setImmediate: 'readonly',
+    clearImmediate: 'readonly',
+    setTimeout: 'readonly',
+    clearTimeout: 'readonly',
+    setInterval: 'readonly',
+    clearInterval: 'readonly',
+    URL: 'readonly',
+    queueMicrotask: 'readonly',
+};
 
 module.exports = [
     // ESLint recommended rules.
-    js.configs.recommended,
+    {
+        ...js.configs.recommended,
+        files: javascriptFiles,
+    },
+
+    // TypeScript parser and recommended syntax-aware rules (type correctness remains owned by tsc/tsd).
+    ...tseslint.configs.recommended.map((config) => ({
+        ...config,
+        files: typescriptFiles,
+    })),
 
     // Global config.
     {
+        files: javascriptFiles,
         languageOptions: {
             ecmaVersion: 2021,
             sourceType: 'commonjs',
-            globals: {
-                // Node.js globals.
-                __dirname: 'readonly',
-                __filename: 'readonly',
-                Buffer: 'readonly',
-                console: 'readonly',
-                process: 'readonly',
-                require: 'readonly',
-                module: 'readonly',
-                exports: 'writable',
-                global: 'readonly',
-                setImmediate: 'readonly',
-                clearImmediate: 'readonly',
-                setTimeout: 'readonly',
-                clearTimeout: 'readonly',
-                setInterval: 'readonly',
-                clearInterval: 'readonly',
-                URL: 'readonly',
-                queueMicrotask: 'readonly',
-            }
+            globals: nodeGlobals,
         },
         rules: {
             // Code style.
@@ -66,6 +80,34 @@ module.exports = [
             'no-duplicate-case': 'error',
             'no-unreachable': 'error',
         }
+    },
+
+    // TypeScript project files.
+    {
+        files: typescriptFiles,
+        languageOptions: {
+            ecmaVersion: 2021,
+            sourceType: 'module',
+            globals: nodeGlobals,
+        },
+        rules: {
+            'indent': 'off',
+            'quotes': ['warn', 'single', { avoidEscape: true }],
+            'semi': ['error', 'always'],
+            'no-trailing-spaces': 'warn',
+            'no-console': 'off',
+            'prefer-const': 'warn',
+            'no-var': 'warn',
+            '@typescript-eslint/no-explicit-any': 'off',
+            '@typescript-eslint/no-empty-object-type': 'off',
+            '@typescript-eslint/no-require-imports': 'off',
+            '@typescript-eslint/no-unsafe-function-type': 'off',
+            '@typescript-eslint/no-unused-expressions': 'off',
+            '@typescript-eslint/no-unused-vars': ['warn', {
+                argsIgnorePattern: '^_',
+                varsIgnorePattern: '^_',
+            }],
+        },
     },
 
     // ESM entrypoint override.

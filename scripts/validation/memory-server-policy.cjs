@@ -2,10 +2,11 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const memoryServerPolicy = require('../../config/mongodb-memory-server.json');
 
-const DEFAULT_MEMORY_SERVER_VERSION = '7.0.37';
+const DEFAULT_MEMORY_SERVER_VERSION = memoryServerPolicy.defaultVersion;
 const DEFAULT_MEMORY_SERVER_LAUNCH_TIMEOUT_MS = 30_000;
-const MANAGED_DB_PATH_PREFIXES = ['single-', 'replset-', 'examples-single-', 'examples-replset-', 'probe-single-', 'probe-replset-'];
+const MANAGED_DB_PATH_PREFIXES = memoryServerPolicy.managedDbPathKinds.map((kind) => `${kind}-`);
 
 function isGeneratedPath(dir) {
     return dir.split(path.sep).includes('.generated');

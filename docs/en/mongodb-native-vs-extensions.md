@@ -7,7 +7,7 @@ This document provides a detailed comparison of the functional differences betwe
 | Feature Category | MongoDB Native | monSQLize | Major Enhancements |
 |---------|-------------|-----------|---------|
 | **Query operation** | | | Smart cache, cursor paging, slow query log |
-| **INSERT OPERATION** | | | High performance batch insert (10-50x), slow query monitoring |
+| **INSERT OPERATION** | | | Batched inserts with configurable chunking and slow-query monitoring |
 | **Update operation** | | | Explicit cache invalidation, complete error handling |
 | **Delete operation** | | | Explicit cache invalidation, slow query monitoring |
 | **Aggregation operation** | | | Cache support, streaming processing |
@@ -82,13 +82,13 @@ const db = client.db('shop');
 const products = await db.collection('products').find({
   category: 'electronics'
 }).toArray();
-//Time consumption: ~10-50ms
+//Latency depends on the query, indexes, dataset, server, and network.
 
 //Query again: still query the database
 const products2 = await db.collection('products').find({
   category: 'electronics'
 }).toArray();
-//Time taken: ~10-50ms (no caching)
+//This still performs a database round trip.
 ```
 
 
@@ -100,14 +100,14 @@ const products = await collection('products').find(
   { category: 'electronics' },
   { cache: 5000 }  //Cache for 5 seconds
 );
-//The 1st time: Querying the database takes ~10-50ms
+//The first call queries the database and populates the configured cache.
 
 //Query again: return from cache
 const products2 = await collection('products').find(
   { category: 'electronics' },
   { cache: 5000 }
 );
-//Time 2: Returning from cache, takes ~0.001ms (1000x faster)
+//The second call can return from cache while the entry remains valid.
 ```
 
 
@@ -124,7 +124,7 @@ const products2 = await collection('products').find(
 
 **Detailed documentation**: [Cache system](./cache.md)
 
-**Performance improvement**: Speed increase when cache hits **1000x** (10-50ms → 0.001ms)
+**Performance note**: A cache hit avoids the database query, but the resulting latency depends on serialization, cache tier, payload size, network placement, and contention. Measure the workload you deploy; see [Performance evidence](./performance-evidence.md).
 
 ---
 
@@ -272,18 +272,19 @@ const page1000 = await collection('products').findPage(
 
 // Performance:
 // - Skip through bookmarks to avoid scanning large amounts of data
-// - Stable deep-paging performance (~10-20ms)
+// - Bounded bookmark hops when the configured bookmark is available
 // - Data changes do not affect existing pages (the cursor locks the data set at query time)
 ```
 
 **Performance comparison**:
 
-| Number of pages | skip + limit | monSQLize cursor paging | Performance improvement |
-|------|-------------|-------------------|---------|
-| Page 1 | 10ms | 10ms | 1x |
-| Page 100 | 50ms | 12ms | **4x** |
-| Page 1000 | 500ms | 15ms | **33x** |
-| Page 10000 | 5000ms | 20ms | **250x** |
+| Scenario | `skip + limit` | monSQLize cursor paging |
+|------|-------------|-------------------|
+| Shallow page | Simple and usually sufficient | Adds cursor/bookmark state |
+| Deep sequential paging | Server work can grow with the skipped offset | Continues from a cursor boundary |
+| Deep page jump | Cost depends on the offset and query plan | Uses configured bookmarks and bounded hops when a bookmark is available |
+
+Do not treat these characteristics as fixed speedups. Benchmark the actual indexes, selectivity, document size, page depth, concurrency, and MongoDB deployment; see [Performance evidence](./performance-evidence.md).
 
 
 ## Comparison of paging features
@@ -530,8 +531,7 @@ const documents = Array.from({ length: 10000 }, (_, i) => ({
 
 //One-time insert (may timeout or run out of memory)
 const result = await db.collection('products').insertMany(documents);
-//Performance: ~2000ms
-//Risk: Large batches may timeout or memory overflow
+//Latency and memory use depend on payload size and deployment limits.
 ```
 
 
@@ -547,24 +547,25 @@ const documents = Array.from({ length: 10000 }, (_, i) => ({
 
 //Standard insertMany (performance optimized)
 const result = await collection('products').insertMany(documents);
-//Performance: ~100ms (10-50x faster than native)
+//Uses the package write path; benchmark it against the same driver options.
 
 //Very large batches: use insertBatch (automatic batching)
 const result2 = await collection('products').insertBatch(documents, {
   batchSize: 1000  //1000 pieces per batch
 });
-//Performance: ~200ms (more stable, no risk of timeout)
+//Limits each batch; failures and timeouts are still possible and must be handled.
 ```
 
 
-## Batch insert performance comparison
+## Batch insert trade-offs
 
-| Quantity | MongoDB native | monSQLize insertMany | monSQLize insertBatch |
+| Scenario | MongoDB driver `insertMany` | monSQLize `insertMany` | monSQLize `insertBatch` |
 |------|-------------|---------------------|----------------------|
-| 100 | 20ms | 2ms (**10x**) | 5ms |
-| 1,000 | 200ms | 10ms (**20x**) | 20ms |
-| 10,000 | 2000ms | 100ms (**20x**) | 200ms |
-| 100,000 | Timeout | 1000ms | 2000ms (batch safe) |
+| Fits one request comfortably | Direct driver path | Package write path with its validation and hooks | Extra batching overhead is usually unnecessary |
+| Large or bounded requests | Caller chooses the chunking strategy | One package-level request | Configurable batches bound work per request |
+| Failure handling | Driver result and errors | Package result and errors | Per-batch policy and partial-result handling |
+
+Chunking improves control over request size; it does not guarantee a universal throughput gain. Benchmark identical write concern, ordered mode, indexes, document sizes, and concurrency; see [Performance evidence](./performance-evidence.md).
 
 **Detailed documentation**: [insertMany guide](./insert-many.md), [insertBatch guide](./insertBatch.md)
 
@@ -580,7 +581,7 @@ const result2 = await collection('products').insertBatch(documents, {
 const products = await db.collection('products').find({
   category: 'electronics'
 }).toArray();
-//Time consumption: ~10-50ms (check the database every time)
+//Every call reaches the database; latency is workload-dependent.
 ```
 
 
@@ -600,29 +601,31 @@ const msq = new MonSQLize({
   }
 });
 
-//The 1st time: query MongoDB (10-50ms) → store locally + Redis
+//The first call queries MongoDB and populates the configured tiers.
 const products1 = await collection('products').find(
   { category: 'electronics' },
   { cache: 10000 }
 );
 
-//Time 2: Local cache hit (0.001ms)
+//The second call can hit the process-local cache.
 const products2 = await collection('products').find(
   { category: 'electronics' },
   { cache: 10000 }
 );
 
-//If local cache expires but Redis still exists → read from Redis (1-2ms)
+//If the local entry expires while Redis remains valid, read from Redis.
 ```
 
 
-## Multi-layer cache performance comparison
+## Multi-layer cache performance characteristics
 
-| Cache layer | Hit time | Performance improvement |
+| Cache layer | Main cost factors | Expected boundary |
 |--------|---------|---------|
-| **Database Query** | 10-50ms | Benchmark |
-| **Redis cache** | 1-2ms | **10-50x** |
-| **Local Cache** | 0.001ms | **10000-50000x** |
+| **Database query** | Query plan, indexes, storage, server load, and network | Authoritative data path |
+| **Redis cache** | Network, serialization, payload size, Redis load, and topology | Avoids the MongoDB query but still performs a remote call |
+| **Local cache** | Serialization, payload size, eviction, and process load | Avoids network calls within the current process |
+
+Compare these paths with the same payload and concurrency in your deployment; see [Performance evidence](./performance-evidence.md).
 
 
 ## Comparison of multi-layer cache features
@@ -777,9 +780,9 @@ msq.on('error', (data) => {
 | Dimensions | MongoDB native | monSQLize | Boost |
 |------|-------------|-----------|------|
 | **Functional Completeness** |  |  | 100% Compatible + Extensions |
-| **Performance (No Cache)** |  |  | Bulk Inserts 10-50x |
-| **Performance (With Cache)** | ☆☆☆☆ |  | Cache Hits 1000x |
-| **Deep Paging** | ☆☆☆ |  | Deep Paging 250x |
+| **Performance (No Cache)** |  |  | Configurable write batching |
+| **Performance (With Cache)** | ☆☆☆☆ |  | Local and remote cache tiers |
+| **Deep Paging** | ☆☆☆ |  | Cursor and bookmark strategies |
 | **Ease of Use** |  |  | Simpler API |
 | **Maintainability** |  |  | Explicit cache invalidation |
 | **Observability** | ☆☆☆ |  | Out-of-the-box monitoring |

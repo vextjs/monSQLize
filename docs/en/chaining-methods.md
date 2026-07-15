@@ -140,7 +140,7 @@ const stream = collection('orders')
 
 ## Complete comparison table
 
-| Method | MongoDB native support | monSQLize v2.0 | Description |
+| Method | MongoDB native support | monSQLize v3 | Description |
 |------|-----------------|----------------|------|
 | `.limit()` | ✅ | ✅ | Fully supported |
 | `.skip()` | ✅ | ✅ | Fully supported |
@@ -160,7 +160,7 @@ const stream = collection('orders')
 | `.next()` | ✅ | ❌ | Not supported (conflicts with cache architecture) |
 | `.close()` | ✅ | ❌ | Not required (automatic management) |
 
-**Summary**: monSQLize v2.0 now supports **most** MongoDB native chaining methods (12/17), covering 99% of daily usage scenarios.
+**Summary**: monSQLize v3 supports the 12 chaining methods listed above. Use the table as the capability contract; application coverage depends on the query patterns your service uses.
 
 ---
 
